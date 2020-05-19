@@ -2064,12 +2064,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f65877bf7d44897a473350b1046277941cee20b263397e90869c50b6e766088b"
 
 [[package]]
-name = "interleaved-ordered"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "141340095b15ed7491bd3d4ced9d20cebfb826174b6bb03386381f62b01e3d77"
-
-[[package]]
 name = "intervalier"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2280,7 +2274,7 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "cli-utils",
@@ -2345,6 +2339,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
+ "static_assertions",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",
@@ -2361,16 +2356,6 @@ dependencies = [
 
 [[package]]
 name = "kvdb"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cad096c6849b2ef027fabe35c4aed356d0e3d3f586d0a8361e5e17f1e50a7ce5"
-dependencies = [
- "parity-util-mem",
- "smallvec 1.4.0",
-]
-
-[[package]]
-name = "kvdb"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e763b2a9b500ba47948061d1e8bc3b5f03a8a1f067dbcf822a4d2c84d2b54a3a"
@@ -2381,43 +2366,13 @@ dependencies = [
 
 [[package]]
 name = "kvdb-memorydb"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4aa954d12cfac958822dfd77aab34f3eec71f103b918c4ab79ab59a36ee594ea"
-dependencies = [
- "kvdb 0.5.0",
- "parity-util-mem",
- "parking_lot 0.10.2",
-]
-
-[[package]]
-name = "kvdb-memorydb"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73027d5e228de6f503b5b7335d530404fc26230a6ae3e09b33ec6e45408509a4"
 dependencies = [
- "kvdb 0.6.0",
+ "kvdb",
  "parity-util-mem",
  "parking_lot 0.10.2",
-]
-
-[[package]]
-name = "kvdb-rocksdb"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b3f14c3a10c8894d26175e57e9e26032e6d6c49c30cbe2468c5bf5f6b64bb0be"
-dependencies = [
- "fs-swap",
- "interleaved-ordered",
- "kvdb 0.5.0",
- "log 0.4.8",
- "num_cpus",
- "owning_ref",
- "parity-util-mem",
- "parking_lot 0.10.2",
- "regex",
- "rocksdb 0.13.0",
- "smallvec 1.4.0",
 ]
 
 [[package]]
@@ -2427,14 +2382,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "84384eca250c7ff67877eda5336f28a86586aaee24acb945643590671f6bfce1"
 dependencies = [
  "fs-swap",
- "kvdb 0.6.0",
+ "kvdb",
  "log 0.4.8",
  "num_cpus",
  "owning_ref",
  "parity-util-mem",
  "parking_lot 0.10.2",
  "regex",
- "rocksdb 0.14.0",
+ "rocksdb",
  "smallvec 1.4.0",
 ]
 
@@ -2446,8 +2401,8 @@ checksum = "6c7f36acb1841d4c701d30ae1f2cfd242e805991443f75f6935479ed3de64903"
 dependencies = [
  "futures 0.3.5",
  "js-sys",
- "kvdb 0.6.0",
- "kvdb-memorydb 0.6.0",
+ "kvdb",
+ "kvdb-memorydb",
  "log 0.4.8",
  "parity-util-mem",
  "send_wrapper 0.3.0",
@@ -3926,7 +3881,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "2.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#5f670a6e077f981090cf9d78bcf8394a8d7e91ca"
+source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#627aa697cbcebbe0e16d54c994ba0d651fc10d87"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -4322,7 +4277,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "assert_cmd",
  "futures 0.3.5",
@@ -4335,14 +4290,14 @@ dependencies = [
 
 [[package]]
 name = "polkadot-availability-store"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "derive_more 0.99.7",
  "exit-future",
  "futures 0.3.5",
- "kvdb 0.5.0",
- "kvdb-memorydb 0.5.0",
- "kvdb-rocksdb 0.7.0",
+ "kvdb",
+ "kvdb-memorydb",
+ "kvdb-rocksdb",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.9.0",
@@ -4361,7 +4316,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.5",
@@ -4385,7 +4340,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-collator"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 2.0.2",
@@ -4412,7 +4367,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "derive_more 0.15.0",
  "parity-scale-codec",
@@ -4424,7 +4379,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "arrayvec 0.4.12",
  "bytes 0.5.4",
@@ -4473,7 +4428,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "derive_more 0.99.7",
  "log 0.4.8",
@@ -4492,7 +4447,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -4514,18 +4469,24 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "polkadot-primitives",
  "sc-client-api",
+ "sc-consensus-babe",
+ "sc-consensus-babe-rpc",
+ "sc-consensus-epochs",
  "sc-finality-grandpa",
  "sc-finality-grandpa-rpc",
+ "sc-keystore",
  "sc-rpc",
  "sp-api",
  "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
@@ -4533,7 +4494,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "cli-utils",
@@ -4595,6 +4556,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
+ "static_assertions",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "trie-db",
@@ -4602,7 +4564,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4644,7 +4606,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -4703,7 +4665,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -4712,7 +4674,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4788,7 +4750,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-validation"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "derive_more 0.14.1",
@@ -5437,16 +5399,6 @@ checksum = "cabe4fa914dec5870285fa7f71f602645da47c486e68486d2b4ceb4a343e90ac"
 
 [[package]]
 name = "rocksdb"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12069b106981c6103d3eab7dd1c86751482d0779a520b7c14954c8b586c1e643"
-dependencies = [
- "libc",
- "librocksdb-sys",
-]
-
-[[package]]
-name = "rocksdb"
 version = "0.14.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61aa17a99a2413cd71c1106691bf59dad7de0cd5099127f90e9d99c429c40d4a"
@@ -5711,7 +5663,7 @@ dependencies = [
  "futures 0.3.5",
  "hash-db",
  "hex-literal",
- "kvdb 0.6.0",
+ "kvdb",
  "lazy_static",
  "log 0.4.8",
  "parity-scale-codec",
@@ -5744,9 +5696,9 @@ source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#
 dependencies = [
  "blake2-rfc",
  "hash-db",
- "kvdb 0.6.0",
- "kvdb-memorydb 0.6.0",
- "kvdb-rocksdb 0.8.0",
+ "kvdb",
+ "kvdb-memorydb",
+ "kvdb-rocksdb",
  "linked-hash-map",
  "log 0.4.8",
  "parity-db",
@@ -5817,6 +5769,28 @@ dependencies = [
  "sp-timestamp",
  "sp-version",
  "substrate-prometheus-endpoint",
+]
+
+[[package]]
+name = "sc-consensus-babe-rpc"
+version = "0.8.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#627aa697cbcebbe0e16d54c994ba0d651fc10d87"
+dependencies = [
+ "derive_more 0.99.7",
+ "futures 0.3.5",
+ "jsonrpc-core",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "sc-consensus-babe",
+ "sc-consensus-epochs",
+ "sc-keystore",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5989,7 +5963,7 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa-rpc"
 version = "0.8.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#5f670a6e077f981090cf9d78bcf8394a8d7e91ca"
+source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#627aa697cbcebbe0e16d54c994ba0d651fc10d87"
 dependencies = [
  "derive_more 0.99.7",
  "finality-grandpa",
@@ -6997,7 +6971,7 @@ name = "sp-database"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#5f670a6e077f981090cf9d78bcf8394a8d7e91ca"
 dependencies = [
- "kvdb 0.6.0",
+ "kvdb",
  "parking_lot 0.10.2",
 ]
 
@@ -7498,7 +7472,7 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "2.0.0-dev"
-source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#5f670a6e077f981090cf9d78bcf8394a8d7e91ca"
+source = "git+https://github.com/paritytech/substrate?branch=seun-sc-cli-subkey#627aa697cbcebbe0e16d54c994ba0d651fc10d87"
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures 0.3.5",
@@ -7842,7 +7816,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -7881,7 +7855,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -8736,7 +8710,7 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.7.33"
+version = "0.7.34-dev"
 dependencies = [
  "bitvec",
  "cli-utils",

@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.7.33"
+version = "0.7.34-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -11,9 +11,15 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "seu
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"}
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"}
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"}
 sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey" }
 sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"}
 txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey" }
 frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey"  }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey" }

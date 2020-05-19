@@ -448,7 +448,8 @@ impl cli_utils::RuntimeAdapter for Runtime {
 		let tip = 0;
 		(
 			RestrictFunctionality,
-			system::CheckVersion::<Runtime>::new(),
+			system::CheckSpecVersion::<Runtime>::new(),
+			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
 			system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
 			system::CheckNonce::<Runtime>::from(nonce),
@@ -654,7 +655,8 @@ pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
 	RestrictFunctionality,
-	system::CheckVersion<Runtime>,
+	system::CheckSpecVersion<Runtime>,
+	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
 	system::CheckEra<Runtime>,
 	system::CheckNonce<Runtime>,
