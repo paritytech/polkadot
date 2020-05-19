@@ -42,10 +42,14 @@ use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
 use log::{info, debug, warn, trace};
 use sp_api::{ApiExt, ProvideRuntimeApi};
+use prometheus_endpoint::Registry as PrometheusRegistry;
+use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
 
-use crate::validation_service::ServiceHandle;
-use crate::dynamic_inclusion::DynamicInclusion;
-use crate::Error;
+use crate::{
+	Error,
+	dynamic_inclusion::DynamicInclusion,
+	validation_service::ServiceHandle,
+};
 
 // block size limit.
 pub(crate) const MAX_TRANSACTIONS_SIZE: usize = 4 * 1024 * 1024;
@@ -57,6 +61,7 @@ pub struct ProposerFactory<Client, TxPool, Backend> {
 	service_handle: ServiceHandle,
 	babe_slot_duration: u64,
 	backend: Arc<Backend>,
+	metrics: PrometheusMetrics,
 }
 
 impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
@@ -67,6 +72,7 @@ impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 		service_handle: ServiceHandle,
 		babe_slot_duration: u64,
 		backend: Arc<Backend>,
+		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		ProposerFactory {
 			client,
@@ -74,6 +80,7 @@ impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 			service_handle: service_handle,
 			babe_slot_duration,
 			backend,
+			metrics: PrometheusMetrics::new(prometheus),
 		}
 	}
 }
@@ -109,6 +116,7 @@ where
 		let transaction_pool = self.transaction_pool.clone();
 		let backend = self.backend.clone();
 		let slot_duration = self.babe_slot_duration.clone();
+		let metrics = self.metrics.clone();
 
 		let maybe_proposer = self.service_handle
 			.clone()
@@ -120,6 +128,7 @@ where
 				transaction_pool,
 				slot_duration,
 				backend,
+				metrics,
 			})));
 
 		Box::pin(maybe_proposer)
@@ -134,6 +143,7 @@ pub struct Proposer<Client, TxPool, Backend> {
 	transaction_pool: Arc<TxPool>,
 	slot_duration: u64,
 	backend: Arc<Backend>,
+	metrics: PrometheusMetrics,
 }
 
 impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, TxPool, Backend> where
@@ -175,8 +185,10 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		let transaction_pool = self.transaction_pool.clone();
 		let table = self.tracker.table().clone();
 		let backend = self.backend.clone();
+		let metrics = self.metrics.clone();
 
 		async move {
+			let block_timer = metrics.report(|metrics| metrics.block_constructed.start_timer());
 			let enough_candidates = dynamic_inclusion.acceptable_in(
 				now,
 				initial_included,
@@ -214,11 +226,18 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 
 			Delay::new(enough_candidates).await;
 
-			tokio::task::spawn_blocking(move || {
-				let proposed_candidates = table.proposed_set();
-				data.propose_with(proposed_candidates)
-			})
-				.await?
+			let result = tokio::task::spawn_blocking(
+				move || {
+					let proposed_candidates = table.proposed_set();
+					data.propose_with(proposed_candidates)
+				}
+			).await?;
+
+			drop(block_timer);
+			let transactions = result.as_ref().map(|proposal| proposal.block.extrinsics.len()).unwrap_or_default();
+			metrics.report(|metrics| metrics.number_of_transactions.set(transactions as u64));
+
+			result
 		}.boxed()
 	}
 }
