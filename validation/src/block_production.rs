@@ -186,9 +186,9 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		let table = self.tracker.table().clone();
 		let backend = self.backend.clone();
 		let metrics = self.metrics.clone();
-		let block_timer = metrics.report(|metrics| metrics.block_constructed.start_timer());
 
 		async move {
+			let block_timer = metrics.report(|metrics| metrics.block_constructed.start_timer());
 			let enough_candidates = dynamic_inclusion.acceptable_in(
 				now,
 				initial_included,
@@ -234,9 +234,9 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			).await?;
 
 			drop(block_timer);
-			if let Ok(proposal) = result.as_ref() {
-				metrics.report(|metrics| metrics.number_of_transactions.set(proposal.block.extrinsics.len() as u64));
-			}
+			let transactions = result.as_ref().map(|proposal| proposal.block.extrinsics.len()).unwrap_or_default();
+			metrics.report(|metrics| metrics.number_of_transactions.set(transactions as u64));
+
 			result
 		}.boxed()
 	}
