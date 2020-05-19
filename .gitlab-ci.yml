@@ -79,6 +79,7 @@ check-labels:
     - /^[0-9]+$/
   script:
     - ./scripts/gitlab/check_tags.sh
+  allow_failure:                   true
 
 #### stage:                        test
 
