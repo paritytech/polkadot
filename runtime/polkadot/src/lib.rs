@@ -378,6 +378,7 @@ impl democracy::Trait for Runtime {
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type MaxVotes = MaxVotes;
+	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 }
 
 parameter_types! {
