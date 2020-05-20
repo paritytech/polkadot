@@ -213,7 +213,7 @@ macro_rules! new_full_start {
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
-			.with_rpc_extensions(|builder| {
+			.with_rpc_extensions_builder(|builder| {
 				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
 					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
 
@@ -610,26 +610,17 @@ macro_rules! new_light {
 			})?
 			.with_rpc_extensions(|builder| {
 				let fetcher = builder.fetcher()
-					.ok_or_else(|| "Trying to start node RPC without active fetcher")?
-					.clone();
-
+					.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
 				let remote_blockchain = builder.remote_backend()
-					.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?
-					.clone();
+					.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
 
-				let client = builder.client().clone();
-				let pool = builder.pool().clone();
-
-				Ok(move |_| -> polkadot_rpc::RpcExtension {
-					let light_deps = polkadot_rpc::LightDeps {
-						remote_blockchain: remote_blockchain.clone(),
-						fetcher: fetcher.clone(),
-						client: client.clone(),
-						pool: pool.clone(),
-					};
-
-					polkadot_rpc::create_light(light_deps)
-				})
+				let light_deps = polkadot_rpc::LightDeps {
+					remote_blockchain,
+					fetcher,
+					client: builder.client().clone(),
+					pool: builder.pool(),
+				};
+				Ok(polkadot_rpc::create_light(light_deps))
 			})?
 			.build()
 	}}
