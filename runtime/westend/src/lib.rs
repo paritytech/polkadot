@@ -85,7 +85,10 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	authoring_version: 2,
 	spec_version: 10,
 	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: version::create_apis_vec![[]],
 	transaction_version: 1,
 };
 
@@ -666,6 +669,7 @@ pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<R
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
+#[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
