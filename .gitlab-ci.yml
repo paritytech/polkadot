@@ -69,17 +69,6 @@ variables:
     - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
     - /^[0-9]+$/
 
-#### stage:                       .pre
-
-check-labels:
-  stage:                          .pre
-  image:                          parity/tools:latest
-  <<:                             *kubernetes-env
-  only:
-    - /^[0-9]+$/
-  script:
-    - ./scripts/gitlab/check_tags.sh
-
 #### stage:                        test
 
 check-runtime:
@@ -286,3 +275,14 @@ deploy-polkasync-kusama:
     POLKADOT_CI_COMMIT_REF:        "${CI_COMMIT_REF}"
   allow_failure:                   true
   trigger:                         "parity/infrastructure/parity-testnet"
+
+#### stage:                       .post
+
+check-labels:
+  stage:                          .post
+  image:                          parity/tools:latest
+  <<:                             *kubernetes-env
+  only:
+    - /^[0-9]+$/
+  script:
+    - ./scripts/gitlab/check_tags.sh
