@@ -19,7 +19,6 @@
 use sp_std::prelude::*;
 use sp_std::result;
 use codec::{Decode, Encode};
-use sp_core::sr25519;
 use sp_runtime::{
 	KeyTypeId, Perbill, RuntimeDebug,
 	traits::{
@@ -41,13 +40,12 @@ use frame_support::{
 use primitives::{
 	Balance,
 	BlockNumber,
-	Signature,
 	parachain::{
 		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode, FishermanId,
+		ValidatorSignature, SigningContext, HeadData, ValidationCode,
 	},
 	Remark, DownwardMessage
 };
@@ -55,10 +53,7 @@ use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
-use sp_runtime::{
-	transaction_validity::InvalidTransaction,
-	traits::Verify,
-};
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
@@ -68,14 +63,6 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-
-// An `AppCrypto` type to facilitate submitting signed transactions.
-pub struct FishermanAuthorityId;
-impl system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAuthorityId {
-	type RuntimeAppPublic = FishermanId;
-	type GenericSignature = sr25519::Signature;
-	type GenericPublic = sp_core::sr25519::Public;
-}
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -254,14 +241,14 @@ impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	}
 }
 
-/// A trait to get a session number the `Proof` belongs to.
+/// A trait to get a session number the `MembershipProof` belongs to.
 pub trait GetSessionNumber {
 	fn session(&self) -> SessionIndex;
 }
 
-impl GetSessionNumber for session::historical::Proof {
+impl GetSessionNumber for sp_session::MembershipProof {
 	fn session(&self) -> SessionIndex {
-		self.session()
+		self.session
 	}
 }
 
@@ -726,12 +713,10 @@ decl_module! {
 			remark: Remark,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to)? as usize;
+			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
 			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, "Downward queue full");
 			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
-			// Really shouldn't fail since decode_len worked above. We can't reorder, so we will
-			// just have to suck up any errors.
-			let _ = DownwardMessageQueue::<T>::append(to, &[DownwardMessage::TransferInto(who, amount, remark)][..]);
+			DownwardMessageQueue::<T>::append(to, DownwardMessage::TransferInto(who, amount, remark));
 			Ok(())
 		}
 	}
@@ -968,9 +953,9 @@ impl<T: Trait> Module<T> {
 				*len += upward_messages.iter()
 					.fold(0, |a, x| a + x.data.len()) as u32;
 			});
-			// Should never be able to fail assuming our state is uncorrupted, but best not
-			// to panic, even if it does.
-			let _ = RelayDispatchQueue::append(id, upward_messages);
+
+			upward_messages.iter().for_each(|m| RelayDispatchQueue::append(id, m));
+
 			if let Err(i) = ordered_needs_dispatch.binary_search(&id) {
 				// same.
 				ordered_needs_dispatch.insert(i, id);
@@ -1311,7 +1296,7 @@ impl<T: Trait> Module<T> {
 			);
 
 			ensure!(
-				schedule.max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				schedule.max_head_data_size as usize >= candidate.candidate().head_data.0.len(),
 				Error::<T>::HeadDataTooLarge,
 			);
 
@@ -2051,7 +2036,7 @@ mod tests {
 	}
 
 	fn report_double_vote(
-		report: DoubleVoteReport<session::historical::Proof>,
+		report: DoubleVoteReport<sp_session::MembershipProof>,
 	) -> Result<ParachainsCall<Test>, TransactionValidityError> {
 		let inner = ParachainsCall::report_double_vote(report);
 		let call = Call::Parachains(inner.clone());

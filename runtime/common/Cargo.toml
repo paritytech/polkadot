@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.7.32"
+version = "0.7.34-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -17,6 +17,7 @@ inherents = { package = "sp-inherents", git = "https://github.com/paritytech/sub
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 
@@ -67,6 +68,7 @@ std = [
 	"authorship/std",
 	"balances/std",
 	"sp-runtime/std",
+	"sp-session/std",
 	"sp-staking/std",
 	"session/std",
 	"staking/std",

@@ -28,7 +28,7 @@ use sp_core::traits::CallInWasm;
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
-#[cfg(not(target_os = "unknown"))]
+#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
 
 mod validation_host;
@@ -37,19 +37,25 @@ mod validation_host;
 const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 
-/// A stub validation-pool defined when compiling for WASM.
-#[cfg(target_os = "unknown")]
+/// A stub validation-pool defined when compiling for Android or WASM.
+#[cfg(any(target_os = "android", target_os = "unknown"))]
 #[derive(Clone)]
 pub struct ValidationPool {
 	_inner: (), // private field means not publicly-instantiable
 }
 
-#[cfg(target_os = "unknown")]
+#[cfg(any(target_os = "android", target_os = "unknown"))]
 impl ValidationPool {
 	/// Create a new `ValidationPool`.
 	pub fn new() -> Self {
 		ValidationPool { _inner: () }
 	}
+}
+
+/// A stub function defined when compiling for Android or WASM.
+#[cfg(any(target_os = "android", target_os = "unknown"))]
+pub fn run_worker(_: &str) -> Result<(), String> {
+	Err("Cannot run validation worker on this platform".to_string())
 }
 
 /// WASM code execution mode.
@@ -89,7 +95,7 @@ pub enum Error {
 	#[display(fmt = "WASM worker error: {}", _0)]
 	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
-	#[cfg(not(target_os = "unknown"))]
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	SharedMem(shared_memory::SharedMemError),
 }
 
@@ -99,7 +105,7 @@ impl std::error::Error for Error {
 			Error::WasmExecutor(ref err) => Some(err),
 			Error::Io(ref err) => Some(err),
 			Error::System(ref err) => Some(&**err),
-			#[cfg(not(target_os = "unknown"))]
+			#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 			Error::SharedMem(ref err) => Some(err),
 			_ => None,
 		}
@@ -118,20 +124,20 @@ pub fn validate_candidate(
 		ExecutionMode::Local => {
 			validate_candidate_internal(validation_code, &params.encode())
 		},
-		#[cfg(not(target_os = "unknown"))]
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::Remote(pool) => {
 			pool.validate_candidate(validation_code, params, false)
 		},
-		#[cfg(not(target_os = "unknown"))]
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::RemoteTest(pool) => {
 			pool.validate_candidate(validation_code, params, true)
 		},
-		#[cfg(target_os = "unknown")]
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		ExecutionMode::Remote(pool) =>
 			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
 				"Remote validator not available".to_string()
 			) as Box<_>)),
-		#[cfg(target_os = "unknown")]
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		ExecutionMode::RemoteTest(pool) =>
 			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
 				"Remote validator not available".to_string()

@@ -566,7 +566,7 @@ mod tests {
 		impl_outer_origin, assert_ok, assert_noop, parameter_types,
 		traits::{OnInitialize, OnFinalize},
 	};
-	use frame_support::traits::Contains;
+	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
 	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
@@ -644,6 +644,10 @@ mod tests {
 		fn sorted_members() -> Vec<u64> { vec![] }
 		#[cfg(feature = "runtime-benchmarks")]
 		fn add(_: &u64) { unimplemented!() }
+	}
+	impl ContainsLengthBound for Nobody {
+		fn min_len() -> usize { 0 }
+		fn max_len() -> usize { 0 }
 	}
 	impl treasury::Trait for Test {
 		type Currency = balances::Module<Test>;

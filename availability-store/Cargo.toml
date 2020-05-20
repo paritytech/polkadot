@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-availability-store"
 description = "Persistent database for parachain data"
-version = "0.7.32"
+version = "0.7.34-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -23,8 +23,8 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkc
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
-kvdb = "0.5.0"
-kvdb-memorydb = "0.5.0"
+kvdb = "0.6.0"
+kvdb-memorydb = "0.6.0"
 
 [target.'cfg(not(target_os = "unknown"))'.dependencies]
-kvdb-rocksdb = "0.7.0"
+kvdb-rocksdb = "0.8.0"

@@ -26,7 +26,7 @@ use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError, ServiceBuilder};
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider, SharedVoterState};
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
@@ -45,7 +45,7 @@ pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
-#[cfg(not(target_os = "unknown"))]
+#[cfg(feature = "full-node")]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
@@ -80,6 +80,7 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
+	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
@@ -99,6 +100,7 @@ where
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
+	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
@@ -151,6 +153,7 @@ macro_rules! new_full_start {
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
+		let mut rpc_setup = None;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
@@ -163,7 +166,14 @@ macro_rules! new_full_start {
 				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
 				Ok(pool)
 			})?
-			.with_import_queue(|config, client, mut select_chain, _, spawn_task_handle| {
+			.with_import_queue(|
+				config,
+				client,
+				mut select_chain,
+				_,
+				spawn_task_handle,
+				registry,
+			| {
 				let select_chain = select_chain.take()
 					.ok_or_else(|| service::Error::SelectChainRequired)?;
 
@@ -189,7 +199,6 @@ macro_rules! new_full_start {
 					client.clone(),
 				)?;
 
-				let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
 				let import_queue = babe::import_queue(
 					babe_link.clone(),
 					block_import.clone(),
@@ -197,17 +206,40 @@ macro_rules! new_full_start {
 					None,
 					client,
 					inherent_data_providers.clone(),
-					spawner,
+					spawn_task_handle,
+					registry,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
 				Ok(import_queue)
 			})?
 			.with_rpc_extensions(|builder| -> Result<polkadot_rpc::RpcExtension, _> {
-				Ok(polkadot_rpc::create_full(builder.client().clone(), builder.pool()))
+				let babe_link = import_setup.as_ref().map(|s| &s.2)
+					.expect("BabeLink is present for full services or set up faile; qed.");
+				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
+					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
+				let shared_authority_set = grandpa_link.shared_authority_set();
+				let shared_voter_state = SharedVoterState::empty();
+				let deps = polkadot_rpc::FullDeps {
+					client: builder.client().clone(),
+					pool: builder.pool(),
+					select_chain: builder.select_chain().cloned()
+						.expect("SelectChain is present for full services or set up failed; qed."),
+					babe: polkadot_rpc::BabeDeps {
+						keystore: builder.keystore(),
+						babe_config: babe::BabeLink::config(babe_link).clone(),
+						shared_epoch_changes: babe::BabeLink::epoch_changes(babe_link).clone(),
+					},
+					grandpa: polkadot_rpc::GrandpaDeps {
+						shared_voter_state: shared_voter_state.clone(),
+						shared_authority_set: shared_authority_set.clone(),
+					},
+				};
+				rpc_setup = Some((shared_voter_state));
+				Ok(polkadot_rpc::create_full(deps))
 			})?;
 
-		(builder, import_setup, inherent_data_providers)
+		(builder, import_setup, inherent_data_providers, rpc_setup)
 	}}
 }
 
@@ -242,7 +274,8 @@ macro_rules! new_full {
 		let authority_discovery_enabled = $authority_discovery_enabled;
 		let slot_duration = $slot_duration;
 
-		let (builder, mut import_setup, inherent_data_providers) = new_full_start!($config, $runtime, $dispatch);
+		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
+			new_full_start!($config, $runtime, $dispatch);
 
 		let backend = builder.backend().clone();
 
@@ -255,6 +288,9 @@ macro_rules! new_full {
 
 		let (block_import, link_half, babe_link) = import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+		let shared_voter_state = rpc_setup.take()
+			.expect("The SharedVoterState is present for Full Services or setup failed before. qed");
 
 		let client = service.client();
 		let known_oracle = client.clone();
@@ -471,6 +507,7 @@ macro_rules! new_full {
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 				voting_rule,
 				prometheus_registry: service.prometheus_registry(),
+				shared_voter_state,
 			};
 
 			service.spawn_essential_task(
@@ -510,7 +547,16 @@ macro_rules! new_light {
 				);
 				Ok(pool)
 			})?
-			.with_import_queue_and_fprb(|_config, client, backend, fetcher, _select_chain, _, spawn_task_handle| {
+			.with_import_queue_and_fprb(|
+				_config,
+				client,
+				backend,
+				fetcher,
+				_select_chain,
+				_,
+				spawn_task_handle,
+				registry,
+			| {
 				let fetch_checker = fetcher
 					.map(|fetcher| fetcher.checker().clone())
 					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
@@ -528,7 +574,6 @@ macro_rules! new_light {
 					client.clone(),
 				)?;
 
-				let spawner = |future| spawn_task_handle.spawn_blocking("importe-queue-worker", future);
 				// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
 				let import_queue = babe::import_queue(
 					babe_link,
@@ -537,7 +582,8 @@ macro_rules! new_light {
 					Some(Box::new(finality_proof_import)),
 					client,
 					inherent_data_providers.clone(),
-					spawner,
+					spawn_task_handle,
+					registry,
 				)?;
 
 				Ok((import_queue, finality_proof_request_builder))
@@ -553,7 +599,13 @@ macro_rules! new_light {
 				let remote_blockchain = builder.remote_backend()
 					.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
 
-				Ok(polkadot_rpc::create_light(builder.client().clone(), remote_blockchain, fetcher, builder.pool()))
+				let light_deps = polkadot_rpc::LightDeps {
+					remote_blockchain,
+					fetcher,
+					client: builder.client().clone(),
+					pool: builder.pool(),
+				};
+				Ok(polkadot_rpc::create_light(light_deps))
 			})?
 			.build()
 	}}

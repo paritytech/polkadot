@@ -59,7 +59,15 @@ pub struct RunCmd {
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
 
-	#[allow(missing_docs)]
+	/// Enable the authority discovery module.
+	///
+	/// (1) As a validator node: Make oneself discoverable by publishing either
+	///     ones own network addresses, or the ones of ones sentry nodes
+	///     (configured via the `sentry-nodes` flag).
+	///
+	/// (2) As a validator or sentry node: Discover addresses of validators or
+	///     addresses of their sentry nodes and maintain a permanent connection
+	///     to a subset.
 	#[structopt(long = "enable-authority-discovery")]
 	pub authority_discovery_enabled: bool,
 

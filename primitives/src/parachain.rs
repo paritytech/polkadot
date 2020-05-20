@@ -88,17 +88,6 @@ application_crypto::with_pair! {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
-/// The key type ID for a fisherman key.
-pub const FISHERMAN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"fish");
-
-mod fisherman_app {
-	use application_crypto::{app_crypto, sr25519};
-	app_crypto!(sr25519, super::FISHERMAN_KEY_TYPE_ID);
-}
-
-/// Identity that fishermen use when generating reports.
-pub type FishermanId = fisherman_app::Public;
-
 /// Retriability for a given active para.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
