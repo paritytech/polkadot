@@ -64,6 +64,7 @@ utility = { package = "pallet-utility", git = "https://github.com/paritytech/sub
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
@@ -145,6 +146,7 @@ runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking",
 	"system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"balances/runtime-benchmarks",

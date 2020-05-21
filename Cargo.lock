@@ -1362,6 +1362,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "frame-system-benchmarking"
+version = "2.0.0-dev"
+source = "git+https://github.com/paritytech/substrate#903693105a39f4a88ed99d99a4462616ed059968"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "frame-system-rpc-runtime-api"
 version = "2.0.0-dev"
 source = "git+https://github.com/paritytech/substrate#903693105a39f4a88ed99d99a4462616ed059968"
@@ -2228,6 +2242,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
@@ -4296,6 +4311,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
@@ -8502,6 +8518,7 @@ dependencies = [
  "frame-executive",
  "frame-support",
  "frame-system",
+ "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "hex-literal",
  "libsecp256k1",
