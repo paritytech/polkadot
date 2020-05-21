@@ -12,6 +12,7 @@ log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
+smallvec = "1.4.0"
 
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
