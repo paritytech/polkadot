@@ -388,6 +388,7 @@ macro_rules! new_full {
 				validation_service_handle,
 				slot_duration,
 				backend,
+				service.prometheus_registry().as_ref(),
 			);
 
 			let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
