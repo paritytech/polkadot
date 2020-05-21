@@ -52,6 +52,7 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
 	traits::{KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 };
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
@@ -144,6 +145,7 @@ impl system::Trait for Runtime {
 	type DbWeight = ();
 	type BlockExecutionWeight = BlockExecutionWeight;
 	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
+	type MaximumExtrinsicWeight = MaximumBlockWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -421,10 +423,15 @@ impl system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
+parameter_types! {
+	pub const OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+}
+
 impl offences::Trait for Runtime {
 	type Event = Event;
 	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	 type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
 parameter_types! {

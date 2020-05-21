@@ -29,7 +29,7 @@ use primitives::{
 use runtime_common::{attestations, parachains, registrar,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
+	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -55,12 +55,13 @@ use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
 	traits::{KeyOwnerProofSystem, Randomness},
+	weights::Weight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use cli_utils::RuntimeAdapter;
+use frame_utils::SignedExtensionProvider;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -148,6 +149,7 @@ impl system::Trait for Runtime {
 	type DbWeight = RocksDbWeight;
 	type BlockExecutionWeight = BlockExecutionWeight;
 	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
+	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -331,10 +333,15 @@ parameter_types! {
 	pub const InstantAllowed: bool = true;
 }
 
+parameter_types! {
+	pub const OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+}
+
 impl offences::Trait for Runtime {
 	type Event = Event;
 	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
+	 type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
 impl authority_discovery::Trait for Runtime {}
@@ -430,10 +437,10 @@ impl parachains::Trait for Runtime {
 	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
-impl cli_utils::RuntimeAdapter for Runtime {
+impl frame_utils::SignedExtensionProvider for Runtime {
 	type Extra = SignedExtra;
 
-	fn build_extra(nonce: cli_utils::IndexFor<Self>) -> Self::Extra {
+	fn construct_extras(nonce: frame_utils::IndexFor<Self>) -> Self::Extra {
 		// take the biggest period possible.
 		let period = BlockHashCount::get()
 			.checked_next_power_of_two()
@@ -473,7 +480,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 		account: AccountId,
 		nonce: <Runtime as system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
-		let extra = Runtime::build_extra(nonce);
+		let extra = Runtime::construct_extras(nonce);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
