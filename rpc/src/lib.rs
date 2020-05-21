@@ -25,9 +25,10 @@ use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
 use sp_consensus::SelectChain;
+use sp_consensus_babe::BabeApi;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
-use sp_consensus_babe::BabeApi;
+use sc_rpc::DenyUnsafe;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
@@ -70,6 +71,8 @@ pub struct FullDeps<C, P, SC> {
 	pub pool: Arc<P>,
 	/// The SelectChain Strategy
 	pub select_chain: SC,
+	/// Whether to deny unsafe calls
+	pub deny_unsafe: DenyUnsafe,
 	/// BABE specific dependencies.
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
@@ -91,13 +94,14 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
 	use sc_finality_grandpa_rpc::{GrandpaApi, GrandpaRpcHandler};
-	use sc_consensus_babe_rpc::BabeRPCHandler;
+	use sc_consensus_babe_rpc::BabeRpcHandler;
 
 	let mut io = jsonrpc_core::IoHandler::default();
 	let FullDeps {
 		client,
 		pool,
 		select_chain,
+		deny_unsafe,
 		babe,
 		grandpa,
 	} = deps;
@@ -119,7 +123,14 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	);
 	io.extend_with(
 		sc_consensus_babe_rpc::BabeApi::to_delegate(
-			BabeRPCHandler::new(client, shared_epoch_changes, keystore, babe_config, select_chain)
+			BabeRpcHandler::new(
+				client,
+				shared_epoch_changes,
+				keystore,
+				babe_config,
+				select_chain,
+				deny_unsafe,
+			)
 		)
 	);
 	io.extend_with(
