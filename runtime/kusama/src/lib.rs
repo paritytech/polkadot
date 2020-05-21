@@ -373,6 +373,7 @@ impl democracy::Trait for Runtime {
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type MaxVotes = MaxVotes;
+	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -389,7 +390,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 }
 
-const DESIRED_MEMBERS: u32 = 13;
+const DESIRED_MEMBERS: u32 = 17;
 parameter_types! {
 	pub const CandidacyBond: Balance = 1 * DOLLARS;
 	pub const VotingBond: Balance = 5 * CENTS;
