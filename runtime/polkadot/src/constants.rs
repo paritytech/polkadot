@@ -44,9 +44,11 @@ pub mod time {
 pub mod fee {
 	pub use sp_runtime::Perbill;
 	use primitives::Balance;
-	use frame_support::weights::Weight;
-	use sp_runtime::traits::Convert;
 	use runtime_common::ExtrinsicBaseWeight;
+	use frame_support::weights::{
+		WeightToFeePolynomial, WeightToFeeCoefficient, WeightToFeeCoefficients,
+	};
+	use smallvec::smallvec;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
@@ -62,32 +64,40 @@ pub mod fee {
 	///   - Setting it to `0` will essentially disable the weight fee.
 	///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
 	pub struct WeightToFee;
-	impl Convert<Weight, Balance> for WeightToFee {
-		fn convert(x: Weight) -> Balance {
+	impl WeightToFeePolynomial for WeightToFee {
+		type Balance = Balance;
+		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
 			// in Polkadot, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
-			Balance::from(x).saturating_mul(super::currency::CENTS / 10) / Balance::from(ExtrinsicBaseWeight::get())
+			let p = super::currency::CENTS;
+			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+			smallvec![WeightToFeeCoefficient {
+				degree: 1,
+				negative: false,
+				coeff_frac: Perbill::from_rational_approximation(p % q, q),
+				coeff_integer: p / q,
+			}]
 		}
 	}
 }
 
 #[cfg(test)]
 mod tests {
-	use sp_runtime::traits::Convert;
 	use runtime_common::{MaximumBlockWeight, ExtrinsicBaseWeight};
 	use super::fee::WeightToFee;
 	use super::currency::{CENTS, DOLLARS};
+	use frame_support::weights::WeightToFeePolynomial;
 
 	#[test]
 	// This function tests that the fee for `MaximumBlockWeight` of weight is correct
 	fn full_block_fee_is_correct() {
 		// A full block should cost 16 DOLLARS
-		assert_eq!(WeightToFee::convert(MaximumBlockWeight::get()), 16 * DOLLARS)
+		assert_eq!(WeightToFee::calc(&MaximumBlockWeight::get()), 16 * DOLLARS)
 	}
 
 	#[test]
 	// This function tests that the fee for `ExtrinsicBaseWeight` of weight is correct
 	fn extrinsic_base_fee_is_correct() {
 		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
-		assert_eq!(WeightToFee::convert(ExtrinsicBaseWeight::get()), CENTS / 10)
+		assert_eq!(WeightToFee::calc(&ExtrinsicBaseWeight::get()), CENTS / 10)
 	}
 }
