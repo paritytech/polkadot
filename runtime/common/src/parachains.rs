@@ -1245,7 +1245,7 @@ impl<T: Trait> Module<T> {
 			);
 
 			ensure!(
-				schedule.max_head_data_size >= candidate.candidate().head_data.0.len() as _,
+				schedule.max_head_data_size as usize >= candidate.candidate().head_data.0.len(),
 				Error::<T>::HeadDataTooLarge,
 			);
 
@@ -1624,6 +1624,7 @@ mod tests {
 		type DbWeight = ();
 		type BlockExecutionWeight = ();
 		type ExtrinsicBaseWeight = ();
+		type MaximumExtrinsicWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();

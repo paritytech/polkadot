@@ -46,8 +46,11 @@ pub mod time {
 pub mod fee {
 	pub use sp_runtime::Perbill;
 	use primitives::Balance;
-	use frame_support::weights::Weight;
-	use sp_runtime::traits::Convert;
+	use runtime_common::ExtrinsicBaseWeight;
+	use frame_support::weights::{
+		WeightToFeePolynomial, WeightToFeeCoefficient, WeightToFeeCoefficients,
+	};
+	use smallvec::smallvec;
 
 	/// The block saturation level. Fees will be updates based on this value.
 	pub const TARGET_BLOCK_FULLNESS: Perbill = Perbill::from_percent(25);
@@ -63,10 +66,17 @@ pub mod fee {
 	///   - Setting it to `0` will essentially disable the weight fee.
 	///   - Setting it to `1` will cause the literal `#[weight = x]` values to be charged.
 	pub struct WeightToFee;
-	impl Convert<Weight, Balance> for WeightToFee {
-		fn convert(x: Weight) -> Balance {
-			// in Kusama a weight of 10_000_000 (smallest non-zero weight) is mapped to 1/10 CENT:
-			Balance::from(x).saturating_mul(super::currency::CENTS / (10 * 10_000_000))
+	impl WeightToFeePolynomial for WeightToFee {
+		type Balance = Balance;
+		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
+			let p = super::currency::CENTS;
+			let q = 10 * Balance::from(ExtrinsicBaseWeight::get());
+			smallvec![WeightToFeeCoefficient {
+				degree: 1,
+				negative: false,
+				coeff_frac: Perbill::from_rational_approximation(p % q, q),
+				coeff_integer: p / q,
+			}]
 		}
 	}
 }

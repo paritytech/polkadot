@@ -24,6 +24,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
+	MaximumExtrinsicWeight,
 };
 
 use sp_std::prelude::*;
@@ -154,6 +155,7 @@ impl system::Trait for Runtime {
 	type DbWeight = RocksDbWeight;
 	type BlockExecutionWeight = BlockExecutionWeight;
 	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
+	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
@@ -376,6 +378,7 @@ impl democracy::Trait for Runtime {
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type MaxVotes = MaxVotes;
+	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -614,6 +617,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			grandpa::ValidateEquivocationReport::<Runtime>::new(),
+			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
@@ -773,6 +777,7 @@ pub type SignedExtra = (
 	registrar::LimitParathreadCommits<Runtime>,
 	parachains::ValidateDoubleVoteReports<Runtime>,
 	grandpa::ValidateEquivocationReport<Runtime>,
+	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;

@@ -93,7 +93,14 @@ fn async_import_queue_drops() {
 	for _ in 0..100 {
 		let verifier = PassThroughVerifier(true);
 
-		let queue = BasicQueue::new(verifier, Box::new(polkadot_test_runtime_client::new()), None, None, &executor);
+		let queue = BasicQueue::new(
+			verifier,
+			Box::new(polkadot_test_runtime_client::new()),
+			None,
+			None,
+			&executor,
+			None
+		);
 		drop(queue);
 	}
 }
