@@ -1,0 +1,15 @@
+[package]
+name = "statement-gossip-subsystem"
+version = "0.1.0"
+authors = ["Ashley Ruglys <ashley.ruglys@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+polkadot-network = { path = "../network" }
+statement-table = { package = "polkadot-statement-table", path = "../statement-table" }
+primitives = { package = "polkadot-primitives", path = "../primitives" }
+async-std = "1.5.0"
+exit-future = "0.2.0"
+futures = "0.3.5"

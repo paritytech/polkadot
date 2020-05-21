@@ -52,7 +52,7 @@ struct Recorded {
 type GossipStreamEntry = (mpsc::UnboundedReceiver<TopicNotification>, oneshot::Sender<()>);
 
 #[derive(Default, Clone)]
-struct MockGossip {
+pub struct MockGossip {
 	inner: Arc<Mutex<HashMap<Hash, GossipStreamEntry>>>,
 	gossip_messages: Arc<Mutex<HashMap<Hash, GossipMessage>>>,
 }

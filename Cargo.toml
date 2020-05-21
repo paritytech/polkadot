@@ -39,7 +39,7 @@ members = [
 	"statement-table",
 	"service",
 	"validation",
-
+	"statement-gossip-subsystem",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",

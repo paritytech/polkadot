@@ -361,7 +361,6 @@ pub struct NewLeafActions {
 }
 
 impl NewLeafActions {
-	#[cfg(test)]
 	pub fn new() -> Self {
 		NewLeafActions { actions: Vec::new() }
 	}
