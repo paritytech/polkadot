@@ -148,6 +148,7 @@ runtime-benchmarks = [
 	"democracy/runtime-benchmarks",
 	"elections-phragmen/runtime-benchmarks",
 	"im-online/runtime-benchmarks",
+	"scheduler/runtime-benchmarks",
 	"staking/runtime-benchmarks",
 	"timestamp/runtime-benchmarks",
 	"treasury/runtime-benchmarks",
