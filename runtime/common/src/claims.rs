@@ -48,22 +48,28 @@ pub trait Trait: system::Trait {
 	type Prefix: Get<&'static [u8]>;
 }
 
-/// The kind of a statement this account needs to make for a claim to be valid.
+/// The kind of a statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub enum StatementKind {
-	/// One kind of statement; this is the default.
+	/// Statement required to be made by non-SAFT holders.
 	Default,
-	/// Another kind of statement(!).
-	Alternative,
+	/// Statement required to be made by SAFT holders.
+	Saft,
 }
 
 impl StatementKind {
 	/// Convert this to the (English) statement it represents.
 	fn to_text(self) -> &'static [u8] {
 		match self {
-			StatementKind::Default => &b"Default"[..],
-			StatementKind::Alternative => &b"Alternative"[..],
+			StatementKind::Default =>
+				&b"I hereby agree to the terms of the statement whose SHA-256 multihash is \
+				Qmf5sxLCBdkR5yYTMYiSYs551d7zE6Ak1tUnbPH4h2acu9 and which may be found at \
+				https://bit.ly/2WVuWpJ"[..],
+			StatementKind::Saft =>
+				&b"I hereby agree to the terms of the statement whose SHA-256 multihash is \
+				QmPoPMidjtQ7D9cfj9mCxJaDNwoyRVi6TQvguMZBSc8HzN and which may be found at \
+				https://bit.ly/2WXknCQ"[..],
 		}
 	}
 }
@@ -717,7 +723,7 @@ mod tests {
 			claims: vec![
 				(eth(&alice()), 100, None, None),
 				(eth(&dave()), 200, None, Some(StatementKind::Default)),
-				(eth(&eve()), 300, Some(42), Some(StatementKind::Alternative)),
+				(eth(&eve()), 300, Some(42), Some(StatementKind::Saft)),
 				(eth(&frank()), 400, Some(43), None),
 			],
 			vesting: vec![(eth(&alice()), (50, 10, 1))],
@@ -782,8 +788,8 @@ mod tests {
 	fn attest_claiming_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
-			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Alternative.to_text());
-			let r = Claims::claim_attest(Origin::NONE, 42, s.clone(), StatementKind::Alternative.to_text().to_vec());
+			let s = sig::<Test>(&dave(), &42u64.encode(), StatementKind::Saft.to_text());
+			let r = Claims::claim_attest(Origin::NONE, 42, s.clone(), StatementKind::Saft.to_text().to_vec());
 			assert_noop!(r, Error::<Test>::InvalidStatement);
 
 			let r = Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Default.to_text().to_vec());
@@ -806,9 +812,9 @@ mod tests {
 	fn attesting_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(Balances::free_balance(42), 0);
-			assert_noop!(Claims::attest(Origin::signed(69), StatementKind::Alternative.to_text().to_vec()), Error::<Test>::SenderHasNoClaim);
+			assert_noop!(Claims::attest(Origin::signed(69), StatementKind::Saft.to_text().to_vec()), Error::<Test>::SenderHasNoClaim);
 			assert_noop!(Claims::attest(Origin::signed(42), StatementKind::Default.to_text().to_vec()), Error::<Test>::InvalidStatement);
-			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Alternative.to_text().to_vec()));
+			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 300);
 			assert_eq!(Claims::total(), total_claims() - 300);
 		});
@@ -822,7 +828,7 @@ mod tests {
 			assert_ok!(Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])));
 			assert_eq!(Balances::free_balance(&42), 100);
 			// Eve's claim is 300 through Account 42
-			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Alternative.to_text().to_vec()));
+			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
 			assert_eq!(Balances::free_balance(&42), 100 + 300);
 			assert_eq!(Claims::total(), total_claims() - 400);
 		});
@@ -832,7 +838,7 @@ mod tests {
 	fn valid_attest_transactions_are_free() {
 		new_test_ext().execute_with(|| {
 			let p = PrevalidateAttests::<Test>::new();
-			let c = Call::Claims(ClaimsCall::attest(StatementKind::Alternative.to_text().to_vec()));
+			let c = Call::Claims(ClaimsCall::attest(StatementKind::Saft.to_text().to_vec()));
 			let di = c.get_dispatch_info();
 			assert_eq!(di.pays_fee, Pays::No);
 			let r = p.validate(&42, &c, &di, 20);
@@ -848,7 +854,7 @@ mod tests {
 			let di = c.get_dispatch_info();
 			let r = p.validate(&42, &c, &di, 20);
 			assert!(r.is_err());
-			let c = Call::Claims(ClaimsCall::attest(StatementKind::Alternative.to_text().to_vec()));
+			let c = Call::Claims(ClaimsCall::attest(StatementKind::Saft.to_text().to_vec()));
 			let di = c.get_dispatch_info();
 			let r = p.validate(&69, &c, &di, 20);
 			assert!(r.is_err());
@@ -1064,15 +1070,15 @@ mod tests {
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 
-			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Alternative.to_text());
+			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Saft.to_text());
 			let call = ClaimsCall::claim_attest(1, s, StatementKind::Default.to_text().to_vec());
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::SignerHasNoClaim.into()).into(),
 			);
 
-			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Alternative.to_text());
-			let call = ClaimsCall::claim_attest(1, s, StatementKind::Alternative.to_text().to_vec());
+			let s = sig::<Test>(&dave(), &1u64.encode(), StatementKind::Saft.to_text());
+			let call = ClaimsCall::claim_attest(1, s, StatementKind::Saft.to_text().to_vec());
 			assert_eq!(
 				<Module<Test>>::validate_unsigned(source, &call),
 				InvalidTransaction::Custom(ValidityError::InvalidStatement.into()).into(),
