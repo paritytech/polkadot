@@ -64,11 +64,11 @@ impl StatementKind {
 		match self {
 			StatementKind::Regular =>
 				&b"I hereby agree to the terms of the statement whose SHA-256 multihash is \
-				Qmf5sxLCBdkR5yYTMYiSYs551d7zE6Ak1tUnbPH4h2acu9. (This may be found at the URL: \
+				Qmc1XYqT6S39WNp2UeiRUrZichUWUPpGEThDE6dAb3f6Ny. (This may be found at the URL: \
 				https://statement.polkadot.network/regular.html)"[..],
 			StatementKind::Saft =>
 				&b"I hereby agree to the terms of the statement whose SHA-256 multihash is \
-				QmPoPMidjtQ7D9cfj9mCxJaDNwoyRVi6TQvguMZBSc8HzN. (This may be found at the URL: \
+				Qmawwbu1KeZ46peRspbsTUot8Lq6KcHutuiUKJ142N4Reg. (This may be found at the URL: \
 				https://statement.polkadot.network/saft.html)"[..],
 		}
 	}
