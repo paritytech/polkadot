@@ -7,7 +7,7 @@ revision: 0.4.0
 
 Implementation of a https://polkadot.network node in Rust based on the Substrate framework.
 
-> **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework 
+> **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework
 > "Substrate". See the [Substrate][substrate-repo] repo for git history prior to 2018.
 
 [substrate-repo]: https://github.com/paritytech/substrate
@@ -18,7 +18,8 @@ This repo contains runtimes for the Polkadot, Kusama, and Westend networks.
 
 ### Use a Provided Binary
 
-If you want to connect to one of the networks supported by this repo, you can go to the latest release and download the binary that is provided.
+If you want to connect to one of the networks supported by this repo, you can go to the latest
+release and download the binary that is provided.
 
 ### Install via Cargo
 
@@ -31,7 +32,7 @@ cargo install --force --git https://github.com/paritytech/polkadot --tag <versio
 ### Build from Source
 
 If you'd like to build from source, first install Rust. You may need to add Cargo's bin directory
-to your PATH environment variable. Restarting your computer will do this for you automatically. 
+to your PATH environment variable. Restarting your computer will do this for you automatically.
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
@@ -100,9 +101,9 @@ You can see your node on [telemetry].
 
 ### Obtaining DOTs
 
-If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to get an account and 
-some DOT, KSM, or WND tokens, respectively. See the 
-[claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For 
+If you want to do anything on Polkadot, Kusama, or Westend, then you'll need to get an account and
+some DOT, KSM, or WND tokens, respectively. See the
+[claims instructions](https://claims.polkadot.network/) for Polkadot if you have DOTs to claim. For
 Westend's WND tokens, see the faucet
 [instructions](https://wiki.polkadot.network/docs/en/learn-DOT#getting-westies) on the Wiki.
 
