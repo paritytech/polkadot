@@ -1,5 +1,5 @@
 
-## Polkadot networks
+## Polkadot Networks
 
 [dev](./dev.md)
 
