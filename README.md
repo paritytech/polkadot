@@ -183,9 +183,6 @@ Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of 
 ### Shell Completion
 [Shell Completion](doc/shell-completion.md)
 
-### Polkadot Networks
-[Polkadot Networks](doc/networks/networks.md)
-
 ## Contributing
 
 ### Contributing Guidelines
