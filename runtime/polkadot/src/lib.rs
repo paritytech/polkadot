@@ -57,7 +57,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
+	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 2,
-	spec_version: 1011,
+	spec_version: 42,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -101,6 +101,31 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
+	}
+}
+
+pub struct IsCallable;
+impl Filter<Call> for IsCallable {
+	fn filter(call: &Call) -> bool {
+		match call {
+			// Governance stuff
+			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
+			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
+			// Parachains stuff
+			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
+			// Balances and Utility (which can be used to call other stuff)
+			Call::Balances(_) | Call::Utility(_) | Call::Indices(_) =>
+				false,
+
+			// These modules are all allowed to be called by transactions:
+			Call::System(_) | Call::Scheduler(_) |
+			Call::Babe(_) | Call::Timestamp(_) |
+			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
+			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
+			Call::AuthorityDiscovery(_) |
+			Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
+				true,
+		}
 	}
 }
 
@@ -128,10 +153,10 @@ impl SignedExtension for OnlyStakingAndClaims {
 	)
 		-> TransactionValidity
 	{
-		match call {
-			Call::Slots(_) | Call::Registrar(_)
-				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
-			_ => Ok(Default::default()),
+		if IsCallable::filter(call) {
+			Ok(Default::default())
+		} else {
+			Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into())
 		}
 	}
 }
@@ -699,6 +724,24 @@ impl vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
+parameter_types! {
+	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const MultisigDepositBase: Balance = 30 * CENTS;
+	// Additional storage item size of 32 bytes.
+	pub const MultisigDepositFactor: Balance = 5 * CENTS;
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl utility::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type MultisigDepositBase = MultisigDepositBase;
+	type MultisigDepositFactor = MultisigDepositFactor;
+	type MaxSignatories = MaxSignatories;
+	type IsCallable = IsCallable;
+}
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -734,7 +777,8 @@ construct_runtime! {
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
-		// Governance stuff; uncallable initially.
+		// Governance stuff; uncallable initially. Calls should be uncommented once we're ready to
+		// enable governance.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
@@ -743,7 +787,8 @@ construct_runtime! {
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
-		// have no public dispatchables.
+		// have no public dispatchables. Disabled `Call` on all of them, but this should be
+		// uncommented once we're ready to start parachains.
 		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
@@ -753,6 +798,8 @@ construct_runtime! {
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		// Cunning utilities. Usable initially.
+		Utility: utility::{Module, Call, Storage, Event<T>},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
