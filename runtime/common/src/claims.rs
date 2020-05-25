@@ -68,7 +68,7 @@ impl StatementKind {
 				https://statement.polkadot.network/regular.html)"[..],
 			StatementKind::Saft =>
 				&b"I hereby agree to the terms of the statement whose SHA-256 multihash is \
-				Qmawwbu1KeZ46peRspbsTUot8Lq6KcHutuiUKJ142N4Reg. (This may be found at the URL: \
+				QmXEkMahfhHJPzT3RjkXiZVFi77ZeVeuxtAjhojGRNYckz. (This may be found at the URL: \
 				https://statement.polkadot.network/saft.html)"[..],
 		}
 	}
