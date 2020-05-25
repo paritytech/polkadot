@@ -619,7 +619,7 @@ Validator group assignments do not need to change very quickly. The security ben
 
 Validator groups rotate across execution cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
-When a rotation occurs, validator groups are still responsible for distributing availability pieces for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a session.
+When a rotation occurs, validator groups are still responsible for distributing availability pieces for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
 
 Parathreads operate on a system of claims. Collators participate in auctions to stake a claim on authoring the next block of a parathread, although the auction mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed and included. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular parathread-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for parathread collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.
 
@@ -700,7 +700,6 @@ Actions:
 
 Actions:
 1. Free all scheduled cores and return parathread claims to queue, with retries incremented.
-1. If within `max(config.chain_availability_period, config.thread_availability_period)` of blocks since a rotation, trigger the `Inclusion::collect_pending` to time-out any parathread or parachain cores that have expired. Return any return parathread entries to the parathread queue without retries incremented.
 
 #### Routines
 
@@ -710,6 +709,7 @@ Actions:
 * `occupied(Vec<CoreIndex>). Note that the given cores have become occupied. This clears them from `Scheduled`. Fails if any given cores were not scheduled.
 * `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.
 * `group_validators(GroupIndex) -> Vec<ValidatorIndex>`
+* `availability_timeout_predicate() -> Option<impl Fn(CoreIndex, BlockNumber) -> bool>`: returns an optional predicate that should be used for timing out occupied cores. if `None`, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain and parathread timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)` of the last rotation would this return `Some`.
 
 ### The Inclusion Module
  
@@ -763,14 +763,13 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `Scheduler` module. Disregard bitfields that have a `1` bit for any free cores. 
     1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
     1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
-    1. If any candidates have become available, invoke `Scheduler::schedule(freed)` where `freed` is the list of freed cores.
     1. [TODO] pass it onwards to `Validity` module.
-  * `process_candidates(BackedCandidates)`: 
-    1. Get all scheduled cores using `Scheduler::scheduled`.
+    1. Return a list of freed cores consisting of the cores where candidates have become available.
+  * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`: 
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
-    1. Call `Scheduler::occupied` for all scheduled cores where a backed candidate was submitted.
+    1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a backed candidate was successfully included for.
   * `enact_candidate(relay_parent_number: BlockNumber, AbridgedCandidateReceipt)`:
     1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`. [TODO] Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
     1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
@@ -783,37 +782,33 @@ All failed checks should lead to an unrecoverable error making the block invalid
       }
     ```
 
-#### Entry-points
+### The InclusionInherent Module
 
-  ```rust
-  struct SignedAvailabilityBitfield {
-    validator_index: ValidatorIndex,
-    bitfield: Bitvec,
-    signature: ValidatorSignature, // signature is on payload: bitfield ++ relay_parent ++ validator index
-  }
-  struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
-  
-  enum ValidityAttestation {
-    /// Implicit validity attestation by issuing.
-    /// This corresponds to issuance of a `Seconded` statement.
-    Implicit(ValidatorSignature),
-    /// An explicit attestation. This corresponds to issuance of a
-    /// `Valid` statement.
-    Explicit(ValidatorSignature),    
-  }
-  
-  struct BackedCandidate {
-    candidate: AbridgedCandidateReceipt,
-    validity_votes: Vec<ValidityAttestation>,
-    // the indices of validators who signed the candidate within the group. There is no need to include 
-    // bit for any validators who are not in the group, so this is more compact.
-    validator_indices: BitVec, 
-  }
+#### Description
 
-  struct BackedCandidates(Vec<BackedCandidate>); // sorted by para-id.
-  ```
+This module is responsible for all the logic carried by the `Inclusion` entry-point. This entry-point is mandatory, in that it must be invoked exactly once within every block, and it is also "inherent", in that it is provided with no origin by the block author. The data within it carries its own authentication. If any of the steps within fails, the entry-point is considered as having failed and the block will be invalid.
 
-  1. `Inclusion`: This entry-point accepts two parameters: `Bitfields` and `BackedCandidates`. The `Bitfields` are first forwarded to the `process_bitfields` routine, and then on success the backed candidates are forwarded to the `process_candidates` routine.
+This module does not have the same initialization/finalization concerns as the others, as it only requires that entry points be triggered after all modules have initialized and that finalization happens after entry points are triggered. Both of these are assumptions we have already made about the runtime's order of operations, so this module doesn't need to be initialized or finalized by the `Initializer`.
+
+#### Storage
+
+```rust
+Included: Option<()>,
+```
+
+#### Finalization
+
+1. Take (get and clear) the value of `Included`. If it is not `Some`, throw an unrecoverable error. 
+
+#### Entry Points
+
+  * `inclusion`: This entry-point accepts two parameters: [`Bitfields`](#Signed-Availability-Bitfield) and [`BackedCandidates`](#Backed-Candidate).
+    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores.
+    1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores.
+    1. Invoke `Scheduler::schedule(freed)`
+    1. Pass the `BackedCandidates` along with the output of `Scheduler::scheduled` to the `Inclusion::process_candidates` routine, getting a list of all newly-occupied cores.
+    1. Call `Scheduler::occupied` for all scheduled cores where a backed candidate was submitted.
+    1. If all of the above succeeds, set `Included` to `Some(())`.
 
 ### The Validity Module
 
@@ -1123,6 +1118,51 @@ struct HostConfiguration {
   /// The amount of blocks ahead to schedule parachains and parathreads.
   pub scheduling_lookahead: u32,
 }
+```
+
+#### Signed Availability Bitfield
+
+A bitfield signed by a particular validator about the availability of pending candidates.
+
+```rust
+struct SignedAvailabilityBitfield {
+  validator_index: ValidatorIndex,
+  bitfield: Bitvec,
+  signature: ValidatorSignature, // signature is on payload: bitfield ++ relay_parent ++ validator index
+}
+
+struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
+```
+
+#### Validity Attestation
+
+An attestation of validity for a candidate, used as part of a backing. Both the `Seconded` and `Valid` statements are considered attestations of validity. This structure is only useful where the candidate referenced is apparent.
+
+```rust
+enum ValidityAttestation {
+  /// Implicit validity attestation by issuing.
+  /// This corresponds to issuance of a `Seconded` statement.
+  Implicit(ValidatorSignature),
+  /// An explicit attestation. This corresponds to issuance of a
+  /// `Valid` statement.
+  Explicit(ValidatorSignature),    
+}
+```
+
+#### Backed Candidate
+
+A `CandidateReceipt` along with all data necessary to prove its backing.
+
+```rust
+struct BackedCandidate {
+  candidate: AbridgedCandidateReceipt,
+  validity_votes: Vec<ValidityAttestation>,
+  // the indices of validators who signed the candidate within the group. There is no need to include 
+  // bit for any validators who are not in the group, so this is more compact.
+  validator_indices: BitVec, 
+}
+
+struct BackedCandidates(Vec<BackedCandidate>); // sorted by para-id.
 ```
 
 ----
