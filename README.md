@@ -12,7 +12,10 @@ Implementation of a https://polkadot.network node in Rust based on the Substrate
 
 [substrate-repo]: https://github.com/paritytech/substrate
 
-This repo contains runtimes for the Polkadot, Kusama, and Westend networks.
+This repo contains runtimes for the Polkadot, Kusama, and Westend networks. The README provides
+information about installing the `polkadot` binary and developing on the codebase. For more
+specific guides, like how to be a validator, see the
+[Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
 
 ## Building
 
