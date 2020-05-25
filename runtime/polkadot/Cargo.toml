@@ -62,6 +62,7 @@ sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey", default-features = false, optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "seun-sc-cli-subkey", default-features = false, optional = true }
 
@@ -141,6 +142,7 @@ runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking",
 	"system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"balances/runtime-benchmarks",
@@ -148,6 +150,7 @@ runtime-benchmarks = [
 	"democracy/runtime-benchmarks",
 	"elections-phragmen/runtime-benchmarks",
 	"im-online/runtime-benchmarks",
+	"scheduler/runtime-benchmarks",
 	"staking/runtime-benchmarks",
 	"timestamp/runtime-benchmarks",
 	"treasury/runtime-benchmarks",

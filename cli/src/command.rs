@@ -63,10 +63,27 @@ impl SubstrateCli for Cli {
 pub fn run() -> Result<()> {
 	let cli = Cli::from_args();
 
+	fn set_default_ss58_version(spec: &Box<dyn service::ChainSpec>) {
+		use sp_core::crypto::Ss58AddressFormat;
+
+		let ss58_version = if spec.is_kusama() {
+			Ss58AddressFormat::KusamaAccount
+		} else if spec.is_westend() {
+			Ss58AddressFormat::SubstrateAccount
+		} else {
+			Ss58AddressFormat::PolkadotAccount
+		};
+
+		sp_core::crypto::set_default_ss58_version(ss58_version);
+	};
+
 	match &cli.subcommand {
 		None => {
 			let runtime = cli.create_runner(&cli.run.base)?;
-			let config = runtime.config();
+			let chain_spec = &runtime.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
 			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
@@ -74,7 +91,7 @@ pub fn run() -> Result<()> {
 				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
 			};
 
-			if config.chain_spec.is_kusama() {
+			if chain_spec.is_kusama() {
 				info!("----------------------------");
 				info!("This chain is not in any way");
 				info!("      endorsed by the       ");
@@ -97,7 +114,7 @@ pub fn run() -> Result<()> {
 					},
 					service::KusamaExecutor::native_version().runtime_version
 				)
-			} else if config.chain_spec.is_westend() {
+			} else if chain_spec.is_westend() {
 				runtime.run_node(
 					|config| {
 						service::westend_new_light(config)
@@ -135,8 +152,11 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Base(subcommand)) => {
 			let runtime = cli.create_runner(subcommand)?;
+			let chain_spec = &runtime.config().chain_spec;
 
-			if runtime.config().chain_spec.is_kusama() {
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
 				runtime.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
@@ -144,7 +164,7 @@ pub fn run() -> Result<()> {
 						service::kusama_runtime::UncheckedExtrinsic,
 					>(config)
 				)
-			} else if runtime.config().chain_spec.is_westend() {
+			} else if chain_spec.is_westend() {
 				runtime.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
@@ -175,12 +195,15 @@ pub fn run() -> Result<()> {
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
 			let runtime = cli.create_runner(cmd)?;
+			let chain_spec = &runtime.config().chain_spec;
 
-			if runtime.config().chain_spec.is_kusama() {
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
 				runtime.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 				})
-			} else if runtime.config().chain_spec.is_westend() {
+			} else if chain_spec.is_westend() {
 				runtime.sync_run(|config| {
 					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 				})
