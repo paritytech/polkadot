@@ -1,8 +1,3 @@
----
-author: Polkadot developers
-revision: 0.4.0
----
-
 # Polkadot
 
 Implementation of a https://polkadot.network node in Rust based on the Substrate framework.
