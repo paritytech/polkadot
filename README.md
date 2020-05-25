@@ -71,10 +71,10 @@ This repo supports runtimes for Polkadot, Kusama, and Westend.
 Connect to the global Polkadot CC1 network by running:
 
 ```bash
-./target/release/polkadot --name "hello world!" --chain=polkadot
+./target/release/polkadot --chain=polkadot
 ```
 
-You can see your node on [telemetry].
+You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
 
 [telemetry]: https://telemetry.polkadot.io/#list/Polkadot%20CC1
 
@@ -83,10 +83,10 @@ You can see your node on [telemetry].
 Connect to the global Kusama canary network by running:
 
 ```bash
-./target/release/polkadot --name "hello world!" --chain=kusama
+./target/release/polkadot --chain=kusama
 ```
 
-You can see your node on [telemetry].
+You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
 
 [telemetry]: https://telemetry.polkadot.io/#list/Kusama
 
@@ -95,10 +95,10 @@ You can see your node on [telemetry].
 Connect to the global Westend testnet by running:
 
 ```bash
-./target/release/polkadot --name "hello world!" --chain=westend
+./target/release/polkadot --chain=westend
 ```
 
-You can see your node on [telemetry].
+You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
 
 [telemetry]: https://telemetry.polkadot.io/#list/Westend
 
