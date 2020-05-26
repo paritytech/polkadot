@@ -66,7 +66,7 @@ use system::{
 	offchain::{CreateSignedTransaction, SendSignedTransaction, Signer},
 };
 
-pub trait Trait: system::Trait { }
+pub trait Trait: system::Trait + session::Trait { }
 
 decl_storage! {
 	trait Storage for Module<T: Trait> as Initializer {
@@ -95,4 +95,22 @@ decl_module! {
 			HasInitialized::take();
 		}
 	}
+}
+
+impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+	type Key = ValidatorId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		assert!(HasInitialized::get().is_none());
+	}
+
+	fn on_disabled(_i: usize) { }
 }
