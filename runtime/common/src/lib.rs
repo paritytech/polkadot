@@ -89,7 +89,7 @@ impl<F: Filter<Call>, Call> sp_std::fmt::Debug for TransactionCallFilter<F, Call
 	fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { Ok(()) }
 }
 
-fn validate(call: Call) -> TransactionValidity {
+fn validate<F: Filter<Call>, Call>(call: &Call) -> TransactionValidity {
 	if F::filter(call) {
 		Ok(Default::default())
 	} else {
@@ -113,13 +113,13 @@ impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
 		call: &Call,
 		_: &DispatchInfoOf<Self::Call>,
 		_: usize,
-	) -> TransactionValidity { validate(call) }
+	) -> TransactionValidity { validate::<F, _>(call) }
 
 	fn validate_unsigned(
 		call: &Self::Call,
 		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
-	) -> TransactionValidity { validate(call) }
+	) -> TransactionValidity { validate::<F, _>(call) }
 }
 
 impl<F: Filter<Call>, Call> TransactionCallFilter<F, Call> {
