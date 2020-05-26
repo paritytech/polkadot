@@ -108,7 +108,7 @@ impl Filter<Call> for IsCallable {
 	fn filter(call: &Call) -> bool {
 		match call {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
-			
+
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
 			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
