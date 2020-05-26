@@ -526,7 +526,7 @@ impl utility::Trait for Runtime {
 	type MultisigDepositBase = MultisigDepositBase;
 	type MultisigDepositFactor = MultisigDepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = ();
+	type IsCallable = IsCallable;
 }
 
 parameter_types! {
