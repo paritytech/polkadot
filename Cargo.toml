@@ -29,6 +29,7 @@ members = [
 	"network/test",
 	"primitives",
 	"runtime/common",
+	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
 	"runtime/westend",
