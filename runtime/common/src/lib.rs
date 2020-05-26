@@ -100,7 +100,7 @@ fn validate<F: Filter<Call>, Call>(call: &Call) -> TransactionValidity {
 impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
 	SignedExtension for TransactionCallFilter<F, Call>
 {
-	const IDENTIFIER: &'static str = "OnlyStakingAndClaims";
+	const IDENTIFIER: &'static str = "TransactionCallFilter";
 	type AccountId = AccountId;
 	type Call = Call;
 	type AdditionalSigned = ();
