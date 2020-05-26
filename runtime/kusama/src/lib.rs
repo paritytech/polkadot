@@ -25,7 +25,7 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
 use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
@@ -36,9 +36,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill,
-	transaction_validity::{
-		TransactionValidity, TransactionSource, TransactionPriority,
-	},
+	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
