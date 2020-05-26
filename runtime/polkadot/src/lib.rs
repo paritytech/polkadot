@@ -113,7 +113,8 @@ impl Filter<Call> for IsCallable {
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
-			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) =>
+			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) |
+			Call::Parachains(parachains::Call::set_heads(..)) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
