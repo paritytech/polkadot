@@ -64,11 +64,33 @@ impl<T: Trait> Module<T> {
 	/// wrapped modules.
 	///
 	/// Panics if the modules have already been initialized.
-	pub fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
+	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
 	{
 		assert!(HasInitialized::get().is_none());
 	}
+}
+
+impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
+	type Public = ValidatorId;
+}
+
+impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+	type Key = ValidatorId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<Module<T>>::on_new_session(changed, validators, queued);
+	}
+
+	fn on_disabled(_i: usize) { }
 }
 
 #[cfg(test)]
