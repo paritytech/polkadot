@@ -96,78 +96,9 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use sp_io::TestExternalities;
-	use sp_core::{H256};
-	use sp_runtime::{
-		Perbill,
-		traits::{
-			BlakeTwo256, IdentityLookup,
-		},
-	};
-	use primitives::{
-		BlockNumber,
-		Header,
-	};
-	use frame_support::{
-		impl_outer_origin, impl_outer_dispatch, parameter_types,
-		traits::{OnInitialize, OnFinalize},
-	};
+	use crate::mock::{new_test_ext, Initializer};
 
-	#[derive(Clone, Eq, PartialEq)]
-	pub struct Test;
-
-	impl_outer_origin! {
-		pub enum Origin for Test { }
-	}
-
-	impl_outer_dispatch! {
-		pub enum Call for Test where origin: Origin {
-			initializer::Initializer,
-		}
-	}
-
-	parameter_types! {
-		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	}
-
-	impl system::Trait for Test {
-		type Origin = Origin;
-		type Call = Call;
-		type Index = u64;
-		type BlockNumber = BlockNumber;
-		type Hash = H256;
-		type Hashing = BlakeTwo256;
-		type AccountId = u64;
-		type Lookup = IdentityLookup<u64>;
-		type Header = Header;
-		type Event = ();
-		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
-		type Version = ();
-		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u128>;
-		type OnNewAccount = ();
-		type OnKilledAccount = ();
-	}
-
-	impl Trait for Test { }
-
-	type Initializer = Module<Test>;
-
-	fn new_test_ext() -> TestExternalities {
-		let t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
-
-		t.into()
-	}
+	use frame_support::traits::{OnFinalize, OnInitialize};
 
 	#[test]
 	#[should_panic]
