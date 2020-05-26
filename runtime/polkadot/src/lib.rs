@@ -113,7 +113,8 @@ impl Filter<Call> for IsCallable {
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Utility (which can be used to call other stuff)
-			Call::Balances(_) | Call::Utility(_) | Call::Indices(_) =>
+			Call::Balances(_) | Call::Indices(_) |
+			Call::Vesting(vesting::Call::vested_transfer(..)) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
@@ -122,7 +123,7 @@ impl Filter<Call> for IsCallable {
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
-			Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
 				true,
 		}
 	}
