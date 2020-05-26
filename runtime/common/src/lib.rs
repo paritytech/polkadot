@@ -69,24 +69,24 @@ parameter_types! {
 /// Apply a given filter to transactions.
 pub struct TransactionCallFilter<T: Filter<Call>, Call>(PhantomData<(T, Call)>);
 
-// These all need to be implemented due to the `PhantomData` usage, even though they can never be
-// called.
 impl<F: Filter<Call>, Call> Default for TransactionCallFilter<F, Call> {
-	fn default() -> Self { unreachable!() }
+	fn default() -> Self { Self::new() }
 }
-impl<F: Filter<Call>, Call> Encode for TransactionCallFilter<F, Call> {}
+impl<F: Filter<Call>, Call> Encode for TransactionCallFilter<F, Call> {
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R { f(&b""[..]) }
+}
 impl<F: Filter<Call>, Call> Decode for TransactionCallFilter<F, Call> {
-	fn decode<I: codec::Input>(_: &mut I) -> Result<Self, codec::Error> { unreachable!() }
+	fn decode<I: codec::Input>(_: &mut I) -> Result<Self, codec::Error> { Ok(Self::new()) }
 }
 impl<F: Filter<Call>, Call> Clone for TransactionCallFilter<F, Call> {
-	fn clone(&self) -> Self { unreachable!() }
+	fn clone(&self) -> Self { Self::new() }
 }
 impl<F: Filter<Call>, Call> Eq for TransactionCallFilter<F, Call> {}
 impl<F: Filter<Call>, Call> PartialEq for TransactionCallFilter<F, Call> {
-	fn eq(&self, _: &Self) -> bool { unreachable!() }
+	fn eq(&self, _: &Self) -> bool { true }
 }
 impl<F: Filter<Call>, Call> sp_std::fmt::Debug for TransactionCallFilter<F, Call> {
-	fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { unreachable!() }
+	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { Ok(()) }
 }
 
 impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
