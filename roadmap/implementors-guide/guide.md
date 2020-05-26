@@ -15,6 +15,7 @@ There are a number of other documents describing the research in more detail. Al
 * [Subsystems](#Subsystems)
   * [Overseer](#Overseer)
   * [Candidate Backing](#Candidate-Backing-Subsystem)
+  * [Statement Gossip](#Statement-Gossip-Subsystem)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
 
@@ -993,7 +994,11 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 The statement gossip subsystem is responsible for gossiping out and receiving [Signed Statements](#Signed-statement-type) from validators.
 
+#### Message Types
+
 This subsystem communicates with the overseer via [two message types](#Candidate-Backing-Subsystem-Messages), one for overseer -> subsystem and another for subsystem -> overseer. Currently this just differentiates between statements that the subsystem has been instructed to gossip out, and statements that the subsystem has received.
+
+#### Functionality
 
 The subsystem needs to contain a handle to a gossiping engine to gossip and recieve messages. This will be cloned into each job that is spawned. Apart from that, it also contains the general structures that all subsystems contain, e.g. channels to communicate with the overseer and handles to spawned jobs in order to shut them down.
 
@@ -1012,6 +1017,20 @@ The statement gossip job needs to poll two seperate futures (as well as the exit
 
 * A future that takes the passed-in statements, validates them and gossips them along with the `relay_parent` hash using the gossip engine.
 * A future that takes the messages that the gossip engine receives for the `relay_parent`, validates them and sends to the subsystem.
+
+#### Message Validation
+
+The following conditions needs to be met for an outgoing statement to be sent:
+
+* We must have 'peer knowledge' of what canidates the receiver knows about.
+* If the statement is `Valid` or `Invalid`, the receiver of the statement must know about the candidate that the hash refers to.
+* The statement signature must be valid.
+
+The following conditions need to be met for an incoming statement to be accepted:
+
+* The sender of the statement has to be in the validator set for the relay block.
+* If the statement is `Valid` or `Invalid`, then the candidate that the hash refers to must be known.
+* The statement signature must be valid.
 
 I have a basic implementation of this code on the [`ashley-test-statement-gossip-subsystem`](https://github.com/paritytech/polkadot/tree/ashley-test-statement-gossip-subsystem) branch.
 
