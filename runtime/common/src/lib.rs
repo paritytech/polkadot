@@ -73,7 +73,7 @@ impl<F: Filter<Call>, Call> Default for TransactionCallFilter<F, Call> {
 	fn default() -> Self { Self::new() }
 }
 impl<F: Filter<Call>, Call> Encode for TransactionCallFilter<F, Call> {
-	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R { f(&b""[..]) }
+	fn using_encoded<R, FO: FnOnce(&[u8]) -> R>(&self, f: FO) -> R { f(&b""[..]) }
 }
 impl<F: Filter<Call>, Call> Decode for TransactionCallFilter<F, Call> {
 	fn decode<I: codec::Input>(_: &mut I) -> Result<Self, codec::Error> { Ok(Self::new()) }
