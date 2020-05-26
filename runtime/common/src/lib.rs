@@ -101,14 +101,12 @@ impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
 	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
 
 	fn validate(
-		&self, _:
-		&Self::AccountId,
+		&self,
+		_: &Self::AccountId,
 		call: &Call,
 		_: &DispatchInfoOf<Self::Call>,
-		_: usize
-	)
-		-> TransactionValidity
-	{
+		_: usize,
+	) -> TransactionValidity {
 		if F::filter(call) {
 			Ok(Default::default())
 		} else {
