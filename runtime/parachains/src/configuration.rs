@@ -19,15 +19,16 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use frame_support::weights::Weight;
 use primitives::{
 	parachain::{ValidatorId},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
+	dispatch::DispatchResult,
+	weights::{DispatchClass, Weight},
 };
 use codec::{Encode, Decode};
-
+use system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default)]
@@ -79,6 +80,117 @@ decl_module! {
 	/// The parachains configuration module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
+
+		/// Set the validation upgrade frequency.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_validation_upgrade_frequency(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.validation_upgrade_frequency, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the validation upgrade delay.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_validation_upgrade_delay(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.validation_upgrade_delay, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the acceptance period for an included candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_acceptance_period(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.acceptance_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the max validation code size for incoming upgrades.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_code_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_code_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the max head data size for paras.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_head_data_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_head_data_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of parathread execution cores.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_parathread_cores(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.parathread_cores, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the number of retries for a particular parathread.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_parathread_retries(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.parathread_retries, new) != new
+			});
+			Ok(())
+		}
+
+
+		/// Set the parachain validator-group rotation frequency
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_parachain_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.parachain_rotation_frequency, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the availability period for parachains.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_chain_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.chain_availability_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the availability period for parathreads.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_thread_availability_period(origin, new: T::BlockNumber) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.thread_availability_period, new) != new
+			});
+			Ok(())
+		}
+
+		/// Set the scheduling lookahead, in expected number of blocks at peak throughput.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_scheduling_lookahead(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.scheduling_lookahead, new) != new
+			});
+			Ok(())
+		}
 	}
 }
 
@@ -95,6 +207,17 @@ impl<T: Trait> Module<T> {
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		if let Some(pending) = <Self as Store>::PendingConfig::take() {
 			<Self as Store>::Config::set(pending);
+		}
+	}
+
+	fn update_config_member(
+		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>) -> bool,
+	) {
+		let pending = <Self as Store>::PendingConfig::get();
+		let mut prev = pending.unwrap_or_else(Self::config);
+
+		if updater(&mut prev) {
+			<Self as Store>::PendingConfig::set(Some(prev));
 		}
 	}
 }
