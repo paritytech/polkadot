@@ -989,6 +989,35 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 (TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem)
 
+### Statement Gossip Subsystem
+
+The statement gossip subsystem is responsible for gossiping out and receiving [Signed Statements](#Signed-statement-type) from validators.
+
+This subsystem communicates with the overseer via [two message types](#Candidate-Backing-Subsystem-Messages), one for overseer -> subsystem and another for subsystem -> overseer. Currently this just differentiates between statements that the subsystem has been instructed to gossip out, and statements that the subsystem has received.
+
+The subsystem needs to contain a handle to a gossiping engine to gossip and recieve messages. This will be cloned into each job that is spawned. Apart from that, it also contains the general structures that all subsystems contain, e.g. channels to communicate with the overseer and handles to spawned jobs in order to shut them down.
+
+On `OverseerSignal::StartWork` it should:
+* Spawn a job and pass in `relay_parent`, a clone of the gossiping engine and a handle to a message validator.
+* Send out a neighbour packet with the `relay_parent` added to the list of accepted chain heads.
+
+On `OverseerSignal::StopWork` it should:
+* Stop the job via the job handle.
+* Send out a neighbour packet with the job's `relay_parent` removed.
+
+On `StatementGossipSubsystemMessageIn::StatementToGossip` it should:
+* Send the signed statement to the job running for the `relay_parent`.
+
+The statement gossip job needs to poll two seperate futures (as well as the exit signal):
+
+* A future that takes the passed-in statements, validates them and gossips them along with the `relay_parent` hash using the gossip engine.
+* A future that takes the messages that the gossip engine receives for the `relay_parent`, validates them and sends to the subsystem.
+
+I have a basic implementation of this code on the [`ashley-test-statement-gossip-subsystem`](https://github.com/paritytech/polkadot/tree/ashley-test-statement-gossip-subsystem) branch.
+
+(TODO: Do we need a message type for sending a statemen directly to a peer?)  
+(TODO: We probably need to account for backpressure)
+
 ---
 
 [TODO: subsystems for gathering data necessary for block authorship, for networking, for misbehavior reporting, etc.]
@@ -1072,7 +1101,7 @@ enum OverseerSignal {
 ```
 
 
-#### Candidate Backing subsystem Message
+#### Candidate Backing Subsystem Message
 
 ```rust
 enum CandidateBackingSubsystemMessage {
@@ -1082,6 +1111,22 @@ enum CandidateBackingSubsystemMessage {
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the 
   /// given relay-parent (ref. by hash). This candidate must be validated.
   Second(Hash, CandidateReceipt)
+}
+```
+
+### Statement Gossip Subsystem Messages
+
+```rust
+enum StatementGossipSubsystemIn {
+  /// A statement to be gossiped out to validators.
+  StatementToGossip { relay_parent: Hash, statement: SignedStatement }
+}
+```
+
+```rust
+enum StatementGossipSubsystemOut {
+  /// A statement that we've received from a validator.
+  StatementReceived { relay_parent: Hash, statement: SignedStatement }
 }
 ```
 
