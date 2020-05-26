@@ -86,7 +86,7 @@ impl<F: Filter<Call>, Call> PartialEq for TransactionCallFilter<F, Call> {
 	fn eq(&self, _: &Self) -> bool { true }
 }
 impl<F: Filter<Call>, Call> sp_std::fmt::Debug for TransactionCallFilter<F, Call> {
-	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { Ok(()) }
+	fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { Ok(()) }
 }
 
 impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
