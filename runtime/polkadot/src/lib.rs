@@ -179,7 +179,7 @@ impl babe::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * DOLLARS;
+	pub const IndexDeposit: Balance = 10 * DOLLARS;
 }
 
 impl indices::Trait for Runtime {
@@ -336,7 +336,7 @@ parameter_types! {
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
-	pub const InstantAllowed: bool = false;
+	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 }
 
