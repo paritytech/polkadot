@@ -20,59 +20,21 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use sp_std::prelude::*;
-use sp_std::result;
-use codec::{Decode, Encode};
-use sp_runtime::{
-	KeyTypeId, Perbill, RuntimeDebug,
-	traits::{
-		Hash as HashT, BlakeTwo256, Saturating, One, Zero, Dispatchable,
-		AccountIdConversion, BadOrigin, Convert, SignedExtension, AppVerify,
-		DispatchInfoOf,
-	},
-	transaction_validity::{TransactionValidityError, ValidTransaction, TransactionValidity},
-};
-use sp_staking::{
-	SessionIndex,
-	offence::{ReportOffence, Offence, Kind},
-};
-use frame_support::{
-	traits::KeyOwnerProofSystem,
-	dispatch::{IsSubType},
-	weights::{DispatchClass, Weight},
-};
+use frame_support::weights::Weight;
 use primitives::{
-	Balance,
-	BlockNumber,
-	parachain::{
-		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
-		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
-		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
-		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode,
-	},
+	parachain::{ValidatorId},
 };
 use frame_support::{
-	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
-	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
-};
-use sp_runtime::{
-	transaction_validity::InvalidTransaction,
+	decl_storage, decl_module, decl_error,
 };
 
-use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
-
-use system::{
-	ensure_none, ensure_signed,
-	offchain::{CreateSignedTransaction, SendSignedTransaction, Signer},
-};
-
-pub trait Trait: system::Trait + session::Trait { }
+pub trait Trait: system::Trait { }
 
 decl_storage! {
 	trait Storage for Module<T: Trait> as Initializer {
 		/// Whether the parachains modules have been initialized within this block.
 		/// Should never hit the trie.
-		HasInitialized: Option<()>,
+		HasInitialized: Option<()>;
 	}
 }
 
@@ -85,7 +47,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
 
-		fn on_initialize(now: T::BlockNumber) -> Weight {
+		fn on_initialize(_now: T::BlockNumber) -> Weight {
 			HasInitialized::set(Some(()));
 
 			0
@@ -97,20 +59,119 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
-	type Key = ValidatorId;
-
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
-	{
-
-	}
-
-	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+impl<T: Trait> Module<T> {
+	/// Should be called when a new session occurs. Forwards the session notification to all
+	/// wrapped modules.
+	///
+	/// Panics if the modules have already been initialized.
+	pub fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
 	{
 		assert!(HasInitialized::get().is_none());
 	}
+}
 
-	fn on_disabled(_i: usize) { }
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use sp_io::TestExternalities;
+	use sp_core::{H256};
+	use sp_runtime::{
+		Perbill,
+		traits::{
+			BlakeTwo256, IdentityLookup,
+		},
+	};
+	use primitives::{
+		BlockNumber,
+		Header,
+	};
+	use frame_support::{
+		impl_outer_origin, impl_outer_dispatch, parameter_types,
+		traits::{OnInitialize, OnFinalize},
+	};
+
+	#[derive(Clone, Eq, PartialEq)]
+	pub struct Test;
+
+	impl_outer_origin! {
+		pub enum Origin for Test { }
+	}
+
+	impl_outer_dispatch! {
+		pub enum Call for Test where origin: Origin {
+			initializer::Initializer,
+		}
+	}
+
+	parameter_types! {
+		pub const BlockHashCount: u32 = 250;
+		pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
+		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
+		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	}
+
+	impl system::Trait for Test {
+		type Origin = Origin;
+		type Call = Call;
+		type Index = u64;
+		type BlockNumber = BlockNumber;
+		type Hash = H256;
+		type Hashing = BlakeTwo256;
+		type AccountId = u64;
+		type Lookup = IdentityLookup<u64>;
+		type Header = Header;
+		type Event = ();
+		type BlockHashCount = BlockHashCount;
+		type MaximumBlockWeight = MaximumBlockWeight;
+		type DbWeight = ();
+		type BlockExecutionWeight = ();
+		type ExtrinsicBaseWeight = ();
+		type MaximumExtrinsicWeight = MaximumBlockWeight;
+		type MaximumBlockLength = MaximumBlockLength;
+		type AvailableBlockRatio = AvailableBlockRatio;
+		type Version = ();
+		type ModuleToIndex = ();
+		type AccountData = balances::AccountData<u128>;
+		type OnNewAccount = ();
+		type OnKilledAccount = ();
+	}
+
+	impl Trait for Test { }
+
+	type Initializer = Module<Test>;
+
+	fn new_test_ext() -> TestExternalities {
+		let t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+
+		t.into()
+	}
+
+	#[test]
+	#[should_panic]
+	fn panics_if_session_changes_after_on_initialize() {
+		new_test_ext().execute_with(|| {
+			Initializer::on_initialize(1);
+			Initializer::on_new_session(false, Vec::new().into_iter(), Vec::new().into_iter());
+		});
+	}
+
+	#[test]
+	fn sets_flag_on_initialize() {
+		new_test_ext().execute_with(|| {
+			Initializer::on_initialize(1);
+
+			assert!(HasInitialized::get().is_some());
+		})
+	}
+
+	#[test]
+	fn clears_flag_on_finalize() {
+		new_test_ext().execute_with(|| {
+			Initializer::on_initialize(1);
+			Initializer::on_finalize(1);
+
+			assert!(HasInitialized::get().is_none());
+		})
+	}
 }
