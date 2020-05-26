@@ -293,8 +293,6 @@ macro_rules! new_full {
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
 			new_full_start!($config, $runtime, $dispatch);
 
-		let backend = builder.backend().clone();
-
 		let service = builder
 			.with_finality_proof_provider(|client, backend| {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
@@ -403,7 +401,6 @@ macro_rules! new_full {
 				service.transaction_pool(),
 				validation_service_handle,
 				slot_duration,
-				backend,
 				service.prometheus_registry().as_ref(),
 			);
 
