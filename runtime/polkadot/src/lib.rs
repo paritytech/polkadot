@@ -24,7 +24,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight,
+	MaximumExtrinsicWeight, TransactionCallFilter,
 };
 
 use sp_std::prelude::*;
@@ -32,19 +32,18 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
+		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
 	traits::{
-		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
-		DispatchInfoOf, IdentityLookup, Extrinsic as ExtrinsicT, SaturatedConversion,
-		Verify,
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]
@@ -88,11 +87,11 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 2,
-	spec_version: 42,
+	authoring_version: 0,
+	spec_version: 0,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
-	transaction_version: 1,
+	transaction_version: 0,
 };
 
 /// Native version.
@@ -125,38 +124,6 @@ impl Filter<Call> for IsCallable {
 			Call::AuthorityDiscovery(_) |
 			Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
 				true,
-		}
-	}
-}
-
-/// Avoid processing transactions that are anything except staking and claims.
-///
-/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
-/// from the release runtime.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
-pub struct OnlyStakingAndClaims;
-impl SignedExtension for OnlyStakingAndClaims {
-	const IDENTIFIER: &'static str = "OnlyStakingAndClaims";
-	type AccountId = AccountId;
-	type Call = Call;
-	type AdditionalSigned = ();
-	type Pre = ();
-
-	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
-
-	fn validate(
-		&self, _:
-		&Self::AccountId,
-		call: &Self::Call,
-		_: &DispatchInfoOf<Self::Call>,
-		_: usize
-	)
-		-> TransactionValidity
-	{
-		if IsCallable::filter(call) {
-			Ok(Default::default())
-		} else {
-			Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into())
 		}
 	}
 }
@@ -637,7 +604,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
-			OnlyStakingAndClaims,
+			TransactionCallFilter::<IsCallable, Call>::default(),
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
@@ -818,8 +785,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	// RELEASE: remove this for release build.
-	OnlyStakingAndClaims,
+	TransactionCallFilter<IsCallable, Call>,
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
