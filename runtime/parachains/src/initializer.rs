@@ -31,7 +31,7 @@ use frame_support::{
 pub trait Trait: system::Trait { }
 
 decl_storage! {
-	trait Storage for Module<T: Trait> as Initializer {
+	trait Store for Module<T: Trait> as Initializer {
 		/// Whether the parachains modules have been initialized within this block.
 		/// Should never hit the trie.
 		HasInitialized: Option<()>;
