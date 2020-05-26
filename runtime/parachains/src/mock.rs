@@ -82,12 +82,24 @@ impl system::Trait for Test {
 
 impl crate::initializer::Trait for Test { }
 
+impl crate::configuration::Trait for Test { }
+
 /// Mocked initializer.
 pub type Initializer = crate::initializer::Module<Test>;
 
+/// Mocked configuration.
+pub type Configuration = crate::configuration::Module<Test>;
+
 /// Create a new set of test externalities.
-pub fn new_test_ext() -> TestExternalities {
-	let t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+pub fn new_test_ext(state: GenesisState) -> TestExternalities {
+	let mut t = state.system.build_storage::<Test>().unwrap();
+	state.configuration.assimilate_storage(&mut t).unwrap();
 
 	t.into()
+}
+
+#[derive(Default)]
+pub struct GenesisState {
+	system: system::GenesisConfig,
+	configuration: crate::configuration::GenesisConfig<Test>,
 }

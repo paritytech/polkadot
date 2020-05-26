@@ -118,7 +118,7 @@ mod tests {
 	#[test]
 	#[should_panic]
 	fn panics_if_session_changes_after_on_initialize() {
-		new_test_ext().execute_with(|| {
+		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
 			Initializer::on_new_session(false, Vec::new().into_iter(), Vec::new().into_iter());
 		});
@@ -126,7 +126,7 @@ mod tests {
 
 	#[test]
 	fn sets_flag_on_initialize() {
-		new_test_ext().execute_with(|| {
+		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
 
 			assert!(HasInitialized::get().is_some());
@@ -135,7 +135,7 @@ mod tests {
 
 	#[test]
 	fn clears_flag_on_finalize() {
-		new_test_ext().execute_with(|| {
+		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
 			Initializer::on_finalize(1);
 
