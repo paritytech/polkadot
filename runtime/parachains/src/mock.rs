@@ -91,7 +91,7 @@ pub type Initializer = crate::initializer::Module<Test>;
 pub type Configuration = crate::configuration::Module<Test>;
 
 /// Create a new set of test externalities.
-pub fn new_test_ext(state: GenesisState) -> TestExternalities {
+pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
 
@@ -99,7 +99,7 @@ pub fn new_test_ext(state: GenesisState) -> TestExternalities {
 }
 
 #[derive(Default)]
-pub struct GenesisState {
-	system: system::GenesisConfig,
-	configuration: crate::configuration::GenesisConfig<Test>,
+pub struct GenesisConfig {
+	pub system: system::GenesisConfig,
+	pub configuration: crate::configuration::GenesisConfig<Test>,
 }

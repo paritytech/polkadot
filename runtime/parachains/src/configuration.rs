@@ -32,6 +32,7 @@ use system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default)]
+#[cfg_attr(test, derive(Debug))]
 pub struct HostConfiguration<BlockNumber: Default> {
 	/// The minimum frequency at which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
@@ -219,5 +220,110 @@ impl<T: Trait> Module<T> {
 		if updater(&mut prev) {
 			<Self as Store>::PendingConfig::set(Some(prev));
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::mock::{new_test_ext, Initializer, Configuration, Origin};
+
+	use frame_support::traits::{OnFinalize, OnInitialize};
+
+	#[test]
+	fn config_changes_on_session_boundary() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let old_config = Configuration::config();
+			let mut config = old_config.clone();
+			config.validation_upgrade_delay = 100;
+
+			assert!(old_config != config);
+
+			<Configuration as Store>::PendingConfig::set(Some(config.clone()));
+
+			Initializer::on_initialize(1);
+
+			assert_eq!(Configuration::config(), old_config);
+			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(config.clone()));
+
+			Initializer::on_finalize(1);
+
+			Configuration::initializer_on_new_session(&[], &[]);
+
+			assert_eq!(Configuration::config(), config);
+			assert!(<Configuration as Store>::PendingConfig::get().is_none());
+		})
+	}
+
+	#[test]
+	fn setting_pending_config_members() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let new_config = HostConfiguration {
+				validation_upgrade_frequency: 100,
+				validation_upgrade_delay: 10,
+				acceptance_period: 5,
+				max_code_size: 100_000,
+				max_head_data_size: 1_000,
+				parathread_cores: 2,
+				parathread_retries: 5,
+				parachain_rotation_frequency: 20,
+				chain_availability_period: 10,
+				thread_availability_period: 8,
+				scheduling_lookahead: 3,
+			};
+
+			assert!(<Configuration as Store>::PendingConfig::get().is_none());
+
+			Configuration::set_validation_upgrade_frequency(
+				Origin::ROOT, new_config.validation_upgrade_frequency,
+			).unwrap();
+			Configuration::set_validation_upgrade_delay(
+				Origin::ROOT, new_config.validation_upgrade_delay,
+			).unwrap();
+			Configuration::set_acceptance_period(
+				Origin::ROOT, new_config.acceptance_period,
+			).unwrap();
+			Configuration::set_max_code_size(
+				Origin::ROOT, new_config.max_code_size,
+			).unwrap();
+			Configuration::set_max_head_data_size(
+				Origin::ROOT, new_config.max_head_data_size,
+			).unwrap();
+			Configuration::set_parathread_cores(
+				Origin::ROOT, new_config.parathread_cores,
+			).unwrap();
+			Configuration::set_parathread_retries(
+				Origin::ROOT, new_config.parathread_retries,
+			).unwrap();
+			Configuration::set_parachain_rotation_frequency(
+				Origin::ROOT, new_config.parachain_rotation_frequency,
+			).unwrap();
+			Configuration::set_chain_availability_period(
+				Origin::ROOT, new_config.chain_availability_period,
+			).unwrap();
+			Configuration::set_thread_availability_period(
+				Origin::ROOT, new_config.thread_availability_period,
+			).unwrap();
+			Configuration::set_scheduling_lookahead(
+				Origin::ROOT, new_config.scheduling_lookahead,
+			).unwrap();
+
+			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));
+		})
+	}
+
+	#[test]
+	fn non_root_cannot_set_config() {
+		new_test_ext(Default::default()).execute_with(|| {
+			assert!(Configuration::set_validation_upgrade_delay(Origin::signed(1), 100).is_err());
+		});
+	}
+
+	#[test]
+	fn setting_config_to_same_as_current_is_noop() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Configuration::set_validation_upgrade_delay(Origin::ROOT, Default::default()).unwrap();
+			assert!(<Configuration as Store>::PendingConfig::get().is_none())
+		});
 	}
 }
