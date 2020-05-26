@@ -49,6 +49,12 @@ decl_module! {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
+			// The other modules are initialized in this order:
+			// - Configuration
+			// - Paras
+			// - Scheduler
+			// - Inclusion
+			// - Validity
 			let total_weight = configuration::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
