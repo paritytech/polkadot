@@ -103,7 +103,7 @@ pub fn native_version() -> NativeVersion {
 pub struct IsCallable;
 impl Filter<Call> for IsCallable {
 	fn filter(call: &Call) -> bool {
-		matches!(call, Call::Slots(_) | Call::Registrar(_))
+		!matches!(call, Call::Slots(_) | Call::Registrar(_))
 	}
 }
 
