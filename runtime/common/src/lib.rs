@@ -89,6 +89,14 @@ impl<F: Filter<Call>, Call> sp_std::fmt::Debug for TransactionCallFilter<F, Call
 	fn fmt(&self, _: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result { Ok(()) }
 }
 
+fn validate(call: Call) -> TransactionValidity {
+	if F::filter(call) {
+		Ok(Default::default())
+	} else {
+		Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into())
+	}
+}
+
 impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
 	SignedExtension for TransactionCallFilter<F, Call>
 {
@@ -100,31 +108,18 @@ impl<F: Filter<Call> + Send + Sync, Call: Dispatchable + Send + Sync>
 
 	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
 
-	fn validate(
-		&self,
+	fn validate(&self,
 		_: &Self::AccountId,
 		call: &Call,
 		_: &DispatchInfoOf<Self::Call>,
 		_: usize,
-	) -> TransactionValidity {
-		if F::filter(call) {
-			Ok(Default::default())
-		} else {
-			Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into())
-		}
-	}
+	) -> TransactionValidity { validate(call) }
 
 	fn validate_unsigned(
 		call: &Self::Call,
 		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
-	) -> TransactionValidity {
-		if F::filter(call) {
-			Ok(Default::default())
-		} else {
-			Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into())
-		}
-	}
+	) -> TransactionValidity { validate(call) }
 }
 
 impl<F: Filter<Call>, Call> TransactionCallFilter<F, Call> {
