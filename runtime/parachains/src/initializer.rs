@@ -27,8 +27,9 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 };
+use crate::configuration;
 
-pub trait Trait: system::Trait { }
+pub trait Trait: system::Trait + crate::configuration::Trait { }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Initializer {
@@ -47,13 +48,16 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
 
-		fn on_initialize(_now: T::BlockNumber) -> Weight {
+		fn on_initialize(now: T::BlockNumber) -> Weight {
+			let total_weight = configuration::Module::<T>::initializer_initialize(now);
+
 			HasInitialized::set(Some(()));
 
-			0
+			total_weight
 		}
 
 		fn on_finalize() {
+			configuration::Module::<T>::initializer_finalize();
 			HasInitialized::take();
 		}
 	}
@@ -64,10 +68,15 @@ impl<T: Trait> Module<T> {
 	/// wrapped modules.
 	///
 	/// Panics if the modules have already been initialized.
-	fn on_new_session<'a, I: 'a>(_changed: bool, _validators: I, _queued: I)
+	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
 	{
 		assert!(HasInitialized::get().is_none());
+
+		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
+		let queued: Vec<_> = queued.map(|(_, v)| v).collect();
+
+		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
 	}
 }
 
