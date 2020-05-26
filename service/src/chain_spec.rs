@@ -71,6 +71,10 @@ pub type WestendChainSpec = service::GenericChainSpec<
 	Extensions,
 >;
 
+pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
+}
+
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
 	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
 }

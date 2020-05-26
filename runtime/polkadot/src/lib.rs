@@ -24,7 +24,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight,
+	MaximumExtrinsicWeight, TransactionCallFilter,
 };
 
 use sp_std::prelude::*;
@@ -32,19 +32,18 @@ use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
+	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, RuntimeDebug,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
+		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
 	traits::{
-		BlakeTwo256, Block as BlockT, SignedExtension, OpaqueKeys, ConvertInto,
-		DispatchInfoOf, IdentityLookup, Extrinsic as ExtrinsicT, SaturatedConversion,
-		Verify,
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 #[cfg(feature = "runtime-benchmarks")]
@@ -57,7 +56,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier},
+	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -88,11 +87,11 @@ include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
-	authoring_version: 2,
-	spec_version: 1011,
+	authoring_version: 0,
+	spec_version: 0,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
-	transaction_version: 1,
+	transaction_version: 0,
 };
 
 /// Native version.
@@ -104,34 +103,29 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-/// Avoid processing transactions that are anything except staking and claims.
-///
-/// RELEASE: This is only relevant for the initial PoA run-in period and may be removed
-/// from the release runtime.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
-pub struct OnlyStakingAndClaims;
-impl SignedExtension for OnlyStakingAndClaims {
-	const IDENTIFIER: &'static str = "OnlyStakingAndClaims";
-	type AccountId = AccountId;
-	type Call = Call;
-	type AdditionalSigned = ();
-	type Pre = ();
-
-	fn additional_signed(&self) -> sp_std::result::Result<(), TransactionValidityError> { Ok(()) }
-
-	fn validate(
-		&self, _:
-		&Self::AccountId,
-		call: &Self::Call,
-		_: &DispatchInfoOf<Self::Call>,
-		_: usize
-	)
-		-> TransactionValidity
-	{
+pub struct IsCallable;
+impl Filter<Call> for IsCallable {
+	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Slots(_) | Call::Registrar(_)
-				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
-			_ => Ok(Default::default()),
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
+			
+			// Governance stuff
+			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
+			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
+			// Parachains stuff
+			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
+			// Balances and Vesting's transfer (which can be used to transfer)
+			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) =>
+				false,
+
+			// These modules are all allowed to be called by transactions:
+			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
+			Call::Babe(_) | Call::Timestamp(_) |
+			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
+			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
+			Call::AuthorityDiscovery(_) |
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
+				true,
 		}
 	}
 }
@@ -187,7 +181,7 @@ impl babe::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const IndexDeposit: Balance = 1 * DOLLARS;
+	pub const IndexDeposit: Balance = 10 * DOLLARS;
 }
 
 impl indices::Trait for Runtime {
@@ -308,7 +302,7 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
-	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
 	pub const MaxIterations: u32 = 5;
 }
 
@@ -344,7 +338,7 @@ parameter_types! {
 	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
-	pub const InstantAllowed: bool = false;
+	pub const InstantAllowed: bool = true;
 	pub const MaxVotes: u32 = 100;
 }
 
@@ -612,7 +606,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
-			OnlyStakingAndClaims,
+			TransactionCallFilter::<IsCallable, Call>::new(),
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
@@ -699,6 +693,24 @@ impl vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
+parameter_types! {
+	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const MultisigDepositBase: Balance = 30 * CENTS;
+	// Additional storage item size of 32 bytes.
+	pub const MultisigDepositFactor: Balance = 5 * CENTS;
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl utility::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type MultisigDepositBase = MultisigDepositBase;
+	type MultisigDepositFactor = MultisigDepositFactor;
+	type MaxSignatories = MaxSignatories;
+	type IsCallable = IsCallable;
+}
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -734,7 +746,8 @@ construct_runtime! {
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
-		// Governance stuff; uncallable initially.
+		// Governance stuff; uncallable initially. Calls should be uncommented once we're ready to
+		// enable governance.
 		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
 		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
@@ -743,7 +756,8 @@ construct_runtime! {
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
-		// have no public dispatchables.
+		// have no public dispatchables. Disabled `Call` on all of them, but this should be
+		// uncommented once we're ready to start parachains.
 		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
@@ -753,6 +767,8 @@ construct_runtime! {
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		// Cunning utilities. Usable initially.
+		Utility: utility::{Module, Call, Storage, Event<T>},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
@@ -771,8 +787,7 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	// RELEASE: remove this for release build.
-	OnlyStakingAndClaims,
+	TransactionCallFilter<IsCallable, Call>,
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
@@ -939,7 +954,7 @@ sp_api::impl_runtime_apis! {
 				c: PRIMARY_PROBABILITY,
 				genesis_authorities: Babe::authorities(),
 				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryVRFSlots,
 			}
 		}
 

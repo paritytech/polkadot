@@ -43,6 +43,7 @@ impl SubstrateCli for Cli {
 			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()),
 			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()),
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			"kusama" | "" => Box::new(service::chain_spec::kusama_config()?),
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
