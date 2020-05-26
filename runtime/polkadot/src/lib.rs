@@ -107,14 +107,15 @@ pub struct IsCallable;
 impl Filter<Call> for IsCallable {
 	fn filter(call: &Call) -> bool {
 		match call {
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
+			
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
 			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
-			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) |
-			Call::Parachains(parachains::Call::set_heads(..)) =>
+			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
