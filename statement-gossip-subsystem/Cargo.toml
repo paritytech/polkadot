@@ -10,6 +10,9 @@ edition = "2018"
 polkadot-network = { path = "../network" }
 statement-table = { package = "polkadot-statement-table", path = "../statement-table" }
 primitives = { package = "polkadot-primitives", path = "../primitives" }
+overseer = { path = "../overseer" }
 async-std = "1.5.0"
 exit-future = "0.2.0"
 futures = "0.3.5"
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
+env_logger = "0.7.1"
