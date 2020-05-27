@@ -4588,7 +4588,6 @@ dependencies = [
  "sc-client-api",
  "sc-finality-grandpa",
  "sc-keystore",
- "sc-proposer-metrics",
  "sp-api",
  "sp-blockchain",
  "sp-consensus",

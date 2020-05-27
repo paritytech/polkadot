@@ -41,7 +41,6 @@ use inherents::InherentData;
 use sp_timestamp::TimestampInherentData;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use prometheus_endpoint::Registry as PrometheusRegistry;
-use sc_proposer_metrics::MetricsLink as PrometheusMetrics;
 
 use crate::{
 	Error,
@@ -53,7 +52,6 @@ use crate::{
 pub struct ProposerFactory<Client, TxPool, Backend> {
 	service_handle: ServiceHandle,
 	babe_slot_duration: u64,
-	metrics: PrometheusMetrics,
 	factory: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
 }
 
@@ -69,12 +67,11 @@ impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 		let factory = sc_basic_authorship::ProposerFactory::new(
 			client,
 			transaction_pool,
-			prometheus.clone(),
+			prometheus,
 		);
 		ProposerFactory {
-			service_handle: service_handle,
+			service_handle,
 			babe_slot_duration,
-			metrics: PrometheusMetrics::new(prometheus),
 			factory,
 		}
 	}
@@ -106,7 +103,6 @@ where
 	) -> Self::CreateProposer {
 		let parent_hash = parent_header.hash();
 		let slot_duration = self.babe_slot_duration.clone();
-		let metrics = self.metrics.clone();
 		let proposer = self.factory.init(parent_header).into_inner();
 
 		let maybe_proposer = self.service_handle
@@ -117,7 +113,6 @@ where
 				.map(|proposer| Proposer {
 					tracker,
 					slot_duration,
-					metrics,
 					proposer: Some(proposer),
 				})
 			));
@@ -130,7 +125,6 @@ where
 pub struct Proposer<Client, TxPool: TransactionPool<Block=Block>, Backend> {
 	tracker: crate::validation_service::ValidationInstanceHandle,
 	slot_duration: u64,
-	metrics: PrometheusMetrics,
 	proposer: Option<sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>>,
 }
 
@@ -169,11 +163,9 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		);
 
 		let table = self.tracker.table().clone();
-		let metrics = self.metrics.clone();
-		let mut proposer = self.proposer.take().expect("Only one block proposed.");
+		let mut proposer = self.proposer.take().expect("Only one block proposed per proposer; qed");
 
 		async move {
-			let block_timer = metrics.report(|metrics| metrics.block_constructed.start_timer());
 			let enough_candidates = dynamic_inclusion.acceptable_in(
 				now,
 				initial_included,
@@ -207,10 +199,6 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 				deadline_diff,
 				record_proof
 			).await;
-
-			drop(block_timer);
-			let transactions = result.as_ref().map(|proposal| proposal.block.extrinsics.len()).unwrap_or_default();
-			metrics.report(|metrics| metrics.number_of_transactions.set(transactions as u64));
 
 			Ok(result?)
 		}.boxed()
