@@ -196,6 +196,7 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
 
+		// TODO [now]: add routines from implementor's guide.
 	}
 }
 
@@ -342,13 +343,10 @@ mod tests {
 
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
-		// TODO [now]: alter test to check behavior for differing expected inclusion and actual inclusion
-		// height.
-
 		let mut past_code = ParaPastCodeMeta::default();
 		past_code.note_replacement(10u32, 10);
-		past_code.note_replacement(20, 20);
-		past_code.note_replacement(30, 30);
+		past_code.note_replacement(20, 25);
+		past_code.note_replacement(30, 35);
 
 		let old = past_code.clone();
 		assert!(past_code.prune_up_to(9).collect::<Vec<_>>().is_empty());
@@ -356,26 +354,35 @@ mod tests {
 
 		assert_eq!(past_code.prune_up_to(10).collect::<Vec<_>>(), vec![10]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(30, 30), (20, 20)],
+			upgrade_times: vec![(30, 35), (20, 25)],
 			last_pruned: Some(10),
 		});
 
-		assert_eq!(past_code.prune_up_to(21).collect::<Vec<_>>(), vec![20]);
+		assert!(past_code.prune_up_to(21).collect::<Vec<_>>().is_empty());
+
+		assert_eq!(past_code.prune_up_to(26).collect::<Vec<_>>(), vec![20]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(30, 30)],
+			upgrade_times: vec![(30, 35)],
 			last_pruned: Some(20),
 		});
 
-		past_code.note_replacement(40, 40);
-		past_code.note_replacement(50, 50);
-		past_code.note_replacement(60, 60);
+		past_code.note_replacement(40, 42);
+		past_code.note_replacement(50, 53);
+		past_code.note_replacement(60, 66);
 
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(60, 60), (50, 50), (40, 40), (30, 30)],
+			upgrade_times: vec![(60, 66), (50, 53), (40, 42), (30, 35)],
 			last_pruned: Some(20),
 		});
 
-		assert_eq!(past_code.prune_up_to(60).collect::<Vec<_>>(), vec![30, 40, 50, 60]);
+		assert_eq!(past_code.prune_up_to(60).collect::<Vec<_>>(), vec![30, 40, 50]);
+		assert_eq!(past_code, ParaPastCodeMeta {
+			upgrade_times: vec![(60, 66)],
+			last_pruned: Some(50),
+		});
+
+		assert_eq!(past_code.prune_up_to(66).collect::<Vec<_>>(), vec![60]);
+
 		assert_eq!(past_code, ParaPastCodeMeta {
 			upgrade_times: Vec::new(),
 			last_pruned: Some(60),
