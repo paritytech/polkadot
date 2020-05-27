@@ -199,6 +199,77 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
+		let now = <system::Module<T>>::block_number();
+		let parachains = Self::clean_up_outgoing(now);
+		<Self as Store>::Parachains::set(parachains);
+	}
+
+	/// Cleans up all outgoing paras. Returns the new set of parachains
+	fn clean_up_outgoing(now: T::BlockNumber) -> Vec<ParaId> {
+		let mut parachains = <Self as Store>::Parachains::get();
+		let outgoing = <Self as Store>::OutgoingParas::take();
+
+		for outgoing_para in outgoing {
+			if let Ok(i) = parachains.binary_search(&outgoing_para) {
+				parachains.remove(i);
+			}
+
+			<Self as Store>::Heads::remove(&outgoing_para);
+			<Self as Store>::FutureCodeUpgrades::remove(&outgoing_para);
+			<Self as Store>::FutureCode::remove(&outgoing_para);
+
+			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
+			if let Some(removed_code) = removed_code {
+				Self::note_past_code(outgoing_para, now, removed_code);
+			}
+		}
+
+		parachains
+	}
+
+	/// Applies all incoming paras, updating the parachains list for those that are parachains.
+	fn apply_incoming(parachains: &mut Vec<ParaId>) {
+		let upcoming = <Self as Store>::UpcomingParas::take();
+		for upcoming_para in upcoming {
+			let genesis_data = match <Self as Store>::UpcomingParasGenesis::take(&upcoming_para) {
+				None => continue,
+				Some(g) => g,
+			};
+
+			if genesis_data.parachain {
+				match parachains.binary_search(&upcoming_para) {
+					Ok(_i) => {}
+					Err(i) => {
+						parachains.insert(i, upcoming_para);
+					}
+				}
+			}
+
+			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
+			<Self as Store>::CurrentCode::insert(&upcoming_para, genesis_data.validation_code);
+		}
+	}
+
+	// note replacement of the code of para with given `id`, which occured in the
+	// context of the given relay-chain block number. provide the replaced code.
+	//
+	// `at` for para-triggered replacement is the block number of the relay-chain
+	// block in whose context the parablock was executed
+	// (i.e. number of `relay_parent` in the receipt)
+	fn note_past_code(id: ParaId, at: T::BlockNumber, old_code: ValidationCode) {
+		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
+			past_meta.note_replacement(at);
+		});
+
+		<Self as Store>::PastCode::insert(&(id, at), old_code);
+
+		// Schedule pruning for this past-code to be removed as soon as it
+		// exits the slashing window.
+		<Self as Store>::PastCodePruning::mutate(|pruning| {
+			let insert_idx = pruning.binary_search_by_key(&at, |&(_, b)| b)
+				.unwrap_or_else(|idx| idx);
+			pruning.insert(insert_idx, (id, at));
+		})
 	}
 }
 
