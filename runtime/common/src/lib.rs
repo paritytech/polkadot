@@ -59,7 +59,6 @@ parameter_types! {
 
 const_assert!(AvailableBlockRatio::get().deconstruct() >= AVERAGE_ON_INITIALIZE_WEIGHT.deconstruct());
 
-
 /// Apply a given filter to transactions.
 pub struct TransactionCallFilter<T: Filter<Call>, Call>(PhantomData<(T, Call)>);
 
