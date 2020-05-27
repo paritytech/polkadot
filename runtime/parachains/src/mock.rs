@@ -108,4 +108,5 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 pub struct GenesisConfig {
 	pub system: system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
+	pub paras: crate::paras::GenesisConfig<Test>,
 }

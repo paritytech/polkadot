@@ -24,6 +24,7 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
+use sp_std::marker::PhantomData;
 use sp_runtime::traits::One;
 use primitives::{
 	parachain::{ValidatorId, Id as ParaId, ValidationCode, HeadData},
@@ -37,6 +38,9 @@ use frame_support::{
 use codec::{Encode, Decode};
 use system::ensure_root;
 use crate::configuration;
+
+#[cfg(feature = "std")]
+use serde::{Serialize, Deserialize};
 
 pub trait Trait: system::Trait + configuration::Trait { }
 
@@ -137,6 +141,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 
 /// Arguments for initializing a para.
 #[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
 	genesis_head: HeadData,
@@ -183,7 +188,31 @@ decl_storage! {
 		/// Paras that are to be cleaned up at the end of the session.
 		OutgoingParas: Vec<ParaId>;
 
-		// TODO [now]: genesis config
+	}
+	add_extra_genesis {
+		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
+		config(_phdata): PhantomData<T>;
+		build(build::<T>);
+	}
+}
+
+#[cfg(feature = "std")]
+fn build<T: Trait>(config: &GenesisConfig<T>) {
+	let mut parachains: Vec<ParaId> = config.paras
+		.iter()
+		.filter(|(_, args)| args.parachain)
+		.map(|&(ref id, _)| id)
+		.cloned()
+		.collect();
+
+	parachains.sort_unstable();
+	parachains.dedup();
+
+	Parachains::put(&parachains);
+
+	for (id, genesis_args) in &config.paras {
+		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
+		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
 	}
 }
 
@@ -212,8 +241,8 @@ impl<T: Trait> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		let now = <system::Module<T>>::block_number();
-		let parachains = Self::clean_up_outgoing(now);
-		// TODO [now]: apply incoming.
+		let mut parachains = Self::clean_up_outgoing(now);
+		Self::apply_incoming(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
 	}
 
