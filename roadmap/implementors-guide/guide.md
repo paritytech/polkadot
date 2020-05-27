@@ -774,6 +774,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. Return a list of freed cores consisting of the cores where candidates have become available.
   * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`:
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
+    1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of the currently scheduled upgrade, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
     1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a backed candidate was successfully included for.
