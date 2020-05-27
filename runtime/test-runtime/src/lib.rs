@@ -59,12 +59,7 @@ use session::historical as session_historical;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
-#[cfg(any(feature = "std", test))]
-pub use sp_runtime::BuildStorage;
-pub use timestamp::Call as TimestampCall;
-pub use balances::Call as BalancesCall;
-pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::Call as ParachainsCall;
+use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -200,7 +195,6 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
 
