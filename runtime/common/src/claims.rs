@@ -918,6 +918,7 @@ mod tests {
 			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), Some(50));
 
+			// Make sure we can not transfer the vested balance.
 			assert_err!(
 				<Balances as Currency<_>>::transfer(&69, &80, 180, ExistenceRequirement::AllowDeath),
 				balances::Error::<Test, _>::LiquidityRestrictions,
