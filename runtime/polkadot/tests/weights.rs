@@ -219,7 +219,7 @@ fn weight_of_democracy_enact_proposal_is_correct() {
 #[test]
 fn weight_of_phragmen_vote_is_correct() {
 	// #[weight = 100_000_000]
-	let expected_weight = 100_000_000;
+	let expected_weight = 350_000_000;
 	let weight = PhragmenCall::vote::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -227,18 +227,17 @@ fn weight_of_phragmen_vote_is_correct() {
 
 #[test]
 fn weight_of_phragmen_submit_candidacy_is_correct() {
-	// #[weight = 500_000_000]
-	let expected_weight = 500_000_000;
-	let weight = PhragmenCall::submit_candidacy::<Runtime>().get_dispatch_info().weight;
+	let expected_weight = WEIGHT_PER_MICROS * 35 + 1 * 375 * WEIGHT_PER_NANOS + DbWeight::get().reads_writes(4, 1);
+	let weight = PhragmenCall::submit_candidacy::<Runtime>(1).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
 fn weight_of_phragmen_renounce_candidacy_is_correct() {
-	// #[weight = (2_000_000_000, DispatchClass::Operational)]
-	let expected_weight = 2_000_000_000;
-	let weight = PhragmenCall::renounce_candidacy::<Runtime>().get_dispatch_info().weight;
+	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
+	let weight = PhragmenCall::renounce_candidacy::<Runtime>(elections_phragmen::Renouncing::Member)
+		.get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
