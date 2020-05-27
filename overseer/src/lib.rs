@@ -1,3 +1,19 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 //! # Overseer
 //!
 //! `overseer` implements the Overseer architecture described in the
@@ -18,7 +34,6 @@
 //! is the ability to return some `Future` object that the `Overseer` can run and
 //! dispatch messages to/from it. Let's take a look at the simplest case with two
 //! `Subsystems`:
-//!
 //!
 //! ```text
 //!                              +-----------------------------+
@@ -111,12 +126,12 @@ enum OverseerMessage<T: Debug> {
 impl<T: Debug> Debug for OverseerMessage<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		match self {
-		    OverseerMessage::SubsystemMessage { to, msg } => {
+			OverseerMessage::SubsystemMessage { to, msg } => {
 				write!(f, "OverseerMessage::SubsystemMessage{{ to: {:?}, msg: {:?} }}", to, msg)
 			}
-		    OverseerMessage::Spawn{ .. } => write!(f, "OverseerMessage::Spawn(..)")
+			OverseerMessage::Spawn{ .. } => write!(f, "OverseerMessage::Spawn(..)")
 		}
-    }
+	}
 }
 
 /// A running instance of some `Subsystem`.
@@ -147,9 +162,9 @@ impl<M: Debug> SubsystemContext<M> {
 	/// using `pending!()` macro you will end up with a busy loop!
 	pub async fn try_recv(&mut self) -> Result<Option<M>, ()> {
 		match poll!(self.rx.next()) {
-		    Poll::Ready(Some(msg)) => Ok(Some(msg)), 
+			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
-		    Poll::Pending => Ok(None),
+			Poll::Pending => Ok(None),
 		}
 	}
 
@@ -215,7 +230,7 @@ pub trait Subsystem<M: Debug> {
 /// Ties together the `Subsystem` itself and it's running instance
 /// (which may be missing if the `Subsystem` is not running at the moment
 /// for whatever reason).
-struct OverseedSubsystem<M: Debug> {
+struct OverseenSubsystem<M: Debug> {
 	subsystem: Box<dyn Subsystem<M>>,
 	instance: Option<SubsystemInstance<M>>,
 }
@@ -223,7 +238,7 @@ struct OverseedSubsystem<M: Debug> {
 /// The `Overseer` itself.
 pub struct Overseer<M: Debug> {
 	/// All `Subsystem`s by their respective `SubsystemId`s.
-	subsystems: HashMap<SubsystemId, OverseedSubsystem<M>>,
+	subsystems: HashMap<SubsystemId, OverseenSubsystem<M>>,
 	/// The actual poor man's process tree.
 	///
 	/// Needed (among other things) to stop a running `Job` along
@@ -257,7 +272,7 @@ impl<M: Debug + Clone> Overseer<M> {
 	///                         +-----------+
 	///
 	/// ```
-	pub fn new(subsystems: Vec<Box<dyn Subsystem<M>>>) -> Self {
+	pub fn new<S: IntoIterator<Item = Box<dyn Subsystem<M>>>>(subsystems: S) -> Self {
 		let mut this = Self {
 			subsystems: HashMap::new(),
 			id_to_children: HashMap::new(),
@@ -373,7 +388,7 @@ impl<M: Debug + Clone> Overseer<M> {
 		});
 
 		let id = SubsystemId(get_id());
-		self.subsystems.insert(id, OverseedSubsystem {
+		self.subsystems.insert(id, OverseenSubsystem {
 			subsystem: s,
 			instance,
 		});
@@ -478,7 +493,7 @@ mod tests {
 	// The first job a number of messages that are re-broadcasted to the second job that
 	// in it's turn send them to the test code to collect the results and compare them to
 	// the expected ones.
-    #[test]
+	#[test]
 	fn overseer_works() {
 		executor::block_on(async {
 			let (s1_tx, mut s1_rx) = mpsc::channel(64);

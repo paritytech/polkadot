@@ -1,6 +1,24 @@
-use std::collections::HashSet;
-use std::time::Duration;
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Shows a basic usage of the `Overseer`:
+//!   * Spawning subsystems and subsystem child jobs
+//!   * Establishing message passing
+
+use std::time::Duration;
 use futures::pending;
 use futures_timer::Delay;
 use kv_log_macro as log;
@@ -41,7 +59,6 @@ impl Subsystem<usize> for Subsystem1 {
 }
 
 struct Subsystem2;
-
 
 impl Subsystem2 {
 	async fn run(mut ctx: SubsystemContext<usize>)  {

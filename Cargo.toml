@@ -27,7 +27,7 @@ members = [
 	"erasure-coding",
 	"network",
 	"network/test",
-    "overseer",
+	"overseer",
 	"primitives",
 	"runtime/common",
 	"runtime/polkadot",
