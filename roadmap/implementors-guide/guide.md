@@ -475,9 +475,12 @@ Utility structs:
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 pub struct ParaPastCodeMeta {
-	// Block numbers where the code was replaced. These can be used as indices
+	// Block numbers where the code was expected to be replaced and where the code
+	// was actually replaced, respectively. The first is used to do accurate lookups
+	// of historic code in historic contexts, whereas the second is used to do
+	// pruning on an accurate timeframe. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<BlockNumber>,
+	upgrade_times: Vec<(BlockNumber, BlockNumber)>,
 	// This tracks the highest pruned code-replacement, if any.
 	last_pruned: Option<BlockNumber>,
 }
@@ -513,11 +516,13 @@ PastCode: map (ParaId, BlockNumber) => Option<ValidationCode>;
 /// but we also keep their code on-chain for the same amount of time as outdated code
 /// to keep it available for secondary checkers.
 PastCodeMeta: map ParaId => ParaPastCodeMeta;
-/// Which paras have past code that needs pruning and the relay-chain block in which context the code was replaced. The second block number is the block number at which the parachain block was actually included.
+/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
+/// Note that this is the actual height of the included block, not the expected height at which the
+/// code upgrade would be applied, although they may be equal.
 /// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
 /// from the time at which the parachain perceives a code upgrade as having occurred.
 /// Multiple entries for a single para are permitted. Ordered ascending by block number.
-PastCodePruning: Vec<(ParaId, BlockNumber, BlockNumber)>;
+PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// The block number at which the planned code change is expected for a para.
 /// The change will be applied after the first parablock for this ID included which executes
 /// in the context of a relay chain block with a number >= `expected_at`.
