@@ -136,6 +136,7 @@ std = [
 	"runtime-common/std",
 	"sudo/std",
 	"vesting/std",
+	"utility/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",

@@ -144,13 +144,13 @@ decl_error! {
 		SignerHasNoClaim,
 		/// Account ID sending tx has no claim.
 		SenderHasNoClaim,
-		/// The destination is already vesting and cannot be the target of a further claim.
-		DestinationVesting,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
 		PotUnderflow,
 		/// A needed statement was not included.
 		InvalidStatement,
+		/// The account already has a vested balance.
+		VestedBalanceExists,
 	}
 }
 
@@ -438,15 +438,22 @@ impl<T: Trait> Module<T> {
 
 		let new_total = Self::total().checked_sub(&balance_due).ok_or(Error::<T>::PotUnderflow)?;
 
-		// Check if this claim should have a vesting schedule.
-		if let Some(vs) = <Vesting<T>>::get(&signer) {
-			// If this fails, destination account already has a vesting schedule
-			// applied to it, and this claim should not be processed.
-			T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
-				.map_err(|_| Error::<T>::DestinationVesting)?;
+		let vesting = Vesting::<T>::get(&signer);
+		if vesting.is_some() && T::VestingSchedule::vesting_balance(&dest).is_some() {
+			return Err(Error::<T>::VestedBalanceExists.into())
 		}
 
+		// We first need to deposit the balance to ensure that the account exists.
 		CurrencyOf::<T>::deposit_creating(&dest, balance_due);
+
+		// Check if this claim should have a vesting schedule.
+		if let Some(vs) = vesting {
+			// This can only fail if the account already has a vesting schedule,
+			// but this is checked above.
+			T::VestingSchedule::add_vesting_schedule(&dest, vs.0, vs.1, vs.2)
+				.expect("No other vesting schedule exists, as checked above; qed");
+		}
+
 		<Total<T>>::put(new_total);
 		<Claims<T>>::remove(&signer);
 		<Vesting<T>>::remove(&signer);
@@ -611,7 +618,7 @@ mod tests {
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
-		weights::{Pays, GetDispatchInfo},
+		weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
 	};
 	use balances;
 	use super::Call as ClaimsCall;
@@ -902,12 +909,18 @@ mod tests {
 			assert_eq!(Balances::free_balance(42), 0);
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
-				Error::<Test>::SignerHasNoClaim
+				Error::<Test>::SignerHasNoClaim,
 			);
 			assert_ok!(Claims::mint_claim(Origin::ROOT, eth(&bob()), 200, Some((50, 10, 1)), None));
 			assert_ok!(Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])));
 			assert_eq!(Balances::free_balance(&69), 200);
 			assert_eq!(Vesting::vesting_balance(&69), Some(50));
+
+			// Make sure we can not transfer the vested balance.
+			assert_err!(
+				<Balances as Currency<_>>::transfer(&69, &80, 180, ExistenceRequirement::AllowDeath),
+				balances::Error::<Test, _>::LiquidityRestrictions,
+			);
 		});
 	}
 
@@ -979,7 +992,7 @@ mod tests {
 			// They should not be able to claim
 			assert_noop!(
 				Claims::claim(Origin::NONE, 69, sig::<Test>(&bob(), &69u64.encode(), &[][..])),
-				Error::<Test>::DestinationVesting
+				Error::<Test>::VestedBalanceExists,
 			);
 		});
 	}
