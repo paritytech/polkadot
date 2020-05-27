@@ -144,8 +144,6 @@ decl_error! {
 		SignerHasNoClaim,
 		/// Account ID sending tx has no claim.
 		SenderHasNoClaim,
-		/// The destination is already vesting and cannot be the target of a further claim.
-		DestinationVesting,
 		/// There's not enough in the pot to pay out some unvested amount. Generally implies a logic
 		/// error.
 		PotUnderflow,
