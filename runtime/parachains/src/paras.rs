@@ -31,6 +31,7 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	dispatch::DispatchResult,
+	traits::Get,
 	weights::{DispatchClass, Weight, constants::{WEIGHT_PER_SECOND}},
 };
 use codec::{Encode, Decode};
@@ -198,8 +199,8 @@ decl_module! {
 
 impl<T: Trait> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		Self::do_old_code_pruning(now)
 	}
 
 	/// Called by the initializer to finalize the configuration module.
@@ -287,10 +288,13 @@ impl<T: Trait> Module<T> {
 	}
 
 	// does old code pruning.
-	fn do_old_code_pruning(now: T::BlockNumber) {
+	fn do_old_code_pruning(now: T::BlockNumber) -> Weight {
 		let config = configuration::Module::<T>::config();
 		let acceptance_period = config.acceptance_period;
-		if now <= acceptance_period { return }
+		if now <= acceptance_period {
+			let weight = T::DbWeight::get().reads_writes(1, 0);
+			return weight;
+		}
 
 		// The height of any changes we no longer should keep around.
 		let pruning_height = now - (acceptance_period + One::one());
@@ -321,10 +325,12 @@ impl<T: Trait> Module<T> {
 					}
 				}
 
-				pruning_tasks_done
+				pruning_tasks_done as u64
 			});
 
-		// TODO [now]: pruning_tasks_done * weight
+		// 1 read for the meta for each pruning task, 1 read for the config
+		// 2 writes: updating the meta and pruning the code
+		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
 	}
 }
 
@@ -334,6 +340,9 @@ mod tests {
 
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
+		// TODO [now]: alter test to check behavior for differing expected inclusion and actual inclusion
+		// height.
+
 		let mut past_code = ParaPastCodeMeta::default();
 		past_code.note_replacement(10u32, 10);
 		past_code.note_replacement(20, 20);
