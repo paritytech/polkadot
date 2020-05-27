@@ -65,7 +65,6 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::Call as ParachainsCall;
-use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
