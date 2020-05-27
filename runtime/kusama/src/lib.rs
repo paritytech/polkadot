@@ -35,7 +35,7 @@ use runtime_common::{attestations, claims, parachains, registrar, slots,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
 	traits::{
@@ -85,7 +85,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
 	spec_version: 1064,
-	impl_version: 0,
+	impl_version: 1,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
 };
@@ -190,9 +190,15 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
+
+// for a sane configuration, this should always be less than `AvailableBlockRatio`.
+const_assert!(
+	TargetBlockFullness::get().deconstruct() <
+	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
+		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
+);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
@@ -368,18 +374,17 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 }
 
-const DESIRED_MEMBERS: u32 = 17;
 parameter_types! {
 	pub const CandidacyBond: Balance = 1 * DOLLARS;
 	pub const VotingBond: Balance = 5 * CENTS;
 	/// Daily council elections.
 	pub const TermDuration: BlockNumber = 24 * HOURS;
-	pub const DesiredMembers: u32 = DESIRED_MEMBERS;
+	pub const DesiredMembers: u32 = 17;
 	pub const DesiredRunnersUp: u32 = 7;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than MAX_MEMBERS members elected via phragmen.
-const_assert!(DESIRED_MEMBERS <= collective::MAX_MEMBERS);
+const_assert!(DesiredMembers::get() <= collective::MAX_MEMBERS);
 
 impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
@@ -455,7 +460,7 @@ impl treasury::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 }
 
 impl offences::Trait for Runtime {
@@ -507,8 +512,8 @@ impl grandpa::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub const ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
+	pub WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
+	pub ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
 }
 
 impl finality_tracker::Trait for Runtime {
@@ -648,7 +653,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+	pub Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
 
 impl claims::Trait for Runtime {
