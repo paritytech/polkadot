@@ -171,7 +171,7 @@ decl_storage! {
 		/// The block number at which the planned code change is expected for a para.
 		/// The change will be applied after the first parablock for this ID included which executes
 		/// in the context of a relay chain block with a number >= `expected_at`.
-		FutureCodeUpgrades: map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
+		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
 		/// The actual future code of a para.
 		FutureCode: map hasher(twox_64_concat) ParaId => ValidationCode;
 
@@ -213,6 +213,7 @@ impl<T: Trait> Module<T> {
 	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
 		let now = <system::Module<T>>::block_number();
 		let parachains = Self::clean_up_outgoing(now);
+		// TODO [now]: apply incoming.
 		<Self as Store>::Parachains::set(parachains);
 	}
 
@@ -340,6 +341,29 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn para_past_code_meta_gives_right_code() {
+		let mut past_code = ParaPastCodeMeta::default();
+		assert_eq!(past_code.code_at(0u32), Some(UseCodeAt::Current));
+
+		past_code.note_replacement(10, 12);
+		assert_eq!(past_code.code_at(0), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::Current));
+
+		past_code.note_replacement(20, 25);
+		assert_eq!(past_code.code_at(1), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(10), Some(UseCodeAt::ReplacedAt(10)));
+		assert_eq!(past_code.code_at(11), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(20), Some(UseCodeAt::ReplacedAt(20)));
+		assert_eq!(past_code.code_at(21), Some(UseCodeAt::Current));
+
+		past_code.last_pruned = Some(5);
+		assert_eq!(past_code.code_at(1), None);
+		assert_eq!(past_code.code_at(5), None);
+		assert_eq!(past_code.code_at(6), Some(UseCodeAt::ReplacedAt(10)));
+	}
 
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
