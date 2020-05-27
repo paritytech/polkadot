@@ -24,13 +24,14 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
+use sp_runtime::traits::One;
 use primitives::{
 	parachain::{ValidatorId, Id as ParaId, ValidationCode, HeadData},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	dispatch::DispatchResult,
-	weights::{DispatchClass, Weight},
+	weights::{DispatchClass, Weight, constants::{WEIGHT_PER_SECOND}},
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
@@ -43,9 +44,10 @@ pub trait Trait: system::Trait + configuration::Trait { }
 #[derive(Default, Encode, Decode)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
-	// Block numbers where the code was replaced. These can be used as indices
+	// Block numbers where the code was "technically" replaced and the block number at
+	// which the code was actually replaced. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<N>,
+	upgrade_times: Vec<(N, N)>,
 	// This tracks the highest pruned code-replacement, if any.
 	last_pruned: Option<N>,
 }
@@ -60,8 +62,8 @@ enum UseCodeAt<N> {
 
 impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, at: N) {
-		self.upgrade_times.insert(0, at)
+	fn note_replacement(&mut self, at: N, included_at: N) {
+		self.upgrade_times.insert(0, (at, included_at))
 	}
 
 	// Yields the block number of the code that should be used for validating at
@@ -71,13 +73,13 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// should be used to validate at the given height.
 	fn code_at(&self, at: N) -> Option<UseCodeAt<N>> {
 		// The `PastCode` map stores the code which was replaced at `t`.
-		let end_position = self.upgrade_times.iter().position(|&t| t < at);
+		let end_position = self.upgrade_times.iter().position(|&t| t.0 < at);
 		if let Some(end_position) = end_position {
 			Some(if end_position != 0 {
 				// `end_position` gives us the replacement time where the code used at `at`
 				// was set. But that code has been replaced: `end_position - 1` yields
 				// that index.
-				UseCodeAt::ReplacedAt(self.upgrade_times[end_position - 1])
+				UseCodeAt::ReplacedAt(self.upgrade_times[end_position - 1].0)
 			} else {
 				// the most recent tracked replacement is before `at`.
 				// this means that the code put in place then (i.e. the current code)
@@ -94,7 +96,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 				// 2. there are non-pruned upgrade logs all after `at`.
 				//    in this case use the oldest upgrade log.
 				Some(self.upgrade_times.last()
-					.map(|n| UseCodeAt::ReplacedAt(*n))
+					.map(|n| UseCodeAt::ReplacedAt(n.0))
 					.unwrap_or(UseCodeAt::Current)
 				)
 			} else {
@@ -106,7 +108,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 
 	// The block at which the most recently tracked code change occurred.
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.first().map(|x| x.clone())
+		self.upgrade_times.first().map(|x| x.0.clone())
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
@@ -116,17 +118,19 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
 	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item=N> + '_ {
-		match self.upgrade_times.iter().position(|&t| t <= max) {
+		let drained = match self.upgrade_times.iter().position(|&t| t.1 <= max) {
 			None => {
 				// this is a no-op `drain` - desired because all
 				// logged code upgrades occurred after `max`.
 				self.upgrade_times.drain(self.upgrade_times.len()..).rev()
 			}
 			Some(pos) => {
-				self.last_pruned = Some(self.upgrade_times[pos]);
+				self.last_pruned = Some(self.upgrade_times[pos].0);
 				self.upgrade_times.drain(pos..).rev()
 			}
-		}
+		};
+
+		drained.map(|(replaced, _)| replaced)
 	}
 }
 
@@ -147,7 +151,7 @@ decl_storage! {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains: Vec<ParaId>;
 		/// The head-data of every registered para.
-		Heads: map hasher(twox_64_concat) ParaId => Option<HeadData>;
+		Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
 		CurrentCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
@@ -156,7 +160,11 @@ decl_storage! {
 		/// but we also keep their code on-chain for the same amount of time as outdated code
 		/// to keep it available for secondary checkers.
 		PastCodeMeta: map hasher(twox_64_concat) ParaId => ParaPastCodeMeta<T::BlockNumber>;
-		/// Which paras have past code that needs pruning and the relay-chain block in which context the code was replaced.
+		/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
+		/// Note that this is the actual height of the included block, not the expected height at which the
+		/// code upgrade would be applied, although they may be equal.
+		/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
+		/// from the time at which the parachain perceives a code upgrade as having occurred.
 		/// Multiple entries for a single para are permitted. Ordered ascending by block number.
 		PastCodePruning: Vec<(ParaId, T::BlockNumber)>;
 		/// The block number at which the planned code change is expected for a para.
@@ -220,7 +228,7 @@ impl<T: Trait> Module<T> {
 
 			let removed_code = <Self as Store>::CurrentCode::take(&outgoing_para);
 			if let Some(removed_code) = removed_code {
-				Self::note_past_code(outgoing_para, now, removed_code);
+				Self::note_past_code(outgoing_para, now, now, removed_code);
 			}
 		}
 
@@ -256,9 +264,15 @@ impl<T: Trait> Module<T> {
 	// `at` for para-triggered replacement is the block number of the relay-chain
 	// block in whose context the parablock was executed
 	// (i.e. number of `relay_parent` in the receipt)
-	fn note_past_code(id: ParaId, at: T::BlockNumber, old_code: ValidationCode) {
+	fn note_past_code(
+		id: ParaId,
+		at: T::BlockNumber,
+		now: T::BlockNumber,
+		old_code: ValidationCode,
+	) {
+
 		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
-			past_meta.note_replacement(at);
+			past_meta.note_replacement(at, now);
 		});
 
 		<Self as Store>::PastCode::insert(&(id, at), old_code);
@@ -268,8 +282,49 @@ impl<T: Trait> Module<T> {
 		<Self as Store>::PastCodePruning::mutate(|pruning| {
 			let insert_idx = pruning.binary_search_by_key(&at, |&(_, b)| b)
 				.unwrap_or_else(|idx| idx);
-			pruning.insert(insert_idx, (id, at));
+			pruning.insert(insert_idx, (id, now));
 		})
+	}
+
+	// does old code pruning.
+	fn do_old_code_pruning(now: T::BlockNumber) {
+		let config = configuration::Module::<T>::config();
+		let acceptance_period = config.acceptance_period;
+		if now <= acceptance_period { return }
+
+		// The height of any changes we no longer should keep around.
+		let pruning_height = now - (acceptance_period + One::one());
+
+		let pruning_tasks_done =
+			<Self as Store>::PastCodePruning::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
+				let (pruning_tasks_done, pruning_tasks_to_do) = {
+					// find all past code that has just exited the pruning window.
+					let up_to_idx = pruning_tasks.iter()
+						.take_while(|&(_, at)| at <= &pruning_height)
+						.count();
+					(up_to_idx, pruning_tasks.drain(..up_to_idx))
+				};
+
+				for (para_id, _) in pruning_tasks_to_do {
+					let full_deactivate = <Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
+						for pruned_repl_at in meta.prune_up_to(pruning_height) {
+							<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
+						}
+
+						meta.most_recent_change().is_none() && Self::parachain_head(&para_id).is_none()
+					});
+
+					// This parachain has been removed and now the vestigial code
+					// has been removed from the state. clean up meta as well.
+					if full_deactivate {
+						<Self as Store>::PastCodeMeta::remove(&para_id);
+					}
+				}
+
+				pruning_tasks_done
+			});
+
+		// TODO [now]: pruning_tasks_done * weight
 	}
 }
 
@@ -280,9 +335,9 @@ mod tests {
 	#[test]
 	fn para_past_code_pruning_works_correctly() {
 		let mut past_code = ParaPastCodeMeta::default();
-		past_code.note_replacement(10u32);
-		past_code.note_replacement(20);
-		past_code.note_replacement(30);
+		past_code.note_replacement(10u32, 10);
+		past_code.note_replacement(20, 20);
+		past_code.note_replacement(30, 30);
 
 		let old = past_code.clone();
 		assert!(past_code.prune_up_to(9).collect::<Vec<_>>().is_empty());
@@ -290,22 +345,22 @@ mod tests {
 
 		assert_eq!(past_code.prune_up_to(10).collect::<Vec<_>>(), vec![10]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![30, 20],
+			upgrade_times: vec![(30, 30), (20, 20)],
 			last_pruned: Some(10),
 		});
 
 		assert_eq!(past_code.prune_up_to(21).collect::<Vec<_>>(), vec![20]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![30],
+			upgrade_times: vec![(30, 30)],
 			last_pruned: Some(20),
 		});
 
-		past_code.note_replacement(40);
-		past_code.note_replacement(50);
-		past_code.note_replacement(60);
+		past_code.note_replacement(40, 40);
+		past_code.note_replacement(50, 50);
+		past_code.note_replacement(60, 60);
 
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![60, 50, 40, 30],
+			upgrade_times: vec![(60, 60), (50, 50), (40, 40), (30, 30)],
 			last_pruned: Some(20),
 		});
 
