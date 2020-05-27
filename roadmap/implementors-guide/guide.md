@@ -16,6 +16,7 @@ There are a number of other documents describing the research in more detail. Al
   * [Overseer](#Overseer)
   * [Candidate Backing](#Candidate-Backing-Subsystem)
   * [Statement Gossip](#Statement-Gossip-Subsystem)
+* [Gossip Protocols](#Gossip-Protocols)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
 
@@ -1030,6 +1031,7 @@ The following conditions need to be met for an incoming statement to be accepted
 
 * The sender of the statement has to be in the validator set for the relay block.
 * If the statement is `Valid` or `Invalid`, then the candidate that the hash refers to must be known.
+* As only `MAX_CHAIN_HEADS` (currently set to 5) competing parachain heads are accepted at a time, if the statement is `Seconded`, then there must be less than `MAX_CHAIN_HEADS` other candidate receipts for the parachain block.
 * The statement signature must be valid.
 
 I have a basic implementation of this code on the [`ashley-test-statement-gossip-subsystem`](https://github.com/paritytech/polkadot/tree/ashley-test-statement-gossip-subsystem) branch.
@@ -1042,6 +1044,24 @@ I have a basic implementation of this code on the [`ashley-test-statement-gossip
 [TODO: subsystems for gathering data necessary for block authorship, for networking, for misbehavior reporting, etc.]
 
 ----
+
+## Gossip Protocols
+
+A lot of a relay chain's communication happens via gossiping messages. To avoid this becoming an attack vector, we want to use [Bounded Gossip Protocols](https://github.com/w3f/research/blob/master/docs/polkadot/networking/0-overview.md#bounded-gossip-protocols).
+
+### Functionality
+
+Several components make up a gossiping system:
+
+* A network implementation, that contains things like the actual connections to peers.
+* A propagation pool of messages.
+
+When the node wants to gossip a message:
+* The message is put into the propagation pool and stays there until cleaned up.
+* The message is sent out to the nodes that it is currently connected to.
+
+When a new node connects to our node:
+* All messages in the propagation pool are sent to it, and we receive all of its propagation pool messages.
 
 ## Data Structures and Types
 
