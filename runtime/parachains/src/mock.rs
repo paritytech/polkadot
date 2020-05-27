@@ -84,11 +84,17 @@ impl crate::initializer::Trait for Test { }
 
 impl crate::configuration::Trait for Test { }
 
+impl crate::paras::Trait for Test { }
+
+
 /// Mocked initializer.
 pub type Initializer = crate::initializer::Module<Test>;
 
 /// Mocked configuration.
 pub type Configuration = crate::configuration::Module<Test>;
+
+/// Mocked paras.
+pub type Paras = crate::paras::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {

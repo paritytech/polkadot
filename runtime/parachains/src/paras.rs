@@ -182,6 +182,8 @@ decl_storage! {
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
 		OutgoingParas: Vec<ParaId>;
+
+		// TODO [now]: genesis config
 	}
 }
 
@@ -379,4 +381,9 @@ mod tests {
 			last_pruned: Some(60),
 		});
 	}
+
+	// TODO [now]: validation code pruning
+	// TODO [now]: code_at
+	// TODO [now]: registration & deregistration
+	// TODO [now]: adapts to config acceptance period growing/shrinking
 }

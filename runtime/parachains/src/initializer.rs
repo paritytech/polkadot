@@ -27,9 +27,9 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 };
-use crate::configuration;
+use crate::{configuration, paras};
 
-pub trait Trait: system::Trait + crate::configuration::Trait { }
+pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Initializer {
@@ -55,7 +55,8 @@ decl_module! {
 			// - Scheduler
 			// - Inclusion
 			// - Validity
-			let total_weight = configuration::Module::<T>::initializer_initialize(now);
+			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
+				paras::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -63,6 +64,7 @@ decl_module! {
 		}
 
 		fn on_finalize() {
+			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 			HasInitialized::take();
 		}
@@ -83,6 +85,7 @@ impl<T: Trait> Module<T> {
 		let queued: Vec<_> = queued.map(|(_, v)| v).collect();
 
 		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
+		paras::Module::<T>::initializer_on_new_session(&validators, &queued);
 	}
 }
 
