@@ -513,9 +513,11 @@ PastCode: map (ParaId, BlockNumber) => Option<ValidationCode>;
 /// but we also keep their code on-chain for the same amount of time as outdated code
 /// to keep it available for secondary checkers.
 PastCodeMeta: map ParaId => ParaPastCodeMeta;
-/// Which paras have past code that needs pruning and the relay-chain block in which context the code was replaced.
+/// Which paras have past code that needs pruning and the relay-chain block in which context the code was replaced. The second block number is the block number at which the parachain block was actually included.
+/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
+/// from the time at which the parachain perceives a code upgrade as having occurred.
 /// Multiple entries for a single para are permitted. Ordered ascending by block number.
-PastCodePruning: Vec<(ParaId, BlockNumber)>;
+PastCodePruning: Vec<(ParaId, BlockNumber, BlockNumber)>;
 /// The block number at which the planned code change is expected for a para.
 /// The change will be applied after the first parablock for this ID included which executes
 /// in the context of a relay chain block with a number >= `expected_at`.
