@@ -31,12 +31,10 @@ use primitives::{
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
-	dispatch::DispatchResult,
 	traits::Get,
-	weights::{DispatchClass, Weight, constants::{WEIGHT_PER_SECOND}},
+	weights::Weight,
 };
 use codec::{Encode, Decode};
-use system::ensure_root;
 use crate::configuration;
 
 #[cfg(feature = "std")]
@@ -76,6 +74,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
+	#[allow(unused)]
 	fn code_at(&self, at: N) -> Option<UseCodeAt<N>> {
 		// The `PastCode` map stores the code which was replaced at `t`.
 		let end_position = self.upgrade_times.iter().position(|&t| t.0 < at);
@@ -370,6 +369,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
+	#[allow(unused)]
 	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
@@ -392,6 +392,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
+	#[allow(unused)]
 	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
 		OutgoingParas::mutate(|v| {
 			match v.binary_search(&id) {
@@ -409,6 +410,7 @@ impl<T: Trait> Module<T> {
 	/// with number >= `expected_at`
 	///
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
+	#[allow(unused)]
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
@@ -428,6 +430,7 @@ impl<T: Trait> Module<T> {
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
 	/// of a relay-chain block with given number. This will apply pending code upgrades based
 	/// on the block number provided.
+	#[allow(unused)]
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
@@ -469,6 +472,7 @@ impl<T: Trait> Module<T> {
 	///
 	/// `assume_intermediate`, if provided, must be before `at`. If `at` is not within the acceptance
 	/// of the current block number, this will return `None`
+	#[allow(unused)]
 	pub(crate) fn validation_code_at(
 		id: ParaId,
 		at: T::BlockNumber,
@@ -509,7 +513,7 @@ mod tests {
 	use primitives::BlockNumber;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
-	use crate::mock::{new_test_ext, Configuration, Paras, System, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
