@@ -60,13 +60,13 @@
 
 use std::fmt::Debug;
 use std::pin::Pin;
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use std::task::Poll;
 
 use futures::channel::{mpsc, oneshot};
 use futures::{
 	pending, poll,
-	future::RemoteHandle,
+	future::{BoxFuture, RemoteHandle},
 	stream::FuturesUnordered,
 	task::{Spawn, SpawnExt},
 	Future, SinkExt, StreamExt,
@@ -79,18 +79,16 @@ use futures::{
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-// TODO: populate with actual error cases.
 #[derive(Debug)]
 pub struct SubsystemError;
 
 /// A `Result` type that wraps `SubsystemError` and an empty type on success.
-// TODO: Proper success type.
-pub type SubsystemResult = Result<(), SubsystemError>;
+pub type SubsystemResult<T> = Result<T, SubsystemError>;
 
-/// An asynchronous job that runs inside and being overseen by the `Overseer`.
+/// An asynchronous subsystem task that runs inside and being overseen by the `Overseer`.
 ///
-/// In essence it's just a newtype wrapping a pinned `Future` dyn trait object.
-pub struct SubsystemJob(pub Pin<Box<dyn Future<Output = ()> + Send + 'static>>);
+/// In essence it's just a newtype wrapping a `BoxFuture`.
+pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
 
 /// A type of messages that are used inside the `Overseer`.
 ///
@@ -115,9 +113,9 @@ enum OverseerMessage<M: Debug, I> {
 	/// A message that wraps something the `Subsystem` is desiring to
 	/// spawn on the overseer and a `oneshot::Sender` to signal the result
 	/// of the spawn.
-	SpawnChild {
-		s: (I, Box<dyn Subsystem<M, I> + Send>),
-		res: oneshot::Sender<Result<I, SubsystemError>>,
+	SpawnJob {
+		s: BoxFuture<'static, ()>,
+		res: oneshot::Sender<SubsystemResult<()>>,
 	},
 }
 
@@ -127,7 +125,7 @@ impl<M: Debug, I: Debug> Debug for OverseerMessage<M, I> {
 			OverseerMessage::SubsystemMessage { to, msg } => {
 				write!(f, "OverseerMessage::SubsystemMessage{{ to: {:?}, msg: {:?} }}", to, msg)
 			}
-			OverseerMessage::SpawnChild { .. } => write!(f, "OverseerMessage::Spawn(..)")
+			OverseerMessage::SpawnJob { .. } => write!(f, "OverseerMessage::Spawn(..)")
 		}
 	}
 }
@@ -139,10 +137,6 @@ struct SubsystemInstance<M: Debug, I> {
 	/// The `Overseer` talks to use over this channel.
 	tx: mpsc::Sender<M>,
 }
-
-/// An `id` that is given to any `SubsystemInstance` for identification.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct SubsystemId(usize);
 
 /// A context type that is given to the `Subsystem` upon spawning
 /// that can be used by `Subsystem` to communicate with the outside world.
@@ -165,7 +159,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	}
 
 	/// Receive a message.
-	pub async fn recv(&mut self) -> Result<M, SubsystemError> {
+	pub async fn recv(&mut self) -> SubsystemResult<M> {
 		self.rx.next().await.ok_or(SubsystemError)
 	}
 
@@ -181,9 +175,9 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	}
 
 	/// Spawn a child `Subsystem` on the executor and get it's `I`d upon success.
-	pub async fn spawn(&mut self, s: (I, Box<dyn Subsystem<M, I> + Send>)) -> Result<I, SubsystemError> {
+	pub async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
 		let (tx, rx) = oneshot::channel();
-		let _ = self.tx.send(OverseerMessage::SpawnChild {
+		let _ = self.tx.send(OverseerMessage::SpawnJob {
 			s,
 			res: tx,
 		}).await;
@@ -214,7 +208,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 /// can start actually running jobs when asked to.
 pub trait Subsystem<M: Debug, I> {
 	/// Start this `Subsystem` and return `SubsystemJob`.
-	fn start(&mut self, ctx: SubsystemContext<M, I>) -> SubsystemJob;
+	fn start(&mut self, ctx: SubsystemContext<M, I>) -> SpawnedSubsystem;
 	/// If this `Subsystem` want to receive this message.
 	///
 	/// By default receive all messages.
@@ -235,12 +229,6 @@ struct OverseenSubsystem<M: Debug, I> {
 pub struct Overseer<M: Debug, S: Spawn, I> {
 	/// All `Subsystem`s by their respective `SubsystemId`s.
 	subsystems: HashMap<I, OverseenSubsystem<M, I>>,
-
-	/// The actual poor man's process tree.
-	///
-	/// Needed (among other things) to stop a running `Job` along
-	/// with all it's children.
-	id_to_children: HashMap<I, HashSet<I>>,
 
 	/// Spawner to spawn tasks to.
 	s: S,
@@ -283,7 +271,6 @@ where
 	pub fn new<T: IntoIterator<Item = (I, Box<dyn Subsystem<M, I> + Send>)>>(subsystems: T, s: S) -> Self {
 		let mut this = Self {
 			subsystems: HashMap::new(),
-			id_to_children: HashMap::new(),
 			s,
 			running_subsystems: FuturesUnordered::new(),
 		};
@@ -345,23 +332,11 @@ where
 							}
 						}
 					}
-					OverseerMessage::SpawnChild { s, res } => {
+					OverseerMessage::SpawnJob { s, res } => {
 						log::info!("Spawn message");
 
-						let s = self.spawn(s);
+						let s = self.spawn_job(s);
 
-						if let Ok(id) = s {
-							match self.id_to_children.get_mut(&msg.0) {
-								Some(ref mut v) => {
-									v.insert(msg.0);
-								}
-								None => {
-									let mut hs = HashSet::new();
-									hs.insert(id);
-									self.id_to_children.insert(msg.0, hs);
-								}
-							}
-						}
 						let _ = res.send(s);
 					}
 				}
@@ -377,7 +352,7 @@ where
 		}
 	}
 
-	fn spawn(&mut self, mut s: (I, Box<dyn Subsystem<M, I> + Send>)) -> Result<I, SubsystemError> {
+	fn spawn(&mut self, mut s: (I, Box<dyn Subsystem<M, I> + Send>)) -> SubsystemResult<I> {
 		let (to_tx, to_rx) = mpsc::channel(1024);
 		let (from_tx, from_rx) = mpsc::channel(1024);
 		let ctx = SubsystemContext::new(to_rx, from_tx);
@@ -400,6 +375,10 @@ where
 
 		Ok(s.0)
 	}
+
+	fn spawn_job(&mut self, j: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
+		self.s.spawn(j).map_err(|_| SubsystemError)
+	}
 }
 
 
@@ -421,9 +400,9 @@ mod tests {
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
 	impl Subsystem<usize, SubsystemId> for TestSubsystem1 {
-		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
+		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
-			SubsystemJob(Box::pin(async move {
+			SpawnedSubsystem(Box::pin(async move {
 				loop {
 					match ctx.recv().await {
 						Ok(msg) => {
@@ -440,8 +419,8 @@ mod tests {
 	struct TestSubsystem2(mpsc::Sender<usize>);
 
 	impl Subsystem<usize, SubsystemId> for TestSubsystem2 {
-		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
-			SubsystemJob(Box::pin(async move {
+		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+			SpawnedSubsystem(Box::pin(async move {
 				let mut c = 0;
 				loop {
 					if c < 10 {
@@ -465,21 +444,27 @@ mod tests {
 	struct TestSubsystem3(Option<oneshot::Sender<usize>>);
 
 	impl Subsystem<usize, SubsystemId> for TestSubsystem3 {
-		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
+		fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
 			let oneshot = self.0.take().unwrap();
 
-			SubsystemJob(Box::pin(async move {
-				let (tx, mut rx) = mpsc::channel(1024);
+			SpawnedSubsystem(Box::pin(async move {
+				let (mut tx1, mut rx1) = mpsc::channel(64);
+				let (mut tx2, mut rx2) = mpsc::channel(64);
 
-				let s1 = Box::new(TestSubsystem1(tx));
-
-				let s1_id = ctx.spawn((SubsystemId::Subsystem1, s1)).await.unwrap();
+				ctx.spawn(Box::pin(async move {
+					while let Some(c) = rx1.next().await {
+						tx2.send(c).await.unwrap();
+						if c >= 10 {
+							break
+						}
+					}
+				})).await.unwrap();
 
 				let mut c = 0;
 				loop {
 					if c < 10 {
-						ctx.send_msg_to(s1_id, c).await;
-						assert_eq!(rx.next().await, Some(c));
+						tx1.send(c).await.unwrap();
+						assert_eq!(rx2.next().await, Some(c));
 						c += 1;
 						continue;
 					}
@@ -506,8 +491,8 @@ mod tests {
 	struct TestSubsystem4;
 
 	impl Subsystem<usize, SubsystemId> for TestSubsystem4 {
-		fn start(&mut self, mut _ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
-			SubsystemJob(Box::pin(async move {
+		fn start(&mut self, mut _ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+			SpawnedSubsystem(Box::pin(async move {
 				// Do nothing and exit.
 			}))
 		}

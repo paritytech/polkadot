@@ -23,7 +23,7 @@ use futures::{pending, executor};
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use overseer::{Overseer, Subsystem, SubsystemContext, SubsystemJob};
+use overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, std::hash::Hash)]
 pub enum SubsystemId {
@@ -56,8 +56,8 @@ impl Subsystem1 {
 }
 
 impl Subsystem<usize, SubsystemId> for Subsystem1 {
-	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
-		SubsystemJob(Box::pin(async move {
+	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
 	}
@@ -67,10 +67,13 @@ struct Subsystem2;
 
 impl Subsystem2 {
 	async fn run(mut ctx: SubsystemContext<usize, SubsystemId>)  {
-		let ss3 = Box::new(Subsystem3);
+		ctx.spawn(Box::pin(async {
+			loop {
+				log::info!("Job tick");
+				Delay::new(Duration::from_secs(1)).await;
+			}
+		})).await.unwrap();
 
-		let ss3_id = ctx.spawn((SubsystemId::Subsystem3, ss3)).await;
-		log::info!("Received subsystem id {:?}", ss3_id);
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -89,8 +92,8 @@ impl Subsystem2 {
 }
 
 impl Subsystem<usize, SubsystemId> for Subsystem2 {
-	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
-		SubsystemJob(Box::pin(async move {
+	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
 	}
@@ -99,8 +102,8 @@ impl Subsystem<usize, SubsystemId> for Subsystem2 {
 struct Subsystem3;
 
 impl Subsystem<usize, SubsystemId> for Subsystem3 {
-	fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
-		SubsystemJob(Box::pin(async move {
+	fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
 			// TODO: ctx actually has to be used otherwise the channels are dropped
 			loop {
 				// ignore all incoming msgs
