@@ -303,7 +303,7 @@ during the block:
 process availability bitfields:
   * We will accept an optional signed bitfield from each validator in each block.
   * We need to check the signature and length of the bitfield for validity.
-  * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "execution cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
+  * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "availability cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
   * Bits that are set to `true` denote candidate pending availability which are believed by this validator to be available.
   * Candidates that are pending availability and have the corresponding bit set in 2/3 of validators' bitfields (only counting those submitted after the candidate was included, since some validators may not have submitted bitfields in some time) are considered available and are then moved into the "pending approval" state.
   * Candidates that have just become available should apply any pending code upgrades based on the relay-parent they are targeting and should schedule any upcoming pending code upgrades.
@@ -564,7 +564,7 @@ No finalization routine runs for this module.
 
 #### Description
 
-[TODO: this section is still heavily under construction. key questions about execution cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent]
+[TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent]
 
 The Scheduler module is responsible for two main tasks:
   - Partitioning validators into groups and assigning groups to parachains and parathreads.
@@ -576,12 +576,12 @@ It aims to achieve these tasks with these goals in mind:
   - Validator assignments should not be gameable. Malicious cartels should not be able to manipulate the scheduler to assign themselves as desired.
   - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
 
-The Scheduler manages resource allocation using the concept of "Execution Cores". There will be one execution core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as execution cores. Validator groups will be assigned to different execution cores over time.
+The Scheduler manages resource allocation using the concept of "Availability Cores". There will be one availability core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as availability cores. Validator groups will be assigned to different availability cores over time.
 
-An execution core can exist in either one of two states at the beginning or end of a block: free or occupied. A free execution core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
+An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
 
 ```
-Execution Core State Machine
+Availability Core State Machine
 
               Assignment &
               Backing
@@ -595,7 +595,7 @@ Execution Core State Machine
 ```
 
 ```
-Execution Core Transitions within Block
+Availability Core Transitions within Block
 
               +-----------+                |                    +-----------+
               |           |                |                    |           |
@@ -624,7 +624,7 @@ Execution Core Transitions within Block
 
 Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the Validity module. Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
 
-Validator groups rotate across execution cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
+Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
 When a rotation occurs, validator groups are still responsible for distributing availability pieces for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
 
@@ -673,11 +673,11 @@ Storage layout:
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
 ParathreadQueue: Vec<ParathreadEntry>;
-/// One entry for each execution core. Entries are `None` if the core is not currently occupied. Can be
+/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 /// temporarily `Some` if scheduled but not occupied.
 /// The i'th parachain belongs to the i'th core, with the remaining cores all being
 /// parathread-multiplexers.
-ExecutionCores: Vec<Option<CoreOccupied>>;
+AvailabilityCores: Vec<Option<CoreOccupied>>;
 /// An index used to ensure that only one claim on a parathread exists in the queue or retry queue or is
 /// currently being handled by an occupied core.
 ParathreadClaimIndex: Vec<(ParaId, CollatorId)>;
@@ -689,13 +689,13 @@ Scheduled: Vec<CoreAssignment>, // sorted by ParaId.
 
 #### Session Change
 
-Session changes are the only time that configuration can change, and the configuration module's session-change logic is handled before this module's. We also lean on the behavior of the inclusion module which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `ParathreadExecutionCores` bitfield.
+Session changes are the only time that configuration can change, and the configuration module's session-change logic is handled before this module's. We also lean on the behavior of the inclusion module which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `AvailabilityCores` bitfield.
 
 Actions:
 1. Set `SessionStartBlock` to current block number.
-1. Clear all `Some` members of `ExecutionCores`. Return all parathread claims to queue with retries un-incremented.
+1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [HostConfiguration](#Host-Configuration))
-1. Resize `ExecutionCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
+1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`, and assign all parathreads to new cores if the number of parathread cores has changed.
 
@@ -735,7 +735,7 @@ struct AvailabilityBitfield {
 }
 
 struct CandidatePendingAvailability {
-  core: CoreIndex, // execution core
+  core: CoreIndex, // availability core
   receipt: AbridgedCandidateReceipt,
   availability_votes: Bitfield, // one bit per validator.
   relay_parent_number: BlockNumber, // number of the relay-parent.
@@ -1014,7 +1014,7 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 * CandidateCommitments
 * AbridgedCandidateReceipt
 * GlobalValidationSchedule
-* LocalValidationData
+* LocalValidationData (should commit to code hash too?)
 
 #### Block Import Event
 ```rust
@@ -1114,7 +1114,7 @@ struct HostConfiguration {
   pub max_code_size: u32,
   /// The maximum head-data size, in bytes.
   pub max_head_data_size: u32,
-  /// The amount of execution cores to dedicate to parathread execution.
+  /// The amount of availability cores to dedicate to parathreads.
   pub parathread_cores: u32,
   /// The number of retries that a parathread author has to submit their block.
   pub parathread_retries: u32,
