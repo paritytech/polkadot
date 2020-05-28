@@ -783,11 +783,11 @@ PendingAvailability: map ParaId => CandidatePendingAvailability;
 All failed checks should lead to an unrecoverable error making the block invalid.
 
 
-  * `process_bitfields(Bitfields)`:
+  * `process_bitfields(Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
     1. check that the number of bitfields and bits in each bitfield is correct.
     1. check that there are no duplicates
     1. check all validator signatures.
-    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `Scheduler` module. Disregard bitfields that have a `1` bit for any free cores.
+    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
     1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
     1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
     1. [TODO] pass it onwards to `Validity` module.
@@ -830,7 +830,7 @@ Included: Option<()>,
 #### Entry Points
 
   * `inclusion`: This entry-point accepts two parameters: [`Bitfields`](#Signed-Availability-Bitfield) and [`BackedCandidates`](#Backed-Candidate).
-    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores.
+    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine.
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores.
     1. Invoke `Scheduler::schedule(freed)`
     1. Pass the `BackedCandidates` along with the output of `Scheduler::scheduled` to the `Inclusion::process_candidates` routine, getting a list of all newly-occupied cores.
