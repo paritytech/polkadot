@@ -880,8 +880,11 @@ The overseer's logic can be described with these functions:
 
 (TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active set" update rules here)
 
-*On Message Send Failure*
-* If sending a message to a subsystem fails, that subsystem should be restarted and the error logged.
+*On Subsystem Failure*
+
+Subsystems are essential tasks meant to run as long as the node does. Subsystems can spawn ephemeral work in the form of jobs, but the subsystems themselves should not go down. If a subsystem goes down, it will be because of a critical error that should take the entire node down as well.
+
+*Communication Between Subsystems*
 
 
 When a subsystem wants to communicate with another subsystem, or, more typically, a job within a subsystem wants to communicate with its counterpart under another subsystem, that communication must happen via the overseer. Consider this example where a job on subsystem A wants to send a message to its counterpart under subsystem B. This is a realistic scenario, where you can imagine that both jobs correspond to work under the same relay-parent.
@@ -903,6 +906,8 @@ When a subsystem wants to communicate with another subsystem, or, more typically
                              |                              |
                              +------------------------------+
 ```
+
+First, the subsystem that spawned a job is responsible for handling the first step of the communication. The overseer is not aware of the hierarchy of tasks within any given subsystem and is only responsible for subsystem-to-subsystem communication. So the sending subsystem must pass on the message via the overseer to the receiving subsystem, in such a way that the receiving subsystem can further address the communication to one of its internal tasks, if necessary.
 
 This communication prevents a certain class of race conditions. When the Overseer determines that it is time for subsystems to begin working on top of a particular relay-parent, it will dispatch a `StartWork` message to all subsystems to do so, and those messages will be handled asynchronously by those subsystems. Some subsystems will receive those messsages before others, and it is important that a message sent by subsystem A after receiving `StartWork` message will arrive at subsystem B after its `StartWork` message. If subsystem A maintaned an independent channel with subsystem B to communicate, it would be possible for subsystem B to handle the side message before the `StartWork` message, but it wouldn't have any logical course of action to take with the side message - leading to it being discarded or improperly handled. Well-architectured state machines should have a single source of inputs, so that is what we do here.
 
@@ -945,7 +950,7 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
 * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
 
-This will probably blur the lines between jobs, will probably require inter-job communcation and a short-term memory of recently backed, but not included candidates.
+This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backed, but not included candidates.
 )
 
 #### Candidate Backing Job
