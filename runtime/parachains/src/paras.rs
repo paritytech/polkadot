@@ -111,7 +111,8 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 		}
 	}
 
-	// The block at which the most recently tracked code change occurred.
+	// The block at which the most recently tracked code change occurred, from the perspective
+	// of the para.
 	fn most_recent_change(&self) -> Option<N> {
 		self.upgrade_times.first().map(|x| x.0.clone())
 	}
@@ -159,7 +160,7 @@ decl_storage! {
 		/// The head-data of every registered para.
 		Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
-		CurrentCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
+		CurrentCode get(fn current_code): map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
 		PastCode: map hasher(twox_64_concat) (ParaId, T::BlockNumber) => Option<ValidationCode>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
@@ -199,7 +200,6 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
-	let mut parachains: Vec<ParaId> = config.paras
 		.iter()
 		.filter(|(_, args)| args.parachain)
 		.map(|&(ref id, _)| id)
@@ -212,6 +212,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&parachains);
 
 	for (id, genesis_args) in &config.paras {
+		println!("Initializing genesis for para {:?}", id);
 		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
 		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
 	}
@@ -517,6 +518,7 @@ mod tests {
 			System::on_finalize(b);
 
 			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
 				Paras::initializer_on_new_session(&[], &[]);
@@ -602,14 +604,12 @@ mod tests {
 		let paras = vec![
 			(0u32.into(), ParaGenesisArgs {
 				parachain: true,
-				genesis_head:
-				Default::default(),
+				genesis_head: Default::default(),
 				validation_code: Default::default(),
 			}),
 			(1u32.into(), ParaGenesisArgs {
 				parachain: false,
-				genesis_head:
-				Default::default(),
+				genesis_head: Default::default(),
 				validation_code: Default::default(),
 			}),
 		];
@@ -653,304 +653,337 @@ mod tests {
 		});
 	}
 
-	// #[test]
-	// fn note_past_code_sets_up_pruning_correctly() {
-	// 	let parachains = vec![
-	// 		(0u32.into(), vec![].into(), vec![].into()),
-	// 		(1u32.into(), vec![].into(), vec![].into()),
-	// 	];
+	#[test]
+	fn note_past_code_sets_up_pruning_correctly() {
+		let acceptance_period = 10;
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: Default::default(),
+			}),
+			(1u32.into(), ParaGenesisArgs {
+				parachain: false,
+				genesis_head: Default::default(),
+				validation_code: Default::default(),
+			}),
+		];
 
-	// 	new_test_ext(parachains.clone()).execute_with(|| {
-	// 		let id_a = ParaId::from(0u32);
-	// 		let id_b = ParaId::from(1u32);
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-	// 		Paras::note_past_code(id_a, 10, vec![1, 2, 3].into());
-	// 		Paras::note_past_code(id_b, 20, vec![4, 5, 6].into());
+		new_test_ext(genesis_config).execute_with(|| {
+			let id_a = ParaId::from(0u32);
+			let id_b = ParaId::from(1u32);
 
-	// 		assert_eq!(Paras::past_code_pruning_tasks(), vec![(id_a, 10), (id_b, 20)]);
-	// 		assert_eq!(
-	// 			Paras::past_code_meta(&id_a),
-	// 			ParaPastCodeMeta {
-	// 				upgrade_times: vec![10],
-	// 				last_pruned: None,
-	// 			}
-	// 		);
-	// 		assert_eq!(
-	// 			Paras::past_code_meta(&id_b),
-	// 			ParaPastCodeMeta {
-	// 				upgrade_times: vec![20],
-	// 				last_pruned: None,
-	// 			}
-	// 		);
-	// 	});
-	// }
+			Paras::note_past_code(id_a, 10, 12, vec![1, 2, 3].into());
+			Paras::note_past_code(id_b, 20, 23, vec![4, 5, 6].into());
 
-	// #[test]
-	// fn code_upgrade_applied_after_delay() {
-	// 	let parachains = vec![
-	// 		(0u32.into(), vec![1, 2, 3].into(), vec![].into()),
-	// 	];
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 10), (id_b, 20)]);
+			assert_eq!(
+				Paras::past_code_meta(&id_a),
+				ParaPastCodeMeta {
+					upgrade_times: vec![(10, 12)],
+					last_pruned: None,
+				}
+			);
+			assert_eq!(
+				Paras::past_code_meta(&id_b),
+				ParaPastCodeMeta {
+					upgrade_times: vec![(20, 23)],
+					last_pruned: None,
+				}
+			);
+		});
+	}
 
-	// 	new_test_ext(parachains.clone()).execute_with(|| {
-	// 		let para_id = ParaId::from(0);
-	// 		let new_code = ValidationCode(vec![4, 5, 6]);
+	#[test]
+	fn code_upgrade_applied_after_delay() {
+		let acceptance_period = 10;
+		let validation_upgrade_delay = 5;
 
-	// 		run_to_block(2);
-	// 		assert_eq!(Paras::active_parachains().len(), 1);
-	// 		assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
 
-	// 		let applied_after ={
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			let applied_after = raw_candidate.local_validation.code_upgrade_allowed.unwrap();
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-	// 			candidate_a.candidate.commitments.new_validation_code = Some(new_code.clone());
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let new_code = ValidationCode(vec![4, 5, 6]);
 
-	// 			// this parablock is in the context of block 1.
-	// 			assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
-	// 			make_attestations(&mut candidate_a);
+			run_to_block(2, None);
+			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+			let applied_after = {
+				// this parablock is in the context of block 1.
+				let applied_after = 1 + validation_upgrade_delay;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				Paras::note_new_head(para_id, Default::default(), 1);
 
-	// 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-	// 			assert_eq!(Paras::code_upgrade_schedule(&para_id), Some(applied_after));
-	// 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 			applied_after
-	// 		};
+				applied_after
+			};
 
-	// 		run_to_block(applied_after);
+			run_to_block(applied_after, None);
 
-	// 		// the candidate is in the context of the parent of `applied_after`,
-	// 		// thus does not trigger the code upgrade.
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			assert!(raw_candidate.local_validation.code_upgrade_allowed.is_none());
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+			// the candidate is in the context of the parent of `applied_after`,
+			// thus does not trigger the code upgrade.
+			{
+				Paras::note_new_head(para_id, Default::default(), applied_after - 1);
 
-	// 			make_attestations(&mut candidate_a);
+				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
+			}
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+			run_to_block(applied_after + 1, None);
 
-	// 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-	// 			assert_eq!(Paras::code_upgrade_schedule(&para_id), Some(applied_after));
-	// 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
-	// 		}
+			// the candidate is in the context of `applied_after`, and triggers
+			// the upgrade.
+			{
+				Paras::note_new_head(para_id, Default::default(), applied_after);
 
-	// 		run_to_block(applied_after + 1);
+				assert_eq!(
+					Paras::past_code_meta(&para_id).most_recent_change(),
+					Some(applied_after),
+				);
+				assert_eq!(
+					<Paras as Store>::PastCode::get(&(para_id, applied_after)),
+					Some(vec![1, 2, 3,].into()),
+				);
+				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
+				assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+				assert_eq!(Paras::current_code(&para_id), Some(new_code));
+			}
+		});
+	}
 
-	// 		// the candidate is in the context of `applied_after`, and triggers
-	// 		// the upgrade.
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			assert!(raw_candidate.local_validation.code_upgrade_allowed.is_some());
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+	#[test]
+	fn code_upgrade_applied_after_delay_even_when_late() {
+		let acceptance_period = 10;
+		let validation_upgrade_delay = 5;
 
-	// 			make_attestations(&mut candidate_a);
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					validation_upgrade_delay,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-	// 			assert_eq!(
-	// 				Paras::past_code_meta(&para_id).most_recent_change(),
-	// 				Some(applied_after),
-	// 			);
-	// 			assert_eq!(
-	// 				<Paras as Store>::PastCode::get(&(para_id, applied_after)),
-	// 				Some(vec![1, 2, 3,].into()),
-	// 			);
-	// 			assert!(Paras::code_upgrade_schedule(&para_id).is_none());
-	// 			assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(new_code));
-	// 		}
-	// 	});
-	// }
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let new_code = ValidationCode(vec![4, 5, 6]);
 
-	// #[test]
-	// fn code_upgrade_applied_after_delay_even_when_late() {
-	// 	let parachains = vec![
-	// 		(0u32.into(), vec![1, 2, 3].into(), vec![].into()),
-	// 	];
+			run_to_block(2, None);
+			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 	new_test_ext(parachains.clone()).execute_with(|| {
-	// 		let para_id = ParaId::from(0);
-	// 		let new_code = ValidationCode(vec![4, 5, 6]);
+			let applied_after = {
+				// this parablock is in the context of block 1.
+				let applied_after = 1 + validation_upgrade_delay;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				Paras::note_new_head(para_id, Default::default(), 1);
 
-	// 		run_to_block(2);
-	// 		assert_eq!(Paras::active_parachains().len(), 1);
-	// 		assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
+				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 		let applied_after ={
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			let applied_after = raw_candidate.local_validation.code_upgrade_allowed.unwrap();
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+				applied_after
+			};
 
-	// 			candidate_a.candidate.commitments.new_validation_code = Some(new_code.clone());
+			run_to_block(applied_after + 1 + 4, None);
 
-	// 			// this parablock is in the context of block 1.
-	// 			assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
-	// 			make_attestations(&mut candidate_a);
+			// the candidate is in the context of the first descendent of `applied_after`, and triggers
+			// the upgrade.
+			{
+				Paras::note_new_head(para_id, Default::default(), applied_after + 4);
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+				assert_eq!(
+					Paras::past_code_meta(&para_id).most_recent_change(),
+					Some(applied_after),
+				);
+				assert_eq!(
+					<Paras as Store>::PastCode::get(&(para_id, applied_after)),
+					Some(vec![1, 2, 3,].into()),
+				);
+				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
+				assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+				assert_eq!(Paras::current_code(&para_id), Some(new_code));
+			}
+		});
+	}
 
-	// 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-	// 			assert_eq!(Paras::code_upgrade_schedule(&para_id), Some(applied_after));
-	// 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
+	#[test]
+	fn submit_code_change_when_not_allowed_is_err() {
+		let acceptance_period = 10;
 
-	// 			applied_after
-	// 		};
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
 
-	// 		run_to_block(applied_after + 1 + 4);
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			assert!(raw_candidate.local_validation.code_upgrade_allowed.is_some());
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let new_code = ValidationCode(vec![4, 5, 6]);
+			let newer_code = ValidationCode(vec![4, 5, 6, 7]);
 
-	// 			make_attestations(&mut candidate_a);
+			run_to_block(1, None);
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 8);
+			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 
-	// 			assert_eq!(
-	// 				Paras::past_code_meta(&para_id).most_recent_change(),
-	// 				Some(applied_after + 4),
-	// 			);
-	// 			assert_eq!(
-	// 				<Paras as Store>::PastCode::get(&(para_id, applied_after + 4)),
-	// 				Some(vec![1, 2, 3,].into()),
-	// 			);
-	// 			assert!(Paras::code_upgrade_schedule(&para_id).is_none());
-	// 			assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(new_code));
-	// 		}
-	// 	});
-	// }
+			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 10);
+			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+		});
+	}
 
-	// #[test]
-	// fn submit_code_change_when_not_allowed_is_err() {
-	// 	let parachains = vec![
-	// 		(0u32.into(), vec![1, 2, 3].into(), vec![].into()),
-	// 	];
+	#[test]
+	fn full_parachain_cleanup_storage() {
+		let acceptance_period = 10;
 
-	// 	new_test_ext(parachains.clone()).execute_with(|| {
-	// 		let para_id = ParaId::from(0);
-	// 		let new_code = ValidationCode(vec![4, 5, 6]);
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
 
-	// 		run_to_block(2);
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
 
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let new_code = ValidationCode(vec![4, 5, 6]);
 
-	// 			candidate_a.candidate.commitments.new_validation_code = Some(new_code.clone());
+			run_to_block(2, None);
+			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 			make_attestations(&mut candidate_a);
+			let applied_after = {
+				// this parablock is in the context of block 1.
+				let applied_after = 1 + 5;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				Paras::note_new_head(para_id, Default::default(), 1);
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
-	// 		};
+				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// 		run_to_block(3);
+				applied_after
+			};
 
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			assert!(raw_candidate.local_validation.code_upgrade_allowed.is_none());
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
-	// 			candidate_a.candidate.commitments.new_validation_code = Some(vec![1, 2, 3].into());
+			Paras::schedule_para_cleanup(para_id);
 
-	// 			make_attestations(&mut candidate_a);
+			// Just scheduling cleanup shouldn't change anything.
+			{
+				assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![para_id]);
+				assert_eq!(Paras::parachains(), vec![para_id]);
 
-	// 			assert_err!(
-	// 				Paras::dispatch(
-	// 					set_heads(vec![candidate_a.clone()]),
-	// 					Origin::NONE,
-	// 				),
-	// 				Error::<Test>::DisallowedCodeUpgrade,
-	// 			);
-	// 		}
-	// 	});
-	// }
+				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-	// #[test]
-	// fn full_parachain_cleanup_storage() {
-	// 	let parachains = vec![
-	// 		(0u32.into(), vec![1, 2, 3].into(), vec![].into()),
-	// 	];
+				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
+			}
 
-	// 	new_test_ext(parachains.clone()).execute_with(|| {
-	// 		let para_id = ParaId::from(0);
-	// 		let new_code = ValidationCode(vec![4, 5, 6]);
+			// run to block, with a session change at that block.
+			run_to_block(3, Some(vec![3]));
 
-	// 		run_to_block(2);
-	// 		{
-	// 			let raw_candidate = raw_candidate(para_id);
-	// 			let applied_after = raw_candidate.local_validation.code_upgrade_allowed.unwrap();
-	// 			let mut candidate_a = make_blank_attested(raw_candidate);
+			// cleaning up the parachain should place the current parachain code
+			// into the past code buffer & schedule cleanup.
+			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(3));
+			assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 3)), Some(vec![1, 2, 3].into()));
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 3)]);
 
-	// 			candidate_a.candidate.commitments.new_validation_code = Some(new_code.clone());
+			// any future upgrades haven't been used to validate yet, so those
+			// are cleaned up immediately.
+			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
+			assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+			assert!(Paras::current_code(&para_id).is_none());
 
-	// 			// this parablock is in the context of block 1.
-	// 			assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
-	// 			make_attestations(&mut candidate_a);
+			// run to do the final cleanup
+			let cleaned_up_at = 3 + acceptance_period + 1;
+			run_to_block(cleaned_up_at, None);
 
-	// 			assert_ok!(Paras::dispatch(
-	// 				set_heads(vec![candidate_a.clone()]),
-	// 				Origin::NONE,
-	// 			));
+			// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
+			assert_eq!(Paras::past_code_meta(&para_id), Default::default());
+			assert!(<Paras as Store>::PastCode::get(&(para_id, 3)).is_none());
+			assert!(<Paras as Store>::PastCodePruning::get().is_empty());
+		});
+	}
 
-	// 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-	// 			assert_eq!(Paras::code_upgrade_schedule(&para_id), Some(applied_after));
-	// 			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
-	// 			assert_eq!(Paras::parachain_code(&para_id), Some(vec![1, 2, 3].into()));
-
-	// 			assert!(Paras::past_code_pruning_tasks().is_empty());
-	// 		};
-
-	// 		Paras::cleanup_para(para_id);
-
-	// 		// cleaning up the parachain should place the current parachain code
-	// 		// into the past code buffer & schedule cleanup.
-	// 		assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(2));
-	// 		assert_eq!(<Paras as Store>::PastCode::get(&(para_id, 2)), Some(vec![1, 2, 3].into()));
-	// 		assert_eq!(Paras::past_code_pruning_tasks(), vec![(para_id, 2)]);
-
-	// 		// any future upgrades haven't been used to validate yet, so those
-	// 		// are cleaned up immediately.
-	// 		assert!(Paras::code_upgrade_schedule(&para_id).is_none());
-	// 		assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
-	// 		assert!(Paras::parachain_code(&para_id).is_none());
-
-	// 		let cleaned_up_at = 2 + SlashPeriod::get() + 1;
-	// 		run_to_block(cleaned_up_at);
-
-	// 		// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
-	// 		assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-	// 		assert!(<Paras as Store>::PastCode::get(&(para_id, 2)).is_none());
-	// 		assert!(Paras::past_code_pruning_tasks().is_empty());
-	// 	});
-	// }
-
-	// TODO [now]: validation code pruning
 	// TODO [now]: code_at
 	// TODO [now]: registration & deregistration
-	// TODO [now]: adapts to config acceptance period growing/shrinking
 }

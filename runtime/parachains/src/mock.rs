@@ -101,6 +101,7 @@ pub type Paras = crate::paras::Module<Test>;
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 	let mut t = state.system.build_storage::<Test>().unwrap();
 	state.configuration.assimilate_storage(&mut t).unwrap();
+	state.paras.assimilate_storage(&mut t).unwrap();
 
 	t.into()
 }
