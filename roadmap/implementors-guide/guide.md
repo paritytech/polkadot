@@ -480,6 +480,18 @@ It's also responsible for managing parachain validation code upgrades as well as
 
 Utility structs:
 ```rust
+// the two key times necessary to track for every code replacement.
+struct ReplacementTimes {
+	/// The relay-chain block number that the code upgrade was expected to be activated.
+	/// This is when the code change occurs from the para's perspective - after the
+	/// first parablock included with a relay-parent with number >= this value.
+	expected_at: BlockNumber,
+	/// The relay-chain block number at which the parablock activating the code upgrade was
+	/// actually included. This means considered included and available, so this is the time at which
+	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	activated_at: BlockNumber,
+}
+
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 pub struct ParaPastCodeMeta {
@@ -488,7 +500,7 @@ pub struct ParaPastCodeMeta {
 	// of historic code in historic contexts, whereas the second is used to do
 	// pruning on an accurate timeframe. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<(BlockNumber, BlockNumber)>,
+	upgrade_times: Vec<ReplacementTimes>,
 	// This tracks the highest pruned code-replacement, if any.
 	last_pruned: Option<BlockNumber>,
 }
