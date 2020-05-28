@@ -25,10 +25,17 @@ use kv_log_macro as log;
 
 use overseer::{Overseer, Subsystem, SubsystemContext, SubsystemJob};
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, std::hash::Hash)]
+pub enum SubsystemId {
+	Subsystem1,
+	Subsystem2,
+	Subsystem3,
+}
+
 struct Subsystem1;
 
 impl Subsystem1 {
-	async fn run(mut ctx: SubsystemContext<usize>)  {
+	async fn run(mut ctx: SubsystemContext<usize, SubsystemId>)  {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -48,8 +55,8 @@ impl Subsystem1 {
 	}
 }
 
-impl Subsystem<usize> for Subsystem1 {
-	fn start(&mut self, ctx: SubsystemContext<usize>) -> SubsystemJob {
+impl Subsystem<usize, SubsystemId> for Subsystem1 {
+	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
 		SubsystemJob(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -59,10 +66,10 @@ impl Subsystem<usize> for Subsystem1 {
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: SubsystemContext<usize>)  {
+	async fn run(mut ctx: SubsystemContext<usize, SubsystemId>)  {
 		let ss3 = Box::new(Subsystem3);
 
-		let ss3_id = ctx.spawn(ss3).await;
+		let ss3_id = ctx.spawn((SubsystemId::Subsystem3, ss3)).await;
 		log::info!("Received subsystem id {:?}", ss3_id);
 		loop {
 			match ctx.try_recv().await {
@@ -81,8 +88,8 @@ impl Subsystem2 {
 	}
 }
 
-impl Subsystem<usize> for Subsystem2 {
-	fn start(&mut self, ctx: SubsystemContext<usize>) -> SubsystemJob {
+impl Subsystem<usize, SubsystemId> for Subsystem2 {
+	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
 		SubsystemJob(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -91,8 +98,8 @@ impl Subsystem<usize> for Subsystem2 {
 
 struct Subsystem3;
 
-impl Subsystem<usize> for Subsystem3 {
-	fn start(&mut self, mut ctx: SubsystemContext<usize>) -> SubsystemJob {
+impl Subsystem<usize, SubsystemId> for Subsystem3 {
+	fn start(&mut self, mut ctx: SubsystemContext<usize, SubsystemId>) -> SubsystemJob {
 		SubsystemJob(Box::pin(async move {
 			// TODO: ctx actually has to be used otherwise the channels are dropped
 			loop {
@@ -115,9 +122,9 @@ fn main() {
 	let spawner = executor::ThreadPool::new().unwrap();
 
 	futures::executor::block_on(async {
-		let subsystems: Vec<Box<dyn Subsystem<usize> + Send>> = vec![
-			Box::new(Subsystem1::new()),
-			Box::new(Subsystem2::new()),
+		let subsystems: Vec<(SubsystemId, Box<dyn Subsystem<usize, SubsystemId> + Send>)> = vec![
+			(SubsystemId::Subsystem1, Box::new(Subsystem1::new())),
+			(SubsystemId::Subsystem2, Box::new(Subsystem2::new())),
 		];
 
 		let overseer = Overseer::new(subsystems, spawner);
