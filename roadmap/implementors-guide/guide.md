@@ -686,7 +686,7 @@ Session changes are the only time that configuration can change, and the configu
 
 Actions:
 1. Set `SessionStartBlock` to current block number.
-1. Clear all `Some` members of `ExecutionCores`. Return all parathread claims to queue with retries un-incremented. Resize.
+1. Clear all `Some` members of `ExecutionCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [HostConfiguration](#Host-Configuration))
 1. Resize `ExecutionCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
