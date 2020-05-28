@@ -1040,5 +1040,60 @@ mod tests {
 		})
 	}
 
-	// TODO [now]: code_at
+	#[test]
+	fn code_at_with_intermediate() {
+		let acceptance_period = 10;
+
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let old_code: ValidationCode = vec![1, 2, 3].into();
+			let new_code: ValidationCode = vec![4, 5, 6].into();
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 10);
+
+			// no intermediate, falls back on current/past.
+			assert_eq!(Paras::validation_code_at(para_id, 1, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 10, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 100, None), Some(old_code.clone()));
+
+			// intermediate before upgrade meant to be applied, falls back on current.
+			assert_eq!(Paras::validation_code_at(para_id, 9, Some(8)), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 10, Some(9)), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 11, Some(9)), Some(old_code.clone()));
+
+			// intermediate at or after upgrade applied
+			assert_eq!(Paras::validation_code_at(para_id, 11, Some(10)), Some(new_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 100, Some(11)), Some(new_code.clone()));
+
+			run_to_block(acceptance_period + 5, None);
+
+
+			// at <= intermediate not allowed
+			assert_eq!(Paras::validation_code_at(para_id, 10, Some(10)), None);
+			assert_eq!(Paras::validation_code_at(para_id, 9, Some(10)), None);
+
+
+			// at is too old compared to now.
+			assert_eq!(Paras::validation_code_at(para_id, 1, None), None);
+		});
+	}
 }
