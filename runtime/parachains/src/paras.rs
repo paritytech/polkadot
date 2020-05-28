@@ -200,6 +200,7 @@ decl_storage! {
 
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
+	let mut parachains: Vec<_> = config.paras
 		.iter()
 		.filter(|(_, args)| args.parachain)
 		.map(|&(ref id, _)| id)
@@ -688,7 +689,7 @@ mod tests {
 			Paras::note_past_code(id_a, 10, 12, vec![1, 2, 3].into());
 			Paras::note_past_code(id_b, 20, 23, vec![4, 5, 6].into());
 
-			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 10), (id_b, 20)]);
+			assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 12), (id_b, 23)]);
 			assert_eq!(
 				Paras::past_code_meta(&id_a),
 				ParaPastCodeMeta {
@@ -984,6 +985,60 @@ mod tests {
 		});
 	}
 
+	#[test]
+	fn para_incoming_at_session() {
+		new_test_ext(Default::default()).execute_with(|| {
+			run_to_block(1, None);
+
+			let b = ParaId::from(525);
+			let a = ParaId::from(999);
+			let c = ParaId::from(333);
+
+			Paras::schedule_para_initialize(
+				b,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![1].into(),
+					validation_code: vec![1].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				a,
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: vec![2].into(),
+					validation_code: vec![2].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				c,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![3].into(),
+					validation_code: vec![3].into(),
+				},
+			);
+
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+
+			// run to block without session change.
+			run_to_block(2, None);
+
+			assert_eq!(Paras::parachains(), Vec::new());
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+
+			run_to_block(3, Some(vec![3]));
+
+			assert_eq!(Paras::parachains(), vec![c, b]);
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+
+			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
+			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
+			assert_eq!(Paras::current_code(&c), Some(vec![3].into()));
+		})
+	}
+
 	// TODO [now]: code_at
-	// TODO [now]: registration & deregistration
 }
