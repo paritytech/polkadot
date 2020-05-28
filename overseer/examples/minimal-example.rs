@@ -46,7 +46,7 @@ impl Subsystem1 {
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
-			ctx.send_msg(10).await;
+			ctx.broadcast_msg(10).await;
 		}
 	}
 

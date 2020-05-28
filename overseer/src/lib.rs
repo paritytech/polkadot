@@ -28,7 +28,7 @@
 //! that this protocol is the only way tasks communicate with each other, however
 //! at this moment there are no foolproof guards against other ways of communication.
 //!
-//! To spawn something the `Overseer` needs to know what actually needs to be spawn.
+//! To spawn something the `Overseer` needs to know what actually needs to be spawned.
 //! This is solved by splitting the actual type of the subsystem from the type that
 //! is being asyncronously run on the `Overseer`. What we need from the subsystem
 //! is the ability to return some `Future` object that the `Overseer` can run and
@@ -89,6 +89,8 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
 pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
+
+const CHANNEL_CAPACITY: usize = 1024;
 
 /// A type of messages that are used inside the `Overseer`.
 ///
@@ -167,7 +169,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	///
 	/// The message will be broadcasted to all other `Subsystem`s that can
 	/// receive it.
-	pub async fn send_msg(&mut self, msg: M) {
+	pub async fn broadcast_msg(&mut self, msg: M) {
 		let _ = self.tx.send(OverseerMessage::SubsystemMessage{
 			to: None,
 			msg,
@@ -185,8 +187,8 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 		rx.await.unwrap_or_else(|_| Err(SubsystemError))
 	}
 
-	/// Send a direct message to some other `Subsystem` you know `I`d of.
-	pub async fn send_msg_to(&mut self, to: I, msg: M) {
+	/// Send a direct message to some other `Subsystem` you know the `I`d of.
+	pub async fn send_msg(&mut self, to: I, msg: M) {
 		let _ = self.tx.send(OverseerMessage::SubsystemMessage{
 			to: Some(to),
 			msg,
@@ -209,7 +211,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 pub trait Subsystem<M: Debug, I> {
 	/// Start this `Subsystem` and return `SubsystemJob`.
 	fn start(&mut self, ctx: SubsystemContext<M, I>) -> SpawnedSubsystem;
-	/// If this `Subsystem` want to receive this message.
+	/// If this `Subsystem` wants to receive this message.
 	///
 	/// By default receive all messages.
 	fn can_recv_msg(&self, _msg: &M) -> bool { true }
@@ -233,8 +235,11 @@ pub struct Overseer<M: Debug, S: Spawn, I> {
 	/// Spawner to spawn tasks to.
 	s: S,
 
-	/// Here we keep handles to spawned subsystems be notified when they terminate.
+	/// Here we keep handles to spawned subsystems to be notified when they terminate.
 	running_subsystems: FuturesUnordered<RemoteHandle<()>>,
+
+	/// The capacity of bounded channels created between `Overseer` and `SpawnedSubsystem`s.
+	channel_capacity: usize,
 }
 
 impl<M, S, I> Overseer<M, S, I>
@@ -273,6 +278,7 @@ where
 			subsystems: HashMap::new(),
 			s,
 			running_subsystems: FuturesUnordered::new(),
+			channel_capacity: CHANNEL_CAPACITY,
 		};
 
 		for s in subsystems.into_iter() {
@@ -353,8 +359,8 @@ where
 	}
 
 	fn spawn(&mut self, mut s: (I, Box<dyn Subsystem<M, I> + Send>)) -> SubsystemResult<I> {
-		let (to_tx, to_rx) = mpsc::channel(1024);
-		let (from_tx, from_rx) = mpsc::channel(1024);
+		let (to_tx, to_rx) = mpsc::channel(self.channel_capacity);
+		let (from_tx, from_rx) = mpsc::channel(self.channel_capacity);
 		let ctx = SubsystemContext::new(to_rx, from_tx);
 		let f = s.1.start(ctx);
 
@@ -424,7 +430,7 @@ mod tests {
 				let mut c = 0;
 				loop {
 					if c < 10 {
-						ctx.send_msg(c).await;
+						ctx.broadcast_msg(c).await;
 						c += 1;
 						continue;
 					}
