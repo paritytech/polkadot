@@ -19,7 +19,7 @@
 //!   * Establishing message passing
 
 use std::time::Duration;
-use futures::pending;
+use futures::{pending, executor};
 use futures_timer::Delay;
 use kv_log_macro as log;
 
@@ -40,7 +40,6 @@ impl Subsystem1 {
 
 			Delay::new(Duration::from_secs(1)).await;
 			ctx.send_msg(10).await;
-			pending!();
 		}
 	}
 
@@ -53,7 +52,6 @@ impl Subsystem<usize> for Subsystem1 {
 	fn start(&mut self, ctx: SubsystemContext<usize>) -> SubsystemJob {
 		SubsystemJob(Box::pin(async move {
 			Self::run(ctx).await;
-			Ok(())
 		}))
 	}
 }
@@ -70,11 +68,11 @@ impl Subsystem2 {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
 					log::info!("Subsystem2 received message {}", msg);
+					continue;
 				}
-				Ok(None) => (),
+				Ok(None) => { pending!(); }
 				Err(_) => {}
 			}
-			pending!();
 		}
 	}
 
@@ -87,7 +85,6 @@ impl Subsystem<usize> for Subsystem2 {
 	fn start(&mut self, ctx: SubsystemContext<usize>) -> SubsystemJob {
 		SubsystemJob(Box::pin(async move {
 			Self::run(ctx).await;
-			Ok(())
 		}))
 	}
 }
@@ -115,14 +112,15 @@ impl Subsystem<usize> for Subsystem3 {
 
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
+	let spawner = executor::ThreadPool::new().unwrap();
 
 	futures::executor::block_on(async {
-		let subsystems: Vec<Box<dyn Subsystem<usize>>> = vec![
+		let subsystems: Vec<Box<dyn Subsystem<usize> + Send>> = vec![
 			Box::new(Subsystem1::new()),
 			Box::new(Subsystem2::new()),
 		];
 
-		let overseer = Overseer::new(subsystems);
+		let overseer = Overseer::new(subsystems, spawner);
 		overseer.run().await;
 	});
 }
