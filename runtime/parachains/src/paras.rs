@@ -42,6 +42,20 @@ use serde::{Serialize, Deserialize};
 
 pub trait Trait: system::Trait + configuration::Trait { }
 
+// the two key times necessary to track for every code replacement.
+#[derive(Default, Encode, Decode)]
+#[cfg_attr(test, derive(Debug, Clone, PartialEq))]
+pub struct ReplacementTimes<N> {
+	/// The relay-chain block number that the code upgrade was expected to be activated.
+	/// This is when the code change occurs from the para's perspective - after the
+	/// first parablock included with a relay-parent with number >= this value.
+	expected_at: N,
+	/// The relay-chain block number at which the parablock activating the code upgrade was
+	/// actually included. This means considered included and available, so this is the time at which
+	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	activated_at: N,
+}
+
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 #[derive(Default, Encode, Decode)]
@@ -50,7 +64,7 @@ pub struct ParaPastCodeMeta<N> {
 	// Block numbers where the code was "technically" replaced and the block number at
 	// which the code was actually replaced. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<(N, N)>,
+	upgrade_times: Vec<ReplacementTimes<N>>,
 	// This tracks the highest pruned code-replacement, if any.
 	last_pruned: Option<N>,
 }
@@ -60,30 +74,34 @@ enum UseCodeAt<N> {
 	// Use the current code.
 	Current,
 	// Use the code that was replaced at the given block number.
+	// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
+	// with number N should use the code that is replaced at N.
 	ReplacedAt(N),
 }
 
 impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
-	fn note_replacement(&mut self, at: N, included_at: N) {
-		self.upgrade_times.insert(0, (at, included_at))
+	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
+		self.upgrade_times.insert(0, ReplacementTimes { expected_at, activated_at })
 	}
 
 	// Yields the block number of the code that should be used for validating at
 	// the given block number.
 	//
+	//
+	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
 	#[allow(unused)]
-	fn code_at(&self, at: N) -> Option<UseCodeAt<N>> {
+	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
 		// The `PastCode` map stores the code which was replaced at `t`.
-		let end_position = self.upgrade_times.iter().position(|&t| t.0 < at);
+		let end_position = self.upgrade_times.iter().position(|t| t.expected_at < para_at);
 		if let Some(end_position) = end_position {
 			Some(if end_position != 0 {
-				// `end_position` gives us the replacement time where the code used at `at`
+				// `end_position` gives us the replacement time where the code used at `para_at`
 				// was set. But that code has been replaced: `end_position - 1` yields
 				// that index.
-				UseCodeAt::ReplacedAt(self.upgrade_times[end_position - 1].0)
+				UseCodeAt::ReplacedAt(self.upgrade_times[end_position - 1].expected_at)
 			} else {
 				// the most recent tracked replacement is before `at`.
 				// this means that the code put in place then (i.e. the current code)
@@ -91,7 +109,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 				UseCodeAt::Current
 			})
 		} else {
-			if self.last_pruned.as_ref().map_or(true, |&n| n < at) {
+			if self.last_pruned.as_ref().map_or(true, |&n| n < para_at) {
 				// Our `last_pruned` is before `at`, so we still have the code!
 				// but no code upgrade entries found before the `at` parameter.
 				//
@@ -100,7 +118,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 				// 2. there are non-pruned upgrade logs all after `at`.
 				//    in this case use the oldest upgrade log.
 				Some(self.upgrade_times.last()
-					.map(|n| UseCodeAt::ReplacedAt(n.0))
+					.map(|n| UseCodeAt::ReplacedAt(n.expected_at))
 					.unwrap_or(UseCodeAt::Current)
 				)
 			} else {
@@ -113,29 +131,33 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// The block at which the most recently tracked code change occurred, from the perspective
 	// of the para.
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.first().map(|x| x.0.clone())
+		self.upgrade_times.first().map(|x| x.expected_at.clone())
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
 	// note that code replaced at `x` is the code used to validate all blocks before
 	// `x`. Thus, `max` should be outside of the slashing window when this is invoked.
 	//
+	// Since we don't want to prune anything inside the acceptance period, and the parablock only
+	// enters the acceptance period after being included, we prune based on the activation height of
+	// the code change, not the expected height of the code change.
+	//
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
 	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item=N> + '_ {
-		let drained = match self.upgrade_times.iter().position(|&t| t.1 <= max) {
+		let drained = match self.upgrade_times.iter().position(|t| t.activated_at <= max) {
 			None => {
 				// this is a no-op `drain` - desired because all
 				// logged code upgrades occurred after `max`.
 				self.upgrade_times.drain(self.upgrade_times.len()..).rev()
 			}
 			Some(pos) => {
-				self.last_pruned = Some(self.upgrade_times[pos].0);
+				self.last_pruned = Some(self.upgrade_times[pos].expected_at);
 				self.upgrade_times.drain(pos..).rev()
 			}
 		};
 
-		drained.map(|(replaced, _)| replaced)
+		drained.map(|times| times.expected_at)
 	}
 }
 
@@ -532,6 +554,10 @@ mod tests {
 		}
 	}
 
+	fn upgrade_at(expected_at: BlockNumber, activated_at: BlockNumber) -> ReplacementTimes<BlockNumber> {
+		ReplacementTimes { expected_at, activated_at }
+	}
+
 	#[test]
 	fn para_past_code_meta_gives_right_code() {
 		let mut past_code = ParaPastCodeMeta::default();
@@ -568,7 +594,7 @@ mod tests {
 
 		assert_eq!(past_code.prune_up_to(10).collect::<Vec<_>>(), vec![10]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(30, 35), (20, 25)],
+			upgrade_times: vec![upgrade_at(30, 35), upgrade_at(20, 25)],
 			last_pruned: Some(10),
 		});
 
@@ -576,7 +602,7 @@ mod tests {
 
 		assert_eq!(past_code.prune_up_to(26).collect::<Vec<_>>(), vec![20]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(30, 35)],
+			upgrade_times: vec![upgrade_at(30, 35)],
 			last_pruned: Some(20),
 		});
 
@@ -585,13 +611,13 @@ mod tests {
 		past_code.note_replacement(60, 66);
 
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(60, 66), (50, 53), (40, 42), (30, 35)],
+			upgrade_times: vec![upgrade_at(60, 66), upgrade_at(50, 53), upgrade_at(40, 42), upgrade_at(30, 35)],
 			last_pruned: Some(20),
 		});
 
 		assert_eq!(past_code.prune_up_to(60).collect::<Vec<_>>(), vec![30, 40, 50]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![(60, 66)],
+			upgrade_times: vec![upgrade_at(60, 66)],
 			last_pruned: Some(50),
 		});
 
@@ -697,14 +723,14 @@ mod tests {
 			assert_eq!(
 				Paras::past_code_meta(&id_a),
 				ParaPastCodeMeta {
-					upgrade_times: vec![(10, 12)],
+					upgrade_times: vec![upgrade_at(10, 12)],
 					last_pruned: None,
 				}
 			);
 			assert_eq!(
 				Paras::past_code_meta(&id_b),
 				ParaPastCodeMeta {
-					upgrade_times: vec![(20, 23)],
+					upgrade_times: vec![upgrade_at(20, 23)],
 					last_pruned: None,
 				}
 			);
