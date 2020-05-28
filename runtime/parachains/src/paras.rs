@@ -224,8 +224,6 @@ decl_module! {
 	/// The parachains configuration module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
 		type Error = Error<T>;
-
-		// TODO [now]: add routines from implementor's guide.
 	}
 }
 
@@ -303,7 +301,7 @@ impl<T: Trait> Module<T> {
 		at: T::BlockNumber,
 		now: T::BlockNumber,
 		old_code: ValidationCode,
-	) {
+	) -> Weight {
 
 		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
 			past_meta.note_replacement(at, now);
@@ -317,7 +315,9 @@ impl<T: Trait> Module<T> {
 			let insert_idx = pruning.binary_search_by_key(&at, |&(_, b)| b)
 				.unwrap_or_else(|idx| idx);
 			pruning.insert(insert_idx, (id, now));
-		})
+		});
+
+		T::DbWeight::get().reads_writes(2, 3)
 	}
 
 	// does old code pruning.
@@ -364,6 +364,139 @@ impl<T: Trait> Module<T> {
 		// 1 read for the meta for each pruning task, 1 read for the config
 		// 2 writes: updating the meta and pruning the code
 		T::DbWeight::get().reads_writes(1 + pruning_tasks_done, 2 * pruning_tasks_done)
+	}
+
+	/// Schedule a para to be initialized at the start of the next session.
+	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+		let dup = UpcomingParas::mutate(|v| {
+			match v.binary_search(&id) {
+				Ok(_) => true,
+				Err(i) => {
+					v.insert(i, id);
+					false
+				}
+			}
+		});
+
+		if dup {
+			let weight = T::DbWeight::get().reads_writes(1, 0);
+			return weight;
+		}
+
+		UpcomingParasGenesis::insert(&id, &genesis);
+
+		T::DbWeight::get().reads_writes(1, 2)
+	}
+
+	/// Schedule a para to be cleaned up at the start of the next session.
+	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
+		OutgoingParas::mutate(|v| {
+			match v.binary_search(&id) {
+				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
+				Err(i) => {
+					v.insert(i, id);
+					T::DbWeight::get().reads_writes(1, 1)
+				}
+			}
+		})
+	}
+
+	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
+	/// of a block of the same parachain executed in the context of a relay-chain block
+	/// with number >= `expected_at`
+	///
+	/// If there is already a scheduled code upgrade for the para, this is a no-op.
+	pub(crate) fn schedule_code_upgrade(
+		id: ParaId,
+		new_code: ValidationCode,
+		expected_at: T::BlockNumber,
+	) -> Weight {
+		<Self as Store>::FutureCodeUpgrades::mutate(&id, |up| {
+			if up.is_some() {
+				T::DbWeight::get().reads_writes(1, 0)
+			} else {
+				*up = Some(expected_at);
+				FutureCode::insert(&id, new_code);
+				T::DbWeight::get().reads_writes(1, 2)
+			}
+		})
+	}
+
+	/// Note that a para has progressed to a new head, where the new head was executed in the context
+	/// of a relay-chain block with given number. This will apply pending code upgrades based
+	/// on the block number provided.
+	pub(crate) fn note_new_head(
+		id: ParaId,
+		new_head: HeadData,
+		execution_context: T::BlockNumber,
+	) -> Weight {
+		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
+			Heads::insert(&id, new_head);
+
+			if expected_at <= execution_context {
+				<Self as Store>::FutureCodeUpgrades::remove(&id);
+				let new_code = FutureCode::take(&id);
+
+				let prior_code = CurrentCode::get(&id).unwrap_or_default();
+				CurrentCode::insert(&id, &new_code);
+
+				let now = <system::Module<T>>::block_number();
+
+				let weight = Self::note_past_code(
+					id,
+					expected_at,
+					now,
+					prior_code,
+				);
+
+				// add 1 to writes due to heads update.
+				weight + T::DbWeight::get().reads_writes(3, 1 + 3)
+			} else {
+				T::DbWeight::get().reads_writes(1, 1 + 0)
+			}
+		} else {
+			T::DbWeight::get().reads_writes(1, 0)
+		}
+	}
+
+	/// Fetches the validation code to be used when validating a block in the context of the given
+	/// relay-chain height. A second block number parameter may be used to tell the lookup to proceed
+	/// as if an intermediate parablock has been with the given relay-chain height as its context.
+	/// This may return past, current, or (with certain choices of `assume_intermediate`) future code.
+	///
+	/// `assume_intermediate`, if provided, must be before `at`. If `at` is not within the acceptance
+	/// of the current block number, this will return `None`
+	pub(crate) fn validation_code_at(
+		id: ParaId,
+		at: T::BlockNumber,
+		assume_intermediate: Option<T::BlockNumber>,
+	) -> Option<ValidationCode> {
+		let now = <system::Module<T>>::block_number();
+		let config = <configuration::Module<T>>::config();
+
+		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
+			return None;
+		}
+
+		if at + config.acceptance_period + One::one() < now {
+			return None;
+		}
+
+		let planned_upgrade = <Self as Store>::FutureCodeUpgrades::get(&id);
+		let upgrade_applied_intermediate = match assume_intermediate {
+			Some(a) => planned_upgrade.as_ref().map_or(false, |u| u <= &a),
+			None => false,
+		};
+
+		if upgrade_applied_intermediate {
+			Some(FutureCode::get(&id))
+		} else {
+			match <Self as Store>::PastCodeMeta::get(&id).code_at(at) {
+				None => None,
+				Some(UseCodeAt::Current) => CurrentCode::get(&id),
+				Some(UseCodeAt::ReplacedAt(replaced)) => <Self as Store>::PastCode::get(&(id, replaced))
+			}
+		}
 	}
 }
 
