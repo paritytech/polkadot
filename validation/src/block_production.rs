@@ -274,7 +274,7 @@ impl<Client, TxPool, Backend> CreateProposalData<Client, TxPool, Backend> where
 	) -> Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error> {
 		use runtime_primitives::traits::{Hash as HashT, BlakeTwo256};
 
-		const MAX_TRANSACTIONS: usize = 40;
+		const MAX_TRANSACTIONS: usize = 1200;
 
 		let mut inherent_data = self.inherent_data
 			.take()

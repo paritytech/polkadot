@@ -20,6 +20,13 @@ use sc_executor::NativeExecutionDispatch;
 use sc_cli::{SubstrateCli, Result};
 use crate::cli::{Cli, Subcommand};
 
+fn get_exec_name() -> Option<String> {
+	std::env::current_exe()
+		.ok()
+		.and_then(|pb| pb.file_name().map(|s| s.to_os_string()))
+		.and_then(|s| s.into_string().ok())
+}
+
 impl SubstrateCli for Cli {
 	fn impl_name() -> &'static str { "Parity Polkadot" }
 
@@ -36,6 +43,13 @@ impl SubstrateCli for Cli {
 	fn executable_name() -> &'static str { "polkadot" }
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
+		let id = if id == "" {
+			let n = get_exec_name().unwrap_or_default();
+			["polkadot", "kusama", "westend"].iter()
+				.cloned()
+				.find(|&chain| n.starts_with(chain))
+				.unwrap_or("polkadot")
+		} else { id };
 		Ok(match id {
 			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()),
 			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()),
@@ -43,8 +57,9 @@ impl SubstrateCli for Cli {
 			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()),
 			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()),
 			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
-			"kusama" | "" => Box::new(service::chain_spec::kusama_config()?),
+			"kusama" => Box::new(service::chain_spec::kusama_config()?),
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),

@@ -30,11 +30,15 @@ esac
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
 # Note: Drop any changes that begin with '[contracts]' or 'contracts:'
+polkadot_spec=$(grep spec_version runtime/polkadot/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
+echo "[+] Polkadot spec version: $polkadot_spec"
 kusama_spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
 echo "[+] Kusama spec version: $kusama_spec"
 westend_spec=$(grep spec_version runtime/westend/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
 echo "[+] Westend spec version: $westend_spec"
-release_text="Kusama native runtime: $kusama_spec
+release_text="Polkadot native runtime: $polkadot_spec
+
+Kusama native runtime: $kusama_spec
 
 Westend native runtime: $westend_spec
 "
@@ -145,7 +149,7 @@ echo "$release_text"
 
 echo "[+] Pushing release to github"
 # Create release on github
-release_name="Kusama $version"
+release_name="Polkadot CC1 $version"
 data=$(jq -Rs --arg version "$version" \
   --arg release_name "$release_name" \
   --arg release_text "$release_text" \

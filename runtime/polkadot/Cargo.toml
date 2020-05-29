@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.7.34-dev"
+version = "0.8.1"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -59,6 +59,7 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -137,6 +138,7 @@ std = [
 	"runtime-common/std",
 	"sudo/std",
 	"vesting/std",
+	"utility/std",
 ]
 runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
