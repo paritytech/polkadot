@@ -392,8 +392,10 @@ struct SessionChangeNotification {
 	queued: Vec<ValidatorId>,
 	// The configuration before handling the session change.
 	prev_config: HostConfiguration,
-	// The configuratino after handling the session change.
+	// The configuration after handling the session change.
 	new_config: HostConfiguration,
+	// A secure randomn seed for the session, gathered from BABE.
+	random_seed: [u8; 32],
 }
 ```
 
@@ -737,11 +739,15 @@ Actions:
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [HostConfiguration](#Host-Configuration))
 1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
-1. Compute new validator groups by shuffling using a secure randomness beacon (TODO [now])
+1. Compute new validator groups by shuffling using a secure randomness beacon
+    - We need a total of `N = Paras::parathreads().len() + configuration.parathread_cores` validator groups.
+	- The total number of validators `V` in the `SessionChangeNotification`'s `validators` may not be evenly divided by `V`.
+	- First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
+	- The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
-  - all pruned claims should have their entry removed from the parathread index.
-  - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
-  - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
+    - all pruned claims should have their entry removed from the parathread index.
+    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
+    - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
 
 #### Initialization
 
