@@ -200,7 +200,6 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
 
@@ -424,7 +423,7 @@ impl system::offchain::SigningTypes for Runtime {
 }
 
 parameter_types! {
-	pub const OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 }
 
 impl offences::Trait for Runtime {
@@ -465,7 +464,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
+	pub Prefix: &'static [u8] = b"Pay KSMs to the Kusama account:";
 }
 
 impl claims::Trait for Runtime {

@@ -138,14 +138,14 @@ In this example, group 1 has received block C while the others have not due to n
    .        (Validator 5)             .
    .                                  .
    ....... Building on C and C' .......
-           
-            +----------------------+         +----------------------+       
-            |    Relay Block C     |         |    Relay Block C'    |          
+
+            +----------------------+         +----------------------+
+            |    Relay Block C     |         |    Relay Block C'    |
             +----------------------+         +----------------------+
                             \                 /
-                             \               /   
+                             \               /
                               \             /
-                      +----------------------+    
+                      +----------------------+
                       |  Relay Block B       |
                       +----------------------+
 	                             |
@@ -181,7 +181,7 @@ Our Parachain Host includes a blockchain known as the relay-chain. A blockchain 
                                 +----------------+
                                 |    Genesis     |
                                 +----------------+
-```                                
+```
 
 
 A blockchain network is comprised of nodes. These nodes each have a view of many different forks of a blockchain and must decide which forks to follow and what actions to take based on the forks of the chain that they are aware of.
@@ -235,7 +235,7 @@ It is also helpful to divide Node-side behavior into two further categories: Net
                                                    ______| |______
                                                    ___Transport___
 
-```                                                   
+```
 
 
 Node-side behavior is split up into various subsystems. Subsystems are long-lived workers that perform a particular category of work. Subsystems can communicate with each other, and do so via an Overseer that prevents race conditions.
@@ -292,7 +292,7 @@ initialization:
   * determine scheduled parachains and parathreads for the upcoming block or blocks.
   * determine validator assignments to scheduled paras for the upcoming block or blocks.
   * remove blocks which have been pending availability for too long. this is tightly coupled with scheduling.
-  * handle the start of a new session - discard all candidates pending availability and note the upcoming validator set. 
+  * handle the start of a new session - discard all candidates pending availability and note the upcoming validator set.
   * apply calls from upward messages - messages from parachains to the relay chain.
 
 during the block:
@@ -302,7 +302,7 @@ during the block:
 
 process availability bitfields:
   * We will accept an optional signed bitfield from each validator in each block.
-  * We need to check the signature and length of the bitfield for validity. 
+  * We need to check the signature and length of the bitfield for validity.
   * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "execution cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
   * Bits that are set to `true` denote candidate pending availability which are believed by this validator to be available.
   * Candidates that are pending availability and have the corresponding bit set in 2/3 of validators' bitfields (only counting those submitted after the candidate was included, since some validators may not have submitted bitfields in some time) are considered available and are then moved into the "pending approval" state.
@@ -316,8 +316,8 @@ candidates entering the "pending approval" state:
 
 process new backed candidates:
   * ensure that only one candidate is backed for each parachain or parathread
-  * ensure that the parachain or parathread of the candidate was scheduled and does not currently have a block pending availability. 
-  * check the backing of the candidate. 
+  * ensure that the parachain or parathread of the candidate was scheduled and does not currently have a block pending availability.
+  * check the backing of the candidate.
   * move to "pending approval" state. (pass along any configuration information that is liable to change)
 
 misbehavior reports and secondary checks:
@@ -366,7 +366,7 @@ The Initializer module is special - it's responsible for handling the initializa
 The Parachain Host operates under a changing set of validators. Time is split up into periodic sessions, where each session brings a potentially new set of validators. Sessions are buffered by one, meaning that the validators of the upcoming session are fixed and always known. Parachain Host runtime modules need to react to changes in the validator set, as it will affect the runtime logic for processing candidate backing, availability bitfields, and misbehavior reports. The Parachain Host modules can't determine ahead-of-time exactly when session change notifications are going to happen within the block (note: this depends on module initialization order again - better to put session before parachains modules). Ideally, session changes are always handled before initialization. It is clearly a problem if we compute validator assignments to parachains during initialization and then the set of validators changes. In the best case, we can recognize that re-initialization needs to be done. In the worst case, bugs would occur.
 
 There are 3 main ways that we can handle this issue:
-  1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change. 
+  1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change.
   2. Require that session change notifications always occur before initialization. Brick the chain if session change notifications ever happen after initialization.
   3. Handle both the before and after cases.
 
@@ -383,7 +383,7 @@ So the other role of the initializer module is to forward session change notific
 
 #### Description
 
-This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described above: accepting and forwarding session change notifications. 
+This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described above: accepting and forwarding session change notifications.
 
 #### Storage
 
@@ -535,7 +535,7 @@ OutgoingParas: Vec<ParaId>;
 
 1. Clean up outgoing paras. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.
 1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis parameters.
-1. Amend the `Parachains` list to reflect changes in registered parachains. 
+1. Amend the `Parachains` list to reflect changes in registered parachains.
 
 #### Initialization
 
@@ -545,7 +545,7 @@ OutgoingParas: Vec<ParaId>;
 
 * `schedule_para_initialize(ParaId, ParaGenesisArgs)`: schedule a para to be initialized at the next session.
 * `schedule_para_cleanup(ParaId)`: schedule a para to be cleaned up at the next session.
-* `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`. 
+* `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided.
 * `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If `at` is too old or the `ParaId` does not reference any live para, this may return `None`.
 
@@ -571,48 +571,48 @@ It aims to achieve these tasks with these goals in mind:
 
 The Scheduler manages resource allocation using the concept of "Execution Cores". There will be one execution core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as execution cores. Validator groups will be assigned to different execution cores over time.
 
-An execution core can exist in either one of two states at the beginning or end of a block: free or occupied. A free execution core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied. 
+An execution core can exist in either one of two states at the beginning or end of a block: free or occupied. A free execution core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
 
 ```
 Execution Core State Machine
-                                       
-              Assignment &              
-              Backing                   
+
+              Assignment &
+              Backing
 +-----------+              +-----------+
 |           +-------------->           |
 |  Free     |              | Occupied  |
 |           <--------------+           |
 +-----------+ Availability +-----------+
-              or Timeout                
-                                        
+              or Timeout
+
 ```
 
 ```
 Execution Core Transitions within Block
-                                                                                             
-              +-----------+                |                    +-----------+                
-              |           |                |                    |           |                
-              | Free      |                |                    | Occupied  |                
-              |           |                |                    |           |                
-              +--/-----\--+                |                    +--/-----\--+                
-               /-       -\                 |                     /-       -\                 
+
+              +-----------+                |                    +-----------+
+              |           |                |                    |           |
+              | Free      |                |                    | Occupied  |
+              |           |                |                    |           |
+              +--/-----\--+                |                    +--/-----\--+
+               /-       -\                 |                     /-       -\
  No Backing  /-           \ Backing        |      Availability /-           \ No availability
-           /-              \               |                  /              \               
-         /-                 -\             |                /-                -\             
-  +-----v-----+         +----v------+      |         +-----v-----+        +-----v-----+      
-  |           |         |           |      |         |           |        |           |      
-  | Free      |         | Occupied  |      |         | Free      |        | Occupied  |      
-  |           |         |           |      |         |           |        |           |      
-  +-----------+         +-----------+      |         +-----|---\-+        +-----|-----+      
-                                           |               |    \               |            
+           /-              \               |                  /              \
+         /-                 -\             |                /-                -\
+  +-----v-----+         +----v------+      |         +-----v-----+        +-----v-----+
+  |           |         |           |      |         |           |        |           |
+  | Free      |         | Occupied  |      |         | Free      |        | Occupied  |
+  |           |         |           |      |         |           |        |           |
+  +-----------+         +-----------+      |         +-----|---\-+        +-----|-----+
+                                           |               |    \               |
                                            |    No backing |     \ Backing      | (no change)
-                                           |               |      -\            |            
-                                           |         +-----v-----+  \     +-----v-----+      
-                                           |         |           |   \    |           |      
-                                           |         | Free      -----+---> Occupied  |      
-                                           |         |           |        |           |      
-                                           |         +-----------+        +-----------+      
-                                           |                 Availability Timeout            
+                                           |               |      -\            |
+                                           |         +-----v-----+  \     +-----v-----+
+                                           |         |           |   \    |           |
+                                           |         | Free      -----+---> Occupied  |
+                                           |         |           |        |           |
+                                           |         +-----------+        +-----------+
+                                           |                 Availability Timeout
 ```
 
 Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the Validity module. Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
@@ -630,7 +630,7 @@ Parathread claims, when scheduled onto a free core, may not result in a block pe
 Cores are treated as an ordered list of cores and are typically referred to by their index in that list.
 
 [
-  
+
   TODO: Validator assignment. We want to assign validators to chains, not to cores. Assigning to cores means that for parathread cores, the parathread is unclear until late in the process so that would have bad implications for networking.
 
   We can prepare a set of chains by assigning all unassigned cores, optimistically assigning all previously assigned cores, and then taking the union of those sets. However, this means that validator assignment is not possible to know until the beginning of the block. Ideally, we'd always know about at least a couple of blocks in advance, which makes networking discovery easier. However, optimistic assignment seems incompatible with this goal.
@@ -668,7 +668,7 @@ ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 ParathreadQueue: Vec<ParathreadEntry>;
 /// One entry for each execution core. Entries are `None` if the core is not currently occupied. Can be
 /// temporarily `Some` if scheduled but not occupied.
-/// The i'th parachain belongs to the i'th core, with the remaining cores all being 
+/// The i'th parachain belongs to the i'th core, with the remaining cores all being
 /// parathread-multiplexers.
 ExecutionCores: Vec<Option<CoreOccupied>>;
 /// An index used to ensure that only one claim on a parathread exists in the queue or retry queue or is
@@ -712,13 +712,13 @@ Actions:
 * `availability_timeout_predicate() -> Option<impl Fn(CoreIndex, BlockNumber) -> bool>`: returns an optional predicate that should be used for timing out occupied cores. if `None`, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain and parathread timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)` of the last rotation would this return `Some`.
 
 ### The Inclusion Module
- 
+
 #### Description
- 
+
 The inclusion module is responsible for inclusion and availability of scheduled parachains and parathreads.
 
 
-#### Storage 
+#### Storage
 
 Helper structs:
 ```rust
@@ -760,12 +760,12 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. check that the number of bitfields and bits in each bitfield is correct.
     1. check that there are no duplicates
     1. check all validator signatures.
-    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `Scheduler` module. Disregard bitfields that have a `1` bit for any free cores. 
+    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `Scheduler` module. Disregard bitfields that have a `1` bit for any free cores.
     1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
     1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
     1. [TODO] pass it onwards to `Validity` module.
     1. Return a list of freed cores consisting of the cores where candidates have become available.
-  * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`: 
+  * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`:
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
@@ -798,7 +798,7 @@ Included: Option<()>,
 
 #### Finalization
 
-1. Take (get and clear) the value of `Included`. If it is not `Some`, throw an unrecoverable error. 
+1. Take (get and clear) the value of `Included`. If it is not `Some`, throw an unrecoverable error.
 
 #### Entry Points
 
@@ -840,19 +840,19 @@ The overseer is responsible for these tasks:
 
 The hierarchy of subsystems:
 ```
-+--------------+      +------------------+    +--------------------+    
-|              |      |                  |---->   Subsystem A      |    
-| Block Import |      |                  |    +--------------------+    
-|    Events    |------>                  |    +--------------------+    
-+--------------+      |                  |---->   Subsystem B      |    
-                      |   Overseer       |    +--------------------+    
-+--------------+      |                  |    +--------------------+    
-|              |      |                  |---->   Subsystem C      |    
-| Finalization |------>                  |    +--------------------+    
++--------------+      +------------------+    +--------------------+
+|              |      |                  |---->   Subsystem A      |
+| Block Import |      |                  |    +--------------------+
+|    Events    |------>                  |    +--------------------+
++--------------+      |                  |---->   Subsystem B      |
+                      |   Overseer       |    +--------------------+
++--------------+      |                  |    +--------------------+
+|              |      |                  |---->   Subsystem C      |
+| Finalization |------>                  |    +--------------------+
 |    Events    |      |                  |    +--------------------+
 |              |      |                  |---->   Subsystem D      |
-+--------------+      +------------------+    +--------------------+   
-                                                  
++--------------+      +------------------+    +--------------------+
+
 ```
 
 The overseer determines work to do based on block import events and block finalization events (TODO: are finalization events needed?). It does this by keeping track of the set of relay-parents for which work is currently being done. This is known as the "active leaves" set. It determines an initial set of active leaves on startup based on the data on-disk, and uses events about blockchain import to update the active leaves. Updates lead to `OverseerSignal::StartWork` and `OverseerSignal::StopWork` being sent according to new relay-parents, as well as relay-parents to stop considering.
@@ -872,29 +872,34 @@ The overseer's logic can be described with these functions:
 
 (TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active set" update rules here)
 
-*On Message Send Failure*
-* If sending a message to a subsystem fails, that subsystem should be restarted and the error logged.
+*On Subsystem Failure*
+
+Subsystems are essential tasks meant to run as long as the node does. Subsystems can spawn ephemeral work in the form of jobs, but the subsystems themselves should not go down. If a subsystem goes down, it will be because of a critical error that should take the entire node down as well.
+
+*Communication Between Subsystems*
 
 
 When a subsystem wants to communicate with another subsystem, or, more typically, a job within a subsystem wants to communicate with its counterpart under another subsystem, that communication must happen via the overseer. Consider this example where a job on subsystem A wants to send a message to its counterpart under subsystem B. This is a realistic scenario, where you can imagine that both jobs correspond to work under the same relay-parent.
 
-```                                  
-     +--------+                                                           +--------+      
-     |        |                                                           |        |      
-     |Job A-1 | (sends message)                       (receives message)  |Job B-1 | 
-     |        |                                                           |        |      
-     +----|---+                                                           +----^---+      
-          |                  +------------------------------+                  ^          
-          v                  |                              |                  |          
+```
+     +--------+                                                           +--------+
+     |        |                                                           |        |
+     |Job A-1 | (sends message)                       (receives message)  |Job B-1 |
+     |        |                                                           |        |
+     +----|---+                                                           +----^---+
+          |                  +------------------------------+                  ^
+          v                  |                              |                  |
 +---------v---------+        |                              |        +---------|---------+
 |                   |        |                              |        |                   |
 | Subsystem A       |        |       Overseer / Message     |        | Subsystem B       |
 |                   -------->>                  Bus         -------->>                   |
 |                   |        |                              |        |                   |
 +-------------------+        |                              |        +-------------------+
-                             |                              |                             
-                             +------------------------------+                             
+                             |                              |
+                             +------------------------------+
 ```
+
+First, the subsystem that spawned a job is responsible for handling the first step of the communication. The overseer is not aware of the hierarchy of tasks within any given subsystem and is only responsible for subsystem-to-subsystem communication. So the sending subsystem must pass on the message via the overseer to the receiving subsystem, in such a way that the receiving subsystem can further address the communication to one of its internal tasks, if necessary.
 
 This communication prevents a certain class of race conditions. When the Overseer determines that it is time for subsystems to begin working on top of a particular relay-parent, it will dispatch a `StartWork` message to all subsystems to do so, and those messages will be handled asynchronously by those subsystems. Some subsystems will receive those messsages before others, and it is important that a message sent by subsystem A after receiving `StartWork` message will arrive at subsystem B after its `StartWork` message. If subsystem A maintaned an independent channel with subsystem B to communicate, it would be possible for subsystem B to handle the side message before the `StartWork` message, but it wouldn't have any logical course of action to take with the side message - leading to it being discarded or improperly handled. Well-architectured state machines should have a single source of inputs, so that is what we do here.
 
@@ -937,7 +942,7 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
 * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
 
-This will probably blur the lines between jobs, will probably require inter-job communcation and a short-term memory of recently backed, but not included candidates.
+This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backed, but not included candidates.
 )
 
 #### Candidate Backing Job
@@ -1012,7 +1017,7 @@ struct BlockImportEvent {
   hash: Hash,
   /// The header itself.
   header: Header,
-  /// Whether this block is considered the head of the best chain according to the 
+  /// Whether this block is considered the head of the best chain according to the
   /// event emitter's fork-choice rule.
   new_best: bool,
 }
@@ -1079,7 +1084,7 @@ enum CandidateBackingSubsystemMessage {
   /// Registers a stream listener for updates to the set of backed candidates that could be included
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
-  /// Note that the Candidate Backing subsystem should second the given candidate in the context of the 
+  /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated.
   Second(Hash, CandidateReceipt)
 }
@@ -1108,11 +1113,11 @@ struct HostConfiguration {
   pub parathread_retries: u32,
   /// How often parachain groups should be rotated across parachains.
   pub parachain_rotation_frequency: BlockNumber,
-  /// The availability period, in blocks, for parachains. This is the amount of blocks 
+  /// The availability period, in blocks, for parachains. This is the amount of blocks
   /// after inclusion that validators have to make the block available and signal its availability to
   /// the chain. Must be at least 1.
   pub chain_availability_period: BlockNumber,
-  /// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`, 
+  /// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
   /// but a differing timeout due to differing requirements. Must be at least 1.
   pub thread_availability_period: BlockNumber,
   /// The amount of blocks ahead to schedule parachains and parathreads.
@@ -1145,7 +1150,7 @@ enum ValidityAttestation {
   Implicit(ValidatorSignature),
   /// An explicit attestation. This corresponds to issuance of a
   /// `Valid` statement.
-  Explicit(ValidatorSignature),    
+  Explicit(ValidatorSignature),
 }
 ```
 
@@ -1157,9 +1162,9 @@ A `CandidateReceipt` along with all data necessary to prove its backing.
 struct BackedCandidate {
   candidate: AbridgedCandidateReceipt,
   validity_votes: Vec<ValidityAttestation>,
-  // the indices of validators who signed the candidate within the group. There is no need to include 
+  // the indices of validators who signed the candidate within the group. There is no need to include
   // bit for any validators who are not in the group, so this is more compact.
-  validator_indices: BitVec, 
+  validator_indices: BitVec,
 }
 
 struct BackedCandidates(Vec<BackedCandidate>); // sorted by para-id.
@@ -1175,7 +1180,7 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Backed Candidate: A Parachain Candidate which is backed by a majority of validators assigned to a given parachain.
 - Backing: A set of statements proving that a Parachain Candidate is backed.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
-- Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments. 
+- Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
 - Inclusion Pipeline: The set of steps taken to carry a Parachain Candidate from authoring, to backing, to availability and full inclusion in an active fork of its parachain.
 - Module: A component of the Runtime logic, encapsulating storage, routines, and entry-points.
@@ -1205,4 +1210,4 @@ Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/overview/g
 - Polkadot Runtime Spec: https://github.com/w3f/polkadot-spec/tree/spec-rt-anv-vrf-gen-and-announcement/runtime-spec
 
 [0]: https://wiki.polkadot.network/docs/en/learn-consensus
-[1]: https://github.com/w3f/polkadot-spec/tree/spec-rt-anv-vrf-gen-and-announcement/runtime-spec 
+[1]: https://github.com/w3f/polkadot-spec/tree/spec-rt-anv-vrf-gen-and-announcement/runtime-spec
