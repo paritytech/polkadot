@@ -113,7 +113,7 @@ where
 				.map(|proposer| Proposer {
 					tracker,
 					slot_duration,
-					proposer: Some(proposer),
+					proposer,
 				})
 			));
 
@@ -125,7 +125,7 @@ where
 pub struct Proposer<Client, TxPool: TransactionPool<Block=Block>, Backend> {
 	tracker: crate::validation_service::ValidationInstanceHandle,
 	slot_duration: u64,
-	proposer: Option<sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>>,
+	proposer: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 }
 
 impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, TxPool, Backend> where
@@ -145,7 +145,8 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		>
 	>;
 
-	fn propose(&mut self,
+	fn propose(
+		self,
 		inherent_data: InherentData,
 		inherent_digests: DigestFor<Block>,
 		max_duration: Duration,
@@ -161,9 +162,6 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			self.tracker.started(),
 			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
 		);
-
-		let table = self.tracker.table().clone();
-		let mut proposer = self.proposer.take().expect("Only one block proposed per proposer; qed");
 
 		async move {
 			let enough_candidates = dynamic_inclusion.acceptable_in(
@@ -187,13 +185,13 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 
 			Delay::new(enough_candidates).await;
 
-			let proposed_candidates = table.proposed_set();
+			let proposed_candidates = self.tracker.table().proposed_set();
 
 			let mut inherent_data = inherent_data;
 			inherent_data.put_data(NEW_HEADS_IDENTIFIER, &proposed_candidates)
 				.map_err(Error::InherentError)?;
 
-			let result = proposer.propose(
+			let result = self.proposer.propose(
 				inherent_data,
 				inherent_digests.clone(),
 				deadline_diff,
