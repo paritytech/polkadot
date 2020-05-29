@@ -61,8 +61,10 @@ pub struct ReplacementTimes<N> {
 #[derive(Default, Encode, Decode)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
-	// Block numbers where the code was "technically" replaced and the block number at
-	// which the code was actually replaced. These can be used as indices
+	// Block numbers where the code was expected to be replaced and where the code
+	// was actually replaced, respectively. The first is used to do accurate lookups
+	// of historic code in historic contexts, whereas the second is used to do
+	// pruning on an accurate timeframe. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
 	upgrade_times: Vec<ReplacementTimes<N>>,
 	// This tracks the highest pruned code-replacement, if any.
