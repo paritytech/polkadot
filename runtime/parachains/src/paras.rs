@@ -236,7 +236,6 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&parachains);
 
 	for (id, genesis_args) in &config.paras {
-		println!("Initializing genesis for para {:?}", id);
 		<Module<T> as Store>::CurrentCode::insert(&id, &genesis_args.validation_code);
 		<Module<T> as Store>::Heads::insert(&id, &genesis_args.genesis_head);
 	}
