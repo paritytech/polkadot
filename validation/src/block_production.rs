@@ -191,14 +191,12 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 			inherent_data.put_data(NEW_HEADS_IDENTIFIER, &proposed_candidates)
 				.map_err(Error::InherentError)?;
 
-			let result = self.proposer.propose(
+			self.proposer.propose(
 				inherent_data,
 				inherent_digests.clone(),
 				deadline_diff,
 				record_proof
-			).await;
-
-			Ok(result?)
+			).await.map_err(Into::into)
 		}.boxed()
 	}
 }
