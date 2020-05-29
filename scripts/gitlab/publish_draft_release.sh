@@ -24,7 +24,7 @@ case $? in
     ;;
   1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
     ;;
-  2) echo '[!] Tag not found. Aborting release.'; exit
+  2) echo '[!] Tag not found. Aborting release.'; exit 1
 esac
 
 # Start with referencing current native runtime

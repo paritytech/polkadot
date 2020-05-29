@@ -31,6 +31,7 @@ check_tag () {
   if [ "$tag_sha" = "null" ]; then
     return 2
   fi
+  echo "[+] Tag object SHA: $tag_sha"
   verified_str=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$object_url" | jq -r .verification.verified)
   if [ "$verified_str" = "true" ]; then
     # Verified, everything is good
