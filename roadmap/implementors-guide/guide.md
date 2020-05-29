@@ -381,7 +381,21 @@ There are 3 main ways that we can handle this issue:
 
 Although option 3 is the most comprehensive, it runs counter to our goal of simplicity. Option 1 means requiring the runtime to do redundant work at all sessions and will also mean, like option 3, that designing things in such a way that initialization can be rolled back and reapplied under the new environment. That leaves option 2, although it is a "nuclear" option in a way and requires us to constrain the parachain host to only run in full runtimes with a certain order of operations.
 
-So the other role of the initializer module is to forward session change notifications to modules in the initialization order, throwing an unrecoverable error if the notification is received after initialization.
+So the other role of the initializer module is to forward session change notifications to modules in the initialization order, throwing an unrecoverable error if the notification is received after initialization. Session change is the point at which the configuration module updates the configuration. Most of the other modules will handle changes in the configuration during their session change operation, so the initializer should provide both the old and new configuration to all the other
+modules alongside the session change notification. This means that a session change notification should consist of the following data:
+
+```rust
+struct SessionChangeNotification {
+	// The new validators in the session.
+	validators: Vec<ValidatorId>,
+	// The validators for the next session.
+	queued: Vec<ValidatorId>,
+	// The configuration before handling the session change.
+	prev_config: HostConfiguration,
+	// The configuratino after handling the session change.
+	new_config: HostConfiguration,
+}
+```
 
 [REVIEW: other options? arguments in favor of going for options 1 or 3 instead of 2. we could do a "soft" version of 2 where we note that the chain is potentially broken due to bad initialization order]
 
@@ -656,26 +670,33 @@ Parathread claims, when scheduled onto a free core, may not result in a block pe
 
 Cores are treated as an ordered list of cores and are typically referred to by their index in that list.
 
-[
-
-  TODO: Validator assignment. We want to assign validators to chains, not to cores. Assigning to cores means that for parathread cores, the parathread is unclear until late in the process so that would have bad implications for networking.
-
-  We can prepare a set of chains by assigning all unassigned cores, optimistically assigning all previously assigned cores, and then taking the union of those sets. However, this means that validator assignment is not possible to know until the beginning of the block. Ideally, we'd always know about at least a couple of blocks in advance, which makes networking discovery easier. However, optimistic assignment seems incompatible with this goal.
-
-]
-
 #### Storage
 
 Utility structs:
 ```rust
+// A claim on authoring the next block for a given parathread.
 struct ParathreadClaim(ParaId, CollatorId);
+
+// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 struct ParathreadEntry {
   claim: ParathreadClaim,
-  core: CoreIndex,
+  retries: u32,
+}
+
+// A queued parathread entry, pre-assigned to a core.
+struct QueuedParathread {
+	claim: ParathreadEntry,
+	core: CoreIndex,
+}
+
+struct ParathreadQueue {
+	queue: Vec<QueuedParathread>,
+	// this value is between 0 and config.parathread_cores
+	next_core: CoreIndex,
 }
 
 enum CoreOccupied {
-  Parathread(ParathreadClaim, u32), // claim & retries
+  Parathread(ParathreadEntry), // claim & retries
   Parachain,
 }
 
@@ -692,19 +713,19 @@ Storage layout:
 /// All the validator groups. One for each core.
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
-ParathreadQueue: Vec<ParathreadEntry>;
+ParathreadQueue: ParathreadQueue;
 /// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 /// temporarily `Some` if scheduled but not occupied.
 /// The i'th parachain belongs to the i'th core, with the remaining cores all being
 /// parathread-multiplexers.
 AvailabilityCores: Vec<Option<CoreOccupied>>;
-/// An index used to ensure that only one claim on a parathread exists in the queue or retry queue or is
+/// An index used to ensure that only one claim on a parathread exists in the queue or is
 /// currently being handled by an occupied core.
-ParathreadClaimIndex: Vec<(ParaId, CollatorId)>;
+ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
 /// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
-Scheduled: Vec<CoreAssignment>, // sorted by ParaId.
+Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 ```
 
 #### Session Change
@@ -716,8 +737,11 @@ Actions:
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [HostConfiguration](#Host-Configuration))
 1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
-1. Compute new validator groups by shuffling using a secure randomness beacon
-1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`, and assign all parathreads to new cores if the number of parathread cores has changed.
+1. Compute new validator groups by shuffling using a secure randomness beacon (TODO [now])
+1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
+  - all pruned claims should have their entry removed from the parathread index.
+  - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
+  - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
 
 #### Initialization
 
@@ -730,12 +754,26 @@ Actions:
 
 #### Routines
 
-* `add_parathread_claim(ParathreadClaim)`: Add a parathread claim to the queue. Fails if any parathread claim on the same parathread is currently indexed.
-* `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned. All freed parachain cores should be assigned to their respective parachain, and all freed parathread cores should take the next parathread entry from the queue. The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
+* `add_parathread_claim(ParathreadClaim)`: Add a parathread claim to the queue.
+  - Fails if any parathread claim on the same parathread is currently indexed.
+  - Fails if the queue length is >= `config.scheduling_lookahead * config.parathread_cores`.
+  - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
+  - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
+  - The claim is then added to the claim index.
+
+* `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned.
+  - All freed parachain cores should be assigned to their respective parachain
+  - All freed parathread cores should have the claim removed from the claim index.
+  - All freed parathread cores should take the next parathread entry from the queue.
+  - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 * `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
-* `occupied(Vec<CoreIndex>). Note that the given cores have become occupied. This clears them from `Scheduled`. Fails if any given cores were not scheduled.
+* `occupied(Vec<CoreIndex>). Note that the given cores have become occupied.
+  - Fails if any given cores were not scheduled.
+  - Fails if the given cores are not sorted ascending by core index
+  - This clears them from `Scheduled` and marks each corresponding `core` in the `AvailabilityCores` as occupied.
+  - Since both the availability cores and the newly-occupied cores lists are sorted ascending, this method can be implemented efficiently.
 * `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.
-* `group_validators(GroupIndex) -> Vec<ValidatorIndex>`
+* `group_validators(GroupIndex) -> Option<Vec<ValidatorIndex>>`: return all validators in a given group, if the group index is valid for this session.
 * `availability_timeout_predicate() -> Option<impl Fn(CoreIndex, BlockNumber) -> bool>`: returns an optional predicate that should be used for timing out occupied cores. if `None`, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain and parathread timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)` of the last rotation would this return `Some`.
 
 ### The Inclusion Module
@@ -796,7 +834,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
-    1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for.
+    1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
   * `enact_candidate(relay_parent_number: BlockNumber, AbridgedCandidateReceipt)`:
     1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`. [TODO] Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
     1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
@@ -1147,7 +1185,7 @@ struct HostConfiguration {
   /// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
   /// but a differing timeout due to differing requirements. Must be at least 1.
   pub thread_availability_period: BlockNumber,
-  /// The amount of blocks ahead to schedule parachains and parathreads.
+  /// The amount of blocks ahead to schedule parathreads.
   pub scheduling_lookahead: u32,
 }
 ```
