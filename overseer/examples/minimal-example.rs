@@ -39,7 +39,7 @@ impl Subsystem1 {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					log::info!("Subsystem1 received message {}", msg);
+					log::info!("Subsystem1 received message {:?}", msg);
 				}
 				Ok(None) => (),
 				Err(_) => {}
@@ -77,7 +77,7 @@ impl Subsystem2 {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					log::info!("Subsystem2 received message {}", msg);
+					log::info!("Subsystem2 received message {:?}", msg);
 					continue;
 				}
 				Ok(None) => { pending!(); }
