@@ -67,7 +67,8 @@ pub struct ParaPastCodeMeta<N> {
 	// pruning on an accurate timeframe. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
 	upgrade_times: Vec<ReplacementTimes<N>>,
-	// This tracks the highest pruned code-replacement, if any.
+	// This tracks the highest pruned code-replacement, if any. This is the `expected_at` value,
+	// not the `activated_at` value.
 	last_pruned: Option<N>,
 }
 
@@ -84,56 +85,48 @@ enum UseCodeAt<N> {
 impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// note a replacement has occurred at a given block number.
 	fn note_replacement(&mut self, expected_at: N, activated_at: N) {
-		self.upgrade_times.insert(0, ReplacementTimes { expected_at, activated_at })
+		self.upgrade_times.push(ReplacementTimes { expected_at, activated_at })
 	}
 
-	// Yields the block number of the code that should be used for validating at
-	// the given block number.
-	//
-	//
+	// Yields an identifier that should be used for validating a
+	// parablock in the context of a particular relay-chain block number.
 	//
 	// a return value of `None` means that there is no code we are aware of that
 	// should be used to validate at the given height.
 	#[allow(unused)]
 	fn code_at(&self, para_at: N) -> Option<UseCodeAt<N>> {
-		// The `PastCode` map stores the code which was replaced at `t`.
-		let end_position = self.upgrade_times.iter().position(|t| t.expected_at < para_at);
-		if let Some(end_position) = end_position {
-			Some(if end_position != 0 {
-				// `end_position` gives us the replacement time where the code used at `para_at`
-				// was set. But that code has been replaced: `end_position - 1` yields
-				// that index.
-				UseCodeAt::ReplacedAt(self.upgrade_times[end_position - 1].expected_at)
-			} else {
-				// the most recent tracked replacement is before `at`.
-				// this means that the code put in place then (i.e. the current code)
-				// is correct for validating at `at`.
-				UseCodeAt::Current
-			})
-		} else {
-			if self.last_pruned.as_ref().map_or(true, |&n| n < para_at) {
-				// Our `last_pruned` is before `at`, so we still have the code!
-				// but no code upgrade entries found before the `at` parameter.
-				//
-				// this means one of two things is true:
-				// 1. there are no non-pruned upgrade logs. in this case use `Current`
-				// 2. there are non-pruned upgrade logs all after `at`.
-				//    in this case use the oldest upgrade log.
-				Some(self.upgrade_times.last()
-					.map(|n| UseCodeAt::ReplacedAt(n.expected_at))
-					.unwrap_or(UseCodeAt::Current)
-				)
-			} else {
-				// We don't have the code anymore.
+		// Find out
+		// a) if there is a point where code was replaced _after_ execution in this context and
+		// b) what the index of that point is.
+		let replaced_after_pos = self.upgrade_times.iter().position(|t| t.expected_at >= para_at);
+
+		if let Some(replaced_after_pos) = replaced_after_pos {
+			// The earliest stored code replacement needs to be special-cased, since we need to check
+			// against the pruning state to see if this replacement represents the correct code, or
+			// is simply after a replacement that actually represents the correct code, but has been pruned.
+			let was_pruned = replaced_after_pos == 0
+				&& self.last_pruned.map_or(false, |t| t >= para_at);
+
+			if was_pruned {
 				None
+			} else {
+				Some(UseCodeAt::ReplacedAt(self.upgrade_times[replaced_after_pos].expected_at))
 			}
+		} else {
+			// No code replacements after this context.
+			// This means either that the current code is valid, or `para_at` is so old that
+			// we don't know the code necessary anymore. Compare against `last_pruned` to determine.
+			self.last_pruned.as_ref().map_or(
+				Some(UseCodeAt::Current), // nothing pruned, use current
+				|t| if t >= &para_at { None } else { Some(UseCodeAt::Current) },
+			)
 		}
 	}
 
 	// The block at which the most recently tracked code change occurred, from the perspective
 	// of the para.
 	fn most_recent_change(&self) -> Option<N> {
-		self.upgrade_times.first().map(|x| x.expected_at.clone())
+		self.upgrade_times.last().map(|x| x.expected_at.clone())
 	}
 
 	// prunes all code upgrade logs occurring at or before `max`.
@@ -147,16 +140,14 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 	// returns an iterator of block numbers at which code was replaced, where the replaced
 	// code should be now pruned, in ascending order.
 	fn prune_up_to(&'_ mut self, max: N) -> impl Iterator<Item=N> + '_ {
-		let drained = match self.upgrade_times.iter().position(|t| t.activated_at <= max) {
-			None => {
-				// this is a no-op `drain` - desired because all
-				// logged code upgrades occurred after `max`.
-				self.upgrade_times.drain(self.upgrade_times.len()..).rev()
-			}
-			Some(pos) => {
-				self.last_pruned = Some(self.upgrade_times[pos].expected_at);
-				self.upgrade_times.drain(pos..).rev()
-			}
+		let to_prune = self.upgrade_times.iter().take_while(|t| t.activated_at <= max).count();
+		let drained = if to_prune == 0 {
+			// no-op prune.
+			self.upgrade_times.drain(self.upgrade_times.len()..)
+		} else {
+			// if we are actually pruning something, update the last_pruned member.
+			self.last_pruned = Some(self.upgrade_times[to_prune - 1].expected_at);
+			self.upgrade_times.drain(..to_prune)
 		};
 
 		drained.map(|times| times.expected_at)
@@ -595,7 +586,7 @@ mod tests {
 
 		assert_eq!(past_code.prune_up_to(10).collect::<Vec<_>>(), vec![10]);
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![upgrade_at(30, 35), upgrade_at(20, 25)],
+			upgrade_times: vec![upgrade_at(20, 25), upgrade_at(30, 35)],
 			last_pruned: Some(10),
 		});
 
@@ -612,7 +603,7 @@ mod tests {
 		past_code.note_replacement(60, 66);
 
 		assert_eq!(past_code, ParaPastCodeMeta {
-			upgrade_times: vec![upgrade_at(60, 66), upgrade_at(50, 53), upgrade_at(40, 42), upgrade_at(30, 35)],
+			upgrade_times: vec![upgrade_at(30, 35), upgrade_at(40, 42), upgrade_at(50, 53), upgrade_at(60, 66)],
 			last_pruned: Some(20),
 		});
 
