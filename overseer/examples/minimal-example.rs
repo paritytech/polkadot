@@ -46,7 +46,7 @@ impl Subsystem1 {
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
-			if let Err(_) = ctx.broadcast_msg(10).await {
+			if let Err(_) = ctx.send_msg(SubsystemId::Subsystem2, 10).await {
 				break;
 			}
 		}

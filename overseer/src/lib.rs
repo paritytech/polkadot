@@ -131,7 +131,7 @@ enum ToOverseer<M: Debug, I> {
 	/// If that `to` is present the message will be targetedly sent to the intended
 	/// receiver. The most obvious use case of this is communicating with children.
 	SubsystemMessage {
-		to: Option<I>,
+		to: I,
 		msg: M,
 	},
 	/// A message that wraps something the `Subsystem` is desiring to
@@ -196,7 +196,7 @@ impl<M: Debug, I: Debug> Debug for ToOverseer<M, I> {
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M: Debug, I> {
 	rx: mpsc::Receiver<ToOverseer<M, I>>,
-	tx: mpsc::Sender<FromOverseer<M>>,
+	tx: mpsc::Sender<FromOverseer<M, I>>,
 }
 
 /// A context type that is given to the [`Subsystem`] upon spawning.
@@ -207,7 +207,7 @@ struct SubsystemInstance<M: Debug, I> {
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 pub struct SubsystemContext<M: Debug, I>{
-	rx: mpsc::Receiver<FromOverseer<M>>,
+	rx: mpsc::Receiver<FromOverseer<M, I>>,
 	tx: mpsc::Sender<ToOverseer<M, I>>,
 }
 
@@ -230,11 +230,15 @@ pub enum OverseerSignal {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 #[derive(Debug)]
-pub enum FromOverseer<M: Debug> {
+pub enum FromOverseer<M: Debug, I> {
 	/// Signal from the `Overseer`.
 	Signal(OverseerSignal),
+
 	/// Some other `Subsystem`'s message.
-	Communication(M),
+	Communication {
+		msg: M,
+		from: Option<I>,
+	},
 }
 
 impl<M: Debug, I> SubsystemContext<M, I> {
@@ -242,7 +246,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	///
 	/// This has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
-	pub async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
+	pub async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, I>>, ()> {
 		match poll!(self.rx.next()) {
 			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
@@ -251,21 +255,8 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	}
 
 	/// Receive a message.
-	pub async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
+	pub async fn recv(&mut self) -> SubsystemResult<FromOverseer<M, I>> {
 		self.rx.next().await.ok_or(SubsystemError)
-	}
-
-	/// Send a message to whom it may concern.
-	///
-	/// The message will be broadcasted to all other `Subsystem`s that can
-	/// receive it.
-	pub async fn broadcast_msg(&mut self, msg: M) -> SubsystemResult<()> {
-		self.tx.send(ToOverseer::SubsystemMessage{
-			to: None,
-			msg,
-		}).await?;
-
-		Ok(())
 	}
 
 	/// Spawn a child `Subsystem` on the executor and get it's `I`d upon success.
@@ -282,14 +273,14 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	/// Send a direct message to some other `Subsystem` you know the `I`d of.
 	pub async fn send_msg(&mut self, to: I, msg: M) -> SubsystemResult<()> {
 		self.tx.send(ToOverseer::SubsystemMessage{
-			to: Some(to),
+			to,
 			msg,
 		}).await?;
 
 		Ok(())
 	}
 
-	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer<M, I>>) -> Self {
+	fn new(rx: mpsc::Receiver<FromOverseer<M, I>>, tx: mpsc::Sender<ToOverseer<M, I>>) -> Self {
 		Self {
 			rx,
 			tx,
@@ -321,6 +312,7 @@ pub trait Subsystem<M: Debug, I> {
 /// for whatever reason).
 ///
 /// [`Subsystem`]: trait.Subsystem.html
+#[allow(dead_code)]
 struct OverseenSubsystem<M: Debug, I> {
 	subsystem: Box<dyn Subsystem<M, I> + Send>,
 	instance: Option<SubsystemInstance<M, I>>,
@@ -349,7 +341,7 @@ pub struct Overseer<M: Debug, S: Spawn, I> {
 
 impl<M, S, I> Overseer<M, S, I>
 where
-	M: Debug + Clone,
+	M: Debug,
 	S: Spawn,
 	I: Eq + Copy + Debug + std::hash::Hash,
 {
@@ -453,38 +445,19 @@ where
 			}
 
 			// Do the message dispatching be it broadcasting or direct messages.
-			//
-			// TODO: this desperately need refactoring.
 			for msg in msgs.into_iter() {
 				match msg.1 {
 					ToOverseer::SubsystemMessage{ to, msg: m } => {
-						match to {
-							Some(to) => {
-								if let Some(subsystem) = self.subsystems.get_mut(&to) {
-									if let Some(ref mut i) = subsystem.instance {
-										let _ = i.tx.send(FromOverseer::Communication(m)).await;
-									}
-								}
-							}
-							None => {
-								for (id, s) in self.subsystems.iter_mut() {
-									// Don't send messages back to the sender.
-									if msg.0 == *id {
-										continue;
-									}
-
-									if s.subsystem.can_recv_msg(&m) {
-										if let Some(ref mut i) = s.instance {
-											let _ = i.tx.send(FromOverseer::Communication(m.clone())).await;
-										}
-									}
-								}
+						if let Some(subsystem) = self.subsystems.get_mut(&to) {
+							if let Some(ref mut i) = subsystem.instance {
+								let _ = i.tx.send(FromOverseer::Communication {
+									msg: m,
+									from: Some(msg.0),
+								}).await;
 							}
 						}
 					}
 					ToOverseer::SpawnJob { s, res } => {
-						log::info!("Spawn message");
-
 						let s = self.spawn_job(s);
 
 						let _ = res.send(s);
@@ -553,7 +526,7 @@ mod tests {
 			SpawnedSubsystem(Box::pin(async move {
 				loop {
 					match ctx.recv().await {
-						Ok(FromOverseer::Communication(msg)) => {
+						Ok(FromOverseer::Communication { msg, .. }) => {
 							let _ = sender.send(msg).await;
 							continue;
 						}
@@ -574,7 +547,7 @@ mod tests {
 				let mut c = 0;
 				loop {
 					if c < 10 {
-						if let Err(_) = ctx.broadcast_msg(c).await {
+						if let Err(_) = ctx.send_msg(SubsystemId::Subsystem1, c).await {
 							return;
 						}
 						c += 1;
