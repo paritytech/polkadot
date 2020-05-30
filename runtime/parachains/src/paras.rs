@@ -484,8 +484,8 @@ impl<T: Trait> Module<T> {
 	/// as if an intermediate parablock has been with the given relay-chain height as its context.
 	/// This may return past, current, or (with certain choices of `assume_intermediate`) future code.
 	///
-	/// `assume_intermediate`, if provided, must be before `at`. If `at` is not within the acceptance
-	/// of the current block number, this will return `None`
+	/// `assume_intermediate`, if provided, must be before `at`. This will return `None` if the validation
+	/// code has been pruned.
 	#[allow(unused)]
 	pub(crate) fn validation_code_at(
 		id: ParaId,
@@ -496,10 +496,6 @@ impl<T: Trait> Module<T> {
 		let config = <configuration::Module<T>>::config();
 
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
-			return None;
-		}
-
-		if at + config.acceptance_period + One::one() < now {
 			return None;
 		}
 
@@ -1108,14 +1104,72 @@ mod tests {
 
 			run_to_block(acceptance_period + 5, None);
 
-
 			// at <= intermediate not allowed
 			assert_eq!(Paras::validation_code_at(para_id, 10, Some(10)), None);
 			assert_eq!(Paras::validation_code_at(para_id, 9, Some(10)), None);
+		});
+	}
 
+	#[test]
+	fn code_at_returns_up_to_end_of_acceptance_period() {
+		let acceptance_period = 10;
 
-			// at is too old compared to now.
-			assert_eq!(Paras::validation_code_at(para_id, 1, None), None);
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: vec![1, 2, 3].into(),
+			}),
+		];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let para_id = ParaId::from(0);
+			let old_code: ValidationCode = vec![1, 2, 3].into();
+			let new_code: ValidationCode = vec![4, 5, 6].into();
+			Paras::schedule_code_upgrade(para_id, new_code.clone(), 2);
+
+			run_to_block(10, None);
+			Paras::note_new_head(para_id, Default::default(), 7);
+
+			assert_eq!(
+				Paras::past_code_meta(&para_id).upgrade_times,
+				vec![upgrade_at(2, 10)],
+			);
+
+			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
+
+			run_to_block(10 + acceptance_period, None);
+
+			assert_eq!(Paras::validation_code_at(para_id, 2, None), Some(old_code.clone()));
+			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
+
+			run_to_block(10 + acceptance_period + 1, None);
+
+			// code entry should be pruned now.
+
+			assert_eq!(
+				Paras::past_code_meta(&para_id),
+				ParaPastCodeMeta {
+					upgrade_times: Vec::new(),
+					last_pruned: Some(2),
+				},
+			);
+
+			assert_eq!(Paras::validation_code_at(para_id, 2, None), None); // pruned :(
+			assert_eq!(Paras::validation_code_at(para_id, 3, None), Some(new_code.clone()));
 		});
 	}
 }
