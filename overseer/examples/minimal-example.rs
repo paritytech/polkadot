@@ -46,7 +46,9 @@ impl Subsystem1 {
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
-			ctx.broadcast_msg(10).await;
+			if let Err(_) = ctx.broadcast_msg(10).await {
+				break;
+			}
 		}
 	}
 
