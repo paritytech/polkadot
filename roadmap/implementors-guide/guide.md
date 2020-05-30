@@ -540,7 +540,7 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// in the context of a relay chain block with a number >= `expected_at`.
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
 /// The actual future code of a para.
-FutureCode: map ParaId => ValidationCode;
+FutureCode: map ParaId => Option<ValidationCode>;
 
 /// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
 /// entry in the upcoming-genesis map.

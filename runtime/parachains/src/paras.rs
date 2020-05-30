@@ -194,7 +194,7 @@ decl_storage! {
 		/// in the context of a relay chain block with a number >= `expected_at`.
 		FutureCodeUpgrades get(fn future_code_upgrade_at): map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
 		/// The actual future code of a para.
-		FutureCode: map hasher(twox_64_concat) ParaId => ValidationCode;
+		FutureCode: map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 
 		/// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
 		/// entry in the upcoming-genesis map.
@@ -455,8 +455,9 @@ impl<T: Trait> Module<T> {
 
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
-				let new_code = FutureCode::take(&id);
 
+				// Both should always be `Some` in this case, since a code upgrade is scheduled.
+				let new_code = FutureCode::take(&id).unwrap_or_default();
 				let prior_code = CurrentCode::get(&id).unwrap_or_default();
 				CurrentCode::insert(&id, &new_code);
 
@@ -506,7 +507,7 @@ impl<T: Trait> Module<T> {
 		};
 
 		if upgrade_applied_intermediate {
-			Some(FutureCode::get(&id))
+			FutureCode::get(&id)
 		} else {
 			match Self::past_code_meta(&id).code_at(at) {
 				None => None,
@@ -766,7 +767,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
 				expected_at
@@ -781,7 +782,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 			}
 
@@ -801,7 +802,7 @@ mod tests {
 					Some(vec![1, 2, 3,].into()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-				assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+				assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
 				assert_eq!(Paras::current_code(&para_id), Some(new_code));
 			}
 		});
@@ -848,7 +849,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
 				expected_at
@@ -870,7 +871,7 @@ mod tests {
 					Some(vec![1, 2, 3,].into()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-				assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+				assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
 				assert_eq!(Paras::current_code(&para_id), Some(new_code));
 			}
 		});
@@ -909,11 +910,11 @@ mod tests {
 
 			Paras::schedule_code_upgrade(para_id, new_code.clone(), 8);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
-			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 
 			Paras::schedule_code_upgrade(para_id, newer_code.clone(), 10);
 			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(8));
-			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+			assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 		});
 	}
 
@@ -956,7 +957,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
 				expected_at
@@ -971,7 +972,7 @@ mod tests {
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
+				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), Some(new_code.clone()));
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
 				assert_eq!(<Paras as Store>::Heads::get(&para_id), Some(Default::default()));
@@ -989,7 +990,7 @@ mod tests {
 			// any future upgrades haven't been used to validate yet, so those
 			// are cleaned up immediately.
 			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-			assert!(<Paras as Store>::FutureCode::get(&para_id).0.is_empty());
+			assert!(<Paras as Store>::FutureCode::get(&para_id).is_none());
 			assert!(Paras::current_code(&para_id).is_none());
 
 			// run to do the final cleanup
