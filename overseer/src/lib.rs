@@ -131,7 +131,7 @@ enum ToOverseer<M: Debug, I> {
 	/// If that `to` is present the message will be targetedly sent to the intended
 	/// receiver. The most obvious use case of this is communicating with children.
 	SubsystemMessage {
-		to: I,
+		to: Option<I>,
 		msg: M,
 	},
 	/// A message that wraps something the `Subsystem` is desiring to
@@ -143,24 +143,47 @@ enum ToOverseer<M: Debug, I> {
 	},
 }
 
-enum Event {
+/// Some event from outer world.
+enum Event<M, I> {
 	BlockImport,
 	BlockFinalized,
+	MsgToSubsystem {
+		msg: M,
+		to: I,
+	},
 	Stop,
+}
+
+/// Some message that is sent from one of the `Subsystem`s to the outside world.
+pub enum OutboundMessage<M, I> {
+	SubsystemMessage {
+		msg: M,
+		from: I,
+	}
 }
 
 /// A handler used to communicate with the [`Overseer`].
 ///
 /// [`Overseer`]: struct.Overseer.html
-#[derive(Clone)]
-pub struct OverseerHandler {
-	events_tx: mpsc::Sender<Event>,
+pub struct OverseerHandler<M, I> {
+	events_tx: mpsc::Sender<Event<M, I>>,
+	outside_rx: mpsc::Receiver<OutboundMessage<M, I>>,
 }
 
-impl OverseerHandler {
+impl<M, I> OverseerHandler<M, I> {
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self) -> SubsystemResult<()> {
 		self.events_tx.send(Event::BlockImport).await?;
+
+		Ok(())
+	}
+
+	/// Send some message to one of the `Subsystem`s.
+	pub async fn send_to_subsystem(&mut self, to: I, msg: M) -> SubsystemResult<()> {
+		self.events_tx.send(Event::MsgToSubsystem {
+			msg,
+			to,
+		}).await?;
 
 		Ok(())
 	}
@@ -177,6 +200,10 @@ impl OverseerHandler {
 		self.events_tx.send(Event::Stop).await?;
 
 		Ok(())
+	}
+
+	pub async fn recv_msg(&mut self) -> Option<OutboundMessage<M, I>> {
+		self.outside_rx.next().await
 	}
 }
 
@@ -273,7 +300,17 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	/// Send a direct message to some other `Subsystem` you know the `I`d of.
 	pub async fn send_msg(&mut self, to: I, msg: M) -> SubsystemResult<()> {
 		self.tx.send(ToOverseer::SubsystemMessage{
-			to,
+			to: Some(to),
+			msg,
+		}).await?;
+
+		Ok(())
+	}
+
+	/// Send a message to some entity that resides outside of the `Overseer`.
+	pub async fn send_msg_outside(&mut self, msg: M) -> SubsystemResult<()> {
+		self.tx.send(ToOverseer::SubsystemMessage {
+			to: None,
 			msg,
 		}).await?;
 
@@ -333,10 +370,10 @@ pub struct Overseer<M: Debug, S: Spawn, I> {
 	channel_capacity: usize,
 
 	/// Events that are sent to the overseer from the outside world
-	events_rx: mpsc::Receiver<Event>,
+	events_rx: mpsc::Receiver<Event<M, I>>,
 
-	/// A sender for the `events_rx`, used to return `OverseerHandler` to the user.
-	events_tx: mpsc::Sender<Event>,
+	/// A sender to send things to the outside
+	outside_tx: mpsc::Sender<OutboundMessage<M, I>>,
 }
 
 impl<M, S, I> Overseer<M, S, I>
@@ -370,33 +407,31 @@ where
 	/// ```
 	///
 	/// [`Subsystem`]: trait.Subsystem.html
-	pub fn new<T: IntoIterator<Item = (I, Box<dyn Subsystem<M, I> + Send>)>>(subsystems: T, s: S) -> Self {
+	pub fn new<T>(subsystems: T, s: S) -> (Self, OverseerHandler<M, I>)
+	where
+		T: IntoIterator<Item = (I, Box<dyn Subsystem<M, I> + Send>)> {
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (outside_tx, outside_rx) = mpsc::channel(CHANNEL_CAPACITY);
+
+		let handler = OverseerHandler {
+			events_tx: events_tx.clone(),
+			outside_rx,
+		};
+
 		let mut this = Self {
 			subsystems: HashMap::new(),
 			s,
 			running_subsystems: FuturesUnordered::new(),
 			channel_capacity: CHANNEL_CAPACITY,
 			events_rx,
-			events_tx,
+			outside_tx,
 		};
 
 		for s in subsystems.into_iter() {
 			let _ = this.spawn(s);
 		}
 
-		this
-	}
-
-	/// Get the [`OverseerHandler`] to communicate with the overseer.
-	///
-	/// [`OverseerHandler`]: struct.OverseerHandler.html
-	pub fn handler(&mut self) -> OverseerHandler {
-		let events_tx = self.events_tx.clone();
-
-		OverseerHandler {
-			events_tx,
-		}
+		(this, handler)
 	}
 
 	// Stop the overseer.
@@ -430,8 +465,19 @@ where
 			let mut msgs = Vec::default();
 
 			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
-				if let Event::Stop = msg {
-					return self.stop().await;
+				match msg {
+				    Event::MsgToSubsystem { msg, to } => {
+						if let Some(subsystem) = self.subsystems.get_mut(&to) {
+							if let Some(ref mut i) = subsystem.instance {
+								let _ = i.tx.send(FromOverseer::Communication {
+									msg,
+									from: None,
+								}).await;
+							}
+						}
+					}
+				    Event::Stop => return self.stop().await,
+					_ => ()
 				}
 			}
 
@@ -447,7 +493,7 @@ where
 			// Do the message dispatching be it broadcasting or direct messages.
 			for msg in msgs.into_iter() {
 				match msg.1 {
-					ToOverseer::SubsystemMessage{ to, msg: m } => {
+					ToOverseer::SubsystemMessage { to: Some(to), msg: m } => {
 						if let Some(subsystem) = self.subsystems.get_mut(&to) {
 							if let Some(ref mut i) = subsystem.instance {
 								let _ = i.tx.send(FromOverseer::Communication {
@@ -456,6 +502,12 @@ where
 								}).await;
 							}
 						}
+					}
+					ToOverseer::SubsystemMessage { msg: m, .. } => {
+						let _ = self.outside_tx.send(OutboundMessage::SubsystemMessage {
+							msg: m,
+							from: msg.0,
+						}).await;
 					}
 					ToOverseer::SpawnJob { s, res } => {
 						let s = self.spawn_job(s);
@@ -641,8 +693,7 @@ mod tests {
 				(SubsystemId::Subsystem1, Box::new(TestSubsystem1(s1_tx))),
 				(SubsystemId::Subsystem2, Box::new(TestSubsystem2(s2_tx))),
 			];
-			let mut overseer = Overseer::new(subsystems, spawner);
-			let mut handler = overseer.handler();
+			let (overseer, mut handler) = Overseer::new(subsystems, spawner);
 			let overseer_fut = overseer.run().fuse();
 
 			pin_mut!(overseer_fut);
@@ -688,8 +739,7 @@ mod tests {
 			let subsystems: Vec<(SubsystemId, Box<dyn Subsystem<usize, SubsystemId> + Send>)> = vec![
 				(SubsystemId::Subsystem3, Box::new(TestSubsystem3(Some(tx)))),
 			];
-			let mut overseer = Overseer::new(subsystems, spawner);
-			let mut handler = overseer.handler();
+			let (overseer, mut handler) = Overseer::new(subsystems, spawner);
 			let overseer_fut = overseer.run().fuse();
 
 			let mut rx = rx.fuse();
@@ -722,7 +772,7 @@ mod tests {
 				(SubsystemId::Subsystem4, Box::new(TestSubsystem4)),
 			];
 
-			let overseer = Overseer::new(subsystems, spawner);
+			let (overseer, _) = Overseer::new(subsystems, spawner);
 			let overseer_fut = overseer.run().fuse();
 			pin_mut!(overseer_fut);
 

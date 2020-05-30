@@ -19,7 +19,7 @@
 //!   * Establishing message passing
 
 use std::time::Duration;
-use futures::{pending, executor};
+use futures::{pending, pin_mut, executor, select, stream, FutureExt, StreamExt};
 use futures_timer::Delay;
 use kv_log_macro as log;
 
@@ -132,7 +132,25 @@ fn main() {
 			(SubsystemId::Subsystem2, Box::new(Subsystem2::new())),
 		];
 
-		let overseer = Overseer::new(subsystems, spawner);
-		overseer.run().await;
+		let timer_stream = stream::repeat(()).then(|_| async {
+			Delay::new(Duration::from_secs(1)).await;
+		});
+
+		let (overseer, mut handler) = Overseer::new(subsystems, spawner);
+		let overseer_fut = overseer.run().fuse();
+		let timer_stream = timer_stream;
+
+		pin_mut!(timer_stream);
+		pin_mut!(overseer_fut);
+
+		loop {
+			select! {
+				_ = overseer_fut => break,
+				_ = timer_stream.next() => {
+					handler.send_to_subsystem(SubsystemId::Subsystem1, 42usize).await.unwrap();
+				}
+				complete => break,
+			}
+		}
 	});
 }
