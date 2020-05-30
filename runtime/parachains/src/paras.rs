@@ -771,46 +771,46 @@ mod tests {
 			run_to_block(2, None);
 			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-			let applied_after = {
+			let expected_at = {
 				// this parablock is in the context of block 1.
-				let applied_after = 1 + validation_upgrade_delay;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				let expected_at = 1 + validation_upgrade_delay;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-				applied_after
+				expected_at
 			};
 
-			run_to_block(applied_after, None);
+			run_to_block(expected_at, None);
 
-			// the candidate is in the context of the parent of `applied_after`,
+			// the candidate is in the context of the parent of `expected_at`,
 			// thus does not trigger the code upgrade.
 			{
-				Paras::note_new_head(para_id, Default::default(), applied_after - 1);
+				Paras::note_new_head(para_id, Default::default(), expected_at - 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 			}
 
-			run_to_block(applied_after + 1, None);
+			run_to_block(expected_at + 1, None);
 
-			// the candidate is in the context of `applied_after`, and triggers
+			// the candidate is in the context of `expected_at`, and triggers
 			// the upgrade.
 			{
-				Paras::note_new_head(para_id, Default::default(), applied_after);
+				Paras::note_new_head(para_id, Default::default(), expected_at);
 
 				assert_eq!(
 					Paras::past_code_meta(&para_id).most_recent_change(),
-					Some(applied_after),
+					Some(expected_at),
 				);
 				assert_eq!(
-					<Paras as Store>::PastCode::get(&(para_id, applied_after)),
+					<Paras as Store>::PastCode::get(&(para_id, expected_at)),
 					Some(vec![1, 2, 3,].into()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
@@ -853,33 +853,33 @@ mod tests {
 			run_to_block(2, None);
 			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-			let applied_after = {
+			let expected_at = {
 				// this parablock is in the context of block 1.
-				let applied_after = 1 + validation_upgrade_delay;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				let expected_at = 1 + validation_upgrade_delay;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-				applied_after
+				expected_at
 			};
 
-			run_to_block(applied_after + 1 + 4, None);
+			run_to_block(expected_at + 1 + 4, None);
 
-			// the candidate is in the context of the first descendent of `applied_after`, and triggers
+			// the candidate is in the context of the first descendent of `expected_at`, and triggers
 			// the upgrade.
 			{
-				Paras::note_new_head(para_id, Default::default(), applied_after + 4);
+				Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
 				assert_eq!(
 					Paras::past_code_meta(&para_id).most_recent_change(),
-					Some(applied_after),
+					Some(expected_at),
 				);
 				assert_eq!(
-					<Paras as Store>::PastCode::get(&(para_id, applied_after)),
+					<Paras as Store>::PastCode::get(&(para_id, expected_at)),
 					Some(vec![1, 2, 3,].into()),
 				);
 				assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
@@ -961,18 +961,18 @@ mod tests {
 			run_to_block(2, None);
 			assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-			let applied_after = {
+			let expected_at = {
 				// this parablock is in the context of block 1.
-				let applied_after = 1 + 5;
-				Paras::schedule_code_upgrade(para_id, new_code.clone(), applied_after);
+				let expected_at = 1 + 5;
+				Paras::schedule_code_upgrade(para_id, new_code.clone(), expected_at);
 				Paras::note_new_head(para_id, Default::default(), 1);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
-				applied_after
+				expected_at
 			};
 
 			Paras::schedule_para_cleanup(para_id);
@@ -983,7 +983,7 @@ mod tests {
 				assert_eq!(Paras::parachains(), vec![para_id]);
 
 				assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(applied_after));
+				assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
 				assert_eq!(<Paras as Store>::FutureCode::get(&para_id), new_code);
 				assert_eq!(Paras::current_code(&para_id), Some(vec![1, 2, 3].into()));
 
