@@ -155,10 +155,9 @@ enum Event<M, I> {
 }
 
 /// Some message that is sent from one of the `Subsystem`s to the outside world.
-pub enum OutboundMessage<M, I> {
+pub enum OutboundMessage<M> {
 	SubsystemMessage {
 		msg: M,
-		from: I,
 	}
 }
 
@@ -167,7 +166,7 @@ pub enum OutboundMessage<M, I> {
 /// [`Overseer`]: struct.Overseer.html
 pub struct OverseerHandler<M, I> {
 	events_tx: mpsc::Sender<Event<M, I>>,
-	outside_rx: mpsc::Receiver<OutboundMessage<M, I>>,
+	outside_rx: mpsc::Receiver<OutboundMessage<M>>,
 }
 
 impl<M, I> OverseerHandler<M, I> {
@@ -202,7 +201,7 @@ impl<M, I> OverseerHandler<M, I> {
 		Ok(())
 	}
 
-	pub async fn recv_msg(&mut self) -> Option<OutboundMessage<M, I>> {
+	pub async fn recv_msg(&mut self) -> Option<OutboundMessage<M>> {
 		self.outside_rx.next().await
 	}
 }
@@ -223,7 +222,7 @@ impl<M: Debug, I: Debug> Debug for ToOverseer<M, I> {
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M: Debug, I> {
 	rx: mpsc::Receiver<ToOverseer<M, I>>,
-	tx: mpsc::Sender<FromOverseer<M, I>>,
+	tx: mpsc::Sender<FromOverseer<M>>,
 }
 
 /// A context type that is given to the [`Subsystem`] upon spawning.
@@ -234,7 +233,7 @@ struct SubsystemInstance<M: Debug, I> {
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 pub struct SubsystemContext<M: Debug, I>{
-	rx: mpsc::Receiver<FromOverseer<M, I>>,
+	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<ToOverseer<M, I>>,
 }
 
@@ -257,14 +256,13 @@ pub enum OverseerSignal {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 #[derive(Debug)]
-pub enum FromOverseer<M: Debug, I> {
+pub enum FromOverseer<M: Debug> {
 	/// Signal from the `Overseer`.
 	Signal(OverseerSignal),
 
 	/// Some other `Subsystem`'s message.
 	Communication {
 		msg: M,
-		from: Option<I>,
 	},
 }
 
@@ -273,7 +271,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	///
 	/// This has to be used with caution, if you loop over this without
 	/// using `pending!()` macro you will end up with a busy loop!
-	pub async fn try_recv(&mut self) -> Result<Option<FromOverseer<M, I>>, ()> {
+	pub async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
 			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
@@ -282,7 +280,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 	}
 
 	/// Receive a message.
-	pub async fn recv(&mut self) -> SubsystemResult<FromOverseer<M, I>> {
+	pub async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
 		self.rx.next().await.ok_or(SubsystemError)
 	}
 
@@ -317,7 +315,7 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 		Ok(())
 	}
 
-	fn new(rx: mpsc::Receiver<FromOverseer<M, I>>, tx: mpsc::Sender<ToOverseer<M, I>>) -> Self {
+	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer<M, I>>) -> Self {
 		Self {
 			rx,
 			tx,
@@ -369,7 +367,7 @@ pub struct Overseer<M: Debug, S: Spawn, I> {
 	events_rx: mpsc::Receiver<Event<M, I>>,
 
 	/// A sender to send things to the outside
-	outside_tx: mpsc::Sender<OutboundMessage<M, I>>,
+	outside_tx: mpsc::Sender<OutboundMessage<M>>,
 }
 
 impl<M, S, I> Overseer<M, S, I>
@@ -467,7 +465,6 @@ where
 							if let Some(ref mut i) = subsystem.instance {
 								let _ = i.tx.send(FromOverseer::Communication {
 									msg,
-									from: None,
 								}).await;
 							}
 						}
@@ -494,7 +491,6 @@ where
 							if let Some(ref mut i) = subsystem.instance {
 								let _ = i.tx.send(FromOverseer::Communication {
 									msg: m,
-									from: Some(msg.0),
 								}).await;
 							}
 						}
@@ -502,7 +498,6 @@ where
 					ToOverseer::SubsystemMessage { msg: m, .. } => {
 						let _ = self.outside_tx.send(OutboundMessage::SubsystemMessage {
 							msg: m,
-							from: msg.0,
 						}).await;
 					}
 					ToOverseer::SpawnJob { s, res } => {
