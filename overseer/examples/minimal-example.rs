@@ -133,8 +133,6 @@ impl Subsystem<usize, SubsystemId> for Subsystem3 {
 			}
 		}))
 	}
-
-	fn can_recv_msg(&self, _msg: &usize) -> bool { false }
 }
 
 fn main() {

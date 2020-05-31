@@ -336,10 +336,6 @@ impl<M: Debug, I> SubsystemContext<M, I> {
 pub trait Subsystem<M: Debug, I> {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(&mut self, ctx: SubsystemContext<M, I>) -> SpawnedSubsystem;
-	/// If this `Subsystem` wants to receive this message.
-	///
-	/// By default receive all messages.
-	fn can_recv_msg(&self, _msg: &M) -> bool { true }
 }
 
 /// A subsystem that we oversee.
