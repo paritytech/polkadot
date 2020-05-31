@@ -19,11 +19,16 @@
 //!   * Establishing message passing
 
 use std::time::Duration;
-use futures::{pending, pin_mut, executor, select, stream, FutureExt, StreamExt};
+use futures::{
+	pending, pin_mut, executor, select, stream,
+	StreamExt,
+	channel::oneshot,
+	task::SpawnExt,
+};
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
+use overseer::{FromOverseer, Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, std::hash::Hash)]
 pub enum SubsystemId {
@@ -34,21 +39,31 @@ pub enum SubsystemId {
 
 struct Subsystem1;
 
+#[derive(Debug)]
+enum Msg {
+	Usize(usize),
+	IncUsize(usize, oneshot::Sender<usize>),
+}
+
 impl Subsystem1 {
-	async fn run(mut ctx: SubsystemContext<usize, SubsystemId>)  {
+	async fn run(mut ctx: SubsystemContext<Msg, SubsystemId>)  {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
-					log::info!("Subsystem1 received message {:?}", msg);
+					if let FromOverseer::Communication { msg: Msg::IncUsize(u, tx), .. }  = msg {
+						tx.send(u + 1).unwrap();
+					}
+					continue;
 				}
 				Ok(None) => (),
-				Err(_) => {}
+				Err(_) => break,
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
-			if let Err(_) = ctx.send_msg(SubsystemId::Subsystem2, 10).await {
+			if let Err(_) = ctx.send_msg(SubsystemId::Subsystem2, Msg::Usize(10)).await {
 				break;
 			}
+			pending!();
 		}
 	}
 
@@ -57,8 +72,8 @@ impl Subsystem1 {
 	}
 }
 
-impl Subsystem<usize, SubsystemId> for Subsystem1 {
-	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+impl Subsystem<Msg, SubsystemId> for Subsystem1 {
+	fn start(&mut self, ctx: SubsystemContext<Msg, SubsystemId>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -68,7 +83,7 @@ impl Subsystem<usize, SubsystemId> for Subsystem1 {
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: SubsystemContext<usize, SubsystemId>)  {
+	async fn run(mut ctx: SubsystemContext<Msg, SubsystemId>)  {
 		ctx.spawn(Box::pin(async {
 			loop {
 				log::info!("Job tick");
@@ -93,8 +108,8 @@ impl Subsystem2 {
 	}
 }
 
-impl Subsystem<usize, SubsystemId> for Subsystem2 {
-	fn start(&mut self, ctx: SubsystemContext<usize, SubsystemId>) -> SpawnedSubsystem {
+impl Subsystem<Msg, SubsystemId> for Subsystem2 {
+	fn start(&mut self, ctx: SubsystemContext<Msg, SubsystemId>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -127,7 +142,7 @@ fn main() {
 	let spawner = executor::ThreadPool::new().unwrap();
 
 	futures::executor::block_on(async {
-		let subsystems: Vec<(SubsystemId, Box<dyn Subsystem<usize, SubsystemId> + Send>)> = vec![
+		let subsystems: Vec<(SubsystemId, Box<dyn Subsystem<Msg, SubsystemId> + Send>)> = vec![
 			(SubsystemId::Subsystem1, Box::new(Subsystem1::new())),
 			(SubsystemId::Subsystem2, Box::new(Subsystem2::new())),
 		];
@@ -136,18 +151,24 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
-		let (overseer, mut handler) = Overseer::new(subsystems, spawner);
-		let overseer_fut = overseer.run().fuse();
+		let (overseer, mut handler) = Overseer::new(subsystems, spawner.clone());
+		let overseer_fut = overseer.run();
 		let timer_stream = timer_stream;
 
 		pin_mut!(timer_stream);
-		pin_mut!(overseer_fut);
 
+		spawner.spawn(overseer_fut).unwrap();
 		loop {
 			select! {
-				_ = overseer_fut => break,
 				_ = timer_stream.next() => {
-					handler.send_to_subsystem(SubsystemId::Subsystem1, 42usize).await.unwrap();
+					let (tx, rx) = oneshot::channel();
+					handler.send_to_subsystem(
+						SubsystemId::Subsystem1,
+						Msg::IncUsize(42, tx),
+					).await.unwrap();
+					let res = rx.await.unwrap();
+
+					log::info!("Incremented result is {}", res);
 				}
 				complete => break,
 			}
