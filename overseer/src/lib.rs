@@ -72,6 +72,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
+use streamunordered::{StreamYield, StreamUnordered};
 
 /// An error type that describes faults that may happen
 ///
@@ -207,7 +208,6 @@ impl Debug for ToOverseer {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 struct SubsystemInstance<M: Debug> {
-	rx: mpsc::Receiver<ToOverseer>,
 	tx: mpsc::Sender<FromOverseer<M>>,
 }
 
@@ -360,6 +360,9 @@ pub struct Overseer<S: Spawn> {
 	/// Here we keep handles to spawned subsystems to be notified when they terminate.
 	running_subsystems: FuturesUnordered<RemoteHandle<()>>,
 
+	/// Gather running subsystms' outbound streams into one.
+	running_subsystems_rx: StreamUnordered<mpsc::Receiver<ToOverseer>>,
+
 	/// Events that are sent to the overseer from the outside world
 	events_rx: mpsc::Receiver<Event>,
 }
@@ -404,16 +407,29 @@ where
 			events_tx: events_tx.clone(),
 		};
 
-		let (h_v, validation_subsystem) = Self::spawn(&mut s, validation).unwrap();
-		let (h_c, candidate_backing_subsystem) = Self::spawn(&mut s, candidate_backing).unwrap();
+		let mut running_subsystems_rx = StreamUnordered::new();
+		let mut running_subsystems = FuturesUnordered::new();
 
-		let running_subsystems = vec![h_v, h_c].into_iter().collect();
+		let validation_subsystem = Self::spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			validation,
+		);
+
+		let candidate_backing_subsystem = Self::spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			candidate_backing,
+		);
 
 		let this = Self {
 			validation_subsystem,
 			candidate_backing_subsystem,
 			s,
 			running_subsystems,
+			running_subsystems_rx,
 			events_rx,
 		};
 
@@ -448,47 +464,27 @@ where
 	/// Run the `Overseer`.
 	pub async fn run(mut self) {
 		loop {
-			// Upon iteration of the loop we will be collecting all the messages
-			// that need dispatching (if any).
-			let mut msgs = Vec::new();
-			let mut to_spawn = Vec::new();
-
 			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
 				match msg {
 				    Event::MsgToSubsystem(msg) => {
-						msgs.push(msg);
+						self.route_message(msg).await;
 					}
 				    Event::Stop => return self.stop().await,
 					_ => ()
 				}
 			}
 
-			if let Some(s) = &mut self.candidate_backing_subsystem.instance {
-				while let Poll::Ready(Some(msg)) = poll!(&mut s.rx.next()) {
-					match msg {
-					    ToOverseer::SubsystemMessage(msg) => msgs.push(msg),
-					    ToOverseer::SpawnJob { s, res } => to_spawn.push((s, res)),
+			while let Poll::Ready(Some((StreamYield::Item(msg), _))) = poll!(
+				&mut self.running_subsystems_rx.next()
+			) {
+				match msg {
+					ToOverseer::SubsystemMessage(msg) => self.route_message(msg).await,
+					ToOverseer::SpawnJob { s, res } => {
+						let s = self.spawn_job(s);
+
+						let _ = res.send(s);
 					}
 				}
-			}
-
-			if let Some(s) = &mut self.validation_subsystem.instance {
-				while let Poll::Ready(Some(msg)) = poll!(&mut s.rx.next()) {
-					match msg {
-					    ToOverseer::SubsystemMessage(msg) => msgs.push(msg),
-					    ToOverseer::SpawnJob { s, res } => to_spawn.push((s, res)),
-					}
-				}
-			}
-
-			for msg in msgs.into_iter() {
-				self.route_message(msg).await;
-			}
-
-			for msg in to_spawn.into_iter() {
-				let s = self.spawn_job(msg.0);
-
-				let _ = msg.1.send(s);
 			}
 
 			// Some subsystem exited? It's time to panic.
@@ -505,7 +501,7 @@ where
 		match msg {
 		    AllMessages::Validation(msg) => {
 				if let Some(ref mut s) = self.validation_subsystem.instance {
-					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+					let _= s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
 		    AllMessages::CandidateBacking(msg) => {
@@ -518,8 +514,10 @@ where
 
 	fn spawn<M: Debug>(
 		spawner: &mut S,
+		futures: &mut FuturesUnordered<RemoteHandle<()>>,
+		streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
 		mut s: Box<dyn Subsystem<M> + Send>,
-	) -> SubsystemResult<(RemoteHandle<()>, OverseenSubsystem<M>)> {
+	) -> OverseenSubsystem<M> {
 		let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
 		let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
 		let ctx = SubsystemContext::new(to_rx, from_tx);
@@ -528,20 +526,17 @@ where
 		let handle = spawner.spawn_with_handle(f.0)
 			.expect("We need to be able to successfully spawn all subsystems");
 
+		streams.push(from_rx);
+		futures.push(handle);
+
 		let instance = Some(SubsystemInstance {
-			rx: from_rx,
 			tx: to_tx,
 		});
 
-		Ok(
-			(
-				handle,
-				OverseenSubsystem {
-					subsystem: s,
-					instance,
-				}
-			)
-		)
+		OverseenSubsystem {
+			subsystem: s,
+			instance,
+		}
 	}
 
 	fn spawn_job(&mut self, j: BoxFuture<'static, ()>) -> SubsystemResult<()> {
