@@ -457,7 +457,7 @@ where
 	///     spawner,
 	/// ).unwrap();
 	///
-	/// let timer = Delay::new(Duration::from_secs(1)).fuse();
+	/// let timer = Delay::new(Duration::from_millis(50)).fuse();
 	///
 	/// let overseer_fut = overseer.run().fuse();
 	/// pin_mut!(timer);
@@ -751,7 +751,7 @@ mod tests {
 
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
-			let (overseer, _) = Overseer::new(
+			let (overseer, _handle) = Overseer::new(
 				Box::new(TestSubsystem1(s1_tx)),
 				Box::new(TestSubsystem4),
 				spawner,
