@@ -12,12 +12,21 @@ There are a number of other documents describing the research in more detail. Al
 * [Architecture](#Architecture)
   * [Node-side](#Architecture-Node-side)
   * [Runtime](#Architecture-Runtime)
-* [Subsystems](#Subsystems)
+* [Architecture: Runtime](#Architecture-Runtime)
+  * [Broad Strokes](#Broad-Strokes)
+  * [Initializer](#The-Initializer-Module)
+  * [Configuration](#The-Configuration-Module)
+  * [Paras](#The-Paras-Module)
+  * [Scheduler](#The-Scheduler-Module)
+  * [Inclusion](#The-Inclusion-Module)
+  * [InclusionInherent](#The-InclusionInherent-Module)
+  * [Validity](#The-Validity-Module)
+* [Architecture: Node-side](#Architecture-Node-Side)
+  * [Subsystems](#Subsystems-and-Jobs)
   * [Overseer](#Overseer)
   * [Candidate Backing](#Candidate-Backing-Subsystem)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
-
 
 ## Origins
 
@@ -254,31 +263,11 @@ These two aspects of the implementation are heavily dependent on each other. The
 
 ---
 
-### Architecture: Node-side
+## Architecture: Runtime
 
-**Design Goals**
+### Broad Strokes
 
-* Modularity: Components of the system should be as self-contained as possible. Communication boundaries between components should be well-defined and mockable. This is key to creating testable, easily reviewable code.
-* Minimizing side effects: Components of the system should aim to minimize side effects and to communicate with other components via message-passing.
-* Operational Safety: The software will be managing signing keys where conflicting messages can lead to large amounts of value to be slashed. Care should be taken to ensure that no messages are signed incorrectly or in conflict with each other.
-
-The architecture of the node-side behavior aims to embody the Rust principles of ownership and message-passing to create clean, isolatable code. Each resource should have a single owner, with minimal sharing where unavoidable.
-
-Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
-
-We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the [Subsystems](#Subsystems) section.
-
----
-
-### Architecture: Runtime
-
-## Runtime Architecture: A Proposal
-
-[TODO: Figure out what to do with the previous section - there's a lot of useful information. A lot of info might be beyond the scope of the document, but is still useful. Figure out which research resources we can link to and which points are new to this doc. some race condition concerns were never written down before]
-
-It's clear that we want to separate different aspects of the runtime logic into different modules.
-
-Reiterating from the [Architecture](#Architecture) section, Modules define their own storage, routines, and entry-points. They also define initialization and finalization logic.
+It's clear that we want to separate different aspects of the runtime logic into different modules. Modules define their own storage, routines, and entry-points. They also define initialization and finalization logic.
 
 Due to the (lack of) guarantees provided by a particular blockchain-runtime framework, there is no defined or dependable order in which modules' initialization or finalization logic will run. Supporting this blockchain-runtime framework is important enough to include that same uncertainty in our model of runtime modules in this guide. Furthermore, initialization logic of modules can trigger the entry-points or routines of other modules. This is one architectural pressure against dividing the runtime logic into multiple modules. However, in this case the benefits of splitting things up outweigh the costs, provided that we take certain precautions against initialization and entry-point races.
 
@@ -306,7 +295,6 @@ There are 3 main ways that we can handle this issue:
   1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change.
   2. Require that session change notifications always occur before initialization. Brick the chain if session change notifications ever happen after initialization.
   3. Handle both the before and after cases.
-
 
 Although option 3 is the most comprehensive, it runs counter to our goal of simplicity. Option 1 means requiring the runtime to do redundant work at all sessions and will also mean, like option 3, that designing things in such a way that initialization can be rolled back and reapplied under the new environment. That leaves option 2, although it is a "nuclear" option in a way and requires us to constrain the parachain host to only run in full runtimes with a certain order of operations.
 
@@ -816,7 +804,19 @@ Included: Option<()>,
 
 ----
 
-## Subsystems
+## Architecture: Node-side
+
+**Design Goals**
+
+* Modularity: Components of the system should be as self-contained as possible. Communication boundaries between components should be well-defined and mockable. This is key to creating testable, easily reviewable code.
+* Minimizing side effects: Components of the system should aim to minimize side effects and to communicate with other components via message-passing.
+* Operational Safety: The software will be managing signing keys where conflicting messages can lead to large amounts of value to be slashed. Care should be taken to ensure that no messages are signed incorrectly or in conflict with each other.
+
+The architecture of the node-side behavior aims to embody the Rust principles of ownership and message-passing to create clean, isolatable code. Each resource should have a single owner, with minimal sharing where unavoidable.
+
+Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
+
+We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
 
 ### Subsystems and Jobs
 
