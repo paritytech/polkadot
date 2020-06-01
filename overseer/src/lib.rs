@@ -94,7 +94,7 @@ impl From<oneshot::Canceled> for SubsystemError {
 
 /// A `Result` type that wraps [`SubsystemError`].
 ///
-/// [`Overseer`]: struct.SubsystemError.html
+/// [`SubsystemError`]: struct.SubsystemError.html
 pub type SubsystemResult<T> = Result<T, SubsystemError>;
 
 /// An asynchronous subsystem task that runs inside and being overseen by the [`Overseer`].
@@ -202,7 +202,7 @@ struct SubsystemInstance<M: Debug> {
 
 /// A context type that is given to the [`Subsystem`] upon spawning.
 /// It can be used by [`Subsystem`] to communicate with other [`Subsystem`]s
-/// or to spawn it's `SubsystemJob`s.
+/// or to spawn it's [`SubsystemJob`]s.
 ///
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
@@ -212,7 +212,7 @@ pub struct SubsystemContext<M: Debug>{
 	tx: mpsc::Sender<ToOverseer>,
 }
 
-/// A signal used by [`Overseer`] to communicate with the [`Subsystems`].
+/// A signal used by [`Overseer`] to communicate with the [`Subsystem`]s.
 ///
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
@@ -225,19 +225,25 @@ pub enum OverseerSignal {
 }
 
 #[derive(Debug)]
-/// A message type used by the Validation `Subsystem`.
+/// A message type used by the Validation [`Subsystem`].
+///
+/// [`Subsystem`]: trait.Subsystem.html
 pub enum ValidationSubsystemMessage {
 	ValidityAttestation,
 }
 
 #[derive(Debug)]
-/// A message type used by the CandidateBacking `Subsystem`.
+/// A message type used by the CandidateBacking [`Subsystem`].
+///
+/// [`Subsystem`]: trait.Subsystem.html
 pub enum CandidateBackingSubsystemMessage {
 	RegisterBackingWatcher,
 	Second,
 }
 
-/// A message type tying together all message types that are used across `Subsystem`s.
+/// A message type tying together all message types that are used across [`Subsystem`]s.
+///
+/// [`Subsystem`]: trait.Subsystem.html
 #[derive(Debug)]
 pub enum AllMessages {
 	Validation(ValidationSubsystemMessage),
@@ -245,7 +251,7 @@ pub enum AllMessages {
 }
 
 /// A message type that a [`Subsystem`] receives from the [`Overseer`].
-/// It wraps siglans from the `Oveseer` and messages that are circulating 
+/// It wraps siglans from the [`Overseer`] and messages that are circulating
 /// between subsystems.
 ///
 /// It is generic over over the message type `M` that a particular `Subsystem` may use.
@@ -360,6 +366,15 @@ where
 {
 	/// Create a new intance of the `Overseer` with a fixed set of [`Subsystem`]s.
 	///
+	/// Each [`Subsystem`] is passed to this function as an explicit parameter
+	/// and is supposed to implement some interface that is generic over message type
+	/// that is specific to this [`Subsystem`]. At the moment there are only two
+	/// subsystems:
+	///   * Validation
+	///   * CandidateBacking
+	///
+	/// As any entity that satisfies the interface may act as a [`Subsystem`] this allows
+	/// mocking in the test code:
 	///
 	/// ```text
 	///                  +------------------------------------+
@@ -383,6 +398,70 @@ where
 	/// ```
 	///
 	/// [`Subsystem`]: trait.Subsystem.html
+	///
+	/// # Example
+	///
+	/// The [`Subsystems`] may be any type as long as they implement an expected interface.
+	/// Here, we create two mock subsystems and start the `Overseer` with them. For the sake
+	/// of simplicity the termination of the example is done with a timeout.
+	/// ```
+	/// # use std::time::Duration;
+	/// # use futures::{executor, pin_mut, select, FutureExt};
+	/// # use futures_timer::Delay;
+	/// # use overseer::{
+	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
+	/// #     ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
+	/// # };
+	///
+	/// struct ValidationSubsystem;
+	/// impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
+	///     fn start(
+	///         &mut self,
+	///         mut ctx: SubsystemContext<ValidationSubsystemMessage>,
+	///     ) -> SpawnedSubsystem {
+	///         SpawnedSubsystem(Box::pin(async move {
+	///             loop {
+	///                 Delay::new(Duration::from_secs(1)).await;
+	///             }
+	///         }))
+	///     }
+	/// }
+	///
+	/// struct CandidateBackingSubsystem;
+	/// impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
+	///     fn start(
+	///         &mut self,
+	///         mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>,
+	///     ) -> SpawnedSubsystem {
+	///         SpawnedSubsystem(Box::pin(async move {
+	///             loop {
+	///                 Delay::new(Duration::from_secs(1)).await;
+	///             }
+	///         }))
+	///     }
+	/// }
+	///
+	/// # fn main() { executor::block_on(async move {
+	/// let spawner = executor::ThreadPool::new().unwrap();
+	/// let (overseer, _handler) = Overseer::new(
+	///     Box::new(ValidationSubsystem),
+	///     Box::new(CandidateBackingSubsystem),
+	///     spawner,
+	/// );
+	///
+	/// let timer = Delay::new(Duration::from_secs(1)).fuse();
+	///
+	/// let overseer_fut = overseer.run().fuse();
+	/// pin_mut!(timer);
+	/// pin_mut!(overseer_fut);
+	///
+	/// select! {
+	///     _ = overseer_fut => (),
+	///     _ = timer => (),
+	/// }
+	/// #
+	/// # }); }
+	/// ```
 	pub fn new(
 		validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
 		candidate_backing: Box<dyn Subsystem<CandidateBackingSubsystemMessage> + Send>,
