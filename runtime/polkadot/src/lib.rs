@@ -336,7 +336,7 @@ impl staking::Trait for Runtime {
 }
 
 parameter_types! {
-	// Minimum 100 bytes/KSM deposited (1 CENT/byte)
+	// Minimum 4 CENTS/byte
 	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
 	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
 	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
