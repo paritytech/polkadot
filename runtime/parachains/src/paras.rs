@@ -246,7 +246,7 @@ decl_module! {
 impl<T: Trait> Module<T> {
 	/// Called by the initializer to initialize the configuration module.
 	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		Self::do_old_code_pruning(now)
+		Self::prune_old_code(now)
 	}
 
 	/// Called by the initializer to finalize the configuration module.
@@ -336,8 +336,9 @@ impl<T: Trait> Module<T> {
 		T::DbWeight::get().reads_writes(2, 3)
 	}
 
-	// does old code pruning.
-	fn do_old_code_pruning(now: T::BlockNumber) -> Weight {
+	// looks at old code metadata, compares them to the current acceptance window, and prunes those
+	// that are too old.
+	fn prune_old_code(now: T::BlockNumber) -> Weight {
 		let config = configuration::Module::<T>::config();
 		let acceptance_period = config.acceptance_period;
 		if now <= acceptance_period {
