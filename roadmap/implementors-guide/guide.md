@@ -60,7 +60,7 @@ First, it's important to go over the main actors we have involved in the paracha
 2. Collators. These nodes are responsible for creating the Proofs-of-Validity that validators know how to check. Creating a PoV typically requires familiarity with the transaction format and block authoring rules of the parachain, as well as having access to the full state of the parachain.
 3. Fishermen. These are user-operated, permissionless nodes whose goal is to catch misbehaving validators in exchange for a bounty. Collators and validators can behave as Fishermen too. Fishermen aren't necessary for security, and aren't covered in-depth by this document.
 
-This alludes to a simple pipeline where collators send validators parachain blocks and their requisite PoV to check. Then, validators validate the block using the PoV, signing statements which describe either the positive or negative outcome, and with enough positive statements, the block can be included. Negative statements are not a veto but will lead to a dispute, with those on the wrong side being slashed. If another validator later detects that a validator or group of validators incorrectly signed a statement claiming a block was valid, then those validators will be _slashed_, with the checker receiving a bounty.
+This alludes to a simple pipeline where collators send validators parachain blocks and their requisite PoV to check. Then, validators validate the block using the PoV, signing statements which describe either the positive or negative outcome, and with enough positive statements, the block can be noted on the relay-chain. Negative statements are not a veto but will lead to a dispute, with those on the wrong side being slashed. If another validator later detects that a validator or group of validators incorrectly signed a statement claiming a block was valid, then those validators will be _slashed_, with the checker receiving a bounty.
 
 However, there is a problem with this formulation. In order for another validator to check the previous group of validators' work after the fact, the PoV must remain _available_ so the other validator can fetch it in order to check the work. The PoVs are expected to be too large to include in the blockchain directly, so we require an alternate _data availability_ scheme which requires validators to prove that the inputs to their work will remain available, and so their work can be checked. Empirical tests tell us that many PoVs may be between 1 and 10MB during periods of heavy load.
 
@@ -68,10 +68,10 @@ Here is a description of the Inclusion Pipeline: the path a parachain block (or 
 1. Validators are selected and assigned to parachains by the Validator Assignment routine.
 1. A collator produces the parachain block, which is known as a parachain candidate or candidate, along with a PoV for the candidate.
 1. The collator forwards the candidate and PoV to validators assigned to the same parachain via the Collation Distribution Subsystem.
-1. The validators assigned to a parachain at a given point in time participate in the Candidate Backing Subsystem to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backed" and are called backed candidates. Their backing is the set of signed validity statements.
-1. A relay-chain block author, selected by BABE, can include up to one (1) backed candidate for each parachain to include in the relay-chain block alongside its backing.
-1. Once included in the relay-chain, the parachain candidate is considered to be "pending availability". It is not considered to be part of the parachain until it is proven available.
-1. In the following relay-chain blocks, validators will participate in the Availability Distribution Subsystem to ensure availability of the candidate. Information regarding the availability of the candidate will be included in the subsequent relay-chain blocks.
+1. The validators assigned to a parachain at a given point in time participate in the Candidate Backing Subsystem to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backable". Their backing is the set of signed validity statements.
+1. A relay-chain block author, selected by BABE, can note up to one (1) backable candidate for each parachain to include in the relay-chain block alongside its backing. A backable candidate once included in the relay-chain is considered backed in that fork of the relay-chain.
+1. Once backed in the relay-chain, the parachain candidate is considered to be "pending availability". It is not considered to be included as part of the parachain until it is proven available.
+1. In the following relay-chain blocks, validators will participate in the Availability Distribution Subsystem to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.
 1. Once the relay-chain state machine has enough information to consider the candidate's PoV as being available, the candidate is considered to be part of the parachain and is graduated to being a full parachain block, or parablock for short.
 
 Note that the candidate can fail to be included in any of the following ways:
@@ -82,7 +82,7 @@ Note that the candidate can fail to be included in any of the following ways:
 
 This process can be divided further down. Steps 2 & 3 relate to the work of the collator in collating and distributing the candidate to validators via the Collation Distribution Subsystem. Steps 3 & 4 relate to the work of the validators in the Candidate Backing Subsystem and the block author (itself a validator) to include the block into the relay chain. Steps 6, 7, and 8 correspond to the logic of the relay-chain state-machine (otherwise known as the Runtime) used to fully incorporate the block into the chain. Step 7 requires further work on the validators' parts to participate in the Availability Distribution Subsystem and include that information into the relay chain for step 8 to be fully realized.
 
-This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that secondary checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
+This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that secondary checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
 
 The Approval Process looks like this:
 1. Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.
@@ -92,6 +92,15 @@ The Approval Process looks like this:
 1. At the end of the Approval Process, the parablock is either Approved or it is rejected. More on the rejection process later.
 
 These two pipelines sum up the sequence of events necessary to extend and acquire full security on a Parablock. Note that the Inclusion Pipeline must conclude for a specific parachain before a new block can be accepted on that parachain. After inclusion, the Approval Process kicks off, and can be running for many parachain blocks at once.
+
+Reiterating the lifecycle of a candidate:
+  1. Candidate: put forward by a collator to a validator.
+  1. Seconded: put forward by a validator to other validators
+  1. Backable: validity attested to by a majority of assigned validators
+  1. Backed: Backable & noted in a fork of the relay-chain.
+  1. Pending availability: Backed but not yet considered available.
+  1. Included: Backed and considered available.
+  1. Accepted: Backed, available, and undisputed
 
 [TODO Diagram: Inclusion Pipeline & Approval Subsystems interaction]
 
@@ -155,7 +164,6 @@ In this example, group 1 has received block C while the others have not due to n
 ```
 
 Those validators that are aware of many competing heads must be aware of the work happening on each one. They may contribute to some or a full extent on both. It is possible that due to network asynchrony two forks may grow in parallel for some time, although in the absence of an adversarial network this is unlikely in the case where there are validators who are aware of both chain heads.
-
 ----
 
 ## Architecture
@@ -303,7 +311,7 @@ during the block:
 process availability bitfields:
   * We will accept an optional signed bitfield from each validator in each block.
   * We need to check the signature and length of the bitfield for validity.
-  * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "execution cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
+  * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "availability cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
   * Bits that are set to `true` denote candidate pending availability which are believed by this validator to be available.
   * Candidates that are pending availability and have the corresponding bit set in 2/3 of validators' bitfields (only counting those submitted after the candidate was included, since some validators may not have submitted bitfields in some time) are considered available and are then moved into the "pending approval" state.
   * Candidates that have just become available should apply any pending code upgrades based on the relay-parent they are targeting and should schedule any upcoming pending code upgrades.
@@ -314,7 +322,7 @@ candidates entering the "pending approval" state:
   * Schedule a new pending code upgrade if the candidate specifies any. (there is a race condition here: part of the configuration is "how long should it take before pending code changes are applied". This value is computed based on the relay-parent that was used at the point when the candidate was about to be included in the relay chain. This is potentially a few blocks later than that, as it can take some time for a candidate to become fully available. We need to ensure that the code upgrade is scheduled with the same delay as was expected when the code upgrade was signaled. The easiest thing to do is to make sure the `pending_code_delay` is passed through the entire availability pipeline).
   * Schedule Upwards messages - messages from the parachain to the relay chain.
 
-process new backed candidates:
+process new backable candidates:
   * ensure that only one candidate is backed for each parachain or parathread
   * ensure that the parachain or parathread of the candidate was scheduled and does not currently have a block pending availability.
   * check the backing of the candidate.
@@ -373,7 +381,23 @@ There are 3 main ways that we can handle this issue:
 
 Although option 3 is the most comprehensive, it runs counter to our goal of simplicity. Option 1 means requiring the runtime to do redundant work at all sessions and will also mean, like option 3, that designing things in such a way that initialization can be rolled back and reapplied under the new environment. That leaves option 2, although it is a "nuclear" option in a way and requires us to constrain the parachain host to only run in full runtimes with a certain order of operations.
 
-So the other role of the initializer module is to forward session change notifications to modules in the initialization order, throwing an unrecoverable error if the notification is received after initialization.
+So the other role of the initializer module is to forward session change notifications to modules in the initialization order, throwing an unrecoverable error if the notification is received after initialization. Session change is the point at which the configuration module updates the configuration. Most of the other modules will handle changes in the configuration during their session change operation, so the initializer should provide both the old and new configuration to all the other
+modules alongside the session change notification. This means that a session change notification should consist of the following data:
+
+```rust
+struct SessionChangeNotification {
+	// The new validators in the session.
+	validators: Vec<ValidatorId>,
+	// The validators for the next session.
+	queued: Vec<ValidatorId>,
+	// The configuration before handling the session change.
+	prev_config: HostConfiguration,
+	// The configuration after handling the session change.
+	new_config: HostConfiguration,
+	// A secure randomn seed for the session, gathered from BABE.
+	random_seed: [u8; 32],
+}
+```
 
 [REVIEW: other options? arguments in favor of going for options 1 or 3 instead of 2. we could do a "soft" version of 2 where we note that the chain is potentially broken due to bad initialization order]
 
@@ -472,12 +496,27 @@ It's also responsible for managing parachain validation code upgrades as well as
 
 Utility structs:
 ```rust
+// the two key times necessary to track for every code replacement.
+struct ReplacementTimes {
+	/// The relay-chain block number that the code upgrade was expected to be activated.
+	/// This is when the code change occurs from the para's perspective - after the
+	/// first parablock included with a relay-parent with number >= this value.
+	expected_at: BlockNumber,
+	/// The relay-chain block number at which the parablock activating the code upgrade was
+	/// actually included. This means considered included and available, so this is the time at which
+	/// that parablock enters the acceptance period in this fork of the relay-chain.
+	activated_at: BlockNumber,
+}
+
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 pub struct ParaPastCodeMeta {
-	// Block numbers where the code was replaced. These can be used as indices
+	// Block numbers where the code was expected to be replaced and where the code
+	// was actually replaced, respectively. The first is used to do accurate lookups
+	// of historic code in historic contexts, whereas the second is used to do
+	// pruning on an accurate timeframe. These can be used as indices
 	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<BlockNumber>,
+	upgrade_times: Vec<ReplacementTimes>,
 	// This tracks the highest pruned code-replacement, if any.
 	last_pruned: Option<BlockNumber>,
 }
@@ -513,7 +552,11 @@ PastCode: map (ParaId, BlockNumber) => Option<ValidationCode>;
 /// but we also keep their code on-chain for the same amount of time as outdated code
 /// to keep it available for secondary checkers.
 PastCodeMeta: map ParaId => ParaPastCodeMeta;
-/// Which paras have past code that needs pruning and the relay-chain block in which context the code was replaced.
+/// Which paras have past code that needs pruning and the relay-chain block at which the code was replaced.
+/// Note that this is the actual height of the included block, not the expected height at which the
+/// code upgrade would be applied, although they may be equal.
+/// This is to ensure the entire acceptance period is covered, not an offset acceptance period starting
+/// from the time at which the parachain perceives a code upgrade as having occurred.
 /// Multiple entries for a single para are permitted. Ordered ascending by block number.
 PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// The block number at which the planned code change is expected for a para.
@@ -547,7 +590,7 @@ OutgoingParas: Vec<ParaId>;
 * `schedule_para_cleanup(ParaId)`: schedule a para to be cleaned up at the next session.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided.
-* `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If `at` is too old or the `ParaId` does not reference any live para, this may return `None`.
+* `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If `at` is not within `config.acceptance_period` of the current block number, this will return `None`.
 
 #### Finalization
 
@@ -557,7 +600,7 @@ No finalization routine runs for this module.
 
 #### Description
 
-[TODO: this section is still heavily under construction. key questions about execution cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent]
+[TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent]
 
 The Scheduler module is responsible for two main tasks:
   - Partitioning validators into groups and assigning groups to parachains and parathreads.
@@ -569,12 +612,12 @@ It aims to achieve these tasks with these goals in mind:
   - Validator assignments should not be gameable. Malicious cartels should not be able to manipulate the scheduler to assign themselves as desired.
   - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
 
-The Scheduler manages resource allocation using the concept of "Execution Cores". There will be one execution core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as execution cores. Validator groups will be assigned to different execution cores over time.
+The Scheduler manages resource allocation using the concept of "Availability Cores". There will be one availability core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as availability cores. Validator groups will be assigned to different availability cores over time.
 
-An execution core can exist in either one of two states at the beginning or end of a block: free or occupied. A free execution core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
+An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
 
 ```
-Execution Core State Machine
+Availability Core State Machine
 
               Assignment &
               Backing
@@ -588,7 +631,7 @@ Execution Core State Machine
 ```
 
 ```
-Execution Core Transitions within Block
+Availability Core Transitions within Block
 
               +-----------+                |                    +-----------+
               |           |                |                    |           |
@@ -617,38 +660,45 @@ Execution Core Transitions within Block
 
 Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the Validity module. Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
 
-Validator groups rotate across execution cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
+Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
 When a rotation occurs, validator groups are still responsible for distributing availability pieces for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
 
-Parathreads operate on a system of claims. Collators participate in auctions to stake a claim on authoring the next block of a parathread, although the auction mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed and included. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular parathread-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for parathread collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.
+Parathreads operate on a system of claims. Collators participate in auctions to stake a claim on authoring the next block of a parathread, although the auction mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular parathread-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for parathread collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.
 
-With this information, the Node-side can be aware of which parathreads have a good chance of being includable within the relay-chain block and can focus any additional resources on backing candidates from those parathreads. Furthermore, Node-side code is aware of which validator group will be responsible for that thread. If the necessary conditions are reached for core reassignment, those backed candidates can be included within the same block as the core being freed.
+With this information, the Node-side can be aware of which parathreads have a good chance of being includable within the relay-chain block and can focus any additional resources on backing candidates from those parathreads. Furthermore, Node-side code is aware of which validator group will be responsible for that thread. If the necessary conditions are reached for core reassignment, those candidates can be backed within the same block as the core being freed.
 
 Parathread claims, when scheduled onto a free core, may not result in a block pending availability. This may be due to collator error, networking timeout, or censorship by the validator group. In this case, the claims should be retried a certain number of times to give the collator a fair shot.
 
 Cores are treated as an ordered list of cores and are typically referred to by their index in that list.
 
-[
-
-  TODO: Validator assignment. We want to assign validators to chains, not to cores. Assigning to cores means that for parathread cores, the parathread is unclear until late in the process so that would have bad implications for networking.
-
-  We can prepare a set of chains by assigning all unassigned cores, optimistically assigning all previously assigned cores, and then taking the union of those sets. However, this means that validator assignment is not possible to know until the beginning of the block. Ideally, we'd always know about at least a couple of blocks in advance, which makes networking discovery easier. However, optimistic assignment seems incompatible with this goal.
-
-]
-
 #### Storage
 
 Utility structs:
 ```rust
+// A claim on authoring the next block for a given parathread.
 struct ParathreadClaim(ParaId, CollatorId);
+
+// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 struct ParathreadEntry {
   claim: ParathreadClaim,
-  core: CoreIndex,
+  retries: u32,
+}
+
+// A queued parathread entry, pre-assigned to a core.
+struct QueuedParathread {
+	claim: ParathreadEntry,
+	core: CoreIndex,
+}
+
+struct ParathreadQueue {
+	queue: Vec<QueuedParathread>,
+	// this value is between 0 and config.parathread_cores
+	next_core: CoreIndex,
 }
 
 enum CoreOccupied {
-  Parathread(ParathreadClaim, u32), // claim & retries
+  Parathread(ParathreadEntry), // claim & retries
   Parachain,
 }
 
@@ -665,32 +715,39 @@ Storage layout:
 /// All the validator groups. One for each core.
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
-ParathreadQueue: Vec<ParathreadEntry>;
-/// One entry for each execution core. Entries are `None` if the core is not currently occupied. Can be
+ParathreadQueue: ParathreadQueue;
+/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 /// temporarily `Some` if scheduled but not occupied.
 /// The i'th parachain belongs to the i'th core, with the remaining cores all being
 /// parathread-multiplexers.
-ExecutionCores: Vec<Option<CoreOccupied>>;
-/// An index used to ensure that only one claim on a parathread exists in the queue or retry queue or is
+AvailabilityCores: Vec<Option<CoreOccupied>>;
+/// An index used to ensure that only one claim on a parathread exists in the queue or is
 /// currently being handled by an occupied core.
-ParathreadClaimIndex: Vec<(ParaId, CollatorId)>;
+ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
 /// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
-Scheduled: Vec<CoreAssignment>, // sorted by ParaId.
+Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 ```
 
 #### Session Change
 
-Session changes are the only time that configuration can change, and the configuration module's session-change logic is handled before this module's. We also lean on the behavior of the inclusion module which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `ParathreadExecutionCores` bitfield.
+Session changes are the only time that configuration can change, and the configuration module's session-change logic is handled before this module's. We also lean on the behavior of the inclusion module which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `AvailabilityCores` bitfield.
 
 Actions:
 1. Set `SessionStartBlock` to current block number.
-1. Clear all `Some` members of `ExecutionCores`. Return all parathread claims to queue with retries un-incremented. Resize.
+1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
 1. Set `configuration = Configuration::configuration()` (see [HostConfiguration](#Host-Configuration))
-1. Resize `ExecutionCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
+1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all `None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
-1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`, and assign all parathreads to new cores if the number of parathread cores has changed.
+    - We need a total of `N = Paras::parathreads().len() + configuration.parathread_cores` validator groups.
+	- The total number of validators `V` in the `SessionChangeNotification`'s `validators` may not be evenly divided by `V`.
+	- First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
+	- The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.
+1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
+    - all pruned claims should have their entry removed from the parathread index.
+    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
+    - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
 
 #### Initialization
 
@@ -703,12 +760,26 @@ Actions:
 
 #### Routines
 
-* `add_parathread_claim(ParathreadClaim)`: Add a parathread claim to the queue. Fails if any parathread claim on the same parathread is currently indexed.
-* `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned. All freed parachain cores should be assigned to their respective parachain, and all freed parathread cores should take the next parathread entry from the queue. The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
+* `add_parathread_claim(ParathreadClaim)`: Add a parathread claim to the queue.
+  - Fails if any parathread claim on the same parathread is currently indexed.
+  - Fails if the queue length is >= `config.scheduling_lookahead * config.parathread_cores`.
+  - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
+  - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
+  - The claim is then added to the claim index.
+
+* `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned.
+  - All freed parachain cores should be assigned to their respective parachain
+  - All freed parathread cores should have the claim removed from the claim index.
+  - All freed parathread cores should take the next parathread entry from the queue.
+  - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 * `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
-* `occupied(Vec<CoreIndex>). Note that the given cores have become occupied. This clears them from `Scheduled`. Fails if any given cores were not scheduled.
+* `occupied(Vec<CoreIndex>). Note that the given cores have become occupied.
+  - Fails if any given cores were not scheduled.
+  - Fails if the given cores are not sorted ascending by core index
+  - This clears them from `Scheduled` and marks each corresponding `core` in the `AvailabilityCores` as occupied.
+  - Since both the availability cores and the newly-occupied cores lists are sorted ascending, this method can be implemented efficiently.
 * `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.
-* `group_validators(GroupIndex) -> Vec<ValidatorIndex>`
+* `group_validators(GroupIndex) -> Option<Vec<ValidatorIndex>>`: return all validators in a given group, if the group index is valid for this session.
 * `availability_timeout_predicate() -> Option<impl Fn(CoreIndex, BlockNumber) -> bool>`: returns an optional predicate that should be used for timing out occupied cores. if `None`, no timing-out should be done. The predicate accepts the index of the core, and the block number since which it has been occupied. The predicate should be implemented based on the time since the last validator group rotation, and the respective parachain and parathread timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)` of the last rotation would this return `Some`.
 
 ### The Inclusion Module
@@ -728,11 +799,11 @@ struct AvailabilityBitfield {
 }
 
 struct CandidatePendingAvailability {
-  core: CoreIndex, // execution core
+  core: CoreIndex, // availability core
   receipt: AbridgedCandidateReceipt,
   availability_votes: Bitfield, // one bit per validator.
   relay_parent_number: BlockNumber, // number of the relay-parent.
-  included_in_number: BlockNumber,
+  backed_in_number: BlockNumber,
 }
 ```
 
@@ -756,11 +827,11 @@ PendingAvailability: map ParaId => CandidatePendingAvailability;
 All failed checks should lead to an unrecoverable error making the block invalid.
 
 
-  * `process_bitfields(Bitfields)`:
+  * `process_bitfields(Bitfields, core_lookup: Fn(CoreIndex) -> Option<ParaId>)`:
     1. check that the number of bitfields and bits in each bitfield is correct.
     1. check that there are no duplicates
     1. check all validator signatures.
-    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `Scheduler` module. Disregard bitfields that have a `1` bit for any free cores.
+    1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
     1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
     1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
     1. [TODO] pass it onwards to `Validity` module.
@@ -769,7 +840,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
-    1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a backed candidate was successfully included for.
+    1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
   * `enact_candidate(relay_parent_number: BlockNumber, AbridgedCandidateReceipt)`:
     1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`. [TODO] Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
     1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
@@ -803,7 +874,7 @@ Included: Option<()>,
 #### Entry Points
 
   * `inclusion`: This entry-point accepts two parameters: [`Bitfields`](#Signed-Availability-Bitfield) and [`BackedCandidates`](#Backed-Candidate).
-    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores.
+    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine.
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores.
     1. Invoke `Scheduler::schedule(freed)`
     1. Pass the `BackedCandidates` along with the output of `Scheduler::scheduled` to the `Inclusion::process_candidates` routine, getting a list of all newly-occupied cores.
@@ -915,7 +986,7 @@ Furthermore, the protocols by which subsystems communicate with each other shoul
 
 The Candidate Backing subsystem is engaged in by validators in to contribute to the backing of parachain candidates submitted by other validators.
 
-Its role is to produce backed candidates for inclusion in new relay-chain blocks. It does so by issuing signed [Statements](#Statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
+Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [Statements](#Statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
 
 It also detects double-vote misbehavior by validators as it imports votes, passing on the misbehavior to the correct reporter and handler.
 
@@ -942,14 +1013,14 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
 * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
 
-This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backed, but not included candidates.
+This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backable, but not backed candidates.
 )
 
 #### Candidate Backing Job
 
 The Candidate Backing Job represents the work a node does for backing candidates with respect to a particular relay-parent.
 
-The goal of a Candidate Backing Job is to produce as many backed candidates as possible. This is done via signed [Statements](#Statement-type) by validators. If a candidate receives a majority of supporting Statements from the Parachain Validators currently assigned, then that candidate is considered backed.
+The goal of a Candidate Backing Job is to produce as many backable candidates as possible. This is done via signed [Statements](#Statement-type) by validators. If a candidate receives a majority of supporting Statements from the Parachain Validators currently assigned, then that candidate is considered backable.
 
 *on startup*
 * Fetch current validator set, validator -> parachain assignments from runtime API.
@@ -989,7 +1060,7 @@ Create a `(sender, receiver)` pair.
 Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
 
 *on receiving CandidateBackingSubsystemMessage*
-* If the message is a `CandidateBackingSubsystemMessage::RegisterBackingWatcher`, register the watcher and trigger it each time a new candidate is backed. Also trigger it once initially if there are any backed candidates at the time of receipt.
+* If the message is a `CandidateBackingSubsystemMessage::RegisterBackingWatcher`, register the watcher and trigger it each time a new candidate is backable. Also trigger it once initially if there are any backable candidates at the time of receipt.
 * If the message is a `CandidateBackingSubsystemMessage::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
 
 (TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem)
@@ -1007,7 +1078,7 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 * CandidateCommitments
 * AbridgedCandidateReceipt
 * GlobalValidationSchedule
-* LocalValidationData
+* LocalValidationData (should commit to code hash too?)
 
 #### Block Import Event
 ```rust
@@ -1081,7 +1152,7 @@ enum OverseerSignal {
 
 ```rust
 enum CandidateBackingSubsystemMessage {
-  /// Registers a stream listener for updates to the set of backed candidates that could be included
+  /// Registers a stream listener for updates to the set of backable candidates that could be backed
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
@@ -1107,7 +1178,7 @@ struct HostConfiguration {
   pub max_code_size: u32,
   /// The maximum head-data size, in bytes.
   pub max_head_data_size: u32,
-  /// The amount of execution cores to dedicate to parathread execution.
+  /// The amount of availability cores to dedicate to parathreads.
   pub parathread_cores: u32,
   /// The number of retries that a parathread author has to submit their block.
   pub parathread_retries: u32,
@@ -1120,7 +1191,7 @@ struct HostConfiguration {
   /// The availability period, in blocks, for parathreads. Same as the `chain_availability_period`,
   /// but a differing timeout due to differing requirements. Must be at least 1.
   pub thread_availability_period: BlockNumber,
-  /// The amount of blocks ahead to schedule parachains and parathreads.
+  /// The amount of blocks ahead to schedule parathreads.
   pub scheduling_lookahead: u32,
 }
 ```
@@ -1156,7 +1227,7 @@ enum ValidityAttestation {
 
 #### Backed Candidate
 
-A `CandidateReceipt` along with all data necessary to prove its backing.
+A `CandidateReceipt` along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
 
 ```rust
 struct BackedCandidate {
@@ -1177,8 +1248,9 @@ struct BackedCandidates(Vec<BackedCandidate>); // sorted by para-id.
 Here you can find definitions of a bunch of jargon, usually specific to the Polkadot project.
 
 - BABE: (Blind Assignment for Blockchain Extension). The algorithm validators use to safely extend the Relay Chain. See [the Polkadot wiki][0] for more information.
-- Backed Candidate: A Parachain Candidate which is backed by a majority of validators assigned to a given parachain.
-- Backing: A set of statements proving that a Parachain Candidate is backed.
+- Backable Candidate: A Parachain Candidate which is backed by a majority of validators assigned to a given parachain.
+- Backed Candidate: A Backable Candidate noted in a relay-chain block
+- Backing: A set of statements proving that a Parachain Candidate is backable.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
 - Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
