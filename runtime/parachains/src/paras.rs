@@ -61,24 +61,24 @@ pub struct ReplacementTimes<N> {
 #[derive(Default, Encode, Decode)]
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
-	// Block numbers where the code was expected to be replaced and where the code
-	// was actually replaced, respectively. The first is used to do accurate lookups
-	// of historic code in historic contexts, whereas the second is used to do
-	// pruning on an accurate timeframe. These can be used as indices
-	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
+	/// Block numbers where the code was expected to be replaced and where the code
+	/// was actually replaced, respectively. The first is used to do accurate lookups
+	/// of historic code in historic contexts, whereas the second is used to do
+	/// pruning on an accurate timeframe. These can be used as indices
+	/// into the `PastCode` map along with the `ParaId` to fetch the code itself.
 	upgrade_times: Vec<ReplacementTimes<N>>,
-	// This tracks the highest pruned code-replacement, if any. This is the `expected_at` value,
-	// not the `activated_at` value.
+	/// Tracks the highest pruned code-replacement, if any. This is the `expected_at` value,
+	/// not the `activated_at` value.
 	last_pruned: Option<N>,
 }
 
 #[cfg_attr(test, derive(Debug, PartialEq))]
 enum UseCodeAt<N> {
-	// Use the current code.
+	/// Use the current code.
 	Current,
-	// Use the code that was replaced at the given block number.
-	// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
-	// with number N should use the code that is replaced at N.
+	/// Use the code that was replaced at the given block number.
+	/// This is an inclusive endpoint - a parablock in the context of a relay-chain block on this fork
+	/// with number N should use the code that is replaced at N.
 	ReplacedAt(N),
 }
 
@@ -293,11 +293,8 @@ impl<T: Trait> Module<T> {
 			};
 
 			if genesis_data.parachain {
-				match parachains.binary_search(&upcoming_para) {
-					Ok(_i) => {}
-					Err(i) => {
-						parachains.insert(i, upcoming_para);
-					}
+				if let Err(i) = parachains.binary_search(&upcoming_para) {
+					parachains.insert(i, upcoming_para);
 				}
 			}
 
@@ -462,6 +459,7 @@ impl<T: Trait> Module<T> {
 				let prior_code = CurrentCode::get(&id).unwrap_or_default();
 				CurrentCode::insert(&id, &new_code);
 
+				// `now` is only used for registering pruning as part of `fn note_past_code`
 				let now = <system::Module<T>>::block_number();
 
 				let weight = Self::note_past_code(
