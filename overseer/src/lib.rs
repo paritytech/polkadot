@@ -107,7 +107,7 @@ pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
 // A graceful `Overseer` teardown time delay.
-const STOP_DELAY: u64= 1;
+const STOP_DELAY: u64 = 1;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -287,7 +287,7 @@ impl<M: Debug> SubsystemContext<M> {
 		self.rx.next().await.ok_or(SubsystemError)
 	}
 
-	/// Spawn a child `Subsystem` on the executor and get it's `I`d upon success.
+	/// Spawn a child task on the executor.
 	pub async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
 		let (tx, rx) = oneshot::channel();
 		self.tx.send(ToOverseer::SpawnJob {
@@ -298,7 +298,7 @@ impl<M: Debug> SubsystemContext<M> {
 		rx.await?
 	}
 
-	/// Send a direct message to some other `Subsystem` you know the `I`d of.
+	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.tx.send(ToOverseer::SubsystemMessage(msg)).await?;
 
