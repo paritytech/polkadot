@@ -124,7 +124,8 @@ impl Filter<Call> for IsCallable {
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
-			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
+			Call::Identity(_) =>
 				true,
 		}
 	}
@@ -205,8 +206,8 @@ pub type DealWithFees = SplitTwoWays<
 
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type Event = Event;
 	type DustRemoval = ();
+	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 }
@@ -250,11 +251,6 @@ impl authorship::Trait for Runtime {
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
-}
-
-parameter_types! {
-	pub const Period: BlockNumber = 10 * MINUTES;
-	pub const Offset: BlockNumber = 0;
 }
 
 impl_opaque_keys! {
@@ -335,11 +331,15 @@ impl staking::Trait for Runtime {
 	type MaxIterations = MaxIterations;
 }
 
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+}
+
 parameter_types! {
 	// Minimum 4 CENTS/byte
-	pub const BasicDeposit: Balance = 10 * DOLLARS;       // 258 bytes on-chain
-	pub const FieldDeposit: Balance = 250 * CENTS;        // 66 bytes on-chain
-	pub const SubAccountDeposit: Balance = 2 * DOLLARS;   // 53 bytes on-chain
+	pub const BasicDeposit: Balance = deposit(1, 258);
+	pub const FieldDeposit: Balance = deposit(0, 66);
+	pub const SubAccountDeposit: Balance = deposit(1, 53);
 	pub const MaxSubAccounts: u32 = 100;
 	pub const MaxAdditionalFields: u32 = 100;
 	pub const MaxRegistrars: u32 = 20;
@@ -348,15 +348,15 @@ parameter_types! {
 impl identity::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type Slashed = Treasury;
 	type BasicDeposit = BasicDeposit;
 	type FieldDeposit = FieldDeposit;
 	type SubAccountDeposit = SubAccountDeposit;
 	type MaxSubAccounts = MaxSubAccounts;
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
-	type RegistrarOrigin = frame_system::EnsureRoot;
-	type ForceOrigin = frame_system::EnsureRoot;
+	type Slashed = Treasury;
+	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -400,10 +400,10 @@ impl democracy::Trait for Runtime {
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
+	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type MaxVotes = MaxVotes;
-	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -435,6 +435,7 @@ const_assert!(DesiredMembers::get() <= collective::MAX_MEMBERS);
 
 impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
+	type ModuleId = ElectionsPhragmenModuleId;
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
@@ -447,7 +448,6 @@ impl elections_phragmen::Trait for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
-	type ModuleId = ElectionsPhragmenModuleId;
 }
 
 parameter_types! {
@@ -489,6 +489,7 @@ parameter_types! {
 }
 
 impl treasury::Trait for Runtime {
+	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
 	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
@@ -503,7 +504,6 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
-	type ModuleId = TreasuryModuleId;
 }
 
 parameter_types! {
@@ -540,8 +540,6 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 
-	type KeyOwnerProofSystem = Historical;
-
 	type KeyOwnerProof =
 		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
@@ -549,6 +547,8 @@ impl grandpa::Trait for Runtime {
 		KeyTypeId,
 		GrandpaId,
 	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = Historical;
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
 		Self::KeyOwnerIdentification,
@@ -664,11 +664,9 @@ impl system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
-	Call: From<C>,
-{
-	type OverarchingCall = Call;
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where Call: From<C> {
 	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
 }
 
 parameter_types! {
@@ -803,7 +801,7 @@ construct_runtime! {
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
 
 		// Identity. Late addition.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
+		Identity: identity::{Module, Call, Storage, Event<T>},
 	}
 }
 
