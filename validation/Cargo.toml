@@ -34,8 +34,8 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-proposer-metrics = { git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
