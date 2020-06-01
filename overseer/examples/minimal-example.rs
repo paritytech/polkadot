@@ -114,7 +114,7 @@ fn main() {
 			Box::new(Subsystem2),
 			Box::new(Subsystem1),
 			spawner,
-		);
+		).unwrap();
 		let overseer_fut = overseer.run().fuse();
 		let timer_stream = timer_stream;
 
