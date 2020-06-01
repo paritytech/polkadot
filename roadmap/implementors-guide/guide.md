@@ -12,12 +12,21 @@ There are a number of other documents describing the research in more detail. Al
 * [Architecture](#Architecture)
   * [Node-side](#Architecture-Node-side)
   * [Runtime](#Architecture-Runtime)
-* [Subsystems](#Subsystems)
+* [Architecture: Runtime](#Architecture-Runtime)
+  * [Broad Strokes](#Broad-Strokes)
+  * [Initializer](#The-Initializer-Module)
+  * [Configuration](#The-Configuration-Module)
+  * [Paras](#The-Paras-Module)
+  * [Scheduler](#The-Scheduler-Module)
+  * [Inclusion](#The-Inclusion-Module)
+  * [InclusionInherent](#The-InclusionInherent-Module)
+  * [Validity](#The-Validity-Module)
+* [Architecture: Node-side](#Architecture-Node-Side)
+  * [Subsystems](#Subsystems-and-Jobs)
   * [Overseer](#Overseer)
   * [Candidate Backing](#Candidate-Backing-Subsystem)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
-
 
 ## Origins
 
@@ -254,102 +263,11 @@ These two aspects of the implementation are heavily dependent on each other. The
 
 ---
 
-### Architecture: Node-side
+## Architecture: Runtime
 
-**Design Goals**
+### Broad Strokes
 
-* Modularity: Components of the system should be as self-contained as possible. Communication boundaries between components should be well-defined and mockable. This is key to creating testable, easily reviewable code.
-* Minimizing side effects: Components of the system should aim to minimize side effects and to communicate with other components via message-passing.
-* Operational Safety: The software will be managing signing keys where conflicting messages can lead to large amounts of value to be slashed. Care should be taken to ensure that no messages are signed incorrectly or in conflict with each other.
-
-The architecture of the node-side behavior aims to embody the Rust principles of ownership and message-passing to create clean, isolatable code. Each resource should have a single owner, with minimal sharing where unavoidable.
-
-Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
-
-We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the [Subsystems](#Subsystems) section.
-
----
-
-### Architecture: Runtime
-
-(TODO: The best architecture at this time is unclear. This is a start by setting down the requirements of the runtime and then trying to come up with an architecture that encompasses all of them. Pretty messy right now and will be cleaned up as the architecture emerges).
-
-There are three key points during the execution of a block that we are generally interested in:
-  * initialization: beginning the block and doing set up works. Runtime APIs draw information from the state directly after initialization.
-  * during the block; most importantly inclusion of new parachain information
-  * finalization: final checks and clean-up work before completing the block.
-
-In order to import parachains, handle misbehavior reports, and keep data accessible, we need to keep this data in the storage/state:
-  * All currently registered parachains.
-  * All currently registered parathreads.
-  * The head of each registered parachain or parathread.
-  * The validation code of each registered parachain or parathread.
-  * Historical validation code for each registered parachain or parathread.
-  * Historical, but not yet expired validation code for paras that were previously registered but are now not. (old code must remain available so secondary checkers can check after-the-fact yadda yadda in this case we do that by keeping it in the runtime state.)
-  * Configuration: number of parathread cores, number of parachain slots. Length of scheduled parathread "lookahead". Length of parachain slashing period. How long to keep old validation code for. etc.
-  * Historical data for validators sets at least [TODO: how many?] blocks into the past. Used when reporting equivocations to prove that the validator at question actually belonged to the validator set at the time the equivocation was commited.
-
-This information should not change at any point between block initialization and inclusion of new parachain information. The reason for that is that the inclusion of new parachain information will be checked against these values in the storage, but the new parachain information is produced by Node-side subsystems which draw information from Runtime APIs. Runtime APIs execute on top of the state directly after the initialization, so a divergence from that state would lead to validators producing unacceptable inputs.
-
-In the Substrate implementation, we may also have to worry about state changing due to other modules invoking `Call`s that change storage during initialization, but after the point at which parachain-specific modules run their initialization procedures. This could cause problems: parachain-specific modules could compute scheduling, parachain assignments, etc. during its initialization procedure, which would then become inconsistent afterwards. Other modules that might realistically cause such race conditions are Governance modules (which execute arbitrary `Call`s, or the `Scheduler` module). This implies that the runtime design should ensure that no racy entry points can affect storage that is used during parachain-specific module initialization. One way to accomplish this is to separate active storage items from pending storage updates. Other modules can add pending updates, but only the initialization or finalization logic can apply those to the active state. (of course, governance can reach in and break anything by mangling storage, but this is more about exposing a preventative API than a bulletproof one). One alternative is to ensure that all configuration is presented only as constants, which requires a full runtime upgrade to alter and as such does not suffer from these race conditions.
-
-Here is an attempted-exhaustive list of tasks the runtime is expected to carry out in each phase.
-
-initialization:
-  * accept new registrations of parachains and parathreads. Probably best to do this only once a session to avoid bitfield schemas shifting often (see details on availability bitfields below)
-  * determine scheduled parachains and parathreads for the upcoming block or blocks.
-  * determine validator assignments to scheduled paras for the upcoming block or blocks.
-  * remove blocks which have been pending availability for too long. this is tightly coupled with scheduling.
-  * handle the start of a new session - discard all candidates pending availability and note the upcoming validator set.
-  * apply calls from upward messages - messages from parachains to the relay chain.
-
-during the block:
-  * Receive availability bitfields and move candidates from a pending availability to included state. See subsection below
-  * Receive new backed candidates to target for availability. See subsection below.
-  * Receive updates to configuration.
-
-process availability bitfields:
-  * We will accept an optional signed bitfield from each validator in each block.
-  * We need to check the signature and length of the bitfield for validity.
-  * We will keep the most recent bitfield for each validator in the session. Each bit corresponds to a particular parachain candidate pending availability. Parachains are scheduled on every block, so we can assign a bit to each one of those. Parathreads are not scheduled on every block, and there may be a lot of them, so we probably don't want a dedicated bit in the bitfield for those. Since we want an upper bound on the number of parathreads we have scheduled or pending availability, a concept of "availability cores" used in scheduling (TODO) should be reusable here - have a dedicated bit in the bitfield for each core, and each core will be assigned to a different parathread over time.
-  * Bits that are set to `true` denote candidate pending availability which are believed by this validator to be available.
-  * Candidates that are pending availability and have the corresponding bit set in 2/3 of validators' bitfields (only counting those submitted after the candidate was included, since some validators may not have submitted bitfields in some time) are considered available and are then moved into the "pending approval" state.
-  * Candidates that have just become available should apply any pending code upgrades based on the relay-parent they are targeting and should schedule any upcoming pending code upgrades.
-
-candidates entering the "pending approval" state:
-  * Apply fees (TODO: not sure if fees are actually used, we don't seem to need 'em for XCMP)
-  * Apply pending code upgrade, if any.
-  * Schedule a new pending code upgrade if the candidate specifies any. (there is a race condition here: part of the configuration is "how long should it take before pending code changes are applied". This value is computed based on the relay-parent that was used at the point when the candidate was about to be included in the relay chain. This is potentially a few blocks later than that, as it can take some time for a candidate to become fully available. We need to ensure that the code upgrade is scheduled with the same delay as was expected when the code upgrade was signaled. The easiest thing to do is to make sure the `pending_code_delay` is passed through the entire availability pipeline).
-  * Schedule Upwards messages - messages from the parachain to the relay chain.
-
-process new backable candidates:
-  * ensure that only one candidate is backed for each parachain or parathread
-  * ensure that the parachain or parathread of the candidate was scheduled and does not currently have a block pending availability.
-  * check the backing of the candidate.
-  * move to "pending approval" state. (pass along any configuration information that is liable to change)
-
-misbehavior reports and secondary checks:
-  * Secondary checks will also be submitted within the block. This may lead to slashing as a secondary check period ends. We want to catch and punish for the cases of misbehavior that violate the protocol and put its security at risk. One of such cases is submitting conflicting votes on the same `CandidateReceipt`.Other examples include violations to AnV protocol or equivocations in finality. Misbehavior handling is implemented in
-    * Runtime as an entry point.
-    * Code in the Node that assists submitting misbehavior reports.
-
-finalization: (not finality)
-  * ensure that required updates (bitfields and backed candidates) occurred within the block.
-  * update scheduling metadata based on parachains that had blocks included or not. for instance, parathreads where the auction-winning collator didn't get a chance to include its block should be allowed to retry a couple of times.
-
-Availability bitfields must go in before parachain candidates, otherwise there would be a minimum of 1 relay chain block between blocks of the same parachain. As such, it's best for them to go into the same extrinsic.
-
-Parachains and Parathreads behave exactly the same except with respect to how they are scheduled. Parathreads are scheduled dynamically in a pay-as-you-go sense, with auctions. The winner of the auction (a collator) gets multiple opportunities to include its block. Parachains are scheduled on every block.
-
------
-
-## Runtime Architecture: A Proposal
-
-[TODO: Figure out what to do with the previous section - there's a lot of useful information. A lot of info might be beyond the scope of the document, but is still useful. Figure out which research resources we can link to and which points are new to this doc. some race condition concerns were never written down before]
-
-It's clear that we want to separate different aspects of the runtime logic into different modules.
-
-Reiterating from the [Architecture](#Architecture) section, Modules define their own storage, routines, and entry-points. They also define initialization and finalization logic.
+It's clear that we want to separate different aspects of the runtime logic into different modules. Modules define their own storage, routines, and entry-points. They also define initialization and finalization logic.
 
 Due to the (lack of) guarantees provided by a particular blockchain-runtime framework, there is no defined or dependable order in which modules' initialization or finalization logic will run. Supporting this blockchain-runtime framework is important enough to include that same uncertainty in our model of runtime modules in this guide. Furthermore, initialization logic of modules can trigger the entry-points or routines of other modules. This is one architectural pressure against dividing the runtime logic into multiple modules. However, in this case the benefits of splitting things up outweigh the costs, provided that we take certain precautions against initialization and entry-point races.
 
@@ -377,7 +295,6 @@ There are 3 main ways that we can handle this issue:
   1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change.
   2. Require that session change notifications always occur before initialization. Brick the chain if session change notifications ever happen after initialization.
   3. Handle both the before and after cases.
-
 
 Although option 3 is the most comprehensive, it runs counter to our goal of simplicity. Option 1 means requiring the runtime to do redundant work at all sessions and will also mean, like option 3, that designing things in such a way that initialization can be rolled back and reapplied under the new environment. That leaves option 2, although it is a "nuclear" option in a way and requires us to constrain the parachain host to only run in full runtimes with a certain order of operations.
 
@@ -887,7 +804,19 @@ Included: Option<()>,
 
 ----
 
-## Subsystems
+## Architecture: Node-side
+
+**Design Goals**
+
+* Modularity: Components of the system should be as self-contained as possible. Communication boundaries between components should be well-defined and mockable. This is key to creating testable, easily reviewable code.
+* Minimizing side effects: Components of the system should aim to minimize side effects and to communicate with other components via message-passing.
+* Operational Safety: The software will be managing signing keys where conflicting messages can lead to large amounts of value to be slashed. Care should be taken to ensure that no messages are signed incorrectly or in conflict with each other.
+
+The architecture of the node-side behavior aims to embody the Rust principles of ownership and message-passing to create clean, isolatable code. Each resource should have a single owner, with minimal sharing where unavoidable.
+
+Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
+
+We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
 
 ### Subsystems and Jobs
 
