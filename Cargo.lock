@@ -3308,6 +3308,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "log 0.4.8",
+ "polkadot-primitives",
  "streamunordered",
 ]
 
