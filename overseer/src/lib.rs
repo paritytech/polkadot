@@ -469,7 +469,7 @@ where
 	/// # fn main() { executor::block_on(async move {
 	/// let spawner = executor::ThreadPool::new().unwrap();
 	/// let (overseer, _handler) = Overseer::new(
-	///     &[],
+	///     vec![],
 	///     Box::new(ValidationSubsystem),
 	///     Box::new(CandidateBackingSubsystem),
 	///     spawner,
@@ -519,9 +519,7 @@ where
 
 		let active_leaves = HashSet::new();
 
-		let mut v = Vec::new();
-		v.extend_from_slice(leaves);
-		let leaves = v;
+		let leaves = leaves.into();
 
 		let this = Self {
 			validation_subsystem,
@@ -764,7 +762,7 @@ mod tests {
 			let (s2_tx, mut s2_rx) = mpsc::channel(64);
 
 			let (overseer, mut handler) = Overseer::new(
-				&[],
+				vec![],
 				Box::new(TestSubsystem1(s1_tx)),
 				Box::new(TestSubsystem2(s2_tx)),
 				spawner,
@@ -814,7 +812,7 @@ mod tests {
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
 			let (overseer, _handle) = Overseer::new(
-				&[],
+				vec![],
 				Box::new(TestSubsystem1(s1_tx)),
 				Box::new(TestSubsystem4),
 				spawner,
@@ -892,7 +890,7 @@ mod tests {
 			let (tx_6, mut rx_6) = mpsc::channel(64);
 
 			let (overseer, mut handler) = Overseer::new(
-				&[first_block_hash],
+				vec![first_block_hash],
 				Box::new(TestSubsystem5(tx_5)),
 				Box::new(TestSubsystem6(tx_6)),
 				spawner,
