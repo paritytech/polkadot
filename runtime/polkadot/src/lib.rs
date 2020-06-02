@@ -306,7 +306,8 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
-	pub const MaxIterations: u32 = 5;
+	pub const MaxIterations: u32 = 10;
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 impl staking::Trait for Runtime {
@@ -330,6 +331,7 @@ impl staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type MinSolutionScoreBump = MinSolutionScoreBump;
 }
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
