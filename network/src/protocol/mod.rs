@@ -66,7 +66,8 @@ pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/1";
 
 pub use crate::legacy::gossip::ChainContext;
 
-pub mod tests;
+#[cfg(test)]
+mod tests;
 
 // Messages from the service API or network adapter.
 enum ServiceToWorkerMsg {
@@ -118,6 +119,7 @@ enum ServiceToWorkerMsg {
 	/// Used in tests to ensure that all other messages sent from the same
 	/// thread have been flushed. Also executes arbitrary logic with the protocl
 	/// handler.
+	#[cfg(test)]
 	Synchronize(Box<dyn FnOnce(&mut ProtocolHandler) + Send>),
 }
 
@@ -1006,6 +1008,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 
 				let _ = sender.send(checked_messages);
 			}
+			#[cfg(test)]
 			ServiceToWorkerMsg::Synchronize(callback) => {
 				(callback)(&mut self.protocol_handler)
 			}
