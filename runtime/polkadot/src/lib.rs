@@ -36,7 +36,7 @@ use primitives::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
 	transaction_validity::{
 		TransactionValidity, TransactionSource, TransactionPriority,
 	},
@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 0,
+	spec_version: 2,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 0,
@@ -124,7 +124,8 @@ impl Filter<Call> for IsCallable {
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
-			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) =>
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
+			Call::Identity(_) =>
 				true,
 		}
 	}
@@ -205,17 +206,23 @@ pub type DealWithFees = SplitTwoWays<
 
 impl balances::Trait for Runtime {
 	type Balance = Balance;
-	type Event = Event;
 	type DustRemoval = ();
+	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 }
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	// for a sane configuration, this should always be less than `AvailableBlockRatio`.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
+
+// for a sane configuration, this should always be less than `AvailableBlockRatio`.
+const_assert!(
+	TargetBlockFullness::get().deconstruct() <
+	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
+		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
+);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
@@ -244,11 +251,6 @@ impl authorship::Trait for Runtime {
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
-}
-
-parameter_types! {
-	pub const Period: BlockNumber = 10 * MINUTES;
-	pub const Offset: BlockNumber = 0;
 }
 
 impl_opaque_keys! {
@@ -329,6 +331,34 @@ impl staking::Trait for Runtime {
 	type MaxIterations = MaxIterations;
 }
 
+const fn deposit(items: u32, bytes: u32) -> Balance {
+	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
+}
+
+parameter_types! {
+	// Minimum 4 CENTS/byte
+	pub const BasicDeposit: Balance = deposit(1, 258);
+	pub const FieldDeposit: Balance = deposit(0, 66);
+	pub const SubAccountDeposit: Balance = deposit(1, 53);
+	pub const MaxSubAccounts: u32 = 100;
+	pub const MaxAdditionalFields: u32 = 100;
+	pub const MaxRegistrars: u32 = 20;
+}
+
+impl identity::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type BasicDeposit = BasicDeposit;
+	type FieldDeposit = FieldDeposit;
+	type SubAccountDeposit = SubAccountDeposit;
+	type MaxSubAccounts = MaxSubAccounts;
+	type MaxAdditionalFields = MaxAdditionalFields;
+	type MaxRegistrars = MaxRegistrars;
+	type Slashed = Treasury;
+	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+}
+
 parameter_types! {
 	pub const LaunchPeriod: BlockNumber = 28 * DAYS;
 	pub const VotingPeriod: BlockNumber = 28 * DAYS;
@@ -370,10 +400,10 @@ impl democracy::Trait for Runtime {
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
+	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type MaxVotes = MaxVotes;
-	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -390,22 +420,22 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 }
 
-const DESIRED_MEMBERS: u32 = 13;
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
 	/// Weekly council elections initially, later monthly.
 	pub const TermDuration: BlockNumber = 7 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
-	pub const DesiredMembers: u32 = DESIRED_MEMBERS;
+	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than MAX_MEMBERS members elected via phragmen.
-const_assert!(DESIRED_MEMBERS <= collective::MAX_MEMBERS);
+const_assert!(DesiredMembers::get() <= collective::MAX_MEMBERS);
 
 impl elections_phragmen::Trait for Runtime {
 	type Event = Event;
+	type ModuleId = ElectionsPhragmenModuleId;
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
@@ -418,7 +448,6 @@ impl elections_phragmen::Trait for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
-	type ModuleId = ElectionsPhragmenModuleId;
 }
 
 parameter_types! {
@@ -460,6 +489,7 @@ parameter_types! {
 }
 
 impl treasury::Trait for Runtime {
+	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
 	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
 	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
@@ -474,11 +504,10 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
-	type ModuleId = TreasuryModuleId;
 }
 
 parameter_types! {
-	pub const OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 }
 
 impl offences::Trait for Runtime {
@@ -511,8 +540,6 @@ impl grandpa::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 
-	type KeyOwnerProofSystem = Historical;
-
 	type KeyOwnerProof =
 		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
@@ -520,6 +547,8 @@ impl grandpa::Trait for Runtime {
 		KeyTypeId,
 		GrandpaId,
 	)>>::IdentificationTuple;
+
+	type KeyOwnerProofSystem = Historical;
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
 		Self::KeyOwnerIdentification,
@@ -530,8 +559,8 @@ impl grandpa::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub const ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
+	pub WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
+	pub ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
 }
 
 impl finality_tracker::Trait for Runtime {
@@ -635,11 +664,9 @@ impl system::offchain::SigningTypes for Runtime {
 	type Signature = Signature;
 }
 
-impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
-	Call: From<C>,
-{
-	type OverarchingCall = Call;
+impl<C> system::offchain::SendTransactionTypes<C> for Runtime where Call: From<C> {
 	type Extrinsic = UncheckedExtrinsic;
+	type OverarchingCall = Call;
 }
 
 parameter_types! {
@@ -673,7 +700,7 @@ impl slots::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
+	pub Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
 impl claims::Trait for Runtime {
@@ -772,6 +799,9 @@ construct_runtime! {
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
+
+		// Identity. Late addition.
+		Identity: identity::{Module, Call, Storage, Event<T>},
 	}
 }
 
