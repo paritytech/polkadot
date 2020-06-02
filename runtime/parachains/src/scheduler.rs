@@ -47,7 +47,7 @@ use frame_support::{
 use codec::{Encode, Decode};
 use system::ensure_root;
 
-use crate::{configuration, paras};
+use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// The unique (during session) index of a core.
 #[derive(Encode, Decode, Default)]
@@ -147,8 +147,14 @@ impl<T: Trait> Module<T> {
 	 }
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(validators: &[ValidatorId], _queued: &[ValidatorId]) {
-		let config = <configuration::Module<T>>::config();
+	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		let &SessionChangeNotification {
+			ref validators,
+			ref random_seed,
+			ref new_config,
+			..
+		} = notification;
+		let config = new_config;
 
 		let mut thread_queue = ParathreadQueue::get();
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;

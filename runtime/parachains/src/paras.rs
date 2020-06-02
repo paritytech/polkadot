@@ -35,7 +35,7 @@ use frame_support::{
 	weights::Weight,
 };
 use codec::{Encode, Decode};
-use crate::configuration;
+use crate::{configuration, initializer::SessionChangeNotification};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -253,7 +253,7 @@ impl<T: Trait> Module<T> {
 	pub(crate) fn initializer_finalize() { }
 
 	/// Called by the initializer to note that a new session has started.
-	pub(crate) fn initializer_on_new_session(_validators: &[ValidatorId], _queued: &[ValidatorId]) {
+	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
 		let now = <system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);

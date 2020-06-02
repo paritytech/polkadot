@@ -33,7 +33,7 @@ use system::ensure_root;
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default)]
 #[cfg_attr(test, derive(Debug))]
-pub struct HostConfiguration<BlockNumber: Default> {
+pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
