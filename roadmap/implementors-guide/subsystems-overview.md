@@ -98,8 +98,8 @@ Once a Proof of Validity is available for a parachain block candidate, both are 
 Let's follow a parachain candidate through the system. This follows the happy path, but we'll note exit points along the way.
 
 - Collator (external to this system)
-- Overseer
+- Overseer: the overseer receives the message as the central message bus and point of contract to the outside world.
 - Candidate Selection: every parachain validator can choose at most 1 candidate to back, so potentially many are discarded.
 - Candidate Backing
 - Statement Distribution: if there's disagreement about a candidate's validity, things move to misbehavior arbitration.
-- Overseer: a quorum of validators unanimously agrees about this candidate's validity.
+- Overseer: a quorum of validators unanimously agrees about this candidate's validity. Note: the overseer is not the terminal destination of the candidate at this point; instead, the overseer is responsible for handing it off to a separate module for block authorship.
