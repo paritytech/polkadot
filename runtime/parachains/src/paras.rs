@@ -536,7 +536,7 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&[], &[]);
+				Paras::initializer_on_new_session(&Default::default());
 			}
 			Paras::initializer_initialize(b + 1);
 		}

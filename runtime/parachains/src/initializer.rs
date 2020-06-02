@@ -30,6 +30,7 @@ use frame_support::{
 use crate::{configuration::{self, HostConfiguration}, paras};
 
 /// Information about a session change that has just occurred.
+#[derive(Default, Clone)]
 pub struct SessionChangeNotification<BlockNumber> {
 	/// The new validators in the session.
 	pub validators: Vec<ValidatorId>,
