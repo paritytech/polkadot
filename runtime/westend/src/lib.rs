@@ -59,7 +59,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use frame_utils::SignedExtensionProvider;
+use frame_utils::{SignedExtensionProvider, IndexFor};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -73,6 +73,8 @@ pub use parachains::Call as ParachainsCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
+use sp_runtime::generic::Era;
+use sp_runtime::traits::SignedExtension;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -423,32 +425,30 @@ impl parachains::Trait for Runtime {
 impl frame_utils::SignedExtensionProvider for Runtime {
 	type Extra = SignedExtra;
 
-	fn construct_extras(nonce: frame_utils::IndexFor<Self>) -> Self::Extra {
-		// take the biggest period possible.
-		let period = BlockHashCount::get()
-			.checked_next_power_of_two()
-			.map(|c| c / 2)
-			.unwrap_or(2) as u64;
-
-		let current_block = System::block_number()
-			.saturated_into::<u64>()
-			// The `System::block_number` is initialized with `n+1`,
-			// so the actual block number is `n`.
-			.saturating_sub(1);
+	fn construct_extras(nonce: IndexFor<Self>, era: Era, genesis: Option<Self::Hash>) -> (
+		Self::Extra,
+		Option<<Self::Extra as SignedExtension>::AdditionalSigned>
+	) {
 		let tip = 0;
-		(
+		let extra = (
 			TransactionCallFilter::<IsCallable, Call>::new(),
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
-			system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			system::CheckEra::<Runtime>::from(era),
 			system::CheckNonce::<Runtime>::from(nonce),
 			system::CheckWeight::<Runtime>::new(),
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			grandpa::ValidateEquivocationReport::<Runtime>::new(),
-		)
+		);
+		// if the genesis hash is supplied, we can manually provide the additional signed data.
+		let additional = genesis.map(|genesis| {
+			((), VERSION.spec_version, VERSION.transaction_version, genesis, genesis, (), (), (), (), (), ())
+		});
+
+		(extra, additional)
 	}
 }
 
@@ -463,7 +463,19 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 		account: AccountId,
 		nonce: <Runtime as system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
-		let extra = Runtime::construct_extras(nonce);
+		// take the biggest period possible.
+		let period = BlockHashCount::get()
+			.checked_next_power_of_two()
+			.map(|c| c / 2)
+			.unwrap_or(2) as u64;
+
+		let current_block = System::block_number()
+			.saturated_into::<u64>()
+			// The `System::block_number` is initialized with `n+1`,
+			// so the actual block number is `n`.
+			.saturating_sub(1);
+		let era = Era::mortal(period, current_block);
+		let (extra, _) = Runtime::construct_extras(nonce, era, None);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
