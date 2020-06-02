@@ -30,8 +30,8 @@ echo '[+] Checking tag has been signed'
 #esac
 
 # Pull rustc version used by rust-builder for stable and nightly
-stable_rustc="$(podman run -ti parity/rust-builder:latest rustc +stable --version)"
-nightly_rustc="$(podman run -ti parity/rust-builder:latest rustc +nightly --version)"
+stable_rustc="$(docker run -ti parity/rust-builder:latest rustc +stable --version)"
+nightly_rustc="$(docker run -ti parity/rust-builder:latest rustc +nightly --version)"
 
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
