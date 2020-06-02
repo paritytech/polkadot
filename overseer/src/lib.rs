@@ -489,7 +489,7 @@ where
 	/// # }); }
 	/// ```
 	pub fn new(
-		leaves: &[Hash],
+		leaves: impl Into<Vec<Hash>>,
 		validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
 		candidate_backing: Box<dyn Subsystem<CandidateBackingSubsystemMessage> + Send>,
 		mut s: S,
@@ -564,7 +564,7 @@ where
 
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
-		let leaves = std::mem::replace(&mut self.leaves, vec![]);
+		let leaves = std::mem::take(&mut self.leaves);
 
 		for leaf in leaves.into_iter() {
 			self.broadcast_signal(OverseerSignal::StartWork(leaf)).await?;
