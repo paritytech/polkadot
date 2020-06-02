@@ -12,8 +12,9 @@ echo "[+] Cloning substrate to generate list of changes"
 git clone $substrate_repo $substrate_dir
 echo "[+] Finished cloning substrate into $substrate_dir"
 
-version="$CI_COMMIT_TAG"
-last_version=$(git tag -l | sort -V | grep -B 1 -x "$CI_COMMIT_TAG" | head -n 1)
+# TODO: Undo before opening PR (replace CI_COMMIT_SHA with CI_COMMIT_TAG)
+version="$CI_COMMIT_SHA"
+last_version=$(git tag -l | sort -V | grep -B 1 -x "$CI_COMMIT_SHA" | head -n 1)
 echo "[+] Version: $version; Previous version: $last_version"
 
 # Check that a signed tag exists on github for this version
@@ -26,6 +27,13 @@ case $? in
     ;;
   2) echo '[!] Tag not found. Aborting release.'; exit 1
 esac
+
+# Pull rustc version used by rust-builder
+stable_rustc="$(docker run -ti parity/rust-builder:latest \
+  'rustup default stable > /dev/null 2>&1; rustc --version')"
+
+nightly_rustc="$(docker run -ti parity/rust-builder:latest \
+  'rustup default nightly > /dev/null 2>&1; rustc --version')"
 
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
@@ -41,6 +49,10 @@ release_text="Polkadot native runtime: $polkadot_spec
 Kusama native runtime: $kusama_spec
 
 Westend native runtime: $westend_spec
+
+Building this project requires the following rustc versions to be installed:
+- $stable_rustc
+- $nightly_rustc
 "
 
 runtime_changes=""
@@ -146,6 +158,9 @@ fi
 
 echo "[+] Release text generated: "
 echo "$release_text"
+
+# TODO: Undo before opening PR
+exit
 
 echo "[+] Pushing release to github"
 # Create release on github
