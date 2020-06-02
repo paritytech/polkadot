@@ -913,15 +913,17 @@ Furthermore, the protocols by which subsystems communicate with each other shoul
 
 #### Description
 
-The Candidate Backing subsystem ensures at least one preliminary validator commits to each parablock's correctness. Parablocks for which no validator will assert correctness are discarded. If the block later proves invalid, the initial backers are slashable; this gives polkadot a rational threat model during subsequent stages.
+The Candidate Backing subsystem is engaged in by validators in to contribute to the backing of parachain candidates submitted by other validators.
 
 Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [Statements](#Statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
 
+It also detects double-vote misbehavior by validators as it imports votes, passing on the misbehavior to the correct reporter and handler.
+
+When run as a validator, this is the subsystem which actually validates incoming candidates.
+
 #### Protocol
 
-The **Candidate Selection** subsystem is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingSubsystemMessage`s](#Candidate-Backing-Subsystem-Message), and passes them to this subsystem.
-
-This subsystem validates the candidates and generates an appropriate `Statement`. All `Statement`s are then passed on to the **Statement Distribution** subsystem to be gossiped to peers. Instances of `Statement::Invalid` are also passed back to the Candidate Selection subsystem, so it can take action against the originator of the candidate. To reduce traffic, we do not send valid `Statement`s back to the Candidate Selection subsystem.
+This subsystem receives messages of the type [CandidateBackingSubsystemMessage](#Candidate-Backing-Subsystem-Message).
 
 #### Functionality
 
@@ -992,44 +994,9 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 (TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem)
 
-### Candidate Selection Subsystem
-
-#### Description
-
-The Candidate Selection subsystem monitors net traffic for two events:
-
-- a new parablock candidate is available
-- a peer has seconded a parablock candidate
-
-This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
-
-New parablock candidates may arrive from a potentially unbounded set of collators. This subsystem chooses either 0 or 1 of them per relay parent to second. If it chooses to second a candidate, it sends an apropriate message to the **Candidate Backing** subsystem to generate an appropriate `Statement`.
-
-All parablocks which peers have seconded are also sent to the Candidate Backing subsystem for re-validation.
-As seconded peers are tallied, double-votes are detected. If found, a report is sent to the **Misbehavior Arbitration** subsystem.
-
-In the event that a parablock candidate proves invalid, this subsystem will receive a message back from the Candidate Backing subsystem indicating so. If that parablock candidate originated from a collator, this subsystem will blacklist that collator. If that parablock candidate originated from a peer, this subsystem generates a report for the **Misbehavior Arbitration** subsystem.
-
-
-TODO: more details, protocol, etc
-
-### Misbehavior Arbitration Subsystem
-
-#### Description
-
-The Misbehavior Arbitration system collects reports of validator misbehavior, and slashes the stake of both misbehaving validator nodes and false accusers.
-
-#### TODOs
-
-- threshold of reports for deciding that a validator has misbehaved
-- threshold of reports for deciding that an accusation was false
-- what to do if there are enough reports to pass the first threshold, but not enough for the second
-- time period over which to collect reports
-- detailed protocol
-
 ---
 
-[TODO: subsystems for gathering data necessary for block authorship, for networking, etc.]
+[TODO: subsystems for gathering data necessary for block authorship, for networking, for misbehavior reporting, etc.]
 
 ----
 
@@ -1119,10 +1086,7 @@ enum CandidateBackingSubsystemMessage {
   RegisterBackingWatcher(Hash, TODO),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated.
-  Second(Hash, CandidateReceipt),
-  /// The only difference between the `Validate` and `Second` variants is which `Statement` variant
-  /// is returned when the candidate is valid.
-  Validate(Hash, CandidateRecipet),
+  Second(Hash, CandidateReceipt)
 }
 ```
 
