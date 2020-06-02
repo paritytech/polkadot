@@ -1,4 +1,4 @@
-# Subsystems Overview
+# Validity Subsystems Overview
 
 These subsystems comprise the Validity module. All detailed documentation lives within the guide; this document simply attempts to enumerate and briefly describe each subsystem and the map of their communications.
 
