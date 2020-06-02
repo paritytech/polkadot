@@ -82,7 +82,7 @@ Note that the candidate can fail to be included in any of the following ways:
 
 This process can be divided further down. Steps 2 & 3 relate to the work of the collator in collating and distributing the candidate to validators via the Collation Distribution Subsystem. Steps 3 & 4 relate to the work of the validators in the Candidate Backing Subsystem and the block author (itself a validator) to include the block into the relay chain. Steps 6, 7, and 8 correspond to the logic of the relay-chain state-machine (otherwise known as the Runtime) used to fully incorporate the block into the chain. Step 7 requires further work on the validators' parts to participate in the Availability Distribution Subsystem and include that information into the relay chain for step 8 to be fully realized.
 
-This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that secondary checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
+This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that (secondary) approval checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
 
 The Approval Process looks like this:
 1. Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.
@@ -883,7 +883,7 @@ Included: Option<()>,
 
 ### The Validity Module
 
-After a backed candidate is made available, it is included and proceeds into an acceptance period during which validators are randomly selected to do secondary checks of the parablock. Any reports disputing the validity of the candidate will cause escalation, where even more validators are requested to check the block, and so on, until either the parablock is determined to be invalid or valid. Those on the wrong side of the dispute are slashed and, if the parablock is deemed invalid, the relay chain is rolled back to a point before that block was included.
+After a backed candidate is made available, it is included and proceeds into an acceptance period during which validators are randomly selected to do (secondary) approval checks of the parablock. Any reports disputing the validity of the candidate will cause escalation, where even more validators are requested to check the block, and so on, until either the parablock is determined to be invalid or valid. Those on the wrong side of the dispute are slashed and, if the parablock is deemed invalid, the relay chain is rolled back to a point before that block was included.
 
 However, this isn't the end of the story. We are working in a forkful blockchain environment, which carries three important considerations:
   1. For security, validators that misbehave shouldn't only be slashed on one fork, but on all possible forks. Validators that misbehave shouldn't be able to create a new fork of the chain when caught and get away with their misbehavior.
@@ -916,7 +916,7 @@ Validators self-select based on the BABE VRF output included by the block author
 
 When a dispute has occurred on another fork, we need to transplant that dispute to every other fork. This poses some major challenges.
 
-There are two types of remote disputes. The first is a remote roll-up of a concluded dispute. These are simply all attestations for the block, those against it, and the result of all secondary checks. A concluded remote dispute can be resolved in a single transaction as it is an open-and-shut case of a quorum of validators disagreeing with another.
+There are two types of remote disputes. The first is a remote roll-up of a concluded dispute. These are simply all attestations for the block, those against it, and the result of all (secondary) approval checks. A concluded remote dispute can be resolved in a single transaction as it is an open-and-shut case of a quorum of validators disagreeing with another.
 
 The second type of remote dispute is the unconcluded dispute. An unconcluded remote dispute is started by any validator, using these things:
   - A candidate
@@ -935,7 +935,7 @@ As with local disputes, the validators of the session the candidate was included
 
 If the candidate was not made available on another fork of the relay chain, the availability process will time out and the disputing validator will be slashed on this fork. The escalation used by the validator(s) can be replayed onto other forks to lead the wrongly-escalating validator(s) to be slashed on all other forks as well. We assume that the adversary cannot censor validators from seeing any particular forks indefinitely [TODO: set the availability timeout for this accordingly - unlike in the inclusion pipeline we are slashing for unavailability here!]
 
-If the availability process passes, the remote dispute is ready to be included on this chain. As with the local dispute, validators self-select based on a VRF. Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same one. Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary checker.
+If the availability process passes, the remote dispute is ready to be included on this chain. As with the local dispute, validators self-select based on a VRF. Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same one. Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary approval checker.
 
 Some choices for VRF:
   - Session-start VRF? xor candidate hash?
@@ -1237,7 +1237,7 @@ struct HostConfiguration {
   /// The delay, in blocks, before a validation upgrade is applied.
   pub validation_upgrade_delay: BlockNumber,
   /// The acceptance period, in blocks. This is the amount of blocks after availability that validators
-  /// and fishermen have to perform secondary checks or issue reports.
+  /// and fishermen have to perform secondary approval checks or issue reports.
   pub acceptance_period: BlockNumber,
   /// The maximum validation code size, in bytes.
   pub max_code_size: u32,
@@ -1334,7 +1334,7 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Runtime: The relay-chain state machine.
 - Runtime Module: See Module.
 - Runtime API: A means for the node-side behavior to access structured information based on the state of a fork of the blockchain.
-- Secondary Checker: A validator who has been randomly selected to perform secondary checks on a parablock which is pending approval.
+- Secondary Checker: A validator who has been randomly selected to perform secondary approval checks on a parablock which is pending approval.
 - Subsystem: A long-running task which is responsible for carrying out a particular category of work.
 - Validator: Specially-selected node in the network who is responsible for validating parachain blocks and issuing attestations about their validity.
 - Validation Function: A piece of Wasm code that describes the state-transition function of a parachain.
