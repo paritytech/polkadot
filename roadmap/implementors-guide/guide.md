@@ -414,7 +414,7 @@ It's also responsible for managing parachain validation code upgrades as well as
 Utility structs:
 ```rust
 // the two key times necessary to track for every code replacement.
-struct ReplacementTimes {
+pub struct ReplacementTimes {
 	/// The relay-chain block number that the code upgrade was expected to be activated.
 	/// This is when the code change occurs from the para's perspective - after the
 	/// first parablock included with a relay-parent with number >= this value.
@@ -481,7 +481,7 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// in the context of a relay chain block with a number >= `expected_at`.
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
 /// The actual future code of a para.
-FutureCode: map ParaId => ValidationCode;
+FutureCode: map ParaId => Option<ValidationCode>;
 
 /// Upcoming paras (chains and threads). These are only updated on session change. Corresponds to an
 /// entry in the upcoming-genesis map.
@@ -507,7 +507,7 @@ OutgoingParas: Vec<ParaId>;
 * `schedule_para_cleanup(ParaId)`: schedule a para to be cleaned up at the next session.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided.
-* `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If `at` is not within `config.acceptance_period` of the current block number, this will return `None`.
+* `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 
 #### Finalization
 
@@ -755,6 +755,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
     1. Return a list of freed cores consisting of the cores where candidates have become available.
   * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`:
     1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
+    1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of the currently scheduled upgrade, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
     1. check the backing of the candidate using the signatures and the bitfields.
     1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
     1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.

@@ -30,6 +30,7 @@ members = [
 	"overseer",
 	"primitives",
 	"runtime/common",
+	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
 	"runtime/westend",
