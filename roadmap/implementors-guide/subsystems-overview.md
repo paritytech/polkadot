@@ -45,13 +45,21 @@ The candidate validation subsystem handles the details of validating a candidate
 
 ### Inbound Messages
 
+Note that the inbound message will only actually include the PoV when we are deciding whether or not to second a particular parachain candidate. In all other cases, we need to fetch it, because we only actually have the candidate receipt.
+
+The candidate validation subsystem is required to keep a cache of parablock hashes to validation results; it should only ever actually perform validation for a given candidate once, no matter how many times the validity for that block is queried. When validation is performed, if the PoV is not included in the request, a new message will be dispatched to the overseer to fetch the appropriate PoV from the network.
+
+To prevent unbounded growth, when the candidate validation subsystem is notified by the overseer to stop work on a particular block, it should clear the cache of results pertaining to that block.
+
 - **Various Subsystems**: requests to validate a particular parablock candidate
+- **Overseer**: response to PoV request
 
 ### Outbound Messages
 
 Responses from the Candidate Validation subsystem always return to the requester
 
 - **Various Subsystems**: a parablock candidate is valid, or not
+- **Overseer**: request the PoV for a candidiate with a particular hash
 
 ## Statement Distribution
 
