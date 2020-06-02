@@ -47,6 +47,9 @@ use frame_support::{
 use codec::{Encode, Decode};
 use system::ensure_root;
 
+use rand::{SeedableRng, seq::SliceRandom};
+use rand_chacha::ChaCha20Rng;
+
 use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// The unique (during session) index of a core.
@@ -177,11 +180,31 @@ impl<T: Trait> Module<T> {
 			cores.resize(n_cores as _, None);
 		});
 
-		// TODO [now]: shuffle validators into groups
 		if n_cores == 0 || validators.is_empty() {
 			ValidatorGroups::set(Vec::new());
 		} else {
-			let group_base_size = validators.len() as u32 / n_cores;
+			let mut rng: ChaCha20Rng = SeedableRng::from_seed(notification.random_seed);
+
+			let mut shuffled_indices: Vec<_> = (0..validators.len())
+				.enumerate()
+				.map(|(i, _)| i as ValidatorIndex)
+				.collect();
+
+			shuffled_indices.shuffle(&mut rng);
+
+			let group_base_size = validators.len() / n_cores as usize;
+			let larger_groups = validators.len() % n_cores as usize;
+			let groups: Vec<Vec<_>> = (0..n_cores).map(|core_id| {
+				let n_members = if (core_id as usize) < larger_groups {
+					group_base_size + 1
+				} else {
+					group_base_size
+				};
+
+				shuffled_indices.drain(shuffled_indices.len() - n_members ..).rev().collect()
+			}).collect();
+
+			ValidatorGroups::set(groups);
 		}
 
 		// TODO [now]: prune out all parathread claims with too many retries.
