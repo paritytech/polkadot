@@ -856,7 +856,7 @@ The hierarchy of subsystems:
 
 ```
 
-The overseer determines work to do based on block import events and block finalization events (TODO: are finalization events needed?). It does this by keeping track of the set of relay-parents for which work is currently being done. This is known as the "active leaves" set. It determines an initial set of active leaves on startup based on the data on-disk, and uses events about blockchain import to update the active leaves. Updates lead to `OverseerSignal::StartWork` and `OverseerSignal::StopWork` being sent according to new relay-parents, as well as relay-parents to stop considering.
+The overseer determines work to do based on block import events and block finalization events. It does this by keeping track of the set of relay-parents for which work is currently being done. This is known as the "active leaves" set. It determines an initial set of active leaves on startup based on the data on-disk, and uses events about blockchain import to update the active leaves. Updates lead to `OverseerSignal::StartWork` and `OverseerSignal::StopWork` being sent according to new relay-parents, as well as relay-parents to stop considering. Block import events inform the overseer of leaves that no longer need to be built on, now that they have children, and inform us to begin building on those children. Block finalization events inform us when we can stop focusing on blocks that appear to have been orphaned.
 
 The overseer's logic can be described with these functions:
 
@@ -864,14 +864,20 @@ The overseer's logic can be described with these functions:
 * Start all subsystems
 * Determine all blocks of the blockchain that should be built on. This should typically be the head of the best fork of the chain we are aware of. Sometimes add recent forks as well.
 * For each of these blocks, send an `OverseerSignal::StartWork` to all subsystems.
-* Begin listening for block import events.
+* Begin listening for block import and finality events
 
 *On Block Import Event*
 * Apply the block import event to the active leaves. A new block should lead to its addition to the active leaves set and its parent being deactivated.
 * For any deactivated leaves send an `OverseerSignal::StopWork` message to all subsystems.
 * For any activated leaves send an `OverseerSignal::StartWork` message to all subsystems.
+* Ensure all `StartWork` messages are flushed before resuming activity as a message router.
 
-(TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active set" update rules here)
+(TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active leaves" update rules here)
+
+*On Finalization Event*
+* Note the height `h` of the newly finalized block `B`.
+* Prune all leaves from the active leaves which have height `<= h` and are not `B`.
+* Issue `OverseerSignal::StopWork` for all deactivated leaves.
 
 *On Subsystem Failure*
 
