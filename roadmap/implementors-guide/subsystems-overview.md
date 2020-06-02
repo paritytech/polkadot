@@ -83,6 +83,16 @@ The misbehavior arbitration subsystem kicks in when two validator nodes disagree
 
 ---
 
+## Collators
+
+Collators aren't strictly part of the Validity module, but they form an integral part of its workflow. Collators are associated with a particular parachain and understand it well enough to make validity assertions backed by their own stake.
+
+In principle, there is not necessarily any relation between parachain block producers and collators: the block producer(s) just need to get unvalidated blocks to a collator in some parachain-specific way. In practice, we expect that much of the time, a collator _is_ a block producer for that parachain. Polkadot doesn't care, and can't tell, either way. What's important about a collator from Polkadot's perspective is that it can provide new blocks, and appropriate Proofs of Validity.
+
+Once a Proof of Validity is available for a parachain block candidate, both are packaged together and handed to Polkadot. They make their way to the appropriate validators with substantial hand-waving about the details, and are deposited into the Validity module by way of the Overseer: as message broker, that subsystem is also the point of contact for the external world. The overseer then ensures that these are forwarded appropriately through the rest of the subsystems.
+
+---
+
 ## Tracing
 
 Let's follow a parachain candidate through the system. This follows the happy path, but we'll note exit points along the way.
