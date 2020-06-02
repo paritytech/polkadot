@@ -19,21 +19,19 @@ echo "[+] Version: $version; Previous version: $last_version"
 
 # Check that a signed tag exists on github for this version
 echo '[+] Checking tag has been signed'
-check_tag "paritytech/polkadot" "$version"
-case $? in
-  0) echo '[+] Tag found and has been signed'
-    ;;
-  1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
-    ;;
-  2) echo '[!] Tag not found. Aborting release.'; exit 1
-esac
+# TODO: Uncomment before opening PR
+#check_tag "paritytech/polkadot" "$version"
+#case $? in
+#  0) echo '[+] Tag found and has been signed'
+#    ;;
+#  1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
+#    ;;
+#  2) echo '[!] Tag not found. Aborting release.'; exit 1
+#esac
 
-# Pull rustc version used by rust-builder
-stable_rustc="$(docker run -ti parity/rust-builder:latest \
-  'rustup default stable > /dev/null 2>&1; rustc --version')"
-
-nightly_rustc="$(docker run -ti parity/rust-builder:latest \
-  'rustup default nightly > /dev/null 2>&1; rustc --version')"
+# Pull rustc version used by rust-builder for stable and nightly
+stable_rustc="$(podman run -ti parity/rust-builder:latest rustc +stable --version)"
+nightly_rustc="$(podman run -ti parity/rust-builder:latest rustc +nightly --version)"
 
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
@@ -50,7 +48,7 @@ Kusama native runtime: $kusama_spec
 
 Westend native runtime: $westend_spec
 
-Building this project requires the following rustc versions to be installed:
+This release was built with the following versions of \`rustc\`. Other versions may work.
 - $stable_rustc
 - $nightly_rustc
 "
