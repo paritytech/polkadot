@@ -1016,14 +1016,21 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 The statement distribution subsystem sends statements to peer nodes, detects double-voting, and tabulates when a sufficient portion of the validator set has unanimously judged a candidate. When judgment is not unanimous, it escalates the issue to misbehavior arbitration.
 
+Statement Distribution is the only subsystem which has any direction notion of peer nodes or of our own cryptographic keys. It is responsible for deciding when a quorum exists, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. It's the main point of contact (via the Overseer) with peer nodes. It also responds to secondment by peer nodes by forwarding those votes to validation to double-check the peers.
+
+Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the Overseer, which in turn engages block production mechanisms to include the parablock.
+
 ### Misbehavior Arbitration Subsystem
 
 #### Description
 
 The Misbehavior Arbitration system collects reports of validator misbehavior, and slashes the stake of both misbehaving validator nodes and false accusers.
 
+Misbehavior Arbitration is the only subsystem which has the ability to slash nodes. It also handles coordinating all validators to validate a particular block where disagreement exists about its validity, and slashing the minority voters.
+
 #### TODOs
 
+- Why would any node cooperate with a full-group vote where the minority is slashed? It seems like they have incentive to just not vote. Perhaps they're slashed if they don't vote one way or the other by some elapsed time period? But that makes them vulnerable to DoS attacks.
 - threshold of reports for deciding that a validator has misbehaved
 - threshold of reports for deciding that an accusation was false
 - what to do if there are enough reports to pass the first threshold, but not enough for the second
@@ -1181,7 +1188,7 @@ enum StatementDistributionSubsystemMessage {
   /// We have validated a candidate and want to share our judgment with our peers
   ///
   /// The statement distribution subsystem is responsible for signing this statement.
-  Judge(Statement),
+  Share(Statement),
 }
 ```
 
