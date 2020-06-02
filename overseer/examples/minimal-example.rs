@@ -101,6 +101,16 @@ impl Subsystem<ValidationSubsystemMessage> for Subsystem2 {
 	}
 }
 
+
+struct DummySubsystem;
+
+impl<M: std::fmt::Debug> Subsystem<M> for DummySubsystem {
+	fn start(&mut self, _: SubsystemContext<M>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(Delay::new(Duration::from_secs(10))))
+	}
+}
+
+
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
 	let spawner = executor::ThreadPool::new().unwrap();
@@ -113,6 +123,7 @@ fn main() {
 		let (overseer, _handler) = Overseer::new(
 			Box::new(Subsystem2),
 			Box::new(Subsystem1),
+			Box::new(DummySubsystem),
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();
