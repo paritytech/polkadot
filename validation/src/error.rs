@@ -47,6 +47,9 @@ pub enum Error {
 	/// Proposer destroyed before finishing proposing or evaluating
 	#[display(fmt = "Proposer destroyed before finishing proposing or evaluating")]
 	PrematureDestruction,
+	/// Failed to build the table router.
+	#[display(fmt = "Failed to build the table router: {}", _0)]
+	CouldNotBuildTableRouter(String),
 	/// Timer failed
 	#[display(fmt = "Timer failed: {}", _0)]
 	Timer(std::io::Error),
