@@ -83,7 +83,7 @@ pub(crate) struct QueuedParathread {
 pub(crate) struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
 	// this value is between 0 and config.parathread_cores
-	next_core: CoreIndex,
+	next_core_offset: CoreIndex,
 }
 
 /// What is occupying a specific availability core.
@@ -180,6 +180,7 @@ impl<T: Trait> Module<T> {
 			cores.resize(n_cores as _, None);
 		});
 
+		// shuffle validators into groups.
 		if n_cores == 0 || validators.is_empty() {
 			ValidatorGroups::set(Vec::new());
 		} else {
@@ -207,7 +208,46 @@ impl<T: Trait> Module<T> {
 			ValidatorGroups::set(groups);
 		}
 
-		// TODO [now]: prune out all parathread claims with too many retries.
+		// prune out all parathread claims with too many retries.
+		// assign all non-pruned claims to new cores, if they've changed.
+		ParathreadClaimIndex::mutate(|claim_index| {
+			// wipe all parathread metadata if no parathread cores are configured.
+			if config.parathread_cores == 0 {
+				thread_queue = ParathreadClaimQueue {
+					queue: Vec::new(),
+					next_core_offset: CoreIndex(0),
+				};
+				claim_index.clear();
+				return;
+			}
+
+			// prune out all entries beyond retry.
+			thread_queue.queue.retain(|queued| {
+				let will_keep = queued.claim.retries <= config.parathread_retries;
+
+				if !will_keep {
+					let claim_para = queued.claim.claim.0;
+
+					// clean up the pruned entry from the index.
+					if let Ok(i) = claim_index.binary_search(&claim_para) {
+						claim_index.remove(i);
+					}
+				}
+
+				will_keep
+			});
+
+			// do re-balancing of claims.
+			{
+				for (i, queued) in thread_queue.queue.iter_mut().enumerate() {
+					// offset by the number of parachains.
+					queued.core = CoreIndex((i as u32) % config.parathread_cores + n_parachains);
+				}
+
+				thread_queue.next_core_offset =
+					CoreIndex(((thread_queue.queue.len() + 1) as u32) % config.parathread_cores);
+			}
+		});
 		ParathreadQueue::set(thread_queue);
 	}
 
