@@ -425,7 +425,7 @@ impl parachains::Trait for Runtime {
 impl frame_utils::SignedExtensionProvider for Runtime {
 	type Extra = SignedExtra;
 
-	fn construct_extras(nonce: IndexFor<Self>, era: Era, genesis: Option<Self::Hash>) -> (
+	fn construct_extras(nonce: IndexFor<Self>, era: Era, hash: Option<Self::Hash>) -> (
 		Self::Extra,
 		Option<<Self::Extra as SignedExtension>::AdditionalSigned>
 	) {
@@ -443,9 +443,9 @@ impl frame_utils::SignedExtensionProvider for Runtime {
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			grandpa::ValidateEquivocationReport::<Runtime>::new(),
 		);
-		// if the genesis hash is supplied, we can manually provide the additional signed data.
-		let additional = genesis.map(|genesis| {
-			((), VERSION.spec_version, VERSION.transaction_version, genesis, genesis, (), (), (), (), (), ())
+		// if the hash is supplied, we can manually provide the additional signed data.
+		let additional = hash.map(|hash| {
+			((), VERSION.spec_version, VERSION.transaction_version, hash, hash, (), (), (), (), (), ())
 		});
 
 		(extra, additional)
