@@ -498,7 +498,7 @@ where
 	/// # }); }
 	/// ```
 	pub fn new(
-		leaves: impl Into<Vec<BlockInfo>>,
+		leaves: impl IntoIterator<Item = BlockInfo>,
 		validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
 		candidate_backing: Box<dyn Subsystem<CandidateBackingSubsystemMessage> + Send>,
 		mut s: S,
@@ -528,7 +528,7 @@ where
 
 		let active_leaves = HashSet::new();
 
-		let leaves = leaves.into()
+		let leaves = leaves
 			.into_iter()
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			.collect();
@@ -649,7 +649,6 @@ where
 				true
 			}
 		});
-
 
 		for hash in stop_these.into_iter() {
 			self.broadcast_signal(OverseerSignal::StopWork(hash)).await?
@@ -1072,8 +1071,15 @@ mod tests {
 				}
 			}
 
-			assert_eq!(ss5_results, expected_heartbeats);
-			assert_eq!(ss6_results, expected_heartbeats);
+			assert_eq!(ss5_results.len(), expected_heartbeats.len());
+			assert_eq!(ss6_results.len(), expected_heartbeats.len());
+
+			// Notifications on finality for multiple blocks at once
+			// may be received in different orders.
+			for expected in expected_heartbeats {
+				assert!(ss5_results.contains(&expected));
+				assert!(ss6_results.contains(&expected));
+			}
 		});
 	}
 }
