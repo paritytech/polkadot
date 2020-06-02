@@ -7192,15 +7192,12 @@ checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
 name = "statement-gossip-subsystem"
 version = "0.1.0"
 dependencies = [
- "async-std",
- "env_logger",
  "exit-future",
  "futures 0.3.5",
  "overseer",
  "polkadot-network",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-service",
 ]
 
 [[package]]
