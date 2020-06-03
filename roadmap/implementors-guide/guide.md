@@ -605,13 +605,14 @@ struct ParathreadEntry {
 // A queued parathread entry, pre-assigned to a core.
 struct QueuedParathread {
 	claim: ParathreadEntry,
-	core: CoreIndex,
+	// this value is between 0 and config.parathread_cores.
+	core_offset: u32,
 }
 
 struct ParathreadQueue {
 	queue: Vec<QueuedParathread>,
 	// this value is between 0 and config.parathread_cores
-	next_core: CoreIndex,
+	next_core_offset: u32,
 }
 
 enum CoreOccupied {
