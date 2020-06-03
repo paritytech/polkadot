@@ -115,7 +115,8 @@ impl Filter<Call> for IsCallable {
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
-			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) =>
+			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) |
+			Call::Indices(indices::Call::transfer(..)) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
@@ -305,7 +306,8 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
-	pub const MaxIterations: u32 = 5;
+	pub const MaxIterations: u32 = 10;
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 impl staking::Trait for Runtime {
@@ -329,6 +331,7 @@ impl staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type MinSolutionScoreBump = MinSolutionScoreBump;
 }
 
 const fn deposit(items: u32, bytes: u32) -> Balance {
