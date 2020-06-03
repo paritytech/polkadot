@@ -619,11 +619,16 @@ enum CoreOccupied {
   Parachain,
 }
 
+enum AssignmentKind {
+	Parachain,
+	Parathread(CollatorId, u32),
+}
+
 struct CoreAssignment {
-  core: CoreIndex,
-  para_id: ParaId,
-  collator: Option<CollatorId>,
-  group_idx: GroupIndex,
+	core: CoreIndex,
+	para_id: ParaId,
+	kind: AssignmentKind,
+	group_idx: GroupIndex,
 }
 ```
 
