@@ -36,6 +36,7 @@
 //! over time.
 
 use sp_std::prelude::*;
+use sp_std::convert::{TryFrom, TryInto};
 use primitives::{
 	parachain::{ValidatorId, Id as ParaId, CollatorId, ValidatorIndex},
 };
@@ -46,6 +47,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
+use sp_runtime::traits::Zero;
 
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
@@ -53,11 +55,11 @@ use rand_chacha::ChaCha20Rng;
 use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
 pub struct CoreIndex(u32);
 
 /// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Clone, Copy)]
 pub struct GroupIndex(u32);
 
 /// A claim on authoring the next block for a given parathread.
@@ -99,6 +101,12 @@ impl ParathreadClaimQueue {
 			core_offset,
 		})
 	}
+
+	// Take next queued entry with given core offset, if any.
+	fn take_next_on_core(&mut self, core_offset: u32) -> Option<ParathreadEntry> {
+		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
+		pos.map(|i| self.queue.remove(i).claim)
+	}
 }
 
 /// What is occupying a specific availability core.
@@ -136,6 +144,14 @@ impl CoreAssignment {
 			AssignmentKind::Parathread(ref id, _) => Some(id),
 		}
 	}
+}
+
+/// Reasons a core might be freed
+pub enum FreedReason {
+	/// The core's work concluded and the parablock assigned to it is considered available.
+	Concluded,
+	/// The core's work timed out.
+	TimedOut,
 }
 
 pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
@@ -329,8 +345,132 @@ impl<T: Trait> Module<T> {
 		})
 	}
 
-	pub(crate) fn schedule(just_freed_cores: Vec<CoreIndex>) {
-		// TODO [now]: schedule new core assignments.
+	pub(crate) fn schedule(just_freed_cores: Vec<(CoreIndex, FreedReason)>) {
+		let mut cores = AvailabilityCores::get();
+		let config = <configuration::Module<T>>::config();
+
+		for (freed_index, freed_reason) in just_freed_cores {
+			if (freed_index.0 as usize) < cores.len() {
+				match cores[freed_index.0 as usize].take() {
+					None => continue,
+					Some(CoreOccupied::Parachain) => {},
+					Some(CoreOccupied::Parathread(entry)) => {
+						match freed_reason {
+							FreedReason::Concluded => {
+								// After a parathread candidate has successfully been included,
+								// open it up for further claims!
+								ParathreadClaimIndex::mutate(|index| {
+									if let Ok(i) = index.binary_search(&entry.claim.0) {
+										index.remove(i);
+									}
+								})
+							}
+							FreedReason::TimedOut => {
+								// If a parathread candidate times out, it's not the collator's fault,
+								// so we don't increment retries.
+								ParathreadQueue::mutate(|queue| {
+									queue.queue_entry(entry, config.parathread_cores);
+								})
+							}
+						}
+					}
+				}
+			}
+		}
+
+		let parachains = <paras::Module<T>>::parachains();
+		let mut scheduled = Scheduled::get();
+		let mut parathread_queue = ParathreadQueue::get();
+		let now = <system::Module<T>>::block_number();
+
+		{
+			let mut prev_scheduled_in_order = scheduled.iter().enumerate().peekable();
+
+			// Updates to the previous list of scheduled updates and the position of where to insert
+			// them, without accounting for prior updates.
+			let mut scheduled_updates: Vec<(usize, CoreAssignment)> = Vec::new();
+
+			// single-sweep O(n) in the number of cores.
+			for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_none()) {
+				let schedule_and_insert_at = {
+					// advance the iterator until just before the core index we are looking at now.
+					while prev_scheduled_in_order.peek().map_or(
+						false,
+						|(_, assign)| (assign.core.0 as usize) < core_index,
+					) {
+						let _ = prev_scheduled_in_order.next();
+					}
+
+					// check the first entry already scheduled with core index >= than the one we
+					// are looking at. 3 cases:
+					//  1. No such entry, clearly this core is not scheduled, so we need to schedule and put at the end.
+					//  2. Entry exists and has same index as the core we are inspecting. do not schedule again.
+					//  3. Entry exists and has higher index than the core we are inspecting. schedule and note
+					//     insertion position.
+					prev_scheduled_in_order.peek().map_or(
+						Some(scheduled.len()),
+						|(idx_in_scheduled, assign)| if (assign.core.0 as usize) == core_index {
+							None
+						} else {
+							Some(*idx_in_scheduled)
+						},
+					)
+				};
+
+				let schedule_and_insert_at = match schedule_and_insert_at {
+					None => continue,
+					Some(at) => at,
+				};
+
+				let core = CoreIndex(core_index as u32);
+
+				let core_assignment = if core_index < parachains.len() {
+					// parachain core.
+					Some(CoreAssignment {
+						kind: AssignmentKind::Parachain,
+						para_id: parachains[core_index],
+						core: core.clone(),
+						group_idx: Self::group_assigned_to_core(core, now)
+							.expect("core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed"),
+					})
+				} else {
+					// parathread core offset, rel. to beginning.
+					let core_offset = (core_index - parachains.len()) as u32;
+
+					parathread_queue.take_next_on_core(core_offset).map(|entry| CoreAssignment {
+						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
+						para_id: entry.claim.0,
+						core: core.clone(),
+						group_idx: Self::group_assigned_to_core(core, now)
+							.expect("core is not out of bounds and we are guaranteed \
+									to be after the most recent session start; qed"),
+					})
+				};
+
+				if let Some(assignment) = core_assignment {
+					scheduled_updates.push((schedule_and_insert_at, assignment))
+				}
+			}
+
+			// at this point, because `Scheduled` is guaranteed to be sorted and we navigated unassigned
+			// core indices in ascending order, we can enact the updates prepared by the previous actions.
+			//
+			// while inserting, we have to account for the amount of insertions already done.
+			//
+			// This is O(n) as well, capped at n operations, where n is the number of cores.
+			for (num_insertions_before, (insert_at, to_insert)) in scheduled_updates.into_iter().enumerate() {
+				let insert_at = num_insertions_before + insert_at;
+				scheduled.insert(insert_at, to_insert);
+			}
+
+			// scheduled is guaranteed to be sorted after this point because it was sorted before, and we
+			// applied sorted updates at their correct positions, accounting for the offsets of previous
+			// insertions.
+		}
+
+		Scheduled::set(scheduled);
+		ParathreadQueue::set(parathread_queue);
 	}
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
@@ -350,5 +490,37 @@ impl<T: Trait> Module<T> {
 	/// Get the validators in the given group, if the group index is valid for this session.
 	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
 		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
+	}
+
+	/// Get the group assigned to a specific core by index at the current block number. Result undefined if the core index is unknown
+	/// or the block number is less than the session start index.
+	pub(crate) fn group_assigned_to_core(core: CoreIndex, at: T::BlockNumber) -> Option<GroupIndex> {
+		let config = <configuration::Module<T>>::config();
+		let session_start_block = <SessionStartBlock<T>>::get();
+
+		if at < session_start_block { return None }
+
+		if config.parachain_rotation_frequency.is_zero() {
+			// interpret this as "no rotations"
+			return Some(GroupIndex(core.0));
+		}
+
+		let validator_groups = ValidatorGroups::get();
+
+		if core.0 as usize >= validator_groups.len() { return None }
+
+		let rotations_since_session_start: T::BlockNumber =
+			(at - session_start_block) / config.parachain_rotation_frequency.into();
+
+		let rotations_since_session_start
+			= match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start)
+		{
+			Ok(i) => i,
+			Err(_) => 0, // can only happen if rotations occur only once every u32::max(),
+			             // so functionally no difference in behavior.
+		};
+
+		let group_idx = (core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();
+		Some(GroupIndex(group_idx as u32))
 	}
 }
