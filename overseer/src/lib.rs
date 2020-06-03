@@ -228,6 +228,11 @@ impl OverseerHandler {
 	}
 }
 
+/// Glues together the `Overseer` and `BlockchainEvents` by forwarding 
+/// import and finality notifications into the `OverseerHandler`.
+///
+/// [`Overseer`]: struct.Overseer.html
+/// [`OverseerHandler`]: struct.OverseerHandler.html
 pub async fn forward_events<P: BlockchainEvents<Block>>(
 	client: P,
 	mut handler: OverseerHandler,
