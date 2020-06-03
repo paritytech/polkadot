@@ -1033,16 +1033,9 @@ Once a sufficient quorum has agreed that a candidate is valid, this subsystem no
 
 The Misbehavior Arbitration system collects reports of validator misbehavior, and slashes the stake of both misbehaving validator nodes and false accusers.
 
-Misbehavior Arbitration is the only subsystem which has the ability to slash nodes. It also handles coordinating all validators to validate a particular block where disagreement exists about its validity, and slashing the minority voters.
+It is not yet fully specified; that problem is postponed to a future PR.
 
-#### TODOs
-
-- Why would any node cooperate with a full-group vote where the minority is slashed? It seems like they have incentive to just not vote. Perhaps they're slashed if they don't vote one way or the other by some elapsed time period? But that makes them vulnerable to DoS attacks.
-- threshold of reports for deciding that a validator has misbehaved
-- threshold of reports for deciding that an accusation was false
-- what to do if there are enough reports to pass the first threshold, but not enough for the second
-- time period over which to collect reports
-- detailed protocol
+One policy question we've decided even so: in the event that MA has to call all validators to check some block about which some validators disagree, the minority voters all get slashed, and the majority voters all get rewarded. Validators which abstain have a minor slash penalty, but probably not in the same order of magnitude as those who vote wrong.
 
 ---
 
