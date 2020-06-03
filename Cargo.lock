@@ -3309,6 +3309,7 @@ dependencies = [
  "kv-log-macro",
  "log 0.4.8",
  "polkadot-primitives",
+ "sc-client-api",
  "streamunordered",
 ]
 

@@ -71,7 +71,8 @@ use futures::{
 use futures_timer::Delay;
 use streamunordered::{StreamYield, StreamUnordered};
 
-use polkadot_primitives::{BlockNumber, Hash};
+use polkadot_primitives::{Block, BlockNumber, Hash};
+use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 /// An error type that describes faults that may happen
 ///
@@ -154,6 +155,26 @@ pub struct BlockInfo {
 	pub number: BlockNumber,
 }
 
+impl From<BlockImportNotification<Block>> for BlockInfo {
+	fn from(n: BlockImportNotification<Block>) -> Self {
+		BlockInfo {
+			hash: n.hash,
+			parent_hash: n.header.parent_hash,
+			number: n.header.number,
+		}
+	}
+}
+
+impl From<FinalityNotification<Block>> for BlockInfo {
+	fn from(n: FinalityNotification<Block>) -> Self {
+		BlockInfo {
+			hash: n.hash,
+			parent_hash: n.header.parent_hash,
+			number: n.header.number,
+		}
+	}
+}
+
 /// Some event from outer world.
 enum Event {
 	BlockImported(BlockInfo),
@@ -172,6 +193,7 @@ pub enum OutboundMessage {
 /// A handler used to communicate with the [`Overseer`].
 ///
 /// [`Overseer`]: struct.Overseer.html
+#[derive(Clone)]
 pub struct OverseerHandler {
 	events_tx: mpsc::Sender<Event>,
 }
@@ -204,6 +226,43 @@ impl OverseerHandler {
 
 		Ok(())
 	}
+}
+
+/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding 
+/// import and finality notifications into the [`OverseerHandler`].
+///
+/// [`Overseer`]: struct.Overseer.html
+/// [`OverseerHandler`]: struct.OverseerHandler.html
+pub async fn forward_events<P: BlockchainEvents<Block>>(
+	client: P,
+	mut handler: OverseerHandler,
+) -> SubsystemResult<()> {
+	let mut finality = client.finality_notification_stream();
+	let mut imports = client.import_notification_stream();
+
+	loop {
+		select! {
+			f = finality.next() => {
+				match f {
+					Some(block) => {
+						handler.block_finalized(block.into()).await?;
+					}
+					None => break,
+				}
+			},
+			i = imports.next() => {
+				match i {
+					Some(block) => {
+						handler.block_imported(block.into()).await?;
+					}
+					None => break,
+				}
+			},
+			complete => break,
+		}
+	}
+
+	Ok(())
 }
 
 impl Debug for ToOverseer {
