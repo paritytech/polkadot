@@ -78,14 +78,18 @@ The statement distribution subsystem sends statements to peer nodes, detects dou
 
 ## Misbehavior Arbitration
 
-The misbehavior arbitration subsystem kicks in when two validator nodes disagree about a candidate's validity. In this case, _all_ validators, not just those assigned to its parachain, weigh in on the validity of this candidate. The minority is slashed.
+The misbehavior arbitration subsystem kicks in when two validator nodes disagree about a candidate's validity. It is currently minimally specified pending future work.
 
 ### Incoming Messages
+
+Note: this section is likely to change in a future PR.
 
 - **Statement Distribution**: Two validator nodes disgree on this candidate's validity, please figure it out
 - **Statement Distribution**: I noticed a validator contradicting itself about this candidate's validity, please figure it out
 
 ### Outgoing Messages
+
+Note: this section is likely to change in a future PR.
 
 - **Overseer**: the majority of nodes agree that this candidate is valid/invalid; here is a list of minority voters to slash
 
