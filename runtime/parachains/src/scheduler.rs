@@ -62,7 +62,7 @@ pub(crate) struct GroupIndex(u32);
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
-pub(crate) struct ParathreadClaim(ParaId, CollatorId);
+pub struct ParathreadClaim(pub ParaId, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, Default)]
@@ -299,6 +299,34 @@ impl<T: Trait> Module<T> {
 			}
 		});
 		ParathreadQueue::set(thread_queue);
+	}
+
+	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
+	/// assigned to a core, this call will fail. This call will also fail if the queue is full.
+	pub fn add_parathread_claim(claim: ParathreadClaim) {
+		let config = <configuration::Module<T>>::config();
+		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
+
+		ParathreadQueue::mutate(|queue| {
+			if queue.queue.len() >= queue_max_size as usize { return }
+
+			let para_id = claim.0;
+
+			let competes_with_another = ParathreadClaimIndex::mutate(|index| {
+				match index.binary_search(&para_id) {
+					Ok(_) => true,
+					Err(i) => {
+						index.insert(i, para_id);
+						false
+					}
+				}
+			});
+
+			if competes_with_another { return }
+
+			let entry = ParathreadEntry { claim, retries: 0 };
+			queue.queue_entry(entry, config.parathread_cores);
+		})
 	}
 
 	pub(crate) fn schedule(just_freed_cores: Vec<CoreIndex>) {
