@@ -8686,6 +8686,7 @@ dependencies = [
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
+ "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
