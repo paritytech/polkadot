@@ -54,11 +54,11 @@ use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// The unique (during session) index of a core.
 #[derive(Encode, Decode, Default)]
-pub(crate) struct CoreIndex(u32);
+pub struct CoreIndex(u32);
 
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default)]
-pub(crate) struct GroupIndex(u32);
+pub struct GroupIndex(u32);
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
@@ -66,21 +66,21 @@ pub struct ParathreadClaim(pub ParaId, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, Default)]
-pub(crate) struct ParathreadEntry {
+pub struct ParathreadEntry {
 	claim: ParathreadClaim,
 	retries: u32,
 }
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, Default)]
-pub(crate) struct QueuedParathread {
+pub struct QueuedParathread {
 	claim: ParathreadEntry,
 	core_offset: u32,
 }
 
 /// The queue of all parathread claims.
 #[derive(Encode, Decode, Default)]
-pub(crate) struct ParathreadClaimQueue {
+pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
 	// this value is between 0 and config.parathread_cores
 	next_core_offset: u32,
@@ -110,14 +110,14 @@ pub(crate) enum CoreOccupied {
 
 /// The assignment type.
 #[derive(Clone, Encode, Decode)]
-pub(crate) enum AssignmentKind {
+pub enum AssignmentKind {
 	Parachain,
 	Parathread(CollatorId, u32),
 }
 
 /// How a free core is scheduled to be assigned.
 #[derive(Encode, Decode)]
-pub(crate) struct CoreAssignment {
+pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
 	/// The unique ID of the para that is assigned to the core.
@@ -336,13 +336,19 @@ impl<T: Trait> Module<T> {
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
 	/// out of bounds will return `None`, as will indices of unassigned cores.
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
-		match AvailabilityCores::get().get(core_index.0 as usize).and_then(|c| c) {
+		let cores = AvailabilityCores::get();
+		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
 			Some(CoreOccupied::Parachain) => {
 				let parachains = <paras::Module<T>>::parachains();
 				Some(parachains[core_index.0 as usize])
 			}
-			Some(CoreOccupied::Parathread(entry)) => Some(entry.claim.0),
+			Some(CoreOccupied::Parathread(ref entry)) => Some(entry.claim.0),
 		}
+	}
+
+	/// Get the validators in the given group, if the group index is valid for this session.
+	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
+		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
 }
