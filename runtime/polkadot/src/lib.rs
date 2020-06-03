@@ -335,10 +335,6 @@ impl staking::Trait for Runtime {
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 }
 
-const fn deposit(items: u32, bytes: u32) -> Balance {
-	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
-}
-
 parameter_types! {
 	// Minimum 4 CENTS/byte
 	pub const BasicDeposit: Balance = deposit(1, 258);
