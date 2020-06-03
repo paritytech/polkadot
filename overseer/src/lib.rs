@@ -228,8 +228,8 @@ impl OverseerHandler {
 	}
 }
 
-/// Glues together the `Overseer` and `BlockchainEvents` by forwarding 
-/// import and finality notifications into the `OverseerHandler`.
+/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding 
+/// import and finality notifications into the [`OverseerHandler`].
 ///
 /// [`Overseer`]: struct.Overseer.html
 /// [`OverseerHandler`]: struct.OverseerHandler.html
