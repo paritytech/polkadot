@@ -631,6 +631,12 @@ struct CoreAssignment {
 	kind: AssignmentKind,
 	group_idx: GroupIndex,
 }
+
+// reasons a core might be freed.
+enum FreedReason {
+	Concluded,
+	TimedOut,
+}
 ```
 
 Storage layout:
@@ -690,9 +696,10 @@ Actions:
   - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
   - The claim is then added to the claim index.
 
-* `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned.
+* `schedule(Vec<(CoreIndex, FreedReason)>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
-  - All freed parathread cores should have the claim removed from the claim index.
+  - All freed parathread cores should have the claim removed from the claim index, if the reason for freeing was `FreedReason::Concluded`
+  - All freed parathread cores should have the claim added to the parathread queue again without retries incremented, if the reason for freeing was `FreedReason::TimedOut`.
   - All freed parathread cores should take the next parathread entry from the queue.
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 * `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
@@ -798,8 +805,8 @@ Included: Option<()>,
 #### Entry Points
 
   * `inclusion`: This entry-point accepts two parameters: [`Bitfields`](#Signed-Availability-Bitfield) and [`BackedCandidates`](#Backed-Candidate).
-    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine.
-    1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores.
+    1. The `Bitfields` are first forwarded to the `process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
+    1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores, annotated with `FreedReason::TimedOut`.
     1. Invoke `Scheduler::schedule(freed)`
     1. Pass the `BackedCandidates` along with the output of `Scheduler::scheduled` to the `Inclusion::process_candidates` routine, getting a list of all newly-occupied cores.
     1. Call `Scheduler::occupied` for all scheduled cores where a backed candidate was submitted.
