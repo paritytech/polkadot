@@ -157,7 +157,7 @@ decl_storage! {
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 		SessionStartBlock: T::BlockNumber;
 		/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
-		Scheduled: Vec<CoreAssignment>; // sorted ascending by CoreIndex.
+		Scheduled get(fn scheduled): Vec<CoreAssignment>; // sorted ascending by CoreIndex.
 	}
 }
 
@@ -331,5 +331,18 @@ impl<T: Trait> Module<T> {
 
 	pub(crate) fn schedule(just_freed_cores: Vec<CoreIndex>) {
 		// TODO [now]: schedule new core assignments.
+	}
+
+	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
+	/// out of bounds will return `None`, as will indices of unassigned cores.
+	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
+		match AvailabilityCores::get().get(core_index.0 as usize).and_then(|c| c) {
+			None => None,
+			Some(CoreOccupied::Parachain) => {
+				let parachains = <paras::Module<T>>::parachains();
+				Some(parachains[core_index.0 as usize])
+			}
+			Some(CoreOccupied::Parathread(entry)) => Some(entry.claim.0),
+		}
 	}
 }
