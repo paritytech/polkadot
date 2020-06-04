@@ -42,6 +42,7 @@ There are a number of other documents describing the research in more detail. Al
     * TODO
   * Utility
     * [Availability Store](#Availability-Store)
+	* [Candidate Validation](#Candidate-Validation)
 	* [Block Authorship (Provisioning)](#Block-Authorship-Provisioning)
     * [Peer-set Manager](#Peer-Set-Manager)
 * [Data Structures and Types](#Data-Structures-and-Types)
@@ -598,7 +599,7 @@ Validator group assignments do not need to change very quickly. The security ben
 
 Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
-When a rotation occurs, validator groups are still responsible for distributing availability pieces for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
+When a rotation occurs, validator groups are still responsible for distributing availability chunks for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the `HostConfiguration` will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
 
 Parathreads operate on a system of claims. Collators participate in auctions to stake a claim on authoring the next block of a parathread, although the auction mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular parathread-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for parathread collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.
 
@@ -989,6 +990,9 @@ if let Statement::Seconded(candidate) = signed.statement {
     spawn_validation_work(candidate, parachain head, validation function)
   }
 }
+
+// add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group
+// majority, send a `BlockAuthorshipProvisioning::BackableCandidate(relay_parent, Candidate, Backing)` message.
 ```
 
 *spawning validation work*
@@ -1000,7 +1004,7 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
     // dispatched to sub-process (OS process) pool.
     let valid = validate_candidate(candidate, validation function, parachain head, pov).await;
     if valid {
-      // make PoV available for later distribution.
+      // make PoV available for later distribution. Send data to the availability store to keep.
       // sign and dispatch `valid` statement to network if we have not seconded the given candidate.
     } else {
       // sign and dispatch `invalid` statement to network.
@@ -1027,11 +1031,28 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+The Candidate Selection Subsystem is run by validators, and is responsible for interfacing with Collators to select a candidate, along with its PoV, to second during the backing process relative to a specific relay parent.
+
+This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators who have submitted collations that are found to have submitted invalid collations by other subsystems.
+
 #### Protocol
+
+Input: None
+
+
+Output:
+  - Validation requests to Validation subsystem
+  - `CandidateBackingMessage::Second`
+  - Peer set manager: report peers (collators who have misbehaved)
 
 #### Functionality
 
-#### Jobs, if any
+Overarching network protocol + job for every relay-parent
+
+#### Candidate Selection Job
+
+- Aware of validator key and assignment
+- One job for each relay-parent, which selects up to one collation for the Candidate Backing Subsystem
 
 ----
 
@@ -1039,11 +1060,19 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+The Statement Distribution Subsystem is responsible for distributing statements about seconded candidates between validators.
+
 #### Protocol
 
 #### Functionality
 
-#### Jobs, if any
+Implemented as a gossip protocol. Neighbor packets are used to inform peers which chain heads we are interested in data for. Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
+  - In order to receive a `Seconded` message we must be working on corresponding chain head
+  - In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
+
+And respect this data-dependency order from our peers. This subsystem is responsible for checking message signatures.
+
+No jobs, `StartWork` and `StopWork` pulses are used to control neighbor packets and what we are currently accepting.
 
 ----
 
@@ -1051,11 +1080,17 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+This subsystem is responsible for distributing PoV blocks. For now, unified with statement distribution system.
+
 #### Protocol
+
+Handle requests for PoV block by candidate hash and relay-parent.
 
 #### Functionality
 
-#### Jobs, if any
+Implemented as a gossip system, where `PoV`s are not accepted unless we know a `Seconded` message.
+
+[TODO: this requires a lot of cross-contamination with statement distribution even if we don't implement this as a gossip system. In a point-to-point implementation, we still have to know _who to ask_, which means tracking who's submitted `Seconded`, `Valid`, or `Invalid` statements - by validator and by peer. One approach is to have the Statement gossip system to just send us this information and then we can separate the systems from the beginning instead of combining them]
 
 ----
 
@@ -1063,11 +1098,31 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+Distribute availability erasure-coded chunks to validators.
+
+After a candidate is backed, the availability of the PoV block must be confirmed by 2/3+ of all validators. Validating a candidate successfully and contributing it to being backable leads to the PoV and erasure-coding being stored in the availability store.
+
 #### Protocol
+
+Output:
+  - AvailabilityStore::QueryPoV(candidate_hash, response_channel)
+  - AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
 
 #### Functionality
 
-#### Jobs, if any
+For each relay-parent in a `StartWork` message, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have.
+
+`StartWork` and `StopWork` are used to curate a set of current heads, which we keep to the `N` most recent and broadcast as a neighbor packet to our peers.
+
+We define an operation `live_candidates(relay_heads) -> Set<AbridgedCandidateReceipt>` which returns a set of candidates a given set of relay chain heads implies should be currently gossiped. This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors. We assume that state is not pruned within `K` blocks of the chain-head.
+
+We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_neighbor_packet)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
+
+For all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages.
+
+If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the availability store by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`. (TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed)
+
+(N=5, K=3)
 
 ----
 
@@ -1075,11 +1130,21 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+Validators vote on the availability of a backed candidate by issuing signed bitfields, where each bit corresponds to a single candidate. These bitfields can be used to compactly determine which backed candidates are available or not based on a 2/3+ quorum.
+
 #### Protocol
+
+Input:
+  - DistributeBitfield(relay_parent, SignedAvailabilityBitfield): distribute a bitfield via gossip to other validators.
+
+Output:
+  - BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)
 
 #### Functionality
 
-#### Jobs, if any
+This is implemented as a gossip system. `StartWork` and `StopWork` are used to determine the set of current relay chain heads. Neighbor packet, as with other gossip subsystems, is a set of current chain heads. Only accept bitfields relevant to our current heads and only distribute bitfields to other peers when relevant to their most recent neighbor packet. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
+
+When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the block authorship (provisioning) subsystem for potential inclusion in a block.
 
 ----
 
@@ -1087,11 +1152,28 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 #### Description
 
+Validators vote on the availability of a backed candidate by issuing signed bitfields, where each bit corresponds to a single candidate. These bitfields can be used to compactly determine which backed candidates are available or not based on a 2/3+ quorum.
+
 #### Protocol
+
+Output:
+  - BitfieldDistribution::DistributeBitfield: distribute a locally signed bitfield
+  - AvailabilityStore::QueryChunk(CandidateHash, validator_index, response_channel)
 
 #### Functionality
 
-#### Jobs, if any
+Upon onset of a new relay-chain head with `StartWork`, launch bitfield signing job for the head. Stop the job on `StopWork`.
+
+#### Bitfield Signing Job
+
+Localized to a specific relay-parent `r`
+If not running as a validator, do nothing.
+
+- Determine our validator index `i`, the set of backed candidates pending availability in `r`, and which bit of the bitfield each corresponds to.
+- [TODO: wait T time for availability distribution?]
+- Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the availability store for whether we have the availability chunk for our validator index.
+- For all chunks we have, set the corresponding bit in the bitfield.
+- Sign the bitfield and dispatch a `BitfieldDistribution::DistributeBitfield` message.
 
 ----
 
@@ -1125,29 +1207,95 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 ### Availability Store
 
-[TODO]
-
 #### Description
+
+This is a utility subsystem responsible for keeping available certain data and pruning that data.
+
+The two data types:
+  - Full PoV blocks of candidates we have validated
+  - Availability chunks of candidates that were backed and noted available on-chain.
+
+For each of these data we have pruning rules that determine how long we need to keep that data available.
+
+PoV hypothetically only need to be kept around until the block where the data was made fully available is finalized. However, disputes can revert finality, so we need to be a bit more conservative. We should keep the PoV until a block that finalized availability of it has been finalized for 1 day (TODO: arbitrary, but extracting `acceptance_period` is kind of hard here...).
+
+Availability chunks need to be kept available until the dispute period for the corresponding candidate has ended. We can accomplish this by using the same criterion as the above, plus a delay. This gives us a pruning condition of the block finalizing availability of the chunk being final for 1 day + 1 hour (TODO: again, concrete acceptance-period would be nicer here, but complicates things).
+
+There is also the case where a validator commits to make a PoV available, but the corresponding candidate is never backed. In this case, we keep the PoV available for 1 hour. (TODO: ideally would be an upper bound on how far back contextual execution is OK).
+
+There may be multiple competing blocks all ending the availability phase for a particular candidate. Until (and slightly beyond) finality, it will be unclear which of those is actually the canonical chain, so the pruning records for PoVs and Availability chunks should keep track of all such blocks.
 
 #### Protocol
 
+Input:
+  - QueryPoV(candidate_hash, response_channel)
+  - QueryChunk(candidate_hash, validator_index, response_channel)
+  - StoreChunk(candidate_hash, validator_index, inclusion_proof, chunk_data)
+
 #### Functionality
 
-#### Jobs, if any
+On `StartWork`:
+  - Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
+  - Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
+
+On block finality events:
+  - TODO: figure out how we get block finality events from overseer
+  - Handle all pruning based on the newly-finalized block.
+
+On `QueryPoV` message:
+  - Return the PoV block, if any, for that candidate hash.
+
+On `QueryChunk` message:
+  - Determine if we have the chunk indicated by the parameters and return it via the response channel if so.
+
+On `StoreChunk` message:
+  - Store the chunk along with its inclusion proof under the candidate hash and validator index.
+
+----
+
+### Candidate Validation
+
+#### Description
+
+This subsystem is responsible for handling candidate validation requests. It is a simple request/response server.
+
+#### Protocol
+
+Input:
+  - CandidateValidation::Validate(CandidateReceipt, validation_code, PoV, response_channel)
+
+#### Functionality
+
+Given a candidate, its validation code, and its PoV, determine whether the candidate is valid. There are a few different situations this code will be called in, and this will lead to variance in where the parameters originate. Determining the parameters is beyond the scope of this module.
 
 ----
 
 ### Block Authorship (Provisioning)
 
-[TODO]
-
 #### Description
+
+This subsystem is not actually responsible for authoring blocks, but instead is responsible for providing data to an external block authorship service beyond the scope of the overseer.
+
+In particular, the data to provide:
+  - backable candidates and their backings
+  - signed bitfields
+  - dispute inherent (TODO: needs fleshing out in validity module, related to blacklisting)
 
 #### Protocol
 
+Input:
+  - Bitfield(relay_parent, signed_bitfield)
+  - BackableCandidate(relay_parent, candidate_receipt, backing)
+  - RequestBlockAuthorshipData(relay_parent, response_channel)
+
 #### Functionality
 
-#### Jobs, if any
+Use `StartWork` and `StopWork` to manage a set of jobs for relay-parents we might be building upon.
+Forward all messages to corresponding job, if any.
+
+#### Block Authorship Provisioning Job
+
+Track all signed bitfields, all backable candidates received. Provide them to the `RequestBlockAuthorshipData` requester via the `response_channel`. If more than one backable candidate exists for a given `Para`, provide the first one received. (TODO: better candidate-choice rules.)
 
 ----
 
