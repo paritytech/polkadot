@@ -1023,7 +1023,7 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 The statement distribution subsystem sends statements to peer nodes, detects double-voting, and tabulates when a sufficient portion of the validator set has unanimously judged a candidate. When judgment is not unanimous, it escalates the issue to misbehavior arbitration.
 
-Statement Distribution is the only subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for deciding when a quorum exists, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. It's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer seconding a candidate block, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
+Statement Distribution is the only subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for deciding when a quorum exists, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. Within the Validity module, it's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer seconding a candidate block, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
 
 Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the Overseer, which in turn engages block production mechanisms to include the parablock.
 
