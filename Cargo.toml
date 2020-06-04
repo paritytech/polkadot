@@ -27,7 +27,6 @@ members = [
 	"erasure-coding",
 	"network",
 	"network/test",
-	"overseer",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
@@ -40,6 +39,9 @@ members = [
 	"statement-table",
 	"service",
 	"validation",
+
+	"node/messages",
+	"node/overseer",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
