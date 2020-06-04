@@ -31,7 +31,6 @@ There are a number of other documents describing the research in more detail. Al
 	* [Statement Distribution](#Statement-Distribution)
 	* [PoV Distribution](#Pov-Distribution)
   * Availability
-	* [Availability Store](#Availability-Store)
 	* [Availability Distribution](#Availability-Distribution)
 	* [Bitfield Distribution](#Bitfield-Distribution)
 	* [Bitfield Signing](#Bitfield-Signing)
@@ -1023,7 +1022,146 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 ---
 
-[TODO: subsystems for gathering data necessary for block authorship, for networking, for misbehavior reporting, etc.]
+
+### Candidate Selection
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Statement Distribution
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### PoV Distribution
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Availability Distribution
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Bitfield Distribution
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Bitfield Signing
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Collation Generation
+
+[TODO]
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Collation Distribution
+
+[TODO]
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Availability Store
+
+[TODO]
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Block Authorship (Provisioning)
+
+[TODO]
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
+
+----
+
+### Peer Set Manager
+
+[TODO]
+
+#### Description
+
+#### Protocol
+
+#### Functionality
+
+#### Jobs, if any
 
 ----
 
