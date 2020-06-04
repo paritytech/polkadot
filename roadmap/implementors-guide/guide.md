@@ -24,7 +24,27 @@ There are a number of other documents describing the research in more detail. Al
 * [Architecture: Node-side](#Architecture-Node-Side)
   * [Subsystems](#Subsystems-and-Jobs)
   * [Overseer](#Overseer)
-  * [Candidate Backing](#Candidate-Backing-Subsystem)
+  * [Subsystem Divisions](#Subsystem-Divisions)
+  * Backing
+	* [Candidate Backing](#Candidate-Backing)
+	* [Candidate Selection](#Candidate-Selection)
+	* [Statement Distribution](#Statement-Distribution)
+	* [PoV Distribution](#Pov-Distribution)
+  * Availability
+	* [Availability Store](#Availability-Store)
+	* [Availability Distribution](#Availability-Distribution)
+	* [Bitfield Distribution](#Bitfield-Distribution)
+	* [Bitfield Signing](#Bitfield-Signing)
+  * Collators
+    * [Collation Generation](#Collation-Generation)
+	* [Collation Distribution](#Collation-Distribution)
+  * Validity
+	* [Double-vote Reporting](#Double-Vote-Reporting)
+    * TODO
+  * Utility
+    * [Availability Store](#Availability-Store)
+	* [Block Authorship (Provisioning)](#Block-Authorship-Provisioning)
+    * [Peer-set Manager](#Peer-Set-Manager)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
 
