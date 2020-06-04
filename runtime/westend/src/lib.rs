@@ -51,8 +51,8 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter},
+	parameter_types, construct_runtime, debug, RuntimeDebug,
+	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
@@ -571,6 +571,45 @@ impl sudo::Trait for Runtime {
 	type Call = Call;
 }
 
+parameter_types! {
+	// One storage item; key size 32, value size 8; .
+	pub const ProxyDepositBase: Balance = deposit(1, 8);
+	// Additional storage item size of 33 bytes.
+	pub const ProxyDepositFactor: Balance = deposit(0, 33);
+	pub const MaxProxies: u16 = 32;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+pub enum ProxyType {
+	Any,
+	NonTransfer,
+	Staking,
+}
+impl Default for ProxyType { fn default() -> Self { Self::Any } }
+impl InstanceFilter<Call> for ProxyType {
+	fn filter(&self, c: &Call) -> bool {
+		match self {
+			ProxyType::Any => true,
+			ProxyType::NonTransfer => !matches!(c,
+				Call::Balances(..) | Call::Utility(..) | Call::Indices(indices::Call::transfer(..))
+			),
+			ProxyType::Staking => matches!(c, Call::Staking(..)),
+		}
+	}
+}
+
+impl proxy::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type IsCallable = IsCallable;
+	type ProxyType = ProxyType;
+	type ProxyDepositBase = ProxyDepositBase;
+	type ProxyDepositFactor = ProxyDepositFactor;
+	type MaxProxies = MaxProxies;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -622,7 +661,10 @@ construct_runtime! {
 		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
 
 		// Sudo.
-		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>}
+		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Proxy module. Late addition.
+		Proxy: proxy::{Module, Call, Storage, Event}
 	}
 }
 
