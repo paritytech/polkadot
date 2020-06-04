@@ -26,9 +26,10 @@ use futures::{
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use overseer::{
-	AllMessages, CandidateBackingSubsystemMessage, FromOverseer,
-	Overseer, Subsystem, SubsystemContext, SpawnedSubsystem, ValidationSubsystemMessage,
+use polkadot_overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
+
+use messages::{
+	AllMessages, CandidateBackingSubsystemMessage, FromOverseer, ValidationSubsystemMessage
 };
 
 struct Subsystem1;

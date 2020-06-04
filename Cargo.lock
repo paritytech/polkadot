@@ -4282,6 +4282,9 @@ dependencies = [
 [[package]]
 name = "polkadot-node-messages"
 version = "0.1.0"
+dependencies = [
+ "polkadot-primitives",
+]
 
 [[package]]
 name = "polkadot-overseer"
@@ -4292,6 +4295,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "log 0.4.8",
+ "polkadot-node-messages",
  "polkadot-primitives",
  "sc-client-api",
  "streamunordered",

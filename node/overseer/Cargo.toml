@@ -11,6 +11,7 @@ futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+messages = { package = "polkadot-node-messages", path = "../messages" }
 
 [dev-dependencies]
 futures = { version = "0.3.5", features = ["thread-pool"] }
