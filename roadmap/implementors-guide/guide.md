@@ -1091,14 +1091,19 @@ enum OverseerSignal {
 }
 ```
 
+All subsystems have their own message types; all of them need to be able to listen for overseer signals as well. There are currently two proposals for how to handle that with unified communication channels:
+
+1. Retaining the `OverseerSignal` definition above, add `enum FromOverseer<T> {Signal(OverseerSignal), Message(T)}`.
+1. Add a generic varint to `OverseerSignal`: `Message(T)`.
+
+Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
+
 #### Candidate Selection Subsystem Message
 
 These messages are sent from the overseer to the Candidate Selection subsystem when new parablocks are available for validation.
 
 ```rust
 enum CandidateSelectionSubsystemMessage {
-  /// Start or stop work on blocks related to a given relay parent
-  Signal(OverseerSignal),
   /// A new parachain candidate has arrived from a collator and should be considered for seconding.
   NewCandidate(PoV, ParachainBlock),
 }
@@ -1110,8 +1115,6 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ```rust
 enum CandidateBackingSubsystemMessage {
-  /// Start or stop work on blocks related to a given relay parent
-  Signal(OverseerSignal),
   /// Registers a stream listener for updates to the set of backable candidates that could be backed
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
@@ -1134,8 +1137,6 @@ enum PoVOrigin {
 }
 
 enum CandidateValidationSubsystemMessage {
-  /// Start or stop work on blocks related to a given relay parent
-  Signal(OverseerSignal),
   /// Validate a candidate and issue a Statement
   Validate(CandidateHash, RelayHash, PoVOrigin),
 }
@@ -1181,8 +1182,6 @@ struct SignedStatement {
 
 ```rust
 enum StatementDistributionSubsystemMessage {
-  /// Start or stop work on blocks related to a given relay parent
-  Signal(OverseerSignal),
   /// A peer has seconded a candidate and we need to double-check them
   Peer(SignedStatement),
   /// We have validated a candidate and want to share our judgment with our peers
@@ -1196,8 +1195,6 @@ enum StatementDistributionSubsystemMessage {
 
 ```rust
 enum MisbehaviorArbitrationSubsystemMessage {
-  /// Start or stop work on blocks related to a given relay parent
-  Signal(OverseerSignal),
   /// These validator nodes disagree on this candidate's validity, please figure it out
   ///
   /// Most likely, the list of statments all agree except for the final one. That's not
