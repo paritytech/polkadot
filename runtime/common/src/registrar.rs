@@ -738,6 +738,7 @@ mod tests {
 		type DbWeight = ();
 		type BlockExecutionWeight = ();
 		type ExtrinsicBaseWeight = ();
+		type MaximumExtrinsicWeight = MaximumBlockWeight;
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
@@ -845,6 +846,7 @@ mod tests {
 		type Call = Call;
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
+		type MinSolutionScoreBump = ();
 	}
 
 	impl timestamp::Trait for Test {

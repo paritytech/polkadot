@@ -503,7 +503,10 @@ impl ProtocolHandler {
 	}
 
 	fn on_connect(&mut self, peer: PeerId, role: ObservedRole) {
-		let claimed_validator = matches!(role, ObservedRole::OurSentry | ObservedRole::OurGuardedAuthority | ObservedRole::Authority);
+		let claimed_validator = matches!(
+			role,
+			ObservedRole::OurSentry | ObservedRole::OurGuardedAuthority | ObservedRole::Authority
+		);
 
 		self.peers.insert(peer.clone(), PeerData {
 			claimed_validator,
@@ -978,7 +981,11 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 				);
 			}
 			ServiceToWorkerMsg::AwaitCollation(relay_parent, para_id, sender) => {
-				debug!(target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}", para_id, relay_parent);
+				debug!(
+					target: "p_net", "Attempting to get collation for parachain {:?} on relay parent {:?}",
+					para_id,
+					relay_parent,
+				);
 				self.protocol_handler.await_collation(relay_parent, para_id, sender)
 			}
 			ServiceToWorkerMsg::NoteBadCollator(collator) => {

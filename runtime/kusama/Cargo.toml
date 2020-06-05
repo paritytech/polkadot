@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.7.34-dev"
+version = "0.8.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -13,6 +13,7 @@ rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 static_assertions = "1.1.0"
+smallvec = "1.4.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false }
@@ -65,6 +66,7 @@ vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/sub
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false, optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", default-features = false, optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -144,6 +146,7 @@ runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
+	"frame-system-benchmarking",
 	"system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"balances/runtime-benchmarks",
@@ -152,6 +155,7 @@ runtime-benchmarks = [
 	"elections-phragmen/runtime-benchmarks",
 	"identity/runtime-benchmarks",
 	"im-online/runtime-benchmarks",
+	"scheduler/runtime-benchmarks",
 	"society/runtime-benchmarks",
 	"staking/runtime-benchmarks",
 	"timestamp/runtime-benchmarks",

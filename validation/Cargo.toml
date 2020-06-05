@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-validation"
-version = "0.7.34-dev"
+version = "0.8.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -34,6 +34,8 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
