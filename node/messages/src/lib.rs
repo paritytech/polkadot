@@ -16,14 +16,15 @@
 
 //! Message types for the overseer and subsystems.
 //!
+//! These messages are intended to define the protocol by which different subsystems communicate with each
+//! other and signals that they receive from an overseer to coordinate their work.
+//! This is intended for use with the `polkadot-overseer` crate.
+//!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use polkadot_primitives::Hash;
 
-/// A signal used by [`Overseer`] to communicate with the [`Subsystem`]s.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
+/// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
 pub enum OverseerSignal {
 	/// `Subsystem` should start working on block-based work, given by the relay-chain block hash.
@@ -34,40 +35,31 @@ pub enum OverseerSignal {
 	Conclude,
 }
 
-/// A message type used by the Validation [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
+/// A message type used by the Validation Subsystem.
 #[derive(Debug)]
 pub enum ValidationSubsystemMessage {
 	ValidityAttestation,
 }
 
-/// A message type used by the CandidateBacking [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
+/// A message type used by the CandidateBacking Subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingSubsystemMessage {
 	RegisterBackingWatcher,
 	Second,
 }
 
-/// A message type tying together all message types that are used across [`Subsystem`]s.
-///
-/// [`Subsystem`]: trait.Subsystem.html
+/// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
 	Validation(ValidationSubsystemMessage),
 	CandidateBacking(CandidateBackingSubsystemMessage),
 }
 
-/// A message type that a [`Subsystem`] receives from the [`Overseer`].
-/// It wraps siglans from the [`Overseer`] and messages that are circulating
+/// A message type that a subsystem receives from an overseer.
+/// It wraps signals from an overseer and messages that are circulating
 /// between subsystems.
 ///
 /// It is generic over over the message type `M` that a particular `Subsystem` may use.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
 #[derive(Debug)]
 pub enum FromOverseer<M: std::fmt::Debug> {
 	/// Signal from the `Overseer`.
