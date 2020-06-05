@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.8.2"
+version = "0.8.3"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -48,6 +48,7 @@ indices = { package = "pallet-indices", git = "https://github.com/paritytech/sub
 membership = { package = "pallet-membership", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+proxy = { package = "pallet-proxy", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 recovery = { package = "pallet-recovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 scheduler = { package = "pallet-scheduler", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -122,6 +123,7 @@ std = [
 	"membership/std",
 	"nicks/std",
 	"offences/std",
+	"proxy/std",
 	"recovery/std",
 	"sp-runtime/std",
 	"sp-staking/std",

@@ -55,7 +55,7 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
@@ -77,6 +77,7 @@ pub use parachains::Call as ParachainsCall;
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
+use frame_support::traits::InstanceFilter;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -88,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 2,
+	spec_version: 3,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 0,
@@ -126,7 +127,7 @@ impl Filter<Call> for IsCallable {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) =>
+			Call::Identity(_) | Call::Proxy(_) =>
 				true,
 		}
 	}
@@ -332,10 +333,6 @@ impl staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
-}
-
-const fn deposit(items: u32, bytes: u32) -> Balance {
-	items as Balance * 15 * CENTS + (bytes as Balance) * 6 * CENTS
 }
 
 parameter_types! {
@@ -746,6 +743,52 @@ impl sudo::Trait for Runtime {
 	type Call = Call;
 }
 
+parameter_types! {
+	// One storage item; key size 32, value size 8; .
+	pub const ProxyDepositBase: Balance = deposit(1, 8);
+	// Additional storage item size of 33 bytes.
+	pub const ProxyDepositFactor: Balance = deposit(0, 33);
+	pub const MaxProxies: u16 = 32;
+}
+
+/// The type used to represent the kinds of proxying allowed.
+#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+pub enum ProxyType {
+	Any,
+	NonTransfer,
+	Governance,
+	Staking,
+}
+impl Default for ProxyType { fn default() -> Self { Self::Any } }
+impl InstanceFilter<Call> for ProxyType {
+	fn filter(&self, c: &Call) -> bool {
+		match self {
+			ProxyType::Any => true,
+			ProxyType::NonTransfer => !matches!(c,
+				Call::Balances(..) | Call::Utility(..)
+					| Call::Vesting(vesting::Call::vested_transfer(..))
+					| Call::Indices(indices::Call::transfer(..))
+			),
+			ProxyType::Governance => matches!(c,
+				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
+					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
+			),
+			ProxyType::Staking => matches!(c, Call::Staking(..)),
+		}
+	}
+}
+
+impl proxy::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+	type Currency = Balances;
+	type IsCallable = IsCallable;
+	type ProxyType = ProxyType;
+	type ProxyDepositBase = ProxyDepositBase;
+	type ProxyDepositFactor = ProxyDepositFactor;
+	type MaxProxies = MaxProxies;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -805,6 +848,9 @@ construct_runtime! {
 
 		// Identity. Late addition.
 		Identity: identity::{Module, Call, Storage, Event<T>},
+
+		// Proxy module. Late addition.
+		Proxy: proxy::{Module, Call, Storage, Event}
 	}
 }
 
