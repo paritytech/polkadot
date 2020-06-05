@@ -850,7 +850,7 @@ construct_runtime! {
 		Identity: identity::{Module, Call, Storage, Event<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event}
+		Proxy: proxy::{Module, Call, Storage, Event<T>}
 	}
 }
 
