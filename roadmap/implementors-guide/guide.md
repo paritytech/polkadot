@@ -1064,13 +1064,25 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 #### Protocol
 
+`ProtocolId`: `b"stmd"`
+
+Input:
+  - NetworkBridgeUpdate(update)
+
+Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+
 #### Functionality
 
-Implemented as a gossip protocol. Neighbor packets are used to inform peers which chain heads we are interested in data for. Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
-  - In order to receive a `Seconded` message we must be working on corresponding chain head
+Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views.
+
+Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
+  - In order to receive a `Seconded` message we have the on corresponding chain head in our view
   - In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
 
-And respect this data-dependency order from our peers. This subsystem is responsible for checking message signatures.
+And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
 
 No jobs, `StartWork` and `StopWork` pulses are used to control neighbor packets and what we are currently accepting.
 
@@ -1104,25 +1116,35 @@ After a candidate is backed, the availability of the PoV block must be confirmed
 
 #### Protocol
 
+`ProtocolId`:`b"avad"`
+
+Input:
+  - NetworkBridgeUpdate(update)
+
 Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
   - AvailabilityStore::QueryPoV(candidate_hash, response_channel)
   - AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
 
 #### Functionality
 
-For each relay-parent in a `StartWork` message, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have.
+Register on startup an event producer with  `NetworkBridge::RegisterEventProducer`.
 
-`StartWork` and `StopWork` are used to curate a set of current heads, which we keep to the `N` most recent and broadcast as a neighbor packet to our peers.
+For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 
 We define an operation `live_candidates(relay_heads) -> Set<AbridgedCandidateReceipt>` which returns a set of candidates a given set of relay chain heads implies should be currently gossiped. This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors. We assume that state is not pruned within `K` blocks of the chain-head.
 
-We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_neighbor_packet)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
+We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
 
-For all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages.
+We re-attempt to send anything live to a peer upon any view update from that peer.
+
+On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
 
 If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the availability store by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`. (TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed)
 
-(N=5, K=3)
+(K=3?)
 
 ----
 
@@ -1134,15 +1156,21 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 #### Protocol
 
+`ProtocolId`: `b"bitd"`
+
 Input:
   - DistributeBitfield(relay_parent, SignedAvailabilityBitfield): distribute a bitfield via gossip to other validators.
+  - NetworkBridgeUpdate(NetworkBridgeUpdate)
 
 Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
   - BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)
 
 #### Functionality
 
-This is implemented as a gossip system. `StartWork` and `StopWork` are used to determine the set of current relay chain heads. Neighbor packet, as with other gossip subsystems, is a set of current chain heads. Only accept bitfields relevant to our current heads and only distribute bitfields to other peers when relevant to their most recent neighbor packet. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
+This is implemented as a gossip system. Register a network bridge event producer on startup and track peer connection, view change, and disconnection events. Only accept bitfields relevant to our current view and only distribute bitfields to other peers when relevant to their most recent view. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
 
 When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the block authorship (provisioning) subsystem for potential inclusion in a block.
 
