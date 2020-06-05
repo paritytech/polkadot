@@ -3217,20 +3217,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
-name = "overseer"
-version = "0.1.0"
-dependencies = [
- "femme",
- "futures 0.3.5",
- "futures-timer 3.0.2",
- "kv-log-macro",
- "log 0.4.8",
- "polkadot-primitives",
- "sc-client-api",
- "streamunordered",
-]
-
-[[package]]
 name = "owning_ref"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4207,6 +4193,28 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-runtime",
+]
+
+[[package]]
+name = "polkadot-node-messages"
+version = "0.1.0"
+dependencies = [
+ "polkadot-primitives",
+]
+
+[[package]]
+name = "polkadot-overseer"
+version = "0.1.0"
+dependencies = [
+ "femme",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "kv-log-macro",
+ "log 0.4.8",
+ "polkadot-node-messages",
+ "polkadot-primitives",
+ "sc-client-api",
+ "streamunordered",
 ]
 
 [[package]]

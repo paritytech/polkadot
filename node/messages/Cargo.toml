@@ -1,0 +1,9 @@
+[package]
+name = "polkadot-node-messages"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+description = "Message types used by Subsystems"
+
+[dependencies]
+polkadot-primitives = { path = "../../primitives" }
