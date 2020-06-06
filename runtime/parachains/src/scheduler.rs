@@ -229,7 +229,7 @@ impl<T: Trait> Module<T> {
 			}
 		})
 
-	 }
+	}
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
@@ -308,7 +308,6 @@ impl<T: Trait> Module<T> {
 				let will_keep = queued.claim.retries <= config.parathread_retries
 					&& <paras::Module<T>>::is_parathread(&queued.claim.claim.0);
 
-
 				if !will_keep {
 					let claim_para = queued.claim.claim.0;
 
@@ -328,7 +327,7 @@ impl<T: Trait> Module<T> {
 				}
 
 				thread_queue.next_core_offset =
-					((thread_queue.queue.len() + 1) as u32) % config.parathread_cores;
+					((thread_queue.queue.len()) as u32) % config.parathread_cores;
 			}
 		});
 		ParathreadQueue::set(thread_queue);
@@ -406,6 +405,8 @@ impl<T: Trait> Module<T> {
 		let mut scheduled = Scheduled::get();
 		let mut parathread_queue = ParathreadQueue::get();
 		let now = <system::Module<T>>::block_number();
+
+		if ValidatorGroups::get().is_empty() { return }
 
 		{
 			let mut prev_scheduled_in_order = scheduled.iter().enumerate().peekable();
@@ -638,11 +639,15 @@ mod tests {
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
-	use crate::mock::{new_test_ext, Paras, System, Scheduler, GenesisConfig as MockGenesisConfig};
+	use crate::mock::{new_test_ext, Configuration, Paras, System, Scheduler, GenesisConfig as MockGenesisConfig};
+	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use crate::paras::ParaGenesisArgs;
 
-	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+	fn run_to_block(
+		to: BlockNumber,
+		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
+	) {
 		while System::block_number() < to {
 			let b = System::block_number();
 
@@ -654,9 +659,9 @@ mod tests {
 			System::on_initialize(b + 1);
 			System::set_block_number(b + 1);
 
-			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Paras::initializer_on_new_session(&Default::default());
-				Scheduler::initializer_on_new_session(&Default::default());
+			if let Some(notification) = new_session(b + 1) {
+				Paras::initializer_on_new_session(&notification);
+				Scheduler::initializer_on_new_session(&notification);
 			}
 
 			Paras::initializer_initialize(b + 1);
@@ -671,6 +676,7 @@ mod tests {
 			chain_availability_period: 3,
 			thread_availability_period: 5,
 			scheduling_lookahead: 2,
+			parathread_retries: 1,
 			..Default::default()
 		}
 	}
@@ -697,7 +703,7 @@ mod tests {
 
 			assert!(!Paras::is_parathread(&thread_id));
 
-			run_to_block(10, Some(vec![10]));
+			run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
 			assert!(Paras::is_parathread(&thread_id));
 
@@ -776,13 +782,127 @@ mod tests {
 
 			assert!(!Paras::is_parathread(&thread_id));
 
-			run_to_block(10, Some(vec![10]));
+			run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
 			assert!(Paras::is_parathread(&thread_id));
 
 			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
 			assert_eq!(ParathreadQueue::get(), Default::default());
 		});
+	}
+
+	#[test]
+	fn session_change_prunes_cores_beyond_retries_and_those_from_non_live_parathreads() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+		let max_parathread_retries = default_config().parathread_retries;
+		let n_cores = default_config().parathread_cores;
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+		let thread_c = ParaId::from(3);
+		let thread_d = ParaId::from(4);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(Configuration::config(), default_config());
+
+			// threads a, b, and c will be live in next session, but not d.
+			{
+				Paras::schedule_para_initialize(thread_a, ParaGenesisArgs {
+					genesis_head: Vec::new().into(),
+					validation_code: Vec::new().into(),
+					parachain: false,
+				});
+
+				Paras::schedule_para_initialize(thread_b, ParaGenesisArgs {
+					genesis_head: Vec::new().into(),
+					validation_code: Vec::new().into(),
+					parachain: false,
+				});
+
+				Paras::schedule_para_initialize(thread_c, ParaGenesisArgs {
+					genesis_head: Vec::new().into(),
+					validation_code: Vec::new().into(),
+					parachain: false,
+				});
+			}
+
+			// set up a queue as if n_cores was 4 and with some with many retries.
+			ParathreadQueue::put({
+				let mut queue = ParathreadClaimQueue::default();
+
+				// Will be pruned: too many retries.
+				queue.queue_entry(ParathreadEntry {
+					claim: ParathreadClaim(thread_a, collator.clone()),
+					retries: max_parathread_retries + 1,
+				}, 4);
+
+				// Will not be pruned.
+				queue.queue_entry(ParathreadEntry {
+					claim: ParathreadClaim(thread_b, collator.clone()),
+					retries: max_parathread_retries,
+				}, 4);
+
+				// Will not be pruned.
+				queue.queue_entry(ParathreadEntry {
+					claim: ParathreadClaim(thread_c, collator.clone()),
+					retries: 0,
+				}, 4);
+
+				// Will be pruned: not a live parathread.
+				queue.queue_entry(ParathreadEntry {
+					claim: ParathreadClaim(thread_d, collator.clone()),
+					retries: 0,
+				}, 4);
+
+				queue
+			});
+
+			ParathreadClaimIndex::put(vec![thread_a, thread_b, thread_c, thread_d]);
+
+			run_to_block(
+				10,
+				|b| match b {
+					10 => Some(SessionChangeNotification {
+						new_config: Configuration::config(),
+						..Default::default()
+					}),
+					_ => None,
+				}
+			);
+			assert_eq!(Configuration::config(), default_config());
+
+			let queue = ParathreadQueue::get();
+			assert_eq!(
+				queue.queue,
+				vec![
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_b, collator.clone()),
+							retries: max_parathread_retries,
+						},
+						core_offset: 0,
+					},
+					QueuedParathread {
+						claim: ParathreadEntry {
+							claim: ParathreadClaim(thread_c, collator.clone()),
+							retries: 0,
+						},
+						core_offset: 1,
+					},
+				]
+			);
+			assert_eq!(queue.next_core_offset, 2);
+
+			assert_eq!(ParathreadClaimIndex::get(), vec![thread_b, thread_c]);
+		})
 	}
 
 	// TODO [now]: schedule schedules all previously unassigned cores.
