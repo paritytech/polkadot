@@ -159,11 +159,11 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
-	genesis_head: HeadData,
+	pub genesis_head: HeadData,
 	/// The initial validation code to use.
-	validation_code: ValidationCode,
+	pub validation_code: ValidationCode,
 	/// True if parachain, false if parathread.
-	parachain: bool,
+	pub parachain: bool,
 }
 
 

@@ -58,14 +58,17 @@ pub struct CoreIndex(u32);
 
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct GroupIndex(u32);
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub ParaId, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	claim: ParathreadClaim,
 	retries: u32,
@@ -73,6 +76,7 @@ pub struct ParathreadEntry {
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, Default)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct QueuedParathread {
 	claim: ParathreadEntry,
 	core_offset: u32,
@@ -80,6 +84,7 @@ pub struct QueuedParathread {
 
 /// The queue of all parathread claims.
 #[derive(Encode, Decode, Default)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
 	// this value is between 0 and config.parathread_cores
@@ -298,9 +303,11 @@ impl<T: Trait> Module<T> {
 				return;
 			}
 
-			// prune out all entries beyond retry.
+			// prune out all entries beyond retry or that no longer correspond to live parathread.
 			thread_queue.queue.retain(|queued| {
-				let will_keep = queued.claim.retries <= config.parathread_retries;
+				let will_keep = queued.claim.retries <= config.parathread_retries
+					&& <paras::Module<T>>::is_parathread(&queued.claim.claim.0);
+
 
 				if !will_keep {
 					let claim_para = queued.claim.claim.0;
@@ -329,7 +336,11 @@ impl<T: Trait> Module<T> {
 
 	/// Add a parathread claim to the queue. If there is a competing claim in the queue or currently
 	/// assigned to a core, this call will fail. This call will also fail if the queue is full.
+	///
+	/// Fails if the claim does not correspond to any live parathread.
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
+		if !<paras::Module<T>>::is_parathread(&claim.0) { return }
+
 		let config = <configuration::Module<T>>::config();
 		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
 
@@ -617,4 +628,131 @@ impl<T: Trait> Module<T> {
 			})
 		}
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use primitives::BlockNumber;
+	use frame_support::traits::{OnFinalize, OnInitialize};
+	use keyring::Sr25519Keyring;
+
+	use crate::mock::{new_test_ext, Paras, System, Scheduler, GenesisConfig as MockGenesisConfig};
+	use crate::configuration::HostConfiguration;
+	use crate::paras::ParaGenesisArgs;
+
+	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		while System::block_number() < to {
+			let b = System::block_number();
+
+			Scheduler::initializer_finalize();
+			Paras::initializer_finalize();
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Paras::initializer_on_new_session(&Default::default());
+				Scheduler::initializer_on_new_session(&Default::default());
+			}
+
+			Paras::initializer_initialize(b + 1);
+			Scheduler::initializer_initialize(b + 1);
+		}
+	}
+
+	fn default_config() -> HostConfiguration<BlockNumber> {
+		HostConfiguration {
+			parathread_cores: 3,
+			parachain_rotation_frequency: 10,
+			chain_availability_period: 3,
+			thread_availability_period: 5,
+			scheduling_lookahead: 2,
+			..Default::default()
+		}
+	}
+
+	#[test]
+	fn add_parathread_claim_works() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_id = ParaId::from(10);
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		new_test_ext(genesis_config).execute_with(|| {
+			Paras::schedule_para_initialize(thread_id, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: false,
+			});
+
+			assert!(!Paras::is_parathread(&thread_id));
+
+			run_to_block(10, Some(vec![10]));
+
+			assert!(Paras::is_parathread(&thread_id));
+
+			{
+				Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
+				let queue = ParathreadQueue::get();
+				assert_eq!(queue.next_core_offset, 1);
+				assert_eq!(queue.queue.len(), 1);
+				assert_eq!(queue.queue[0], QueuedParathread {
+					claim: ParathreadEntry {
+						claim: ParathreadClaim(thread_id, collator.clone()),
+						retries: 0,
+					},
+					core_offset: 0,
+				});
+			}
+
+			// due to the index, completing claims are not allowed.
+			{
+				let collator2 = CollatorId::from(Sr25519Keyring::Bob.public());
+				Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator2.clone()));
+				let queue = ParathreadQueue::get();
+				assert_eq!(queue.next_core_offset, 1);
+				assert_eq!(queue.queue.len(), 1);
+				assert_eq!(queue.queue[0], QueuedParathread {
+					claim: ParathreadEntry {
+						claim: ParathreadClaim(thread_id, collator.clone()),
+						retries: 0,
+					},
+					core_offset: 0,
+				});
+			}
+
+			// claims on non-live parathreads have no effect.
+			{
+				let thread_id2 = ParaId::from(11);
+				Scheduler::add_parathread_claim(ParathreadClaim(thread_id2, collator.clone()));
+				let queue = ParathreadQueue::get();
+				assert_eq!(queue.next_core_offset, 1);
+				assert_eq!(queue.queue.len(), 1);
+				assert_eq!(queue.queue[0], QueuedParathread {
+					claim: ParathreadEntry {
+						claim: ParathreadClaim(thread_id, collator.clone()),
+						retries: 0,
+					},
+					core_offset: 0,
+				});
+			}
+		})
+	}
+
+	// TODO [now]: schedule schedules all previously unassigned cores.
+	// TODO [now]: occupied successfully marks all cores as occupied.
+	// TODO [now]: availability predicate functions correctly.
+	// TODO [now]: session change shuffles validators correctly.
+	// TODO [now]: session change prunes queue members with too many retries
+	// TODO [now]: session change reassigns claims to cores.
 }

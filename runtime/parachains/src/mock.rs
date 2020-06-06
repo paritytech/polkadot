@@ -109,6 +109,9 @@ pub type Configuration = crate::configuration::Module<Test>;
 /// Mocked paras.
 pub type Paras = crate::paras::Module<Test>;
 
+/// Mocked scheduler.
+pub type Scheduler = crate::scheduler::Module<Test>;
+
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 	let mut t = state.system.build_storage::<Test>().unwrap();
