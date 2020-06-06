@@ -27,7 +27,7 @@ use sp_std::prelude::*;
 use sp_std::marker::PhantomData;
 use sp_runtime::traits::One;
 use primitives::{
-	parachain::{ValidatorId, Id as ParaId, ValidationCode, HeadData},
+	parachain::{Id as ParaId, ValidationCode, HeadData},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -171,6 +171,8 @@ decl_storage! {
 	trait Store for Module<T: Trait> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 		Parachains get(fn parachains): Vec<ParaId>;
+		/// All parathreads.
+		Parathreads: map hasher(twox_64_concat) ParaId => Option<()>;
 		/// The head-data of every registered para.
 		Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
@@ -268,6 +270,8 @@ impl<T: Trait> Module<T> {
 		for outgoing_para in outgoing {
 			if let Ok(i) = parachains.binary_search(&outgoing_para) {
 				parachains.remove(i);
+			} else {
+				<Self as Store>::Parathreads::remove(&outgoing_para);
 			}
 
 			<Self as Store>::Heads::remove(&outgoing_para);
@@ -296,6 +300,8 @@ impl<T: Trait> Module<T> {
 				if let Err(i) = parachains.binary_search(&upcoming_para) {
 					parachains.insert(i, upcoming_para);
 				}
+			} else {
+				<Self as Store>::Parathreads::insert(&upcoming_para, ());
 			}
 
 			<Self as Store>::Heads::insert(&upcoming_para, genesis_data.genesis_head);
@@ -1040,17 +1046,23 @@ mod tests {
 			);
 
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
 
 			// run to block without session change.
 			run_to_block(2, None);
 
 			assert_eq!(Paras::parachains(), Vec::new());
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
 
 			run_to_block(3, Some(vec![3]));
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+
+			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
 			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
