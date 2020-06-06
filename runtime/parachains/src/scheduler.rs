@@ -36,17 +36,15 @@
 //! over time.
 
 use sp_std::prelude::*;
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::convert::TryInto;
 use primitives::{
-	parachain::{ValidatorId, Id as ParaId, CollatorId, ValidatorIndex},
+	parachain::{Id as ParaId, CollatorId, ValidatorIndex},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
-	dispatch::DispatchResult,
-	weights::{DispatchClass, Weight},
+	weights::Weight,
 };
 use codec::{Encode, Decode};
-use system::ensure_root;
 use sp_runtime::traits::{Saturating, Zero};
 
 use rand::{SeedableRng, seq::SliceRandom};
@@ -263,7 +261,7 @@ impl<T: Trait> Module<T> {
 		if n_cores == 0 || validators.is_empty() {
 			ValidatorGroups::set(Vec::new());
 		} else {
-			let mut rng: ChaCha20Rng = SeedableRng::from_seed(notification.random_seed);
+			let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
 
 			let mut shuffled_indices: Vec<_> = (0..validators.len())
 				.enumerate()
