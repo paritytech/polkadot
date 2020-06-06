@@ -635,7 +635,7 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
-	use primitives::BlockNumber;
+	use primitives::{BlockNumber, parachain::ValidatorId};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
@@ -905,10 +905,66 @@ mod tests {
 		})
 	}
 
+	#[test]
+	fn session_change_shuffles_validators() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		assert_eq!(default_config().parathread_cores, 3);
+		new_test_ext(genesis_config).execute_with(|| {
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+
+			// ensure that we have 5 groups by registering 2 parachains.
+			Paras::schedule_para_initialize(chain_a, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+			Paras::schedule_para_initialize(chain_b, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: true,
+			});
+
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+						ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+						ValidatorId::from(Sr25519Keyring::One.public()),
+					],
+					random_seed: [99; 32],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let groups = ValidatorGroups::get();
+			assert_eq!(groups.len(), 5);
+
+			// first two groups have the overflow.
+			for i in 0..2 {
+				assert_eq!(groups[i].len(), 2);
+			}
+
+			for i in 2..5 {
+				assert_eq!(groups[i].len(), 1);
+			}
+		});
+	}
+
 	// TODO [now]: schedule schedules all previously unassigned cores.
 	// TODO [now]: occupied successfully marks all cores as occupied.
 	// TODO [now]: availability predicate functions correctly.
-	// TODO [now]: session change shuffles validators correctly.
-	// TODO [now]: session change prunes queue members with too many retries
-	// TODO [now]: session change reassigns claims to cores.
 }
