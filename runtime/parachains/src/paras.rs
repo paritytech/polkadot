@@ -521,6 +521,11 @@ impl<T: Trait> Module<T> {
 			}
 		}
 	}
+
+	/// Whether a para ID corresponds to any live parathread.
+	pub(crate) fn is_parathread(id: &ParaId) -> bool {
+		Parathreads::get(&id).is_some()
+	}
 }
 
 #[cfg(test)]
