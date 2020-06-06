@@ -111,6 +111,7 @@ fn main() {
 		});
 
 		let (overseer, _handler) = Overseer::new(
+			vec![],
 			Box::new(Subsystem2),
 			Box::new(Subsystem1),
 			spawner,
