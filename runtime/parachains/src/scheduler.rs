@@ -749,6 +749,42 @@ mod tests {
 		})
 	}
 
+	#[test]
+	fn cannot_add_claim_when_no_parathread_cores() {
+		let config = {
+			let mut config = default_config();
+			config.parathread_cores = 0;
+			config
+		};
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config,
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_id = ParaId::from(10);
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		new_test_ext(genesis_config).execute_with(|| {
+			Paras::schedule_para_initialize(thread_id, ParaGenesisArgs {
+				genesis_head: Vec::new().into(),
+				validation_code: Vec::new().into(),
+				parachain: false,
+			});
+
+			assert!(!Paras::is_parathread(&thread_id));
+
+			run_to_block(10, Some(vec![10]));
+
+			assert!(Paras::is_parathread(&thread_id));
+
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
+			assert_eq!(ParathreadQueue::get(), Default::default());
+		});
+	}
+
 	// TODO [now]: schedule schedules all previously unassigned cores.
 	// TODO [now]: occupied successfully marks all cores as occupied.
 	// TODO [now]: availability predicate functions correctly.
