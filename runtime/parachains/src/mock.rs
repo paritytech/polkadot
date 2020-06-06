@@ -96,6 +96,8 @@ impl crate::configuration::Trait for Test { }
 
 impl crate::paras::Trait for Test { }
 
+impl crate::scheduler::Trait for Test { }
+
 pub type System = system::Module<Test>;
 
 /// Mocked initializer.
