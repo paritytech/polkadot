@@ -664,7 +664,7 @@ construct_runtime! {
 		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event}
+		Proxy: proxy::{Module, Call, Storage, Event<T>}
 	}
 }
 
