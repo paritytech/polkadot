@@ -261,7 +261,7 @@ impl<T: Trait> Module<T> {
 		if n_cores == 0 || validators.is_empty() {
 			ValidatorGroups::set(Vec::new());
 		} else {
-			let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
+			let mut rng: ChaCha20Rng = SeedableRng::from_seed(*random_seed);
 
 			let mut shuffled_indices: Vec<_> = (0..validators.len())
 				.enumerate()

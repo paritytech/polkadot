@@ -27,7 +27,7 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
-use crate::{configuration::{self, HostConfiguration}, paras};
+use crate::{configuration::{self, HostConfiguration}, paras, scheduler};
 
 /// Information about a session change that has just occurred.
 #[derive(Default, Clone)]
@@ -44,7 +44,7 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub random_seed: [u8; 32],
 }
 
-pub trait Trait: system::Trait + configuration::Trait + paras::Trait {
+pub trait Trait: system::Trait + configuration::Trait + paras::Trait + scheduler::Trait {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
 }
@@ -80,7 +80,8 @@ decl_module! {
 			// - Inclusion
 			// - Validity
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
-				paras::Module::<T>::initializer_initialize(now);
+				paras::Module::<T>::initializer_initialize(now) +
+				scheduler::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -88,6 +89,9 @@ decl_module! {
 		}
 
 		fn on_finalize() {
+			// reverse initialization order.
+
+			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 			HasInitialized::take();
@@ -133,6 +137,7 @@ impl<T: Trait> Module<T> {
 		};
 
 		paras::Module::<T>::initializer_on_new_session(&notification);
+		scheduler::Module::<T>::initializer_on_new_session(&notification);
 	}
 }
 
