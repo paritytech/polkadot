@@ -167,7 +167,7 @@ pub enum FreedReason {
 pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Scheduler {
+	trait Store for Module<T: Trait> as ParaScheduler {
 		/// All the validator groups. One for each core.
 		ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 		/// A queue of upcoming claims and which core they should be mapped onto.
