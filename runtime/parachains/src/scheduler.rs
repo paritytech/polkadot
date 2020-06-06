@@ -47,7 +47,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
-use sp_runtime::traits::Zero;
+use sp_runtime::traits::{Saturating, Zero};
 
 use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
@@ -148,9 +148,9 @@ impl CoreAssignment {
 	fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(collator, retries) => CoreOccupied::Parathread(
+			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
 				ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator),
+					claim: ParathreadClaim(self.para_id, collator.clone()),
 					retries,
 				}
 			),
@@ -503,20 +503,19 @@ impl<T: Trait> Module<T> {
 
 			let mut occupied_iter = now_occupied.iter().cloned().peekable();
 			scheduled.retain(|assignment| {
-				occupied_iter.peek().map_or(true, |occupied_idx| {
-					if occupied_idx == assignment.core {
-						// remove this entry - it's now occupied. and begin inspecting the next extry
-						// of the occupied iterator.
-						let _ = occupied_iter.next();
+				let retain = occupied_iter.peek().map_or(true, |occupied_idx| {
+					occupied_idx != &assignment.core
+				});
 
-						availability_cores[occupied_idx.0 as usize] = Some(assignment.to_core_occupied());
+				if !retain {
+					// remove this entry - it's now occupied. and begin inspecting the next extry
+					// of the occupied iterator.
+					let _ = occupied_iter.next();
 
-						false
-					} else {
-						// retain all members of `scheduled` which do not match the next entry of occupied.
-						true
-					}
-				})
+					availability_cores[assignment.core.0 as usize] = Some(assignment.to_core_occupied());
+				}
+
+				retain
 			})
 		});
 
@@ -572,5 +571,52 @@ impl<T: Trait> Module<T> {
 
 		let group_idx = (core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();
 		Some(GroupIndex(group_idx as u32))
+	}
+
+	/// Returns an optional predicate that should be used for timing out occupied cores.
+	///
+	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
+	/// block number since the last validator group rotation, and the respective parachain and parathread
+	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
+	/// of the last rotation would this return `Some`.
+	pub(crate) fn availability_timeout_predicate() -> Option<impl Fn(CoreIndex, T::BlockNumber) -> bool> {
+		let now = <system::Module<T>>::block_number();
+		let config = <configuration::Module<T>>::config();
+
+		let session_start = <SessionStartBlock<T>>::get();
+		let blocks_since_session_start = now.saturating_sub(session_start);
+		let blocks_since_last_rotation = blocks_since_session_start % config.parachain_rotation_frequency;
+
+		let absolute_cutoff = sp_std::cmp::max(
+			config.chain_availability_period,
+			config.thread_availability_period,
+		);
+
+		let availability_cores = AvailabilityCores::get();
+
+		if blocks_since_last_rotation >= absolute_cutoff {
+			None
+		} else {
+			Some(move |core_index: CoreIndex, pending_since| {
+				match availability_cores.get(core_index.0 as usize) {
+					None => true, // out-of-bounds, doesn't really matter what is returned.
+					Some(None) => true, // core not occupied, still doesn't really matter.
+					Some(Some(CoreOccupied::Parachain)) => {
+						if blocks_since_last_rotation >= config.chain_availability_period {
+							false // no pruning except recently after rotation.
+						} else {
+							now.saturating_sub(pending_since) >= config.chain_availability_period
+						}
+					}
+					Some(Some(CoreOccupied::Parathread(_))) => {
+						if blocks_since_last_rotation >= config.thread_availability_period {
+							false // no pruning except recently after rotation.
+						} else {
+							now.saturating_sub(pending_since) >= config.thread_availability_period
+						}
+					}
+				}
+			})
+		}
 	}
 }
