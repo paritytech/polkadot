@@ -704,8 +704,8 @@ Actions:
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 * `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
 * `occupied(Vec<CoreIndex>). Note that the given cores have become occupied.
-  - Fails if any given cores were not scheduled.
-  - Fails if the given cores are not sorted ascending by core index
+  - Behavior undefined if any given cores were not scheduled.
+  - Behavior undefined if the given cores are not sorted ascending by core index
   - This clears them from `Scheduled` and marks each corresponding `core` in the `AvailabilityCores` as occupied.
   - Since both the availability cores and the newly-occupied cores lists are sorted ascending, this method can be implemented efficiently.
 * `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.

@@ -130,7 +130,7 @@ pub struct CoreAssignment {
 	pub core: CoreIndex,
 	/// The unique ID of the para that is assigned to the core.
 	pub para_id: ParaId,
-	/// The kind of the assigment.
+	/// The kind of the assignment.
 	pub kind: AssignmentKind,
 	/// The index of the validator group assigned to the core.
 	pub group_idx: GroupIndex,
@@ -142,6 +142,18 @@ impl CoreAssignment {
 		match self.kind {
 			AssignmentKind::Parachain => None,
 			AssignmentKind::Parathread(ref id, _) => Some(id),
+		}
+	}
+
+	fn to_core_occupied(&self) -> CoreOccupied {
+		match self.kind {
+			AssignmentKind::Parachain => CoreOccupied::Parachain,
+			AssignmentKind::Parathread(collator, retries) => CoreOccupied::Parathread(
+				ParathreadEntry {
+					claim: ParathreadClaim(self.para_id, collator),
+					retries,
+				}
+			),
 		}
 	}
 }
@@ -474,6 +486,41 @@ impl<T: Trait> Module<T> {
 
 		Scheduled::set(scheduled);
 		ParathreadQueue::set(parathread_queue);
+	}
+
+	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
+	/// or the slice is not sorted ascending by core index.
+	///
+	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
+	/// This is efficient in the case that most scheduled cores are occupied.
+	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
+		if now_occupied.is_empty() { return }
+
+		let mut availability_cores = AvailabilityCores::get();
+		Scheduled::mutate(|scheduled| {
+			// The constraints on the function require that now_occupied is a sorted subset of the
+			// `scheduled` cores, which are also sorted.
+
+			let mut occupied_iter = now_occupied.iter().cloned().peekable();
+			scheduled.retain(|assignment| {
+				occupied_iter.peek().map_or(true, |occupied_idx| {
+					if occupied_idx == assignment.core {
+						// remove this entry - it's now occupied. and begin inspecting the next extry
+						// of the occupied iterator.
+						let _ = occupied_iter.next();
+
+						availability_cores[occupied_idx.0 as usize] = Some(assignment.to_core_occupied());
+
+						false
+					} else {
+						// retain all members of `scheduled` which do not match the next entry of occupied.
+						true
+					}
+				})
+			})
+		});
+
+		AvailabilityCores::set(availability_cores);
 	}
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
