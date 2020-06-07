@@ -1201,8 +1201,6 @@ mod tests {
 			{
 				let scheduled = Scheduler::scheduled();
 
-				println!("{:?}", scheduled);
-
 				// 1 thing scheduled before, + 3 cores freed.
 				assert_eq!(scheduled.len(), 4);
 				assert_eq!(scheduled[0], CoreAssignment {
@@ -1253,7 +1251,92 @@ mod tests {
 
 	#[test]
 	fn schedule_rotates_groups() {
-		// TODO [now]
+		let config = {
+			let mut config = default_config();
+
+			// make sure parathread requests don't retry-out
+			config.parathread_retries = config.parachain_rotation_frequency * 3;
+			config.parathread_cores = 2;
+			config
+		};
+
+		let rotation_frequency = config.parachain_rotation_frequency;
+		let parathread_cores = config.parathread_cores;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(default_config().parathread_cores, 3);
+
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let session_start_block = <Scheduler as Store>::SessionStartBlock::get();
+			assert_eq!(session_start_block, 1);
+
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+
+			run_to_block(2, |_| None);
+
+			let assert_groups_rotated = |rotations: u32| {
+				let scheduled = Scheduler::scheduled();
+				assert_eq!(scheduled.len(), 2);
+				assert_eq!(scheduled[0].group_idx, GroupIndex((0u32 + rotations) % parathread_cores));
+				assert_eq!(scheduled[1].group_idx, GroupIndex((1u32 + rotations) % parathread_cores));
+			};
+
+			assert_groups_rotated(0);
+
+			// one block before first rotation.
+			run_to_block(rotation_frequency, |_| None);
+
+			let rotations_since_session_start = (rotation_frequency - session_start_block) / rotation_frequency;
+			assert_eq!(rotations_since_session_start, 0);
+			assert_groups_rotated(0);
+
+			// first rotation.
+			run_to_block(rotation_frequency + 1, |_| None);
+			assert_groups_rotated(1);
+
+			// one block before second rotation.
+			run_to_block(rotation_frequency * 2, |_| None);
+			assert_groups_rotated(1);
+
+			// second rotation.
+			run_to_block(rotation_frequency * 2 + 1, |_| None);
+			assert_groups_rotated(2);
+		});
 	}
 
 	#[test]
