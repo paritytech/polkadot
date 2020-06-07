@@ -1000,8 +1000,6 @@ mod tests {
 			parachain: is_chain,
 		});
 
-		let validators =
-
 		new_test_ext(genesis_config).execute_with(|| {
 			assert_eq!(default_config().parathread_cores, 3);
 
@@ -1092,7 +1090,165 @@ mod tests {
 
 	#[test]
 	fn schedule_schedules_including_just_freed() {
-		// TODO [now]
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+
+		let thread_a = ParaId::from(3);
+		let thread_b = ParaId::from(4);
+		let thread_c = ParaId::from(5);
+		let thread_d = ParaId::from(6);
+		let thread_e = ParaId::from(7);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(default_config().parathread_cores, 3);
+
+			// register 2 parachains
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(chain_b, true);
+
+			// and 5 parathreads
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+			schedule_blank_para(thread_c, false);
+			schedule_blank_para(thread_d, false);
+			schedule_blank_para(thread_e, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			// add a couple of parathread claims now that the parathreads are live.
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
+
+			run_to_block(2, |_| None);
+
+			assert_eq!(Scheduler::scheduled().len(), 4);
+
+			// cores 0, 1, 2, and 3 should be occupied. mark them as such.
+			Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2), CoreIndex(3)]);
+
+			{
+				let cores = AvailabilityCores::get();
+
+				assert!(cores[0].is_some());
+				assert!(cores[1].is_some());
+				assert!(cores[2].is_some());
+				assert!(cores[3].is_some());
+				assert!(cores[4].is_none());
+
+				assert!(Scheduler::scheduled().is_empty());
+			}
+
+			// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
+			// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
+			// will go for core `3`.
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
+
+			run_to_block(3, |_| None);
+
+			{
+				let scheduled = Scheduler::scheduled();
+
+				// cores 0 and 1 are occupied by parachains. cores 2 and 3 are occupied by parathread
+				// claims. core 4 was free.
+				assert_eq!(scheduled.len(), 1);
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(4),
+					para_id: thread_b,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(4),
+				});
+			}
+
+			// now note that cores 0, 2, and 3 were freed.
+			Scheduler::schedule(vec![
+				(CoreIndex(0), FreedReason::Concluded),
+				(CoreIndex(2), FreedReason::Concluded),
+				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
+			]);
+
+			{
+				let scheduled = Scheduler::scheduled();
+
+				println!("{:?}", scheduled);
+
+				// 1 thing scheduled before, + 3 cores freed.
+				assert_eq!(scheduled.len(), 4);
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				});
+				assert_eq!(scheduled[1], CoreAssignment {
+					core: CoreIndex(2),
+					para_id: thread_d,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(2),
+				});
+				assert_eq!(scheduled[2], CoreAssignment {
+					core: CoreIndex(3),
+					para_id: thread_e,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(3),
+				});
+				assert_eq!(scheduled[3], CoreAssignment {
+					core: CoreIndex(4),
+					para_id: thread_b,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(4),
+				});
+
+				// the prior claim on thread A concluded, but the claim on thread C was marked as
+				// timed out.
+				let index = ParathreadClaimIndex::get();
+				let parathread_queue = ParathreadQueue::get();
+
+				// thread A claim should have been wiped, but thread C claim should remain.
+				assert_eq!(index, vec![thread_b, thread_c, thread_d, thread_e]);
+
+				// Although C was descheduled, the core `4`  was occupied so C goes back on the queue.
+				assert_eq!(parathread_queue.queue.len(), 1);
+				assert_eq!(parathread_queue.queue[0], QueuedParathread {
+					claim: ParathreadEntry {
+						claim: ParathreadClaim(thread_c, collator.clone()),
+						retries: 0, // retries not incremented by timeout - validators' fault.
+					},
+					core_offset: 2, // reassigned to next core. thread_e claim was on offset 1.
+				});
+			}
+		});
 	}
 
 	#[test]
@@ -1101,17 +1257,7 @@ mod tests {
 	}
 
 	#[test]
-	fn concluded_parathreads_are_removed_from_index() {
-		// TODO [now]
-	}
-
-	#[test]
-	fn timed_out_parathreads_do_not_have_retries_incremented() {
-		// TODO [now]
-	}
-
-	#[test]
-	fn occupied_marks_cores_occupied() {
+	fn unoccupied_core_means_retries_incremented() {
 		// TODO [now]
 	}
 
