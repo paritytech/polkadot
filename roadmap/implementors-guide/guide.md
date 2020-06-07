@@ -26,24 +26,24 @@ There are a number of other documents describing the research in more detail. Al
   * [Overseer](#Overseer)
   * [Subsystem Divisions](#Subsystem-Divisions)
   * Backing
-	* [Candidate Backing](#Candidate-Backing)
-	* [Candidate Selection](#Candidate-Selection)
-	* [Statement Distribution](#Statement-Distribution)
-	* [PoV Distribution](#Pov-Distribution)
+    * [Candidate Backing](#Candidate-Backing)
+    * [Candidate Selection](#Candidate-Selection)
+    * [Statement Distribution](#Statement-Distribution)
+    * [PoV Distribution](#Pov-Distribution)
   * Availability
-	* [Availability Distribution](#Availability-Distribution)
-	* [Bitfield Distribution](#Bitfield-Distribution)
-	* [Bitfield Signing](#Bitfield-Signing)
+    * [Availability Distribution](#Availability-Distribution)
+    * [Bitfield Distribution](#Bitfield-Distribution)
+    * [Bitfield Signing](#Bitfield-Signing)
   * Collators
     * [Collation Generation](#Collation-Generation)
-	* [Collation Distribution](#Collation-Distribution)
+    * [Collation Distribution](#Collation-Distribution)
   * Validity
-	* [Double-vote Reporting](#Double-Vote-Reporting)
+    * [Double-vote Reporting](#Double-Vote-Reporting)
     * TODO
   * Utility
     * [Availability Store](#Availability-Store)
-	* [Candidate Validation](#Candidate-Validation)
-	* [Block Authorship (Provisioning)](#Block-Authorship-Provisioning)
+    * [Candidate Validation](#Candidate-Validation)
+    * [Block Authorship (Provisioning)](#Block-Authorship-Provisioning)
     * [Peer-set Manager](#Peer-Set-Manager)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
