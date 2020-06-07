@@ -181,20 +181,33 @@ pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaScheduler {
 		/// All the validator groups. One for each core.
+		///
+		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
+		/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
 		ValidatorGroups: Vec<Vec<ValidatorIndex>>;
+
 		/// A queue of upcoming claims and which core they should be mapped onto.
+		///
+		/// The number of queued claims is bounded at the `scheduling_lookahead`
+		/// multiplied by the number of parathread multiplexer cores. Reasonably, 10 * 50 = 500.
 		ParathreadQueue: ParathreadClaimQueue;
 		/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
 		/// temporarily `Some` if scheduled but not occupied.
 		/// The i'th parachain belongs to the i'th core, with the remaining cores all being
 		/// parathread-multiplexers.
+		///
+		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
 		AvailabilityCores: Vec<Option<CoreOccupied>>;
 		/// An index used to ensure that only one claim on a parathread exists in the queue or is
 		/// currently being handled by an occupied core.
+		///
+		/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 		SessionStartBlock: T::BlockNumber;
 		/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
+		///
+		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
 		Scheduled get(fn scheduled): Vec<CoreAssignment>; // sorted ascending by CoreIndex.
 	}
 }
