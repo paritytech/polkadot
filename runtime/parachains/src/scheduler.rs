@@ -1340,8 +1340,59 @@ mod tests {
 	}
 
 	#[test]
-	fn unoccupied_core_means_retries_incremented() {
-		// TODO [now]
+	fn parathread_claims_are_pruned_after_retries() {
+		let max_retries = default_config().parathread_retries;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(default_config().parathread_cores, 3);
+
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+
+			run_to_block(2, |_| None);
+			assert_eq!(Scheduler::scheduled().len(), 2);
+
+			run_to_block(2 + max_retries, |_| None);
+			assert_eq!(Scheduler::scheduled().len(), 2);
+
+			run_to_block(2 + max_retries + 1, |_| None);
+			assert_eq!(Scheduler::scheduled().len(), 0);
+		});
 	}
 
 	#[test]
