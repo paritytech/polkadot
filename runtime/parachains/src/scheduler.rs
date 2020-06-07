@@ -141,6 +141,7 @@ pub struct CoreAssignment {
 
 impl CoreAssignment {
 	/// Get the ID of a collator who is required to collate this block.
+	#[allow(unused)]
 	pub(crate) fn required_collator(&self) -> Option<&CollatorId> {
 		match self.kind {
 			AssignmentKind::Parachain => None,
@@ -148,6 +149,7 @@ impl CoreAssignment {
 		}
 	}
 
+	#[allow(unused)]
 	fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
@@ -162,6 +164,7 @@ impl CoreAssignment {
 }
 
 /// Reasons a core might be freed
+#[allow(unused)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -337,6 +340,7 @@ impl<T: Trait> Module<T> {
 	/// assigned to a core, this call will fail. This call will also fail if the queue is full.
 	///
 	/// Fails if the claim does not correspond to any live parathread.
+	#[allow(unused)]
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
 		if !<paras::Module<T>>::is_parathread(&claim.0) { return }
 
@@ -503,6 +507,7 @@ impl<T: Trait> Module<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
+	#[allow(unused)]
 	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
 		if now_occupied.is_empty() { return }
 
@@ -534,6 +539,7 @@ impl<T: Trait> Module<T> {
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
 	/// out of bounds will return `None`, as will indices of unassigned cores.
+	#[allow(unused)]
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
@@ -547,6 +553,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the validators in the given group, if the group index is valid for this session.
+	#[allow(unused)]
 	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
 		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
@@ -589,6 +596,7 @@ impl<T: Trait> Module<T> {
 	/// block number since the last validator group rotation, and the respective parachain and parathread
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`.
+	#[allow(unused)]
 	pub(crate) fn availability_timeout_predicate() -> Option<impl Fn(CoreIndex, T::BlockNumber) -> bool> {
 		let now = <system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
@@ -801,7 +809,6 @@ mod tests {
 			..Default::default()
 		};
 		let max_parathread_retries = default_config().parathread_retries;
-		let n_cores = default_config().parathread_cores;
 
 		let thread_a = ParaId::from(1);
 		let thread_b = ParaId::from(2);
