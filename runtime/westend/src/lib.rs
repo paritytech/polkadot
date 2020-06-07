@@ -98,12 +98,14 @@ pub fn native_version() -> NativeVersion {
 }
 
 /// Avoid processing transactions from slots and parachain registrar.
-pub struct IsCallable;
-impl Filter<Call> for IsCallable {
+pub struct BaseFilter;
+impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		!matches!(call, Call::Registrar(_))
 	}
 }
+pub struct IsCallable;
+frame_support::impl_filter_stack!(crate::IsCallable, crate::BaseFilter, crate::Call, is_callable);
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -531,13 +533,14 @@ parameter_types! {
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type IsCallable = IsCallable;
+}
+/*
 	type Currency = Balances;
 	type MultisigDepositBase = MultisigDepositBase;
 	type MultisigDepositFactor = MultisigDepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = IsCallable;
-}
-
+*/
 parameter_types! {
 	pub const ConfigDepositBase: Balance = 5 * DOLLARS;
 	pub const FriendDepositFactor: Balance = 50 * CENTS;
@@ -597,6 +600,15 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
 		}
 	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(x, y) if x == y => true,
+			(ProxyType::Any, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
+			_ => false,
+		}
+	}
 }
 
 impl proxy::Trait for Runtime {
@@ -646,7 +658,7 @@ construct_runtime! {
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Utility module.
-		Utility: utility::{Module, Call, Storage, Event<T>},
+		Utility: utility::{Module, Call, Event},
 
 		// Less simple identity module.
 		Identity: identity::{Module, Call, Storage, Event<T>},

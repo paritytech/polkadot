@@ -104,8 +104,8 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-pub struct IsCallable;
-impl Filter<Call> for IsCallable {
+pub struct BaseFilter;
+impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
@@ -132,6 +132,8 @@ impl Filter<Call> for IsCallable {
 		}
 	}
 }
+pub struct IsCallable;
+frame_support::impl_filter_stack!(crate::IsCallable, crate::BaseFilter, crate::Call, is_callable);
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -731,13 +733,14 @@ parameter_types! {
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type IsCallable = IsCallable;
+}
+/*
 	type Currency = Balances;
 	type MultisigDepositBase = MultisigDepositBase;
 	type MultisigDepositFactor = MultisigDepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = IsCallable;
-}
-
+ */
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -774,6 +777,15 @@ impl InstanceFilter<Call> for ProxyType {
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
+		}
+	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(x, y) if x == y => true,
+			(ProxyType::Any, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
+			_ => false,
 		}
 	}
 }
@@ -841,7 +853,7 @@ construct_runtime! {
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 		// Cunning utilities. Usable initially.
-		Utility: utility::{Module, Call, Storage, Event<T>},
+		Utility: utility::{Module, Call, Event},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
