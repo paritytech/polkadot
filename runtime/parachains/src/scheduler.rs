@@ -54,6 +54,7 @@ use crate::{configuration, paras, initializer::SessionChangeNotification};
 
 /// The unique (during session) index of a core.
 #[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(test, derive(Debug))]
 pub struct CoreIndex(u32);
 
 /// The unique (during session) index of a validator group.
@@ -114,6 +115,7 @@ impl ParathreadClaimQueue {
 
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub(crate) enum CoreOccupied {
 	Parathread(ParathreadEntry),
 	Parachain,
@@ -121,6 +123,7 @@ pub(crate) enum CoreOccupied {
 
 /// The assignment type.
 #[derive(Clone, Encode, Decode)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub enum AssignmentKind {
 	Parachain,
 	Parathread(CollatorId, u32),
@@ -128,6 +131,7 @@ pub enum AssignmentKind {
 
 /// How a free core is scheduled to be assigned.
 #[derive(Encode, Decode)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
@@ -971,7 +975,148 @@ mod tests {
 		});
 	}
 
-	// TODO [now]: schedule schedules all previously unassigned cores.
-	// TODO [now]: occupied successfully marks all cores as occupied.
-	// TODO [now]: availability predicate functions correctly.
+	#[test]
+	fn schedule_schedules() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+
+		let thread_a = ParaId::from(3);
+		let thread_b = ParaId::from(4);
+		let thread_c = ParaId::from(5);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		let validators =
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(default_config().parathread_cores, 3);
+
+			// register 2 parachains
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(chain_b, true);
+
+			// and 3 parathreads
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+			schedule_blank_para(thread_c, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			{
+				let scheduled = Scheduler::scheduled();
+				assert_eq!(scheduled.len(), 2);
+
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				});
+
+				assert_eq!(scheduled[1], CoreAssignment {
+					core: CoreIndex(1),
+					para_id: chain_b,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(1),
+				});
+			}
+
+			// add a couple of parathread claims.
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+			Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
+
+			run_to_block(2, |_| None);
+
+			{
+				let scheduled = Scheduler::scheduled();
+				assert_eq!(scheduled.len(), 4);
+
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				});
+
+				assert_eq!(scheduled[1], CoreAssignment {
+					core: CoreIndex(1),
+					para_id: chain_b,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(1),
+				});
+
+				assert_eq!(scheduled[2], CoreAssignment{
+					core: CoreIndex(2),
+					para_id: thread_a,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(2),
+				});
+
+				assert_eq!(scheduled[3], CoreAssignment{
+					core: CoreIndex(3),
+					para_id: thread_c,
+					kind: AssignmentKind::Parathread(collator.clone(), 0),
+					group_idx: GroupIndex(3),
+				});
+			}
+		});
+	}
+
+	#[test]
+	fn schedule_schedules_including_just_freed() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn schedule_rotates_groups() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn concluded_parathreads_are_removed_from_index() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn timed_out_parathreads_do_not_have_retries_incremented() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn occupied_marks_cores_occupied() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn availability_predicate_works() {
+		// TODO [now]
+	}
 }
