@@ -593,6 +593,7 @@ pub enum ProxyType {
 	Any,
 	NonTransfer,
 	Staking,
+	SudoBalances,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -605,6 +606,9 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
 					| Call::Utility(utility::Call::as_limited_sub(..))
+			),
+			ProxyType::SudoBalances => matches!(c,
+				Call::Sudo(sudo::Call::sudo(x)) if matches!(x.as_ref(), &Call::Balances(..))
 			),
 		}
 	}
