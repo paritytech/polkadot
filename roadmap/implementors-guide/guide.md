@@ -409,6 +409,8 @@ The Paras module is responsible for storing information on parachains and parath
 
 It's also responsible for managing parachain validation code upgrades as well as maintaining availability of old parachain code and its pruning.
 
+One other improtant thing happening in this module is dispatching of the `UpwardMessage`s.
+
 #### Storage
 
 Utility structs:
@@ -490,6 +492,14 @@ UpcomingParas: Vec<ParaId>;
 UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 /// Paras that are to be cleaned up at the end of the session.
 OutgoingParas: Vec<ParaId>;
+
+/// Messages ready to be dispatched onto the relay chain.
+RelayDispatchQueue: map ParaId => Vec<UpwardMessa>;
+/// Cached sizes of the dispached queues. (msg_count, total_byte_size).
+/// Exists for optimization purposes to avoid costly decoding.
+RelayDispatchQueueSize: map ParaId => (u32, u32);
+/// The ordered list of ParaIds that have a `RelayDispatchQueue` entry.
+NeedsDispatch: Vec<ParaId>;
 ```
 #### Session Change
 
@@ -506,7 +516,7 @@ OutgoingParas: Vec<ParaId>;
 * `schedule_para_initialize(ParaId, ParaGenesisArgs)`: schedule a para to be initialized at the next session.
 * `schedule_para_cleanup(ParaId)`: schedule a para to be cleaned up at the next session.
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`.
-* `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided.
+* `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided. Also this will dispatch messages from `RelayDispatchQueue` accordingly to the limits.
 * `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 
 #### Finalization
