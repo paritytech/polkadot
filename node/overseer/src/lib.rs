@@ -74,6 +74,11 @@ use streamunordered::{StreamYield, StreamUnordered};
 use polkadot_primitives::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
+pub use messages::{
+	OverseerSignal, ValidationSubsystemMessage, CandidateBackingSubsystemMessage, AllMessages,
+	FromOverseer,
+};
+
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -183,13 +188,6 @@ enum Event {
 	Stop,
 }
 
-/// Some message that is sent from one of the `Subsystem`s to the outside world.
-pub enum OutboundMessage {
-	SubsystemMessage {
-		msg: AllMessages,
-	}
-}
-
 /// A handler used to communicate with the [`Overseer`].
 ///
 /// [`Overseer`]: struct.Overseer.html
@@ -228,7 +226,7 @@ impl OverseerHandler {
 	}
 }
 
-/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding 
+/// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding
 /// import and finality notifications into the [`OverseerHandler`].
 ///
 /// [`Overseer`]: struct.Overseer.html
@@ -293,65 +291,6 @@ struct SubsystemInstance<M: Debug> {
 pub struct SubsystemContext<M: Debug>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<ToOverseer>,
-}
-
-/// A signal used by [`Overseer`] to communicate with the [`Subsystem`]s.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
-#[derive(PartialEq, Clone, Debug)]
-pub enum OverseerSignal {
-	/// `Subsystem` should start working.
-	StartWork(Hash),
-	/// `Subsystem` should stop working.
-	StopWork(Hash),
-	/// Conclude the work of the `Overseer` and all `Subsystem`s.
-	Conclude,
-}
-
-#[derive(Debug)]
-/// A message type used by the Validation [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-pub enum ValidationSubsystemMessage {
-	ValidityAttestation,
-}
-
-#[derive(Debug)]
-/// A message type used by the CandidateBacking [`Subsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-pub enum CandidateBackingSubsystemMessage {
-	RegisterBackingWatcher,
-	Second,
-}
-
-/// A message type tying together all message types that are used across [`Subsystem`]s.
-///
-/// [`Subsystem`]: trait.Subsystem.html
-#[derive(Debug)]
-pub enum AllMessages {
-	Validation(ValidationSubsystemMessage),
-	CandidateBacking(CandidateBackingSubsystemMessage),
-}
-
-/// A message type that a [`Subsystem`] receives from the [`Overseer`].
-/// It wraps siglans from the [`Overseer`] and messages that are circulating
-/// between subsystems.
-///
-/// It is generic over over the message type `M` that a particular `Subsystem` may use.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
-#[derive(Debug)]
-pub enum FromOverseer<M: Debug> {
-	/// Signal from the `Overseer`.
-	Signal(OverseerSignal),
-
-	/// Some other `Subsystem`'s message.
-	Communication {
-		msg: M,
-	},
 }
 
 impl<M: Debug> SubsystemContext<M> {
@@ -501,7 +440,7 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use overseer::{
+	/// # use polkadot_overseer::{
 	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
 	/// #     ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
 	/// # };
@@ -898,7 +837,7 @@ mod tests {
 	//
 	// Should immediately conclude the overseer itself with an error.
 	#[test]
-	fn overseer_panics_on_sybsystem_exit() {
+	fn overseer_panics_on_subsystem_exit() {
 		let spawner = executor::ThreadPool::new().unwrap();
 
 		executor::block_on(async move {
