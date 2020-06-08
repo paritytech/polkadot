@@ -531,10 +531,6 @@ parameter_types! {
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
-	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
-	type MaxSignatories = MaxSignatories;
 	type IsCallable = IsCallable;
 }
 
