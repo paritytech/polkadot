@@ -846,6 +846,7 @@ mod tests {
 		type Call = Call;
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
+		type MinSolutionScoreBump = ();
 	}
 
 	impl timestamp::Trait for Test {
