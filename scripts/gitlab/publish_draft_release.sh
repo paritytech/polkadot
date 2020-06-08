@@ -12,22 +12,20 @@ echo "[+] Cloning substrate to generate list of changes"
 git clone $substrate_repo $substrate_dir
 echo "[+] Finished cloning substrate into $substrate_dir"
 
-# TODO: Undo before opening PR (replace CI_COMMIT_SHA with CI_COMMIT_TAG)
-version="$CI_COMMIT_SHA"
-last_version=$(git tag -l | sort -V | grep -B 1 -x "$CI_COMMIT_SHA" | head -n 1)
+version="$CI_COMMIT_TAG"
+last_version=$(git tag -l | sort -V | grep -B 1 -x "$CI_COMMIT_TAG" | head -n 1)
 echo "[+] Version: $version; Previous version: $last_version"
 
 # Check that a signed tag exists on github for this version
 echo '[+] Checking tag has been signed'
-# TODO: Uncomment before opening PR
-#check_tag "paritytech/polkadot" "$version"
-#case $? in
-#  0) echo '[+] Tag found and has been signed'
-#    ;;
-#  1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
-#    ;;
-#  2) echo '[!] Tag not found. Aborting release.'; exit 1
-#esac
+check_tag "paritytech/polkadot" "$version"
+case $? in
+  0) echo '[+] Tag found and has been signed'
+    ;;
+  1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
+    ;;
+  2) echo '[!] Tag not found. Aborting release.'; exit 1
+esac
 
 # Pull rustc version used by rust-builder for stable and nightly
 stable_rustc="$(rustc +stable --version)"
@@ -156,9 +154,6 @@ fi
 
 echo "[+] Release text generated: "
 echo "$release_text"
-
-# TODO: Undo before opening PR
-exit
 
 echo "[+] Pushing release to github"
 # Create release on github
