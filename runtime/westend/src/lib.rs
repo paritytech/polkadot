@@ -595,7 +595,7 @@ impl InstanceFilter<Call> for ProxyType {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Utility(..) | Call::Indices(indices::Call::transfer(..))
+				Call::Balances(..) | Call::Indices(indices::Call::transfer(..))
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
 		}

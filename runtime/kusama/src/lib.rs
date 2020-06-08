@@ -791,8 +791,7 @@ impl InstanceFilter<Call> for ProxyType {
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
 			),
 			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Utility(..)
-					| Call::Vesting(vesting::Call::vested_transfer(..))
+				Call::Balances(..) | Call::Vesting(vesting::Call::vested_transfer(..))
 					| Call::Indices(indices::Call::transfer(..))
 			),
 			ProxyType::Staking => matches!(c, Call::Staking(..)),
