@@ -11,7 +11,7 @@ stages:
   - publish
   - deploy
 
-image:                             paritytech/substrate-ci-linux:production
+image:                             paritytech/ci-linux:production
 
 variables:
   GIT_STRATEGY:                    fetch
