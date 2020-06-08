@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 3,
+	spec_version: 4,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 0,
@@ -104,8 +104,8 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
-pub struct IsCallable;
-impl Filter<Call> for IsCallable {
+pub struct BaseFilter;
+impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
@@ -127,11 +127,13 @@ impl Filter<Call> for IsCallable {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
 				true,
 		}
 	}
 }
+pub struct IsCallable;
+frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -720,20 +722,26 @@ impl vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
-parameter_types! {
-	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
-	pub const MultisigDepositBase: Balance = 30 * CENTS;
-	// Additional storage item size of 32 bytes.
-	pub const MultisigDepositFactor: Balance = 5 * CENTS;
-	pub const MaxSignatories: u16 = 100;
-}
-
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type IsCallable = IsCallable;
+}
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl multisig::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
 	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
 	type IsCallable = IsCallable;
 }
@@ -758,6 +766,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
+	SudoBalances,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -765,15 +774,31 @@ impl InstanceFilter<Call> for ProxyType {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Utility(..)
-					| Call::Vesting(vesting::Call::vested_transfer(..))
+				Call::Balances(..) | Call::Vesting(vesting::Call::vested_transfer(..))
 					| Call::Indices(indices::Call::transfer(..))
 			),
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
+					| Call::Utility(utility::Call::batch(..))
+					| Call::Utility(utility::Call::as_limited_sub(..))
 			),
-			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::Staking => matches!(c,
+				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
+					| Call::Utility(utility::Call::as_limited_sub(..))
+			),
+			ProxyType::SudoBalances => matches!(c,
+				Call::Sudo(sudo::Call::sudo(x)) if matches!(x.as_ref(), &Call::Balances(..))
+			),
+		}
+	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(x, y) if x == y => true,
+			(ProxyType::Any, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
+			_ => false,
 		}
 	}
 }
@@ -841,7 +866,7 @@ construct_runtime! {
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
 		// Cunning utilities. Usable initially.
-		Utility: utility::{Module, Call, Storage, Event<T>},
+		Utility: utility::{Module, Call, Event},
 
 		// Sudo. Last module. Usable initially, but removed once governance enabled.
 		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
@@ -850,7 +875,10 @@ construct_runtime! {
 		Identity: identity::{Module, Call, Storage, Event<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event<T>}
+		Proxy: proxy::{Module, Call, Storage, Event<T>},
+
+		// Multisig dispatch. Late addition.
+		Multisig: multisig::{Module, Call, Storage, Event<T>},
 	}
 }
 

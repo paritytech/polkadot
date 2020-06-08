@@ -82,7 +82,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 20,
+	spec_version: 24,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -98,12 +98,14 @@ pub fn native_version() -> NativeVersion {
 }
 
 /// Avoid processing transactions from slots and parachain registrar.
-pub struct IsCallable;
-impl Filter<Call> for IsCallable {
+pub struct BaseFilter;
+impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		!matches!(call, Call::Registrar(_))
 	}
 }
+pub struct IsCallable;
+frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -520,20 +522,26 @@ impl identity::Trait for Runtime {
 	type ForceOrigin = system::EnsureRoot<AccountId>;
 }
 
-parameter_types! {
-	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
-	pub const MultisigDepositBase: Balance = 30 * CENTS;
-	// Additional storage item size of 32 bytes.
-	pub const MultisigDepositFactor: Balance = 5 * CENTS;
-	pub const MaxSignatories: u16 = 100;
-}
-
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type IsCallable = IsCallable;
+}
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl multisig::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
 	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
 	type IsCallable = IsCallable;
 }
@@ -585,6 +593,7 @@ pub enum ProxyType {
 	Any,
 	NonTransfer,
 	Staking,
+	SudoBalances,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -592,9 +601,24 @@ impl InstanceFilter<Call> for ProxyType {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Utility(..) | Call::Indices(indices::Call::transfer(..))
+				Call::Balances(..) | Call::Indices(indices::Call::transfer(..))
 			),
-			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::Staking => matches!(c,
+				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
+					| Call::Utility(utility::Call::as_limited_sub(..))
+			),
+			ProxyType::SudoBalances => matches!(c,
+				Call::Sudo(sudo::Call::sudo(x)) if matches!(x.as_ref(), &Call::Balances(..))
+			),
+		}
+	}
+	fn is_superset(&self, o: &Self) -> bool {
+		match (self, o) {
+			(x, y) if x == y => true,
+			(ProxyType::Any, _) => true,
+			(_, ProxyType::Any) => false,
+			(ProxyType::NonTransfer, _) => true,
+			_ => false,
 		}
 	}
 }
@@ -646,7 +670,7 @@ construct_runtime! {
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
 
 		// Utility module.
-		Utility: utility::{Module, Call, Storage, Event<T>},
+		Utility: utility::{Module, Call, Event},
 
 		// Less simple identity module.
 		Identity: identity::{Module, Call, Storage, Event<T>},
@@ -664,7 +688,10 @@ construct_runtime! {
 		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event<T>}
+		Proxy: proxy::{Module, Call, Storage, Event<T>},
+
+		// Multisig module. Late addition.
+		Multisig: multisig::{Module, Call, Storage, Event<T>},
 	}
 }
 
