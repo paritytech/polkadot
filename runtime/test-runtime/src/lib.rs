@@ -289,6 +289,7 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = 0;
 	pub const StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub const MaxIterations: u32 = 10;
+	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
 impl staking::Trait for Runtime {
@@ -312,6 +313,7 @@ impl staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type MinSolutionScoreBump = MinSolutionScoreBump;
 }
 
 impl grandpa::Trait for Runtime {

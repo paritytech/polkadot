@@ -1772,6 +1772,7 @@ mod tests {
 		type Call = Call;
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
+		type MinSolutionScoreBump = ();
 	}
 
 	impl attestations::Trait for Test {
