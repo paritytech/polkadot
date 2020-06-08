@@ -690,25 +690,30 @@ impl identity::Trait for Runtime {
 	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 }
 
-parameter_types! {
-	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
-	pub const MultisigDepositBase: Balance = 30 * CENTS;
-	// Additional storage item size of 32 bytes.
-	pub const MultisigDepositFactor: Balance = 5 * CENTS;
-	pub const MaxSignatories: u16 = 100;
-}
-
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type IsCallable = IsCallable;
 }
-/*
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl multisig::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
 	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-*/
+	type IsCallable = IsCallable;
+}
+
 parameter_types! {
 	pub const ConfigDepositBase: Balance = 5 * DOLLARS;
 	pub const FriendDepositFactor: Balance = 50 * CENTS;
@@ -885,7 +890,10 @@ construct_runtime! {
 		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event<T>}
+		Proxy: proxy::{Module, Call, Storage, Event<T>},
+
+		// Multisig module. Late addition.
+		Multisig: multisig::{Module, Call, Storage, Event<T>},
 	}
 }
 

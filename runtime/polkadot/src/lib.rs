@@ -127,7 +127,7 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
 				true,
 		}
 	}
@@ -722,25 +722,30 @@ impl vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
-parameter_types! {
-	// One storage item; value is size 4+4+16+32 bytes = 56 bytes.
-	pub const MultisigDepositBase: Balance = 30 * CENTS;
-	// Additional storage item size of 32 bytes.
-	pub const MultisigDepositFactor: Balance = 5 * CENTS;
-	pub const MaxSignatories: u16 = 100;
-}
-
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type IsCallable = IsCallable;
 }
-/*
+
+parameter_types! {
+	// One storage item; key size is 32; value is size 4+4+16+32 bytes = 56 bytes.
+	pub const DepositBase: Balance = deposit(1, 88);
+	// Additional storage item size of 32 bytes.
+	pub const DepositFactor: Balance = deposit(0, 32);
+	pub const MaxSignatories: u16 = 100;
+}
+
+impl multisig::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
 	type Currency = Balances;
-	type MultisigDepositBase = MultisigDepositBase;
-	type MultisigDepositFactor = MultisigDepositFactor;
+	type DepositBase = DepositBase;
+	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
- */
+	type IsCallable = IsCallable;
+}
+
 impl sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -861,7 +866,10 @@ construct_runtime! {
 		Identity: identity::{Module, Call, Storage, Event<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event<T>}
+		Proxy: proxy::{Module, Call, Storage, Event<T>},
+
+		// Multisig dispatch. Late addition.
+		Multisig: multisig::{Module, Call, Storage, Event<T>},
 	}
 }
 

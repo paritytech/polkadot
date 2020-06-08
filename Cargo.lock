@@ -2246,6 +2246,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
@@ -3441,6 +3442,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-multisig"
+version = "2.0.0-rc2"
+source = "git+https://github.com/paritytech/substrate#39a3372aa18ed592e51688ab2e30fa79a779ad4e"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-nicks"
 version = "2.0.0-rc2"
 source = "git+https://github.com/paritytech/substrate#39a3372aa18ed592e51688ab2e30fa79a779ad4e"
@@ -4311,6 +4327,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
@@ -8592,6 +8609,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-multisig",
  "pallet-nicks",
  "pallet-offences",
  "pallet-offences-benchmarking",
