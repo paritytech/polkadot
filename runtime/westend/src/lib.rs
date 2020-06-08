@@ -603,8 +603,8 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Balances(..) | Call::Indices(indices::Call::transfer(..))
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(utility::Call::batch)
-					| Call::Utility(utility::Call::as_limited_sub)
+				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
+					| Call::Utility(utility::Call::as_limited_sub(..))
 			),
 		}
 	}
