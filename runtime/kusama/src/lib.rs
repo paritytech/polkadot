@@ -791,15 +791,20 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::Governance => matches!(c,
-				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
-					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
-			),
 			ProxyType::NonTransfer => !matches!(c,
 				Call::Balances(..) | Call::Vesting(vesting::Call::vested_transfer(..))
 					| Call::Indices(indices::Call::transfer(..))
 			),
-			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::Governance => matches!(c,
+				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
+					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
+					| Call::Utility(utility::Call::batch)
+					| Call::Utility(utility::Call::as_limited_sub)
+			),
+			ProxyType::Staking => matches!(c,
+				Call::Staking(..) | Call::Utility(utility::Call::batch)
+					| Call::Utility(utility::Call::as_limited_sub)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {

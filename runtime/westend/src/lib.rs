@@ -602,7 +602,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::NonTransfer => !matches!(c,
 				Call::Balances(..) | Call::Indices(indices::Call::transfer(..))
 			),
-			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::Staking => matches!(c,
+				Call::Staking(..) | Call::Utility(utility::Call::batch)
+					| Call::Utility(utility::Call::as_limited_sub)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {

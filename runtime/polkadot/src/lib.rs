@@ -779,8 +779,13 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
+					| Call::Utility(utility::Call::batch)
+					| Call::Utility(utility::Call::as_limited_sub)
 			),
-			ProxyType::Staking => matches!(c, Call::Staking(..)),
+			ProxyType::Staking => matches!(c,
+				Call::Staking(..) | Call::Utility(utility::Call::batch)
+					| Call::Utility(utility::Call::as_limited_sub)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
