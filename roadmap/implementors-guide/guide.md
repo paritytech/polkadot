@@ -988,10 +988,7 @@ Furthermore, the protocols by which subsystems communicate with each other shoul
 
 #### Description
 
-The Candidate Selection subsystem is notified by the Overseer on two events:
-
-- a new parablock candidate is available
-- a peer has seconded a parablock candidate
+The Candidate Selection subsystem is notified by the Overseer when a new parablock candidate is available.
 
 This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
 
@@ -1017,9 +1014,11 @@ Several approaches have been selected, but all have some issues:
 
 #### Description
 
-The Candidate Backing subsystem ensures at least one preliminary validator commits to each parablock's correctness. Parablocks for which no validator will assert correctness are discarded. If the block later proves invalid, the initial backers are slashable; this gives polkadot a rational threat model during subsequent stages.
+The Candidate Backing subsystem ensures every parablock considered for relay block inclusion has been seconded by at least one validator, and approved by a quorum. Parablocks for which no validator will assert correctness are discarded. If the block later proves invalid, the initial backers are slashable; this gives polkadot a rational threat model during subsequent stages.
 
 Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [Statements](#Statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
+
+Note that though the candidate backing subsystem attempts to produce as many backable candidates as possible, it does _not_ attempt to choose a single authoritative one. The choice of which actually gets included is ultimately up to the block author, by whatever metrics it may use; those are opaque to this subsystem.
 
 #### Protocol
 
@@ -1197,6 +1196,9 @@ enum CandidateBackingSubsystemMessage {
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated.
   Second(Hash, CandidateReceipt),
+  /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
+  /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
+  Statement(Statement),
 }
 ```
 
