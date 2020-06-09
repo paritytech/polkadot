@@ -24,8 +24,12 @@ case $? in
     ;;
   1) echo '[!] Tag found but has not been signed. Aborting release.'; exit 1
     ;;
-  2) echo '[!] Tag not found. Aborting release.'; exit
+  2) echo '[!] Tag not found. Aborting release.'; exit 1
 esac
+
+# Pull rustc version used by rust-builder for stable and nightly
+stable_rustc="$(rustc +stable --version)"
+nightly_rustc="$(rustc +nightly --version)"
 
 # Start with referencing current native runtime
 # and find any referenced PRs since last release
@@ -41,6 +45,10 @@ release_text="Polkadot native runtime: $polkadot_spec
 Kusama native runtime: $kusama_spec
 
 Westend native runtime: $westend_spec
+
+This release was built with the following versions of \`rustc\`. Other versions may work.
+- $stable_rustc
+- $nightly_rustc
 "
 
 runtime_changes=""

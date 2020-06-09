@@ -20,13 +20,13 @@ jobs:
         with:
           room_id: ${{ secrets.VALIDATOR_LOUNGE_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "***Kusama ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
+          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
           server: "matrix.parity.io"
 
-      - name: Kusama Announcements
+      - name: Polkadot Announcements
         uses: s3krit/matrix-message-action@v0.0.2
         with:
           room_id: ${{ secrets.KUSAMA_ANNOUNCEMENTS_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
-          message: "***Kusama ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
+          message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>Please update at your earliest convenience.<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
           server: "matrix.parity.io"

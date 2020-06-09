@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 4,
+	spec_version: 5,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 0,
@@ -709,6 +709,8 @@ impl claims::Trait for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
+	/// At least 3/4 of the council must agree to a claim move before it can happen.
+	type MoveClaimOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -787,9 +789,11 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
 					| Call::Utility(utility::Call::as_limited_sub(..))
 			),
-			ProxyType::SudoBalances => matches!(c,
-				Call::Sudo(sudo::Call::sudo(x)) if matches!(x.as_ref(), &Call::Balances(..))
-			),
+			ProxyType::SudoBalances => match c {
+				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
+				Call::Utility(utility::Call::batch(..)) => true,
+				_ => false,
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
