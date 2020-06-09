@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.8.2"
+version = "0.8.6"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -46,8 +46,10 @@ identity = { package = "pallet-identity", git = "https://github.com/paritytech/s
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 membership = { package = "pallet-membership", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+multisig = { package = "pallet-multisig", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 nicks = { package = "pallet-nicks", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+proxy = { package = "pallet-proxy", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 recovery = { package = "pallet-recovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 scheduler = { package = "pallet-scheduler", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -117,8 +119,10 @@ std = [
 	"im-online/std",
 	"indices/std",
 	"membership/std",
+	"multisig/std",
 	"nicks/std",
 	"offences/std",
+	"proxy/std",
 	"recovery/std",
 	"sp-runtime/std",
 	"sp-staking/std",
