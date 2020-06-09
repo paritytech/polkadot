@@ -566,6 +566,8 @@ decl_error! {
 		CannotPayFees,
 		/// Unexpected relay-parent for a candidate receipt.
 		UnexpectedRelayParent,
+		/// Downward message queue is full for the Parachain.
+		DownwardMessageQueueFull,
 	}
 }
 
@@ -630,6 +632,11 @@ decl_module! {
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
+
+						Self::remove_processed_downward_messages(
+							id,
+							head.candidate.commitments.processed_downward_messages as usize,
+						);
 
 						let id = head.parachain_index();
 						proceeded.push(id);
@@ -711,13 +718,12 @@ decl_module! {
 			to: ParaId,
 			amount: Balance,
 			remark: Remark,
-		) -> DispatchResult {
+		) {
 			let who = ensure_signed(origin)?;
 			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
-			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, "Downward queue full");
+			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
 			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
 			DownwardMessageQueue::<T>::append(to, DownwardMessage::TransferInto(who, amount, remark));
-			Ok(())
 		}
 	}
 }
@@ -911,6 +917,17 @@ impl<T: Trait> Module<T> {
 			}
 		}
 		Ok(())
+	}
+
+	/// Remove processed downward messages from the `DownwardMessageQueue`.
+	fn remove_processed_downward_messages(id: ParaId, processed: usize) {
+		DownwardMessageQueue::<T>::mutate(id, |v| {
+			if processed > v.len() {
+				v.clear();
+			} else {
+				*v = v.split_off(processed);
+			}
+		});
 	}
 
 	/// Update routing information from the parachain heads. This queues upwards
@@ -1128,6 +1145,11 @@ impl<T: Trait> Module<T> {
 			balance: T::ParachainCurrency::free_balance(*id),
 			code_upgrade_allowed,
 		})
+	}
+
+	/// Returns the `DownwardMessage`'s for the given parachain.
+	pub fn downward_messages(id: ParaId) -> Vec<DownwardMessage<T::AccountId>> {
+		DownwardMessageQueue::<T>::get(id)
 	}
 
 	/// Get the local validation data for a particular parent w.r.t. the current
@@ -3608,6 +3630,46 @@ mod tests {
 					},
 				);
 			}
+		});
+	}
+
+	#[test]
+	fn downward_message_removal_works() {
+		let id = ParaId::from(0);
+
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+		let parachains = vec![
+			(id, vec![].into(), vec![].into()),
+		];
+
+		new_test_ext(parachains).execute_with(|| {
+			run_to_block(2);
+
+			DownwardMessageQueue::<Test>::insert(
+				&id,
+				vec![
+					DownwardMessage::Opaque(vec![1]),
+					DownwardMessage::Opaque(vec![2]),
+					DownwardMessage::Opaque(vec![3])
+				]
+			);
+
+			let mut raw_candidate = raw_candidate(id);
+			raw_candidate.commitments.processed_downward_messages = 2;
+
+			let candidate = make_blank_attested(raw_candidate);
+			let mut candidates = vec![candidate];
+			candidates.iter_mut().for_each(make_attestations);
+
+			assert_ok!(Parachains::dispatch(
+				set_heads(candidates),
+				Origin::NONE,
+			));
+
+			assert_eq!(
+				vec![DownwardMessage::Opaque(vec![3])],
+				DownwardMessageQueue::<Test>::get(&id),
+			);
 		});
 	}
 }

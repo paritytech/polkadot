@@ -227,4 +227,8 @@ pub struct ValidationResult {
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// Number of downward messages that were processed by the Parachain.
+	///
+	/// It is expected that the Parachain processes them from first to last.
+	pub processed_downward_messages: u32,
 }

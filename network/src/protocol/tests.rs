@@ -185,6 +185,9 @@ sp_api::mock_impl_runtime_apis! {
 				parent_hash: Default::default(),
 			}
 		}
+		fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::DownwardMessage> {
+			Vec::new()
+		}
 	}
 }
 

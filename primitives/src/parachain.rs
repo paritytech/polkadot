@@ -32,6 +32,7 @@ use primitives::RuntimeDebug;
 use runtime_primitives::traits::Block as BlockT;
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
+use polkadot_core_primitives::DownwardMessage;
 
 pub use polkadot_parachain::primitives::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
@@ -220,6 +221,10 @@ pub struct CandidateCommitments {
 	pub erasure_root: Hash,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
+	/// Number of `DowndwardMessage`'s that were processed by the Parachain.
+	///
+	/// It is expected that the Parachain processes them from first to last.
+	pub processed_downward_messages: u32,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
@@ -683,6 +688,8 @@ sp_api::decl_runtime_apis! {
 			-> Option<Vec<AbridgedCandidateReceipt>>;
 		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
 		fn signing_context() -> SigningContext;
+		/// Get the `DownwardMessage`'s for the given parachain.
+		fn downward_messages(id: Id) -> Vec<DownwardMessage>;
 	}
 }
 

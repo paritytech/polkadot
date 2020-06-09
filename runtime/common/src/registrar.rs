@@ -1073,6 +1073,7 @@ mod tests {
 				upward_messages: vec![],
 				erasure_root: [1; 32].into(),
 				new_validation_code: None,
+				processed_downward_messages: 0,
 			},
 		};
 		let (candidate, _) = candidate.abridge();
