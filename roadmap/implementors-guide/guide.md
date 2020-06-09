@@ -1020,11 +1020,13 @@ Its role is to produce backable candidates for inclusion in new relay-chain bloc
 
 Note that though the candidate backing subsystem attempts to produce as many backable candidates as possible, it does _not_ attempt to choose a single authoritative one. The choice of which actually gets included is ultimately up to the block author, by whatever metrics it may use; those are opaque to this subsystem.
 
+Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the Overseer, which in turn engages block production mechanisms to include the parablock.
+
 #### Protocol
 
 The **Candidate Selection** subsystem is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingSubsystemMessage`s](#Candidate-Backing-Subsystem-Message), and passes them to this subsystem.
 
-This subsystem validates the candidates and generates an appropriate `Statement`. All `Statement`s are then passed on to the **Statement Distribution** subsystem to be gossiped to peers. Instances of `Statement::Invalid` are also passed back to the Candidate Selection subsystem, so it can take action against the originator of the candidate. To reduce traffic, we do not send valid `Statement`s back to the Candidate Selection subsystem.
+This subsystem validates the candidates and generates an appropriate `Statement`. All `Statement`s are then passed on to the **Statement Distribution** subsystem to be gossiped to peers. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
 #### Functionality
 
@@ -1098,9 +1100,7 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 The statement distribution subsystem sends statements to peer nodes, detects double-voting, and tabulates when a sufficient portion of the validator set has unanimously judged a candidate. When judgment is not unanimous, it escalates the issue to misbehavior arbitration.
 
-Statement Distribution is the only subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for deciding when a quorum exists, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. Within the Validity module, it's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer seconding a candidate block, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
-
-Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the Overseer, which in turn engages block production mechanisms to include the parablock.
+Statement Distribution is the only validity module subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. Within the Validity module, it's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
 
 ### Misbehavior Arbitration Subsystem
 
@@ -1181,6 +1181,8 @@ These messages are sent from the overseer to the Candidate Selection subsystem w
 enum CandidateSelectionSubsystemMessage {
   /// A new parachain candidate has arrived from a collator and should be considered for seconding.
   NewCandidate(PoV, ParachainBlock),
+  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+  Invalid(CandidateReceipt),
 }
 ```
 
