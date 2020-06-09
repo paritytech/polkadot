@@ -19,8 +19,8 @@
 use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{
-	decl_event, decl_storage, decl_module, decl_error, ensure,
-	traits::{Currency, Get, VestingSchedule}, weights::{Pays, DispatchClass}, dispatch::IsSubType
+	decl_event, decl_storage, decl_module, decl_error, ensure, dispatch::IsSubType,
+	traits::{Currency, Get, VestingSchedule, EnsureOrigin}, weights::{Pays, DispatchClass}
 };
 use system::{ensure_signed, ensure_root, ensure_none};
 use codec::{Encode, Decode};
@@ -46,6 +46,7 @@ pub trait Trait: system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
+	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
 }
 
 /// The kind of a statement an account needs to make for a claim to be valid.
@@ -391,6 +392,26 @@ decl_module! {
 			Self::process_claim(signer, who.clone())?;
 			Preclaims::<T>::remove(&who);
 		}
+
+		#[weight = (
+			T::DbWeight::get().reads_writes(4, 4) + 100_000_000_000,
+			DispatchClass::Normal,
+			Pays::No
+		)]
+		fn move_claim(origin,
+			old: EthereumAddress,
+			new: EthereumAddress,
+			maybe_preclaim: Option<T::AccountId>,
+		) {
+			T::MoveClaimOrigin::try_origin(origin).map(|_| ()).or_else(ensure_root)?;
+
+			Claims::<T>::take(&old).map(|c| Claims::<T>::insert(&new, c));
+			Vesting::<T>::take(&old).map(|c| Vesting::<T>::insert(&new, c));
+			Signing::take(&old).map(|c| Signing::insert(&new, c));
+			maybe_preclaim.map(|preclaim| Preclaims::<T>::mutate(&preclaim, |maybe_o|
+				if maybe_o.as_ref().map_or(false, |o| o == &old) { *maybe_o = Some(new) }
+			));
+		}
 	}
 }
 
@@ -618,7 +639,8 @@ mod tests {
 	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_err, assert_noop, parameter_types,
-		weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
+		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
+		dispatch::DispatchError::BadOrigin,
 	};
 	use balances;
 	use super::Call as ClaimsCall;
@@ -693,11 +715,15 @@ mod tests {
 	parameter_types!{
 		pub Prefix: &'static [u8] = b"Pay RUSTs to the TEST account:";
 	}
+	ord_parameter_types! {
+		pub const Six: u64 = 6;
+	}
 
 	impl Trait for Test {
 		type Event = ();
 		type VestingSchedule = Vesting;
 		type Prefix = Prefix;
+		type MoveClaimOrigin = system::EnsureSignedBy<Six, u64>;
 	}
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
@@ -772,6 +798,39 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 100);
 			assert_eq!(Vesting::vesting_balance(&42), Some(50));
 			assert_eq!(Claims::total(), total_claims() - 100);
+		});
+	}
+
+	#[test]
+	fn basic_claim_moving_works() {
+		new_test_ext().execute_with(|| {
+			assert_eq!(Balances::free_balance(42), 0);
+			assert_noop!(Claims::move_claim(Origin::signed(1), eth(&alice()), eth(&bob()), None), BadOrigin);
+			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&alice()), eth(&bob()), None));
+			assert_noop!(Claims::claim(Origin::NONE, 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])), Error::<Test>::SignerHasNoClaim);
+			assert_ok!(Claims::claim(Origin::NONE, 42, sig::<Test>(&bob(), &42u64.encode(), &[][..])));
+			assert_eq!(Balances::free_balance(&42), 100);
+			assert_eq!(Vesting::vesting_balance(&42), Some(50));
+			assert_eq!(Claims::total(), total_claims() - 100);
+		});
+	}
+
+	#[test]
+	fn claim_attest_moving_works() {
+		new_test_ext().execute_with(|| {
+			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&dave()), eth(&bob()), None));
+			let s = sig::<Test>(&bob(), &42u64.encode(), StatementKind::Regular.to_text());
+			assert_ok!(Claims::claim_attest(Origin::NONE, 42, s, StatementKind::Regular.to_text().to_vec()));
+			assert_eq!(Balances::free_balance(&42), 200);
+		});
+	}
+
+	#[test]
+	fn attest_moving_works() {
+		new_test_ext().execute_with(|| {
+			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&eve()), eth(&bob()), Some(42)));
+			assert_ok!(Claims::attest(Origin::signed(42), StatementKind::Saft.to_text().to_vec()));
+			assert_eq!(Balances::free_balance(&42), 300);
 		});
 	}
 
