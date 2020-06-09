@@ -59,7 +59,7 @@ use frame_support::{
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use frame_system::{EnsureRoot, EnsureOneOf};
+use system::{EnsureRoot, EnsureOneOf};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -139,7 +139,7 @@ frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 type EnsureRootOrHalfCouncil = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
+	collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
 >;
 
 parameter_types! {
@@ -335,7 +335,7 @@ impl staking::Trait for Runtime {
 	type SlashCancelOrigin = EnsureOneOf<
 		AccountId,
 		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
+		collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
 	>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
@@ -507,7 +507,7 @@ impl treasury::Trait for Runtime {
 	type ApproveOrigin = EnsureOneOf<
 		AccountId,
 		EnsureRoot<AccountId>,
-		pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
+		collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 	>;
 	type RejectOrigin = EnsureRootOrHalfCouncil;
 	type Tippers = ElectionsPhragmen;
