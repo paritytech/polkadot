@@ -709,6 +709,8 @@ impl claims::Trait for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
+	/// At least 3/4 of the council must agree to a claim move before it can happen.
+	type MoveClaimOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 }
 
 parameter_types! {
