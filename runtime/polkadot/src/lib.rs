@@ -136,11 +136,15 @@ impl Filter<Call> for BaseFilter {
 pub struct IsCallable;
 frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
-type EnsureRootOrHalfCouncil = EnsureOneOf<
+#[cfg(feature = "runtime-benchmarks")]
+type MoreThanHalfCouncil = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
 	collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
 >;
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+type MoreThanHalfCouncil = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -320,6 +324,16 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+type SlashCancelOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
+>;
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+
 impl staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
@@ -332,11 +346,7 @@ impl staking::Trait for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A super-majority of the council can cancel the slash.
-	type SlashCancelOrigin = EnsureOneOf<
-		AccountId,
-		EnsureRoot<AccountId>,
-		collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
-	>;
+	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -368,8 +378,8 @@ impl identity::Trait for Runtime {
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
 	type Slashed = Treasury;
-	type ForceOrigin = EnsureRootOrHalfCouncil;
-	type RegistrarOrigin = EnsureRootOrHalfCouncil;
+	type ForceOrigin = MoreThanHalfCouncil;
+	type RegistrarOrigin = MoreThanHalfCouncil;
 }
 
 parameter_types! {
@@ -479,11 +489,11 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 
 impl membership::Trait<membership::Instance1> for Runtime {
 	type Event = Event;
-	type AddOrigin = EnsureRootOrHalfCouncil;
-	type RemoveOrigin = EnsureRootOrHalfCouncil;
-	type SwapOrigin = EnsureRootOrHalfCouncil;
-	type ResetOrigin = EnsureRootOrHalfCouncil;
-	type PrimeOrigin = EnsureRootOrHalfCouncil;
+	type AddOrigin = MoreThanHalfCouncil;
+	type RemoveOrigin = MoreThanHalfCouncil;
+	type SwapOrigin = MoreThanHalfCouncil;
+	type ResetOrigin = MoreThanHalfCouncil;
+	type PrimeOrigin = MoreThanHalfCouncil;
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 }
@@ -501,15 +511,21 @@ parameter_types! {
 	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+type ApproveOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
+>;
+
+#[cfg(not(feature = "runtime-benchmarks"))]
+type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+
 impl treasury::Trait for Runtime {
 	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
-	type ApproveOrigin = EnsureOneOf<
-		AccountId,
-		EnsureRoot<AccountId>,
-		collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
-	>;
-	type RejectOrigin = EnsureRootOrHalfCouncil;
+	type ApproveOrigin = ApproveOrigin;
+	type RejectOrigin = MoreThanHalfCouncil;
 	type Tippers = ElectionsPhragmen;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
