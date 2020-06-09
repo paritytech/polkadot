@@ -1002,8 +1002,16 @@ As seconded peers are tallied, double-votes are detected. If found, a report is 
 
 In the event that a parablock candidate proves invalid, this subsystem will receive a message back from the Candidate Backing subsystem indicating so. If that parablock candidate originated from a collator, this subsystem will blacklist that collator. If that parablock candidate originated from a peer, this subsystem generates a report for the **Misbehavior Arbitration** subsystem.
 
+#### Protocol
 
-TODO: more details, protocol, etc
+The Candidate Selection protocol is currently intentionally unspecified pending further discussion.
+
+Several approaches have been selected, but all have some issues:
+
+- The most straightforward approach is for this subsystem to simply second the first valid parablock candidate which it sees per relay head. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.
+- It may be possible to do some BABE-like selection algorithm to choose an "Official" collator for the round, but that is tricky because the collator which produces the PoV does not necessarily actually produce the block.
+- We could use relay-chain BABE randomness to generate some delay `D` on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after `D`, or in case none has arrived by `2*D`, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.
+- A variation of that scheme would be to randomly choose a number `I`, and have a fixed acceptance window `D` for parablock candidates. At the end of the period `D`, count `C`: the number of parablock candidates received. Second the one with index `I % C`. Its drawback is the same: it must wait the full `D` period before seconding any of its received candidates, reducing throughput.
 
 ### Candidate Backing Subsystem
 
