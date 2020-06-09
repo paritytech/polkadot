@@ -22,8 +22,10 @@ check_tag () {
   repo=$1
   tagver=$2
   if [ -n "$GITHUB_RELEASE_TOKEN" ]; then
+    echo '[+] Fetching tag using privileged token'
     tag_out=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$api_base/$repo/git/refs/tags/$tagver")
   else
+    echo '[+] Fetching tag using unprivileged token'
     tag_out=$(curl -H "Authorization: token $GITHUB_PR_TOKEN" -s "$api_base/$repo/git/refs/tags/$tagver")
   fi
   tag_sha=$(echo "$tag_out" | jq -r .object.sha)
@@ -31,6 +33,7 @@ check_tag () {
   if [ "$tag_sha" = "null" ]; then
     return 2
   fi
+  echo "[+] Tag object SHA: $tag_sha"
   verified_str=$(curl -H "Authorization: token $GITHUB_RELEASE_TOKEN" -s "$object_url" | jq -r .verification.verified)
   if [ "$verified_str" = "true" ]; then
     # Verified, everything is good
