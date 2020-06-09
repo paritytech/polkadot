@@ -279,6 +279,7 @@ macro_rules! new_full {
 		use sc_network::Event;
 		use sc_client_api::ExecutorProvider;
 		use futures::stream::StreamExt;
+		use sp_core::traits::BareCryptoStorePtr;
 
 		let is_collator = $collating_for.is_some();
 		let role = $config.role.clone();
@@ -474,7 +475,7 @@ macro_rules! new_full {
 		// if the node isn't actively participating in consensus then it doesn't
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if is_authority {
-			Some(service.keystore())
+			Some(service.keystore() as BareCryptoStorePtr)
 		} else {
 			None
 		};
