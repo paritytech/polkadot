@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.8.5"
+version = "0.8.6"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
