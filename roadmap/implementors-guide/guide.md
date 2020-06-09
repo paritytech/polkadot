@@ -409,7 +409,7 @@ The Paras module is responsible for storing information on parachains and parath
 
 It's also responsible for managing parachain validation code upgrades as well as maintaining availability of old parachain code and its pruning.
 
-One other improtant thing happening in this module is dispatching of the `UpwardMessage`s.
+One other important thing happening in this module is dispatching of the `UpwardMessage`s.
 
 #### Storage
 
