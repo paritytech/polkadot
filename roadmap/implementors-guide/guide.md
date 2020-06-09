@@ -992,7 +992,7 @@ The Candidate Selection subsystem is notified by the Overseer when a new parablo
 
 This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
 
-New parablock candidates may arrive from a potentially unbounded set of collators. This subsystem chooses either 0 or 1 of them per relay parent to second. If it chooses to second a candidate, it sends an apropriate message to the **Candidate Backing** subsystem to generate an appropriate `Statement`.
+New parablock candidates may arrive from a potentially unbounded set of collators. This subsystem chooses either 0 or 1 of them per relay parent to second. If it chooses to second a candidate, it sends an appropriate message to the **Candidate Backing** subsystem to generate an appropriate `Statement`.
 
 All parablocks which peers have seconded are also sent to the Candidate Backing subsystem for re-validation.
 As seconded peers are tallied, double-votes are detected. If found, a report is sent to the **Misbehavior Arbitration** subsystem.
