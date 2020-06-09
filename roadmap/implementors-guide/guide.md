@@ -1102,6 +1102,14 @@ The statement distribution subsystem sends statements to peer nodes, detects dou
 
 Statement Distribution is the only validity module subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. Within the Validity module, it's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
 
+#### Peer Recipet State Machine
+
+There is a very simple state machine which governs which messages we are willing to receive from peer validators. Not depicted in the state machine: on initial receipt of any `SignedStatement`, validate that the provided signature does in fact sign the included data.
+
+A: Initial State. Receive `SignedStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing, proceed to B. Receive any other `SignedStatement` variant: drop it.
+B: Receive any `SignedStatement`: extract `Statement`, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
+C: Receive any message for this block: drop it.
+
 ### Misbehavior Arbitration Subsystem
 
 #### Description
