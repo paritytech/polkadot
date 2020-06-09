@@ -110,6 +110,12 @@ impl Filter<Call> for BaseFilter {
 pub struct IsCallable;
 frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
+type EnsureRootOrHalfCouncil = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
+>;
+
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
@@ -293,12 +299,6 @@ parameter_types! {
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
-
-type EnsureRootOrHalfCouncil = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
->;
 
 impl staking::Trait for Runtime {
 	type Currency = Balances;
