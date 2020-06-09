@@ -1110,6 +1110,14 @@ A: Initial State. Receive `SignedStatement(Statement::Second)`: extract `Stateme
 B: Receive any `SignedStatement`: extract `Statement`, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
 C: Receive any message for this block: drop it.
 
+#### Peer Knowledge Tracking
+
+The peer receipt state machine implies that for parsimony of network resources, we should model the knowledge of our peers, and help them out. For example, let's consider a case with peers A, B, and C, and candidate M. A sends us a `Statement::Second(M)`. We've double-checked it, and it's valid. While we're checking it, we receive a copy of A's `Statement::Second` from `B`, along with a `Statement::Valid` signed by B.
+
+Our response to `B` is just a `Statement::Valid` which we've signed. However, we haven't heard anything about this from C. Therefore, we send it everything we have: first a copy of A's `Statement::Second`, then both our and B's `Statement::Valid`.
+
+This system implies a certain level of duplication of messages--we received A's `Statement::Second` from both our peers, and C may experience the same--but it minimizes the degree to which messages are simply dropped.
+
 ### Misbehavior Arbitration Subsystem
 
 #### Description
