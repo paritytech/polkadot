@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-network-test"
-version = "0.8.7-dev"
+version = "0.8.7"
 license = "GPL-3.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
