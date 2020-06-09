@@ -1114,7 +1114,7 @@ For each relay-parent in a `StartWork` message, look at all backed candidates pe
 
 `StartWork` and `StopWork` are used to curate a set of current heads, which we keep to the `N` most recent and broadcast as a neighbor packet to our peers.
 
-We define an operation `live_candidates(relay_heads) -> Set<AbridgedCandidateReceipt>` which returns a set of candidates a given set of relay chain heads implies should be currently gossiped. This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors. We assume that state is not pruned within `K` blocks of the chain-head.
+We define an operation `live_candidates(relay_heads) -> Set<AbridgedCandidateReceipt>` which returns a set of candidates a given set of relay chain heads that implies a set of candidates whose availability chunks should be currently gossiped. This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors. We assume that state is not pruned within `K` blocks of the chain-head.
 
 We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_neighbor_packet)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
 
