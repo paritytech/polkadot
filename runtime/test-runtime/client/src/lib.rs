@@ -30,11 +30,11 @@ use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, Hash
 use sc_consensus::LongestChain;
 use sc_client_api::light::{RemoteCallRequest, RemoteBodyRequest};
 use sc_service::client::{
-	light::{
-		call_executor::GenesisCallExecutor, backend as light_backend,
-		new_light_blockchain, new_light_backend,
-	},
 	genesis, Client as SubstrateClient, LocalCallExecutor
+};
+use sc_light::{
+	call_executor::GenesisCallExecutor, backend as light_backend,
+	new_light_blockchain, new_light_backend,
 };
 
 /// A prelude to import in tests.
