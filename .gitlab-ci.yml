@@ -11,7 +11,7 @@ stages:
   - publish
   - deploy
 
-image:                             parity/rust-builder:latest
+image:                             paritytech/ci-linux:production
 
 variables:
   GIT_STRATEGY:                    fetch
@@ -73,7 +73,7 @@ variables:
 
 check-runtime:
   stage:                           test
-  image:                           parity/tools:latest
+  image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   only:
     - /^[0-9]+$/
@@ -87,7 +87,7 @@ check-runtime:
 
 check-line-width:
   stage:                           test
-  image:                           parity/tools:latest
+  image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
   only:
     - /^[0-9]+$/
@@ -239,7 +239,7 @@ publish-docker-release:
 
 publish-s3-release:
   <<:                              *publish-build
-  image:                           parity/awscli:latest
+  image:                           paritytech/awscli:latest
   variables:
     GIT_STRATEGY:                  none
     BUCKET:                        "releases.parity.io"
@@ -280,7 +280,7 @@ deploy-polkasync-kusama:
 
 check-labels:
   stage:                          .post
-  image:                          parity/tools:latest
+  image:                          paritytech/tools:latest
   <<:                             *kubernetes-env
   only:
     - /^[0-9]+$/
