@@ -984,21 +984,49 @@ Furthermore, the protocols by which subsystems communicate with each other shoul
 
 ---
 
+### Candidate Selection Subsystem
+
+#### Description
+
+The Candidate Selection subsystem is notified by the Overseer when a new parablock candidate is available.
+
+This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
+
+New parablock candidates may arrive from a potentially unbounded set of collators. This subsystem chooses either 0 or 1 of them per relay parent to second. If it chooses to second a candidate, it sends an appropriate message to the **Candidate Backing** subsystem to generate an appropriate `Statement`.
+
+All parablocks which peers have seconded are also sent to the Candidate Backing subsystem for re-validation.
+As seconded peers are tallied, double-votes are detected. If found, a report is sent to the **Misbehavior Arbitration** subsystem.
+
+In the event that a parablock candidate proves invalid, this subsystem will receive a message back from the Candidate Backing subsystem indicating so. If that parablock candidate originated from a collator, this subsystem will blacklist that collator. If that parablock candidate originated from a peer, this subsystem generates a report for the **Misbehavior Arbitration** subsystem.
+
+#### Protocol
+
+The Candidate Selection protocol is currently intentionally unspecified pending further discussion.
+
+Several approaches have been selected, but all have some issues:
+
+- The most straightforward approach is for this subsystem to simply second the first valid parablock candidate which it sees per relay head. However, that protocol is vulnerable to a single collator which, as an attack or simply through chance, gets its block candidate to the node more often than its fair share of the time.
+- It may be possible to do some BABE-like selection algorithm to choose an "Official" collator for the round, but that is tricky because the collator which produces the PoV does not necessarily actually produce the block.
+- We could use relay-chain BABE randomness to generate some delay `D` on the order of 1 second, +- 1 second. The collator would then second the first valid parablock which arrives after `D`, or in case none has arrived by `2*D`, the last valid parablock which has arrived. This makes it very hard for a collator to game the system to always get its block nominated, but it reduces the maximum throughput of the system by introducing delay into an already tight schedule.
+- A variation of that scheme would be to randomly choose a number `I`, and have a fixed acceptance window `D` for parablock candidates. At the end of the period `D`, count `C`: the number of parablock candidates received. Second the one with index `I % C`. Its drawback is the same: it must wait the full `D` period before seconding any of its received candidates, reducing throughput.
+
 ### Candidate Backing Subsystem
 
 #### Description
 
-The Candidate Backing subsystem is engaged in by validators in to contribute to the backing of parachain candidates submitted by other validators.
+The Candidate Backing subsystem ensures every parablock considered for relay block inclusion has been seconded by at least one validator, and approved by a quorum. Parablocks for which no validator will assert correctness are discarded. If the block later proves invalid, the initial backers are slashable; this gives polkadot a rational threat model during subsequent stages.
 
 Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [Statements](#Statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
 
-It also detects double-vote misbehavior by validators as it imports votes, passing on the misbehavior to the correct reporter and handler.
+Note that though the candidate backing subsystem attempts to produce as many backable candidates as possible, it does _not_ attempt to choose a single authoritative one. The choice of which actually gets included is ultimately up to the block author, by whatever metrics it may use; those are opaque to this subsystem.
 
-When run as a validator, this is the subsystem which actually validates incoming candidates.
+Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the Overseer, which in turn engages block production mechanisms to include the parablock.
 
 #### Protocol
 
-This subsystem receives messages of the type [CandidateBackingSubsystemMessage](#Candidate-Backing-Subsystem-Message).
+The **Candidate Selection** subsystem is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingSubsystemMessage`s](#Candidate-Backing-Subsystem-Message), and passes them to this subsystem.
+
+This subsystem validates the candidates and generates an appropriate `Statement`. All `Statement`s are then passed on to the **Statement Distribution** subsystem to be gossiped to peers. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
 #### Functionality
 
@@ -1010,7 +1038,6 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 
 *On CandidateBackingSubsystemMessage*
 * If the message corresponds to a particular relay-parent, forward the message to the Candidate Backing Job for that relay-parent, if any is live.
-
 
 (big TODO: "contextual execution"
 * At the moment we only allow inclusion of _new_ parachain candidates validated by _current_ validators.
@@ -1069,9 +1096,41 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 (TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem)
 
+### Statement Distribution Subsystem
+
+The statement distribution subsystem sends statements to peer nodes, detects double-voting, and tabulates when a sufficient portion of the validator set has unanimously judged a candidate. When judgment is not unanimous, it escalates the issue to misbehavior arbitration.
+
+Statement Distribution is the only validity module subsystem which has any notion of peer nodes or of our own cryptographic keys. It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of peer node misbehaviors for reporting to Misbehavior Arbitration. Within the Validity module, it's the main point of contact (via the Overseer) with peer nodes. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to double-check the peer's judgment.
+
+#### Peer Receipt State Machine
+
+There is a very simple state machine which governs which messages we are willing to receive from peers. Not depicted in the state machine: on initial receipt of any `SignedStatement`, validate that the provided signature does in fact sign the included data. Note that each individual parablock candidate gets its own instance of this state machine; it is perfectly legal to receive a `Valid(X)` before a `Seconded(Y)` from peer `A`.
+
+A: Initial State. Receive `SignedStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing, proceed to B. Receive any other `SignedStatement` variant: drop it.
+B: Receive any `SignedStatement`: extract `Statement`, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
+C: Receive any message for this block: drop it.
+
+#### Peer Knowledge Tracking
+
+The peer receipt state machine implies that for parsimony of network resources, we should model the knowledge of our peers, and help them out. For example, let's consider a case with peers A, B, and C, and candidate M. A sends us a `Statement::Second(M)`. We've double-checked it, and it's valid. While we're checking it, we receive a copy of A's `Statement::Second` from `B`, along with a `Statement::Valid` signed by B.
+
+Our response to `B` is just a `Statement::Valid` which we've signed. However, we haven't heard anything about this from C. Therefore, we send it everything we have: first a copy of A's `Statement::Second`, then both our and B's `Statement::Valid`.
+
+This system implies a certain level of duplication of messages--we received A's `Statement::Second` from both our peers, and C may experience the same--but it minimizes the degree to which messages are simply dropped.
+
+### Misbehavior Arbitration Subsystem
+
+#### Description
+
+The Misbehavior Arbitration system collects reports of validator misbehavior, and slashes the stake of both misbehaving validator nodes and false accusers.
+
+It is not yet fully specified; that problem is postponed to a future PR.
+
+One policy question we've decided even so: in the event that MA has to call all validators to check some block about which some validators disagree, the minority voters all get slashed, and the majority voters all get rewarded. Validators which abstain have a minor slash penalty, but probably not in the same order of magnitude as those who vote wrong.
+
 ---
 
-[TODO: subsystems for gathering data necessary for block authorship, for networking, for misbehavior reporting, etc.]
+[TODO: subsystems for gathering data necessary for block authorship, for networking, etc.]
 
 ----
 
@@ -1099,6 +1158,7 @@ struct BlockImportEvent {
 ```
 
 #### Block Finalization Event
+
 ```rust
 /// Indicates that a new block has been finalized.
 struct BlockFinalizationEvent {
@@ -1109,11 +1169,88 @@ struct BlockFinalizationEvent {
 }
 ```
 
+#### Overseer Signal
+
+Signals from the overseer to a subsystem to request change in execution that has to be obeyed by the subsystem.
+
+```rust
+enum OverseerSignal {
+  /// Signal to start work localized to the relay-parent hash.
+  StartWork(Hash),
+  /// Signal to stop (or phase down) work localized to the relay-parent hash.
+  StopWork(Hash),
+}
+```
+
+All subsystems have their own message types; all of them need to be able to listen for overseer signals as well. There are currently two proposals for how to handle that with unified communication channels:
+
+1. Retaining the `OverseerSignal` definition above, add `enum FromOverseer<T> {Signal(OverseerSignal), Message(T)}`.
+1. Add a generic varint to `OverseerSignal`: `Message(T)`.
+
+Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
+
+#### Candidate Selection Subsystem Message
+
+These messages are sent from the overseer to the Candidate Selection subsystem when new parablocks are available for validation.
+
+```rust
+enum CandidateSelectionSubsystemMessage {
+  /// A new parachain candidate has arrived from a collator and should be considered for seconding.
+  NewCandidate(PoV, ParachainBlock),
+  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+  Invalid(CandidateReceipt),
+}
+```
+
+If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
+
+#### Candidate Backing Subsystem Message
+
+```rust
+enum CandidateBackingSubsystemMessage {
+  /// Registers a stream listener for updates to the set of backable candidates that could be backed
+  /// in a child of the given relay-parent, referenced by its hash.
+  RegisterBackingWatcher(Hash, TODO),
+  /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
+  /// given relay-parent (ref. by hash). This candidate must be validated.
+  Second(Hash, CandidateReceipt),
+  /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
+  /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
+  Statement(Statement),
+}
+```
+
+#### Validation Request Type
+
+Various modules request that the Candidate Validation subsystem validate a block with this message
+
+```rust
+enum PoVOrigin {
+  /// The proof of validity is available here.
+  Included(PoV),
+  /// We need to fetch proof of validity from some peer on the network.
+  Network(CandidateReceipt),
+}
+
+enum CandidateValidationSubsystemMessage {
+  /// Validate a candidate and issue a Statement
+  Validate(CandidateHash, RelayHash, PoVOrigin),
+}
+```
+
 #### Statement Type
+
+The Candidate Validation subsystem issues these messages in reponse to `ValidationRequest`s.
+
 ```rust
 /// A statement about the validity of a parachain candidate.
 enum Statement {
   /// A statement about a new candidate being seconded by a validator. This is an implicit validity vote.
+  ///
+  /// The main semantic difference between `Seconded` and `Valid` comes from the fact that every validator may
+  /// second only 1 candidate; this places an upper bound on the total number of candidates whose validity
+  /// needs to be checked. A validator who seconds more than 1 parachain candidate per relay head is subject
+  /// to slashing.
   Seconded(CandidateReceipt),
   /// A statement about the validity of a candidate, based on candidate's hash.
   Valid(Hash),
@@ -1137,31 +1274,36 @@ struct SignedStatement {
 }
 ```
 
-
-#### Overseer Signal
-
-Signals from the overseer to a subsystem to request change in execution that has to be obeyed by the subsystem.
+#### Statement Distribution Subsystem Message
 
 ```rust
-enum OverseerSignal {
-  /// Signal to start work localized to the relay-parent hash.
-  StartWork(Hash),
-  /// Signal to stop (or phase down) work localized to the relay-parent hash.
-  StopWork(Hash),
+enum StatementDistributionSubsystemMessage {
+  /// A peer has seconded a candidate and we need to double-check them
+  Peer(SignedStatement),
+  /// We have validated a candidate and want to share our judgment with our peers
+  ///
+  /// The statement distribution subsystem is responsible for signing this statement.
+  Share(Statement),
 }
 ```
 
-
-#### Candidate Backing subsystem Message
+#### Misbehavior Arbitration Subsystem Message
 
 ```rust
-enum CandidateBackingSubsystemMessage {
-  /// Registers a stream listener for updates to the set of backable candidates that could be backed
-  /// in a child of the given relay-parent, referenced by its hash.
-  RegisterBackingWatcher(Hash, TODO),
-  /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
-  /// given relay-parent (ref. by hash). This candidate must be validated.
-  Second(Hash, CandidateReceipt)
+enum MisbehaviorArbitrationSubsystemMessage {
+  /// These validator nodes disagree on this candidate's validity, please figure it out
+  ///
+  /// Most likely, the list of statments all agree except for the final one. That's not
+  /// guaranteed, though; if somehow we become aware of lots of
+  /// statements disagreeing about the validity of a candidate before taking action,
+  /// this message should be dispatched with all of them, in arbitrary order.
+  ///
+  /// This variant is also used when our own validity checks disagree with others'.
+  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+  /// I've noticed a peer contradicting itself about a particular candidate
+  SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+  /// This peer has seconded more than one parachain candidate for this relay parent head
+  DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
 }
 ```
 
