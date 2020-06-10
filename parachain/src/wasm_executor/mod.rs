@@ -280,11 +280,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("storage_start_transaction: unsupported feature for parachain validation")
 	}
 
-	fn storage_rollback_transaction(&mut self) {
+	fn storage_rollback_transaction(&mut self) -> Result<(), ()> {
 		panic!("storage_rollback_transaction: unsupported feature for parachain validation")
 	}
 
-	fn storage_commit_transaction(&mut self) {
+	fn storage_commit_transaction(&mut self) -> Result<(), ()> {
 		panic!("storage_commit_transaction: unsupported feature for parachain validation")
 	}
 
