@@ -593,6 +593,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
+		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
@@ -985,7 +986,7 @@ mod tests {
 	fn onboard_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -1021,7 +1022,7 @@ mod tests {
 	fn onboard_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -1059,7 +1060,7 @@ mod tests {
 	fn begin_retirement_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -1102,7 +1103,7 @@ mod tests {
 	fn begin_retirement_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			assert_eq!(Balances::free_balance(1), 999);
 
@@ -1147,7 +1148,7 @@ mod tests {
 	fn withdraw_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
@@ -1173,7 +1174,7 @@ mod tests {
 	fn withdraw_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 49));
@@ -1197,7 +1198,7 @@ mod tests {
 	fn dissolve_works() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
@@ -1234,7 +1235,7 @@ mod tests {
 	fn dissolve_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Set up a crowdfund
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 9));
 			// Transfer fee is taken here
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 0, 100));
@@ -1276,7 +1277,7 @@ mod tests {
 			// Some blocks later...
 			run_to_block(2);
 			// Create an auction
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Add deploy data
 			assert_ok!(Crowdfund::fix_deploy_data(
 				Origin::signed(1),
@@ -1306,7 +1307,7 @@ mod tests {
 	fn fund_across_multiple_auctions_works() {
 		new_test_ext().execute_with(|| {
 			// Create an auction
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Create two competing crowdfunds, with end dates across multiple auctions
 			// Each crowdfund is competing for the same slots, so only one can win
 			assert_ok!(Crowdfund::create(Origin::signed(1), 1000, 1, 4, 30));
@@ -1344,7 +1345,7 @@ mod tests {
 			assert_eq!(Slots::managed_ids(), vec![0.into()]);
 
 			// Create a second auction
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			// Contribute to existing funds add to NewRaise
 			assert_ok!(Crowdfund::contribute(Origin::signed(1), 1, 10));
 
