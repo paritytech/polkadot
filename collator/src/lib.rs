@@ -333,7 +333,7 @@ pub async fn start_collator<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-	prefix: Option<String>,
+	informant_prefix: Option<String>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: 'static + BuildParachainContext,
@@ -353,7 +353,7 @@ where
 				false,
 				6000,
 				None,
-				prefix,
+				informant_prefix,
 			)?;
 			let spawn_handle = service.spawn_task_handle();
 			build_collator_service(
@@ -374,7 +374,7 @@ where
 				false,
 				6000,
 				None,
-				prefix,
+				informant_prefix,
 			)?;
 			let spawn_handle = service.spawn_task_handle();
 			build_collator_service(
