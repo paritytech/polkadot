@@ -5886,25 +5886,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sc-light"
-version = "2.0.0-rc3"
-source = "git+https://github.com/paritytech/substrate#9c39e2c646371b674783d3ba2ab17e81c4411a87"
-dependencies = [
- "hash-db",
- "lazy_static",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sc-client-api",
- "sc-executor",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-externalities",
- "sp-runtime",
- "sp-state-machine",
-]
-
-[[package]]
 name = "sc-network"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#9c39e2c646371b674783d3ba2ab17e81c4411a87"
