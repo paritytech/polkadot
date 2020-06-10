@@ -26,26 +26,26 @@ There are a number of other documents describing the research in more detail. Al
   * [Overseer](#Overseer)
   * [Subsystem Divisions](#Subsystem-Divisions)
   * Backing
-    * [Candidate Backing](#Candidate-Backing)
-    * [Candidate Selection](#Candidate-Selection)
-    * [Statement Distribution](#Statement-Distribution)
-    * [PoV Distribution](#Pov-Distribution)
+	* [Candidate Backing](#Candidate-Backing)
+	* [Candidate Selection](#Candidate-Selection)
+	* [Statement Distribution](#Statement-Distribution)
+	* [PoV Distribution](#Pov-Distribution)
   * Availability
-    * [Availability Distribution](#Availability-Distribution)
-    * [Bitfield Distribution](#Bitfield-Distribution)
-    * [Bitfield Signing](#Bitfield-Signing)
+	* [Availability Distribution](#Availability-Distribution)
+	* [Bitfield Distribution](#Bitfield-Distribution)
+	* [Bitfield Signing](#Bitfield-Signing)
   * Collators
     * [Collation Generation](#Collation-Generation)
-    * [Collation Distribution](#Collation-Distribution)
+	* [Collation Distribution](#Collation-Distribution)
   * Validity
-    * [Double-vote Reporting](#Double-Vote-Reporting)
+	* [Double-vote Reporting](#Double-Vote-Reporting)
     * TODO
   * Utility
     * [Availability Store](#Availability-Store)
-    * [Candidate Validation](#Candidate-Validation)
-    * [Provisioner](#Provisioner)
+	* [Candidate Validation](#Candidate-Validation)
+	* [Provisioner](#Provisioner)
+    * [Network Bridge](#Network-Bridge)
 	* [Misbehavior Arbitration](#Misbehavior-Arbitration)
-    * [Peer-set Manager](#Peer-Set-Manager)
 * [Data Structures and Types](#Data-Structures-and-Types)
 * [Glossary / Jargon](#Glossary)
 
@@ -1102,7 +1102,7 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 
 The Candidate Selection Subsystem is run by validators, and is responsible for interfacing with Collators to select a candidate, along with its PoV, to second during the backing process relative to a specific relay parent.
 
-This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators that are found to have submitted invalid collations by other subsystems.
+This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators who have submitted collations that are found to have submitted invalid collations by other subsystems.
 
 This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
 
@@ -1146,11 +1146,33 @@ Several approaches have been selected, but all have some issues:
 
 The Statement Distribution Subsystem is responsible for distributing statements about seconded candidates between validators.
 
-The Statement Distribution subsystem sends statements to peer nodes and detects double-voting by validators. When validators conflict with each other, the **Misbehavior Arbitration** system is notified.
+#### Protocol
 
-Statement Distribution is the only backing module subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes
+`ProtocolId`: `b"stmd"`
+
+Input:
+  - NetworkBridgeUpdate(update)
+
+Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+
+#### Functionality
+
+Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views.
+
+Statement Distribution is the only backing module subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
 
 It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to Misbehavior Arbitration. During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes, who distribute statements by validators. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to handle the validator's statement.
+
+Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
+  - In order to receive a `Seconded` message we have the on corresponding chain head in our view
+  - In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
+
+And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
+
+The Statement Distribution subsystem sends statements to peer nodes and detects double-voting by validators. When validators conflict with each other or themselves, the **Misbehavior Arbitration** system is notified.
 
 #### Protocol
 
@@ -1210,25 +1232,35 @@ After a candidate is backed, the availability of the PoV block must be confirmed
 
 #### Protocol
 
+`ProtocolId`:`b"avad"`
+
+Input:
+  - NetworkBridgeUpdate(update)
+
 Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
   - AvailabilityStore::QueryPoV(candidate_hash, response_channel)
   - AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
 
 #### Functionality
 
-For each relay-parent in a `StartWork` message, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have.
+Register on startup an event producer with  `NetworkBridge::RegisterEventProducer`.
 
-`StartWork` and `StopWork` are used to curate a set of current heads, which we keep to the `N` most recent and broadcast as a neighbor packet to our peers.
+For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 
 We define an operation `live_candidates(relay_heads) -> Set<AbridgedCandidateReceipt>` which returns a set of candidates a given set of relay chain heads that implies a set of candidates whose availability chunks should be currently gossiped. This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors. We assume that state is not pruned within `K` blocks of the chain-head.
 
-We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_neighbor_packet)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
+We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`. Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`. Each erasure chunk should be accompanied by a merkle proof that it is committed to by the erasure trie root in the candidate receipt, and this gossip system is responsible for checking such proof.
 
-For all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages.
+We re-attempt to send anything live to a peer upon any view update from that peer.
+
+On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
 
 If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the availability store by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`. (TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed)
 
-(N=5, K=3)
+(K=3?)
 
 ----
 
@@ -1240,17 +1272,23 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 #### Protocol
 
+`ProtocolId`: `b"bitd"`
+
 Input:
   - DistributeBitfield(relay_parent, SignedAvailabilityBitfield): distribute a bitfield via gossip to other validators.
+  - NetworkBridgeUpdate(NetworkBridgeUpdate)
 
 Output:
+  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
+  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
   - BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)
 
 #### Functionality
 
-This is implemented as a gossip system. `StartWork` and `StopWork` are used to determine the set of current relay chain heads. Neighbor packet, as with other gossip subsystems, is a set of current chain heads. Only accept bitfields relevant to our current heads and only distribute bitfields to other peers when relevant to their most recent neighbor packet. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
+This is implemented as a gossip system. Register a network bridge event producer on startup and track peer connection, view change, and disconnection events. Only accept bitfields relevant to our current view and only distribute bitfields to other peers when relevant to their most recent view. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
 
-When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the Provisioner subsystem for potential inclusion in a block.
+When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the block authorship (provisioning) subsystem for potential inclusion in a block.
 
 ----
 
@@ -1405,6 +1443,69 @@ Forward all messages to corresponding job, if any.
 Track all signed bitfields, all backable candidates received. Provide them to the `RequestBlockAuthorshipData` requester via the `response_channel`. If more than one backable candidate exists for a given `Para`, provide the first one received. (TODO: better candidate-choice rules.)
 
 ----
+
+### Network Bridge
+
+#### Description
+
+One of the main features of the overseer/subsystem duality is to avoid shared ownership of resources and to communicate via message-passing. However, implementing each networking subsystem as its own network protocol brings a fair share of challenges.
+
+The most notable challenge is coordinating and eliminating race conditions of peer connection and disconnection events. If we have many network protocols that peers are supposed to be connected on, it is difficult to enforce that a peer is indeed connected on all of them or the order in which those protocols receive notifications that peers have connected. This becomes especially difficult when attempting to share peer state across protocols. All of the Parachain-Host's gossip protocols eliminate DoS with a data-dependency on current chain heads. However, it is inefficient and confusing to implement the logic for tracking our current chain heads as well as our peers' on each of those subsystems. Having one subsystem for tracking this shared state and distributing it to the others is an improvement in architecture and efficiency.
+
+One other piece of shared state to track is peer reputation. When peers are found to have provided value or cost, we adjust their reputation accordingly.
+
+So in short, this Subsystem acts as a bridge between an actual network component and a subsystem's protocol.
+
+#### Protocol
+
+[REVIEW: I am designing this using dynamic dispatch based on a ProtocolId discriminant rather than doing static dispatch to specific subsystems based on a concrete network message type. The reason for this is that doing static dispatch might break the property that Subsystem implementations can be swapped out for others. So this is actually implementing a subprotocol multiplexer. Pierre tells me this is OK for our use-case ;). One caveat is that now all network traffic will also flow through the overseer, but this overhead is probably OK. ]
+
+```rust
+use sc-network::ObservedRole;
+
+struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
+
+enum NetworkBridgeEvent {
+	PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
+	PeerDisconnected(PeerId),
+	PeerMessage(PeerId, Bytes),
+	PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
+	OurViewChange(View),
+}
+```
+
+Input:
+  - RegisterEventProducer(`ProtocolId`, `Fn(NetworkBridgeEvent) -> AllMessages`): call on startup.
+  - ReportPeer(PeerId, cost_or_benefit)
+  - SendMessage(`[PeerId]`, `ProtocolId`, Bytes): send a message to multiple peers.
+
+#### Functionality
+
+Track a set of all Event Producers, each associated with a 4-byte protocol ID.
+There are two types of network messages this sends and receives:
+  - ProtocolMessage(ProtocolId, Bytes)
+  - ViewUpdate(View)
+
+`StartWork` and `StopWork` determine the computation of our local view. A `ViewUpdate` is issued to each connected peer, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
+
+On `RegisterEventProducer`:
+  - Add the event producer to the set of event producers. If there is a competing entry, ignore the request.
+
+On `ProtocolMessage` arrival:
+  - If the protocol ID matches an event producer, produce the message from the `NetworkBridgeEvent::PeerMessage(sender, bytes)`, otherwise ignore and reduce peer reputation slightly
+  - dispatch message via overseer.
+
+On `ViewUpdate` arrival:
+  - Do validity checks and note the most recent view update of the peer.
+  - For each event producer, dispatch the result of a `NetworkBridgeEvent::PeerViewChange(view)` via overseer.
+
+On `ReportPeer` message:
+  - Adjust peer reputation according to cost or benefit provided
+
+On `SendMessage` message:
+  - Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.
+
+------
 
 ### Misbehavior Arbitration
 
