@@ -136,15 +136,11 @@ impl Filter<Call> for BaseFilter {
 pub struct IsCallable;
 frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
-#[cfg(feature = "runtime-benchmarks")]
 type MoreThanHalfCouncil = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
 	collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
 >;
-
-#[cfg(not(feature = "runtime-benchmarks"))]
-type MoreThanHalfCouncil = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -324,15 +320,11 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
-#[cfg(feature = "runtime-benchmarks")]
 type SlashCancelOrigin = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
 	collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
 >;
-
-#[cfg(not(feature = "runtime-benchmarks"))]
-type SlashCancelOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 
 impl staking::Trait for Runtime {
 	type Currency = Balances;
@@ -511,15 +503,11 @@ parameter_types! {
 	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
-#[cfg(feature = "runtime-benchmarks")]
 type ApproveOrigin = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
 	collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
 >;
-
-#[cfg(not(feature = "runtime-benchmarks"))]
-type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 
 impl treasury::Trait for Runtime {
 	type ModuleId = TreasuryModuleId;
