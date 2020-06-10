@@ -43,7 +43,7 @@ There are a number of other documents describing the research in more detail. Al
   * Utility
     * [Availability Store](#Availability-Store)
     * [Candidate Validation](#Candidate-Validation)
-    * [Block Authorship (Provisioning)](#Block-Authorship-Provisioning)
+    * [Provisioner](#Provisioner)
 	* [Misbehavior Arbitration](#Misbehavior-Arbitration)
     * [Peer-set Manager](#Peer-Set-Manager)
 * [Data Structures and Types](#Data-Structures-and-Types)
@@ -1250,7 +1250,7 @@ Output:
 
 This is implemented as a gossip system. `StartWork` and `StopWork` are used to determine the set of current relay chain heads. Neighbor packet, as with other gossip subsystems, is a set of current chain heads. Only accept bitfields relevant to our current heads and only distribute bitfields to other peers when relevant to their most recent neighbor packet. Check bitfield signatures in this module and accept and distribute only one bitfield per validator.
 
-When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the block authorship (provisioning) subsystem for potential inclusion in a block.
+When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the Provisioner subsystem for potential inclusion in a block.
 
 ----
 
@@ -1376,15 +1376,16 @@ Given a candidate, its validation code, and its PoV, determine whether the candi
 
 ----
 
-### Block Authorship (Provisioning)
+### Provisioner
 
 #### Description
 
-This subsystem is not actually responsible for authoring blocks, but instead is responsible for providing data to an external block authorship service beyond the scope of the overseer.
+This subsystem is responsible for providing data to an external block authorship service beyond the scope of the overseer so that the block authorship service can author blocks containing data produced by various subsystems.
 
 In particular, the data to provide:
   - backable candidates and their backings
   - signed bitfields
+  - misbehavior reports
   - dispute inherent (TODO: needs fleshing out in validity module, related to blacklisting)
 
 #### Protocol
