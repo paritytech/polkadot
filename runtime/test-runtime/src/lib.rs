@@ -473,6 +473,7 @@ impl claims::Trait for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
+	type MoveClaimOrigin = system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
