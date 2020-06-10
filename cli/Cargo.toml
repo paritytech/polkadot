@@ -24,6 +24,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../service", default-features = false }
+service-new = { package = "polkadot-service-new", path = "../node/service", default-features = false, optional = true }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -54,3 +55,4 @@ browser = [
 	"browser-utils",
 ]
 runtime-benchmarks = ["service/runtime-benchmarks"]
+service-rewr = [ "service-new/full-node" ]

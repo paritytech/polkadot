@@ -152,14 +152,26 @@ pub fn run() -> Result<()> {
 						service::polkadot_new_light(config)
 					},
 					|config| {
-						service::polkadot_new_full(
-							config,
-							None,
-							None,
-							authority_discovery_enabled,
-							6000,
-							grandpa_pause
-						).map(|(s, _, _)| s)
+						#[cfg(not(feature = "service-rewr"))]
+						{
+							service::polkadot_new_full(
+								config,
+								None,
+								None,
+								authority_discovery_enabled,
+								6000,
+								grandpa_pause
+							).map(|(s, _, _)| s)
+						}
+
+						#[cfg(feature = "service-rewr")]
+						{
+							service_new::polkadot_new_full(
+								config,
+								None,
+								grandpa_pause
+							).map(|(s, _)| s)
+						}
 					},
 					service::PolkadotExecutor::native_version().runtime_version
 				)

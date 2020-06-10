@@ -42,6 +42,7 @@ members = [
 
 	"node/messages",
 	"node/overseer",
+	"node/service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
@@ -64,3 +65,4 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
+service-rewr=["cli/service-rewr"]
