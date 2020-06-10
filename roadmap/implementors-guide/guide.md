@@ -498,7 +498,7 @@ OutgoingParas: Vec<ParaId>;
 1. Clean up outgoing paras. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.
 1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis parameters.
 1. Amend the `Parachains` list to reflect changes in registered parachains.
-1. Amend the `Parathreads` map to reflect changes in registered parathreads.
+1. Amend the `Parathreads` set to reflect changes in registered parathreads.
 
 #### Initialization
 
@@ -609,13 +609,13 @@ struct ParathreadEntry {
 // A queued parathread entry, pre-assigned to a core.
 struct QueuedParathread {
 	claim: ParathreadEntry,
-	// this value is between 0 and config.parathread_cores.
+	/// offset within the set of para-threads ranged `0..config.parathread_cores`.
 	core_offset: u32,
 }
 
 struct ParathreadQueue {
 	queue: Vec<QueuedParathread>,
-	// this value is between 0 and config.parathread_cores
+	/// offset within the set of para-threads ranged `0..config.parathread_cores`.
 	next_core_offset: u32,
 }
 
@@ -703,8 +703,8 @@ Actions:
 
 * `schedule(Vec<(CoreIndex, FreedReason)>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
-  - All freed parathread cores should have the claim removed from the claim index, if the reason for freeing was `FreedReason::Concluded`
-  - All freed parathread cores should have the claim added to the parathread queue again without retries incremented, if the reason for freeing was `FreedReason::TimedOut`.
+  - All freed parathread cores whose reason for freeing was `FreedReason::Concluded` should have the claim removed from the claim index.
+  - All freed parathread cores whose reason for freeing was `FreedReason::TimedOut` should have the claim added to the parathread queue again without retries incremented.
   - All freed parathread cores should take the next parathread entry from the queue.
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 * `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
