@@ -506,7 +506,7 @@ parameter_types! {
 type ApproveOrigin = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
-	collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>
+	collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 >;
 
 impl treasury::Trait for Runtime {
