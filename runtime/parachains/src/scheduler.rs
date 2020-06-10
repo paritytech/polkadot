@@ -93,10 +93,10 @@ pub struct ParathreadClaimQueue {
 }
 
 impl ParathreadClaimQueue {
-	// Queue a parathread entry to be processed.
-	//
-	// Provide the entry and the number of parathread cores, which must be greater than 0.
-	fn queue_entry(&mut self, entry: ParathreadEntry, n_parathread_cores: u32) {
+	/// Queue a parathread entry to be processed.
+	///
+	/// Provide the entry and the number of parathread cores, which must be greater than 0.
+	fn enqueue_entry(&mut self, entry: ParathreadEntry, n_parathread_cores: u32) {
 		let core_offset = self.next_core_offset;
 		self.next_core_offset = (self.next_core_offset + 1) % n_parathread_cores;
 
@@ -243,8 +243,9 @@ impl<T: Trait> Module<T> {
 						retries: retries + 1,
 					};
 
-					if entry.retries > config.parathread_retries { continue }
-					queue.queue_entry(entry, config.parathread_cores);
+					if entry.retries <= config.parathread_retries {
+						queue.enqueue_entry(entry, config.parathread_cores);
+					}
 				}
 			}
 		})
@@ -296,9 +297,9 @@ impl<T: Trait> Module<T> {
 			shuffled_indices.shuffle(&mut rng);
 
 			let group_base_size = validators.len() / n_cores as usize;
-			let larger_groups = validators.len() % n_cores as usize;
+			let n_larger_groups = validators.len() % n_cores as usize;
 			let groups: Vec<Vec<_>> = (0..n_cores).map(|core_id| {
-				let n_members = if (core_id as usize) < larger_groups {
+				let n_members = if (core_id as usize) < n_larger_groups {
 					group_base_size + 1
 				} else {
 					group_base_size
@@ -326,7 +327,7 @@ impl<T: Trait> Module<T> {
 			// prune out all entries beyond retry or that no longer correspond to live parathread.
 			thread_queue.queue.retain(|queued| {
 				let will_keep = queued.claim.retries <= config.parathread_retries
-					&& <paras::Module<T>>::is_parathread(&queued.claim.claim.0);
+					&& <paras::Module<T>>::is_parathread(queued.claim.claim.0);
 
 				if !will_keep {
 					let claim_para = queued.claim.claim.0;
@@ -359,7 +360,7 @@ impl<T: Trait> Module<T> {
 	/// Fails if the claim does not correspond to any live parathread.
 	#[allow(unused)]
 	pub fn add_parathread_claim(claim: ParathreadClaim) {
-		if !<paras::Module<T>>::is_parathread(&claim.0) { return }
+		if !<paras::Module<T>>::is_parathread(claim.0) { return }
 
 		let config = <configuration::Module<T>>::config();
 		let queue_max_size = config.parathread_cores * config.scheduling_lookahead;
@@ -382,7 +383,7 @@ impl<T: Trait> Module<T> {
 			if competes_with_another { return }
 
 			let entry = ParathreadEntry { claim, retries: 0 };
-			queue.queue_entry(entry, config.parathread_cores);
+			queue.enqueue_entry(entry, config.parathread_cores);
 		})
 	}
 
@@ -413,7 +414,7 @@ impl<T: Trait> Module<T> {
 								// If a parathread candidate times out, it's not the collator's fault,
 								// so we don't increment retries.
 								ParathreadQueue::mutate(|queue| {
-									queue.queue_entry(entry, config.parathread_cores);
+									queue.enqueue_entry(entry, config.parathread_cores);
 								})
 							}
 						}
@@ -726,11 +727,11 @@ mod tests {
 				parachain: false,
 			});
 
-			assert!(!Paras::is_parathread(&thread_id));
+			assert!(!Paras::is_parathread(thread_id));
 
 			run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
-			assert!(Paras::is_parathread(&thread_id));
+			assert!(Paras::is_parathread(thread_id));
 
 			{
 				Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
@@ -805,11 +806,11 @@ mod tests {
 				parachain: false,
 			});
 
-			assert!(!Paras::is_parathread(&thread_id));
+			assert!(!Paras::is_parathread(thread_id));
 
 			run_to_block(10, |n| if n == 10 { Some(Default::default()) } else { None });
 
-			assert!(Paras::is_parathread(&thread_id));
+			assert!(Paras::is_parathread(thread_id));
 
 			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
 			assert_eq!(ParathreadQueue::get(), Default::default());
@@ -863,25 +864,25 @@ mod tests {
 				let mut queue = ParathreadClaimQueue::default();
 
 				// Will be pruned: too many retries.
-				queue.queue_entry(ParathreadEntry {
+				queue.enqueue_entry(ParathreadEntry {
 					claim: ParathreadClaim(thread_a, collator.clone()),
 					retries: max_parathread_retries + 1,
 				}, 4);
 
 				// Will not be pruned.
-				queue.queue_entry(ParathreadEntry {
+				queue.enqueue_entry(ParathreadEntry {
 					claim: ParathreadClaim(thread_b, collator.clone()),
 					retries: max_parathread_retries,
 				}, 4);
 
 				// Will not be pruned.
-				queue.queue_entry(ParathreadEntry {
+				queue.enqueue_entry(ParathreadEntry {
 					claim: ParathreadClaim(thread_c, collator.clone()),
 					retries: 0,
 				}, 4);
 
 				// Will be pruned: not a live parathread.
-				queue.queue_entry(ParathreadEntry {
+				queue.enqueue_entry(ParathreadEntry {
 					claim: ParathreadClaim(thread_d, collator.clone()),
 					retries: 0,
 				}, 4);
