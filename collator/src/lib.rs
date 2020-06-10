@@ -453,6 +453,7 @@ mod tests {
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
 			config,
+			None,
 		));
 	}
 }
