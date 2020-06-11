@@ -615,8 +615,8 @@ impl<T: Trait> Module<T> {
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`.
 	///
-	/// This really should not be a box, but is working around a compiler limitation described here:
-	/// https://users.rust-lang.org/t/cannot-unify-associated-type-in-impl-fn-with-concrete-type/44129
+	/// This really should not be a box, but is working around a compiler limitation filed here:
+	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
 	#[allow(unused)]
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
