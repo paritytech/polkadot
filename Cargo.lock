@@ -4054,6 +4054,7 @@ dependencies = [
  "nix 0.17.0",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-collator",
  "polkadot-service",
  "tempfile",
 ]
@@ -4121,6 +4122,7 @@ dependencies = [
  "polkadot-network",
  "polkadot-primitives",
  "polkadot-service",
+ "polkadot-service-new",
  "polkadot-validation",
  "sc-cli",
  "sc-client-api",

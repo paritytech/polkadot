@@ -480,6 +480,8 @@ macro_rules! new_full {
 	}}
 }
 
+pub struct FullNodeHandles;
+
 /// Builds a new service for a light client.
 #[macro_export]
 macro_rules! new_light {
@@ -589,6 +591,9 @@ where
 pub fn polkadot_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
@@ -598,6 +603,7 @@ pub fn polkadot_new_full(
 			TFullBackend<Block>,
 			polkadot_runtime::RuntimeApi
 		>>,
+		FullNodeHandles,
 	), ServiceError>
 {
 	let (service, client) = new_full!(
@@ -609,7 +615,7 @@ pub fn polkadot_new_full(
 		PolkadotExecutor
 	);
 
-	Ok((service, client))
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -617,6 +623,9 @@ pub fn polkadot_new_full(
 pub fn kusama_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 		impl AbstractService,
@@ -626,6 +635,7 @@ pub fn kusama_new_full(
 			kusama_runtime::RuntimeApi
 			>
 		>,
+		FullNodeHandles,
 	), ServiceError>
 {
 	let (service, client) = new_full!(
@@ -637,7 +647,7 @@ pub fn kusama_new_full(
 		KusamaExecutor
 	);
 
-	Ok((service, client))
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -645,6 +655,9 @@ pub fn kusama_new_full(
 pub fn westend_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
@@ -654,6 +667,7 @@ pub fn westend_new_full(
 			TFullBackend<Block>,
 			westend_runtime::RuntimeApi
 		>>,
+		FullNodeHandles,
 	), ServiceError>
 {
 	let (service, client) = new_full!(
@@ -665,7 +679,7 @@ pub fn westend_new_full(
 		WestendExecutor
 	);
 
-	Ok((service, client))
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Polkadot service for a light client.
