@@ -661,6 +661,73 @@ impl FeeSchedule {
 	}
 }
 
+/// A bitfield concerning availability of backed candidates.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
+
+impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
+	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
+		AvailabilityBitfield(inner)
+	}
+}
+
+impl AvailabilityBitfield {
+	/// Encodes the signing payload into the given buffer.
+	pub fn encode_signing_payload_into(&self, signing_context: &SigningContext, buf: &mut Vec<u8>) {
+		self.0.encode_to(buf);
+		signing_context.encode_to(buf);
+	}
+
+	/// Encodes the signing payload into a fresh byte-vector.
+	pub fn encode_signing_payload(&self, signing_context: &SigningContext) -> Vec<u8> {
+		let mut v = Vec::new();
+		self.encode_signing_payload_into(signing_context, &mut v);
+		v
+	}
+}
+
+/// A bitfield signed by a particular validator about the availability of pending candidates.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct SignedAvailabilityBitfield {
+	/// The index of the validator in the current set.
+	pub validator_index: ValidatorIndex,
+	/// The bitfield itself, with one bit per core. Only occupied cores may have the `1` bit set.
+	pub bitfield: AvailabilityBitfield,
+	/// The signature by the validator on the bitfield's signing payload. The context of the signature
+	/// should be apparent when checking the signature.
+	pub signature: ValidatorSignature,
+}
+
+/// Check a signature on an availability bitfield. Provide the bitfield, the validator who signed it,
+/// the signature, the signing context, and an optional buffer in which to encode.
+///
+/// If the buffer is provided, it is assumed to be empty.
+pub fn check_availability_bitfield_signature(
+	bitfield: &AvailabilityBitfield,
+	validator: &ValidatorId,
+	signature: &ValidatorSignature,
+	signing_context: &SigningContext,
+	payload_encode_buf: Option<&mut Vec<u8>>,
+) -> Result<(),()> {
+	use runtime_primitives::traits::AppVerify;
+
+	let mut v = Vec::new();
+	let payload_encode_buf = payload_encode_buf.unwrap_or(&mut v);
+
+	bitfield.encode_signing_payload_into(signing_context, payload_encode_buf);
+
+	if signature.verify(&payload_encode_buf[..], validator) {
+		Ok(())
+	} else {
+		Err(())
+	}
+}
+
+/// A set of signed availability bitfields. Should be sorted by validator index, ascending.
+pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	#[api_version(3)]
