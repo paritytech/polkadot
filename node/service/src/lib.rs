@@ -383,6 +383,7 @@ macro_rules! new_full {
 			let can_author_with =
 				consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
+			// TODO: custom proposer (https://github.com/paritytech/polkadot/issues/1248)
 			let proposer = sc_basic_authorship::ProposerFactory::new(
 				client.clone(),
 				service.transaction_pool(),
