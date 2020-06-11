@@ -8,15 +8,15 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 Input:
 
-- DistributeBitfield(relay_parent, SignedAvailabilityBitfield): distribute a bitfield via gossip to other validators.
-- NetworkBridgeUpdate(NetworkBridgeUpdate)
+- `DistributeBitfield(relay_parent, SignedAvailabilityBitfield)`: distribute a bitfield via gossip to other validators.
+- `NetworkBridgeUpdate(NetworkBridgeUpdate)`
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`ProtocolId`)
-- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
-- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
-- BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)
+- `NetworkBridge::RegisterEventProducer(ProtocolId)`
+- `NetworkBridge::SendMessage([PeerId], ProtocolId, Bytes)`
+- `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)`
+- `BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)`
 
 ## Functionality
 

@@ -55,12 +55,12 @@ All subsystems have their own message types; all of them need to be able to list
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
 
-## Candidate Selection Subsystem Message
+## Candidate Selection Message
 
 These messages are sent from the overseer to the Candidate Selection subsystem when new parablocks are available for validation.
 
 ```rust
-enum CandidateSelectionSubsystemMessage {
+enum CandidateSelectionMessage {
   /// A new parachain candidate has arrived from a collator and should be considered for seconding.
   NewCandidate(PoV, ParachainBlock),
   /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
@@ -70,10 +70,10 @@ enum CandidateSelectionSubsystemMessage {
 
 If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
 
-## Candidate Backing Subsystem Message
+## Candidate Backing Message
 
 ```rust
-enum CandidateBackingSubsystemMessage {
+enum CandidateBackingMessage {
   /// Registers a stream listener for updates to the set of backable candidates that could be backed
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
@@ -98,7 +98,7 @@ enum PoVOrigin {
   Network(CandidateReceipt),
 }
 
-enum CandidateValidationSubsystemMessage {
+enum CandidateValidationMessage {
   /// Validate a candidate and issue a Statement
   Validate(CandidateHash, RelayHash, PoVOrigin),
 }
@@ -140,10 +140,10 @@ struct SignedStatement {
 }
 ```
 
-## Statement Distribution Subsystem Message
+## Statement Distribution Message
 
 ```rust
-enum StatementDistributionSubsystemMessage {
+enum StatementDistributionMessage {
   /// A peer has seconded a candidate and we need to double-check them
   Peer(SignedStatement),
   /// We have validated a candidate and want to share our judgment with our peers
@@ -153,10 +153,10 @@ enum StatementDistributionSubsystemMessage {
 }
 ```
 
-## Misbehavior Arbitration Subsystem Message
+## Misbehavior Arbitration Message
 
 ```rust
-enum MisbehaviorArbitrationSubsystemMessage {
+enum MisbehaviorArbitrationMessage {
   /// These validator nodes disagree on this candidate's validity, please figure it out
   ///
   /// Most likely, the list of statments all agree except for the final one. That's not
