@@ -43,7 +43,7 @@ use crate::{configuration, paras, scheduler::CoreIndex};
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
 pub struct AvailabilityBitfieldRecord<N> {
-	bitfield: StorageBitVec, // one bit per core.
+	bitfield: AvailabilityBitfield, // one bit per core.
 	submitted_at: N, // for accounting, as meaning of bits may change over time.
 }
 
@@ -113,7 +113,7 @@ impl<T: Trait> Module<T> {
 			for signed_bitfield in &signed_bitfields.0 {
 				let signing_context = unimplemented!(); // TODO [now].
 
-				if signed_bitfield.bitfield.len() != n_bits {
+				if signed_bitfield.bitfield.0.len() != n_bits {
 					// TODO [now] return "malformed bitfield"
 				}
 
@@ -131,7 +131,7 @@ impl<T: Trait> Module<T> {
 					// TODO [now] return "invalid bitfield signature"
 				}
 
-				last_index = signed_bitfield.validator_index;
+				last_index = Some(signed_bitfield.validator_index);
 				payload_encode_buf.clear();
 			}
 		}
