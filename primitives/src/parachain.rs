@@ -735,6 +735,21 @@ pub fn check_availability_bitfield_signature<H: Encode>(
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 
+/// A backed (or backable, depending on context) candidate.
+// TODO: yes, this is roughly the same as AttestedCandidate.
+// After https://github.com/paritytech/polkadot/issues/1250
+// they should be unified to this type.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct BackedCandidate {
+	/// The candidate referred to.
+	pub candidate: AbridgedCandidateReceipt,
+	/// The validity votes themselves, expressed as signatures.
+	pub validity_votes: Vec<ValidityAttestation>,
+	/// The indices of the validators within the group, expressed as a bitfield.
+	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	#[api_version(3)]
