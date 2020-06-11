@@ -60,6 +60,9 @@ decl_storage! {
 		/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
 		/// the semantics of this variable.
 		HasInitialized: Option<()>;
+
+		/// The current validators, by their parachain session keys.
+		Validators get(fn validators) config(validators): Vec<ValidatorId>;
 	}
 }
 
@@ -121,6 +124,9 @@ impl<T: Trait> Module<T> {
 			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
 			buf
 		};
+
+		// place validators before calling session handlers for any modules.
+		Validators::put(&validators);
 
 		// We can't pass the new config into the thing that determines the new config,
 		// so we don't pass the `SessionChangeNotification` into this module.
