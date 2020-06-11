@@ -90,14 +90,15 @@ struct ParathreadEntry {
 
 // A queued parathread entry, pre-assigned to a core.
 struct QueuedParathread {
- claim: ParathreadEntry,
- core: CoreIndex,
+  claim: ParathreadEntry,
+  /// offset within the set of para-threads ranged `0..config.parathread_cores`.
+  core_offset: u32,
 }
 
 struct ParathreadQueue {
- queue: Vec<QueuedParathread>,
- // this value is between 0 and config.parathread_cores
- next_core: CoreIndex,
+  queue: Vec<QueuedParathread>,
+  /// offset within the set of para-threads ranged `0..config.parathread_cores`.
+  next_core_offset: u32,
 }
 
 enum CoreOccupied {
@@ -105,11 +106,21 @@ enum CoreOccupied {
   Parachain,
 }
 
+enum AssignmentKind {
+  Parachain,
+  Parathread(CollatorId, u32),
+}
+
 struct CoreAssignment {
   core: CoreIndex,
   para_id: ParaId,
-  collator: Option<CollatorId>,
+  kind: AssignmentKind,
   group_idx: GroupIndex,
+}
+// reasons a core might be freed.
+enum FreedReason {
+  Concluded,
+  TimedOut,
 }
 ```
 
@@ -150,6 +161,7 @@ Actions:
    - First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
    - The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.
 1. Prune the parathread queue to remove all retries beyond `configuration.parathread_retries`.
+   - Also prune all parathread claims corresponding to de-registered parathreads.
    - all pruned claims should have their entry removed from the parathread index.
    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
    - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
@@ -172,15 +184,16 @@ Actions:
   - The core used for the parathread claim is the `next_core` field of the `ParathreadQueue` and adding `Paras::parachains().len()` to it.
   - `next_core` is then updated by adding 1 and taking it modulo `config.parathread_cores`.
   - The claim is then added to the claim index.
-- `schedule(Vec<CoreIndex>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned.
+- `schedule(Vec<(CoreIndex, FreedReason)>)`: schedule new core assignments, with a parameter indicating previously-occupied cores which are to be considered returned and why they are being returned.
   - All freed parachain cores should be assigned to their respective parachain
-  - All freed parathread cores should have the claim removed from the claim index.
+  - All freed parathread cores whose reason for freeing was `FreedReason::Concluded` should have the claim removed from the claim index.
+  - All freed parathread cores whose reason for freeing was `FreedReason::TimedOut` should have the claim added to the parathread queue again without retries incremented
   - All freed parathread cores should take the next parathread entry from the queue.
   - The i'th validator group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the total number of cores. This makes upcoming rotations within the same session predictable.
 - `scheduled() -> Vec<CoreAssignment>`: Get currently scheduled core assignments.
 - `occupied(Vec<CoreIndex>)`. Note that the given cores have become occupied.
-  - Fails if any given cores were not scheduled.
-  - Fails if the given cores are not sorted ascending by core index
+  - Behavior undefined if any given cores were not scheduled.
+  - Behavior undefined if the given cores are not sorted ascending by core index
   - This clears them from `Scheduled` and marks each corresponding `core` in the `AvailabilityCores` as occupied.
   - Since both the availability cores and the newly-occupied cores lists are sorted ascending, this method can be implemented efficiently.
 - `core_para(CoreIndex) -> ParaId`: return the currently-scheduled or occupied ParaId for the given core.
