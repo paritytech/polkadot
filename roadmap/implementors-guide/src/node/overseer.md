@@ -39,7 +39,7 @@ The overseer's logic can be described with these functions:
 * For any activated leaves send an `OverseerSignal::StartWork` message to all subsystems.
 * Ensure all `StartWork` messages are flushed before resuming activity as a message router.
 
-(TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active leaves" update rules here)
+> TODO: in the future, we may want to avoid building on too many sibling blocks at once. the notion of a "preferred head" among many competing sibling blocks would imply changes in our "active leaves" update rules here
 
 *On Finalization Event*
 * Note the height `h` of the newly finalized block `B`.

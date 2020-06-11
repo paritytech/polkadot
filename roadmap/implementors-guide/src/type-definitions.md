@@ -1,11 +1,11 @@
 # Data Structures and Types
 
-[TODO]
-* CandidateReceipt
-* CandidateCommitments
-* AbridgedCandidateReceipt
-* GlobalValidationSchedule
-* LocalValidationData (should commit to code hash too - see Remote disputes section of validity module)
+> TODO:
+> * CandidateReceipt
+> * CandidateCommitments
+> * AbridgedCandidateReceipt
+> * GlobalValidationSchedule
+> * LocalValidationData (should commit to code hash too - see Remote disputes section of validity module)
 
 #### Block Import Event
 ```rust

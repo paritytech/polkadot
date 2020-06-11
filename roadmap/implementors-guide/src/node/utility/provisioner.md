@@ -6,7 +6,8 @@ In particular, the data to provide:
   - backable candidates and their backings
   - signed bitfields
   - misbehavior reports
-  - dispute inherent (TODO: needs fleshing out in validity module, related to blacklisting)
+  - dispute inherent
+    > TODO: needs fleshing out in validity module, related to blacklisting
 
 ## Protocol
 
@@ -22,4 +23,6 @@ Forward all messages to corresponding job, if any.
 
 ## Block Authorship Provisioning Job
 
-Track all signed bitfields, all backable candidates received. Provide them to the `RequestBlockAuthorshipData` requester via the `response_channel`. If more than one backable candidate exists for a given `Para`, provide the first one received. (TODO: better candidate-choice rules.)
+Track all signed bitfields, all backable candidates received. Provide them to the `RequestBlockAuthorshipData` requester via the `response_channel`. If more than one backable candidate exists for a given `Para`, provide the first one received.
+
+> TODO: better candidate-choice rules.

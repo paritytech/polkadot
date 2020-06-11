@@ -1,6 +1,6 @@
 # Collation Generation
 
-[TODO]
+> TODO
 
 ## Protocol
 

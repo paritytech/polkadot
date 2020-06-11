@@ -10,7 +10,7 @@ So in short, this Subsystem acts as a bridge between an actual network component
 
 ## Protocol
 
-[REVIEW: I am designing this using dynamic dispatch based on a ProtocolId discriminant rather than doing static dispatch to specific subsystems based on a concrete network message type. The reason for this is that doing static dispatch might break the property that Subsystem implementations can be swapped out for others. So this is actually implementing a subprotocol multiplexer. Pierre tells me this is OK for our use-case ;). One caveat is that now all network traffic will also flow through the overseer, but this overhead is probably OK. ]
+> REVIEW: I am designing this using dynamic dispatch based on a ProtocolId discriminant rather than doing static dispatch to specific subsystems based on a concrete network message type. The reason for this is that doing static dispatch might break the property that Subsystem implementations can be swapped out for others. So this is actually implementing a subprotocol multiplexer. Pierre tells me this is OK for our use-case ;). One caveat is that now all network traffic will also flow through the overseer, but this overhead is probably OK.
 
 ```rust
 use sc-network::ObservedRole;

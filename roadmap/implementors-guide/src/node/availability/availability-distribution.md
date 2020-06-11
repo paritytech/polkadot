@@ -32,6 +32,8 @@ We re-attempt to send anything live to a peer upon any view update from that pee
 
 On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
 
-If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the availability store by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`. (TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed)
+If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the availability store by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`.
 
-(K=3?)
+> TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed
+>
+> K=3?

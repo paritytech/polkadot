@@ -1,6 +1,6 @@
 # Collation Distribution
 
-[TODO]
+> TODO
 
 ## Protocol
 

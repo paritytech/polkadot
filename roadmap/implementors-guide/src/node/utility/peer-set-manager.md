@@ -1,6 +1,6 @@
 # Peer Set Manager
 
-[TODO]
+> TODO
 
 ## Protocol
 

@@ -24,7 +24,7 @@ Output:
 
 Overarching network protocol + job for every relay-parent
 
-[TODO] The Candidate Selection network protocol is currently intentionally unspecified pending further discussion.
+> TODO The Candidate Selection network protocol is currently intentionally unspecified pending further discussion.
 
 Several approaches have been selected, but all have some issues:
 

@@ -4,7 +4,9 @@ Parachains are the solution to a problem. As with any solution, it cannot be und
 
 ## Issue 1: Scalability
 
-It became clear a few years ago that the transaction throughput of simple Proof-of-Work (PoW) blockchains such as Bitcoin, Ethereum, and myriad others was simply too low. [TODO: PoS, sharding, what if there were more blockchains, etc. etc.]
+It became clear a few years ago that the transaction throughput of simple Proof-of-Work (PoW) blockchains such as Bitcoin, Ethereum, and myriad others was simply too low.
+
+> TODO: what if there were more blockchains, etc.
 
 Proof-of-Stake (PoS) systems can accomplish higher throughput than PoW blockchains. PoS systems are secured by bonded capital as opposed to spent effort - liquidity opportunity cost vs. burning electricity. The way they work is by selecting a set of validators with known economic identity who lock up tokens in exchange for earning the right to "validate" or participate in the consensus process. If they are found to carry out that process wrongly, they will be slashed, meaning some or all of the locked tokens will be burned. This provides a strong disincentive in the direction of misbehavior.
 
@@ -16,11 +18,13 @@ Parachains are an example of a **sharded** protocol. Sharding is a concept borro
 
 Sharding and Proof-of-Stake in coordination with each other allow a parachain host to provide full security on many parachains, even without all participants checking all state transitions.
 
-[TODO: note about network effects & bridging]
+> TODO: note about network effects & bridging
 
 ## Issue 2: Flexibility / Specialization
 
-"dumb" VMs don't give you the flexibility. Any engineer knows that being able to specialize on a problem gives them and their users more _leverage_.  [TODO]
+"dumb" VMs don't give you the flexibility. Any engineer knows that being able to specialize on a problem gives them and their users more _leverage_.
+
+> TODO: expand on leverage
 
 
 Having recognized these issues, we set out to find a solution to these problems, which could allow developers to create and deploy purpose-built blockchains unified under a common source of security, with the capability of message-passing between them; a _heterogeneous sharding solution_, which we have come to know as **Parachains**.

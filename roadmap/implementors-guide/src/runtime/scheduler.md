@@ -1,6 +1,6 @@
 # Scheduler Module
 
-[TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent]
+> TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent
 
 The Scheduler module is responsible for two main tasks:
   - Partitioning validators into groups and assigning groups to parachains and parathreads.

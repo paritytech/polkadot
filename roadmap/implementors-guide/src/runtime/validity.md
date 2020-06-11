@@ -17,7 +17,7 @@ We account for these requirements by having the validity module handle two kinds
 
 ## Local Disputes
 
-[TODO: store all included candidate and attestations on them here. accept additional backing after the fact. accept reports based on VRF. candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity]
+> TODO: store all included candidate and attestations on them here. accept additional backing after the fact. accept reports based on VRF. candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity
 
 One first question is to ask why different logic for local disputes is necessary. It seems that local disputes are necessary in order to create the first escalation that leads to block producers abandoning the chain and making remote disputes possible.
 
@@ -27,7 +27,11 @@ For each such parablock, it is guaranteed by the inclusion pipeline that the par
 
 Disputes may occur against blocks that have happened in the session prior to the current one, from the perspective of the chain. In this case, the prior validator set is responsible for handling the dispute and to do so with their keys from the last session. This means that validator duty actually extends 1 session beyond leaving the validator set.
 
-Validators self-select based on the BABE VRF output included by the block author in the block that the candidate became available. [TODO: some more details from Jeff's paper]. After enough validators have self-selected, the quorum will be clear and validators on the wrong side will be slashed. After concluding, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
+Validators self-select based on the BABE VRF output included by the block author in the block that the candidate became available.
+
+> TODO: some more details from Jeff's paper.
+
+After enough validators have self-selected, the quorum will be clear and validators on the wrong side will be slashed. After concluding, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
 
 ## Remote Disputes
 
@@ -39,18 +43,23 @@ The second type of remote dispute is the unconcluded dispute. An unconcluded rem
   - A candidate
   - The session that the candidate has appeared in.
   - Backing for that candidate
-  - The validation code necessary for validation of the candidate. [TODO: optimize by excluding in case where code appears in `Paras::CurrentCode` of this fork of relay-chain]
-  - Secondary checks already done on that candidate, containing one or more disputes by validators. None of the disputes are required to have appeared on other chains. [TODO: validator-dispute could be instead replaced by a fisherman w/ bond]
+  - The validation code necessary for validation of the candidate.
+    > TODO: optimize by excluding in case where code appears in `Paras::CurrentCode` of this fork of relay-chain
+  - Secondary checks already done on that candidate, containing one or more disputes by validators. None of the disputes are required to have appeared on other chains.
+    > TODO: validator-dispute could be instead replaced by a fisherman w/ bond
 
 When beginning a remote dispute, at least one escalation by a validator is required, but this validator may be malicious and desires to be slashed. There is no guarantee that the para is registered on this fork of the relay chain or that the para was considered available on any fork of the relay chain.
 
 So the first step is to have the remote dispute proceed through an availability process similar to the one in [the Inclusion Module](#The-Inclusion-Module), but without worrying about core assignments or compactness in bitfields.
 
-We assume that remote disputes are with respect to the same validator set as on the current fork, as BABE and GRANDPA assure that forks are never long enough to diverge in validator set [TODO: this is at least directionally correct. handling disputes on other validator sets seems useless anyway as they wouldn't be bonded.]
+We assume that remote disputes are with respect to the same validator set as on the current fork, as BABE and GRANDPA assure that forks are never long enough to diverge in validator set.
+> TODO: this is at least directionally correct. handling disputes on other validator sets seems useless anyway as they wouldn't be bonded.
 
 As with local disputes, the validators of the session the candidate was included on another chain are responsible for resolving the dispute and determining availability of the candidate.
 
-If the candidate was not made available on another fork of the relay chain, the availability process will time out and the disputing validator will be slashed on this fork. The escalation used by the validator(s) can be replayed onto other forks to lead the wrongly-escalating validator(s) to be slashed on all other forks as well. We assume that the adversary cannot censor validators from seeing any particular forks indefinitely [TODO: set the availability timeout for this accordingly - unlike in the inclusion pipeline we are slashing for unavailability here!]
+If the candidate was not made available on another fork of the relay chain, the availability process will time out and the disputing validator will be slashed on this fork. The escalation used by the validator(s) can be replayed onto other forks to lead the wrongly-escalating validator(s) to be slashed on all other forks as well. We assume that the adversary cannot censor validators from seeing any particular forks indefinitely
+
+> TODO: set the availability timeout for this accordingly - unlike in the inclusion pipeline we are slashing for unavailability here!
 
 If the availability process passes, the remote dispute is ready to be included on this chain. As with the local dispute, validators self-select based on a VRF. Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same one. Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary approval checker.
 

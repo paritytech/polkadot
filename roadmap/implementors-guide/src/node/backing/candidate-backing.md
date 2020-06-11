@@ -25,13 +25,12 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 *On CandidateBackingSubsystemMessage*
 * If the message corresponds to a particular relay-parent, forward the message to the Candidate Backing Job for that relay-parent, if any is live.
 
-(big TODO: "contextual execution"
-* At the moment we only allow inclusion of _new_ parachain candidates validated by _current_ validators.
-* Allow inclusion of _old_ parachain candidates validated by _current_ validators.
-* Allow inclusion of _old_ parachain candidates validated by _old_ validators.
-
-This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backable, but not backed candidates.
-)
+> big TODO: "contextual execution"
+> * At the moment we only allow inclusion of _new_ parachain candidates validated by _current_ validators.
+> * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
+> * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
+>
+> This will probably blur the lines between jobs, will probably require inter-job communication and a short-term memory of recently backable, but not backed candidates.
 
 ## Candidate Backing Job
 
@@ -83,4 +82,4 @@ Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and 
 * If the message is a `CandidateBackingSubsystemMessage::RegisterBackingWatcher`, register the watcher and trigger it each time a new candidate is backable. Also trigger it once initially if there are any backable candidates at the time of receipt.
 * If the message is a `CandidateBackingSubsystemMessage::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
 
-(TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem)
+> TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem

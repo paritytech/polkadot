@@ -49,6 +49,6 @@ struct SessionChangeNotification {
 }
 ```
 
-[REVIEW: other options? arguments in favor of going for options 1 or 3 instead of 2. we could do a "soft" version of 2 where we note that the chain is potentially broken due to bad initialization order]
+> REVIEW: other options? arguments in favor of going for options 1 or 3 instead of 2. we could do a "soft" version of 2 where we note that the chain is potentially broken due to bad initialization order
 
-[TODO Diagram: order of runtime operations (initialization, session change)]
+> TODO Diagram: order of runtime operations (initialization, session change)
