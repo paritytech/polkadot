@@ -611,11 +611,15 @@ impl<T: Trait> Module<T> {
 	/// Returns an optional predicate that should be used for timing out occupied cores.
 	///
 	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since the last validator group rotation, and the respective parachain and parathread
+	/// block number since which it has been occupied, and the respective parachain and parathread
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`.
+	///
+	/// This really should not be a box, but is working around a compiler limitation described here:
+	/// https://users.rust-lang.org/t/cannot-unify-associated-type-in-impl-fn-with-concrete-type/44129
+	/// which prevents us from testing the code if using `impl Trait`.
 	#[allow(unused)]
-	pub(crate) fn availability_timeout_predicate() -> Option<impl Fn(CoreIndex, T::BlockNumber) -> bool> {
+	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
 		let now = <system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
@@ -633,7 +637,7 @@ impl<T: Trait> Module<T> {
 		if blocks_since_last_rotation >= absolute_cutoff {
 			None
 		} else {
-			Some(move |core_index: CoreIndex, pending_since| {
+			Some(Box::new(move |core_index: CoreIndex, pending_since| {
 				match availability_cores.get(core_index.0 as usize) {
 					None => true, // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
@@ -652,7 +656,7 @@ impl<T: Trait> Module<T> {
 						}
 					}
 				}
-			})
+			}))
 		}
 	}
 }
@@ -1411,6 +1415,110 @@ mod tests {
 
 	#[test]
 	fn availability_predicate_works() {
-		// TODO [now]
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let HostConfiguration {
+			parachain_rotation_frequency,
+			chain_availability_period,
+			thread_availability_period,
+			..
+		} = default_config();
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		assert!(chain_availability_period < thread_availability_period &&
+			thread_availability_period < parachain_rotation_frequency);
+
+		let chain_a = ParaId::from(1);
+		let thread_a = ParaId::from(2);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(thread_a, false);
+
+			// start a new session with our chain & thread registered.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			// assign some availability cores.
+			{
+				AvailabilityCores::mutate(|cores| {
+					cores[0] = Some(CoreOccupied::Parachain);
+					cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
+						claim: ParathreadClaim(thread_a, collator),
+						retries: 0,
+					}))
+				});
+			}
+
+			run_to_block(1 + thread_availability_period, |_| None);
+			assert!(Scheduler::availability_timeout_predicate().is_none());
+
+			run_to_block(1 + parachain_rotation_frequency, |_| None);
+
+			{
+				let pred = Scheduler::availability_timeout_predicate()
+					.expect("predicate exists recently after rotation");
+
+				let now = System::block_number();
+				let would_be_timed_out = now - thread_availability_period;
+				for i in 0..AvailabilityCores::get().len() {
+					// returns true for unoccupied cores.
+					// And can time out both threads and chains at this stage.
+					assert!(pred(CoreIndex(i as u32), would_be_timed_out));
+				}
+
+				assert!(!pred(CoreIndex(0), now)); // assigned: chain
+				assert!(!pred(CoreIndex(1), now)); // assigned: thread
+				assert!(pred(CoreIndex(2), now));
+
+				// check the tighter bound on chains vs threads.
+				assert!(pred(CoreIndex(0), now - chain_availability_period));
+				assert!(!pred(CoreIndex(1), now - chain_availability_period));
+
+				// check the threshold is exact.
+				assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
+				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
+			}
+
+			run_to_block(1 + parachain_rotation_frequency + chain_availability_period, |_| None);
+
+			{
+				let pred = Scheduler::availability_timeout_predicate()
+					.expect("predicate exists recently after rotation");
+
+				let would_be_timed_out = System::block_number() - thread_availability_period;
+
+				assert!(!pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
+				assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
+			}
+
+			run_to_block(1 + parachain_rotation_frequency + thread_availability_period, |_| None);
+
+			assert!(Scheduler::availability_timeout_predicate().is_none());
+		});
 	}
 }
