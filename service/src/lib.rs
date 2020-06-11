@@ -305,7 +305,7 @@ macro_rules! new_full {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
 				Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
 			})?
-			.build()?;
+			.build_full()?;
 
 		let (block_import, link_half, babe_link) = import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
@@ -633,7 +633,7 @@ macro_rules! new_light {
 				};
 				Ok(polkadot_rpc::create_light(light_deps))
 			})?
-			.build()
+			.build_light()
 	}}
 }
 
