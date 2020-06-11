@@ -289,11 +289,12 @@ impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
 
 fn real_overseer<S: futures::task::Spawn>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
-	validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
-	candidate_backing: Box<dyn Subsystem<CandidateBackingSubsystemMessage> + Send>,
 	s: S,
-) -> Result<(Overseer<S>, OverseerHandler), ()> {
-	Overseer::new(leaves, validation, candidate_backing, s).map_err(|_| ())
+) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
+	let validation = Box::new(ValidationSubsystem);
+	let candidate_backing = Box::new(CandidateBackingSubsystem);
+	Overseer::new(leaves, validation, candidate_backing, s)
+		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
 /// Builds a new service for a full client.
@@ -352,12 +353,7 @@ macro_rules! new_full {
 			})
 			.collect();
 
-		let (overseer, handler) = real_overseer(
-			leaves,
-			Box::new(ValidationSubsystem),
-			Box::new(CandidateBackingSubsystem),
-			spawner,
-		).map_err(|_| ServiceError::Other("Overseer should have started successfully".to_string()))?;
+		let (overseer, handler) = real_overseer(leaves, spawner)?;
 
 		service.spawn_essential_task("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
