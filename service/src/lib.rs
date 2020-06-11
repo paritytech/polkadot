@@ -149,7 +149,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
-	($config:expr, $runtime:ty, $executor:ty) => {{
+	($config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
@@ -158,12 +158,17 @@ macro_rules! new_full_start {
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
 		>($config)?
+			.with_informant_prefix($informant_prefix.unwrap_or_default())?
 			.with_select_chain(|_, backend| {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client, _fetcher, prometheus_registry| {
-				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				let pool = sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry);
+			.with_transaction_pool(|builder| {
+				let pool_api = sc_transaction_pool::FullChainApi::new(builder.client().clone());
+				let pool = sc_transaction_pool::BasicPool::new(
+					builder.config().transaction_pool.clone(),
+					std::sync::Arc::new(pool_api),
+					builder.prometheus_registry(),
+				);
 				Ok(pool)
 			})?
 			.with_import_queue(|
@@ -270,11 +275,13 @@ macro_rules! new_full {
 		$slot_duration:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
-		$dispatch:ty
+		$dispatch:ty,
+		$informant_prefix:expr $(,)?
 	) => {{
 		use sc_network::Event;
 		use sc_client_api::ExecutorProvider;
 		use futures::stream::StreamExt;
+		use sp_core::traits::BareCryptoStorePtr;
 
 		let is_collator = $collating_for.is_some();
 		let role = $config.role.clone();
@@ -291,7 +298,7 @@ macro_rules! new_full {
 		let slot_duration = $slot_duration;
 
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
-			new_full_start!($config, $runtime, $dispatch);
+			new_full_start!($config, $runtime, $dispatch, $informant_prefix);
 
 		let service = builder
 			.with_finality_proof_provider(|client, backend| {
@@ -470,7 +477,7 @@ macro_rules! new_full {
 		// if the node isn't actively participating in consensus then it doesn't
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if is_authority {
-			Some(service.keystore())
+			Some(service.keystore() as BareCryptoStorePtr)
 		} else {
 			None
 		};
@@ -552,12 +559,18 @@ macro_rules! new_light {
 			.with_select_chain(|_, backend| {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
-			.with_transaction_pool(|config, client, fetcher, prometheus_registry| {
-				let fetcher = fetcher
+			.with_transaction_pool(|builder| {
+				let fetcher = builder.fetcher()
 					.ok_or_else(|| "Trying to start light transaction pool without active fetcher")?;
-				let pool_api = sc_transaction_pool::LightChainApi::new(client.clone(), fetcher.clone());
+				let pool_api = sc_transaction_pool::LightChainApi::new(
+					builder.client().clone(),
+					fetcher,
+				);
 				let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
-					config, Arc::new(pool_api), prometheus_registry, sc_transaction_pool::RevalidationType::Light,
+					builder.config().transaction_pool.clone(),
+					Arc::new(pool_api),
+					builder.prometheus_registry(),
+					sc_transaction_pool::RevalidationType::Light,
 				);
 				Ok(pool)
 			})?
@@ -636,7 +649,7 @@ where
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch).0)
+	Ok(new_full_start!(config, Runtime, Dispatch, None).0)
 }
 
 /// Create a new Polkadot service for a full node.
@@ -648,6 +661,7 @@ pub fn polkadot_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -667,7 +681,8 @@ pub fn polkadot_new_full(
 		slot_duration,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
-		PolkadotExecutor
+		PolkadotExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -682,6 +697,7 @@ pub fn kusama_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 ) -> Result<(
 		impl AbstractService,
 		Arc<impl PolkadotClient<
@@ -701,7 +717,8 @@ pub fn kusama_new_full(
 		slot_duration,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
-		KusamaExecutor
+		KusamaExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -716,6 +733,7 @@ pub fn westend_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -735,7 +753,8 @@ pub fn westend_new_full(
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		WestendExecutor
+		WestendExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, handles))

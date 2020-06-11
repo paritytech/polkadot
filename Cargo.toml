@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.8.2"
+version = "0.8.7"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -28,7 +28,6 @@ members = [
 	"erasure-coding",
 	"network",
 	"network/test",
-	"overseer",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
@@ -41,6 +40,9 @@ members = [
 	"statement-table",
 	"service",
 	"validation",
+
+	"node/messages",
+	"node/overseer",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",

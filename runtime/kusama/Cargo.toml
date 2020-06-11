@@ -1,6 +1,6 @@
 [package]
 name = "kusama-runtime"
-version = "0.8.2"
+version = "0.8.7"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -117,8 +117,10 @@ std = [
 	"im-online/std",
 	"indices/std",
 	"membership/std",
+	"multisig/std",
 	"nicks/std",
 	"offences/std",
+	"proxy/std",
 	"recovery/std",
 	"sp-runtime/std",
 	"sp-staking/std",

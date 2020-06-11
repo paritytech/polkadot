@@ -8,6 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch", features = ["test-helpers"],  default-features = false }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-cumulus-branch" }
