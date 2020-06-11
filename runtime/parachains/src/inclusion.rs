@@ -28,8 +28,7 @@ use primitives::{
 	},
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error,
-	dispatch::DispatchResult, ensure,
+	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
 	weights::{DispatchClass, Weight},
 };
 use codec::{Encode, Decode};
@@ -106,6 +105,19 @@ decl_module! {
 
 impl<T: Trait> Module<T> {
 
+	/// Handle an incoming session change.
+	pub(crate) fn initializer_on_new_session(
+		notification: crate::initializer::SessionChangeNotification<T::BlockNumber>
+	) {
+		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
+		// and require consumption.
+		for _ in <PendingAvailability<T>>::drain() { }
+		for _ in <AvailabilityBitfields<T>>::drain() { }
+
+		Validators::set(notification.validators.clone()); // substrate forces us to clone, stupidly.
+		CurrentSessionIndex::set(notification.session_index);
+	}
+
 	/// Process a set of incoming bitfields.
 	pub(crate) fn process_bitfields(
 		signed_bitfields: SignedAvailabilityBitfields,
@@ -167,6 +179,9 @@ impl<T: Trait> Module<T> {
 		}
 
 		// TODO [now] actually apply bitfields
+
+		// TODO: pass available candidates onwards to validity module once implemented.
+		// https://github.com/paritytech/polkadot/issues/1251
 
 		Ok(())
 	}
