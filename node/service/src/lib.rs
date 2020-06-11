@@ -153,7 +153,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
-	($config:expr, $runtime:ty, $executor:ty) => {{
+	($config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
@@ -162,6 +162,7 @@ macro_rules! new_full_start {
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
 		>($config)?
+			.with_informant_prefix($informant_prefix.unwrap_or_default())?
 			.with_select_chain(|_, backend| {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
@@ -306,9 +307,11 @@ macro_rules! new_full {
 		$authority_discovery_enabled:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
-		$dispatch:ty
+		$dispatch:ty,
+		$informant_prefix:expr $(,)?
 	) => {{
 		use sc_client_api::ExecutorProvider;
+		use sp_core::traits::BareCryptoStorePtr;
 
 		let is_collator = $collating_for.is_some();
 		let role = $config.role.clone();
@@ -318,14 +321,14 @@ macro_rules! new_full {
 		let name = $config.network.node_name.clone();
 
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
-			new_full_start!($config, $runtime, $dispatch);
+			new_full_start!($config, $runtime, $dispatch, $informant_prefix);
 
 		let service = builder
 			.with_finality_proof_provider(|client, backend| {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
 				Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
 			})?
-			.build()?;
+			.build_full()?;
 
 		let (block_import, link_half, babe_link) = import_setup.take()
 			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
@@ -406,7 +409,7 @@ macro_rules! new_full {
 		// if the node isn't actively participating in consensus then it doesn't
 		// need a keystore, regardless of which protocol we use below.
 		let keystore = if is_authority {
-			Some(service.keystore())
+			Some(service.keystore() as BareCryptoStorePtr)
 		} else {
 			None
 		};
@@ -563,7 +566,7 @@ macro_rules! new_light {
 				};
 				Ok(polkadot_rpc::create_light(light_deps))
 			})?
-			.build()
+			.build_light()
 	}}
 }
 
@@ -579,7 +582,7 @@ where
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch).0)
+	Ok(new_full_start!(config, Runtime, Dispatch, None).0)
 }
 
 /// Create a new Polkadot service for a full node.
@@ -591,6 +594,7 @@ pub fn polkadot_new_full(
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -608,7 +612,8 @@ pub fn polkadot_new_full(
 		authority_discovery_enabled,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
-		PolkadotExecutor
+		PolkadotExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, FullNodeHandles))
@@ -623,6 +628,7 @@ pub fn kusama_new_full(
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 ) -> Result<(
 		impl AbstractService,
 		Arc<impl PolkadotClient<
@@ -640,7 +646,8 @@ pub fn kusama_new_full(
 		authority_discovery_enabled,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
-		KusamaExecutor
+		KusamaExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, FullNodeHandles))
@@ -655,6 +662,7 @@ pub fn westend_new_full(
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -672,7 +680,8 @@ pub fn westend_new_full(
 		authority_discovery_enabled,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
-		WestendExecutor
+		WestendExecutor,
+		informant_prefix,
 	);
 
 	Ok((service, client, FullNodeHandles))
