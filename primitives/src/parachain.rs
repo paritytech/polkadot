@@ -606,19 +606,9 @@ pub enum ValidityAttestation {
 	#[codec(index = "2")]
 	Explicit(ValidatorSignature),
 }
-
 /// A type returned by runtime with current session index and a parent hash.
 #[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
-pub struct SigningContext {
-	/// Current session index.
-	pub session_index: sp_staking::SessionIndex,
-	/// Hash of the parent.
-	pub parent_hash: Hash,
-}
-
-/// A type returned by runtime with current session index and a parent hash.
-#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
-pub struct GenericSigningContext<H> {
+pub struct SigningContext<H = Hash> {
 	/// Current session index.
 	pub session_index: sp_staking::SessionIndex,
 	/// Hash of the parent.
@@ -683,13 +673,21 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 
 impl AvailabilityBitfield {
 	/// Encodes the signing payload into the given buffer.
-	pub fn encode_signing_payload_into(&self, signing_context: &SigningContext, buf: &mut Vec<u8>) {
+	pub fn encode_signing_payload_into<H: Encode>(
+		&self,
+		signing_context: &SigningContext<H>,
+		buf: &mut Vec<u8>,
+	) {
 		self.0.encode_to(buf);
 		signing_context.encode_to(buf);
 	}
 
 	/// Encodes the signing payload into a fresh byte-vector.
-	pub fn encode_signing_payload(&self, signing_context: &SigningContext) -> Vec<u8> {
+	pub fn encode_signing_payload<H: Encode>(
+		&self,
+		signing_context:
+		&SigningContext<H>,
+	) -> Vec<u8> {
 		let mut v = Vec::new();
 		self.encode_signing_payload_into(signing_context, &mut v);
 		v
@@ -713,11 +711,11 @@ pub struct SignedAvailabilityBitfield {
 /// the signature, the signing context, and an optional buffer in which to encode.
 ///
 /// If the buffer is provided, it is assumed to be empty.
-pub fn check_availability_bitfield_signature(
+pub fn check_availability_bitfield_signature<H: Encode>(
 	bitfield: &AvailabilityBitfield,
 	validator: &ValidatorId,
 	signature: &ValidatorSignature,
-	signing_context: &SigningContext,
+	signing_context: &SigningContext<H>,
 	payload_encode_buf: Option<&mut Vec<u8>>,
 ) -> Result<(),()> {
 	use runtime_primitives::traits::AppVerify;
