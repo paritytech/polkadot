@@ -1,7 +1,5 @@
 # Paras Module
 
-## Description
-
 The Paras module is responsible for storing information on parachains and parathreads. Registered parachains and parathreads cannot change except at session boundaries. This is primarily to ensure that the number of bits required for the availability bitfields does not change except at session boundaries.
 
 It's also responsible for managing parachain validation code upgrades as well as maintaining availability of old parachain code and its pruning.

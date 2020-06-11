@@ -2,8 +2,6 @@
 
 [TODO]
 
-## Description
-
 ## Protocol
 
 ## Functionality

@@ -1,7 +1,5 @@
 # Bitfield Distribution
 
-## Description
-
 Validators vote on the availability of a backed candidate by issuing signed bitfields, where each bit corresponds to a single candidate. These bitfields can be used to compactly determine which backed candidates are available or not based on a 2/3+ quorum.
 
 ## Protocol

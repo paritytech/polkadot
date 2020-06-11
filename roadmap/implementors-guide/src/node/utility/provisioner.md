@@ -1,7 +1,5 @@
 # Provisioner
 
-## Description
-
 This subsystem is responsible for providing data to an external block authorship service beyond the scope of the overseer so that the block authorship service can author blocks containing data produced by various subsystems.
 
 In particular, the data to provide:

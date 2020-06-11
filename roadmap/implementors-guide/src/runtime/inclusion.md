@@ -1,7 +1,5 @@
 # Inclusion Module
 
-## Description
-
 The inclusion module is responsible for inclusion and availability of scheduled parachains and parathreads.
 
 

@@ -1,7 +1,5 @@
 # Statement Distribution
 
-## Description
-
 The Statement Distribution Subsystem is responsible for distributing statements about seconded candidates between validators.
 
 ## Protocol

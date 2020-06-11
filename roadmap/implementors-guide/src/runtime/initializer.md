@@ -1,7 +1,5 @@
 # Initializer Module
 
-## Description
-
 This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described above: accepting and forwarding session change notifications.
 
 ## Storage

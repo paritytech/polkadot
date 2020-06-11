@@ -1,7 +1,5 @@
 # PoV Distribution
 
-## Description
-
 This subsystem is responsible for distributing PoV blocks. For now, unified with statement distribution system.
 
 ## Protocol

@@ -1,7 +1,5 @@
 # Availability Store
 
-## Description
-
 This is a utility subsystem responsible for keeping available certain data and pruning that data.
 
 The two data types:

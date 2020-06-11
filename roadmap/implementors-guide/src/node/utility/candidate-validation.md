@@ -1,7 +1,5 @@
 # Candidate Validation
 
-## Description
-
 This subsystem is responsible for handling candidate validation requests. It is a simple request/response server.
 
 ## Protocol

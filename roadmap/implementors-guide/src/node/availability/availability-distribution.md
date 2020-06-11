@@ -1,7 +1,5 @@
 # Availability Distribution
 
-## Description
-
 Distribute availability erasure-coded chunks to validators.
 
 After a candidate is backed, the availability of the PoV block must be confirmed by 2/3+ of all validators. Validating a candidate successfully and contributing it to being backable leads to the PoV and erasure-coding being stored in the availability store.

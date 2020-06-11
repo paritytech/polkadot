@@ -1,7 +1,5 @@
 # Misbehavior Arbitration
 
-## Description
-
 The Misbehavior Arbitration subsystem collects reports of validator misbehavior, and slashes the stake of both misbehaving validator nodes and false accusers.
 
 [TODO] It is not yet fully specified; that problem is postponed to a future PR.
