@@ -3,8 +3,9 @@
 This is a utility subsystem responsible for keeping available certain data and pruning that data.
 
 The two data types:
-  - Full PoV blocks of candidates we have validated
-  - Availability chunks of candidates that were backed and noted available on-chain.
+
+- Full PoV blocks of candidates we have validated
+- Availability chunks of candidates that were backed and noted available on-chain.
 
 For each of these data we have pruning rules that determine how long we need to keep that data available.
 
@@ -25,25 +26,31 @@ There may be multiple competing blocks all ending the availability phase for a p
 ## Protocol
 
 Input:
-  - QueryPoV(candidate_hash, response_channel)
-  - QueryChunk(candidate_hash, validator_index, response_channel)
-  - StoreChunk(candidate_hash, validator_index, inclusion_proof, chunk_data)
+
+- QueryPoV(candidate_hash, response_channel)
+- QueryChunk(candidate_hash, validator_index, response_channel)
+- StoreChunk(candidate_hash, validator_index, inclusion_proof, chunk_data)
 
 ## Functionality
 
 On `StartWork`:
-  - Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
-  - Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
+
+- Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
+- Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
 
 On block finality events:
-  - > TODO: figure out how we get block finality events from overseer
-  - Handle all pruning based on the newly-finalized block.
+
+- > TODO: figure out how we get block finality events from overseer
+- Handle all pruning based on the newly-finalized block.
 
 On `QueryPoV` message:
-  - Return the PoV block, if any, for that candidate hash.
+
+- Return the PoV block, if any, for that candidate hash.
 
 On `QueryChunk` message:
-  - Determine if we have the chunk indicated by the parameters and return it via the response channel if so.
+
+- Determine if we have the chunk indicated by the parameters and return it via the response channel if so.
 
 On `StoreChunk` message:
-  - Store the chunk along with its inclusion proof under the candidate hash and validator index.
+
+- Store the chunk along with its inclusion proof under the candidate hash and validator index.

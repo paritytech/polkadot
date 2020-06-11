@@ -13,21 +13,23 @@ The runtime also serves another role, which is to make data available to the Nod
 There is some functionality of the relay chain relating to parachains that we also consider beyond the scope of this document. In particular, all modules related to how parachains are registered aren't part of this guide, although we do provide routines that should be called by the registration process.
 
 We will split the logic of the runtime up into these modules:
-  * Initializer: manage initialization order of the other modules.
-  * Configuration: manage configuration and configuration updates in a non-racy manner.
-  * Paras: manage chain-head and validation code for parachains and parathreads.
-  * Scheduler: manages parachain and parathread scheduling as well as validator assignments.
-  * Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
-  * Validity: handles secondary checks and dispute resolution for included, available parablocks.
+
+* Initializer: manage initialization order of the other modules.
+* Configuration: manage configuration and configuration updates in a non-racy manner.
+* Paras: manage chain-head and validation code for parachains and parathreads.
+* Scheduler: manages parachain and parathread scheduling as well as validator assignments.
+* Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
+* Validity: handles secondary checks and dispute resolution for included, available parablocks.
 
 The Initializer module is special - it's responsible for handling the initialization logic of the other modules to ensure that the correct initialization order and related invariants are maintained. The other modules won't specify a on-initialize logic, but will instead expose a special semi-private routine that the initialization module will call. The other modules are relatively straightforward and perform the roles described above.
 
 The Parachain Host operates under a changing set of validators. Time is split up into periodic sessions, where each session brings a potentially new set of validators. Sessions are buffered by one, meaning that the validators of the upcoming session are fixed and always known. Parachain Host runtime modules need to react to changes in the validator set, as it will affect the runtime logic for processing candidate backing, availability bitfields, and misbehavior reports. The Parachain Host modules can't determine ahead-of-time exactly when session change notifications are going to happen within the block (note: this depends on module initialization order again - better to put session before parachains modules). Ideally, session changes are always handled before initialization. It is clearly a problem if we compute validator assignments to parachains during initialization and then the set of validators changes. In the best case, we can recognize that re-initialization needs to be done. In the worst case, bugs would occur.
 
 There are 3 main ways that we can handle this issue:
-  1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change.
-  2. Require that session change notifications always occur before initialization. Brick the chain if session change notifications ever happen after initialization.
-  3. Handle both the before and after cases.
+
+1. Establish an invariant that session change notifications always happen after initialization. This means that when we receive a session change notification before initialization, we call the initialization routines before handling the session change.
+1. Require that session change notifications always occur before initialization. Brick the chain if session change notifications ever happen after initialization.
+1. Handle both the before and after cases.
 
 Although option 3 is the most comprehensive, it runs counter to our goal of simplicity. Option 1 means requiring the runtime to do redundant work at all sessions and will also mean, like option 3, that designing things in such a way that initialization can be rolled back and reapplied under the new environment. That leaves option 2, although it is a "nuclear" option in a way and requires us to constrain the parachain host to only run in full runtimes with a certain order of operations.
 
@@ -36,19 +38,18 @@ modules alongside the session change notification. This means that a session cha
 
 ```rust
 struct SessionChangeNotification {
-	// The new validators in the session.
-	validators: Vec<ValidatorId>,
-	// The validators for the next session.
-	queued: Vec<ValidatorId>,
-	// The configuration before handling the session change.
-	prev_config: HostConfiguration,
-	// The configuration after handling the session change.
-	new_config: HostConfiguration,
-	// A secure randomn seed for the session, gathered from BABE.
-	random_seed: [u8; 32],
+ // The new validators in the session.
+ validators: Vec<ValidatorId>,
+ // The validators for the next session.
+ queued: Vec<ValidatorId>,
+ // The configuration before handling the session change.
+ prev_config: HostConfiguration,
+ // The configuration after handling the session change.
+ new_config: HostConfiguration,
+ // A secure randomn seed for the session, gathered from BABE.
+ random_seed: [u8; 32],
 }
 ```
 
 > REVIEW: other options? arguments in favor of going for options 1 or 3 instead of 2. we could do a "soft" version of 2 where we note that the chain is potentially broken due to bad initialization order
-
 > TODO Diagram: order of runtime operations (initialization, session change)

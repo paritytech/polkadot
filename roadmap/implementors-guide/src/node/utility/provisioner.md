@@ -3,18 +3,20 @@
 This subsystem is responsible for providing data to an external block authorship service beyond the scope of the overseer so that the block authorship service can author blocks containing data produced by various subsystems.
 
 In particular, the data to provide:
-  - backable candidates and their backings
-  - signed bitfields
-  - misbehavior reports
-  - dispute inherent
+
+- backable candidates and their backings
+- signed bitfields
+- misbehavior reports
+- dispute inherent
     > TODO: needs fleshing out in validity module, related to blacklisting
 
 ## Protocol
 
 Input:
-  - Bitfield(relay_parent, signed_bitfield)
-  - BackableCandidate(relay_parent, candidate_receipt, backing)
-  - RequestBlockAuthorshipData(relay_parent, response_channel)
+
+- Bitfield(relay_parent, signed_bitfield)
+- BackableCandidate(relay_parent, candidate_receipt, backing)
+- RequestBlockAuthorshipData(relay_parent, response_channel)
 
 ## Functionality
 

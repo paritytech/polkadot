@@ -18,14 +18,17 @@ This subsystem validates the candidates and generates an appropriate `Statement`
 
 The subsystem should maintain a set of handles to Candidate Backing Jobs that are currently live, as well as the relay-parent to which they correspond.
 
-*On Overseer Signal*
+### On Overseer Signal
+
 * If the signal is an `OverseerSignal::StartWork(relay_parent)`, spawn a Candidate Backing Job with the given relay parent, storing a bidirectional channel with the Candidate Backing Job in the set of handles.
 * If the signal is an `OverseerSignal::StopWork(relay_parent)`, cease the Candidate Backing Job under that relay parent, if any.
 
-*On CandidateBackingSubsystemMessage*
+### On `CandidateBackingSubsystemMessage`
+
 * If the message corresponds to a particular relay-parent, forward the message to the Candidate Backing Job for that relay-parent, if any is live.
 
 > big TODO: "contextual execution"
+>
 > * At the moment we only allow inclusion of _new_ parachain candidates validated by _current_ validators.
 > * Allow inclusion of _old_ parachain candidates validated by _current_ validators.
 > * Allow inclusion of _old_ parachain candidates validated by _old_ validators.
@@ -38,12 +41,14 @@ The Candidate Backing Job represents the work a node does for backing candidates
 
 The goal of a Candidate Backing Job is to produce as many backable candidates as possible. This is done via signed [Statements](#Statement-type) by validators. If a candidate receives a majority of supporting Statements from the Parachain Validators currently assigned, then that candidate is considered backable.
 
-*on startup*
+### On Startup
+
 * Fetch current validator set, validator -> parachain assignments from runtime API.
 * Determine if the node controls a key in the current validator set. Call this the local key if so.
 * If the local key exists, extract the parachain head and validation function for the parachain the local key is assigned to.
 
-*on receiving new signed Statement*
+### On Receiving New Signed Statement
+
 ```rust
 if let Statement::Seconded(candidate) = signed.statement {
   if candidate is unknown and in local assignment {
@@ -55,7 +60,8 @@ if let Statement::Seconded(candidate) = signed.statement {
 // majority, send a `BlockAuthorshipProvisioning::BackableCandidate(relay_parent, Candidate, Backing)` message.
 ```
 
-*spawning validation work*
+### Spawning Validation Work
+
 ```rust
 fn spawn_validation_work(candidate, parachain head, validation function) {
   asynchronously {
@@ -73,12 +79,13 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 }
 ```
 
-*fetch pov block*
+### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
 Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
 
-*on receiving CandidateBackingSubsystemMessage*
+### On Receiving `CandidateBackingSubsystemMessage`
+
 * If the message is a `CandidateBackingSubsystemMessage::RegisterBackingWatcher`, register the watcher and trigger it each time a new candidate is backable. Also trigger it once initially if there are any backable candidates at the time of receipt.
 * If the message is a `CandidateBackingSubsystemMessage::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
 

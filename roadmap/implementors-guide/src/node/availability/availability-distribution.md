@@ -9,14 +9,16 @@ After a candidate is backed, the availability of the PoV block must be confirmed
 `ProtocolId`:`b"avad"`
 
 Input:
-  - NetworkBridgeUpdate(update)
+
+- NetworkBridgeUpdate(update)
 
 Output:
-  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
-  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
-  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
-  - AvailabilityStore::QueryPoV(candidate_hash, response_channel)
-  - AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
+
+- NetworkBridge::RegisterEventProducer(`ProtocolId`)
+- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+- AvailabilityStore::QueryPoV(candidate_hash, response_channel)
+- AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
 
 ## Functionality
 

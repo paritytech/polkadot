@@ -11,6 +11,7 @@ HasInitialized: bool
 ## Initialization
 
 The other modules are initialized in this order:
+
 1. Configuration
 1. Paras
 1. Scheduler

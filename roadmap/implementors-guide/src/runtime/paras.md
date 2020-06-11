@@ -7,37 +7,38 @@ It's also responsible for managing parachain validation code upgrades as well as
 ## Storage
 
 Utility structs:
+
 ```rust
 // the two key times necessary to track for every code replacement.
 pub struct ReplacementTimes {
-	/// The relay-chain block number that the code upgrade was expected to be activated.
-	/// This is when the code change occurs from the para's perspective - after the
-	/// first parablock included with a relay-parent with number >= this value.
-	expected_at: BlockNumber,
-	/// The relay-chain block number at which the parablock activating the code upgrade was
-	/// actually included. This means considered included and available, so this is the time at which
-	/// that parablock enters the acceptance period in this fork of the relay-chain.
-	activated_at: BlockNumber,
+ /// The relay-chain block number that the code upgrade was expected to be activated.
+ /// This is when the code change occurs from the para's perspective - after the
+ /// first parablock included with a relay-parent with number >= this value.
+ expected_at: BlockNumber,
+ /// The relay-chain block number at which the parablock activating the code upgrade was
+ /// actually included. This means considered included and available, so this is the time at which
+ /// that parablock enters the acceptance period in this fork of the relay-chain.
+ activated_at: BlockNumber,
 }
 
 /// Metadata used to track previous parachain validation code that we keep in
 /// the state.
 pub struct ParaPastCodeMeta {
-	// Block numbers where the code was expected to be replaced and where the code
-	// was actually replaced, respectively. The first is used to do accurate lookups
-	// of historic code in historic contexts, whereas the second is used to do
-	// pruning on an accurate timeframe. These can be used as indices
-	// into the `PastCode` map along with the `ParaId` to fetch the code itself.
-	upgrade_times: Vec<ReplacementTimes>,
-	// This tracks the highest pruned code-replacement, if any.
-	last_pruned: Option<BlockNumber>,
+ // Block numbers where the code was expected to be replaced and where the code
+ // was actually replaced, respectively. The first is used to do accurate lookups
+ // of historic code in historic contexts, whereas the second is used to do
+ // pruning on an accurate timeframe. These can be used as indices
+ // into the `PastCode` map along with the `ParaId` to fetch the code itself.
+ upgrade_times: Vec<ReplacementTimes>,
+ // This tracks the highest pruned code-replacement, if any.
+ last_pruned: Option<BlockNumber>,
 }
 
 enum UseCodeAt {
-	// Use the current code.
-	Current,
-	// Use the code that was replaced at the given block number.
-	ReplacedAt(BlockNumber),
+ // Use the current code.
+ Current,
+ // Use the code that was replaced at the given block number.
+ ReplacedAt(BlockNumber),
 }
 
 struct ParaGenesisArgs {
@@ -51,6 +52,7 @@ struct ParaGenesisArgs {
 ```
 
 Storage layout:
+
 ```rust
 /// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 Parachains: Vec<ParaId>,
@@ -86,6 +88,7 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 /// Paras that are to be cleaned up at the end of the session.
 OutgoingParas: Vec<ParaId>;
 ```
+
 ## Session Change
 
 1. Clean up outgoing paras. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.

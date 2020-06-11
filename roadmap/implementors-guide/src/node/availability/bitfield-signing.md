@@ -5,8 +5,9 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 ## Protocol
 
 Output:
-  - BitfieldDistribution::DistributeBitfield: distribute a locally signed bitfield
-  - AvailabilityStore::QueryChunk(CandidateHash, validator_index, response_channel)
+
+- BitfieldDistribution::DistributeBitfield: distribute a locally signed bitfield
+- AvailabilityStore::QueryChunk(CandidateHash, validator_index, response_channel)
 
 ## Functionality
 

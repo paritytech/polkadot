@@ -26,5 +26,4 @@ Sharding and Proof-of-Stake in coordination with each other allow a parachain ho
 
 > TODO: expand on leverage
 
-
 Having recognized these issues, we set out to find a solution to these problems, which could allow developers to create and deploy purpose-built blockchains unified under a common source of security, with the capability of message-passing between them; a _heterogeneous sharding solution_, which we have come to know as **Parachains**.

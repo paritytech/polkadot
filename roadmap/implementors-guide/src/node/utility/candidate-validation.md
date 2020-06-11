@@ -5,7 +5,8 @@ This subsystem is responsible for handling candidate validation requests. It is 
 ## Protocol
 
 Input:
-  - CandidateValidation::Validate(CandidateReceipt, validation_code, PoV, response_channel)
+
+- CandidateValidation::Validate(CandidateReceipt, validation_code, PoV, response_channel)
 
 ## Functionality
 

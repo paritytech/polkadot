@@ -1,13 +1,15 @@
 # Data Structures and Types
 
 > TODO:
+>
 > * CandidateReceipt
 > * CandidateCommitments
 > * AbridgedCandidateReceipt
 > * GlobalValidationSchedule
 > * LocalValidationData (should commit to code hash too - see Remote disputes section of validity module)
 
-#### Block Import Event
+## Block Import Event
+
 ```rust
 /// Indicates that a new block has been added to the blockchain.
 struct BlockImportEvent {
@@ -21,7 +23,7 @@ struct BlockImportEvent {
 }
 ```
 
-#### Block Finalization Event
+## Block Finalization Event
 
 ```rust
 /// Indicates that a new block has been finalized.
@@ -33,7 +35,7 @@ struct BlockFinalizationEvent {
 }
 ```
 
-#### Overseer Signal
+## Overseer Signal
 
 Signals from the overseer to a subsystem to request change in execution that has to be obeyed by the subsystem.
 
@@ -53,7 +55,7 @@ All subsystems have their own message types; all of them need to be able to list
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
 
-#### Candidate Selection Subsystem Message
+## Candidate Selection Subsystem Message
 
 These messages are sent from the overseer to the Candidate Selection subsystem when new parablocks are available for validation.
 
@@ -68,7 +70,7 @@ enum CandidateSelectionSubsystemMessage {
 
 If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
 
-#### Candidate Backing Subsystem Message
+## Candidate Backing Subsystem Message
 
 ```rust
 enum CandidateBackingSubsystemMessage {
@@ -84,7 +86,7 @@ enum CandidateBackingSubsystemMessage {
 }
 ```
 
-#### Validation Request Type
+## Validation Request Type
 
 Various modules request that the Candidate Validation subsystem validate a block with this message
 
@@ -102,7 +104,7 @@ enum CandidateValidationSubsystemMessage {
 }
 ```
 
-#### Statement Type
+## Statement Type
 
 The Candidate Validation subsystem issues these messages in reponse to `ValidationRequest`s.
 
@@ -123,7 +125,7 @@ enum Statement {
 }
 ```
 
-#### Signed Statement Type
+## Signed Statement Type
 
 The actual signed payload should reference only the hash of the CandidateReceipt, even in the `Seconded` case and should include
 a relay parent which provides context to the signature. This prevents against replay attacks and allows the candidate receipt itself
@@ -138,7 +140,7 @@ struct SignedStatement {
 }
 ```
 
-#### Statement Distribution Subsystem Message
+## Statement Distribution Subsystem Message
 
 ```rust
 enum StatementDistributionSubsystemMessage {
@@ -151,7 +153,7 @@ enum StatementDistributionSubsystemMessage {
 }
 ```
 
-#### Misbehavior Arbitration Subsystem Message
+## Misbehavior Arbitration Subsystem Message
 
 ```rust
 enum MisbehaviorArbitrationSubsystemMessage {
@@ -171,7 +173,7 @@ enum MisbehaviorArbitrationSubsystemMessage {
 }
 ```
 
-#### Host Configuration
+## Host Configuration
 
 The internal-to-runtime configuration of the parachain host. This is expected to be altered only by governance procedures.
 
@@ -206,7 +208,7 @@ struct HostConfiguration {
 }
 ```
 
-#### Signed Availability Bitfield
+## Signed Availability Bitfield
 
 A bitfield signed by a particular validator about the availability of pending candidates.
 
@@ -220,7 +222,7 @@ struct SignedAvailabilityBitfield {
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
 ```
 
-#### Validity Attestation
+## Validity Attestation
 
 An attestation of validity for a candidate, used as part of a backing. Both the `Seconded` and `Valid` statements are considered attestations of validity. This structure is only useful where the candidate referenced is apparent.
 
@@ -235,7 +237,7 @@ enum ValidityAttestation {
 }
 ```
 
-#### Backed Candidate
+## Backed Candidate
 
 A `CandidateReceipt` along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
 

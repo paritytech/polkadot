@@ -18,41 +18,48 @@ use sc-network::ObservedRole;
 struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
 
 enum NetworkBridgeEvent {
-	PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
-	PeerDisconnected(PeerId),
-	PeerMessage(PeerId, Bytes),
-	PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
-	OurViewChange(View),
+ PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
+ PeerDisconnected(PeerId),
+ PeerMessage(PeerId, Bytes),
+ PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
+ OurViewChange(View),
 }
 ```
 
 Input:
-  - RegisterEventProducer(`ProtocolId`, `Fn(NetworkBridgeEvent) -> AllMessages`): call on startup.
-  - ReportPeer(PeerId, cost_or_benefit)
-  - SendMessage(`[PeerId]`, `ProtocolId`, Bytes): send a message to multiple peers.
+
+- RegisterEventProducer(`ProtocolId`, `Fn(NetworkBridgeEvent) -> AllMessages`): call on startup.
+- ReportPeer(PeerId, cost_or_benefit)
+- SendMessage(`[PeerId]`, `ProtocolId`, Bytes): send a message to multiple peers.
 
 ## Functionality
 
 Track a set of all Event Producers, each associated with a 4-byte protocol ID.
 There are two types of network messages this sends and receives:
-  - ProtocolMessage(ProtocolId, Bytes)
-  - ViewUpdate(View)
+
+- ProtocolMessage(ProtocolId, Bytes)
+- ViewUpdate(View)
 
 `StartWork` and `StopWork` determine the computation of our local view. A `ViewUpdate` is issued to each connected peer, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
 
 On `RegisterEventProducer`:
-  - Add the event producer to the set of event producers. If there is a competing entry, ignore the request.
+
+- Add the event producer to the set of event producers. If there is a competing entry, ignore the request.
 
 On `ProtocolMessage` arrival:
-  - If the protocol ID matches an event producer, produce the message from the `NetworkBridgeEvent::PeerMessage(sender, bytes)`, otherwise ignore and reduce peer reputation slightly
-  - dispatch message via overseer.
+
+- If the protocol ID matches an event producer, produce the message from the `NetworkBridgeEvent::PeerMessage(sender, bytes)`, otherwise ignore and reduce peer reputation slightly
+- dispatch message via overseer.
 
 On `ViewUpdate` arrival:
-  - Do validity checks and note the most recent view update of the peer.
-  - For each event producer, dispatch the result of a `NetworkBridgeEvent::PeerViewChange(view)` via overseer.
+
+- Do validity checks and note the most recent view update of the peer.
+- For each event producer, dispatch the result of a `NetworkBridgeEvent::PeerViewChange(view)` via overseer.
 
 On `ReportPeer` message:
-  - Adjust peer reputation according to cost or benefit provided
+
+- Adjust peer reputation according to cost or benefit provided
 
 On `SendMessage` message:
-  - Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.
+
+- Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.

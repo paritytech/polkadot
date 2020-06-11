@@ -7,38 +7,33 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 `ProtocolId`: `b"stmd"`
 
 Input:
-  - NetworkBridgeUpdate(update)
+
+- NetworkBridgeUpdate(update)
 
 Output:
-  - NetworkBridge::RegisterEventProducer(`ProtocolId`)
-  - NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
-  - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+
+- NetworkBridge::RegisterEventProducer(`ProtocolId`)
+- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 
 ## Functionality
 
-Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views.
+Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
 Statement Distribution is the only backing module subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
 
 It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to Misbehavior Arbitration. During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes, who distribute statements by validators. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to handle the validator's statement.
 
 Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
-  - In order to receive a `Seconded` message we have the on corresponding chain head in our view
-  - In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
+
+- In order to receive a `Seconded` message we have the on corresponding chain head in our view
+- In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
 
 And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
 
 The Statement Distribution subsystem sends statements to peer nodes and detects double-voting by validators. When validators conflict with each other or themselves, the **Misbehavior Arbitration** system is notified.
 
-## Protocol
-
-## Functionality
-
-Implemented as a gossip protocol. Neighbor packets are used to inform peers which chain heads we are interested in data for. Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
-  - In order to receive a `Seconded` message we must be working on corresponding chain head
-  - In order to receive an `Invalid` or `Valid` message we must have received the corresponding `Seconded` message.
-
-  ## Peer Receipt State Machine
+## Peer Receipt State Machine
 
 There is a very simple state machine which governs which messages we are willing to receive from peers. Not depicted in the state machine: on initial receipt of any `SignedStatement`, validate that the provided signature does in fact sign the included data. Note that each individual parablock candidate gets its own instance of this state machine; it is perfectly legal to receive a `Valid(X)` before a `Seconded(Y)`, as long as a `Seconded(X)` has been received.
 

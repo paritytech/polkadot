@@ -14,11 +14,11 @@ In the event that a parablock candidate proves invalid, this subsystem will rece
 
 Input: None
 
-
 Output:
-  - Validation requests to Validation subsystem
-  - `CandidateBackingMessage::Second`
-  - Peer set manager: report peers (collators who have misbehaved)
+
+- Validation requests to Validation subsystem
+- `CandidateBackingMessage::Second`
+- Peer set manager: report peers (collators who have misbehaved)
 
 ## Functionality
 

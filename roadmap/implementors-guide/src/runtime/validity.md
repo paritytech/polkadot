@@ -3,17 +3,19 @@
 After a backed candidate is made available, it is included and proceeds into an acceptance period during which validators are randomly selected to do (secondary) approval checks of the parablock. Any reports disputing the validity of the candidate will cause escalation, where even more validators are requested to check the block, and so on, until either the parablock is determined to be invalid or valid. Those on the wrong side of the dispute are slashed and, if the parablock is deemed invalid, the relay chain is rolled back to a point before that block was included.
 
 However, this isn't the end of the story. We are working in a forkful blockchain environment, which carries three important considerations:
-  1. For security, validators that misbehave shouldn't only be slashed on one fork, but on all possible forks. Validators that misbehave shouldn't be able to create a new fork of the chain when caught and get away with their misbehavior.
-  2. It is possible that the parablock being contested has not appeared on all forks.
-  3. If a block author believes that there is a disputed parablock on a specific fork that will resolve to a reversion of the fork, that block author is better incentivized to build on a different fork which does not include that parablock.
+
+1. For security, validators that misbehave shouldn't only be slashed on one fork, but on all possible forks. Validators that misbehave shouldn't be able to create a new fork of the chain when caught and get away with their misbehavior.
+1. It is possible that the parablock being contested has not appeared on all forks.
+1. If a block author believes that there is a disputed parablock on a specific fork that will resolve to a reversion of the fork, that block author is better incentivized to build on a different fork which does not include that parablock.
 
 This means that in all likelihood, there is the possibility of disputes that are started on one fork of the relay chain, and as soon as the dispute resolution process starts to indicate that the parablock is indeed invalid, that fork of the relay chain will be abandoned and the dispute will never be fully resolved on that chain.
 
 Even if this doesn't happen, there is the possibility that there are two disputes underway, and one resolves leading to a reversion of the chain before the other has concluded. In this case we want to both transplant the concluded dispute onto other forks of the chain as well as the unconcluded dispute.
 
 We account for these requirements by having the validity module handle two kinds of disputes.
-  1. Local disputes: those contesting the validity of the current fork by disputing a parablock included within it.
-  2. Remote disputes: a dispute that has partially or fully resolved on another fork which is transplanted to the local fork for completion and eventual slashing.
+
+1. Local disputes: those contesting the validity of the current fork by disputing a parablock included within it.
+1. Remote disputes: a dispute that has partially or fully resolved on another fork which is transplanted to the local fork for completion and eventual slashing.
 
 ## Local Disputes
 
@@ -40,13 +42,14 @@ When a dispute has occurred on another fork, we need to transplant that dispute 
 There are two types of remote disputes. The first is a remote roll-up of a concluded dispute. These are simply all attestations for the block, those against it, and the result of all (secondary) approval checks. A concluded remote dispute can be resolved in a single transaction as it is an open-and-shut case of a quorum of validators disagreeing with another.
 
 The second type of remote dispute is the unconcluded dispute. An unconcluded remote dispute is started by any validator, using these things:
-  - A candidate
-  - The session that the candidate has appeared in.
-  - Backing for that candidate
-  - The validation code necessary for validation of the candidate.
-    > TODO: optimize by excluding in case where code appears in `Paras::CurrentCode` of this fork of relay-chain
-  - Secondary checks already done on that candidate, containing one or more disputes by validators. None of the disputes are required to have appeared on other chains.
-    > TODO: validator-dispute could be instead replaced by a fisherman w/ bond
+
+- A candidate
+- The session that the candidate has appeared in.
+- Backing for that candidate
+- The validation code necessary for validation of the candidate.
+  > TODO: optimize by excluding in case where code appears in `Paras::CurrentCode` of this fork of relay-chain
+- Secondary checks already done on that candidate, containing one or more disputes by validators. None of the disputes are required to have appeared on other chains.
+  > TODO: validator-dispute could be instead replaced by a fisherman w/ bond
 
 When beginning a remote dispute, at least one escalation by a validator is required, but this validator may be malicious and desires to be slashed. There is no guarantee that the para is registered on this fork of the relay chain or that the para was considered available on any fork of the relay chain.
 
