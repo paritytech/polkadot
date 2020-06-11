@@ -726,7 +726,7 @@ pub fn check_availability_bitfield_signature(
 }
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
-pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);
+pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
