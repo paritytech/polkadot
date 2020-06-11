@@ -8,6 +8,7 @@ license = "GPL-3.0"
 [dependencies]
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["test-helpers"],  default-features = false }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -1,5 +1,5 @@
 [package]
-name = "overseer"
+name = "polkadot-overseer"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -9,8 +9,9 @@ futures = "0.3.5"
 log = "0.4.8"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
-polkadot-primitives = { path = "../primitives" }
+polkadot-primitives = { path = "../../primitives" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+messages = { package = "polkadot-node-messages", path = "../messages" }
 
 [dev-dependencies]
 futures = { version = "0.3.5", features = ["thread-pool"] }
