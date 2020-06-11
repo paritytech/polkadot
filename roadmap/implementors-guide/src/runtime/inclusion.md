@@ -28,6 +28,12 @@ Storage Layout:
 bitfields: map ValidatorIndex => AvailabilityBitfield;
 /// Candidates pending availability.
 PendingAvailability: map ParaId => CandidatePendingAvailability;
+
+/// The current validators, by their parachain session keys.
+Validators: Vec<ValidatorId>;
+
+/// The current session index.
+CurrentSessionIndex: SessionIndex;
 ```
 
 > TODO: `CandidateReceipt` and `AbridgedCandidateReceipt` can contain code upgrades which make them very large. the code entries should be split into a different storage map with infrequent access patterns
@@ -36,6 +42,8 @@ PendingAvailability: map ParaId => CandidatePendingAvailability;
 
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
+1. Update `Validators` with the validators from the session change notification.
+1. Update `CurrentSessionIndex` with the session index from the session change notification.
 
 ## Routines
 
