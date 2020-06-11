@@ -616,6 +616,15 @@ pub struct SigningContext {
 	pub parent_hash: Hash,
 }
 
+/// A type returned by runtime with current session index and a parent hash.
+#[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
+pub struct GenericSigningContext<H> {
+	/// Current session index.
+	pub session_index: sp_staking::SessionIndex,
+	/// Hash of the parent.
+	pub parent_hash: H,
+}
+
 /// An attested candidate. This is submitted to the relay chain by a block author.
 #[derive(Clone, PartialEq, Decode, Encode, RuntimeDebug)]
 pub struct AttestedCandidate {
