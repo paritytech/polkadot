@@ -1,4 +1,4 @@
-# Collation Distribution
+# Peer Set Manager
 
 [TODO]
 
