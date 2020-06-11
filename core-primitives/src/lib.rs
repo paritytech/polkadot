@@ -91,4 +91,6 @@ pub enum DownwardMessage<AccountId = crate::AccountId> {
 	///
 	/// NOTE: Be very careful not to allow users to place arbitrary size information in here.
 	Opaque(sp_std::vec::Vec<u8>),
+	/// XCMP message for the Parachain.
+	XCMPMessage(sp_std::vec::Vec<u8>),
 }

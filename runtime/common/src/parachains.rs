@@ -34,7 +34,7 @@ use sp_staking::{
 };
 use frame_support::{
 	traits::KeyOwnerProofSystem,
-	dispatch::{IsSubType},
+	dispatch::IsSubType,
 	weights::{DispatchClass, Weight},
 };
 use primitives::{
@@ -257,7 +257,9 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
 
 	/// The outer origin type.
-	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
+	type Origin: From<Origin>
+		+ From<<Self as system::Trait>::Origin>
+		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin> + From<Call<Self>>;
@@ -725,6 +727,21 @@ decl_module! {
 			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
 			DownwardMessageQueue::<T>::append(to, DownwardMessage::TransferInto(who, amount, remark));
 		}
+
+		/// Send a XCMP message to the given parachain.
+		///
+		/// The origin must be another parachain.
+		#[weight = 100_000]
+		pub fn send_xcmp_message(
+			origin,
+			to: ParaId,
+			msg: Vec<u8>,
+		) {
+			ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
+			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
+			DownwardMessageQueue::<T>::append(to, DownwardMessage::XCMPMessage(msg));
+		}
 	}
 }
 
@@ -871,11 +888,11 @@ impl<T: Trait> Module<T> {
 		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
-					system::RawOrigin::Signed(id.into_account()).into(),
+					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Signed(id.into_account()))),
 				ParachainDispatchOrigin::Parachain =>
 					Origin::Parachain(id).into(),
 				ParachainDispatchOrigin::Root =>
-					system::RawOrigin::Root.into(),
+					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Root)),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
 			// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -1186,8 +1203,7 @@ impl<T: Trait> Module<T> {
 		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
-	{
+	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError> {
 		// returns groups of slices that have the same chain ID.
 		// assumes the inner slice is sorted by id.
 		struct GroupedDutyIter<'a> {
