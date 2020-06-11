@@ -56,6 +56,8 @@ Storage layout:
 ```rust
 /// All parachains. Ordered ascending by ParaId. Parathreads are not included.
 Parachains: Vec<ParaId>,
+/// All parathreads.
+Parathreads: map ParaId => Option<()>,
 /// The head-data of every registered para.
 Heads: map ParaId => Option<HeadData>;
 /// The validation code of every live para.
@@ -94,6 +96,7 @@ OutgoingParas: Vec<ParaId>;
 1. Clean up outgoing paras. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.
 1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis parameters.
 1. Amend the `Parachains` list to reflect changes in registered parachains.
+1. Amend the `Parathreads` set to reflect changes in registered parathreads.
 
 ## Initialization
 
@@ -106,6 +109,7 @@ OutgoingParas: Vec<ParaId>;
 * `schedule_code_upgrade(ParaId, ValidationCode, expected_at: BlockNumber)`: Schedule a future code upgrade of the given parachain, to be applied after inclusion of a block of the same parachain executed in the context of a relay-chain block with number >= `expected_at`.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head, where the new head was executed in the context of a relay-chain block with given number. This will apply pending code upgrades based on the block number provided.
 * `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If the validation code has been pruned, this will return `None`.
+* `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread.
 
 ## Finalization
 

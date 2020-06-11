@@ -4442,6 +4442,8 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "rand 0.7.3",
+ "rand_chacha 0.2.2",
  "rustc-hex",
  "serde",
  "serde_derive",
