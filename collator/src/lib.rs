@@ -74,7 +74,13 @@ pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
 pub use sc_cli::SubstrateCli;
 use sp_api::{ConstructRuntimeApi, ApiExt, HashFor};
-use polkadot_service::PolkadotClient;
+#[cfg(not(feature = "service-rewr"))]
+use polkadot_service::{FullNodeHandles, PolkadotClient};
+#[cfg(feature = "service-rewr")]
+use polkadot_service_new::{
+	self as polkadot_service,
+	Error as ServiceError, FullNodeHandles, PolkadotClient,
+};
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -201,9 +207,46 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
+#[cfg(feature = "service-rewr")]
+fn build_collator_service<SP, P, C, R, Extrinsic>(
+	_spawner: SP,
+	_handles: FullNodeHandles,
+	_client: Arc<C>,
+	_para_id: ParaId,
+	_key: Arc<CollatorPair>,
+	_build_parachain_context: P,
+) -> Result<future::Ready<()>, polkadot_service::Error>
+	where
+		C: PolkadotClient<
+			service::Block,
+			service::TFullBackend<service::Block>,
+			R
+		> + 'static,
+		R: ConstructRuntimeApi<service::Block, C> + Sync + Send,
+		<R as ConstructRuntimeApi<service::Block, C>>::RuntimeApi:
+			sp_api::ApiExt<
+				service::Block,
+				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
+			>
+			+ RuntimeApiCollection<
+				Extrinsic,
+				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
+			>
+			+ Sync + Send,
+		P: BuildParachainContext,
+		P::ParachainContext: Send + 'static,
+		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+		Extrinsic: service::Codec + Send + Sync + 'static,
+		SP: Spawn + Clone + Send + Sync + 'static,
+{
+	Err("Collator is not functional with the new service yet".into())
+}
+
+
+#[cfg(not(feature = "service-rewr"))]
 fn build_collator_service<SP, P, C, R, Extrinsic>(
 	spawner: SP,
-	handles: polkadot_service::FullNodeHandles,
+	handles: FullNodeHandles,
 	client: Arc<C>,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
@@ -408,6 +451,7 @@ where
 	Ok(())
 }
 
+#[cfg(not(feature = "service-rewr"))]
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 
