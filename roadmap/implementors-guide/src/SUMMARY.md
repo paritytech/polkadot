@@ -3,7 +3,7 @@
 [Preamble](README.md)
 
 - [Whence Parachains](whence-parachains.md)
-- [Parachains: Basic Functionality](basic-functionality.md)
+- [Parachains Overview](parachains-overview.md)
 - [Architecture Overview](architecture.md)
 - [Runtime Architecture](runtime/README.md)
   - [Initializer Module](runtime/initializer.md)
