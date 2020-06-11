@@ -60,7 +60,7 @@ Availability Core Transitions within Block
                                            |                 Availability Timeout
 ```
 
-Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the Validity module. Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
+Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the [Validity module](/runtime/validity.html). Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
 
 Validator groups rotate across availability cores in a round-robin fashion, with rotation occurring at fixed intervals. The i'th group will be assigned to the `(i+k)%n`'th core at any point in time, where `k` is the number of rotations that have occurred in the session, and `n` is the number of cores. This makes upcoming rotations within the same session predictable.
 
@@ -136,7 +136,7 @@ Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
 
 ## Session Change
 
-Session changes are the only time that configuration can change, and the configuration module's session-change logic is handled before this module's. We also lean on the behavior of the inclusion module which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `AvailabilityCores` bitfield.
+Session changes are the only time that configuration can change, and the [Configuration module](/runtime/configuration.html)'s session-change logic is handled before this module's. We also lean on the behavior of the [Inclusion module](/runtime/inclusion.html) which clears all its occupied cores on session change. Thus we don't have to worry about cores being occupied across session boundaries and it is safe to re-size the `AvailabilityCores` bitfield.
 
 Actions:
 

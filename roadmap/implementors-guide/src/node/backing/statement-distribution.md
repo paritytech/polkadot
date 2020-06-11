@@ -22,7 +22,7 @@ Implemented as a gossip protocol. Register a network event producer on startup. 
 
 Statement Distribution is the only backing module subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
 
-It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to Misbehavior Arbitration. During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes, who distribute statements by validators. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the Candidate Backing subsystem to handle the validator's statement.
+It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](/node/utility/misbehavior-arbitration.html). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes, who distribute statements by validators. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](/node/backing/candidate-backing.html) to handle the validator's statement.
 
 Track equivocating validators and stop accepting information from them. Forward double-vote proofs to the double-vote reporting system. Establish a data-dependency order:
 
@@ -31,7 +31,7 @@ Track equivocating validators and stop accepting information from them. Forward 
 
 And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
 
-The Statement Distribution subsystem sends statements to peer nodes and detects double-voting by validators. When validators conflict with each other or themselves, the **Misbehavior Arbitration** system is notified.
+The Statement Distribution subsystem sends statements to peer nodes and detects double-voting by validators. When validators conflict with each other or themselves, the Misbehavior Arbitration system is notified.
 
 ## Peer Receipt State Machine
 
