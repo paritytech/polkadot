@@ -1,0 +1,6 @@
+[book]
+authors = ["Rob Habermeier", "Peter Goodspeed-Niklaus"]
+language = "en"
+multilingual = false
+src = "src"
+title = "The Polkadot Parachain Host Implementers' Guide"
