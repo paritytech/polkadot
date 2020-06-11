@@ -1,3 +1,3 @@
-# Utility
+# Utility Subsystems
 
-The utility module comprises several useful subsystems which don't have a natural home in any other module.
+The utility subsystems are an assortment which don't have a natural home in another subsystem collection.

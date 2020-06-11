@@ -1,6 +1,6 @@
-# Backing Module
+# Backing Subsystems
 
-The backing module, when conceived as a black box, receives an arbitrary quantity of parablock candidates and associated proofs of validity from arbitrary untrusted collators. From these, it produces a bounded quantity of backable candidates which relay chain block authors may choose to include in a subsequent block.
+The backing subsystems, when conceived as a black box, receive an arbitrary quantity of parablock candidates and associated proofs of validity from arbitrary untrusted collators. From these, they produce a bounded quantity of backable candidates which relay chain block authors may choose to include in a subsequent block.
 
 In broad strokes, the flow operates like this:
 

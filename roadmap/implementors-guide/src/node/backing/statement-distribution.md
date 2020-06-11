@@ -20,7 +20,7 @@ Output:
 
 Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
-Statement Distribution is the only backing module subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
+Statement Distribution is the only backing subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
 
 It is responsible for signing statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](/node/utility/misbehavior-arbitration.html). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes, who distribute statements by validators. On receiving a signed statement from a peer, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](/node/backing/candidate-backing.html) to handle the validator's statement.
 

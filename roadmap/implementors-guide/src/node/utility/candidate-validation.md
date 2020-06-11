@@ -10,4 +10,4 @@ Input:
 
 ## Functionality
 
-Given a candidate, its validation code, and its PoV, determine whether the candidate is valid. There are a few different situations this code will be called in, and this will lead to variance in where the parameters originate. Determining the parameters is beyond the scope of this module.
+Given a candidate, its validation code, and its PoV, determine whether the candidate is valid. There are a few different situations this code will be called in, and this will lead to variance in where the parameters originate. Determining the parameters is beyond the scope of this subsystem.

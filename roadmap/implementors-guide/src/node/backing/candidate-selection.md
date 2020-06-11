@@ -4,7 +4,7 @@ The Candidate Selection Subsystem is run by validators, and is responsible for i
 
 This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators who have submitted collations that are found to have submitted invalid collations by other subsystems.
 
-This module is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
+This subsystem is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
 
 New parablock candidates may arrive from a potentially unbounded set of collators. This subsystem chooses either 0 or 1 of them per relay parent to second. If it chooses to second a candidate, it sends an appropriate message to the [Candidate Backing subsystem](/node/backing/candidate-backing.html) to generate an appropriate [`Statement`](/type-definitions.html#statement-type).
 
