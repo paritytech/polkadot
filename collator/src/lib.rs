@@ -75,7 +75,7 @@ pub use service::RuntimeApiCollection;
 pub use sc_cli::SubstrateCli;
 use sp_api::{ConstructRuntimeApi, ApiExt, HashFor};
 #[cfg(not(feature = "service-rewr"))]
-use polkadot_service::{Error as ServiceError, FullNodeHandles, PolkadotClient};
+use polkadot_service::{FullNodeHandles, PolkadotClient};
 #[cfg(feature = "service-rewr")]
 use polkadot_service_new::{
 	self as polkadot_service,
