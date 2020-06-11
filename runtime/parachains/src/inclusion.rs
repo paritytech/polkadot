@@ -24,17 +24,18 @@ use sp_std::prelude::*;
 use primitives::{
 	parachain::{
 		ValidatorId, AbridgedCandidateReceipt, ValidatorIndex, Id as ParaId,
-		AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields,
+		AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
-	dispatch::DispatchResult,
+	dispatch::DispatchResult, ensure,
 	weights::{DispatchClass, Weight},
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
 use bitvec::vec::BitVec;
+use sp_staking::SessionIndex;
 
 use crate::{configuration, paras, scheduler::CoreIndex};
 
@@ -73,12 +74,27 @@ decl_storage! {
 
 		/// Candidates pending availability by `ParaId`.
 		PendingAvailability: map hasher(twox_64_concat) ParaId
-			=> Option<CandidatePendingAvailability<T::BlockNumber>>
+			=> Option<CandidatePendingAvailability<T::BlockNumber>>;
+
+		/// The current validators, by their parachain session keys.
+		Validators get(fn validators) config(validators): Vec<ValidatorId>;
+
+		/// The current session index.
+		CurrentSessionIndex: SessionIndex;
 	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Trait> {
+		/// Availability bitfield has unexpected size.
+		WrongBitfieldSize,
+		/// Multiple bitfields submitted by same validator or validators out of order by index.
+		BitfieldDuplicateOrUnordered,
+		/// Validator index out of bounds.
+		ValidatorIndexOutOfBounds,
+		/// Invalid signature
+		InvalidBitfieldSignature,
+	}
 }
 
 decl_module! {
@@ -95,10 +111,12 @@ impl<T: Trait> Module<T> {
 		signed_bitfields: SignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
 	) -> DispatchResult {
-		let n_validators = unimplemented!(); // TODO [now]: at least one module needs to store all validators
+		let validators = Validators::get();
+		let session_index = CurrentSessionIndex::get();
 		let config = <configuration::Module<T>>::config();
 		let parachains = <paras::Module<T>>::parachains();
 
+		let n_validators = validators.len();
 		let n_bits = parachains.len() + config.parathread_cores as usize;
 
 		// do sanity checks on the bitfields:
@@ -110,25 +128,37 @@ impl<T: Trait> Module<T> {
 			let mut last_index = None;
 			let mut payload_encode_buf = Vec::new();
 
+			let signing_context = SigningContext {
+				parent_hash: <system::Module<T>>::parent_hash(),
+				session_index,
+			};
+
 			for signed_bitfield in &signed_bitfields.0 {
-				let signing_context = unimplemented!(); // TODO [now].
+				ensure!(
+					signed_bitfield.bitfield.0.len() == n_bits,
+					Error::<T>::WrongBitfieldSize,
+				);
 
-				if signed_bitfield.bitfield.0.len() != n_bits {
-					// TODO [now] return "malformed bitfield"
-				}
+				ensure!(
+					last_index.map_or(true, |last| last < signed_bitfield.validator_index),
+					Error::<T>::BitfieldDuplicateOrUnordered,
+				);
 
-				if last_index.map_or(false, |last| last >= signed_bitfield.validator_index) {
-					// TODO [now] return "bitfield duplicate or out of order"
-				}
+				ensure!(
+					signed_bitfield.validator_index < validators.len() as _,
+					Error::<T>::ValidatorIndexOutOfBounds,
+				);
+
+				let validator_public = &validators[signed_bitfield.validator_index as usize];
 
 				if let Err(()) = primitives::parachain::check_availability_bitfield_signature(
 					&signed_bitfield.bitfield,
-					&unimplemented!(), // TODO [now] get validator public key by index.
+					validator_public,
 					&signed_bitfield.signature,
 					&signing_context,
 					Some(&mut payload_encode_buf),
 				) {
-					// TODO [now] return "invalid bitfield signature"
+					Err(Error::<T>::InvalidBitfieldSignature)?;
 				}
 
 				last_index = Some(signed_bitfield.validator_index);

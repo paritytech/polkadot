@@ -98,6 +98,8 @@ impl crate::paras::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
+impl crate::inclusion::Trait for Test { }
+
 pub type System = system::Module<Test>;
 
 /// Mocked initializer.
@@ -112,6 +114,9 @@ pub type Paras = crate::paras::Module<Test>;
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;
 
+/// Mocked inclusion module.
+pub type Inclusion = crate::inclusion::Module<Test>;
+
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 	let mut t = state.system.build_storage::<Test>().unwrap();
@@ -123,7 +128,6 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 
 #[derive(Default)]
 pub struct GenesisConfig {
-	pub initializer: crate::initializer::GenesisConfig,
 	pub system: system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig<Test>,
