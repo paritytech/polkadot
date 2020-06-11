@@ -48,11 +48,12 @@ cli = [
 	"sc-service",
 	"frame-benchmarking-cli",
 ]
-service-old = [ "service", "service/full-node" ]
+service-old = [ "service/full-node" ]
 browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"browser-utils",
+	"service",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 service-rewr = [ "service-new/full-node" ]
