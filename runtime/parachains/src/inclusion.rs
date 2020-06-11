@@ -166,6 +166,8 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
+		// TODO [now] actually apply bitfields
+
 		Ok(())
 	}
 }
