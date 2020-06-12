@@ -145,7 +145,6 @@ pub struct CoreAssignment {
 
 impl CoreAssignment {
 	/// Get the ID of a collator who is required to collate this block.
-	#[allow(unused)]
 	pub(crate) fn required_collator(&self) -> Option<&CollatorId> {
 		match self.kind {
 			AssignmentKind::Parachain => None,

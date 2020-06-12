@@ -25,6 +25,7 @@ use primitives::{
 	parachain::{
 		ValidatorId, AbridgedCandidateReceipt, ValidatorIndex, Id as ParaId,
 		AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
+		BackedCandidate,
 	},
 };
 use frame_support::{
@@ -35,8 +36,9 @@ use codec::{Encode, Decode};
 use system::ensure_root;
 use bitvec::vec::BitVec;
 use sp_staking::SessionIndex;
+use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, scheduler::CoreIndex};
+use crate::{configuration, paras, scheduler::{CoreIndex, GroupIndex, CoreAssignment}};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -93,6 +95,18 @@ decl_error! {
 		ValidatorIndexOutOfBounds,
 		/// Invalid signature
 		InvalidBitfieldSignature,
+		/// Candidate submitted but para not scheduled.
+		UnscheduledCandidate,
+		/// Candidate scheduled despite pending candidate already existing for the para.
+		CandidateScheduledBeforeParaFree,
+		/// Candidate included with the wrong collator.
+		WrongCollator,
+		/// Scheduled cores out of order.
+		ScheduledOutOfOrder,
+		/// Code upgrade prematurely.
+		PrematureCodeUpgrade,
+		/// Candidate not in parent context.
+		CandidateNotInParentContext,
 	}
 }
 
@@ -118,11 +132,12 @@ impl<T: Trait> Module<T> {
 		CurrentSessionIndex::set(notification.session_index);
 	}
 
-	/// Process a set of incoming bitfields.
+	/// Process a set of incoming bitfields. Return a vec of cores freed by candidates
+	/// becoming available.
 	pub(crate) fn process_bitfields(
 		signed_bitfields: SignedAvailabilityBitfields,
 		core_lookup: impl Fn(CoreIndex) -> Option<ParaId>,
-	) -> DispatchResult {
+	) -> Result<Vec<CoreIndex>, DispatchError> {
 		let validators = Validators::get();
 		let session_index = CurrentSessionIndex::get();
 		let config = <configuration::Module<T>>::config();
@@ -183,6 +198,117 @@ impl<T: Trait> Module<T> {
 		// TODO: pass available candidates onwards to validity module once implemented.
 		// https://github.com/paritytech/polkadot/issues/1251
 
-		Ok(())
+		Ok(Vec::new())
+	}
+
+	/// Process candidates that have been backed. Provide a set of candidates and scheduled cores.
+	///
+	/// Both should be sorted ascending by core index, and the candidates should be a subset of
+	/// scheduled cores. If these conditions are not met, the execution of the function fails.
+	pub(crate) fn process_candidates(
+		candidates: Vec<BackedCandidate>,
+		scheduled: Vec<CoreAssignment>,
+		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
+	)
+		-> Result<Vec<CoreIndex>, DispatchError>
+	{
+		ensure!(
+			candidates.len() <= scheduled.len(),
+			Error::<T>::UnscheduledCandidate,
+		);
+
+		if scheduled.is_empty() { return Ok(Vec::new()) }
+
+		let mut indices_in_scheduled = {
+			let mut skip = 0;
+			let mut indices = Vec::with_capacity(candidates.len());
+			let mut last_core = None;
+
+			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
+				ensure!(
+					last_core.map_or(true, |core| assignment.core > core),
+					Error::<T>::ScheduledOutOfOrder,
+				);
+
+				last_core = Some(assignment.core);
+				Ok(())
+			};
+
+			'a:
+			for candidate in &candidates {
+				for (i, assignment) in scheduled[skip..].iter().enumerate() {
+					check_assignment_in_order(assignment)?;
+
+					if candidate.candidate.parachain_index == assignment.para_id {
+						// account for already skipped.
+						let index_in_scheduled = i + skip;
+						skip = index_in_scheduled;
+
+						indices.push(index_in_scheduled);
+						continue 'a;
+					}
+				}
+
+				// end of loop reached means that the candidate didn't appear in the non-traversed
+				// section of the `scheduled` slice. either it was not scheduled or didn't appear in
+				// `candidates` in the correct order.
+				ensure!(
+					false,
+					Error::<T>::UnscheduledCandidate,
+				);
+			}
+
+			// check remainder of scheduled cores, if any.
+			for assignment in scheduled[skip..].iter() {
+				check_assignment_in_order(assignment)?;
+			}
+
+			indices
+		};
+
+		let core_assignments = indices_in_scheduled.iter().cloned().map(|i| &scheduled[i]);
+		let config = <configuration::Module<T>>::config();
+		let now = <system::Module<T>>::block_number();
+		let parent_hash = <system::Module<T>>::parent_hash();
+		let validators = Validators::get();
+
+		for (candidate, core_assignment) in candidates.into_iter().zip(core_assignments) {
+			let para_id = core_assignment.para_id;
+
+			// we require that the candidate is in the context of the parent block.
+			// TODO [now]
+			// ensure!(
+			// 	candidate.candidate.relay_parent == parent_hash,
+			// 	Error::<T>::CandidateNotInParentContext,
+			// );
+
+			let relay_parent_number = now - One::one();
+
+			ensure!(
+				<PendingAvailability<T>>::get(&core_assignment.para_id).is_none(),
+				Error::<T>::CandidateScheduledBeforeParaFree,
+			);
+
+			if let Some(required_collator) = core_assignment.required_collator() {
+				ensure!(
+					required_collator == &candidate.candidate.collator,
+					Error::<T>::WrongCollator,
+				);
+			}
+
+			let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true).map_or(
+				true,
+				|last| relay_parent_number.saturating_sub(last)
+					>= config.validation_upgrade_frequency,
+			);
+
+			ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
+
+			// TODO [now]: signature check. needs localvalidationdata / globalvalidationschedule?
+
+			// TODO [now]: place into pending candidate storage.
+		}
+
+		Ok(Vec::new())
 	}
 }
