@@ -206,7 +206,7 @@ impl<T: Trait> Module<T> {
 	/// Both should be sorted ascending by core index, and the candidates should be a subset of
 	/// scheduled cores. If these conditions are not met, the execution of the function fails.
 	pub(crate) fn process_candidates(
-		candidates: Vec<BackedCandidate>,
+		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
 	)
@@ -276,11 +276,10 @@ impl<T: Trait> Module<T> {
 			let para_id = core_assignment.para_id;
 
 			// we require that the candidate is in the context of the parent block.
-			// TODO [now]
-			// ensure!(
-			// 	candidate.candidate.relay_parent == parent_hash,
-			// 	Error::<T>::CandidateNotInParentContext,
-			// );
+			ensure!(
+				candidate.candidate.relay_parent == parent_hash,
+				Error::<T>::CandidateNotInParentContext,
+			);
 
 			let relay_parent_number = now - One::one();
 
