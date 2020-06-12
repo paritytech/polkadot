@@ -176,20 +176,20 @@ pub struct DutyRoster {
 /// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule {
+pub struct GlobalValidationSchedule<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: BlockNumber,
+	pub block_number: N,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct LocalValidationData {
+pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
@@ -205,19 +205,19 @@ pub struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
-	pub code_upgrade_allowed: Option<BlockNumber>,
+	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateCommitments {
+pub struct CandidateCommitments<H = Hash> {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
+	pub erasure_root: H,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 }
@@ -258,12 +258,12 @@ fn check_collator_signature(
 /// All data pertaining to the execution of a parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateReceipt {
+pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
-	pub relay_parent: Hash,
+	pub relay_parent: H,
 	/// The head-data
 	pub head_data: HeadData,
 	/// The collator's relay-chain account ID
@@ -271,13 +271,13 @@ pub struct CandidateReceipt {
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
 	/// The hash of the PoV-block.
-	pub pov_block_hash: Hash,
+	pub pov_block_hash: H,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 	/// Commitments made as a result of validation.
-	pub commitments: CandidateCommitments,
+	pub commitments: CandidateCommitments<H>,
 }
 
 impl CandidateReceipt {
@@ -345,11 +345,11 @@ impl Ord for CandidateReceipt {
 /// is necessary for validation of the parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct OmittedValidationData {
+pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 }
 
 /// An abridged candidate-receipt.
@@ -359,14 +359,14 @@ pub struct OmittedValidationData {
 /// be re-generated from relay-chain state.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct AbridgedCandidateReceipt {
+pub struct AbridgedCandidateReceipt<H = Hash> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
 	// NOTE: the fact that the hash includes this value means that code depends
 	// on this for deduplication. Removing this field is likely to break things.
-	pub relay_parent: Hash,
+	pub relay_parent: H,
 	/// The head-data
 	pub head_data: HeadData,
 	/// The collator's relay-chain account ID
@@ -374,9 +374,9 @@ pub struct AbridgedCandidateReceipt {
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
 	/// The hash of the pov-block.
-	pub pov_block_hash: Hash,
+	pub pov_block_hash: H,
 	/// Commitments made as a result of validation.
-	pub commitments: CandidateCommitments,
+	pub commitments: CandidateCommitments<H>,
 }
 
 impl AbridgedCandidateReceipt {
