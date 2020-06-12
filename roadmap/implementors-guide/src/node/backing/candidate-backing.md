@@ -6,7 +6,7 @@ Its role is to produce backable candidates for inclusion in new relay-chain bloc
 
 Note that though the candidate backing subsystem attempts to produce as many backable candidates as possible, it does _not_ attempt to choose a single authoritative one. The choice of which actually gets included is ultimately up to the block author, by whatever metrics it may use; those are opaque to this subsystem.
 
-Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the [Overseer](/node/overseer.html), which in turn engages block production mechanisms to include the parablock.
+Once a sufficient quorum has agreed that a candidate is valid, this subsystem notifies the [Provisioner](/node/utility/provisioner.html), which in turn engages block production mechanisms to include the parablock.
 
 ## Protocol
 

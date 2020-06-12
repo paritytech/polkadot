@@ -173,6 +173,24 @@ enum MisbehaviorArbitrationMessage {
 }
 ```
 
+## Provisioner Message
+
+```rust
+/// Message to the Provisioner.
+///
+/// In all cases, the Hash is that of the relay parent.
+enum ProvisionerMessage {
+  /// This bitfield indicates the availability of various candidate blocks.
+  Bitfield(Hash, SignedAvailabilityBitfield),
+  /// The Candidate Backing subsystem believes that this candidate is backable, pending availability.
+  /// TODO: do we need any more data than this?
+  BackableCandidate(Hash, CandidateReceipt),
+  /// This message allows potential block authors to be kept updated with all new authorship data
+  /// as it becomes available.
+  RequestBlockAuthorshipData(Hash, Sender<CandidateReceipt>),
+}
+```
+
 ## Host Configuration
 
 The internal-to-runtime configuration of the parachain host. This is expected to be altered only by governance procedures.
