@@ -51,6 +51,8 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
+#[cfg(feature = "test")]
+pub use polkadot_test_runtime;
 use prometheus_endpoint::Registry;
 pub use self::client::PolkadotClient;
 
@@ -760,6 +762,42 @@ pub fn westend_new_full(
 	Ok((service, client, handles))
 }
 
+/// Create a new Polkadot test service for a full node.
+#[cfg(feature = "full-node")]
+#[cfg(feature = "test")]
+pub fn polkadot_test_new_full(
+	mut config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+	informant_prefix: Option<String>,
+)
+	-> Result<(
+		impl AbstractService,
+		Arc<impl PolkadotClient<
+			Block,
+			TFullBackend<Block>,
+			polkadot_test_runtime::RuntimeApi
+		>>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	let (service, client, handles) = new_full!(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+		polkadot_test_runtime::RuntimeApi,
+		PolkadotExecutor,
+		informant_prefix,
+	);
+
+	Ok((service, client, handles))
+}
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]

@@ -18,6 +18,7 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 westend-runtime = { path = "../runtime/westend" }
+polkadot-test-runtime = { path = "../runtime/test-runtime", optional = true }
 polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
@@ -67,3 +68,4 @@ default = ["db", "full-node"]
 db = ["service/db"]
 runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = ["av_store", "consensus", "polkadot-network"]
+test = ["polkadot-test-runtime"]
