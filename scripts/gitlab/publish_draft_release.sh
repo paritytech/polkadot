@@ -53,8 +53,47 @@ This release was built with the following versions of \`rustc\`. Other versions 
 
 runtime_changes=""
 
+# Following variables are for tracking the priority of the release (i.e.,
+# how important it is for the user to upgrade).
+# It's frustrating that we need to make an array of indexes (in this case the
+# labels), but it's necessary to maintain the correct order. Labels and
+# descriptions *must* be kept in lockstep
+
+priority_labels=(
+  'C1-low'
+  'C3-medium'
+  'C7-high'
+  'C9-critical'
+)
+
+declare -A priority_descriptions=(
+['C1-low']="Release priority: Low (upgrade at your convenience)"
+['C3-medium']="Release priority: *Medium* (timely upgrade recommended)"
+['C7-high']="Release priority:❗ HIGH ❗ Please upgrade your node as soon as possible"
+['C9-critical']="Release priority: ❗❗ URGENT ❗❗ PLEASE UPGRADE IMMEDIATELY"
+)
+
+max_label=-1
+priority=""
+
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+  # Release priority check:
+  # For each PR, we look for every label of increasing priority than the current
+  # max. I.e., if there has already been a PR marked as 'medium', we only need
+  # to look for priorities *above* medium. If we find one, we set the
+  # priority to that level.
+  for ((index=max_label+1; index<${#priority_labels[@]}; index++)) ; do
+    cur_label="${priority_labels[$index]}"
+    echo "[+] Checking #$pr_id for presence of $cur_label label"
+    if has_label 'paritytech/polkadot' "$pr_id" "$cur_label" ; then
+      echo "[+] #$pr_id has label $cur_label. Increasing max."
+      max_label="$index"
+      priority="${priority_descriptions[$cur_label]}"
+    fi
+  done
+
   if has_label 'paritytech/polkadot' "$pr_id" 'B1-silent'; then
     continue
   fi
@@ -71,6 +110,10 @@ $line"
 done <<< "$(sanitised_git_logs "$last_version" "$version" | \
   sed '/^\[contracts\].*/d' | \
   sed '/^contracts:.*/d' )"
+
+release_text="$priority
+
+$release_text"
 
 if [ -n "$runtime_changes" ]; then
     release_text="$release_text
