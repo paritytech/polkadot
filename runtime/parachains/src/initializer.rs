@@ -152,6 +152,33 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 
+		assert!(HasInitialized::get().is_none());
+
+		// @todo how to obtain parachain?
+		let (para_id, genesis_args) = Paras::config().unwrap().first().unwrap();
+
+		Paras::schedule_para_initialize(para_id, genesis_args);
+
+
+		let random_seed = {
+			let mut buf = [0u8; 32];
+			let random_hash = T::Randomness::random(&b"paras"[..]);
+			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
+			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
+			buf
+		};
+
+
+		let notification = SessionChangeNotification {
+			validators: validators.map(|(_account, validator)| validator).collect(),
+			queued: validators.map(|(_account, validator)| validator).collect(),
+			prev_config: HostConfiguration::default(), // @todo sane?
+			new_config: <configuration::Module<T>>::config(), // @todo
+			random_seed,
+		};
+
+		paras::Module::<T>::initializer_on_new_session(&notification);
+		scheduler::Module::<T>::initializer_on_new_session(&notification);
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
