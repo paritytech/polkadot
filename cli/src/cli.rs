@@ -19,7 +19,7 @@
 use structopt::StructOpt;
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, StructOpt)]
 pub enum Subcommand {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
@@ -38,14 +38,14 @@ pub enum Subcommand {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, StructOpt)]
 pub struct ValidationWorkerCommand {
 	#[allow(missing_docs)]
 	pub mem_id: String,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, StructOpt)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
@@ -82,7 +82,7 @@ pub struct RunCmd {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt, Clone)]
+#[derive(Debug, StructOpt)]
 pub struct Cli {
 	#[allow(missing_docs)]
 	#[structopt(subcommand)]

@@ -22,13 +22,18 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
+use polkadot_primitives::{parachain, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
-use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
+use sp_blockchain::HeaderBackend;
+use polkadot_overseer::{
+	self as overseer,
+	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
+	ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
+};
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -38,15 +43,14 @@ pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
-pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::{HashFor, NumberFor};
-pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
+pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
+pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor};
+pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
 pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use polkadot_primitives::Block;
+pub use polkadot_primitives::{Block, BlockId};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
-pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
@@ -264,38 +268,57 @@ macro_rules! new_full_start {
 	}}
 }
 
+struct ValidationSubsystem;
+
+impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
+	fn start(&mut self, mut ctx: SubsystemContext<ValidationSubsystemMessage>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
+			while let Ok(_) = ctx.recv().await {}
+		}))
+	}
+}
+
+struct CandidateBackingSubsystem;
+
+impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
+	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
+			while let Ok(_) = ctx.recv().await {}
+		}))
+	}
+}
+
+fn real_overseer<S: futures::task::Spawn>(
+	leaves: impl IntoIterator<Item = BlockInfo>,
+	s: S,
+) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
+	let validation = Box::new(ValidationSubsystem);
+	let candidate_backing = Box::new(CandidateBackingSubsystem);
+	Overseer::new(leaves, validation, candidate_backing, s)
+		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
+}
+
 /// Builds a new service for a full client.
 #[macro_export]
 macro_rules! new_full {
 	(
 		$config:expr,
 		$collating_for:expr,
-		$max_block_data_size:expr,
 		$authority_discovery_enabled:expr,
-		$slot_duration:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
 		$informant_prefix:expr $(,)?
 	) => {{
-		use sc_network::Event;
 		use sc_client_api::ExecutorProvider;
-		use futures::stream::StreamExt;
 		use sp_core::traits::BareCryptoStorePtr;
 
 		let is_collator = $collating_for.is_some();
 		let role = $config.role.clone();
 		let is_authority = role.is_authority() && !is_collator;
 		let force_authoring = $config.force_authoring;
-		let max_block_data_size = $max_block_data_size;
-		let db_path = match $config.database.path() {
-			Some(path) => std::path::PathBuf::from(path),
-			None => return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into()),
-		};
 		let disable_grandpa = $config.disable_grandpa;
 		let name = $config.network.node_name.clone();
-		let authority_discovery_enabled = $authority_discovery_enabled;
-		let slot_duration = $slot_duration;
 
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
 			new_full_start!($config, $runtime, $dispatch, $informant_prefix);
@@ -314,113 +337,58 @@ macro_rules! new_full {
 			.expect("The SharedVoterState is present for Full Services or setup failed before. qed");
 
 		let client = service.client();
-		let known_oracle = client.clone();
 
-		let mut handles = FullNodeHandles::default();
-		let select_chain = if let Some(select_chain) = service.select_chain() {
-			select_chain
-		} else {
-			info!("The node cannot start as an authority because it can't select chain.");
-			return Ok((service, client, handles));
-		};
-		let gossip_validator_select_chain = select_chain.clone();
+		let overseer_client = service.client();
+		let spawner = service.spawn_task_handle();
+		let leaves: Vec<_> = service.select_chain().ok_or(ServiceError::SelectChainRequired)?
+			.leaves()
+			.unwrap_or_else(|_| vec![])
+			.into_iter()
+			.filter_map(|hash| {
+				let number = client.number(hash).ok()??;
+				let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
 
-		let is_known = move |block_hash: &Hash| {
-			use consensus_common::BlockStatus;
+				Some(BlockInfo {
+					hash,
+					parent_hash,
+					number,
+				})
+			})
+			.collect();
 
-			match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-				Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-				Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-				Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-					match gossip_validator_select_chain.leaves() {
-						Err(_) => None,
-						Ok(leaves) => if leaves.contains(block_hash) {
-							Some(Known::Leaf)
-						} else {
-							Some(Known::Old)
-						},
-					}
+		let (overseer, handler) = real_overseer(leaves, spawner)?;
+
+		service.spawn_essential_task("overseer", Box::pin(async move {
+			use futures::{pin_mut, select, FutureExt};
+
+			let forward = overseer::forward_events(overseer_client, handler);
+
+			let forward = forward.fuse();
+			let overseer_fut = overseer.run().fuse();
+
+			pin_mut!(overseer_fut);
+			pin_mut!(forward);
+
+			loop {
+				select! {
+					_ = forward => break,
+					_ = overseer_fut => break,
+					complete => break,
 				}
 			}
-		};
-
-		let polkadot_network_service = network_protocol::start(
-			service.network(),
-			network_protocol::Config {
-				collating_for: $collating_for,
-			},
-			(is_known, client.clone()),
-			client.clone(),
-			service.spawn_task_handle(),
-		).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
-
-		let authority_handles = if is_collator || role.is_authority() {
-			let availability_store = {
-				use std::path::PathBuf;
-
-				let mut path = PathBuf::from(db_path);
-				path.push("availability");
-
-				#[cfg(not(target_os = "unknown"))]
-				{
-					av_store::Store::new(
-						::av_store::Config {
-							cache_size: None,
-							path,
-						},
-						polkadot_network_service.clone(),
-					)?
-				}
-
-				#[cfg(target_os = "unknown")]
-				av_store::Store::new_in_memory(gossip)
-			};
-
-			polkadot_network_service.register_availability_store(availability_store.clone());
-
-			let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
-				client: client.clone(),
-				network: polkadot_network_service.clone(),
-				collators: polkadot_network_service.clone(),
-				spawner: service.spawn_task_handle(),
-				availability_store: availability_store.clone(),
-				select_chain: select_chain.clone(),
-				keystore: service.keystore(),
-				max_block_data_size,
-			}.build();
-
-			service.spawn_essential_task("validation-service", Box::pin(validation_service));
-
-			handles.validation_service_handle = Some(validation_service_handle.clone());
-
-			Some((validation_service_handle, availability_store))
-		} else {
-			None
-		};
+		}));
 
 		if role.is_authority() {
-			let (validation_service_handle, availability_store) = authority_handles
-				.clone()
-				.expect("Authority handles are set for authority nodes; qed");
-
-			let proposer = consensus::ProposerFactory::new(
-				client.clone(),
-				service.transaction_pool(),
-				validation_service_handle,
-				slot_duration,
-				service.prometheus_registry().as_ref(),
-			);
-
 			let select_chain = service.select_chain().ok_or(ServiceError::SelectChainRequired)?;
 			let can_author_with =
 				consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-			let block_import = availability_store.block_import(
-				block_import,
+			// TODO: custom proposer (https://github.com/paritytech/polkadot/issues/1248)
+			let proposer = sc_basic_authorship::ProposerFactory::new(
 				client.clone(),
-				service.spawn_task_handle(),
-				service.keystore(),
-			)?;
+				service.transaction_pool(),
+				None,
+			);
 
 			let babe_config = babe::BabeParams {
 				keystore: service.keystore(),
@@ -437,41 +405,6 @@ macro_rules! new_full {
 
 			let babe = babe::start_babe(babe_config)?;
 			service.spawn_essential_task("babe", babe);
-		}
-
-		if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
-			if authority_discovery_enabled {
-				let (sentries, authority_discovery_role) = match role {
-					Role::Authority { ref sentry_nodes } => (
-						sentry_nodes.clone(),
-						authority_discovery::Role::Authority (
-							service.keystore(),
-						),
-					),
-					Role::Sentry {..} => (
-						vec![],
-						authority_discovery::Role::Sentry,
-					),
-					_ => unreachable!("Due to outer matches! constraint; qed."),
-				};
-
-				let network = service.network();
-				let network_event_stream = network.event_stream("authority-discovery");
-				let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
-					Event::Dht(e) => Some(e),
-					_ => None,
-				}}).boxed();
-				let authority_discovery = authority_discovery::AuthorityDiscovery::new(
-					service.client(),
-					network,
-					sentries,
-					dht_event_stream,
-					authority_discovery_role,
-					service.prometheus_registry(),
-				);
-
-				service.spawn_task("authority-discovery", authority_discovery);
-			}
 		}
 
 		// if the node isn't actively participating in consensus then it doesn't
@@ -543,10 +476,11 @@ macro_rules! new_full {
 			)?;
 		}
 
-		handles.polkadot_network = Some(polkadot_network_service);
-		(service, client, handles)
+		(service, client)
 	}}
 }
+
+pub struct FullNodeHandles;
 
 /// Builds a new service for a light client.
 #[macro_export]
@@ -657,9 +591,9 @@ where
 pub fn polkadot_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 	informant_prefix: Option<String>,
 )
@@ -673,19 +607,17 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client) = new_full!(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
 		PolkadotExecutor,
 		informant_prefix,
 	);
 
-	Ok((service, client, handles))
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -693,9 +625,9 @@ pub fn polkadot_new_full(
 pub fn kusama_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 	informant_prefix: Option<String>,
 ) -> Result<(
@@ -706,22 +638,20 @@ pub fn kusama_new_full(
 			kusama_runtime::RuntimeApi
 			>
 		>,
-		FullNodeHandles
+		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client) = new_full!(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
 		KusamaExecutor,
 		informant_prefix,
 	);
 
-	Ok((service, client, handles))
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -729,9 +659,9 @@ pub fn kusama_new_full(
 pub fn westend_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 	informant_prefix: Option<String>,
 )
@@ -745,30 +675,17 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client) = new_full!(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,
 		informant_prefix,
 	);
 
-	Ok((service, client, handles))
-}
-
-/// Handles to other sub-services that full nodes instantiate, which consumers
-/// of the node may use.
-#[cfg(feature = "full-node")]
-#[derive(Default)]
-pub struct FullNodeHandles {
-	/// A handle to the Polkadot networking protocol.
-	pub polkadot_network: Option<network_protocol::Service>,
-	/// A handle to the validation service.
-	pub validation_service_handle: Option<consensus::ServiceHandle>,
+	Ok((service, client, FullNodeHandles))
 }
 
 /// Create a new Polkadot service for a light client.

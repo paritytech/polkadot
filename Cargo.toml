@@ -10,6 +10,8 @@ edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
+# It looks like this is the only way to pass features to it
+collator = { package = "polkadot-collator", path = "collator" }
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -42,6 +44,7 @@ members = [
 
 	"node/messages",
 	"node/overseer",
+	"node/service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
@@ -64,3 +67,7 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
+service-rewr= [
+	"cli/service-rewr",
+	"collator/service-rewr",
+]

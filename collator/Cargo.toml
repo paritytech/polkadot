@@ -21,7 +21,8 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-cli = { path = "../cli" }
 polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
-polkadot-service = { path = "../service" }
+polkadot-service = { path = "../service", optional = true}
+polkadot-service-new = { path = "../node/service", optional = true }
 log = "0.4.8"
 tokio = "0.2.13"
 futures-timer = "2.0"
@@ -29,3 +30,8 @@ codec = { package = "parity-scale-codec", version = "1.3.0" }
 
 [dev-dependencies]
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[features]
+default = ["service-old"]
+service-old = [ "polkadot-service" ]
+service-rewr = [ "polkadot-service-new" ]
