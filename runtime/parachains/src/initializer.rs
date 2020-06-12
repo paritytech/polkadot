@@ -25,11 +25,29 @@ use primitives::{
 	parachain::{ValidatorId},
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error,
+	decl_storage, decl_module, decl_error, traits::Randomness,
 };
-use crate::{configuration, paras};
+use crate::{configuration::{self, HostConfiguration}, paras, scheduler};
 
-pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
+/// Information about a session change that has just occurred.
+#[derive(Default, Clone)]
+pub struct SessionChangeNotification<BlockNumber> {
+	/// The new validators in the session.
+	pub validators: Vec<ValidatorId>,
+	/// The qeueud validators for the following session.
+	pub queued: Vec<ValidatorId>,
+	/// The configuration before handling the session change
+	pub prev_config: HostConfiguration<BlockNumber>,
+	/// The configuration after handling the session change.
+	pub new_config: HostConfiguration<BlockNumber>,
+	/// A secure random seed for the session, gathered from BABE.
+	pub random_seed: [u8; 32],
+}
+
+pub trait Trait: system::Trait + configuration::Trait + paras::Trait + scheduler::Trait {
+	/// A randomness beacon.
+	type Randomness: Randomness<Self::Hash>;
+}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Initializer {
@@ -62,7 +80,8 @@ decl_module! {
 			// - Inclusion
 			// - Validity
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
-				paras::Module::<T>::initializer_initialize(now);
+				paras::Module::<T>::initializer_initialize(now) +
+				scheduler::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -70,6 +89,9 @@ decl_module! {
 		}
 
 		fn on_finalize() {
+			// reverse initialization order.
+
+			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
 			HasInitialized::take();
@@ -90,8 +112,32 @@ impl<T: Trait> Module<T> {
 		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
 		let queued: Vec<_> = queued.map(|(_, v)| v).collect();
 
+		let prev_config = <configuration::Module<T>>::config();
+
+		let random_seed = {
+			let mut buf = [0u8; 32];
+			let random_hash = T::Randomness::random(&b"paras"[..]);
+			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
+			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
+			buf
+		};
+
+		// We can't pass the new config into the thing that determines the new config,
+		// so we don't pass the `SessionChangeNotification` into this module.
 		configuration::Module::<T>::initializer_on_new_session(&validators, &queued);
-		paras::Module::<T>::initializer_on_new_session(&validators, &queued);
+
+		let new_config = <configuration::Module<T>>::config();
+
+		let notification = SessionChangeNotification {
+			validators,
+			queued,
+			prev_config,
+			new_config,
+			random_seed,
+		};
+
+		paras::Module::<T>::initializer_on_new_session(&notification);
+		scheduler::Module::<T>::initializer_on_new_session(&notification);
 	}
 }
 
