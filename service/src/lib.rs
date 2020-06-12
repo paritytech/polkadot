@@ -17,7 +17,7 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 pub mod chain_spec;
-mod grandpa_support;
+pub mod grandpa_support;
 mod client;
 
 use std::sync::Arc;
@@ -138,7 +138,7 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 }
 
 // If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
+pub fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
 	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
 		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 	}
@@ -150,9 +150,10 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
+#[macro_export]
 macro_rules! new_full_start {
 	($config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
-		set_prometheus_registry(&mut $config)?;
+		$crate::set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
 		let mut rpc_setup = None;
@@ -554,7 +555,7 @@ macro_rules! new_full {
 #[macro_export]
 macro_rules! new_light {
 	($config:expr, $runtime:ty, $dispatch:ty) => {{
-		crate::set_prometheus_registry(&mut $config)?;
+		$crate::set_prometheus_registry(&mut $config)?;
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 
 		ServiceBuilder::new_light::<Block, $runtime, $dispatch>($config)?
@@ -762,42 +763,6 @@ pub fn westend_new_full(
 	Ok((service, client, handles))
 }
 
-/// Create a new Polkadot test service for a full node.
-#[cfg(feature = "full-node")]
-#[cfg(feature = "test")]
-pub fn polkadot_test_new_full(
-	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
-)
-	-> Result<(
-		impl AbstractService,
-		Arc<impl PolkadotClient<
-			Block,
-			TFullBackend<Block>,
-			polkadot_test_runtime::RuntimeApi
-		>>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (service, client, handles) = new_full!(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-		polkadot_test_runtime::RuntimeApi,
-		PolkadotExecutor,
-		informant_prefix,
-	);
-
-	Ok((service, client, handles))
-}
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]
