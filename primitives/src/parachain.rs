@@ -741,9 +741,9 @@ pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 // they should be unified to this type.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub struct BackedCandidate {
+pub struct BackedCandidate<N = BlockNumber> {
 	/// The candidate referred to.
-	pub candidate: AbridgedCandidateReceipt,
+	pub candidate: AbridgedCandidateReceipt<N>,
 	/// The validity votes themselves, expressed as signatures.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// The indices of the validators within the group, expressed as a bitfield.
