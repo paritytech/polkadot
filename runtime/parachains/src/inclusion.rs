@@ -31,6 +31,7 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
 	weights::{DispatchClass, Weight},
+	traits::Get,
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
@@ -315,5 +316,29 @@ impl<T: Trait> Module<T> {
 		}
 
 		Ok(Vec::new())
+	}
+
+	fn enact_candidate(
+		relay_parent_number: T::BlockNumber,
+		receipt: AbridgedCandidateReceipt<T::BlockNumber>,
+	) -> Weight {
+		let commitments = receipt.commitments;
+		let config = <configuration::Module<T>>::config();
+
+		// initial weight is config read.
+		let mut weight = T::DbWeight::get().reads_writes(1, 0);
+		if let Some(new_code) = commitments.new_validation_code {
+			weight += <paras::Module<T>>::schedule_code_upgrade(
+				receipt.parachain_index,
+				new_code,
+				relay_parent_number + config.validation_upgrade_delay,
+			);
+		}
+
+		weight + <paras::Module<T>>::note_new_head(
+			receipt.parachain_index,
+			receipt.head_data,
+			relay_parent_number,
+		)
 	}
 }
