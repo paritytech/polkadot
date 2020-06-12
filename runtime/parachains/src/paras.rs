@@ -526,6 +526,18 @@ impl<T: Trait> Module<T> {
 	pub(crate) fn is_parathread(id: ParaId) -> bool {
 		Parathreads::get(&id).is_some()
 	}
+
+	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades
+	/// if the flag is set. This is the `expected_at` number, not the `activated_at` number.
+	pub(crate) fn last_code_upgrade(id: ParaId, include_future: bool) -> Option<T::BlockNumber> {
+		if include_future {
+			if let Some(at) = Self::future_code_upgrade_at(id) {
+				return Some(at);
+			}
+		}
+
+		Self::past_code_meta(&id).most_recent_change()
+	}
 }
 
 #[cfg(test)]
