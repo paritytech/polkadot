@@ -35,7 +35,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use system::ensure_root;
-use bitvec::vec::BitVec;
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
@@ -59,7 +59,7 @@ pub struct CandidatePendingAvailability<N> {
 	/// The candidate receipt itself.
 	receipt: AbridgedCandidateReceipt,
 	/// The received availability votes. One bit per validator.
-	availability_votes: bitvec::vec::BitVec<bitvec::order::Lsb0, u8>,
+	availability_votes: BitVec<BitOrderLsb0, u8>,
 	/// The block number of the relay-parent of the receipt.
 	relay_parent_number: N,
 	/// The block number of the relay-chain block this was backed in.
@@ -108,6 +108,8 @@ decl_error! {
 		PrematureCodeUpgrade,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
+		/// The bitfield contains a bit relating to an unassigned availability core.
+		UnoccupiedBitInBitfield,
 	}
 }
 
@@ -153,6 +155,11 @@ impl<T: Trait> Module<T> {
 		let n_validators = validators.len();
 		let n_bits = parachains.len() + config.parathread_cores as usize;
 
+		let assigned_paras: Vec<_> =
+			(0..n_bits).map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32))).collect();
+
+		let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras.iter().map(|p| p.is_some()).collect();
+
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
 		// 2. bitfields are ascending by validator index.
@@ -183,6 +190,11 @@ impl<T: Trait> Module<T> {
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
+				ensure!(
+					occupied_bitmask.clone() & signed_bitfield.bitfield.0.clone() == signed_bitfield.bitfield.0,
+					Error::<T>::UnoccupiedBitInBitfield,
+				);
+
 				let validator_public = &validators[signed_bitfield.validator_index as usize];
 
 				if let Err(()) = primitives::parachain::check_availability_bitfield_signature(
@@ -200,7 +212,9 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		// TODO [now] actually apply bitfields
+		for signed_bitfield in &signed_bitfields.0 {
+
+		}
 
 		// TODO: pass available candidates onwards to validity module once implemented.
 		// https://github.com/paritytech/polkadot/issues/1251

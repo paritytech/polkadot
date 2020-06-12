@@ -57,6 +57,12 @@ use crate::{configuration, paras, initializer::SessionChangeNotification};
 #[cfg_attr(test, derive(Debug))]
 pub struct CoreIndex(u32);
 
+impl From<u32> for CoreIndex {
+	fn from(i: u32) -> CoreIndex {
+		CoreIndex(i)
+	}
+}
+
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
