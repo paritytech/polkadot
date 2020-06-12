@@ -53,11 +53,11 @@ pub struct AvailabilityBitfieldRecord<N> {
 /// A backed candidate pending availability.
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
-pub struct CandidatePendingAvailability<N> {
+pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
 	/// The candidate receipt itself.
-	receipt: AbridgedCandidateReceipt,
+	receipt: AbridgedCandidateReceipt<H>,
 	/// The received availability votes. One bit per validator.
 	availability_votes: BitVec<BitOrderLsb0, u8>,
 	/// The block number of the relay-parent of the receipt.
@@ -76,7 +76,7 @@ decl_storage! {
 
 		/// Candidates pending availability by `ParaId`.
 		PendingAvailability: map hasher(twox_64_concat) ParaId
-			=> Option<CandidatePendingAvailability<T::BlockNumber>>;
+			=> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
 
 		/// The current validators, by their parachain session keys.
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
@@ -155,10 +155,10 @@ impl<T: Trait> Module<T> {
 		let n_validators = validators.len();
 		let n_bits = parachains.len() + config.parathread_cores as usize;
 
-		let assigned_paras: Vec<_> =
-			(0..n_bits).map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32))).collect();
-
-		let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras.iter().map(|p| p.is_some()).collect();
+		let mut assigned_paras_record: Vec<_> = (0..n_bits)
+			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
+			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
+			.collect();
 
 		// do sanity checks on the bitfields:
 		// 1. no more than one bitfield per validator
@@ -166,6 +166,10 @@ impl<T: Trait> Module<T> {
 		// 3. each bitfield has exactly `n_bits`
 		// 4. signature is valid.
 		{
+			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record.iter()
+				.map(|p| p.is_some())
+				.collect();
+
 			let mut last_index = None;
 			let mut payload_encode_buf = Vec::new();
 
@@ -212,14 +216,61 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		for signed_bitfield in &signed_bitfields.0 {
+		let now = <system::Module<T>>::block_number();
+		for signed_bitfield in signed_bitfields.0 {
+			for (bit_idx, _)
+				in signed_bitfield.bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av)
+			{
+				let record = assigned_paras_record[bit_idx]
+					.as_mut()
+					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
 
+				// defensive check - this is constructed by loading the availability bitfield record,
+				// which is always `Some` if the core is occupied - that's why we're here.
+				let val_idx = signed_bitfield.validator_index as usize;
+				if let Some(mut bit) = record.1.as_mut()
+					.and_then(|r| r.availability_votes.get_mut(val_idx))
+				{
+					*bit = true;
+				}
+			}
+
+			let record = AvailabilityBitfieldRecord {
+				bitfield: signed_bitfield.bitfield,
+				submitted_at: now,
+			};
+
+			<AvailabilityBitfields<T>>::insert(&signed_bitfield.validator_index, record);
+		}
+
+		let threshold = {
+			let mut threshold = (validators.len() * 2) / 3;
+			threshold += (validators.len() * 2) % 3;
+			threshold
+		};
+
+		let mut freed_cores = Vec::with_capacity(n_bits);
+		for (para_id, pending_availability) in assigned_paras_record.into_iter()
+			.filter_map(|x| x)
+			.filter_map(|(id, p)| p.map(|p| (id, p)))
+		{
+			if pending_availability.availability_votes.count_ones() >= threshold {
+				<PendingAvailability<T>>::remove(&para_id);
+				Self::enact_candidate(
+					pending_availability.relay_parent_number,
+					pending_availability.receipt,
+				);
+
+				freed_cores.push(pending_availability.core);
+			} else {
+				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
+			}
 		}
 
 		// TODO: pass available candidates onwards to validity module once implemented.
 		// https://github.com/paritytech/polkadot/issues/1251
 
-		Ok(Vec::new())
+		Ok(freed_cores)
 	}
 
 	/// Process candidates that have been backed. Provide a set of candidates and scheduled cores.
@@ -334,7 +385,7 @@ impl<T: Trait> Module<T> {
 
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
-		receipt: AbridgedCandidateReceipt<T::BlockNumber>,
+		receipt: AbridgedCandidateReceipt<T::Hash>,
 	) -> Weight {
 		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
