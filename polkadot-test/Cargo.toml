@@ -1,6 +1,6 @@
 [package]
-name = "polkadot-service"
-version = "0.8.8"
+name = "polkadot-test"
+version = "0.8.2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -18,8 +18,10 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 westend-runtime = { path = "../runtime/westend" }
+polkadot-test-runtime = { path = "../runtime/test-runtime" }
 polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
+polkadot-service = { path = "../service" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }

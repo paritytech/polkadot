@@ -54,6 +54,7 @@ use frame_support::{
 	traits::{KeyOwnerProofSystem, Randomness},
 	weights::Weight,
 };
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
 
@@ -435,6 +436,8 @@ impl offences::Trait for Runtime {
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 }
 
+impl authority_discovery::Trait for Runtime {}
+
 parameter_types! {
 	pub const ParathreadDeposit: Balance = 5 * DOLLARS;
 	pub const QueueSize: usize = 2;
@@ -512,6 +515,7 @@ construct_runtime! {
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
+		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -621,6 +625,14 @@ sp_api::impl_runtime_apis! {
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
 		fn offchain_worker(header: &<Block as BlockT>::Header) {
 			Executive::offchain_worker(header)
+		}
+	}
+
+	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			// TODO and to fix
+			//AuthorityDiscovery::authorities()
+			Vec::new()
 		}
 	}
 

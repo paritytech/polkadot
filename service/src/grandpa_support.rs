@@ -23,7 +23,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 /// same last finalized block) after a given block at height `N` has been
 /// finalized and for a delay of `M` blocks, i.e. until the best block reaches
 /// `N` + `M`, the voter will keep voting for block `N`.
-pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
+pub struct PauseAfterBlockFor<N>(pub N, pub N);
 
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
 	Block: BlockT,
@@ -96,7 +96,7 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 /// intermediary pending changes are replaced with a static list comprised of
 /// w3f validators and randomly selected validators from the latest session (at
 /// #1500988).
-pub(crate) fn kusama_hard_forks() -> Vec<(
+pub fn kusama_hard_forks() -> Vec<(
 	grandpa_primitives::SetId,
 	(Hash, polkadot_primitives::BlockNumber),
 	grandpa_primitives::AuthorityList,
