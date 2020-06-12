@@ -85,7 +85,8 @@ decl_module! {
 			// - Validity
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
-				scheduler::Module::<T>::initializer_initialize(now);
+				scheduler::Module::<T>::initializer_initialize(now) +
+				inclusion::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -95,6 +96,7 @@ decl_module! {
 		fn on_finalize() {
 			// reverse initialization order.
 
+			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
@@ -152,6 +154,7 @@ impl<T: Trait> Module<T> {
 
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
+		inclusion::Module::<T>::initializer_on_new_session(&notification);
 	}
 }
 

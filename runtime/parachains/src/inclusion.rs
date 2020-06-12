@@ -119,9 +119,15 @@ decl_module! {
 
 impl<T: Trait> Module<T> {
 
+	/// Block initialization logic, called by initializer.
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight { 0 }
+
+	/// Block finalization logic, called by initializer.
+	pub(crate) fn initializer_finalize() { }
+
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
-		notification: crate::initializer::SessionChangeNotification<T::BlockNumber>
+		notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
 		// and require consumption.
