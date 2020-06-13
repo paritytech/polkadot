@@ -738,8 +738,7 @@ impl AvailabilityBitfield {
 }
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct SignedAvailabilityBitfield {
 	/// The index of the validator in the current set.
 	pub validator_index: ValidatorIndex,
@@ -776,14 +775,14 @@ pub fn check_availability_bitfield_signature<H: Encode>(
 }
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 
 /// A backed (or backable, depending on context) candidate.
 // TODO: yes, this is roughly the same as AttestedCandidate.
 // After https://github.com/paritytech/polkadot/issues/1250
 // they should be unified to this type.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
 	pub candidate: AbridgedCandidateReceipt<H>,
