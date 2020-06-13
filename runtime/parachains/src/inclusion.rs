@@ -457,4 +457,28 @@ impl<T: Trait> Module<T> {
 			relay_parent_number,
 		)
 	}
+
+	/// Cleans up all paras pending availability that the predicate returns true for.
+	///
+	/// The predicate accepts the index of the core and the block number the core has been occupied
+	/// since (i.e. the block number the candidate was backed at in this fork of the relay chain).
+	///
+	/// Returns a vector of cleaned-up core IDs.
+	pub(crate) fn collect_pending(pred: impl Fn(CoreIndex, T::BlockNumber) -> bool) -> Vec<CoreIndex> {
+		let mut cleaned_up_ids = Vec::new();
+		let mut cleaned_up_cores = Vec::new();
+
+		for (para_id, pending_record) in <PendingAvailability<T>>::iter() {
+			if pred(pending_record.core, pending_record.backed_in_number) {
+				cleaned_up_ids.push(para_id);
+				cleaned_up_cores.push(pending_record.core);
+			}
+		}
+
+		for para_id in cleaned_up_ids {
+			<PendingAvailability<T>>::remove(&para_id);
+		}
+
+		cleaned_up_cores
+	}
 }
