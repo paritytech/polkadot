@@ -223,10 +223,10 @@ pub struct CandidateCommitments<H = Hash> {
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
-pub fn collator_signature_payload(
-	relay_parent: &Hash,
+pub fn collator_signature_payload<H: AsRef<[u8]>>(
+	relay_parent: &H,
 	parachain_index: &Id,
-	pov_block_hash: &Hash,
+	pov_block_hash: &H,
 ) -> [u8; 68] {
 	// 32-byte hash length is protected in a test below.
 	let mut payload = [0u8; 68];
@@ -238,10 +238,10 @@ pub fn collator_signature_payload(
 	payload
 }
 
-fn check_collator_signature(
-	relay_parent: &Hash,
+fn check_collator_signature<H: AsRef<[u8]>>(
+	relay_parent: &H,
 	parachain_index: &Id,
-	pov_block_hash: &Hash,
+	pov_block_hash: &H,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
@@ -280,7 +280,7 @@ pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	pub commitments: CandidateCommitments<H>,
 }
 
-impl CandidateReceipt {
+impl<H: AsRef<[u8]>, N> CandidateReceipt<H, N> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
@@ -294,7 +294,7 @@ impl CandidateReceipt {
 
 	/// Abridge this `CandidateReceipt`, splitting it into an `AbridgedCandidateReceipt`
 	/// and its omitted component.
-	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedValidationData) {
+	pub fn abridge(self) -> (AbridgedCandidateReceipt<H>, OmittedValidationData<N>) {
 		let CandidateReceipt {
 			parachain_index,
 			relay_parent,
@@ -379,7 +379,18 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
-impl AbridgedCandidateReceipt {
+impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
+	/// Check integrity vs. provided block data.
+	pub fn check_signature(&self) -> Result<(), ()> {
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.pov_block_hash,
+			&self.collator,
+			&self.signature,
+		)
+	}
+
 	/// Compute the hash of the abridged candidate receipt.
 	///
 	/// This is often used as the canonical hash of the receipt, rather than
@@ -391,10 +402,12 @@ impl AbridgedCandidateReceipt {
 		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
 	}
+}
 
+impl AbridgedCandidateReceipt {
 	/// Combine the abridged candidate receipt with the omitted data,
 	/// forming a full `CandidateReceipt`.
-	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
+	pub fn complete<N>(self, omitted: OmittedValidationData) -> CandidateReceipt {
 		let AbridgedCandidateReceipt {
 			parachain_index,
 			relay_parent,
@@ -606,6 +619,7 @@ pub enum ValidityAttestation {
 	#[codec(index = "2")]
 	Explicit(ValidatorSignature),
 }
+
 /// A type returned by runtime with current session index and a parent hash.
 #[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
 pub struct SigningContext<H = Hash> {
