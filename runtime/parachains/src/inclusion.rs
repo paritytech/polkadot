@@ -112,6 +112,10 @@ decl_error! {
 		UnoccupiedBitInBitfield,
 		/// Invalid group index in core assignment.
 		InvalidGroupIndex,
+		/// Insufficient (non-majority) backing.
+		InsufficientBacking,
+		/// Invalid (bad signature, unknown validator, etc.) backing.
+		InvalidBacking,
 	}
 }
 
@@ -154,7 +158,6 @@ impl<T: Trait> Module<T> {
 		let config = <configuration::Module<T>>::config();
 		let parachains = <paras::Module<T>>::parachains();
 
-		let n_validators = validators.len();
 		let n_bits = parachains.len() + config.parathread_cores as usize;
 
 		let mut assigned_paras_record: Vec<_> = (0..n_bits)
@@ -292,15 +295,17 @@ impl<T: Trait> Module<T> {
 			return Ok(Vec::new());
 		}
 
+		let validators = Validators::get();
 		let parent_hash = <system::Module<T>>::parent_hash();
 		let config = <configuration::Module<T>>::config();
 		let now = <system::Module<T>>::block_number();
+		let relay_parent_number = now - One::one();
 
-		let mut assignment_meta = {
+		// do all checks before writing storage.
+		let core_indices = {
 			let mut skip = 0;
-			let mut assignment_meta = Vec::with_capacity(candidates.len());
+			let mut core_indices = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
-			let relay_parent_number = now - One::one();
 
 			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
 				ensure!(
@@ -312,6 +317,21 @@ impl<T: Trait> Module<T> {
 				Ok(())
 			};
 
+			let signing_context = SigningContext {
+				parent_hash,
+				session_index: CurrentSessionIndex::get(),
+			};
+
+			// We combine an outer loop over candidates with an inner loop over the scheduled,
+			// where each iteration of the outer loop picks up at the position
+			// in scheduled just after the past iteration left off.
+			//
+			// If the candidates appear in the same order as they appear in `scheduled`,
+			// then they should always be found. If the end of `scheduled` is reached,
+			// then the candidate was either not scheduled or out-of-order.
+			//
+			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
+			// list.
 			'a:
 			for candidate in &candidates {
 				let para_id = candidate.candidate.parachain_index;
@@ -325,8 +345,8 @@ impl<T: Trait> Module<T> {
 				let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true)
 					.map_or(
 						true,
-						|last| relay_parent_number.saturating_sub(last)
-							>= config.validation_upgrade_frequency,
+						|last| last <= relay_parent_number &&
+							relay_parent_number.saturating_sub(last) >= config.validation_upgrade_frequency,
 					);
 
 				ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
@@ -346,13 +366,34 @@ impl<T: Trait> Module<T> {
 							Error::<T>::CandidateScheduledBeforeParaFree,
 						);
 
-						// account for already skipped.
-						skip = i + skip;
+						// account for already skipped, and then skip this one.
+						skip = i + skip + 1;
 
 						let group_vals = group_validators(assignment.group_idx)
 							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
 
-						assignment_meta.push((assignment.core, group_vals));
+						// check the signatures in the backing and that it is a majority.
+						{
+							let maybe_amount_validated
+								= primitives::parachain::check_candidate_backing(
+									&candidate,
+									&signing_context,
+									group_vals.len(),
+									|idx| group_vals.get(idx)
+										.and_then(|i| validators.get(*i as usize))
+										.map(|v| v.clone()),
+								);
+
+							match maybe_amount_validated {
+								Ok(amount_validated) => ensure!(
+									amount_validated * 2 > group_vals.len(),
+									Error::<T>::InsufficientBacking,
+								),
+								Err(()) => { Err(Error::<T>::InvalidBacking)?; }
+							}
+						}
+
+						core_indices.push(assignment.core);
 						continue 'a;
 					}
 				}
@@ -364,27 +405,33 @@ impl<T: Trait> Module<T> {
 					false,
 					Error::<T>::UnscheduledCandidate,
 				);
-			}
+			};
 
 			// check remainder of scheduled cores, if any.
 			for assignment in scheduled[skip..].iter() {
 				check_assignment_in_order(assignment)?;
 			}
 
-			assignment_meta
+			core_indices
 		};
 
-		let validators = Validators::get();
+		// one more sweep for actually writing to storage.
+		for (candidate, core) in candidates.into_iter().zip(core_indices.iter().cloned()) {
+			let para_id = candidate.candidate.parachain_index;
 
-		for (candidate, (core_index, group_validators))
-			in candidates.into_iter().zip(assignment_meta)
-		{
-			// TODO [now]: signature check. needs localvalidationdata / globalvalidationschedule?
-
-			// TODO [now]: place into pending candidate storage.
+			// initialize all availability votes to 0.
+			let availability_votes: BitVec<BitOrderLsb0, u8>
+				= bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
+				core,
+				receipt: candidate.candidate,
+				availability_votes,
+				relay_parent_number,
+				backed_in_number: now,
+			});
 		}
 
-		Ok(Vec::new())
+		Ok(core_indices)
 	}
 
 	fn enact_candidate(

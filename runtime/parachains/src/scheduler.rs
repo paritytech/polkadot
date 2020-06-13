@@ -63,13 +63,6 @@ impl From<u32> for CoreIndex {
 	}
 }
 
-impl CoreIndex {
-	/// Convert into inner u32.
-	fn into_inner(self) -> u32 {
-		self.0
-	}
-}
-
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
