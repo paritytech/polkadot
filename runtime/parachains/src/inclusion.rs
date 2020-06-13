@@ -30,11 +30,10 @@ use primitives::{
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
-	weights::{DispatchClass, Weight},
+	weights::Weight,
 	traits::Get,
 };
 use codec::{Encode, Decode};
-use system::ensure_root;
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};

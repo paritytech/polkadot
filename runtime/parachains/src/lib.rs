@@ -22,6 +22,7 @@
 
 mod configuration;
 mod inclusion;
+mod inclusion_inherent;
 mod initializer;
 mod paras;
 mod scheduler;
