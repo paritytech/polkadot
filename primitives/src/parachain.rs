@@ -620,6 +620,35 @@ pub enum ValidityAttestation {
 	Explicit(ValidatorSignature),
 }
 
+impl ValidityAttestation {
+	/// Get a reference to the signature.
+	pub fn signature(&self) -> &ValidatorSignature {
+		match *self {
+			ValidityAttestation::Implicit(ref sig) => sig,
+			ValidityAttestation::Explicit(ref sig) => sig,
+		}
+	}
+
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn signed_payload<H: Encode>(
+		&self,
+		candidate_hash: Hash,
+		signing_context: &SigningContext<H>,
+	) -> Vec<u8> {
+		match *self {
+			ValidityAttestation::Implicit(_) => (
+				Statement::Candidate(candidate_hash),
+				signing_context,
+			).encode(),
+			ValidityAttestation::Explicit(_) => (
+				Statement::Valid(candidate_hash),
+				signing_context,
+			).encode(),
+		}
+	}
+}
+
 /// A type returned by runtime with current session index and a parent hash.
 #[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
 pub struct SigningContext<H = Hash> {
@@ -762,6 +791,58 @@ pub struct BackedCandidate<H = Hash> {
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// The indices of the validators within the group, expressed as a bitfield.
 	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
+}
+
+/// Verify the backing of the given candidate.
+///
+/// Provide a lookup from the index of a validator within the group assigned to this para,
+/// as opposed to the index of the validator within the overall validator set, as well as
+/// the number of validators in the group.
+///
+/// Also provide the signing context.
+///
+/// Returns either an error, indicating that one of the signatures was invalid or that the index
+/// was out-of-bounds, or the number of signatures checked.
+pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
+	backed: &BackedCandidate<H>,
+	signing_context: &SigningContext<H>,
+	group_len: usize,
+	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
+) -> Result<usize, ()> {
+	use runtime_primitives::traits::AppVerify;
+
+	if backed.validator_indices.len() != group_len {
+		return Err(())
+	}
+
+	if backed.validity_votes.len() > group_len {
+		return Err(())
+	}
+
+	// this is known, even in runtime, to be blake2-256.
+	let hash: Hash = backed.candidate.hash();
+
+	let mut signed = 0;
+	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
+		.filter(|(_, signed)| **signed)
+		.zip(backed.validity_votes.iter())
+	{
+		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
+		let payload = attestation.signed_payload(hash.clone(), signing_context);
+		let sig = attestation.signature();
+
+		if sig.verify(&payload[..], &validator_id) {
+			signed += 1;
+		} else {
+			return Err(())
+		}
+	}
+
+	if signed != backed.validity_votes.len() {
+		return Err(())
+	}
+
+	Ok(signed)
 }
 
 sp_api::decl_runtime_apis! {
