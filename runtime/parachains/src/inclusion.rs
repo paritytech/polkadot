@@ -110,6 +110,8 @@ decl_error! {
 		CandidateNotInParentContext,
 		/// The bitfield contains a bit relating to an unassigned availability core.
 		UnoccupiedBitInBitfield,
+		/// Invalid group index in core assignment.
+		InvalidGroupIndex,
 	}
 }
 
@@ -284,17 +286,21 @@ impl<T: Trait> Module<T> {
 	)
 		-> Result<Vec<CoreIndex>, DispatchError>
 	{
-		ensure!(
-			candidates.len() <= scheduled.len(),
-			Error::<T>::UnscheduledCandidate,
-		);
+		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
-		if scheduled.is_empty() { return Ok(Vec::new()) }
+		if scheduled.is_empty() {
+			return Ok(Vec::new());
+		}
 
-		let mut indices_in_scheduled = {
+		let parent_hash = <system::Module<T>>::parent_hash();
+		let config = <configuration::Module<T>>::config();
+		let now = <system::Module<T>>::block_number();
+
+		let mut assignment_meta = {
 			let mut skip = 0;
-			let mut indices = Vec::with_capacity(candidates.len());
+			let mut assignment_meta = Vec::with_capacity(candidates.len());
 			let mut last_core = None;
+			let relay_parent_number = now - One::one();
 
 			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
 				ensure!(
@@ -308,15 +314,45 @@ impl<T: Trait> Module<T> {
 
 			'a:
 			for candidate in &candidates {
+				let para_id = candidate.candidate.parachain_index;
+
+				// we require that the candidate is in the context of the parent block.
+				ensure!(
+					candidate.candidate.relay_parent == parent_hash,
+					Error::<T>::CandidateNotInParentContext,
+				);
+
+				let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true)
+					.map_or(
+						true,
+						|last| relay_parent_number.saturating_sub(last)
+							>= config.validation_upgrade_frequency,
+					);
+
+				ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
 
 					if candidate.candidate.parachain_index == assignment.para_id {
-						// account for already skipped.
-						let index_in_scheduled = i + skip;
-						skip = index_in_scheduled;
+						if let Some(required_collator) = assignment.required_collator() {
+							ensure!(
+								required_collator == &candidate.candidate.collator,
+								Error::<T>::WrongCollator,
+							);
+						}
 
-						indices.push(index_in_scheduled);
+						ensure!(
+							<PendingAvailability<T>>::get(&assignment.para_id).is_none(),
+							Error::<T>::CandidateScheduledBeforeParaFree,
+						);
+
+						// account for already skipped.
+						skip = i + skip;
+
+						let group_vals = group_validators(assignment.group_idx)
+							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
+
+						assignment_meta.push((assignment.core, group_vals));
 						continue 'a;
 					}
 				}
@@ -335,46 +371,14 @@ impl<T: Trait> Module<T> {
 				check_assignment_in_order(assignment)?;
 			}
 
-			indices
+			assignment_meta
 		};
 
-		let core_assignments = indices_in_scheduled.iter().cloned().map(|i| &scheduled[i]);
-		let config = <configuration::Module<T>>::config();
-		let now = <system::Module<T>>::block_number();
-		let parent_hash = <system::Module<T>>::parent_hash();
 		let validators = Validators::get();
 
-		for (candidate, core_assignment) in candidates.into_iter().zip(core_assignments) {
-			let para_id = core_assignment.para_id;
-
-			// we require that the candidate is in the context of the parent block.
-			ensure!(
-				candidate.candidate.relay_parent == parent_hash,
-				Error::<T>::CandidateNotInParentContext,
-			);
-
-			let relay_parent_number = now - One::one();
-
-			ensure!(
-				<PendingAvailability<T>>::get(&core_assignment.para_id).is_none(),
-				Error::<T>::CandidateScheduledBeforeParaFree,
-			);
-
-			if let Some(required_collator) = core_assignment.required_collator() {
-				ensure!(
-					required_collator == &candidate.candidate.collator,
-					Error::<T>::WrongCollator,
-				);
-			}
-
-			let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true).map_or(
-				true,
-				|last| relay_parent_number.saturating_sub(last)
-					>= config.validation_upgrade_frequency,
-			);
-
-			ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
-
+		for (candidate, (core_index, group_validators))
+			in candidates.into_iter().zip(assignment_meta)
+		{
 			// TODO [now]: signature check. needs localvalidationdata / globalvalidationschedule?
 
 			// TODO [now]: place into pending candidate storage.
