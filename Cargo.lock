@@ -4220,7 +4220,19 @@ dependencies = [
 name = "polkadot-node-messages"
 version = "0.1.0"
 dependencies = [
+ "polkadot-node-primitives",
  "polkadot-primitives",
+ "polkadot-statement-table",
+]
+
+[[package]]
+name = "polkadot-node-primitives"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sp-runtime",
 ]
 
 [[package]]

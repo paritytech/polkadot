@@ -7,3 +7,5 @@ description = "Message types used by Subsystems"
 
 [dependencies]
 polkadot-primitives = { path = "../../primitives" }
+polkadot-statement-table = { path = "../../statement-table" }
+polkadot-node-primitives = { path = "../primitives" }
