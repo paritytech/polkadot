@@ -61,10 +61,9 @@ These messages are sent from the overseer to the [Candidate Selection subsystem]
 
 ```rust
 enum CandidateSelectionMessage {
-  /// A new parachain candidate has arrived from a collator and should be considered for seconding.
-  NewCandidate(PoV, ParachainBlock),
   /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-  Invalid(CandidateReceipt),
+  /// The hash is the relay parent.
+  Invalid(Hash, AbridgedCandidateReceipt),
 }
 ```
 
