@@ -144,12 +144,9 @@ struct SignedStatement {
 
 ```rust
 enum StatementDistributionMessage {
-  /// A peer has seconded a candidate and we need to double-check them
-  Peer(SignedStatement),
-  /// We have validated a candidate and want to share our judgment with our peers
-  ///
-  /// The statement distribution subsystem is responsible for signing this statement.
-  Share(Statement),
+  /// We have originated a signed statement in the context of
+  /// given relay-parent hash and it should be distributed to other validators.
+  Share(Hash, SignedStatement),
 }
 ```
 
