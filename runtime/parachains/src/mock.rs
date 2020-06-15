@@ -30,7 +30,7 @@ use primitives::{
 };
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, parameter_types,
-	weights::Weight,
+	weights::Weight, traits::Randomness as RandomnessT,
 };
 
 /// A test runtime struct.
@@ -44,6 +44,14 @@ impl_outer_origin! {
 impl_outer_dispatch! {
 	pub enum Call for Test where origin: Origin {
 		initializer::Initializer,
+	}
+}
+
+pub struct TestRandomness;
+
+impl RandomnessT<H256> for TestRandomness {
+	fn random(_subject: &[u8]) -> H256 {
+		Default::default()
 	}
 }
 
@@ -80,11 +88,15 @@ impl system::Trait for Test {
 	type OnKilledAccount = ();
 }
 
-impl crate::initializer::Trait for Test { }
+impl crate::initializer::Trait for Test {
+	type Randomness = TestRandomness;
+}
 
 impl crate::configuration::Trait for Test { }
 
 impl crate::paras::Trait for Test { }
+
+impl crate::scheduler::Trait for Test { }
 
 pub type System = system::Module<Test>;
 
@@ -96,6 +108,9 @@ pub type Configuration = crate::configuration::Module<Test>;
 
 /// Mocked paras.
 pub type Paras = crate::paras::Module<Test>;
+
+/// Mocked scheduler.
+pub type Scheduler = crate::scheduler::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
