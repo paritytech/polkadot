@@ -16,16 +16,3 @@ jobs:
         if: github.event.pull_request.draft == false
         with:
           add-labels: 'A0-pleasereview'
----
-name: Relabel draft PRs when ready for review
-on:
-  pull_request:
-    types: [ready_for_review]
-jobs:
-  relabel-drafts:
-    runs-on: ubuntu:latest
-      - name: Relabel drafts that are ready for review
-        uses: andymckay/labeler@master
-        with:
-          add-labels: 'A0-pleasereview'
-          remove-labels: 'A3-inprogress'
