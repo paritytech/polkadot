@@ -16,44 +16,19 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-//pub mod chain_spec;
-//mod grandpa_support;
-//mod client;
-
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
-#[cfg(feature = "full-node")]
+use polkadot_primitives::{parachain, Hash, BlockId};
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::Error as ServiceError, ServiceBuilder};
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
-use sc_executor::native_executor_instance;
+use service::{error::Error as ServiceError};
+use grandpa::{FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
-pub use service::{
-	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
-	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand,
-};
-pub use service::config::{DatabaseConfig, PrometheusConfig};
-pub use sc_executor::NativeExecutionDispatch;
-pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
-pub use sc_consensus::LongestChain;
-pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
-pub use sp_runtime::traits::{HashFor, NumberFor};
-pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
-pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use polkadot_primitives::Block;
-pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use polkadot_service::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
-pub use consensus::run_validation_worker;
-pub use codec::Codec;
-pub use polkadot_runtime;
-pub use kusama_runtime;
-pub use westend_runtime;
-pub use polkadot_test_runtime;
-use prometheus_endpoint::Registry;
-pub use polkadot_service::PolkadotClient;
-pub use polkadot_service::{grandpa_support, new_full, new_full_start, FullNodeHandles, IdentifyVariant, PolkadotExecutor};
+use service::{AbstractService, Role, TFullBackend, Configuration};
+use consensus_common::{SelectChain, block_validation::Chain};
+use polkadot_primitives::parachain::{CollatorId};
+use polkadot_primitives::Block;
+use polkadot_service::PolkadotClient;
+use polkadot_service::{grandpa_support, new_full, new_full_start, FullNodeHandles, IdentifyVariant, PolkadotExecutor};
 
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
