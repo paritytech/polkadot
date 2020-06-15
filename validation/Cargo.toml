@@ -18,24 +18,24 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }

@@ -6,19 +6,19 @@ edition = "2018"
 license = "GPL-3.0"
 
 [dependencies]
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sc-light = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate", features = ["test-helpers"],  default-features = false }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch", features = ["test-helpers"],  default-features = false }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 polkadot-test-runtime = { path = ".." }
 polkadot-runtime-common = { path = "../../common" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 codec = { package = "parity-scale-codec", version = "1.0.0" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "cecton-update-polkadot-substrate" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 futures = "0.3.1"
