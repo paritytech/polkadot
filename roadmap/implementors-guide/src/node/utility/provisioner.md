@@ -30,13 +30,25 @@ The dispute inherent is similar to a misbehavior report in that it is an attesta
 
 ## Protocol
 
-Input: [`ProvisionerMessage`](/type-definitions.html#provisioner-message)
+Input: [`ProvisionerMessage`](/type-definitions.html#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](/node/backing/candidate-backing.html), signed bitfields come from the [Bitfield Distribution subsystem](/node/availability/bitfield-distribution.html), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](/node/utility/misbehavior-arbitration.html).
+
+At initialization, this subsystem has no outputs. Block authors can send a `ProvisionerMessage::RequestBlockAuthorshipData`, which includes a channel over which provisionable data can be sent. All appropriate provisionable data will then be sent over this channel, as it is received.
+
+Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorshipData` for each relay parent they are interested in receiving provisionable data for.
 
 ## Functionality
 
-Use `StartWork` and `StopWork` to manage a set of jobs for relay-parents we might be building upon.
-Forward all messages to corresponding job.
+The subsystem should maintain a set of handles to Block Authorship Provisioning Jobs that are currently live.
+
+### On Overseer Signal
+
+- `StartWork`: spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
+- `StopWork`: terminate the Block Authorship Provisioning Job for the given relay parent, if any.
+
+### On `ProvisionerMessage`
+
+Forward the message to the appropriate Block Authorship Provisioning Job, or discard if no appropriate job is currently active.
 
 ## Block Authorship Provisioning Job
 
-Track all signed bitfields, all backable candidates received. Provide them to the `RequestBlockAuthorshipData` requester via the `response_channel`.
+Maintain the set of channels to block authors. On receiving provisionable data, send a copy over each channel.

@@ -176,22 +176,28 @@ enum MisbehaviorReport {
 ## Provisioner Message
 
 ```rust
-/// Message to the Provisioner.
-///
-/// In all cases, the Hash is that of the relay parent.
-enum ProvisionerMessage {
+/// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+enum ProvisionableData {
   /// This bitfield indicates the availability of various candidate blocks.
   Bitfield(Hash, SignedAvailabilityBitfield),
   /// The Candidate Backing subsystem believes that this candidate is backable, pending availability.
   /// TODO: do we need any more data than this?
   BackableCandidate(Hash, CandidateReceipt),
-  /// This message allows potential block authors to be kept updated with all new authorship data
-  /// as it becomes available.
-  RequestBlockAuthorshipData(Hash, Sender<CandidateReceipt>),
   /// Misbehavior reports are self-contained proofs of validator misbehavior.
-  MisbehaviorReport(MisbehaviorReport),
+  MisbehaviorReport(Hash, MisbehaviorReport),
   /// Disputes trigger a broad dispute resolution process.
   Dispute(Hash, Signature),
+}
+
+/// Message to the Provisioner.
+///
+/// In all cases, the Hash is that of the relay parent.
+enum ProvisionerMessage {
+  /// This message allows potential block authors to be kept updated with all new authorship data
+  /// as it becomes available.
+  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
+  /// This data should become part of a relay chain block
+  ProvisionableData(ProvisionableData),
 }
 ```
 
