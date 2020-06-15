@@ -494,7 +494,7 @@ UpcomingParasGenesis: map ParaId => Option<ParaGenesisArgs>;
 OutgoingParas: Vec<ParaId>;
 
 /// Messages ready to be dispatched onto the relay chain.
-RelayDispatchQueue: map ParaId => Vec<UpwardMessa>;
+RelayDispatchQueue: map ParaId => Vec<UpwardMessage>;
 /// Cached sizes of the dispached queues. (msg_count, total_byte_size).
 /// Exists for optimization purposes to avoid costly decoding.
 RelayDispatchQueueSize: map ParaId => (u32, u32);
