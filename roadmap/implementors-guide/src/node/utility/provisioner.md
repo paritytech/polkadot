@@ -24,9 +24,11 @@ Note that there is no mechanism in place which forces a block author to include 
 
 ### Dispute Inherent
 
-The dispute inherent is similar to a misbehavior report in that it is an attestation of misbehavior on the part of a validator or group of validators. Unlike a misbehavior report, it is not self-contained: resolution requires coordinated action by several validators. The canonical example of a dispute inherent involves a fisherman discovering that a set of validators has improperly approved an invalid parachain block: resolving this requires the entire validator set to re-validate the block, so that the minority can be slashed.
+The dispute inherent is similar to a misbehavior report in that it is an attestation of misbehavior on the part of a validator or group of validators. Unlike a misbehavior report, it is not self-contained: resolution requires coordinated action by several validators. The canonical example of a dispute inherent involves an approval checker discovering that a set of validators has improperly approved an invalid parachain block: resolving this requires the entire validator set to re-validate the block, so that the minority can be slashed.
 
-> TODO: Is this statement accurate: "Resolution of a dispute produces a misbehavior report."?
+Dispute resolution is complex and is explained in substantially more detail [here](/runtime/validity.html).
+
+> TODO: The provisioner is responsible for selecting remote disputes to replay. Let's figure out the details.
 
 ## Protocol
 
