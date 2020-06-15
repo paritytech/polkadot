@@ -4698,7 +4698,6 @@ dependencies = [
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]
