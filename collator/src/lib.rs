@@ -74,7 +74,13 @@ pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
 pub use sc_cli::SubstrateCli;
 use sp_api::{ConstructRuntimeApi, ApiExt, HashFor};
-use polkadot_service::PolkadotClient;
+#[cfg(not(feature = "service-rewr"))]
+use polkadot_service::{FullNodeHandles, PolkadotClient};
+#[cfg(feature = "service-rewr")]
+use polkadot_service_new::{
+	self as polkadot_service,
+	Error as ServiceError, FullNodeHandles, PolkadotClient,
+};
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -204,9 +210,46 @@ pub async fn collate<P>(
 	Ok(collation)
 }
 
+#[cfg(feature = "service-rewr")]
+fn build_collator_service<SP, P, C, R, Extrinsic>(
+	_spawner: SP,
+	_handles: FullNodeHandles,
+	_client: Arc<C>,
+	_para_id: ParaId,
+	_key: Arc<CollatorPair>,
+	_build_parachain_context: P,
+) -> Result<future::Ready<()>, polkadot_service::Error>
+	where
+		C: PolkadotClient<
+			service::Block,
+			service::TFullBackend<service::Block>,
+			R
+		> + 'static,
+		R: ConstructRuntimeApi<service::Block, C> + Sync + Send,
+		<R as ConstructRuntimeApi<service::Block, C>>::RuntimeApi:
+			sp_api::ApiExt<
+				service::Block,
+				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
+			>
+			+ RuntimeApiCollection<
+				Extrinsic,
+				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
+			>
+			+ Sync + Send,
+		P: BuildParachainContext,
+		P::ParachainContext: Send + 'static,
+		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
+		Extrinsic: service::Codec + Send + Sync + 'static,
+		SP: Spawn + Clone + Send + Sync + 'static,
+{
+	Err("Collator is not functional with the new service yet".into())
+}
+
+
+#[cfg(not(feature = "service-rewr"))]
 fn build_collator_service<SP, P, C, R, Extrinsic>(
 	spawner: SP,
-	handles: polkadot_service::FullNodeHandles,
+	handles: FullNodeHandles,
 	client: Arc<C>,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
@@ -345,56 +388,75 @@ where
 	P::ParachainContext: Send + 'static,
 	<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 {
-	let is_kusama = config.chain_spec.is_kusama();
-	match (is_kusama, &config.role) {
-		(_, Role::Light) => Err(
+	if matches!(config.role, Role::Light) {
+		return Err(
 			polkadot_service::Error::Other("light nodes are unsupported as collator".into())
-		).into(),
-		(true, _) => {
-			let (service, client, handlers) = service::kusama_new_full(
-				config,
-				Some((key.public(), para_id)),
-				None,
-				false,
-				6000,
-				None,
-				informant_prefix,
-			)?;
-			let spawn_handle = service.spawn_task_handle();
-			build_collator_service(
-				spawn_handle,
-				handlers,
-				client,
-				para_id,
-				key,
-				build_parachain_context
-			)?.await;
-			Ok(())
-		},
-		(false, _) => {
-			let (service, client, handles) = service::polkadot_new_full(
-				config,
-				Some((key.public(), para_id)),
-				None,
-				false,
-				6000,
-				None,
-				informant_prefix,
-			)?;
-			let spawn_handle = service.spawn_task_handle();
-			build_collator_service(
-				spawn_handle,
-				handles,
-				client,
-				para_id,
-				key,
-				build_parachain_context,
-			)?.await;
-			Ok(())
-		}
+		.into());
 	}
+
+	if config.chain_spec.is_kusama() {
+		let (service, client, handlers) = service::kusama_new_full(
+			config,
+			Some((key.public(), para_id)),
+			None,
+			false,
+			6000,
+			None,
+			informant_prefix,
+		)?;
+		let spawn_handle = service.spawn_task_handle();
+		build_collator_service(
+			spawn_handle,
+			handlers,
+			client,
+			para_id,
+			key,
+			build_parachain_context
+		)?.await;
+	} else if config.chain_spec.is_westend() {
+		let (service, client, handlers) = service::westend_new_full(
+			config,
+			Some((key.public(), para_id)),
+			None,
+			false,
+			6000,
+			None,
+			informant_prefix,
+		)?;
+		let spawn_handle = service.spawn_task_handle();
+		build_collator_service(
+			spawn_handle,
+			handlers,
+			client,
+			para_id,
+			key,
+			build_parachain_context
+		)?.await;
+	} else {
+		let (service, client, handles) = service::polkadot_new_full(
+			config,
+			Some((key.public(), para_id)),
+			None,
+			false,
+			6000,
+			None,
+			informant_prefix,
+		)?;
+		let spawn_handle = service.spawn_task_handle();
+		build_collator_service(
+			spawn_handle,
+			handles,
+			client,
+			para_id,
+			key,
+			build_parachain_context,
+		)?.await;
+	}
+
+	Ok(())
 }
 
+#[cfg(not(feature = "service-rewr"))]
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
 	use polkadot_primitives::parachain::Chain;
 

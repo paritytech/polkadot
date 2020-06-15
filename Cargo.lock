@@ -2222,7 +2222,7 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4064,20 +4064,21 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "assert_cmd",
  "futures 0.3.5",
  "nix 0.17.0",
  "parity-util-mem",
  "polkadot-cli",
+ "polkadot-collator",
  "polkadot-service",
  "tempfile",
 ]
 
 [[package]]
 name = "polkadot-availability-store"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "derive_more 0.99.7",
  "exit-future",
@@ -4103,12 +4104,13 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.5",
  "log 0.4.8",
  "polkadot-service",
+ "polkadot-service-new",
  "sc-cli",
  "sc-client-api",
  "sc-client-db",
@@ -4127,7 +4129,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-collator"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 2.0.2",
@@ -4137,6 +4139,7 @@ dependencies = [
  "polkadot-network",
  "polkadot-primitives",
  "polkadot-service",
+ "polkadot-service-new",
  "polkadot-validation",
  "sc-cli",
  "sc-client-api",
@@ -4164,7 +4167,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "derive_more 0.15.0",
  "parity-scale-codec",
@@ -4176,7 +4179,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "arrayvec 0.4.12",
  "bytes 0.5.4",
@@ -4204,7 +4207,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-network-test"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "futures 0.3.5",
  "log 0.4.8",
@@ -4247,7 +4250,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "derive_more 0.99.7",
  "log 0.4.8",
@@ -4266,7 +4269,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -4289,7 +4292,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -4314,7 +4317,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4388,7 +4391,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4453,6 +4456,8 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "rand 0.7.3",
+ "rand_chacha 0.2.2",
  "rustc-hex",
  "serde",
  "serde_derive",
@@ -4473,7 +4478,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-service"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "env_logger",
  "frame-benchmarking",
@@ -4531,8 +4536,67 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-service-new"
+version = "0.8.3"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-system-rpc-runtime-api",
+ "futures 0.3.5",
+ "hex-literal",
+ "kusama-runtime",
+ "lazy_static",
+ "log 0.4.8",
+ "pallet-babe",
+ "pallet-im-online",
+ "pallet-staking",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "parity-scale-codec",
+ "parking_lot 0.9.0",
+ "polkadot-network",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "polkadot-rpc",
+ "polkadot-runtime",
+ "polkadot-test-runtime-client",
+ "sc-authority-discovery",
+ "sc-basic-authorship",
+ "sc-block-builder",
+ "sc-chain-spec",
+ "sc-client-api",
+ "sc-client-db",
+ "sc-consensus",
+ "sc-consensus-babe",
+ "sc-executor",
+ "sc-finality-grandpa",
+ "sc-keystore",
+ "sc-network",
+ "sc-service",
+ "sc-telemetry",
+ "sc-transaction-pool",
+ "serde",
+ "slog",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-consensus-babe",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
+ "sp-io",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-transaction-pool",
+ "substrate-prometheus-endpoint",
+ "westend-runtime",
+]
+
+[[package]]
 name = "polkadot-statement-table"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -4541,7 +4605,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -4619,7 +4683,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-validation"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "derive_more 0.14.1",
@@ -7718,7 +7782,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -7759,7 +7823,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -8627,7 +8691,7 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.8.7"
+version = "0.8.8"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
