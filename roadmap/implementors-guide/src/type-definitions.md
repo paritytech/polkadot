@@ -100,7 +100,7 @@ enum PoVOrigin {
 
 enum CandidateValidationMessage {
   /// Validate a candidate and issue a Statement
-  Validate(CandidateHash, RelayHash, PoVOrigin),
+  Validate(CandidateHash, RelayHash, PoVOrigin, Sender<Statement>),
 }
 ```
 
