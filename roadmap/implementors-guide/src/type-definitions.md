@@ -90,16 +90,12 @@ enum CandidateBackingMessage {
 Various modules request that the [Candidate Validation subsystem](/node/utility/candidate-validation.html) validate a block with this message
 
 ```rust
-enum PoVOrigin {
-  /// The proof of validity is available here.
-  Included(PoV),
-  /// We need to fetch proof of validity from some peer on the network.
-  Network(CandidateReceipt),
-}
-
 enum CandidateValidationMessage {
-  /// Validate a candidate and issue a Statement
-  Validate(CandidateHash, RelayHash, PoVOrigin),
+  /// Validate a candidate, sending a side-channel response of valid or invalid.
+  ///
+  /// Provide the relay-parent in whose context this should be validated, the full candidate receipt,
+  /// and the PoV.
+  Validate(Hash, CandidateReceipt, PoV, valid_sender),
 }
 ```
 

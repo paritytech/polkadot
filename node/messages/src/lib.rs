@@ -22,8 +22,10 @@
 //!
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
+use futures::channel::{mpsc, oneshot};
+
 use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{AbridgedCandidateReceipt};
+use polkadot_primitives::parachain::{AbridgedCandidateReceipt, PoVBlock};
 use polkadot_node_primitives::SignedStatement;
 
 /// Signals sent by an overseer to a subsystem.
@@ -37,24 +39,49 @@ pub enum OverseerSignal {
 	Conclude,
 }
 
-/// A message type used by the Validation Subsystem.
+/// A notification of a new backed candidate.
 #[derive(Debug)]
-pub enum ValidationSubsystemMessage {
-	ValidityAttestation,
+pub struct NewBackedCandidate; // TODO [now]
+
+/// Messages received by the Candidate Selection subsystem.
+#[derive(Debug)]
+pub enum CandidateSelectionSubsystemMessage {
+	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+	/// The hash is the relay parent.
+	Invalid(Hash, AbridgedCandidateReceipt),
 }
 
-/// A message type used by the CandidateBacking Subsystem.
+/// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingSubsystemMessage {
 	/// Registers a stream listener for updates to the set of backable candidates that could be backed
 	/// in a child of the given relay-parent, referenced by its hash.
-	RegisterBackingWatcher(Hash, ),
+	RegisterBackingWatcher(Hash, mpsc::Sender<NewBackedCandidate>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, AbridgedCandidateReceipt),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
-	Statement(SignedStatement),
+	Statement(Hash, SignedStatement),
+}
+
+/// Blanket error for validation failing.
+#[derive(Debug)]
+pub struct ValidationFailed;
+
+/// Messages received by the Validation subsystem
+#[derive(Debug)]
+pub enum ValidationSubsystemMessage {
+	/// Validate a candidate, sending a side-channel response of valid or invalid.
+	///
+	/// Provide the relay-parent in whose context this should be validated, the full candidate receipt,
+	/// and the PoV.
+	Validate(
+		Hash,
+		AbridgedCandidateReceipt,
+		PoVBlock,
+		oneshot::Sender<Result<(), ValidationFailed>>,
+	),
 }
 
 /// A message type tying together all message types that are used across Subsystems.
