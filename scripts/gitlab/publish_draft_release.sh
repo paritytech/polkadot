@@ -67,10 +67,10 @@ priority_labels=(
 )
 
 declare -A priority_descriptions=(
-['C1-low']="Release priority: Low (upgrade at your convenience)"
-['C3-medium']="Release priority: *Medium* (timely upgrade recommended)"
-['C7-high']="Release priority:❗ HIGH ❗ Please upgrade your node as soon as possible"
-['C9-critical']="Release priority: ❗❗ URGENT ❗❗ PLEASE UPGRADE IMMEDIATELY"
+['C1-low']="Upgrade priority: Low (upgrade at your convenience)"
+['C3-medium']="Upgrade priority: *Medium* (timely upgrade recommended)"
+['C7-high']="Upgrade priority:❗ HIGH ❗ Please upgrade your node as soon as possible"
+['C9-critical']="Upgrade priority: ❗❗ URGENT ❗❗ PLEASE UPGRADE IMMEDIATELY"
 )
 
 max_label=-1
