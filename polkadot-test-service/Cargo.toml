@@ -27,4 +27,6 @@ sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 
-[features]
+[dev-dependencies]
+tempfile = "3.1.0"
+async-std = { version = "1.2.0", features = [ "attributes" ] }
