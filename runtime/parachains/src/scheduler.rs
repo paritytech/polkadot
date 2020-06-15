@@ -68,6 +68,12 @@ impl From<u32> for CoreIndex {
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct GroupIndex(u32);
 
+impl From<u32> for GroupIndex {
+	fn from(i: u32) -> GroupIndex {
+		GroupIndex(i)
+	}
+}
+
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
 #[cfg_attr(test, derive(PartialEq, Debug))]

@@ -606,6 +606,15 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
+impl Statement {
+	/// Produce a payload on this statement that is used for signing.
+	///
+	/// It includes the context provided.
+	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
+		(self, context).encode()
+	}
+}
+
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]

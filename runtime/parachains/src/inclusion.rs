@@ -115,6 +115,8 @@ decl_error! {
 		InsufficientBacking,
 		/// Invalid (bad signature, unknown validator, etc.) backing.
 		InvalidBacking,
+		/// Collator did not sign PoV.
+		NotCollatorSigned,
 	}
 }
 
@@ -351,6 +353,11 @@ impl<T: Trait> Module<T> {
 					);
 
 				ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
+				ensure!(
+					candidate.candidate.check_signature().is_ok(),
+					Error::<T>::NotCollatorSigned,
+				);
+
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
 
@@ -488,7 +495,8 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
-	use primitives::{BlockNumber, parachain::SignedAvailabilityBitfield};
+	use primitives::{BlockNumber, Hash};
+	use primitives::parachain::{SignedAvailabilityBitfield, Statement, ValidityAttestation};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
@@ -522,6 +530,80 @@ mod tests {
 			},
 			..Default::default()
 		}
+	}
+
+	#[derive(Clone, Copy, PartialEq)]
+	enum BackingKind {
+		Unanimous,
+		Threshold,
+		Lacking,
+	}
+
+	fn collator_sign_candidate(
+		collator: Sr25519Keyring,
+		candidate: &mut AbridgedCandidateReceipt,
+	) {
+		candidate.collator = collator.public().into();
+
+		let payload = primitives::parachain::collator_signature_payload(
+			&candidate.relay_parent,
+			&candidate.parachain_index,
+			&candidate.pov_block_hash,
+		);
+
+		candidate.signature = collator.sign(&payload[..]).into();
+		assert!(candidate.check_signature().is_ok());
+	}
+
+	fn back_candidate(
+		candidate: AbridgedCandidateReceipt,
+		validators: &[Sr25519Keyring],
+		group: &[ValidatorIndex],
+		signing_context: &SigningContext,
+		kind: BackingKind,
+	) -> BackedCandidate {
+		let mut validator_indices = bitvec::bitvec![BitOrderLsb0, u8; 0; group.len()];
+		let threshold = (group.len() / 2) + 1;
+
+		let signing = match kind {
+			BackingKind::Unanimous => group.len(),
+			BackingKind::Threshold => threshold,
+			BackingKind::Lacking => threshold.saturating_sub(1),
+		};
+
+		let mut validity_votes = Vec::with_capacity(signing);
+		let candidate_hash = candidate.hash();
+		let payload = Statement::Valid(candidate_hash).signing_payload(signing_context);
+
+		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
+			let key: Sr25519Keyring = validators[*val_idx as usize];
+			*validator_indices.get_mut(idx_in_group).unwrap() = true;
+
+			validity_votes.push(ValidityAttestation::Explicit(key.sign(&payload[..]).into()));
+		}
+
+		let backed = BackedCandidate {
+			candidate,
+			validity_votes,
+			validator_indices,
+		};
+
+		let should_pass = match kind {
+			BackingKind::Unanimous | BackingKind::Threshold => true,
+			BackingKind::Lacking => false,
+		};
+
+		assert_eq!(
+			primitives::parachain::check_candidate_backing(
+				&backed,
+				signing_context,
+				group.len(),
+				|i| Some(validators[i].public().into()),
+			).is_ok(),
+			should_pass,
+		);
+
+		backed
 	}
 
 	fn run_to_block(
@@ -617,7 +699,7 @@ mod tests {
 	}
 
 	#[test]
-	fn bitfield_signing_checks() {
+	fn bitfield_checks() {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
 		let thread_a = ParaId::from(3);
@@ -894,10 +976,76 @@ mod tests {
 		});
 	}
 
-	// TODO [now]: unscheduled candidates are rejected
-	// TODO [now]: candidates out of order are rejected
-	// TODO [now]: backed candidates are accepted
+	#[test]
+	fn candidate_checks() {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			run_to_block(5, |_| None);
+
+			let signing_context = SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: 5,
+			};
+
+			let group_validators = |group_index: GroupIndex| match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1) => Some(vec![3, 4]),
+				group_index if group_index == GroupIndex::from(2) => Some(vec![5]),
+				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+			};
+
+			// unscheduled candidate.
+			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+			}
+
+			// candidates out of order.
+			{
+
+			}
+
+			// candidate not backed.
+			{
+
+			}
+
+			// candidate not in parent context.
+			{
+
+			}
+
+			// candidate has wrong collator.
+			{
+
+			}
+		});
+	}
+
 	// TODO [now]: candidate with interfering code upgrade is rejected.
-	// TODO [now]: available candidate is enacted in paras
 	// TODO [now]: session change wipes everything and updates validators / session index.
 }

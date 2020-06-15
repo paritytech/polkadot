@@ -64,6 +64,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that there is no candidate pending availability for any scheduled `ParaId`.
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
+  1. Check the collator's signature on the pov block.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
