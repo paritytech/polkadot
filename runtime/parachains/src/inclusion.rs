@@ -171,7 +171,9 @@ impl<T: Trait> Module<T> {
 		// 4. signature is valid.
 		{
 			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record.iter()
-				.map(|p| p.is_some())
+				.map(|p| p.as_ref()
+					.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
+				)
 				.collect();
 
 			let mut last_index = None;
@@ -194,7 +196,7 @@ impl<T: Trait> Module<T> {
 				);
 
 				ensure!(
-					signed_bitfield.validator_index < validators.len() as _,
+					signed_bitfield.validator_index < validators.len() as ValidatorIndex,
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
@@ -480,4 +482,294 @@ impl<T: Trait> Module<T> {
 
 		cleaned_up_cores
 	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use primitives::{BlockNumber, parachain::SignedAvailabilityBitfield};
+	use frame_support::traits::{OnFinalize, OnInitialize};
+	use keyring::Sr25519Keyring;
+
+	use crate::mock::{
+		new_test_ext, Configuration, Paras, System, Inclusion,
+		GenesisConfig as MockGenesisConfig, Test,
+	};
+	use crate::initializer::SessionChangeNotification;
+	use crate::configuration::HostConfiguration;
+	use crate::paras::ParaGenesisArgs;
+
+	fn default_config() -> HostConfiguration<BlockNumber> {
+		let mut config = HostConfiguration::default();
+		config.parathread_cores = 1;
+		config
+	}
+
+	fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
+		MockGenesisConfig {
+			paras: paras::GenesisConfig {
+				paras: paras.into_iter().map(|(id, is_chain)| (id, ParaGenesisArgs {
+					genesis_head: Vec::new().into(),
+					validation_code: Vec::new().into(),
+					parachain: is_chain,
+				})).collect(),
+				..Default::default()
+			},
+			configuration: configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		}
+	}
+
+	fn run_to_block(
+		to: BlockNumber,
+		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
+	) {
+		while System::block_number() < to {
+			let b = System::block_number();
+
+			Inclusion::initializer_finalize();
+			Paras::initializer_finalize();
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if let Some(notification) = new_session(b + 1) {
+				Paras::initializer_on_new_session(&notification);
+				Inclusion::initializer_on_new_session(&notification);
+			}
+
+			Paras::initializer_initialize(b + 1);
+			Inclusion::initializer_initialize(b + 1);
+		}
+	}
+
+	fn default_bitfield() -> AvailabilityBitfield {
+		let n_bits = Paras::parachains().len() + Configuration::config().parathread_cores as usize;
+
+		AvailabilityBitfield(bitvec::bitvec![BitOrderLsb0, u8; 0; n_bits])
+	}
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	fn sign_bitfield(
+		key: &Sr25519Keyring,
+		validator_index: ValidatorIndex,
+		bitfield: AvailabilityBitfield,
+		signing_context: &SigningContext,
+	)
+		-> SignedAvailabilityBitfield
+	{
+		let payload = bitfield.encode_signing_payload(signing_context);
+
+		SignedAvailabilityBitfield {
+			validator_index,
+			bitfield: bitfield,
+			signature: key.sign(&payload[..]).into(),
+		}
+	}
+
+	#[test]
+	fn collect_pending_cleans_up_pending() {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
+				core: CoreIndex::from(0),
+				receipt: Default::default(),
+				availability_votes: Default::default(),
+				relay_parent_number: 0,
+				backed_in_number: 0,
+			});
+
+			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
+				core: CoreIndex::from(1),
+				receipt: Default::default(),
+				availability_votes: Default::default(),
+				relay_parent_number: 0,
+				backed_in_number: 0,
+			});
+
+			run_to_block(5, |_| None);
+
+			assert!(<PendingAvailability<Test>>::get(&chain_a).is_some());
+			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+
+			Inclusion::collect_pending(|core, _since| core == CoreIndex::from(0));
+
+			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
+			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+		});
+	}
+
+	// TODO [now]: signed bitfields are accepted
+	#[test]
+	fn bitfield_signing_checks() {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			let signing_context = SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: 5,
+			};
+
+			let core_lookup = |core| match core {
+				core if core == CoreIndex::from(0) => Some(chain_a),
+				core if core == CoreIndex::from(1) => Some(chain_b),
+				core if core == CoreIndex::from(2) => Some(thread_a),
+				_ => panic!("Core out of bounds for 2 parachains and 1 parathread core."),
+			};
+
+			// wrong number of bits.
+			{
+				let mut bare_bitfield = default_bitfield();
+				bare_bitfield.0.push(false);
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed]),
+					&core_lookup,
+				).is_err());
+			}
+
+			// duplicate.
+			{
+				let bare_bitfield = default_bitfield();
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed.clone(), signed]),
+					&core_lookup,
+				).is_err());
+			}
+
+			// out of order.
+			{
+				let bare_bitfield = default_bitfield();
+				let signed_0 = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield.clone(),
+					&signing_context,
+				);
+
+				let signed_1 = sign_bitfield(
+					&validators[1],
+					1,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed_1, signed_0]),
+					&core_lookup,
+				).is_err());
+			}
+
+			// non-pending bit set.
+			{
+				let mut bare_bitfield = default_bitfield();
+				*bare_bitfield.0.get_mut(0).unwrap() = true;
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed]),
+					&core_lookup,
+				).is_err());
+			}
+
+			// empty bitfield signed: always OK, but kind of useless.
+			{
+				let bare_bitfield = default_bitfield();
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed]),
+					&core_lookup,
+				).is_ok());
+			}
+
+			// bitfield signed with pending bit signed.
+			{
+				let mut bare_bitfield = default_bitfield();
+
+				assert_eq!(core_lookup(CoreIndex::from(0)), Some(chain_a));
+
+				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					receipt: Default::default(),
+					availability_votes: Default::default(),
+					relay_parent_number: 0,
+					backed_in_number: 0,
+				});
+
+				*bare_bitfield.0.get_mut(0).unwrap() = true;
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				assert!(Inclusion::process_bitfields(
+					SignedAvailabilityBitfields(vec![signed]),
+					&core_lookup,
+				).is_ok());
+			}
+		});
+	}
+
+	// TODO [now]: duplicate bitfields are rejected
+	// TODO [now]: majority bitfields trigger availability
+	// TODO [now]: unscheduled candidates are rejected
+	// TODO [now]: candidates out of order are rejected
+	// TODO [now]: backed candidates are accepted
+	// TODO [now]: candidate with interfering code upgrade is rejected.
+	// TODO [now]: available candidate is enacted in paras
+	// TODO [now]: session change wipes everything.
 }
