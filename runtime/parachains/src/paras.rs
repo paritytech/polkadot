@@ -454,9 +454,9 @@ impl<T: Trait> Module<T> {
 		new_head: HeadData,
 		execution_context: T::BlockNumber,
 	) -> Weight {
-		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
-			Heads::insert(&id, new_head);
+		Heads::insert(&id, new_head);
 
+		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
 
@@ -481,7 +481,7 @@ impl<T: Trait> Module<T> {
 				T::DbWeight::get().reads_writes(1, 1 + 0)
 			}
 		} else {
-			T::DbWeight::get().reads_writes(1, 0)
+			T::DbWeight::get().reads_writes(1, 1)
 		}
 	}
 
@@ -692,6 +692,40 @@ mod tests {
 			run_to_block(pruned_at, None);
 			assert!(<Paras as Store>::PastCode::get(&(id, at_block)).is_none());
 			assert!(Paras::past_code_meta(&id).most_recent_change().is_none());
+		});
+	}
+
+	#[test]
+	fn note_new_head_sets_head() {
+		let acceptance_period = 10;
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: Default::default(),
+			}),
+		];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let id_a = ParaId::from(0u32);
+
+			assert_eq!(Paras::para_head(&id_a), Some(Default::default()));
+
+			Paras::note_new_head(id_a, vec![1, 2, 3].into(), 0);
+
+			assert_eq!(Paras::para_head(&id_a), Some(vec![1, 2, 3].into()));
 		});
 	}
 
