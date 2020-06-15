@@ -35,6 +35,9 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 
+rand = { version = "0.7", default-features = false }
+rand_chacha = { version = "0.2.2", default-features = false }
+
 [dev-dependencies]
 hex-literal = "0.2.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
