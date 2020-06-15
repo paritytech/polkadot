@@ -45,7 +45,6 @@ pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
 pub use polkadot_primitives::Block;
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use polkadot_service::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
-#[cfg(feature = "full-node")]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
