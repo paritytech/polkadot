@@ -174,7 +174,7 @@ decl_storage! {
 		/// All parathreads.
 		Parathreads: map hasher(twox_64_concat) ParaId => Option<()>;
 		/// The head-data of every registered para.
-		Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
+		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
 		CurrentCode get(fn current_code): map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
@@ -368,7 +368,7 @@ impl<T: Trait> Module<T> {
 							<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
 						}
 
-						meta.most_recent_change().is_none() && Self::parachain_head(&para_id).is_none()
+						meta.most_recent_change().is_none() && Self::para_head(&para_id).is_none()
 					});
 
 					// This parachain has been removed and now the vestigial code
