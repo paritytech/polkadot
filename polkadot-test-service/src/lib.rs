@@ -25,6 +25,7 @@ use grandpa::{FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
 use service::{AbstractService, Role, TFullBackend, Configuration, config::PrometheusConfig};
 use consensus_common::{SelectChain, block_validation::Chain};
+use prometheus_endpoint::Registry;
 use polkadot_primitives::parachain::{CollatorId};
 use polkadot_primitives::Block;
 use polkadot_service::PolkadotClient;
