@@ -56,6 +56,7 @@
 
 use std::fmt::Debug;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::task::Poll;
 use std::time::Duration;
 use std::collections::HashSet;
@@ -232,7 +233,7 @@ impl OverseerHandler {
 /// [`Overseer`]: struct.Overseer.html
 /// [`OverseerHandler`]: struct.OverseerHandler.html
 pub async fn forward_events<P: BlockchainEvents<Block>>(
-	client: P,
+	client: Arc<P>,
 	mut handler: OverseerHandler,
 ) -> SubsystemResult<()> {
 	let mut finality = client.finality_notification_stream();

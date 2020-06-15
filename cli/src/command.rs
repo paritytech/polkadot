@@ -15,7 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
+#[cfg(not(feature = "service-rewr"))]
 use service::{IdentifyVariant, self};
+#[cfg(feature = "service-rewr")]
+use service_new::{IdentifyVariant, self as service};
 use sc_executor::NativeExecutionDispatch;
 use sc_cli::{SubstrateCli, Result};
 use crate::cli::{Cli, Subcommand};
@@ -124,7 +127,8 @@ pub fn run() -> Result<()> {
 							None,
 							authority_discovery_enabled,
 							6000,
-							grandpa_pause
+							grandpa_pause,
+							None,
 						).map(|(s, _, _)| s)
 					},
 					service::KusamaExecutor::native_version().runtime_version
@@ -141,7 +145,8 @@ pub fn run() -> Result<()> {
 							None,
 							authority_discovery_enabled,
 							6000,
-							grandpa_pause
+							grandpa_pause,
+							None,
 						).map(|(s, _, _)| s)
 					},
 					service::WestendExecutor::native_version().runtime_version
@@ -158,7 +163,8 @@ pub fn run() -> Result<()> {
 							None,
 							authority_discovery_enabled,
 							6000,
-							grandpa_pause
+							grandpa_pause,
+							None,
 						).map(|(s, _, _)| s)
 					},
 					service::PolkadotExecutor::native_version().runtime_version
@@ -203,7 +209,7 @@ pub fn run() -> Result<()> {
 			if cfg!(feature = "browser") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(not(feature = "browser"))]
+				#[cfg(all(not(feature = "browser"), not(feature = "service-rewr")))]
 				service::run_validation_worker(&cmd.mem_id)?;
 				Ok(())
 			}
