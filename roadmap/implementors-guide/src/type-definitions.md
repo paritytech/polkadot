@@ -156,7 +156,7 @@ enum StatementDistributionMessage {
 ## Misbehavior Arbitration Message
 
 ```rust
-enum MisbehaviorArbitrationMessage {
+enum MisbehaviorReport {
   /// These validator nodes disagree on this candidate's validity, please figure it out
   ///
   /// Most likely, the list of statments all agree except for the final one. That's not
@@ -188,6 +188,10 @@ enum ProvisionerMessage {
   /// This message allows potential block authors to be kept updated with all new authorship data
   /// as it becomes available.
   RequestBlockAuthorshipData(Hash, Sender<CandidateReceipt>),
+  /// Misbehavior reports are self-contained proofs of validator misbehavior.
+  MisbehaviorReport(MisbehaviorReport),
+  /// Disputes trigger a broad dispute resolution process.
+  Dispute(Hash, Signature),
 }
 ```
 
