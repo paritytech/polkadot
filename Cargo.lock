@@ -4529,33 +4529,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-test"
-version = "0.8.2"
-dependencies = [
- "futures 0.3.5",
- "log 0.4.8",
- "polkadot-availability-store",
- "polkadot-network",
- "polkadot-primitives",
- "polkadot-rpc",
- "polkadot-service",
- "polkadot-test-runtime",
- "polkadot-validation",
- "sc-authority-discovery",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-finality-grandpa",
- "sc-network",
- "sc-service",
- "sc-transaction-pool",
- "sp-consensus",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
-]
-
-[[package]]
 name = "polkadot-test-runtime"
 version = "0.8.7"
 dependencies = [
@@ -4634,6 +4607,33 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "substrate-test-client",
+]
+
+[[package]]
+name = "polkadot-test-service"
+version = "0.8.2"
+dependencies = [
+ "futures 0.3.5",
+ "log 0.4.8",
+ "polkadot-availability-store",
+ "polkadot-network",
+ "polkadot-primitives",
+ "polkadot-rpc",
+ "polkadot-service",
+ "polkadot-test-runtime",
+ "polkadot-validation",
+ "sc-authority-discovery",
+ "sc-client-api",
+ "sc-consensus",
+ "sc-consensus-babe",
+ "sc-finality-grandpa",
+ "sc-network",
+ "sc-service",
+ "sc-transaction-pool",
+ "sp-consensus",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-inherents",
 ]
 
 [[package]]

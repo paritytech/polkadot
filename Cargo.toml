@@ -29,7 +29,7 @@ members = [
 	"erasure-coding",
 	"network",
 	"network/test",
-	"polkadot-test",
+	"polkadot-test-service",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
