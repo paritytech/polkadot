@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot service. Specialized wrapper over substrate service.
+//! Polkadot test service only.
 
 use std::sync::Arc;
 use std::time::Duration;
