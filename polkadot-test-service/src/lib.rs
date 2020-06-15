@@ -37,8 +37,6 @@ pub fn polkadot_test_new_full(
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -56,10 +54,8 @@ pub fn polkadot_test_new_full(
 		max_block_data_size,
 		authority_discovery_enabled,
 		slot_duration,
-		grandpa_pause,
 		polkadot_test_runtime::RuntimeApi,
 		PolkadotExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
