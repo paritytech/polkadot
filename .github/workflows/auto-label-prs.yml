@@ -2,10 +2,10 @@ name: Label new PRs
 on:
   pull_request:
     types: [opened,ready_for_review]
-    
+
 jobs:
   label-new-prs:
-    runs-on: ubuntu:latest
+    runs-on: ubuntu-latest
     steps:
       - name: Label new drafts
         uses: andymckay/labeler@master
