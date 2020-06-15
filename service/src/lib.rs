@@ -592,10 +592,8 @@ macro_rules! new_full {
 		$max_block_data_size:expr,
 		$authority_discovery_enabled:expr,
 		$slot_duration:expr,
-		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
-		$informant_prefix:expr,
 	) => {{
 		new_full!(with_full_start
 			$config,
@@ -603,8 +601,8 @@ macro_rules! new_full {
 			$max_block_data_size,
 			$authority_discovery_enabled,
 			$slot_duration,
-			$grandpa_pause,
-			new_full_start!(test $config, $runtime, $dispatch, $informant_prefix),
+			None,
+			new_full_start!(test $config, $runtime, $dispatch, None),
 		)
 	}};
 }
