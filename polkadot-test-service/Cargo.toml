@@ -26,6 +26,5 @@ service = { package = "sc-service", git = "https://github.com/paritytech/substra
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]

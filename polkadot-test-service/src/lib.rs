@@ -23,17 +23,16 @@ use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError};
 use grandpa::{FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
-use service::{AbstractService, Role, TFullBackend, Configuration, config::PrometheusConfig};
+use service::{AbstractService, Role, TFullBackend, Configuration};
 use consensus_common::{SelectChain, block_validation::Chain};
-use prometheus_endpoint::Registry;
 use polkadot_primitives::parachain::{CollatorId};
 use polkadot_primitives::Block;
 use polkadot_service::PolkadotClient;
-use polkadot_service::{grandpa_support, new_full, new_full_start, FullNodeHandles, IdentifyVariant, PolkadotExecutor};
+use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotExecutor};
 
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
-	mut config: Configuration,
+	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
@@ -51,7 +50,7 @@ pub fn polkadot_test_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client, handles) = new_full!(test
 		config,
 		collating_for,
 		max_block_data_size,
