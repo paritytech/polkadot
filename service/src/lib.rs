@@ -51,8 +51,6 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
-#[cfg(feature = "test")]
-pub use polkadot_test_runtime;
 use prometheus_endpoint::Registry;
 pub use self::client::PolkadotClient;
 
