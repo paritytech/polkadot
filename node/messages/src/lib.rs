@@ -84,6 +84,9 @@ pub enum ValidationSubsystemMessage {
 	),
 }
 
+// TODO [now]: Statement gossip, availability distribution, bitfield distribution, bitfield signing
+// availability store, provisioner (see polkadot/1257 for latest), network bridge, misbehavior arbitration
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
