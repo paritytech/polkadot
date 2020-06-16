@@ -24,7 +24,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## Candidate Selection Message
 
-These messages are sent from the overseer to the [Candidate Selection subsystem](/node/backing/candidate-selection.html) when new parablocks are available for validation.
+These messages are sent from the overseer to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) when new parablocks are available for validation.
 
 ```rust
 enum CandidateSelectionMessage {
@@ -55,7 +55,7 @@ enum CandidateBackingMessage {
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](/node/utility/candidate-validation.html) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
 
 ```rust
 enum PoVOrigin {

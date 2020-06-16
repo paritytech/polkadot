@@ -21,7 +21,7 @@ enum ValidityAttestation {
 
 ## Statement Type
 
-The [Candidate Backing subsystem](/node/utility/candidate-backing.html) issues and signs these after candidate validation.
+The [Candidate Backing subsystem](../node/backing/candidate-backing.html) issues and signs these after candidate validation.
 
 ```rust
 /// A statement about the validity of a parachain candidate.

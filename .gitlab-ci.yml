@@ -285,4 +285,4 @@ check-labels:
   only:
     - /^[0-9]+$/
   script:
-    - ./scripts/gitlab/check_tags.sh
+    - ./scripts/gitlab/check_labels.sh
