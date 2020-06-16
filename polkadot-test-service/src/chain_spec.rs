@@ -1,22 +1,18 @@
-use polkadot_primitives::{parachain::{ValidatorId}, AccountId};
-use polkadot_service::{
-chain_spec::{get_account_id_from_seed, get_from_seed, Extensions}};
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
-use polkadot_test_runtime::constants::currency::DOTS;
-use sp_core::sr25519;
-use sc_chain_spec::{ChainType};
-use sp_runtime::{Perbill};
 use pallet_staking::Forcing;
+use polkadot_primitives::{parachain::ValidatorId, AccountId};
+use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
+use polkadot_test_runtime::constants::currency::DOTS;
+use sc_chain_spec::ChainType;
+use sp_core::sr25519;
+use sp_runtime::Perbill;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// The `ChainSpec parametrised for polkadot runtime`.
-pub type PolkadotChainSpec = service::GenericChainSpec<
-	polkadot_test_runtime::GenesisConfig,
-	Extensions,
->;
-
+pub type PolkadotChainSpec =
+	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
 
 /// Polkadot local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
@@ -45,13 +41,9 @@ fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
 }
 
 /// Helper function to generate stash, controller and session key from seed
-fn get_authority_keys_from_seed(seed: &str) -> (
-	AccountId,
-	AccountId,
-	BabeId,
-	GrandpaId,
-	ValidatorId,
-) {
+fn get_authority_keys_from_seed(
+	seed: &str,
+) -> (AccountId, AccountId, BabeId, GrandpaId, ValidatorId) {
 	(
 		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
 		get_account_id_from_seed::<sr25519::Public>(seed),
@@ -96,43 +88,55 @@ fn polkadot_testnet_genesis(
 			code: polkadot::WASM_BINARY.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(polkadot::IndicesConfig {
-			indices: vec![],
-		}),
+		indices: Some(polkadot::IndicesConfig { indices: vec![] }),
 		balances: Some(polkadot::BalancesConfig {
-			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+			balances: endowed_accounts
+				.iter()
+				.map(|k| (k.clone(), ENDOWMENT))
+				.collect(),
 		}),
 		session: Some(polkadot::SessionConfig {
-			keys: initial_authorities.iter().map(|x| (
-						  x.0.clone(),
-						  x.0.clone(),
+			keys: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.0.clone(),
 						polkadot_test_runtime::SessionKeys {
 							babe: x.2.clone(),
 							grandpa: x.3.clone(),
 							parachain_validator: x.4.clone(),
 						},
-				  )).collect::<Vec<_>>(),
+					)
+				})
+				.collect::<Vec<_>>(),
 		}),
 		staking: Some(polkadot::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
-			stakers: initial_authorities.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, polkadot::StakerStatus::Validator))
+			stakers: initial_authorities
+				.iter()
+				.map(|x| {
+					(
+						x.0.clone(),
+						x.1.clone(),
+						STASH,
+						polkadot::StakerStatus::Validator,
+					)
+				})
 				.collect(),
-				invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-				force_era: Forcing::NotForcing,
-				slash_reward_fraction: Perbill::from_percent(10),
-				.. Default::default()
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			..Default::default()
 		}),
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
-		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
-			keys: vec![],
-		}),
+		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig { keys: vec![] }),
 		parachains: Some(polkadot::ParachainsConfig {
 			authorities: vec![],
 		}),
-		registrar: Some(polkadot::RegistrarConfig{
+		registrar: Some(polkadot::RegistrarConfig {
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
@@ -140,9 +144,7 @@ fn polkadot_testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(polkadot::VestingConfig {
-			vesting: vec![],
-		}),
+		vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
 		// TODO: it should have one?
 		/*
 		sudo: Some(polkadot::SudoConfig {
