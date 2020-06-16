@@ -53,7 +53,7 @@ The second type of remote dispute is the unconcluded dispute. An unconcluded rem
 
 When beginning a remote dispute, at least one escalation by a validator is required, but this validator may be malicious and desires to be slashed. There is no guarantee that the para is registered on this fork of the relay chain or that the para was considered available on any fork of the relay chain.
 
-So the first step is to have the remote dispute proceed through an availability process similar to the one in the [Inclusion Module](/runtime/inclusion.html), but without worrying about core assignments or compactness in bitfields.
+So the first step is to have the remote dispute proceed through an availability process similar to the one in the [Inclusion Module](inclusion.html), but without worrying about core assignments or compactness in bitfields.
 
 We assume that remote disputes are with respect to the same validator set as on the current fork, as BABE and GRANDPA assure that forks are never long enough to diverge in validator set.
 > TODO: this is at least directionally correct. handling disputes on other validator sets seems useless anyway as they wouldn't be bonded.
