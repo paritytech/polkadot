@@ -275,37 +275,37 @@ mod tests {
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
 
 			Configuration::set_validation_upgrade_frequency(
-				Origin::ROOT, new_config.validation_upgrade_frequency,
+				Origin::root(), new_config.validation_upgrade_frequency,
 			).unwrap();
 			Configuration::set_validation_upgrade_delay(
-				Origin::ROOT, new_config.validation_upgrade_delay,
+				Origin::root(), new_config.validation_upgrade_delay,
 			).unwrap();
 			Configuration::set_acceptance_period(
-				Origin::ROOT, new_config.acceptance_period,
+				Origin::root(), new_config.acceptance_period,
 			).unwrap();
 			Configuration::set_max_code_size(
-				Origin::ROOT, new_config.max_code_size,
+				Origin::root(), new_config.max_code_size,
 			).unwrap();
 			Configuration::set_max_head_data_size(
-				Origin::ROOT, new_config.max_head_data_size,
+				Origin::root(), new_config.max_head_data_size,
 			).unwrap();
 			Configuration::set_parathread_cores(
-				Origin::ROOT, new_config.parathread_cores,
+				Origin::root(), new_config.parathread_cores,
 			).unwrap();
 			Configuration::set_parathread_retries(
-				Origin::ROOT, new_config.parathread_retries,
+				Origin::root(), new_config.parathread_retries,
 			).unwrap();
 			Configuration::set_parachain_rotation_frequency(
-				Origin::ROOT, new_config.parachain_rotation_frequency,
+				Origin::root(), new_config.parachain_rotation_frequency,
 			).unwrap();
 			Configuration::set_chain_availability_period(
-				Origin::ROOT, new_config.chain_availability_period,
+				Origin::root(), new_config.chain_availability_period,
 			).unwrap();
 			Configuration::set_thread_availability_period(
-				Origin::ROOT, new_config.thread_availability_period,
+				Origin::root(), new_config.thread_availability_period,
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
-				Origin::ROOT, new_config.scheduling_lookahead,
+				Origin::root(), new_config.scheduling_lookahead,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));
@@ -322,7 +322,7 @@ mod tests {
 	#[test]
 	fn setting_config_to_same_as_current_is_noop() {
 		new_test_ext(Default::default()).execute_with(|| {
-			Configuration::set_validation_upgrade_delay(Origin::ROOT, Default::default()).unwrap();
+			Configuration::set_validation_upgrade_delay(Origin::root(), Default::default()).unwrap();
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
 		});
 	}
