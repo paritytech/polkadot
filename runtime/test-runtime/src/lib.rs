@@ -51,7 +51,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness},
+	traits::{Get, KeyOwnerProofSystem, Randomness},
 	weights::Weight,
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -747,4 +747,12 @@ sp_api::impl_runtime_apis! {
 			TransactionPayment::query_info(uxt, len)
 		}
 	}
+}
+
+trait Config {
+	type EpochDuration: Get<u64>;
+}
+
+impl Config for Runtime {
+	type EpochDuration = EpochDuration;
 }
