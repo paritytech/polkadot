@@ -142,6 +142,11 @@ impl SignedAvailabilityBitfield {
 /// A bitfield signed by a particular validator about the availability of pending candidates.
 pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);
 
+/// A `CandidateReceipt` along with all data necessary to prove its backing.
+///
+/// This is submitted to the relay-chain to process and move along the candidate
+/// to the pending-availability stage.
+#[derive(Debug)]
 pub struct BackedCandidate {
 	/// Candidate receipt.
 	pub candidate: AbridgedCandidateReceipt,

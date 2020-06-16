@@ -45,7 +45,7 @@ pub enum OverseerSignal {
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
-pub struct NewBackedCandidate; // TODO [now]
+pub struct NewBackedCandidate(pub BackedCandidate);
 
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
