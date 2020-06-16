@@ -496,7 +496,7 @@ mod tests {
 	use super::*;
 
 	use primitives::{BlockNumber, Hash};
-	use primitives::parachain::{SignedAvailabilityBitfield, Statement, ValidityAttestation};
+	use primitives::parachain::{SignedAvailabilityBitfield, Statement, ValidityAttestation, CollatorId};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
@@ -507,6 +507,7 @@ mod tests {
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use crate::paras::ParaGenesisArgs;
+	use crate::scheduler::AssignmentKind;
 
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();
@@ -532,7 +533,7 @@ mod tests {
 		}
 	}
 
-	#[derive(Clone, Copy, PartialEq)]
+	#[derive(Debug, Clone, Copy, PartialEq)]
 	enum BackingKind {
 		Unanimous,
 		Threshold,
@@ -593,15 +594,18 @@ mod tests {
 			BackingKind::Lacking => false,
 		};
 
-		assert_eq!(
-			primitives::parachain::check_candidate_backing(
-				&backed,
-				signing_context,
-				group.len(),
-				|i| Some(validators[i].public().into()),
-			).is_ok(),
-			should_pass,
-		);
+		let successfully_backed = primitives::parachain::check_candidate_backing(
+			&backed,
+			signing_context,
+			group.len(),
+			|i| Some(validators[group[i] as usize].public().into()),
+		).ok().unwrap_or(0) * 2 > group.len();
+
+		if should_pass {
+			assert!(successfully_backed);
+		} else {
+			assert!(!successfully_backed);
+		}
 
 		backed
 	}
@@ -1010,6 +1014,29 @@ mod tests {
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 			};
 
+			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+
+			let chain_a_assignment = CoreAssignment {
+				core: CoreIndex::from(0),
+				para_id: chain_b,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(0),
+			};
+
+			let chain_b_assignment = CoreAssignment {
+				core: CoreIndex::from(1),
+				para_id: chain_b,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(1),
+			};
+
+			let thread_a_assignment = CoreAssignment {
+				core: CoreIndex::from(2),
+				para_id: chain_b,
+				kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+				group_idx: GroupIndex::from(2),
+			};
+
 			// unscheduled candidate.
 			{
 				let mut candidate = AbridgedCandidateReceipt {
@@ -1022,30 +1049,194 @@ mod tests {
 					Sr25519Keyring::One,
 					&mut candidate,
 				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_b_assignment.clone()],
+					&group_validators,
+				).is_err());
 			}
 
 			// candidates out of order.
 			{
+				let mut candidate_a = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+				let mut candidate_b = AbridgedCandidateReceipt {
+					parachain_index: chain_b,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([2; 32]),
+					..Default::default()
+				};
 
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate_a,
+				);
+
+				collator_sign_candidate(
+					Sr25519Keyring::Two,
+					&mut candidate_b,
+				);
+
+				let backed_a = back_candidate(
+					candidate_a,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				let backed_b = back_candidate(
+					candidate_b,
+					&validators,
+					group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed_b, backed_a],
+					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
+					&group_validators,
+				).is_err());
 			}
 
 			// candidate not backed.
 			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
 
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Lacking,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				).is_err());
 			}
 
 			// candidate not in parent context.
 			{
+				let wrong_parent_hash = Hash::from([222; 32]);
+				assert!(System::parent_hash() != wrong_parent_hash);
 
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: wrong_parent_hash,
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				).is_err());
 			}
 
 			// candidate has wrong collator.
 			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: thread_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
 
+				assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_a_assignment.clone(), chain_b_assignment.clone(), thread_a_assignment.clone()],
+					&group_validators,
+				).is_err());
+			}
+
+			// candidate not well-signed by collator.
+			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: thread_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+
+				assert_eq!(CollatorId::from(Sr25519Keyring::Two.public()), thread_collator);
+				collator_sign_candidate(
+					Sr25519Keyring::Two,
+					&mut candidate,
+				);
+
+				candidate.pov_block_hash = Hash::from([2; 32]);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![thread_a_assignment.clone()],
+					&group_validators,
+				).is_err());
 			}
 		});
 	}
 
+	// TODO [now]: candidate inclusion sets storage correctly.
 	// TODO [now]: candidate with interfering code upgrade is rejected.
 	// TODO [now]: session change wipes everything and updates validators / session index.
 }

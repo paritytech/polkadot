@@ -142,7 +142,7 @@ pub enum AssignmentKind {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Encode, Decode)]
+#[derive(Clone, Encode, Decode)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
