@@ -4230,6 +4230,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
+ "bitvec",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",

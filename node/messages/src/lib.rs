@@ -24,9 +24,13 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{AbridgedCandidateReceipt, PoVBlock};
-use polkadot_node_primitives::SignedStatement;
+use polkadot_primitives::{Hash, Signature};
+use polkadot_primitives::parachain::{
+	AbridgedCandidateReceipt, PoVBlock, ErasureChunk,
+};
+use polkadot_node_primitives::{
+	BackedCandidate, MisbehaviorReport, SignedStatement, SignedAvailabilityBitfield,
+};
 
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
@@ -84,8 +88,51 @@ pub enum ValidationSubsystemMessage {
 	),
 }
 
-// TODO [now]: Statement gossip, availability distribution, bitfield distribution, bitfield signing
-// availability store, provisioner (see polkadot/1257 for latest), network bridge, misbehavior arbitration
+// TODO [now]: network bridge
+
+/// Availability Distribution Message.
+pub enum AvailabilityDistributionMessage {
+	/// Distribute an availability chunk to other validators.
+	DistributeChunk(Hash, ErasureChunk),
+	/// Fetch an erasure chunk from networking by candidate hash and chunk index.
+	FetchChunk(Hash, u32),
+}
+
+/// Bitfield distribution message.
+pub enum BitfieldDistributionMessage {
+	/// Distribute a bitfield via gossip to other validators.
+	DistributeBitfield(Hash, SignedAvailabilityBitfield),
+}
+
+/// Statement distribution message.
+pub enum StatementDistributionMessage {
+  /// We have originated a signed statement in the context of
+  /// given relay-parent hash and it should be distributed to other validators.
+  Share(Hash, SignedStatement),
+}
+
+/// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+pub enum ProvisionableData {
+	/// This bitfield indicates the availability of various candidate blocks.
+	Bitfield(Hash, SignedAvailabilityBitfield),
+	/// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
+	BackedCandidate(BackedCandidate),
+	/// Misbehavior reports are self-contained proofs of validator misbehavior.
+	MisbehaviorReport(Hash, MisbehaviorReport),
+	/// Disputes trigger a broad dispute resolution process.
+	Dispute(Hash, Signature),
+}
+
+/// Message to the Provisioner.
+///
+/// In all cases, the Hash is that of the relay parent.
+pub enum ProvisionerMessage {
+	/// This message allows potential block authors to be kept updated with all new authorship data
+	/// as it becomes available.
+	RequestBlockAuthorshipData(Hash, mpsc::Sender<ProvisionableData>),
+	/// This data should become part of a relay chain block
+	ProvisionableData(ProvisionableData),
+}
 
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]

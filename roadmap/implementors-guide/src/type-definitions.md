@@ -145,6 +145,16 @@ enum StatementDistributionMessage {
 }
 ```
 
+## Availability Distribution Message
+
+```rust
+enum AvailabilityDistributionMessage {
+  /// Distribute an availability chunk to other validators.
+  DistributeChunk(Hash, ErasureChunk),
+  /// Fetch an erasure chunk from network by candidate hash and chunk index.
+  FetchChunk(Hash, u32),
+}
+
 ## Misbehavior Arbitration Message
 
 ```rust

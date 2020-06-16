@@ -20,11 +20,13 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+use bitvec::vec::BitVec;
+
 use runtime_primitives::traits::AppVerify;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, SigningContext, ValidatorSignature,
-	ValidatorIndex, ValidatorId,
+	AbridgedCandidateReceipt, CandidateReceipt, SigningContext, ValidatorSignature,
+	ValidatorIndex, ValidatorId, ValidityAttestation,
 };
 use parity_scale_codec::{Encode, Decode};
 
@@ -89,4 +91,63 @@ impl SignedStatement {
 			Err(())
 		}
 	}
+}
+
+/// A misbehaviour report.
+pub enum MisbehaviorReport {
+	/// These validator nodes disagree on this candidate's validity, please figure it out
+	///
+	/// Most likely, the list of statments all agree except for the final one. That's not
+	/// guaranteed, though; if somehow we become aware of lots of
+	/// statements disagreeing about the validity of a candidate before taking action,
+	/// this message should be dispatched with all of them, in arbitrary order.
+	///
+	/// This variant is also used when our own validity checks disagree with others'.
+	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+	/// I've noticed a peer contradicting itself about a particular candidate
+	SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+	/// This peer has seconded more than one parachain candidate for this relay parent head
+	DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+}
+
+/// A bitfield signed by a particular validator about the availability of pending candidates.
+pub struct SignedAvailabilityBitfield {
+	/// The index of the validator that signed this bitfield
+	pub validator_index: ValidatorIndex,
+	/// Bitfield itself.
+	pub bitfield: BitVec<bitvec::order::Lsb0, u8>,
+	/// Signature.
+	pub signature: ValidatorSignature, // signature is on payload: bitfield ++ relay_parent ++ validator index
+}
+
+impl SignedAvailabilityBitfield {
+	/// Check the signature on an availability bitfield. Provide a list of validators to index into.
+	///
+	/// Returns an `Err` if out of bounds or the signature is invalid. Otherwise, returns `Ok`.
+	pub fn check_signature(
+		&self,
+		validators: &[ValidatorId],
+	) -> Result<(), ()> {
+		let validator = validators.get(self.validator_index as usize).ok_or(())?;
+		let payload = self.bitfield.as_slice();
+
+		if self.signature.verify(payload, validator) {
+			Ok(())
+		} else {
+			Err(())
+		}
+	}
+}
+
+/// A bitfield signed by a particular validator about the availability of pending candidates.
+pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);
+
+pub struct BackedCandidate {
+	/// Candidate receipt.
+	pub candidate: AbridgedCandidateReceipt,
+	/// Votes for it
+	pub validity_votes: Vec<ValidityAttestation>,
+	/// The indices of validators who signed the candidate within the group. There is no need to include
+	/// bit for any validators who are not in the group, so this is more compact.
+	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
 }
