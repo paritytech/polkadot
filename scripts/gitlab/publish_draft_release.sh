@@ -69,8 +69,8 @@ priority_labels=(
 declare -A priority_descriptions=(
 ['C1-low']="Upgrade priority: Low (upgrade at your convenience)"
 ['C3-medium']="Upgrade priority: *Medium* (timely upgrade recommended)"
-['C7-high']="Upgrade priority:❗ HIGH ❗ Please upgrade your node as soon as possible"
-['C9-critical']="Upgrade priority: ❗❗ URGENT ❗❗ PLEASE UPGRADE IMMEDIATELY"
+['C7-high']="Upgrade priority:❗ **HIGH** ❗ Please upgrade your node as soon as possible"
+['C9-critical']="Upgrade priority: ❗❗ **URGENT** ❗❗ PLEASE UPGRADE IMMEDIATELY"
 )
 
 max_label=-1
@@ -180,15 +180,15 @@ pushd $substrate_dir || exit
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
       continue
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-runtimenoteworthy'; then
+    if has_label 'paritytech/substrate' "$pr_id" 'B7-runtimenoteworthy'; then
       substrate_runtime_changes="$substrate_runtime_changes
 $line"
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-clientnoteworthy'; then
+    if has_label 'paritytech/substrate' "$pr_id" 'B5-clientnoteworthy'; then
       substrate_client_changes="$substrate_client_changes
 $line"
     fi
-     if has_label 'paritytech/substrate' "$pr_id" 'B1-apinoteworthy' ; then
+     if has_label 'paritytech/substrate' "$pr_id" 'B3-apinoteworthy' ; then
       substrate_api_changes="$substrate_api_changes
 $line"
       continue
