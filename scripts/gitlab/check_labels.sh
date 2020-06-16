@@ -14,9 +14,9 @@ ensure_labels() {
 
 # Must have one of the following labels
 releasenotes_labels=(
+  'B0-silent'
   'B1-releasenotes'
-  'B1-runtimenoteworthy'
-  'B1-silent'
+  'B2-runtimenoteworthy'
 )
 
 criticality_labels=(
