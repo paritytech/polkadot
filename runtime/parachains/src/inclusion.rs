@@ -50,7 +50,7 @@ pub struct AvailabilityBitfieldRecord<N> {
 }
 
 /// A backed candidate pending availability.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, PartialEq)]
 #[cfg_attr(test, derive(Debug))]
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
@@ -496,7 +496,10 @@ mod tests {
 	use super::*;
 
 	use primitives::{BlockNumber, Hash};
-	use primitives::parachain::{SignedAvailabilityBitfield, Statement, ValidityAttestation, CollatorId};
+	use primitives::parachain::{
+		SignedAvailabilityBitfield, Statement, ValidityAttestation, CollatorId,
+		CandidateCommitments,
+	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
@@ -1009,8 +1012,8 @@ mod tests {
 
 			let group_validators = |group_index: GroupIndex| match group_index {
 				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
-				group_index if group_index == GroupIndex::from(1) => Some(vec![3, 4]),
-				group_index if group_index == GroupIndex::from(2) => Some(vec![5]),
+				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
 				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
 			};
 
@@ -1190,14 +1193,18 @@ mod tests {
 				let backed = back_candidate(
 					candidate,
 					&validators,
-					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
 
 				assert!(Inclusion::process_candidates(
 					vec![backed],
-					vec![chain_a_assignment.clone(), chain_b_assignment.clone(), thread_a_assignment.clone()],
+					vec![
+						chain_a_assignment.clone(),
+						chain_b_assignment.clone(),
+						thread_a_assignment.clone(),
+					],
 					&group_validators,
 				).is_err());
 			}
@@ -1222,7 +1229,7 @@ mod tests {
 				let backed = back_candidate(
 					candidate,
 					&validators,
-					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1233,10 +1240,249 @@ mod tests {
 					&group_validators,
 				).is_err());
 			}
+
+			// para occupied - reject.
+			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					..Default::default()
+				};
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					receipt: Default::default(),
+					availability_votes: default_availability_votes(),
+					relay_parent_number: 3,
+					backed_in_number: 4,
+				});
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				).is_err());
+
+				<PendingAvailability<Test>>::remove(&chain_a);
+			}
+
+			// interfering code upgrade - reject
+			{
+				let mut candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_block_hash: Hash::from([1; 32]),
+					commitments: CandidateCommitments {
+						new_validation_code: Some(vec![5, 6, 7, 8].into()),
+						..Default::default()
+					},
+					..Default::default()
+				};
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				Paras::schedule_code_upgrade(
+					chain_a,
+					vec![1, 2, 3, 4].into(),
+					10,
+				);
+
+				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(10));
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![thread_a_assignment.clone()],
+					&group_validators,
+				).is_err());
+			}
 		});
 	}
 
-	// TODO [now]: candidate inclusion sets storage correctly.
-	// TODO [now]: candidate with interfering code upgrade is rejected.
+	#[test]
+	fn backing_works() {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			run_to_block(5, |_| None);
+
+			let signing_context = SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: 5,
+			};
+
+			let group_validators = |group_index: GroupIndex| match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1]),
+				group_index if group_index == GroupIndex::from(1) => Some(vec![2, 3]),
+				group_index if group_index == GroupIndex::from(2) => Some(vec![4]),
+				_ => panic!("Group index out of bounds for 2 parachains and 1 parathread core"),
+			};
+
+			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+
+			let chain_a_assignment = CoreAssignment {
+				core: CoreIndex::from(0),
+				para_id: chain_a,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(0),
+			};
+
+			let chain_b_assignment = CoreAssignment {
+				core: CoreIndex::from(1),
+				para_id: chain_b,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(1),
+			};
+
+			let thread_a_assignment = CoreAssignment {
+				core: CoreIndex::from(2),
+				para_id: thread_a,
+				kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+				group_idx: GroupIndex::from(2),
+			};
+
+			let mut candidate_a = AbridgedCandidateReceipt {
+				parachain_index: chain_a,
+				relay_parent: System::parent_hash(),
+				pov_block_hash: Hash::from([1; 32]),
+				..Default::default()
+			};
+			collator_sign_candidate(
+				Sr25519Keyring::One,
+				&mut candidate_a,
+			);
+
+			let mut candidate_b = AbridgedCandidateReceipt {
+				parachain_index: chain_b,
+				relay_parent: System::parent_hash(),
+				pov_block_hash: Hash::from([2; 32]),
+				..Default::default()
+			};
+			collator_sign_candidate(
+				Sr25519Keyring::One,
+				&mut candidate_b,
+			);
+
+			let mut candidate_c = AbridgedCandidateReceipt {
+				parachain_index: thread_a,
+				relay_parent: System::parent_hash(),
+				pov_block_hash: Hash::from([3; 32]),
+				..Default::default()
+			};
+			collator_sign_candidate(
+				Sr25519Keyring::Two,
+				&mut candidate_c,
+			);
+
+			let backed_a = back_candidate(
+				candidate_a.clone(),
+				&validators,
+				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				&signing_context,
+				BackingKind::Threshold,
+			);
+
+			let backed_b = back_candidate(
+				candidate_b.clone(),
+				&validators,
+				group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+				&signing_context,
+				BackingKind::Threshold,
+			);
+
+			let backed_c = back_candidate(
+				candidate_c.clone(),
+				&validators,
+				group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+				&signing_context,
+				BackingKind::Threshold,
+			);
+
+			let occupied_cores = Inclusion::process_candidates(
+				vec![backed_a, backed_b, backed_c],
+				vec![
+					chain_a_assignment.clone(),
+					chain_b_assignment.clone(),
+					thread_a_assignment.clone(),
+				],
+				&group_validators,
+			).expect("candidates scheduled, in order, and backed");
+
+			assert_eq!(occupied_cores, vec![CoreIndex::from(0), CoreIndex::from(1), CoreIndex::from(2)]);
+
+			assert_eq!(
+				<PendingAvailability<Test>>::get(&chain_a),
+				Some(CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					receipt: candidate_a,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
+				})
+			);
+
+			assert_eq!(
+				<PendingAvailability<Test>>::get(&chain_b),
+				Some(CandidatePendingAvailability {
+					core: CoreIndex::from(1),
+					receipt: candidate_b,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
+				})
+			);
+
+			assert_eq!(
+				<PendingAvailability<Test>>::get(&thread_a),
+				Some(CandidatePendingAvailability {
+					core: CoreIndex::from(2),
+					receipt: candidate_c,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
+				})
+			);
+		});
+	}
+
 	// TODO [now]: session change wipes everything and updates validators / session index.
 }
