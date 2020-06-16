@@ -4714,6 +4714,7 @@ dependencies = [
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-runtime",
+ "sp-state-machine",
  "tempfile",
 ]
 

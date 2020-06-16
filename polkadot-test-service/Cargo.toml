@@ -30,6 +30,7 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 tempfile = "3.1.0"

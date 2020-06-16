@@ -14,7 +14,15 @@ async fn ensure_test_service_build_blocks() {
 	let temp = tempfile::Builder::new().prefix("polkadot-test-service").tempdir().unwrap();
 	let task_executor = task_executor();
 
-	let service = run_test_node(task_executor, &temp.path().to_path_buf()).unwrap();
+	let service = run_test_node(
+		task_executor,
+		&temp.path().to_path_buf(),
+		|| {
+			use polkadot_test_runtime::*;
+			EpochDuration::set(&42);
+			//panic!("{:?}", EpochDuration::get());
+		},
+	).unwrap();
 
 	let t1 = service.fuse();
 	let t2 = async_std::task::sleep(Duration::from_secs(10)).fuse();

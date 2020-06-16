@@ -39,9 +39,10 @@ use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use polkadot_test_runtime::constants::currency::DOTS;
 use sp_core::sr25519;
-use sc_chain_spec::{ChainType};
+use sc_chain_spec::{ChainType, ChainSpec};
 use sp_runtime::{Perbill};
 use pallet_staking::Forcing;
+use sp_state_machine::BasicExternalities;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
@@ -158,8 +159,30 @@ fn node_config(
 	}
 }
 
-pub fn run_test_node(task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>, root: &PathBuf) -> Result<impl AbstractService, ()> {
-	let spec = polkadot_local_testnet_config();
+pub fn run_test_node(
+	task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>,
+	root: &PathBuf,
+	storage_update_func: impl Fn(),
+) -> Result<impl AbstractService, ()> {
+	let mut spec = polkadot_local_testnet_config();
+
+	let mut storage = spec.as_storage_builder().build_storage().unwrap();
+	BasicExternalities::execute_with_storage(
+		&mut storage,
+		storage_update_func,
+	);
+
+	spec.set_storage(storage);
+
+	let mut storage = spec.as_storage_builder().build_storage().unwrap();
+	BasicExternalities::execute_with_storage(
+		&mut storage,
+		|| {
+			use polkadot_test_runtime::*;
+			panic!("{:?}", EpochDuration::get());
+		},
+	);
+
 	let key = String::new();
 	let base_port = 27015;
 	let config = node_config(
