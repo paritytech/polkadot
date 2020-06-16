@@ -70,3 +70,63 @@ enum CandidateValidationMessage {
   Validate(CandidateHash, RelayHash, PoVOrigin),
 }
 ```
+
+## Statement Distribution Message
+
+```rust
+enum StatementDistributionMessage {
+  /// A peer has seconded a candidate and we need to double-check them
+  Peer(SignedStatement),
+  /// We have validated a candidate and want to share our judgment with our peers
+  ///
+  /// The statement distribution subsystem is responsible for signing this statement.
+  Share(Statement),
+}
+```
+
+## Misbehavior Arbitration Message
+
+```rust
+enum MisbehaviorReport {
+  /// These validator nodes disagree on this candidate's validity, please figure it out
+  ///
+  /// Most likely, the list of statments all agree except for the final one. That's not
+  /// guaranteed, though; if somehow we become aware of lots of
+  /// statements disagreeing about the validity of a candidate before taking action,
+  /// this message should be dispatched with all of them, in arbitrary order.
+  ///
+  /// This variant is also used when our own validity checks disagree with others'.
+  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+  /// I've noticed a peer contradicting itself about a particular candidate
+  SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+  /// This peer has seconded more than one parachain candidate for this relay parent head
+  DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+}
+```
+
+## Provisioner Message
+
+```rust
+/// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+enum ProvisionableData {
+  /// This bitfield indicates the availability of various candidate blocks.
+  Bitfield(Hash, SignedAvailabilityBitfield),
+  /// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
+  BackedCandidate(BackedCandidate),
+  /// Misbehavior reports are self-contained proofs of validator misbehavior.
+  MisbehaviorReport(Hash, MisbehaviorReport),
+  /// Disputes trigger a broad dispute resolution process.
+  Dispute(Hash, Signature),
+}
+
+/// Message to the Provisioner.
+///
+/// In all cases, the Hash is that of the relay parent.
+enum ProvisionerMessage {
+  /// This message allows potential block authors to be kept updated with all new authorship data
+  /// as it becomes available.
+  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
+  /// This data should become part of a relay chain block
+  ProvisionableData(ProvisionableData),
+}
+```

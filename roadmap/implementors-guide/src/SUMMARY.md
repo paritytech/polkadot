@@ -38,6 +38,8 @@
     - [Peer Set Manager](node/utility/peer-set-manager.md)
 - [Data Structures and Types](types/README.md)
     - [Candidate](types/candidate.md)
+	- [Backing](types/backing.md)
+	- [Availability](types/availabilty.md)
 	- [Overseer and Subsystem Protocol](types/overseer-protocol.md)
 
 [Glossary](glossary.md)
