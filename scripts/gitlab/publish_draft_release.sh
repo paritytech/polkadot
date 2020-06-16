@@ -75,22 +75,32 @@ declare -A priority_descriptions=(
 
 max_label=-1
 priority=""
+declare -a priority_changes
 
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
 
   # Release priority check:
-  # For each PR, we look for every label of increasing priority than the current
-  # max. I.e., if there has already been a PR marked as 'medium', we only need
-  # to look for priorities *above* medium. If we find one, we set the
+  # For each PR, we look for every label equal to or higher than the current highest
+  # I.e., if there has already been a PR marked as 'medium', we only need
+  # to look for priorities medium or above. If we find one, we set the
   # priority to that level.
-  for ((index=max_label+1; index<${#priority_labels[@]}; index++)) ; do
+  for ((index=max_label; index<${#priority_labels[@]}; index++)) ; do
     cur_label="${priority_labels[$index]}"
     echo "[+] Checking #$pr_id for presence of $cur_label label"
     if has_label 'paritytech/polkadot' "$pr_id" "$cur_label" ; then
       echo "[+] #$pr_id has label $cur_label. Increasing max."
+      prev_label="$max_label"
       max_label="$index"
       priority="${priority_descriptions[$cur_label]}"
+      # If it's not an increase in priority, we just append the PR to the list
+      if [ "$prev_label" == "$max_label" ]; then
+        priority_changes+=("#$pr_id")
+      fi
+      # If the priority has increased, we override previous changes with new changes
+      if [ "$prev_label" != "$max_label" ]; then
+        priority_changes=("#$pr_id")
+      fi
     fi
   done
 
@@ -110,10 +120,6 @@ $line"
 done <<< "$(sanitised_git_logs "$last_version" "$version" | \
   sed '/^\[contracts\].*/d' | \
   sed '/^contracts:.*/d' )"
-
-release_text="$priority
-
-$release_text"
 
 if [ -n "$runtime_changes" ]; then
     release_text="$release_text
@@ -137,9 +143,35 @@ pushd $substrate_dir || exit
   substrate_client_changes=""
   substrate_changes=""
 
+  # Upgrade priority variables
+  substrate_max_label=-1
+  substrate_priority=""
+  declare -a substrate_priority_changes
+
   echo "[+] Iterating through substrate changes to find labelled PRs"
   while IFS= read -r line; do
     pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+    # Basically same check as Polkadot priority
+    # We only need to check for any labels of the current priority or higher
+    for ((index=substrate_max_label; index<${#priority_labels[@]}; index++)) ; do
+      cur_label="${priority_labels[$index]}"
+      echo "[+] Checking substrate/#$pr_id for presence of $cur_label label"
+      if has_label 'paritytech/substrate' "$pr_id" "$cur_label" ; then
+        echo "[+] #$pr_id has label $cur_label. Increasing max."
+        prev_label="$substrate_max_label"
+        substrate_max_label="$index"
+        substrate_priority="${priority_descriptions[$cur_label]}"
+        # If it's not an increase in priority, we just append
+        if [ "$prev_label" == "$max_label" ]; then
+          substrate_priority_changes+=("paritytech/substrate#$pr_id")
+        fi
+        # If the priority has increased, we override previous changes with new changes
+        if [ "$prev_label" != "$max_label" ]; then
+          substrate_priority_changes=("paritytech/substrate#$pr_id")
+        fi
+      fi
+    done
 
     # Skip if the PR has the silent label - this allows us to skip a few requests
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
@@ -160,8 +192,6 @@ $line"
     fi
   done <<< "$all_substrate_changes"
 popd || exit
-
-echo "[+] Changes generated. Removing temporary repos"
 
 # Make the substrate section if there are any substrate changes
 if [ -n "$substrate_runtime_changes" ] ||
@@ -195,9 +225,20 @@ $substrate_api_changes"
 $substrate_changes"
 fi
 
+# Finally, add the priorities
+# If polkadot and substrate priority = low, no need for list of changes
+if [ "$priority" == "${priority_descriptions['C1-low']}" ] &&
+   [ "$substrate_priority" == "${priority_descriptions['C1-low']}" ]; then
+  release_text="Upgrade priority: $priority
+$release_text"
+else
+  release_text="Upgrade priority: $priority - due to change(s): ${priority_changes[*]} ${substrate_priority_changes[*]}
+$release_text"
+fi
+
 echo "[+] Release text generated: "
 echo "$release_text"
-
+exit
 echo "[+] Pushing release to github"
 # Create release on github
 release_name="Polkadot CC1 $version"
