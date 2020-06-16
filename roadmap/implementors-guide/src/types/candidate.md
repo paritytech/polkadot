@@ -8,33 +8,18 @@ This section will describe the base candidate type, its components, and abridged
 
 ## CandidateReceipt
 
-This is the base receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`AbridgedCandidateReceipt`](#abridgedcandidatereceipt) variant is often used instead for this reason.
+This is the base receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`AbridgedCandidateReceipt`](#abridgedcandidatereceipt) variant is often used instead for this reason.
 
 However, the full CandidateReceipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
 ```rust
 /// All data pertaining to the execution of a para candidate.
 struct CandidateReceipt {
-	/// The ID of the para this is a candidate for.
-	para_id: ParaId,
-	/// The hash of the relay-chain block this should be executed in
-	/// the context of.
-	relay_parent: Hash,
-	/// The head-data produced as a result of execution.
-	head_data: HeadData,
-	/// The collator's sr25519 public key.
-	collator: CollatorId,
-	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, the head data, and the pov_hash.
-	signature: CollatorSignature,
-	/// The blake2-256 hash of the PoV.
-	pov_hash: Hash,
+	inner: AbridgedCandidateReceipt,
 	/// The global validation schedule.
 	global_validation: GlobalValidationSchedule,
 	/// The local validation data.
 	local_validation: LocalValidationData,
-	/// Commitments made as a result of validation.
-	commitments: CandidateCommitments,
 }
 ```
 
