@@ -197,6 +197,30 @@ enum ProvisionerMessage {
 }
 ```
 
+## Runtime API Message
+
+The Runtime API subsystem is responsible for providing an interface to the state of the chain's runtime.
+
+Other subsystems query this data by sending these messages.
+
+```rust
+enum RuntimeApiRequest {
+	/// Get the current validator set.
+	Validators(ResponseChannel<Vec<ValidatorId>>),
+	/// Get a signing context for bitfields and statements.
+	SigningContext(ResponseChannel<SigningContext>),
+	/// Get the validation code for a specific para, assuming execution under given block number, and
+	/// an optional block number representing an intermediate parablock executed in the context of
+	/// that block.
+	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, ResponseChannel<ValidationCode>),
+}
+
+enum RuntimeApiMessage {
+	/// Make a request of the runtime API against the post-state of the given relay-parent.
+	Request(Hash, RuntimeApiRequest),
+}
+```
+
 ## Statement Distribution Message
 
 The Statement Distribution subsystem distributes signed statements from validators to other validators.
