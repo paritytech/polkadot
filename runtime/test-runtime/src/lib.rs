@@ -751,8 +751,64 @@ sp_api::impl_runtime_apis! {
 
 trait Config {
 	type EpochDuration: Get<u64>;
+	type ExpectedBlockTime: Get<Moment>;
+	type IndexDeposit: Get<Balance>;
+	type ExistentialDeposit: Get<Balance>;
+	type TransactionByteFee: Get<Balance>;
+	type TargetBlockFullness: Get<Perquintill>;
+	type MinimumPeriod: Get<u64>;
+	type UncleGenerations: Get<u32>;
+	type Period: Get<BlockNumber>;
+	type Offset: Get<BlockNumber>;
+	type DisabledValidatorsThreshold: Get<Perbill>;
+	type SessionsPerEra: Get<SessionIndex>;
+	type BondingDuration: Get<staking::EraIndex>;
+	type SlashDeferDuration: Get<staking::EraIndex>;
+	type MaxNominatorRewardedPerValidator: Get<u32>;
+	type ElectionLookahead: Get<BlockNumber>;
+	type StakingUnsignedPriority: Get<TransactionPriority>;
+	type MaxIterations: Get<u32>;
+	type MaxCodeSize: Get<u32>;
+	type MaxHeadDataSize: Get<u32>;
+	type ValidationUpgradeFrequency: Get<BlockNumber>;
+	type ValidationUpgradeDelay: Get<BlockNumber>;
+	type SlashPeriod: Get<BlockNumber>;
+	type OffencesWeightSoftLimit: Get<Weight>;
+	type ParathreadDeposit: Get<Balance>;
+	type MaxRetries: Get<u32>;
+	type LeasePeriod: Get<BlockNumber>;
+	type EndingPeriod: Get<BlockNumber>;
+	type MinVestedTransfer: Get<Balance>;
 }
 
 impl Config for Runtime {
 	type EpochDuration = EpochDuration;
+	type ExpectedBlockTime = ExpectedBlockTime;
+	type IndexDeposit = IndexDeposit;
+	type ExistentialDeposit = ExistentialDeposit;
+	type TransactionByteFee = TransactionByteFee;
+	type TargetBlockFullness = TargetBlockFullness;
+	type MinimumPeriod = MinimumPeriod;
+	type UncleGenerations = UncleGenerations;
+	type Period = Period;
+	type Offset = Offset;
+	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type SessionsPerEra = SessionsPerEra;
+	type BondingDuration = BondingDuration;
+	type SlashDeferDuration = SlashDeferDuration;
+	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type ElectionLookahead = ElectionLookahead;
+	type StakingUnsignedPriority = StakingUnsignedPriority;
+	type MaxIterations = MaxIterations;
+	type MaxCodeSize = MaxCodeSize;
+	type MaxHeadDataSize = MaxHeadDataSize;
+	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
+	type ValidationUpgradeDelay = ValidationUpgradeDelay;
+	type SlashPeriod = SlashPeriod;
+	type OffencesWeightSoftLimit = OffencesWeightSoftLimit;
+	type ParathreadDeposit = ParathreadDeposit;
+	type MaxRetries = MaxRetries;
+	type LeasePeriod = LeasePeriod;
+	type EndingPeriod = EndingPeriod;
+	type MinVestedTransfer = MinVestedTransfer;
 }
