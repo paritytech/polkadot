@@ -36,7 +36,9 @@
     - [Network Bridge](node/utility/network-bridge.md)
     - [Misbehavior Arbitration](node/utility/misbehavior-arbitration.md)
     - [Peer Set Manager](node/utility/peer-set-manager.md)
-- [Data Structures and Types](type-definitions.md)
+- [Data Structures and Types](types/README.md)
+    - [Candidate](types/candidate.md)
+	- [Overseer and Subsystem Protocol](types/overseer-protocol.md)
 
 [Glossary](glossary.md)
 [Further Reading](further-reading.md)
