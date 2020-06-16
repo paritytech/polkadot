@@ -153,7 +153,7 @@ Actions:
 
 1. Set `SessionStartBlock` to current block number.
 1. Clear all `Some` members of `AvailabilityCores`. Return all parathread claims to queue with retries un-incremented.
-1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](/type-definitions.html#host-configuration))
+1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../type-definitions.html#host-configuration))
 1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all`None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
    - We need a total of `N = Paras::parathreads().len() + configuration.parathread_cores` validator groups.
