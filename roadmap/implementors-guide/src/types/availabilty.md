@@ -1,6 +1,7 @@
 # Availability
 
-One of the key roles of validators is to
+One of the key roles of validators is to ensure availability of all data necessary to validate
+candidates for the duration of a challenge period. This is done via an erasure-coding of the data to keep available.
 
 ## Signed Availability Bitfield
 
