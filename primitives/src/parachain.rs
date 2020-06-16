@@ -407,7 +407,7 @@ impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 impl AbridgedCandidateReceipt {
 	/// Combine the abridged candidate receipt with the omitted data,
 	/// forming a full `CandidateReceipt`.
-	pub fn complete<N>(self, omitted: OmittedValidationData) -> CandidateReceipt {
+	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
 		let AbridgedCandidateReceipt {
 			parachain_index,
 			relay_parent,
