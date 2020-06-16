@@ -1484,5 +1484,113 @@ mod tests {
 		});
 	}
 
-	// TODO [now]: session change wipes everything and updates validators / session index.
+	#[test]
+	fn session_change_wipes_and_updates_session_info() {
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			let validators_new = vec![
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+			];
+
+			let validator_public_new = validator_pubkeys(&validators_new);
+
+			run_to_block(10, |_| None);
+
+			<AvailabilityBitfields<Test>>::insert(
+				&0,
+				AvailabilityBitfieldRecord {
+					bitfield: default_bitfield(),
+					submitted_at: 9,
+				},
+			);
+
+			<AvailabilityBitfields<Test>>::insert(
+				&1,
+				AvailabilityBitfieldRecord {
+					bitfield: default_bitfield(),
+					submitted_at: 9,
+				},
+			);
+
+			<AvailabilityBitfields<Test>>::insert(
+				&4,
+				AvailabilityBitfieldRecord {
+					bitfield: default_bitfield(),
+					submitted_at: 9,
+				},
+			);
+
+			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
+				core: CoreIndex::from(0),
+				receipt: Default::default(),
+				availability_votes: default_availability_votes(),
+				relay_parent_number: 5,
+				backed_in_number: 6,
+			});
+
+			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
+				core: CoreIndex::from(1),
+				receipt: Default::default(),
+				availability_votes: default_availability_votes(),
+				relay_parent_number: 6,
+				backed_in_number: 7,
+			});
+
+			run_to_block(11, |_| None);
+
+			assert_eq!(Validators::get(), validator_public);
+			assert_eq!(CurrentSessionIndex::get(), 5);
+
+			assert!(<AvailabilityBitfields<Test>>::get(&0).is_some());
+			assert!(<AvailabilityBitfields<Test>>::get(&1).is_some());
+			assert!(<AvailabilityBitfields<Test>>::get(&4).is_some());
+
+			assert!(<PendingAvailability<Test>>::get(&chain_a).is_some());
+			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+
+			run_to_block(12, |n| match n {
+				12 => Some(SessionChangeNotification {
+					validators: validator_public_new.clone(),
+					queued: Vec::new(),
+					prev_config: default_config(),
+					new_config: default_config(),
+					random_seed: Default::default(),
+					session_index: 6,
+				}),
+				_ => None,
+			});
+
+			assert_eq!(Validators::get(), validator_public_new);
+			assert_eq!(CurrentSessionIndex::get(), 6);
+
+			assert!(<AvailabilityBitfields<Test>>::get(&0).is_none());
+			assert!(<AvailabilityBitfields<Test>>::get(&1).is_none());
+			assert!(<AvailabilityBitfields<Test>>::get(&4).is_none());
+
+			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
+			assert!(<PendingAvailability<Test>>::get(&chain_b).is_none());
+
+			assert!(<AvailabilityBitfields<Test>>::iter().collect::<Vec<_>>().is_empty());
+			assert!(<PendingAvailability<Test>>::iter().collect::<Vec<_>>().is_empty());
+
+		});
+	}
 }
