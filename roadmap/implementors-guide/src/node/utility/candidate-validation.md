@@ -6,9 +6,9 @@ A variety of subsystems want to know if a parachain block candidate is valid. No
 
 ## Protocol
 
-Input: [`CandidateValidationMessage`](/type-definitions.html#validation-request-type)
+Input: [`CandidateValidationMessage`](../../type-definitions.html#validation-request-type)
 
-Output: [`Statement`](/type-definitions.html#statement-type) via the provided `Sender<Statement>`.
+Output: [`Statement`](../../type-definitions.html#statement-type) via the provided `Sender<Statement>`.
 
 ## Functionality
 
@@ -16,7 +16,7 @@ Given the hashes of a relay parent and a parachain candidate block, and either i
 
 Each job follows this process:
 
-- on `PoVOrigin::Network`, send a `QueryPoV` request to the [Availability Store](/node/utility/availability-store.html).
+- on `PoVOrigin::Network`, send a `QueryPoV` request to the [Availability Store](availability-store.html).
 - simultaneously asynchronously get enough chunks to reassemble the actual candidate, and do so.
    > TODO: Is it reasonable to add that as a helper method in the availability store?
 - check the candidate's proof

@@ -20,6 +20,6 @@ Output:
 
 ## Functionality
 
-This is implemented as a gossip system. Register a [network bridge](/node/utility/network-bridge.html) event producer on startup and track peer connection, view change, and disconnection events. Only accept bitfields relevant to our current view and only distribute bitfields to other peers when relevant to their most recent view. Check bitfield signatures in this subsystem and accept and distribute only one bitfield per validator.
+This is implemented as a gossip system. Register a [network bridge](../utility/network-bridge.html) event producer on startup and track peer connection, view change, and disconnection events. Only accept bitfields relevant to our current view and only distribute bitfields to other peers when relevant to their most recent view. Check bitfield signatures in this subsystem and accept and distribute only one bitfield per validator.
 
 When receiving a bitfield either from the network or from a `DistributeBitfield` message, forward it along to the block authorship (provisioning) subsystem for potential inclusion in a block.
