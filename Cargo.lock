@@ -4691,6 +4691,7 @@ dependencies = [
  "async-std",
  "futures 0.3.5",
  "log 0.4.8",
+ "pallet-staking",
  "polkadot-availability-store",
  "polkadot-network",
  "polkadot-primitives",
@@ -4699,6 +4700,7 @@ dependencies = [
  "polkadot-test-runtime",
  "polkadot-validation",
  "sc-authority-discovery",
+ "sc-chain-spec",
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
@@ -4707,9 +4709,11 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "sp-consensus",
+ "sp-consensus-babe",
  "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
+ "sp-runtime",
  "tempfile",
 ]
 

@@ -26,6 +26,10 @@ service = { package = "sc-service", git = "https://github.com/paritytech/substra
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 tempfile = "3.1.0"
