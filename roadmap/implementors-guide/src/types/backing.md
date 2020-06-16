@@ -57,7 +57,7 @@ struct SignedStatement {
 ```
 
 The actual signed payload will be the SCALE encoding of `(compact_statement, signing_context)` where
-`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types#signing-context).
+`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types/candidate.html#signing-context).
 
 This prevents against replay attacks and allows the candidate receipt itself to be omitted when checking a signature on a `Seconded` statement in situations where the hash is known.
 

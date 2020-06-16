@@ -152,3 +152,16 @@ pub struct CandidateCommitments {
 	pub new_validation_code: Option<ValidationCode>,
 }
 ```
+
+## Signing Context
+
+This struct provides context to signatures by combining with various payloads to localize the signature to a particular session index and relay-chain hash. Having these fields included in the signature makes misbehavior attribution much simpler.
+
+```rust
+struct SigningContext {
+	/// The relay-chain block hash this signature is in the context of.
+	parent_hash: Hash,
+	/// The session index this signature is in the context of.
+	session_index: SessionIndex,
+}
+```
