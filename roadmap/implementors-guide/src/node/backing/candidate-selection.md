@@ -12,7 +12,7 @@ In the event that a parablock candidate proves invalid, this subsystem will rece
 
 ## Protocol
 
-Input: None
+Input: [`CandidateSelectionMessage`](../../types/overseer-protocol#candidate-selection-message)
 
 Output:
 

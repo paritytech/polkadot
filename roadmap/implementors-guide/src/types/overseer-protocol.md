@@ -22,20 +22,60 @@ All subsystems have their own message types; all of them need to be able to list
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
 
-## Candidate Selection Message
+## All Messages
 
-These messages are sent from the overseer to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) when new parablocks are available for validation.
+> TODO [now]
+
+## Availability Distribution Message
+
+Messages received by the availability distribution subsystem.
 
 ```rust
-enum CandidateSelectionMessage {
-  /// A new parachain candidate has arrived from a collator and should be considered for seconding.
-  NewCandidate(PoV, ParachainBlock),
-  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
-  Invalid(CandidateReceipt),
+enum AvailabilityDistributionMessage {
+	/// An update on network state from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 ```
 
-If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
+## Availability Store Message
+
+Messages to and from the availability store.
+
+```rust
+enum AvailabilityStoreMessage {
+	/// Query the PoV of a candidate by hash.
+	QueryPoV(Hash, ResponseChannel<PoV>),
+	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
+	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
+	QueryChunk(Hash, ValidatorIndex, ResponseChannel<AvailabilityChunkAndProof>),
+	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
+	/// accompanying proof.
+	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof),
+}
+```
+
+## Bitfield Distribution Message
+
+Messages received by the bitfield distribution subsystem.
+
+```rust
+enum BitfieldDistributionMessage {
+	/// Distribute a bitfield signed by a validator to other validators.
+	/// The bitfield distribution subsystem will assume this is indeed correctly signed.
+	DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
+	/// Receive a network bridge update.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+```
+
+## Bitfield Signing Message
+
+Currently, the bitfield signing subsystem receives no specific messages.
+
+```rust
+/// Non-instantiable message type
+enum BitfieldSigningMessage { }
+```
 
 ## Candidate Backing Message
 
@@ -53,34 +93,52 @@ enum CandidateBackingMessage {
 }
 ```
 
-## Validation Request Type
+## Candidate Selection Message
 
-Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
+These messages are sent from the overseer to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) when new parablocks are available for validation.
 
 ```rust
-enum PoVOrigin {
-  /// The proof of validity is available here.
-  Included(PoV),
-  /// We need to fetch proof of validity from some peer on the network.
-  Network(CandidateReceipt),
-}
-
-enum CandidateValidationMessage {
-  /// Validate a candidate and issue a Statement
-  Validate(CandidateHash, RelayHash, PoVOrigin),
+enum CandidateSelectionMessage {
+  /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
+  Invalid(CandidateReceipt),
 }
 ```
 
-## Statement Distribution Message
+## Network Bridge Message
+
+Messages received by the network bridge. This subsystem is invoked by others to manipulate access
+to the low-level networking code.
 
 ```rust
-enum StatementDistributionMessage {
-  /// A peer has seconded a candidate and we need to double-check them
-  Peer(SignedStatement),
-  /// We have validated a candidate and want to share our judgment with our peers
-  ///
-  /// The statement distribution subsystem is responsible for signing this statement.
-  Share(Statement),
+enum NetworkBridgeMessage {
+	/// Register an event producer with the network bridge. This should be done early and cannot
+	/// be de-registered.
+	RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
+	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
+	ReportPeer(PeerId, cost_benefit: i32),
+	/// Send a message to one or more peers on the given protocol ID.
+	SendMessage([PeerId], ProtocolId, Bytes),
+}
+```
+
+## Network Bridge Update
+
+These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.html) to other subsystems based on registered listeners.
+
+```rust
+struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
+
+enum NetworkBridgeEvent {
+	/// A peer with given ID is now connected.
+	PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
+	/// A peer with given ID is now disconnected.
+	PeerDisconnected(PeerId),
+	/// We received a message from the given peer. Protocol ID should be apparent from context.
+	PeerMessage(PeerId, Bytes),
+	/// The given peer has updated its description of its view.
+	PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
+	/// We have posted the given view update to all connected peers.
+	OurViewChange(View),
 }
 ```
 
@@ -103,6 +161,14 @@ enum MisbehaviorReport {
   DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
 }
 ```
+
+If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
+
+## PoV Distribution
+
+Messages received by the PoV Distribution subsystem are unspecified and highly tied to gossip.
+
+> TODO
 
 ## Provisioner Message
 
@@ -128,5 +194,41 @@ enum ProvisionerMessage {
   RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
   /// This data should become part of a relay chain block
   ProvisionableData(ProvisionableData),
+}
+```
+
+## Statement Distribution Message
+
+The Statement Distribution subsystem distributes signed statements from validators to other validators.
+It receives updates from the network bridge and signed statements to share with other validators.
+
+```rust
+enum StatementDistributionMessage {
+	/// An update from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
+	/// We have validated a candidate and want to share our judgment with our peers.
+	/// The hash is the relay parent.
+	///
+	/// The statement distribution subsystem assumes that the statement should be correctly
+	/// signed.
+	Share(Hash, SignedStatement),
+}
+```
+
+## Validation Request Type
+
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
+
+```rust
+enum PoVOrigin {
+	/// The proof of validity is available here.
+	Included(PoV),
+	/// We need to fetch proof of validity from some peer on the network.
+	Network(CandidateReceipt),
+}
+
+enum CandidateValidationMessage {
+	/// Validate a candidate and issue a Statement
+	Validate(CandidateHash, RelayHash, PoVOrigin),
 }
 ```
