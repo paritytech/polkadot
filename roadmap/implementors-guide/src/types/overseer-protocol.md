@@ -244,15 +244,10 @@ enum StatementDistributionMessage {
 Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
 
 ```rust
-enum PoVOrigin {
-	/// The proof of validity is available here.
-	Included(PoV),
-	/// We need to fetch proof of validity from some peer on the network.
-	Network(CandidateReceipt),
-}
-
 enum CandidateValidationMessage {
-	/// Validate a candidate and issue a Statement
-	Validate(CandidateHash, RelayHash, PoVOrigin),
+	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
+	/// error is encountered. A bad candidate will return `Ok(false)`, while a good one will
+	/// return `Ok(true)`.
+	Validate(ValidationCode, CandidateReceipt, PoV, ResponseChannel<Result<bool>>),
 }
 ```
