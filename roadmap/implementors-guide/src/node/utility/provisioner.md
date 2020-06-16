@@ -10,11 +10,11 @@ There are several distinct types of provisionable data, but they share this prop
 
 ### Backed Candidates
 
-The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backed candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's; the provisioner must ensure that block authors are aware of all available [`BackedCandidate`s](../../type-definitions.html#backed-candidate).
+The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backed candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's; the provisioner must ensure that block authors are aware of all available [`BackedCandidate`s](../../types/backing.html#backed-candidate).
 
 ### Signed Bitfields
 
-[Signed bitfields](../../type-definitions.html#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available.
+[Signed bitfields](../../types/availability.html#signed-availability-bitfield) are attestations from a particular validator about which candidates it believes are available.
 
 ### Misbehavior Reports
 
@@ -32,7 +32,7 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 ## Protocol
 
-Input: [`ProvisionerMessage`](../../type-definitions.html#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.html), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.html), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.html).
+Input: [`ProvisionerMessage`](../../types/overseer-protocol.html#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.html), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.html), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.html).
 
 At initialization, this subsystem has no outputs. Block authors can send a `ProvisionerMessage::RequestBlockAuthorshipData`, which includes a channel over which provisionable data can be sent. All appropriate provisionable data will then be sent over this channel, as it is received.
 
