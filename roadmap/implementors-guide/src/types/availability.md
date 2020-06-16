@@ -7,15 +7,18 @@ candidates for the duration of a challenge period. This is done via an erasure-c
 
 A bitfield signed by a particular validator about the availability of pending candidates.
 
+
 ```rust
 struct SignedAvailabilityBitfield {
   validator_index: ValidatorIndex,
   bitfield: Bitvec,
-  signature: ValidatorSignature, // signature is on payload: bitfield ++ relay_parent ++ validator index
+  signature: ValidatorSignature,
 }
 
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
 ```
+
+The signed payload is the SCALE encoding of the tuple `(bitfield, signing_context)` where `signing_context` is a [`SigningContext`](../types#signing-context).
 
 ## Proof-of-Validity
 

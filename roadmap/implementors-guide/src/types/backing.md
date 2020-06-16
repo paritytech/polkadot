@@ -21,7 +21,7 @@ enum ValidityAttestation {
 
 ## Statement Type
 
-The [Candidate Backing subsystem](/node/utility/candidate-backing.html) issues and signes these after candidate validation.
+The [Candidate Backing subsystem](/node/utility/candidate-backing.html) issues and signs these after candidate validation.
 
 ```rust
 /// A statement about the validity of a parachain candidate.
@@ -42,18 +42,24 @@ enum Statement {
 
 ## Signed Statement Type
 
-The actual signed payload should reference only the hash of the CandidateReceipt, even in the `Seconded` case and should include
-a relay parent which provides context to the signature. This prevents against replay attacks and allows the candidate receipt itself
-to be omitted when checking a signature on a `Seconded` statement.
+A statement, the identifier of a validator, and a signature.
 
 ```rust
 /// A signed statement.
 struct SignedStatement {
+  /// The index of the validator signing this statement.
+  validator_index: ValidatorIndex,
+  /// The statement itself.
   statement: Statement,
-  signed: ValidatorId,
-  signature: Signature
+  /// The signature by the validator on the signing payload.
+  signature: ValidatorSignature
 }
 ```
+
+The actual signed payload will be the SCALE encoding of `(compact_statement, signing_context)` where
+`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types#signing-context).
+
+This prevents against replay attacks and allows the candidate receipt itself to be omitted when checking a signature on a `Seconded` statement in situations where the hash is known.
 
 ## Backed Candidate
 

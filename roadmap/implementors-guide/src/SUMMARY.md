@@ -39,7 +39,7 @@
 - [Data Structures and Types](types/README.md)
     - [Candidate](types/candidate.md)
     - [Backing](types/backing.md)
-    - [Availability](types/availabilty.md)
+    - [Availability](types/availability.md)
     - [Overseer and Subsystem Protocol](types/overseer-protocol.md)
 
 [Glossary](glossary.md)
