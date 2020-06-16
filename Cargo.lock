@@ -4281,6 +4281,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "sc-network",
 ]
 
 [[package]]

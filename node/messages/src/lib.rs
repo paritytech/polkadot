@@ -24,9 +24,10 @@
 
 use futures::channel::{mpsc, oneshot};
 
+use sc_network::{ObservedRole, ReputationChange, PeerId, config::ProtocolId};
 use polkadot_primitives::{Hash, Signature};
 use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, AttestedCandidate as BackedCandidate,
+	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate,
 	SignedAvailabilityBitfield
 };
 use polkadot_node_primitives::{
@@ -89,12 +90,46 @@ pub enum ValidationSubsystemMessage {
 	),
 }
 
-// TODO [now]: network bridge
+/// Chain heads.
+///
+/// Up to `N` (5?) chain heads.
+pub struct View(Vec<Hash>);
+
+/// Events from network.
+pub enum NetworkBridgeEvent {
+	/// A peer has connected.
+	PeerConnected(PeerId, ObservedRole),
+
+	/// A peer has disconnected.
+	PeerDisconnected(PeerId),
+
+	/// Peer has sent a message.
+	PeerMessage(PeerId, Vec<u8>),
+
+	/// Peer's `View` has changed.
+	PeerViewChange(PeerId, View),
+
+	/// Our `View` has changed.
+	OurViewChange(View),
+}
+
+/// Messages received by the network bridge subsystem.
+pub enum NetworkBridgeSubsystemMessage {
+	/// Register an event producer on startup.
+	RegisterEventProducer(ProtocolId, Box<dyn Fn(NetworkBridgeEvent) -> AllMessages>),
+
+	/// Report a peer for their actions.
+	ReportPeer(PeerId, ReputationChange),
+
+	/// Send a message to multiple peers.
+	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+}
 
 /// Availability Distribution Message.
 pub enum AvailabilityDistributionMessage {
 	/// Distribute an availability chunk to other validators.
 	DistributeChunk(Hash, ErasureChunk),
+
 	/// Fetch an erasure chunk from networking by candidate hash and chunk index.
 	FetchChunk(Hash, u32),
 }

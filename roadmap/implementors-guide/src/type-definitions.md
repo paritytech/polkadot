@@ -202,6 +202,27 @@ enum ProvisionerMessage {
 }
 ```
 
+
+## Network Bridge Message
+
+```rust
+struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
+
+enum NetworkBridgeEvent {
+  PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
+  PeerDisconnected(PeerId),
+  PeerMessage(PeerId, Bytes),
+  PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
+  OurViewChange(View),
+}
+
+enum NetworkBridgeSubsystemMessage {
+  RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages>),
+  ReportPeer(PeerId, ReputationChange),
+  SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+}
+```
+
 ## Host Configuration
 
 The internal-to-runtime configuration of the parachain host. This is expected to be altered only by governance procedures.
