@@ -20,15 +20,20 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain, Hash, BlockId};
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::Error as ServiceError};
+use service::{error::Error as ServiceError, TaskType, BasePath, config::{KeystoreConfig, DatabaseConfig,
+WasmExecutionMethod}};
 use grandpa::{FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
 use service::{AbstractService, Role, TFullBackend, Configuration};
+use sc_network::{config::{NetworkConfiguration, TransportConfig}, multiaddr};
 use consensus_common::{SelectChain, block_validation::Chain};
 use polkadot_primitives::parachain::{CollatorId};
 use polkadot_primitives::Block;
 use polkadot_service::PolkadotClient;
-use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotExecutor};
+use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotExecutor, chain_spec::polkadot_local_testnet_config, PolkadotChainSpec};
+use std::path::PathBuf;
+use std::pin::Pin;
+use std::net::Ipv4Addr;
 
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
@@ -59,4 +64,105 @@ pub fn polkadot_test_new_full(
 	);
 
 	Ok((service, client, handles))
+}
+
+fn node_config(
+	index: usize,
+	spec: &PolkadotChainSpec,
+	role: Role,
+	task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>,
+	key_seed: Option<String>,
+	base_port: u16,
+	root: &PathBuf,
+) -> Configuration
+{
+	let root = root.join(format!("node-{}", index));
+
+	let mut network_config = NetworkConfiguration::new(
+		format!("Node {}", index),
+		"network/test/0.1",
+		Default::default(),
+		None,
+	);
+
+	network_config.allow_non_globals_in_dht = true;
+
+	network_config.listen_addresses.push(
+		std::iter::once(multiaddr::Protocol::Ip4(Ipv4Addr::new(127, 0, 0, 1)))
+			.chain(std::iter::once(multiaddr::Protocol::Tcp(base_port + index as u16)))
+			.collect()
+	);
+
+	network_config.transport = TransportConfig::Normal {
+		enable_mdns: false,
+		allow_private_ipv4: true,
+		wasm_external_transport: None,
+		use_yamux_flow_control: true,
+	};
+
+	Configuration {
+		impl_name: "network-test-impl",
+		impl_version: "0.1",
+		role,
+		task_executor,
+		transaction_pool: Default::default(),
+		network: network_config,
+		keystore: KeystoreConfig::Path {
+			path: root.join("key"),
+			password: None
+		},
+		database: DatabaseConfig::RocksDb {
+			path: root.join("db"),
+			cache_size: 128,
+		},
+		state_cache_size: 16777216,
+		state_cache_child_ratio: None,
+		pruning: Default::default(),
+		chain_spec: Box::new((*spec).clone()),
+		wasm_method: WasmExecutionMethod::Interpreted,
+		execution_strategies: Default::default(),
+		rpc_http: None,
+		rpc_ws: None,
+		rpc_ws_max_connections: None,
+		rpc_cors: None,
+		rpc_methods: Default::default(),
+		prometheus_config: None,
+		telemetry_endpoints: None,
+		telemetry_external_transport: None,
+		default_heap_pages: None,
+		offchain_worker: Default::default(),
+		force_authoring: false,
+		disable_grandpa: false,
+		dev_key_seed: key_seed,
+		tracing_targets: None,
+		tracing_receiver: Default::default(),
+		max_runtime_instances: 8,
+		announce_block: true,
+		base_path: Some(BasePath::new(root)),
+	}
+}
+
+pub fn run_test_node(task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>, root: &PathBuf) -> Result<impl AbstractService, ()> {
+	let spec = polkadot_local_testnet_config();
+	let key = String::new();
+	let base_port = 27015;
+	let config = node_config(
+		0,
+		&spec,
+		Role::Authority { sentry_nodes: Vec::new() },
+		task_executor,
+		Some(key),
+		base_port,
+		&root,
+	);
+	let authority_discovery_enabled = false;
+	let (service, _client, _handles) = polkadot_test_new_full(
+		config,
+		None,
+		None,
+		authority_discovery_enabled,
+		6000,
+	).unwrap();
+
+	Ok(service)
 }
