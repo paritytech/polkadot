@@ -5,6 +5,7 @@ The Runtime API subsystem is responsible for providing a single point of access 
 ## Protocol
 
 Input: [`RuntimeApiMessage`](../../types/overseer-protocol.html#runtime-api-message)
+
 Output: None
 
 ## Functionality
@@ -13,6 +14,6 @@ On receipt of `RuntimeApiMessage::Request(relay_parent, request)`, answer the re
 
 > TODO Do some caching. The underlying rocksdb already has a cache of trie nodes so duplicate requests are unlikely to hit disk. Not required for functionality.
 
-## Jobs, if any
+## Jobs
 
-> TODO Don't limit requests based on parent hash, but limit caching.
+> TODO Don't limit requests based on parent hash, but limit caching. No caching should be done for any requests on relay_parents that are not live based on `StartWork` or `StopWork` messages. Maybe with some leeway for things that have just been stopped.
