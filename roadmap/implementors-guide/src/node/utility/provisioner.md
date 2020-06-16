@@ -32,7 +32,7 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 ## Protocol
 
-Input: [`ProvisionerMessage`](../../type-definitions.html#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.html), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.html), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](../utility/misbehavior-arbitration.html).
+Input: [`ProvisionerMessage`](../../type-definitions.html#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.html), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.html), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.html).
 
 At initialization, this subsystem has no outputs. Block authors can send a `ProvisionerMessage::RequestBlockAuthorshipData`, which includes a channel over which provisionable data can be sent. All appropriate provisionable data will then be sent over this channel, as it is received.
 
