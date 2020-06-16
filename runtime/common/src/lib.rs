@@ -195,10 +195,6 @@ mod multiplier_tests {
 		type OnKilledAccount = ();
 	}
 
-	impl transaction_payment::Trait for Runtime {
-
-	}
-
 	type System = system::Module<Runtime>;
 
 	fn run_with_system_weight<F>(w: Weight, assertions: F) where F: Fn() -> () {
