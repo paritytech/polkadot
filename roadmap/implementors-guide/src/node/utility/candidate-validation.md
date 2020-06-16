@@ -16,10 +16,8 @@ Given the hashes of a relay parent and a parachain candidate block, and either i
 
 Each job follows this process:
 
-- on `PoVOrigin::Network`, send a `QueryPoV` request to the [Availability Store](availability-store.html).
-- simultaneously asynchronously get enough chunks to reassemble the actual candidate, and do so.
-   > TODO: Is it reasonable to add that as a helper method in the availability store?
-- check the candidate's proof
+- Get the full candidate from the network via the [Candiate Fetch subsystem](candidate-fetch.md)
+- Check the candidate's proof
    > TODO: that's extremely hand-wavey. What does that actually entail?
 - Generate either `Statement::Valid` or `Statement::Invalid`. Note that this never generates `Statement::Seconded`; Candidate Backing is the only subsystem which upgrades valid to seconded.
 - Return the statement on the provided channel.
