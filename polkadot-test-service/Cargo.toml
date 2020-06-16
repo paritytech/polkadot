@@ -31,7 +31,7 @@ babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/par
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tempfile = "3.1.0"
 
 [dev-dependencies]
-tempfile = "3.1.0"
 async-std = { version = "1.2.0", features = [ "attributes" ] }

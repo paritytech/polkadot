@@ -22,7 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::{parachain::{self}, Hash, BlockId};
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::Error as ServiceError, TaskType, BasePath, config::{KeystoreConfig, DatabaseConfig,
+use service::{error::Error as ServiceError, TaskType, config::{KeystoreConfig, DatabaseConfig,
 WasmExecutionMethod}};
 use grandpa::{FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
@@ -34,7 +34,7 @@ use polkadot_primitives::Block;
 use polkadot_service::PolkadotClient;
 use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotExecutor,
 };
-use std::path::PathBuf;
+use std::path::{Path};
 use std::pin::Pin;
 use std::net::Ipv4Addr;
 use sc_chain_spec::{ChainSpec};
@@ -72,20 +72,18 @@ pub fn polkadot_test_new_full(
 	Ok((service, client, handles))
 }
 
-fn node_config(
-	index: usize,
+fn node_config<P: AsRef<Path>>(
 	spec: &PolkadotChainSpec,
 	role: Role,
 	task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>,
 	key_seed: Option<String>,
-	base_port: u16,
-	root: &PathBuf,
+	port: u16,
+	root: P,
 ) -> Configuration
 {
-	let root = root.join(format!("node-{}", index));
-
+	let root = root.as_ref().to_path_buf();
 	let mut network_config = NetworkConfiguration::new(
-		format!("Node {}", index),
+		format!("Polkadot Test Node on {}", port),
 		"network/test/0.1",
 		Default::default(),
 		None,
@@ -95,7 +93,7 @@ fn node_config(
 
 	network_config.listen_addresses.push(
 		std::iter::once(multiaddr::Protocol::Ip4(Ipv4Addr::new(127, 0, 0, 1)))
-			.chain(std::iter::once(multiaddr::Protocol::Tcp(base_port + index as u16)))
+			.chain(std::iter::once(multiaddr::Protocol::Tcp(port)))
 			.collect()
 	);
 
@@ -107,7 +105,7 @@ fn node_config(
 	};
 
 	Configuration {
-		impl_name: "network-test-impl",
+		impl_name: "polkadot-test-node",
 		impl_version: "0.1",
 		role,
 		task_executor,
@@ -144,15 +142,20 @@ fn node_config(
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
 		announce_block: true,
-		base_path: Some(BasePath::new(root)),
+		base_path: Some(root.into()),
 	}
 }
 
 pub fn run_test_node(
 	task_executor: Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync>,
-	root: &PathBuf,
+	port: u16,
 	storage_update_func: impl Fn(),
-) -> Result<impl AbstractService, ()> {
+) -> Result<(impl AbstractService, Arc<impl PolkadotClient<
+			Block,
+			TFullBackend<Block>,
+			polkadot_test_runtime::RuntimeApi
+		>>, FullNodeHandles, tempfile::TempDir), ()> {
+	let base_path = tempfile::Builder::new().prefix("polkadot-test-service").tempdir().unwrap();
 	let mut spec = polkadot_local_testnet_config();
 
 	let mut storage = spec.as_storage_builder().build_storage().unwrap();
@@ -163,28 +166,17 @@ pub fn run_test_node(
 
 	spec.set_storage(storage);
 
-	let mut storage = spec.as_storage_builder().build_storage().unwrap();
-	BasicExternalities::execute_with_storage(
-		&mut storage,
-		|| {
-			use polkadot_test_runtime::*;
-			panic!("{:?}", EpochDuration::get());
-		},
-	);
-
 	let key = String::new();
-	let base_port = 27015;
 	let config = node_config(
-		0,
 		&spec,
 		Role::Authority { sentry_nodes: Vec::new() },
 		task_executor,
 		Some(key),
-		base_port,
-		&root,
+		port,
+		&base_path,
 	);
 	let authority_discovery_enabled = false;
-	let (service, _client, _handles) = polkadot_test_new_full(
+	let (service, client, handles) = polkadot_test_new_full(
 		config,
 		None,
 		None,
@@ -192,5 +184,5 @@ pub fn run_test_node(
 		6000,
 	).unwrap();
 
-	Ok(service)
+	Ok((service, client, handles, base_path))
 }
