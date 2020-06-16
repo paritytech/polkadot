@@ -19,15 +19,14 @@
 //!
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
-use sp_std::prelude::*;
+use crate::{
+	configuration::{self, HostConfiguration},
+	paras, scheduler,
+};
 use frame_support::weights::Weight;
-use primitives::{
-	parachain::{ValidatorId},
-};
-use frame_support::{
-	decl_storage, decl_module, decl_error, traits::Randomness,
-};
-use crate::{configuration::{self, HostConfiguration}, paras, scheduler};
+use frame_support::{decl_error, decl_module, decl_storage, traits::Randomness};
+use primitives::parachain::ValidatorId;
+use sp_std::prelude::*;
 
 /// Information about a session change that has just occurred.
 #[derive(Default, Clone)]
@@ -105,7 +104,8 @@ impl<T: Trait> Module<T> {
 	///
 	/// Panics if the modules have already been initialized.
 	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
 	{
 		assert!(HasInitialized::get().is_none());
 
@@ -148,46 +148,38 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
+		let config = <configuration::Module<T>>::config();
 
-		assert!(HasInitialized::get().is_none());
+		for id in <paras::Module<T>>::parachains() {
+			let origin: <T as system::Trait>::Origin = system::RawOrigin::Root.into();
+			let _ = <configuration::Module<T>>::set_validation_upgrade_frequency(origin.clone(), config.validation_upgrade_frequency);
+			let _ = <configuration::Module<T>>::set_validation_upgrade_delay(origin.clone(), config.validation_upgrade_delay);
+			let _ = <configuration::Module<T>>::set_acceptance_period(origin.clone(), config.acceptance_period);
+			let _ = <configuration::Module<T>>::set_max_code_size(origin.clone(), config.max_code_size);
+			let _ = <configuration::Module<T>>::set_max_head_data_size(origin.clone(), config.max_head_data_size);
+			let _ = <configuration::Module<T>>::set_parathread_cores(origin.clone(), config.parathread_cores);
+			let _ = <configuration::Module<T>>::set_parathread_retries(origin.clone(), config.parathread_retries);
+			let _ = <configuration::Module<T>>::set_parachain_rotation_frequency(origin.clone(), config.parachain_rotation_frequency);
+			let _ = <configuration::Module<T>>::set_chain_availability_period(origin.clone(), config.chain_availability_period);
+			let _ = <configuration::Module<T>>::set_thread_availability_period(origin.clone(), config.thread_availability_period);
+			let _ = <configuration::Module<T>>::set_scheduling_lookahead(origin.clone(), config.scheduling_lookahead);
+		}
 
-		// @todo how to obtain parachain?
-		let (para_id, genesis_args) = Paras::config().unwrap().first().unwrap();
-
-		Paras::schedule_para_initialize(para_id, genesis_args);
-
-
-		let random_seed = {
-			let mut buf = [0u8; 32];
-			let random_hash = T::Randomness::random(&b"paras"[..]);
-			let len = sp_std::cmp::min(32, random_hash.as_ref().len());
-			buf[..len].copy_from_slice(&random_hash.as_ref()[..len]);
-			buf
-		};
-
-
-		let notification = SessionChangeNotification {
-			validators: validators.map(|(_account, validator)| validator).collect(),
-			queued: validators.map(|(_account, validator)| validator).collect(),
-			prev_config: HostConfiguration::default(), // @todo sane?
-			new_config: <configuration::Module<T>>::config(), // @todo
-			random_seed,
-		};
-
-		paras::Module::<T>::initializer_on_new_session(&notification);
-		scheduler::Module::<T>::initializer_on_new_session(&notification);
+		// parathreads
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
-		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	where
+		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
 		<Module<T>>::on_new_session(changed, validators, queued);
 	}
 
-	fn on_disabled(_i: usize) { }
+	fn on_disabled(_i: usize) {}
 }
 
 #[cfg(test)]
