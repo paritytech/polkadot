@@ -26,7 +26,7 @@ use runtime_primitives::traits::AppVerify;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, CandidateReceipt, SigningContext, ValidatorSignature,
-	ValidatorIndex, ValidatorId, ValidityAttestation,
+	ValidatorIndex, ValidatorId,
 };
 use parity_scale_codec::{Encode, Decode};
 
@@ -141,18 +141,3 @@ impl SignedAvailabilityBitfield {
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
 pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);
-
-/// A `CandidateReceipt` along with all data necessary to prove its backing.
-///
-/// This is submitted to the relay-chain to process and move along the candidate
-/// to the pending-availability stage.
-#[derive(Debug)]
-pub struct BackedCandidate {
-	/// Candidate receipt.
-	pub candidate: AbridgedCandidateReceipt,
-	/// Votes for it
-	pub validity_votes: Vec<ValidityAttestation>,
-	/// The indices of validators who signed the candidate within the group. There is no need to include
-	/// bit for any validators who are not in the group, so this is more compact.
-	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
-}
