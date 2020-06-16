@@ -74,9 +74,10 @@ declare -A priority_descriptions=(
 )
 
 max_label=-1
-priority=""
+priority="${priority_descriptions['C1-low']}"
 declare -a priority_changes
 
+# Iterate through every PR
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
 
@@ -89,7 +90,7 @@ while IFS= read -r line; do
     cur_label="${priority_labels[$index]}"
     echo "[+] Checking #$pr_id for presence of $cur_label label"
     if has_label 'paritytech/polkadot' "$pr_id" "$cur_label" ; then
-      echo "[+] #$pr_id has label $cur_label. Increasing max."
+      echo "[+] #$pr_id has label $cur_label. Setting max."
       prev_label="$max_label"
       max_label="$index"
       priority="${priority_descriptions[$cur_label]}"
@@ -104,12 +105,13 @@ while IFS= read -r line; do
     fi
   done
 
-  if has_label 'paritytech/polkadot' "$pr_id" 'B1-silent'; then
+  # If the PR is labelled silent, we can do an early continue to save a little work
+  if has_label 'paritytech/polkadot' "$pr_id" 'B0-silent'; then
     continue
   fi
 
   # If the PR has a runtimenoteworthy label, add to the runtime_changes section
-  if has_label 'paritytech/polkadot' "$pr_id" 'B1-runtimenoteworthy'; then
+  if has_label 'paritytech/polkadot' "$pr_id" 'B2-runtimenoteworthy'; then
     runtime_changes="$runtime_changes
 $line"
   else
@@ -130,10 +132,10 @@ fi
 echo "$release_text"
 
 # Get substrate changes between last polkadot version and current
+# By grepping the Cargo.lock for a substrate crate, and grepping out the commit hash
 cur_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-git checkout "$last_version"
-old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-
+old_substrate_commit=$(git diff "refs/tags/$last_version" Cargo.lock |\
+  grep -A 2 'name = "sc-cli"' | grep -E -o '[a-f0-9]{40}')
 pushd $substrate_dir || exit
   git checkout master > /dev/null
   git pull > /dev/null
@@ -143,9 +145,10 @@ pushd $substrate_dir || exit
   substrate_client_changes=""
   substrate_changes=""
 
-  # Upgrade priority variables
+  # Set initial upgrade priority variables
   substrate_max_label=-1
-  substrate_priority=""
+  substrate_priority="${priority_descriptions['C1-low']}"
+
   declare -a substrate_priority_changes
 
   echo "[+] Iterating through substrate changes to find labelled PRs"
@@ -158,7 +161,7 @@ pushd $substrate_dir || exit
       cur_label="${priority_labels[$index]}"
       echo "[+] Checking substrate/#$pr_id for presence of $cur_label label"
       if has_label 'paritytech/substrate' "$pr_id" "$cur_label" ; then
-        echo "[+] #$pr_id has label $cur_label. Increasing max."
+        echo "[+] #$pr_id has label $cur_label. Setting max."
         prev_label="$substrate_max_label"
         substrate_max_label="$index"
         substrate_priority="${priority_descriptions[$cur_label]}"
@@ -225,20 +228,22 @@ $substrate_api_changes"
 $substrate_changes"
 fi
 
-# Finally, add the priorities
+# Finally, add the priorities to the *start* of the release notes
 # If polkadot and substrate priority = low, no need for list of changes
 if [ "$priority" == "${priority_descriptions['C1-low']}" ] &&
    [ "$substrate_priority" == "${priority_descriptions['C1-low']}" ]; then
-  release_text="Upgrade priority: $priority
+  release_text="$priority
+
 $release_text"
 else
-  release_text="Upgrade priority: $priority - due to change(s): ${priority_changes[*]} ${substrate_priority_changes[*]}
+  release_text="$priority - due to change(s): ${priority_changes[*]} ${substrate_priority_changes[*]}
+
 $release_text"
 fi
 
 echo "[+] Release text generated: "
 echo "$release_text"
-exit
+
 echo "[+] Pushing release to github"
 # Create release on github
 release_name="Polkadot CC1 $version"
