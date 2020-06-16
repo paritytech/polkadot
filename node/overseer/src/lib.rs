@@ -717,6 +717,8 @@ fn spawn<S: Spawn, M: Debug>(
 #[cfg(test)]
 mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
+
+	use polkadot_primitives::parachain::{BlockData, PoVBlock};
 	use super::*;
 
 	struct TestSubsystem1(mpsc::Sender<usize>);
@@ -750,9 +752,17 @@ mod tests {
 				let mut c: usize = 0;
 				loop {
 					if c < 10 {
+						let (tx, _) = oneshot::channel();
 						ctx.send_msg(
 							AllMessages::Validation(
-								ValidationSubsystemMessage::ValidityAttestation
+								ValidationSubsystemMessage::Validate(
+									Default::default(),
+									Default::default(),
+									PoVBlock {
+										block_data: BlockData(Vec::new()),
+									},
+									tx,
+								)
 							)
 						).await.unwrap();
 						c += 1;

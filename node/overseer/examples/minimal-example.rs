@@ -20,12 +20,14 @@
 
 use std::time::Duration;
 use futures::{
+	channel::oneshot,
 	pending, pin_mut, executor, select, stream,
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use kv_log_macro as log;
 
+use polkadot_primitives::parachain::{BlockData, PoVBlock};
 use polkadot_overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
 
 use messages::{
@@ -52,8 +54,17 @@ impl Subsystem1 {
 			}
 
 			Delay::new(Duration::from_secs(1)).await;
+			let (tx, _) = oneshot::channel();
+
 			ctx.send_msg(AllMessages::Validation(
-				ValidationSubsystemMessage::ValidityAttestation
+				ValidationSubsystemMessage::Validate(
+					Default::default(),
+					Default::default(),
+					PoVBlock {
+						block_data: BlockData(Vec::new()),
+					},
+					tx,
+				)
 			)).await.unwrap();
 		}
 	}
