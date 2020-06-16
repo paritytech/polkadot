@@ -23,3 +23,7 @@ The signed payload is the SCALE encoding of the tuple `(bitfield, signing_contex
 ## Proof-of-Validity
 
 Often referred to as PoV, this is a type-safe wrapper around bytes (`Vec<u8>`) when referring to data that acts as a stateless-client proof of validity of a candidate, when used as input to the validation function of the para.
+
+```rust
+struct PoV(Vec<u8>);
+```
