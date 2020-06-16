@@ -12,7 +12,7 @@ In the event that a parablock candidate proves invalid, this subsystem will rece
 
 ## Protocol
 
-Input: Parablock candidates and associated Proofs of Validity from collators
+Input: None from other subsystems. This subsystem contains internal network logic for receiving parablock candidates and associated Proofs of Validity from collators.
 
 Output:
 
