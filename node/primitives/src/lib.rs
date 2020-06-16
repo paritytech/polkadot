@@ -20,8 +20,6 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
-use bitvec::vec::BitVec;
-
 use runtime_primitives::traits::AppVerify;
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
@@ -109,35 +107,3 @@ pub enum MisbehaviorReport {
 	/// This peer has seconded more than one parachain candidate for this relay parent head
 	DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
 }
-
-/// A bitfield signed by a particular validator about the availability of pending candidates.
-pub struct SignedAvailabilityBitfield {
-	/// The index of the validator that signed this bitfield
-	pub validator_index: ValidatorIndex,
-	/// Bitfield itself.
-	pub bitfield: BitVec<bitvec::order::Lsb0, u8>,
-	/// Signature.
-	pub signature: ValidatorSignature, // signature is on payload: bitfield ++ relay_parent ++ validator index
-}
-
-impl SignedAvailabilityBitfield {
-	/// Check the signature on an availability bitfield. Provide a list of validators to index into.
-	///
-	/// Returns an `Err` if out of bounds or the signature is invalid. Otherwise, returns `Ok`.
-	pub fn check_signature(
-		&self,
-		validators: &[ValidatorId],
-	) -> Result<(), ()> {
-		let validator = validators.get(self.validator_index as usize).ok_or(())?;
-		let payload = self.bitfield.as_slice();
-
-		if self.signature.verify(payload, validator) {
-			Ok(())
-		} else {
-			Err(())
-		}
-	}
-}
-
-/// A bitfield signed by a particular validator about the availability of pending candidates.
-pub struct Bitfields(pub Vec<SignedAvailabilityBitfield>);

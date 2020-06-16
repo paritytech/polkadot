@@ -27,9 +27,10 @@ use futures::channel::{mpsc, oneshot};
 use polkadot_primitives::{Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, AttestedCandidate as BackedCandidate,
+	SignedAvailabilityBitfield
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedStatement, SignedAvailabilityBitfield,
+	MisbehaviorReport, SignedStatement,
 };
 
 /// Signals sent by an overseer to a subsystem.
