@@ -4,7 +4,7 @@ Para candidates are some of the most common types, both within the runtime and o
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
-This section will describe the base candidate type, its components and abridged counterpart, as well as the backed variant.
+This section will describe the base candidate type, its components, and abridged counterpart.
 
 ## CandidateReceipt
 
