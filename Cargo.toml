@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 

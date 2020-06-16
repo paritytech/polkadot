@@ -20,6 +20,6 @@ If not running as a validator, do nothing.
 
 - Determine our validator index `i`, the set of backed candidates pending availability in `r`, and which bit of the bitfield each corresponds to.
 - > TODO: wait T time for availability distribution?
-- Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the [Availability Store](/node/utility/availability-store.html) for whether we have the availability chunk for our validator index.
+- Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the [Availability Store](../utility/availability-store.html) for whether we have the availability chunk for our validator index.
 - For all chunks we have, set the corresponding bit in the bitfield.
 - Sign the bitfield and dispatch a `BitfieldDistribution::DistributeBitfield` message.
