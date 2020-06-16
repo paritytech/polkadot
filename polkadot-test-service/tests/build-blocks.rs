@@ -11,12 +11,11 @@ fn task_executor() -> Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send
 
 #[async_std::test]
 async fn ensure_test_service_build_blocks() {
-	let temp = tempfile::Builder::new().prefix("polkadot-test-service").tempdir().unwrap();
 	let task_executor = task_executor();
 
-	let service = run_test_node(
+	let (service, _client, _handles, _base_path) = run_test_node(
 		task_executor,
-		&temp.path().to_path_buf(),
+		27015,
 		|| {
 			use polkadot_test_runtime::*;
 			EpochDuration::set(&42);
