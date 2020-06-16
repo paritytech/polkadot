@@ -6,7 +6,7 @@ This subsystem is responsible for handling candidate validation requests. It is 
 
 Input:
 
-- [`CandidateValidationMessage`](/type-definitions.html#validation-request-type)
+- [`CandidateValidationMessage`](../../type-definitions.html#validation-request-type)
 
 ## Functionality
 

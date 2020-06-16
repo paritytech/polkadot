@@ -57,7 +57,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## Candidate Selection Message
 
-These messages are sent from the overseer to the [Candidate Selection subsystem](/node/backing/candidate-selection.html) when new parablocks are available for validation.
+These messages are sent from the overseer to the [Candidate Selection subsystem](node/backing/candidate-selection.html) when new parablocks are available for validation.
 
 ```rust
 enum CandidateSelectionMessage {
@@ -88,7 +88,7 @@ enum CandidateBackingMessage {
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](/node/utility/candidate-validation.html) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](node/utility/candidate-validation.html) validate a block with this message
 
 ```rust
 enum PoVOrigin {
@@ -106,7 +106,7 @@ enum CandidateValidationMessage {
 
 ## Statement Type
 
-The [Candidate Validation subsystem](/node/utility/candidate-validation.html) issues these messages in reponse to `ValidationRequest`s. The [Candidate Backing subsystem](/node/backing/candidate-backing.html) may upgrade the `Valid` variant to `Seconded`.
+The [Candidate Validation subsystem](node/utility/candidate-validation.html) issues these messages in reponse to `ValidationRequest`s. The [Candidate Backing subsystem](node/backing/candidate-backing.html) may upgrade the `Valid` variant to `Seconded`.
 
 ```rust
 /// A statement about the validity of a parachain candidate.
