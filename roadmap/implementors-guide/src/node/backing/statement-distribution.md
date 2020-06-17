@@ -38,7 +38,9 @@ The Statement Distribution subsystem sends statements to peer nodes and detects 
 There is a very simple state machine which governs which messages we are willing to receive from peers. Not depicted in the state machine: on initial receipt of any [`SignedStatement`](../../types/backing.html#signed-statement-type), validate that the provided signature does in fact sign the included data. Note that each individual parablock candidate gets its own instance of this state machine; it is perfectly legal to receive a `Valid(X)` before a `Seconded(Y)`, as long as a `Seconded(X)` has been received.
 
 A: Initial State. Receive `SignedStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing, proceed to B. Receive any other `SignedStatement` variant: drop it.
-B: Receive any `SignedStatement`: extract `Statement`, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
+
+B: Receive any `SignedStatement`: check signature, forward to Candidate Backing. Receive `OverseerMessage::StopWork`: proceed to C.
+
 C: Receive any message for this block: drop it.
 
 ## Peer Knowledge Tracking
