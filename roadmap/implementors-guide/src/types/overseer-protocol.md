@@ -95,7 +95,7 @@ enum CandidateBackingMessage {
 
 ## Candidate Selection Message
 
-These messages are sent from the overseer to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) when new parablocks are available for validation.
+These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) as a means of providing feedback on its outputs.
 
 ```rust
 enum CandidateSelectionMessage {
