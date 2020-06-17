@@ -94,7 +94,7 @@ pub trait ParachainCurrency<AccountId> {
 		source: &AccountId,
 		dest: ParaId,
 		amount: Balance,
-		existence_requirement: ExistenceRequirement
+		existence_requirement: ExistenceRequirement,
 	) -> DispatchResult;
 	fn transfer_out(
 		source: ParaId,
