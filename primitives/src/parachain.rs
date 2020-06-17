@@ -905,9 +905,9 @@ mod tests {
 		assert_eq!(h.as_ref().len(), 32);
 
 		let _payload = collator_signature_payload(
-			&[1; 32].into(),
+			&Hash::from([1; 32]),
 			&5u32.into(),
-			&[2; 32].into(),
+			&Hash::from([2; 32]),
 		);
 	}
 }
