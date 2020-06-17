@@ -54,7 +54,9 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of the currently scheduled upgrade, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. check the backing of the candidate using the signatures and the bitfields.
+  1. check that the upwards messages are not exceeding `config.max_upwards_queue_count` and `config.watermark_queue_size` parameters.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
+  1. call `Router::queue_upward_messages` for each backed candidate.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
 * `enact_candidate(relay_parent_number: BlockNumber, AbridgedCandidateReceipt)`:
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
