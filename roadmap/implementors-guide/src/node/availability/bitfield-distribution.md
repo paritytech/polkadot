@@ -6,11 +6,7 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 `ProtocolId`: `b"bitd"`
 
-Input:
-
-- `DistributeBitfield(relay_parent, SignedAvailabilityBitfield)`: distribute a bitfield via gossip to other validators.
-- `NetworkBridgeUpdate(NetworkBridgeUpdate)`
-
+Input: [`BitfieldDistributionMessage`](../../overseer-protocol.md#bitfield-distribution-message)
 Output:
 
 - `NetworkBridge::RegisterEventProducer(ProtocolId)`
