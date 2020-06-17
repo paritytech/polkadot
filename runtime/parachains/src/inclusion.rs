@@ -42,6 +42,9 @@ use crate::{configuration, paras, scheduler::{CoreIndex, GroupIndex, CoreAssignm
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
+///
+/// The bitfield's signature should be checked at the point of submission. Afterwards it can be
+/// dropped.
 #[derive(Encode, Decode)]
 #[cfg_attr(test, derive(Debug))]
 pub struct AvailabilityBitfieldRecord<N> {
