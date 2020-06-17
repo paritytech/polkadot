@@ -116,7 +116,7 @@ pub enum NetworkBridgeEvent {
 /// Messages received by the network bridge subsystem.
 pub enum NetworkBridgeSubsystemMessage {
 	/// Register an event producer on startup.
-	RegisterEventProducer(ProtocolId, Box<dyn Fn(NetworkBridgeEvent) -> AllMessages>),
+	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, ReputationChange),
