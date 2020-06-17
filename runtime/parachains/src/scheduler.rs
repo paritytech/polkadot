@@ -164,7 +164,6 @@ impl CoreAssignment {
 		}
 	}
 
-	#[allow(unused)]
 	fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
@@ -179,7 +178,6 @@ impl CoreAssignment {
 }
 
 /// Reasons a core might be freed
-#[allow(unused)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -536,7 +534,6 @@ impl<T: Trait> Module<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
-	#[allow(unused)]
 	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
 		if now_occupied.is_empty() { return }
 
@@ -568,7 +565,6 @@ impl<T: Trait> Module<T> {
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
 	/// out of bounds will return `None`, as will indices of unassigned cores.
-	#[allow(unused)]
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
@@ -582,7 +578,6 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the validators in the given group, if the group index is valid for this session.
-	#[allow(unused)]
 	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
 		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
@@ -629,7 +624,6 @@ impl<T: Trait> Module<T> {
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
-	#[allow(unused)]
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
 		let now = <system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
