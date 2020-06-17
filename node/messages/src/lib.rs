@@ -93,7 +93,7 @@ pub enum ValidationSubsystemMessage {
 /// Chain heads.
 ///
 /// Up to `N` (5?) chain heads.
-pub struct View(Vec<Hash>);
+pub struct View(pub Vec<Hash>);
 
 /// Events from network.
 pub enum NetworkBridgeEvent {
@@ -134,7 +134,7 @@ pub enum AvailabilityDistributionMessage {
 	FetchChunk(Hash, u32),
 
 	/// Event from the network bridge.
-	NetworkBridgeEvent(NetworkBridgeEvent),
+	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
 /// Bitfield distribution message.
@@ -143,7 +143,7 @@ pub enum BitfieldDistributionMessage {
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
-	NetworkBridgeEvent(NetworkBridgeEvent),
+	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
 /// Availability store subsystem message.
