@@ -428,7 +428,6 @@ impl<T: Trait> Module<T> {
 	/// with number >= `expected_at`
 	///
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
-	#[allow(unused)]
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
@@ -448,7 +447,6 @@ impl<T: Trait> Module<T> {
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
 	/// of a relay-chain block with given number. This will apply pending code upgrades based
 	/// on the block number provided.
-	#[allow(unused)]
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
