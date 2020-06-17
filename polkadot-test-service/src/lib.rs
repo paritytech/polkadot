@@ -30,7 +30,7 @@ use polkadot_primitives::{
 	BlockId, Hash,
 };
 use polkadot_service::PolkadotClient;
-use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotExecutor};
+use polkadot_service::{new_full, new_full_start, FullNodeHandles};
 use sc_chain_spec::ChainSpec;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
@@ -48,6 +48,14 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use sc_executor::native_executor_instance;
+
+native_executor_instance!(
+	pub PolkadotTestExecutor,
+	polkadot_test_runtime::api::dispatch,
+	polkadot_test_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
 
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
@@ -71,7 +79,7 @@ pub fn polkadot_test_new_full(
 		authority_discovery_enabled,
 		slot_duration,
 		polkadot_test_runtime::RuntimeApi,
-		PolkadotExecutor,
+		PolkadotTestExecutor,
 	);
 
 	Ok((service, client, handles))
@@ -157,6 +165,7 @@ pub fn run_test_node(
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
 	port: u16,
+	key: &str,
 	storage_update_func: impl Fn(),
 ) -> Result<
 	(
@@ -178,14 +187,13 @@ pub fn run_test_node(
 
 	spec.set_storage(storage);
 
-	let key = String::new();
 	let config = node_config(
 		&spec,
 		Role::Authority {
 			sentry_nodes: Vec::new(),
 		},
 		task_executor,
-		Some(key),
+		Some(format!("//{}", key)),
 		port,
 		&base_path,
 	);

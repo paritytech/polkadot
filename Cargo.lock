@@ -4625,6 +4625,7 @@ name = "polkadot-test-service"
 version = "0.8.2"
 dependencies = [
  "async-std",
+ "frame-benchmarking",
  "futures 0.3.5",
  "log 0.4.8",
  "pallet-staking",
@@ -4637,9 +4638,11 @@ dependencies = [
  "polkadot-validation",
  "sc-authority-discovery",
  "sc-chain-spec",
+ "sc-cli",
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
+ "sc-executor",
  "sc-finality-grandpa",
  "sc-network",
  "sc-service",

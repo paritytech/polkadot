@@ -16,23 +16,39 @@ fn task_executor(
 
 #[async_std::test]
 async fn ensure_test_service_build_blocks() {
-	let task_executor = task_executor();
-
-	let (service, _client, _handles, _base_path) = run_test_node(task_executor, 27015, || {
+	sc_cli::init_logger("");
+	let (service_alice, _client_alice, _handles_alice, _base_path_alice) = run_test_node(task_executor(), 27015, "alice", || {
 		use polkadot_test_runtime::*;
-		EpochDuration::set(&42);
-		//panic!("{:?}", EpochDuration::get());
+		//EpochDuration::set(&42);
+		//ExpectedBlockTime::set(&6000);
+		//panic!("{:?}", ExpectedBlockTime::get());
+		//panic!("{:?}", MinimumPeriod::get());
+		SlotDuration::set(&2000);
+		//MinimumPeriod::set(&1000);
 	})
 	.unwrap();
 
-	let t1 = service.fuse();
-	let t2 = async_std::task::sleep(Duration::from_secs(10)).fuse();
+	let (service_bob, _client_bob, _handles_bob, _base_path_bob) = run_test_node(task_executor(), 27016, "bob", || {
+		use polkadot_test_runtime::*;
+		//EpochDuration::set(&42);
+		//ExpectedBlockTime::set(&6000);
+		//panic!("{:?}", ExpectedBlockTime::get());
+		//panic!("{:?}", MinimumPeriod::get());
+		SlotDuration::set(&2000);
+		//MinimumPeriod::set(&1000);
+	})
+	.unwrap();
 
-	pin_mut!(t1, t2);
+	let t1 = service_alice.fuse();
+	let t2 = service_bob.fuse();
+	let t3 = async_std::task::sleep(Duration::from_secs(20)).fuse();
+
+	pin_mut!(t1, t2, t3);
 
 	select! {
 		_ = t1 => {},
 		_ = t2 => {},
+		_ = t3 => {},
 	}
 
 	assert!(false);
