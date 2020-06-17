@@ -547,6 +547,7 @@ mod tests {
 
 	#[derive(Debug, Clone, Copy, PartialEq)]
 	enum BackingKind {
+		#[allow(unused)]
 		Unanimous,
 		Threshold,
 		Lacking,
