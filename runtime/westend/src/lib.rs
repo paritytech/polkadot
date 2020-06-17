@@ -21,7 +21,6 @@
 #![recursion_limit="256"]
 
 use sp_std::prelude::*;
-use static_assertions::const_assert;
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
@@ -35,7 +34,7 @@ use runtime_common::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Perquintill, curve::PiecewiseLinear, PerThing,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,

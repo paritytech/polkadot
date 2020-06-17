@@ -34,7 +34,7 @@ use runtime_common::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Perbill, Perquintill, RuntimeDebug, KeyTypeId,
+	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},

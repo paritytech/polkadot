@@ -36,9 +36,9 @@ use primitives::{
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
 use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ModuleId, FixedPointNumber,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
-	transaction_validity::{
+	create_runtime_str, generic, impl_opaque_keys, ModuleId,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
+		transaction_validity::{
 		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
