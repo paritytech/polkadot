@@ -25,10 +25,10 @@
 use futures::channel::{mpsc, oneshot};
 
 use sc_network::{ObservedRole, ReputationChange, PeerId, config::ProtocolId};
-use polkadot_primitives::{Hash, Signature};
+use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate,
-	SignedAvailabilityBitfield, ValidatorIndex,
+	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
+	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedStatement,
@@ -51,7 +51,7 @@ pub struct NewBackedCandidate(pub BackedCandidate);
 
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
-pub enum CandidateSelectionSubsystemMessage {
+pub enum CandidateSelectionMessage {
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	/// The hash is the relay parent.
 	Invalid(Hash, AbridgedCandidateReceipt),
@@ -59,7 +59,7 @@ pub enum CandidateSelectionSubsystemMessage {
 
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
-pub enum CandidateBackingSubsystemMessage {
+pub enum CandidateBackingMessage {
 	/// Registers a stream listener for updates to the set of backable candidates that could be backed
 	/// in a child of the given relay-parent, referenced by its hash.
 	RegisterBackingWatcher(Hash, mpsc::Sender<NewBackedCandidate>),
@@ -147,7 +147,7 @@ pub enum BitfieldDistributionMessage {
 }
 
 /// Availability store subsystem message.
-pub enum AvailabilitySubsystemMessage {
+pub enum AvailabilityStoreMessage {
 	/// Query a `PoVBlock` from the AV store.
 	QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
 
@@ -156,6 +156,24 @@ pub enum AvailabilitySubsystemMessage {
 
 	/// Store an `ErasureChunk` in the AV store.
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+}
+
+/// A request to the Runtime API subsystem.
+pub enum RuntimeApiRequest {
+	/// Get the current validator set.
+	Validators(oneshot::Sender<Vec<ValidatorId>>),
+	/// Get a signing context for bitfields and statements.
+	SigningContext(oneshot::Sender<SigningContext>),
+	/// Get the validation code for a specific para, assuming execution under given block number, and
+	/// an optional block number representing an intermediate parablock executed in the context of
+	/// that block.
+	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
+}
+
+/// A message to the Runtime API subsystem.
+pub enum RuntimeApiMessage {
+	/// Make a request of the runtime API against the post-state of the given relay-parent.
+	Request(Hash, RuntimeApiRequest),
 }
 
 /// Statement distribution message.
@@ -194,7 +212,7 @@ pub enum AllMessages {
 	/// Message for the validation subsystem.
 	Validation(ValidationSubsystemMessage),
 	/// Message for the candidate backing subsystem.
-	CandidateBacking(CandidateBackingSubsystemMessage),
+	CandidateBacking(CandidateBackingMessage),
 }
 
 /// A message type that a subsystem receives from an overseer.

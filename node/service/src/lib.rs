@@ -32,7 +32,7 @@ use sp_blockchain::HeaderBackend;
 use polkadot_overseer::{
 	self as overseer,
 	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
-	ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
+	ValidationSubsystemMessage, CandidateBackingMessage,
 };
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
@@ -280,8 +280,8 @@ impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
 
 struct CandidateBackingSubsystem;
 
-impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
-	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+impl Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem {
+	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))

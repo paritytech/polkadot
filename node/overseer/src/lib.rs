@@ -76,7 +76,7 @@ use polkadot_primitives::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 pub use messages::{
-	OverseerSignal, ValidationSubsystemMessage, CandidateBackingSubsystemMessage, AllMessages,
+	OverseerSignal, ValidationSubsystemMessage, CandidateBackingMessage, AllMessages,
 	FromOverseer,
 };
 
@@ -370,7 +370,7 @@ pub struct Overseer<S: Spawn> {
 	validation_subsystem: OverseenSubsystem<ValidationSubsystemMessage>,
 
 	/// A candidate backing subsystem
-	candidate_backing_subsystem: OverseenSubsystem<CandidateBackingSubsystemMessage>,
+	candidate_backing_subsystem: OverseenSubsystem<CandidateBackingMessage>,
 
 	/// Spawner to spawn tasks to.
 	s: S,
@@ -443,7 +443,7 @@ where
 	/// # use futures_timer::Delay;
 	/// # use polkadot_overseer::{
 	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
+	/// #     ValidationSubsystemMessage, CandidateBackingMessage,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
@@ -461,10 +461,10 @@ where
 	/// }
 	///
 	/// struct CandidateBackingSubsystem;
-	/// impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
+	/// impl Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem {
 	///     fn start(
 	///         &mut self,
-	///         mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>,
+	///         mut ctx: SubsystemContext<CandidateBackingMessage>,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
 	///             loop {
@@ -499,7 +499,7 @@ where
 	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
-		candidate_backing: Box<dyn Subsystem<CandidateBackingSubsystemMessage> + Send>,
+		candidate_backing: Box<dyn Subsystem<CandidateBackingMessage> + Send>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)> {
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
@@ -746,8 +746,8 @@ mod tests {
 
 	struct TestSubsystem2(mpsc::Sender<usize>);
 
-	impl Subsystem<CandidateBackingSubsystemMessage> for TestSubsystem2 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+	impl Subsystem<CandidateBackingMessage> for TestSubsystem2 {
+		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 			SpawnedSubsystem(Box::pin(async move {
 				let mut c: usize = 0;
 				loop {
@@ -786,8 +786,8 @@ mod tests {
 
 	struct TestSubsystem4;
 
-	impl Subsystem<CandidateBackingSubsystemMessage> for TestSubsystem4 {
-		fn start(&mut self, mut _ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+	impl Subsystem<CandidateBackingMessage> for TestSubsystem4 {
+		fn start(&mut self, mut _ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 			SpawnedSubsystem(Box::pin(async move {
 				// Do nothing and exit.
 			}))
@@ -895,8 +895,8 @@ mod tests {
 
 	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
 
-	impl Subsystem<CandidateBackingSubsystemMessage> for TestSubsystem6 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+	impl Subsystem<CandidateBackingMessage> for TestSubsystem6 {
+		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {
