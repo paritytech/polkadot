@@ -54,17 +54,14 @@ runtime_changes=""
 
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
-  if has_label 'paritytech/polkadot' "$pr_id" 'B1-silent'; then
-    continue
-  fi
-
   # If the PR has a runtimenoteworthy label, add to the runtime_changes section
-  if has_label 'paritytech/polkadot' "$pr_id" 'B1-runtimenoteworthy'; then
+  if has_label 'paritytech/polkadot' "$pr_id" 'B2-runtimenoteworthy'; then
     runtime_changes="$runtime_changes
 $line"
-  else
-  # otherwise, add the PR to the main list of changes
-  release_text="$release_text
+  fi
+  # If the PR has a releasenotes label, add to the release section
+  if has_label 'paritytech/polkadot' "$pr_id" 'B1-releasenotes'; then
+    release_text="$release_text
 $line"
   fi
 done <<< "$(sanitised_git_logs "$last_version" "$version" | \
