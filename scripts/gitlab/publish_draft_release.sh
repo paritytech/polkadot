@@ -40,11 +40,11 @@ kusama_spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo
 echo "[+] Kusama spec version: $kusama_spec"
 westend_spec=$(grep spec_version runtime/westend/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
 echo "[+] Westend spec version: $westend_spec"
-release_text="Polkadot native runtime: $polkadot_spec
+release_text="Polkadot native runtime: **$polkadot_spec**
 
-Kusama native runtime: $kusama_spec
+Kusama native runtime: **$kusama_spec**
 
-Westend native runtime: $westend_spec
+Westend native runtime: **$westend_spec**
 
 This release was built with the following versions of \`rustc\`. Other versions may work.
 - $stable_rustc
@@ -67,8 +67,8 @@ priority_labels=(
 )
 
 declare -A priority_descriptions=(
-['C1-low']="Upgrade priority: Low (upgrade at your convenience)"
-['C3-medium']="Upgrade priority: *Medium* (timely upgrade recommended)"
+['C1-low']="Upgrade priority: **Low** (upgrade at your convenience)"
+['C3-medium']="Upgrade priority: **Medium** (timely upgrade recommended)"
 ['C7-high']="Upgrade priority:❗ **HIGH** ❗ Please upgrade your node as soon as possible"
 ['C9-critical']="Upgrade priority: ❗❗ **URGENT** ❗❗ PLEASE UPGRADE IMMEDIATELY"
 )
@@ -96,11 +96,11 @@ while IFS= read -r line; do
       priority="${priority_descriptions[$cur_label]}"
       # If it's not an increase in priority, we just append the PR to the list
       if [ "$prev_label" == "$max_label" ]; then
-        priority_changes+=("#$pr_id")
+        priority_changes+=("${line/\* /}")
       fi
       # If the priority has increased, we override previous changes with new changes
       if [ "$prev_label" != "$max_label" ]; then
-        priority_changes=("#$pr_id")
+        priority_changes=("${line/\* /}")
       fi
     fi
   done
@@ -145,33 +145,27 @@ pushd $substrate_dir || exit
   substrate_client_changes=""
   substrate_changes=""
 
-  # Set initial upgrade priority variables
-  substrate_max_label=-1
-  substrate_priority="${priority_descriptions['C1-low']}"
-
-  declare -a substrate_priority_changes
-
   echo "[+] Iterating through substrate changes to find labelled PRs"
   while IFS= read -r line; do
     pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
 
     # Basically same check as Polkadot priority
     # We only need to check for any labels of the current priority or higher
-    for ((index=substrate_max_label; index<${#priority_labels[@]}; index++)) ; do
+    for ((index=max_label; index<${#priority_labels[@]}; index++)) ; do
       cur_label="${priority_labels[$index]}"
       echo "[+] Checking substrate/#$pr_id for presence of $cur_label label"
       if has_label 'paritytech/substrate' "$pr_id" "$cur_label" ; then
         echo "[+] #$pr_id has label $cur_label. Setting max."
-        prev_label="$substrate_max_label"
-        substrate_max_label="$index"
-        substrate_priority="${priority_descriptions[$cur_label]}"
+        prev_label="$max_label"
+        max_label="$index"
+        priority="${priority_descriptions[$cur_label]}"
         # If it's not an increase in priority, we just append
         if [ "$prev_label" == "$max_label" ]; then
-          substrate_priority_changes+=("paritytech/substrate#$pr_id")
+          priority_changes+=("${line/\* /}")
         fi
         # If the priority has increased, we override previous changes with new changes
         if [ "$prev_label" != "$max_label" ]; then
-          substrate_priority_changes=("paritytech/substrate#$pr_id")
+          priority_changes=("${line/\* /}")
         fi
       fi
     done
@@ -230,13 +224,12 @@ fi
 
 # Finally, add the priorities to the *start* of the release notes
 # If polkadot and substrate priority = low, no need for list of changes
-if [ "$priority" == "${priority_descriptions['C1-low']}" ] &&
-   [ "$substrate_priority" == "${priority_descriptions['C1-low']}" ]; then
+if [ "$priority" == "${priority_descriptions['C1-low']}" ]; then
   release_text="$priority
 
 $release_text"
 else
-  release_text="$priority - due to change(s): ${priority_changes[*]} ${substrate_priority_changes[*]}
+  release_text="$priority - due to change(s): *${priority_changes[*]}*
 
 $release_text"
 fi
