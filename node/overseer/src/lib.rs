@@ -76,7 +76,7 @@ use polkadot_primitives::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 pub use messages::{
-	OverseerSignal, ValidationSubsystemMessage, CandidateBackingMessage, AllMessages,
+	OverseerSignal, CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 	FromOverseer,
 };
 
@@ -367,7 +367,7 @@ struct OverseenSubsystem<M: Debug> {
 /// The `Overseer` itself.
 pub struct Overseer<S: Spawn> {
 	/// A validation subsystem
-	validation_subsystem: OverseenSubsystem<ValidationSubsystemMessage>,
+	validation_subsystem: OverseenSubsystem<CandidateValidationMessage>,
 
 	/// A candidate backing subsystem
 	candidate_backing_subsystem: OverseenSubsystem<CandidateBackingMessage>,
@@ -443,14 +443,14 @@ where
 	/// # use futures_timer::Delay;
 	/// # use polkadot_overseer::{
 	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     ValidationSubsystemMessage, CandidateBackingMessage,
+	/// #     CandidateValidationMessage, CandidateBackingMessage,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
-	/// impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
+	/// impl Subsystem<CandidateValidationMessage> for ValidationSubsystem {
 	///     fn start(
 	///         &mut self,
-	///         mut ctx: SubsystemContext<ValidationSubsystemMessage>,
+	///         mut ctx: SubsystemContext<CandidateValidationMessage>,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
 	///             loop {
@@ -498,7 +498,7 @@ where
 	/// ```
 	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		validation: Box<dyn Subsystem<ValidationSubsystemMessage> + Send>,
+		validation: Box<dyn Subsystem<CandidateValidationMessage> + Send>,
 		candidate_backing: Box<dyn Subsystem<CandidateBackingMessage> + Send>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)> {
@@ -670,7 +670,7 @@ where
 
 	async fn route_message(&mut self, msg: AllMessages) {
 		match msg {
-			AllMessages::Validation(msg) => {
+			AllMessages::CandidateValidation(msg) => {
 				if let Some(ref mut s) = self.validation_subsystem.instance {
 					let _= s.tx.send(FromOverseer::Communication { msg }).await;
 				}
@@ -723,8 +723,8 @@ mod tests {
 
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
-	impl Subsystem<ValidationSubsystemMessage> for TestSubsystem1 {
-		fn start(&mut self, mut ctx: SubsystemContext<ValidationSubsystemMessage>) -> SpawnedSubsystem {
+	impl Subsystem<CandidateValidationMessage> for TestSubsystem1 {
+		fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 			SpawnedSubsystem(Box::pin(async move {
 				let mut i = 0;
@@ -754,8 +754,8 @@ mod tests {
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
 						ctx.send_msg(
-							AllMessages::Validation(
-								ValidationSubsystemMessage::Validate(
+							AllMessages::CandidateValidation(
+								CandidateValidationMessage::Validate(
 									Default::default(),
 									Default::default(),
 									PoVBlock {
@@ -871,8 +871,8 @@ mod tests {
 
 	struct TestSubsystem5(mpsc::Sender<OverseerSignal>);
 
-	impl Subsystem<ValidationSubsystemMessage> for TestSubsystem5 {
-		fn start(&mut self, mut ctx: SubsystemContext<ValidationSubsystemMessage>) -> SpawnedSubsystem {
+	impl Subsystem<CandidateValidationMessage> for TestSubsystem5 {
+		fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {

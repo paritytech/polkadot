@@ -77,7 +77,7 @@ pub struct ValidationFailed;
 
 /// Messages received by the Validation subsystem
 #[derive(Debug)]
-pub enum ValidationSubsystemMessage {
+pub enum CandidateValidationMessage {
 	/// Validate a candidate, sending a side-channel response of valid or invalid.
 	///
 	/// Provide the relay-parent in whose context this should be validated, the full candidate receipt,
@@ -210,7 +210,7 @@ pub enum ProvisionerMessage {
 #[derive(Debug)]
 pub enum AllMessages {
 	/// Message for the validation subsystem.
-	Validation(ValidationSubsystemMessage),
+	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
 	CandidateBacking(CandidateBackingMessage),
 }
