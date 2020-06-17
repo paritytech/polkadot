@@ -42,8 +42,8 @@
     - [Backing](types/backing.md)
     - [Availability](types/availability.md)
     - [Overseer and Subsystem Protocol](types/overseer-protocol.md)
-	- [Runtime](types/runtime.md)
-	- [Chain](types/chain.md)
+    - [Runtime](types/runtime.md)
+    - [Chain](types/chain.md)
 
 [Glossary](glossary.md)
 [Further Reading](further-reading.md)
