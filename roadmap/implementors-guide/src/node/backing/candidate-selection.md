@@ -2,7 +2,7 @@
 
 The Candidate Selection Subsystem is run by validators, and is responsible for interfacing with Collators to select a candidate, along with its PoV, to second during the backing process relative to a specific relay parent.
 
-This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators who have submitted collations that are found to have submitted invalid collations by other subsystems.
+This subsystem includes networking code for communicating with collators, and tracks which collations specific collators have submitted. This subsystem is responsible for disconnecting and blacklisting collators who are found to have submitted invalid collations. Typically an invalid collation will be discovered by a different subsystem.
 
 This subsystem is only ever interested in parablocks assigned to the particular parachain which this validator is currently handling.
 
@@ -12,7 +12,7 @@ In the event that a parablock candidate proves invalid, this subsystem will rece
 
 ## Protocol
 
-Input: None
+Input: None from other subsystems. This subsystem contains internal network logic for receiving parablock candidates and associated Proofs of Validity from collators.
 
 Output:
 
