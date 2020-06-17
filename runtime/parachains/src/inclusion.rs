@@ -251,11 +251,7 @@ impl<T: Trait> Module<T> {
 			<AvailabilityBitfields<T>>::insert(&signed_bitfield.validator_index, record);
 		}
 
-		let threshold = {
-			let mut threshold = (validators.len() * 2) / 3;
-			threshold += (validators.len() * 2) % 3;
-			threshold
-		};
+		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(n_bits);
 		for (para_id, pending_availability) in assigned_paras_record.into_iter()
@@ -489,6 +485,12 @@ impl<T: Trait> Module<T> {
 
 		cleaned_up_cores
 	}
+}
+
+const fn availability_threshold(n_validators: usize) -> usize {
+	let mut threshold = (n_validators * 2) / 3;
+	threshold += (n_validators * 2) % 3;
+	threshold
 }
 
 #[cfg(test)]
@@ -929,11 +931,7 @@ mod tests {
 				bare_bitfield
 			};
 
-			let threshold = {
-				let mut threshold = (validators.len() * 2) / 3;
-				threshold += (validators.len() * 2) % 3;
-				threshold
-			};
+			let threshold = availability_threshold(validators.len());
 
 			// 4 of 5 first value >= 2/3
 			assert_eq!(threshold, 4);
