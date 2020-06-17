@@ -25,11 +25,7 @@ There may be multiple competing blocks all ending the availability phase for a p
 
 ## Protocol
 
-Input:
-
-- QueryPoV(candidate_hash, response_channel)
-- QueryChunk(candidate_hash, validator_index, response_channel)
-- StoreChunk(candidate_hash, validator_index, inclusion_proof, chunk_data)
+Input: [`AvailabilityStoreMessage`](../../types/overseer-protocol.html#availability-store-message)
 
 ## Functionality
 
@@ -49,7 +45,7 @@ On `QueryPoV` message:
 
 On `QueryChunk` message:
 
-- Determine if we have the chunk indicated by the parameters and return it via the response channel if so.
+- Determine if we have the chunk indicated by the parameters and return it and its inclusion proof via the response channel if so.
 
 On `StoreChunk` message:
 

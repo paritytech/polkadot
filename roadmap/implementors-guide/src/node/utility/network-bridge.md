@@ -10,27 +10,8 @@ So in short, this Subsystem acts as a bridge between an actual network component
 
 ## Protocol
 
-> REVIEW: I am designing this using dynamic dispatch based on a ProtocolId discriminant rather than doing static dispatch to specific subsystems based on a concrete network message type. The reason for this is that doing static dispatch might break the property that Subsystem implementations can be swapped out for others. So this is actually implementing a subprotocol multiplexer. Pierre tells me this is OK for our use-case ;). One caveat is that now all network traffic will also flow through the overseer, but this overhead is probably OK.
-
-```rust
-use sc-network::ObservedRole;
-
-struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
-
-enum NetworkBridgeEvent {
- PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
- PeerDisconnected(PeerId),
- PeerMessage(PeerId, Bytes),
- PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
- OurViewChange(View),
-}
-```
-
-Input:
-
-- RegisterEventProducer(`ProtocolId`, `Fn(NetworkBridgeEvent) -> AllMessages`): call on startup.
-- ReportPeer(PeerId, cost_or_benefit)
-- SendMessage(`[PeerId]`, `ProtocolId`, Bytes): send a message to multiple peers.
+Input: [`NetworkBridgeMessage`](../../types/overseer-protocol.html#network-bridge-message)
+Output: Varying, based on registered event producers.
 
 ## Functionality
 
