@@ -22,7 +22,12 @@ NeedsDispatch: Vec<ParaId>;
 
 ## Routines
 
-* `queue_upward_messages(AttestedCandidate)`:
+* `queue_upward_messages(AbridgedCandidateReceipt)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
-* `dispatch_upward_messages(ParaId)`:
+* `dispatch_upward_messages()`:
   1. If `NeedsDispatch` contains an entry passed as an input parameter start dispatching messages from it's respective entry in `RelayDispatchQueues`. The dispatch is done in the FIFO order and it drains the queue and removes it from `RelayDispatchQueues`.
+
+## Initialization
+
+  > TODO: On initalization or finalization or when exactly?
+  1. Dispatch queued upward messages using `dispatch_upward_messages`.
