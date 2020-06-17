@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 log = "0.4.8"
 futures = "0.3.4"
+tempfile = "3.1.0"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
@@ -31,7 +32,9 @@ babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/par
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tempfile = "3.1.0"
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 async-std = { version = "1.2.0", features = [ "attributes" ] }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
