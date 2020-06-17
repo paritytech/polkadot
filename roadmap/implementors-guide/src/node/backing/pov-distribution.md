@@ -1,6 +1,6 @@
 # PoV Distribution
 
-This subsystem is responsible for distributing PoV blocks. For now, unified with [Statement Distribution subsystem](/node/backing/statement-distribution.html).
+This subsystem is responsible for distributing PoV blocks. For now, unified with [Statement Distribution subsystem](statement-distribution.html).
 
 ## Protocol
 
