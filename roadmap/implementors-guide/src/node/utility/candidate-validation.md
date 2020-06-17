@@ -16,7 +16,7 @@ Given the hashes of a relay parent and a parachain candidate block, and either i
 
 Each job follows this process:
 
-- Get the full candidate from the network via the [Candiate Fetch subsystem](candidate-fetch.md)
+- Get the full candidate from the current relay chain state
 - Check the candidate's proof
    > TODO: that's extremely hand-wavey. What does that actually entail?
 - Generate either `Statement::Valid` or `Statement::Invalid`. Note that this never generates `Statement::Seconded`; Candidate Backing is the only subsystem which upgrades valid to seconded.

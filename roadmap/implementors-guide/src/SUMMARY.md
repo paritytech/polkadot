@@ -31,7 +31,6 @@
   - [Validity](node/validity/README.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)
-    - [Candidate Fetch](node/utility/candidate-fetch.md)
     - [Candidate Validation](node/utility/candidate-validation.md)
     - [Provisioner](node/utility/provisioner.md)
     - [Network Bridge](node/utility/network-bridge.md)
