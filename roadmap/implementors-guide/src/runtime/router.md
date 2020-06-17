@@ -12,7 +12,7 @@ This module does not have the same initialization/finalization concerns as the o
 
 Storage layout:
 
-```rust
+```rust,ignore
 /// Messages ready to be dispatched onto the relay chain.
 /// This is subject to `max_upwards_queue_count` and
 ///`watermark_queue_size` from `HostConfiguration`.
