@@ -909,6 +909,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
+		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = ();
 		type Index = u64;
@@ -1072,7 +1073,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
@@ -1085,7 +1086,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
@@ -1130,7 +1131,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(1), 1);
 			assert_eq!(Balances::free_balance(1), 9);
@@ -1150,7 +1151,7 @@ mod tests {
 	fn offboarding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 			assert_eq!(Balances::free_balance(1), 9);
 
@@ -1168,7 +1169,7 @@ mod tests {
 	fn set_offboarding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1189,7 +1190,7 @@ mod tests {
 	fn onboarding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1209,7 +1210,7 @@ mod tests {
 	fn late_onboarding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(10);
@@ -1232,7 +1233,7 @@ mod tests {
 	fn under_bidding_works() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 5));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
 			assert_eq!(Balances::reserved_balance(2), 0);
@@ -1248,7 +1249,7 @@ mod tests {
 	fn should_choose_best_combination() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
 			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 2));
@@ -1276,7 +1277,7 @@ mod tests {
 	fn independent_bids_should_fail() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 2, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 4, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 2, 2, 1));
@@ -1291,13 +1292,13 @@ mod tests {
 	fn multiple_onboards_offboards_should_work() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 2, 3, 1));
 			assert_ok!(Slots::bid(Origin::signed(3), 0, 1, 4, 4, 1));
 
 			run_to_block(5);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 1, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 1, 1));
 			assert_ok!(Slots::bid(Origin::signed(4), 1, 2, 1, 2, 1));
 			assert_ok!(Slots::bid(Origin::signed(5), 1, 2, 3, 4, 1));
 
@@ -1368,7 +1369,7 @@ mod tests {
 	fn extensions_should_work() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 1));
 
 			run_to_block(9);
@@ -1379,7 +1380,7 @@ mod tests {
 			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 1));
 
 			with_parachains(|p| {
@@ -1392,7 +1393,7 @@ mod tests {
 				assert_eq!(p.len(), 1);
 				assert_eq!(p[&0], (vec![1].into(), vec![1].into()));
 			});
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
 			assert_ok!(Balances::transfer(Origin::signed(1), ParaId::from(0).into_account(), 1));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 2));
 
@@ -1413,7 +1414,7 @@ mod tests {
 	fn renewal_with_lower_value_should_work() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
@@ -1424,13 +1425,13 @@ mod tests {
 			assert_ok!(Slots::fix_deploy_data(Origin::signed(1), 0, 0.into(), h, 1, vec![1].into()));
 			assert_ok!(Slots::elaborate_deploy_data(Origin::signed(0), 0.into(), vec![1].into()));
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 2, 2, 2, 3));
 
 			run_to_block(20);
 			assert_eq!(Balances::free_balance(&ParaId::from(0u32).into_account()), 2);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 2));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 2));
 			assert_ok!(Slots::bid_renew(Origin::signed(ParaId::from(0).into_account()), 3, 3, 3, 4));
 
 			run_to_block(30);
@@ -1443,7 +1444,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 4, 4, 5));
 
 			run_to_block(9);
@@ -1464,7 +1465,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block(i as _);
@@ -1492,7 +1493,7 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 
 			for i in 1..6u64 {
 				run_to_block((i + 3) as _);
@@ -1615,7 +1616,7 @@ mod tests {
 	fn deploy_code_too_large() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
@@ -1638,7 +1639,7 @@ mod tests {
 	fn deploy_maximum_ok() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
@@ -1659,7 +1660,7 @@ mod tests {
 	fn deploy_head_data_too_large() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
@@ -1683,7 +1684,7 @@ mod tests {
 	fn code_size_must_be_correct() {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 1, 5));
 
 			run_to_block(9);
