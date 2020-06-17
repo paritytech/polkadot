@@ -2,12 +2,17 @@
 
 The Router module is responsible for storing and dispatching Upwards and Downwards messages from and to parachains respectively. It is intended to later handle the XCMP logic as well.
 
+For each enacted block the `enqueue_upward_messages` entry-point is called. All dispatching logic is done by the `dispatch_upward_messages` entry-point. This entry-point is mandatory, in that it must be envoked once within every block.
+
+This module does not have the same initialization/finalization concerns as the others, it requires that its entry points be triggered
+  1. When candidate is enacted.
+  1. Upon new block initialization.
+
 ## Storage
 
 Storage layout:
 
 ```rust
-
 /// Messages ready to be dispatched onto the relay chain.
 /// This is subject to `max_upwards_queue_count` and
 ///`watermark_queue_size` from `HostConfiguration`.
