@@ -24,14 +24,14 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use sc_network::{ObservedRole, ReputationChange, PeerId, config::ProtocolId};
+use sc_network::{ObservedRole, ReputationChange, PeerId};
 use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedStatement,
+	MisbehaviorReport, SignedStatement, View, ProtocolId,
 };
 
 /// Signals sent by an overseer to a subsystem.
@@ -90,12 +90,8 @@ pub enum CandidateValidationMessage {
 	),
 }
 
-/// Chain heads.
-///
-/// Up to `N` (5?) chain heads.
-pub struct View(pub Vec<Hash>);
-
 /// Events from network.
+#[derive(Debug)]
 pub enum NetworkBridgeEvent {
 	/// A peer has connected.
 	PeerConnected(PeerId, ObservedRole),
@@ -114,7 +110,8 @@ pub enum NetworkBridgeEvent {
 }
 
 /// Messages received by the network bridge subsystem.
-pub enum NetworkBridgeSubsystemMessage {
+#[derive(Debug)]
+pub enum NetworkBridgeMessage {
 	/// Register an event producer on startup.
 	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 
@@ -126,6 +123,7 @@ pub enum NetworkBridgeSubsystemMessage {
 }
 
 /// Availability Distribution Message.
+#[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
 	/// Distribute an availability chunk to other validators.
 	DistributeChunk(Hash, ErasureChunk),
@@ -138,6 +136,7 @@ pub enum AvailabilityDistributionMessage {
 }
 
 /// Bitfield distribution message.
+#[derive(Debug)]
 pub enum BitfieldDistributionMessage {
 	/// Distribute a bitfield via gossip to other validators.
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
@@ -147,6 +146,7 @@ pub enum BitfieldDistributionMessage {
 }
 
 /// Availability store subsystem message.
+#[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `PoVBlock` from the AV store.
 	QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
@@ -159,6 +159,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 /// A request to the Runtime API subsystem.
+#[derive(Debug)]
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(oneshot::Sender<Vec<ValidatorId>>),
@@ -171,12 +172,14 @@ pub enum RuntimeApiRequest {
 }
 
 /// A message to the Runtime API subsystem.
+#[derive(Debug)]
 pub enum RuntimeApiMessage {
 	/// Make a request of the runtime API against the post-state of the given relay-parent.
 	Request(Hash, RuntimeApiRequest),
 }
 
 /// Statement distribution message.
+#[derive(Debug)]
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
@@ -184,6 +187,7 @@ pub enum StatementDistributionMessage {
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+#[derive(Debug)]
 pub enum ProvisionableData {
 	/// This bitfield indicates the availability of various candidate blocks.
 	Bitfield(Hash, SignedAvailabilityBitfield),
@@ -198,6 +202,7 @@ pub enum ProvisionableData {
 /// Message to the Provisioner.
 ///
 /// In all cases, the Hash is that of the relay parent.
+#[derive(Debug)]
 pub enum ProvisionerMessage {
 	/// This message allows potential block authors to be kept updated with all new authorship data
 	/// as it becomes available.
