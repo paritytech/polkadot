@@ -52,8 +52,63 @@ This release was built with the following versions of \`rustc\`. Other versions 
 
 runtime_changes=""
 
+# Following variables are for tracking the priority of the release (i.e.,
+# how important it is for the user to upgrade).
+# It's frustrating that we need to make an array of indexes (in this case the
+# labels), but it's necessary to maintain the correct order. Labels and
+# descriptions *must* be kept in lockstep
+
+priority_labels=(
+  'C1-low'
+  'C3-medium'
+  'C7-high'
+  'C9-critical'
+)
+
+declare -A priority_descriptions=(
+['C1-low']="Upgrade priority: **Low** (upgrade at your convenience)"
+['C3-medium']="Upgrade priority: **Medium** (timely upgrade recommended)"
+['C7-high']="Upgrade priority:❗ **HIGH** ❗ Please upgrade your node as soon as possible"
+['C9-critical']="Upgrade priority: ❗❗ **URGENT** ❗❗ PLEASE UPGRADE IMMEDIATELY"
+)
+
+max_label=-1
+priority="${priority_descriptions['C1-low']}"
+declare -a priority_changes
+
+# Iterate through every PR
 while IFS= read -r line; do
   pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+  # Release priority check:
+  # For each PR, we look for every label equal to or higher than the current highest
+  # I.e., if there has already been a PR marked as 'medium', we only need
+  # to look for priorities medium or above. If we find one, we set the
+  # priority to that level.
+  for ((index=max_label; index<${#priority_labels[@]}; index++)) ; do
+    cur_label="${priority_labels[$index]}"
+    echo "[+] Checking #$pr_id for presence of $cur_label label"
+    if has_label 'paritytech/polkadot' "$pr_id" "$cur_label" ; then
+      echo "[+] #$pr_id has label $cur_label. Setting max."
+      prev_label="$max_label"
+      max_label="$index"
+      priority="${priority_descriptions[$cur_label]}"
+      # If it's not an increase in priority, we just append the PR to the list
+      if [ "$prev_label" == "$max_label" ]; then
+        priority_changes+=("${line/\* /}")
+      fi
+      # If the priority has increased, we override previous changes with new changes
+      if [ "$prev_label" != "$max_label" ]; then
+        priority_changes=("${line/\* /}")
+      fi
+    fi
+  done
+
+  # If the PR is labelled silent, we can do an early continue to save a little work
+  if has_label 'paritytech/polkadot' "$pr_id" 'B0-silent'; then
+    continue
+  fi
+
   # If the PR has a runtimenoteworthy label, add to the runtime_changes section
   if has_label 'paritytech/polkadot' "$pr_id" 'B2-runtimenoteworthy'; then
     runtime_changes="$runtime_changes
@@ -77,10 +132,10 @@ fi
 echo "$release_text"
 
 # Get substrate changes between last polkadot version and current
+# By grepping the Cargo.lock for a substrate crate, and grepping out the commit hash
 cur_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-git checkout "$last_version"
-old_substrate_commit=$(grep -A 2 'name = "sc-cli"' Cargo.lock | grep -E -o '[a-f0-9]{40}')
-
+old_substrate_commit=$(git diff "refs/tags/$last_version" Cargo.lock |\
+  grep -A 2 'name = "sc-cli"' | grep -E -o '[a-f0-9]{40}')
 pushd $substrate_dir || exit
   git checkout master > /dev/null
   git pull > /dev/null
@@ -93,6 +148,27 @@ pushd $substrate_dir || exit
   echo "[+] Iterating through substrate changes to find labelled PRs"
   while IFS= read -r line; do
     pr_id=$(echo "$line" | sed -E 's/.*#([0-9]+)\)$/\1/')
+
+    # Basically same check as Polkadot priority
+    # We only need to check for any labels of the current priority or higher
+    for ((index=max_label; index<${#priority_labels[@]}; index++)) ; do
+      cur_label="${priority_labels[$index]}"
+      echo "[+] Checking substrate/#$pr_id for presence of $cur_label label"
+      if has_label 'paritytech/substrate' "$pr_id" "$cur_label" ; then
+        echo "[+] #$pr_id has label $cur_label. Setting max."
+        prev_label="$max_label"
+        max_label="$index"
+        priority="${priority_descriptions[$cur_label]}"
+        # If it's not an increase in priority, we just append
+        if [ "$prev_label" == "$max_label" ]; then
+          priority_changes+=("${line/\* /}")
+        fi
+        # If the priority has increased, we override previous changes with new changes
+        if [ "$prev_label" != "$max_label" ]; then
+          priority_changes=("${line/\* /}")
+        fi
+      fi
+    done
 
     # Skip if the PR has the silent label - this allows us to skip a few requests
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
@@ -113,8 +189,6 @@ $line"
     fi
   done <<< "$all_substrate_changes"
 popd || exit
-
-echo "[+] Changes generated. Removing temporary repos"
 
 # Make the substrate section if there are any substrate changes
 if [ -n "$substrate_runtime_changes" ] ||
@@ -146,6 +220,18 @@ $substrate_api_changes"
   release_text="$release_text
 
 $substrate_changes"
+fi
+
+# Finally, add the priorities to the *start* of the release notes
+# If polkadot and substrate priority = low, no need for list of changes
+if [ "$priority" == "${priority_descriptions['C1-low']}" ]; then
+  release_text="$priority
+
+$release_text"
+else
+  release_text="$priority - due to change(s): *${priority_changes[*]}*
+
+$release_text"
 fi
 
 echo "[+] Release text generated: "
