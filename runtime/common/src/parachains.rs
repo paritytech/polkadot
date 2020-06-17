@@ -100,7 +100,7 @@ pub trait ParachainCurrency<AccountId> {
 		source: ParaId,
 		dest: &AccountId,
 		amount: Balance,
-		existence_requirement: ExistenceRequirement
+		existence_requirement: ExistenceRequirement,
 	) -> DispatchResult;
 }
 
