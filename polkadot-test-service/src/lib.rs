@@ -112,7 +112,7 @@ fn node_config<P: AsRef<Path>>(
 	);
 
 	network_config.transport = TransportConfig::Normal {
-		enable_mdns: false,
+		enable_mdns: true, // TODO: keep it that way or disable it?
 		allow_private_ipv4: true,
 		wasm_external_transport: None,
 		use_yamux_flow_control: true,
