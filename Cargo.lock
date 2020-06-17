@@ -4353,6 +4353,7 @@ dependencies = [
  "sc-keystore",
  "sc-rpc",
  "sp-api",
+ "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
