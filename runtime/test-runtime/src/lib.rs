@@ -131,6 +131,7 @@ parameter_types! {
 }
 
 impl system::Trait for Runtime {
+	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;

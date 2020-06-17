@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-collator"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator node implementation"
 edition = "2018"

@@ -5,9 +5,9 @@ source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh
 
 # Must have one of the following labels
 labels=(
+  'B0-silent'
   'B1-releasenotes'
-  'B1-runtimenoteworthy'
-  'B1-silent'
+  'B2-runtimenoteworthy'
 )
 
 echo "[+] Checking labels for $CI_COMMIT_BRANCH"
