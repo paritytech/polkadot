@@ -40,11 +40,10 @@ kusama_spec=$(grep spec_version runtime/kusama/src/lib.rs | tail -n 1 | grep -Eo
 echo "[+] Kusama spec version: $kusama_spec"
 westend_spec=$(grep spec_version runtime/westend/src/lib.rs | tail -n 1 | grep -Eo '[0-9]+')
 echo "[+] Westend spec version: $westend_spec"
-release_text="Polkadot native runtime: $polkadot_spec
-
-Kusama native runtime: $kusama_spec
-
-Westend native runtime: $westend_spec
+release_text="Native runtimes:
+- Polkadot: **$polkadot_spec**
+- Kusama: **$kusama_spec**
+- Westend: **$westend_spec**
 
 This release was built with the following versions of \`rustc\`. Other versions may work.
 - $stable_rustc
@@ -102,18 +101,18 @@ pushd $substrate_dir || exit
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
       continue
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-runtimenoteworthy'; then
-      substrate_runtime_changes="$substrate_runtime_changes
-$line"
-    fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B1-clientnoteworthy'; then
-      substrate_client_changes="$substrate_client_changes
-$line"
-    fi
-     if has_label 'paritytech/substrate' "$pr_id" 'B1-apinoteworthy' ; then
+    if has_label 'paritytech/substrate' "$pr_id" 'B3-apinoteworthy' ; then
       substrate_api_changes="$substrate_api_changes
 $line"
       continue
+    fi
+    if has_label 'paritytech/substrate' "$pr_id" 'B5-clientnoteworthy'; then
+      substrate_client_changes="$substrate_client_changes
+$line"
+    fi
+    if has_label 'paritytech/substrate' "$pr_id" 'B7-runtimenoteworthy'; then
+      substrate_runtime_changes="$substrate_runtime_changes
+$line"
     fi
   done <<< "$all_substrate_changes"
 popd || exit
