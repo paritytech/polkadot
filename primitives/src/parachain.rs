@@ -221,7 +221,7 @@ pub struct CandidateCommitments {
 	pub erasure_root: Hash,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
-	/// Number of `DowndwardMessage`'s that were processed by the Parachain.
+	/// Number of `DownwardMessage`'s that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.
 	pub processed_downward_messages: u32,
