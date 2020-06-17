@@ -152,10 +152,13 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	where
 		I: Iterator<Item = (&'a T::AccountId, Self::Key)>,
 	{
-		let config = <configuration::Module<T>>::config();
+		// host config as provided by the client using `fn build` based on the `GenesisConfig`
+		let config: HostConfiguration<_> = <configuration::Module<T>>::config();
 
+		// set all the values
 		for id in <paras::Module<T>>::parachains() {
 			let origin: <T as system::Trait>::Origin = system::RawOrigin::Root.into();
+			// @todo at this point, the dispatch should never fail
 			let _ = <configuration::Module<T>>::set_validation_upgrade_frequency(origin.clone(), config.validation_upgrade_frequency);
 			let _ = <configuration::Module<T>>::set_validation_upgrade_delay(origin.clone(), config.validation_upgrade_delay);
 			let _ = <configuration::Module<T>>::set_acceptance_period(origin.clone(), config.acceptance_period);
@@ -168,8 +171,13 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 			let _ = <configuration::Module<T>>::set_thread_availability_period(origin.clone(), config.thread_availability_period);
 			let _ = <configuration::Module<T>>::set_scheduling_lookahead(origin.clone(), config.scheduling_lookahead);
 		}
+		// `ValdiatorGroups` are created in `ParasScheduler::initializer_on_new_session(..)`
+		// `Paras` are rotated based on the block number in `Paras::initializer_on_new_session`(..)
+		// `Parathreads` are also removed in `Paras::initializer_on_new_session`
 
-		// parathreads
+		// a new session is started with session index 0 is started after the fn returns
+		// that code is part of the `add_extra_genesis` block in the `Session` pallet
+		// from there on all code fans out from `Self::on_new_session(..)`
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
