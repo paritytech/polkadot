@@ -17,9 +17,12 @@
 //! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
 
 use parity_scale_codec::{Encode, Decode};
+use futures::prelude::*;
+use futures::stream::BoxStream;
 
 use sc_network::{
 	ObservedRole, ReputationChange, PeerId, config::ProtocolId as SubstrateProtocolId,
+	Event as NetworkEvent,
 };
 use sp_runtime::ConsensusEngineId;
 
@@ -49,17 +52,54 @@ pub enum Message {
 	ViewUpdate(View),
 }
 
-/// The network bridge subsystem.
-pub struct NetworkBridge(Arc<sc_network::NetworkService<Block, Hash>>);
+/// Information about the notifications protocol. Should be used during network configuration
+/// or shortly after startup to register the protocol with the network service.
+pub fn notifications_protocol_info() -> (ConsensusEngineId, std::borrow::Cow<'static, [u8]>) {
+	(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME.into())
+}
 
-impl NetworkBridge {
+/// An abstraction over networking for the purposes of this subsystem.
+pub trait Network: Clone + Send + 'static {
+	/// Get a stream of all events occurring on the network. This may include events unrelated
+	/// to the Polkadot protocol - the user of this function should filter only for events related
+	/// to the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID).
+	fn event_stream(&self) -> BoxStream<NetworkEvent>;
+
+	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
+	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange);
+
+	/// Write a notification to a peer on the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID) topic.
+	fn write_notification(&self, who: PeerId, message: Vec<u8>);
+}
+
+impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
+	fn event_stream(&self) -> BoxStream<NetworkEvent> {
+		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
+	}
+
+	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) {
+		sc_network::NetworkService::report_peer(self, who, cost_benefit)
+	}
+
+	fn write_notification(&self, who: PeerId, message: Vec<u8>) {
+		sc_network::NetworkService::write_notification(self, who, POLKADOT_ENGINE_ID, message)
+	}
+}
+
+/// The network bridge subsystem.
+pub struct NetworkBridge<N>(N);
+
+impl<N> NetworkBridge<N> {
 	/// Create a new network bridge subsystem with underlying network service.
-	pub fn new(net_service: Arc<sc_network::NetworkService<Block, Hash>>) -> Self {
+	///
+	/// This assumes that the network service has had the notifications protocol for the network
+	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
+	pub fn new(net_service: N) -> Self {
 		NetworkBridge(net_service)
 	}
 }
 
-impl Subsystem<NetworkBridgeMessage> for NetworkBridge {
+impl<N: Network> Subsystem<NetworkBridgeMessage> for NetworkBridge<N> {
 	fn start(&mut self, ctx: SubsystemContext<NetworkBridgeMessage>) -> SpawnedSubsystem {
 		unimplemented!();
 		// TODO [now]: Spawn substrate-network notifications protocol & event stream.
