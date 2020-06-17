@@ -28,7 +28,7 @@ use sc_network::{ObservedRole, ReputationChange, PeerId, config::ProtocolId};
 use polkadot_primitives::{Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate,
-	SignedAvailabilityBitfield
+	SignedAvailabilityBitfield, ValidatorIndex,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedStatement,
@@ -132,12 +132,30 @@ pub enum AvailabilityDistributionMessage {
 
 	/// Fetch an erasure chunk from networking by candidate hash and chunk index.
 	FetchChunk(Hash, u32),
+
+	/// Event from the network bridge.
+	NetworkBridgeEvent(NetworkBridgeEvent),
 }
 
 /// Bitfield distribution message.
 pub enum BitfieldDistributionMessage {
 	/// Distribute a bitfield via gossip to other validators.
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
+
+	/// Event from the network bridge.
+	NetworkBridgeEvent(NetworkBridgeEvent),
+}
+
+/// Availability store subsystem message.
+pub enum AvailabilitySubsystemMessage {
+	/// Query a `PoVBlock` from the AV store.
+	QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
+
+	/// Query an `ErasureChunk` from the AV store.
+	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
+
+	/// Store an `ErasureChunk` in the AV store.
+	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
 }
 
 /// Statement distribution message.

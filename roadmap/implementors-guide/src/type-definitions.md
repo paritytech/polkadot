@@ -153,6 +153,8 @@ enum AvailabilityDistributionMessage {
   DistributeChunk(Hash, ErasureChunk),
   /// Fetch an erasure chunk from network by candidate hash and chunk index.
   FetchChunk(Hash, u32),
+  /// Event from the network.
+  NetworkBridgeUpdate(NetworkBridgeUpdate),
 }
 
 ## Misbehavior Arbitration Message
@@ -270,6 +272,25 @@ struct SignedAvailabilityBitfield {
 }
 
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
+```
+
+## Bitfield Distribution Message
+
+```rust
+enum BitfieldDistributionSubsystemMessage {
+  DistributeBitfield(Hash, SignedAvailabilityBitfield),
+  NetworkBridgeUpdate(NetworkBridgeUpdate),
+}
+```
+
+## Availability Subsystem Message
+
+```rust
+enum AvailabilitySubsystemMessage {
+  QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
+  QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+  StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+}
 ```
 
 ## Validity Attestation
