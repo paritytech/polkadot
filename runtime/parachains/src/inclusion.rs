@@ -120,6 +120,8 @@ decl_error! {
 		InvalidBacking,
 		/// Collator did not sign PoV.
 		NotCollatorSigned,
+		/// Internal error only returned when compiled with debug assertions.
+		InternalError,
 	}
 }
 
@@ -243,6 +245,8 @@ impl<T: Trait> Module<T> {
 					.and_then(|r| r.availability_votes.get_mut(val_idx))
 				{
 					*bit = true;
+				} else if cfg!(debug_assertions) {
+					ensure!(false, Error::<T>::InternalError);
 				}
 			}
 
