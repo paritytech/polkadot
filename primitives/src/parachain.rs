@@ -694,39 +694,7 @@ impl AvailabilityBitfield {
 }
 
 /// A bitfield signed by a particular validator about the availability of pending candidates.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct SignedAvailabilityBitfield {
-	/// The index of the validator in the current set.
-	pub validator_index: ValidatorIndex,
-	/// The bitfield itself, with one bit per core. Only occupied cores may have the `1` bit set.
-	pub bitfield: AvailabilityBitfield,
-	/// The signature by the validator on the bitfield's signing payload. The context of the signature
-	/// should be apparent when checking the signature.
-	pub signature: ValidatorSignature,
-}
-
-/// Check a signature on an availability bitfield. Provide the bitfield, the validator who signed it,
-/// the signature, the signing context, and an optional buffer in which to encode.
-///
-/// If the buffer is provided, it is assumed to be empty.
-pub fn check_availability_bitfield_signature<H: Encode>(
-	bitfield: &AvailabilityBitfield,
-	validator: &ValidatorId,
-	signature: &ValidatorSignature,
-	signing_context: &SigningContext,
-	payload_encode_buf: Option<&mut Vec<u8>>,
-) -> Result<(),()> {
-	let mut v = Vec::new();
-	let payload_encode_buf = payload_encode_buf.unwrap_or(&mut v);
-
-	bitfield.encode_signing_payload_into(signing_context, payload_encode_buf);
-
-	if signature.verify(&payload_encode_buf[..], validator) {
-		Ok(())
-	} else {
-		Err(())
-	}
-}
+pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -809,7 +777,7 @@ impl<T: Encode> EncodeAs<T> for T {
 ///
 /// Note that the internal fields are not public; they are all accessable by immutable getters.
 /// This reduces the chance that they are accidentally mutated, invalidating the signature.
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct Signed<Payload, RealPayload = Payload> {
 	/// The payload is part of the signed data. The rest is the signing context,
 	/// which is known both at signing and at validation.
