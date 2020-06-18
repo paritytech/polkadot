@@ -27,9 +27,9 @@ use super::{Hash, Balance, BlockNumber};
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::bytes;
+use primitives::{bytes, crypto::Pair};
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::Block as BlockT;
+use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
@@ -245,8 +245,6 @@ fn check_collator_signature(
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
 	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
 	if signature.verify(&payload[..], collator) {
 		Ok(())
@@ -581,7 +579,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 /// actual values that are signed.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum Statement {
+pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
 	Candidate(Hash),
@@ -591,15 +589,6 @@ pub enum Statement {
 	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
-}
-
-impl Statement {
-	/// Produce a payload on this statement that is used for signing.
-	///
-	/// It includes the context provided.
-	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
-		(self, context).encode()
-	}
 }
 
 /// An either implicit or explicit attestation to the validity of a parachain
@@ -727,8 +716,6 @@ pub fn check_availability_bitfield_signature<H: Encode>(
 	signing_context: &SigningContext,
 	payload_encode_buf: Option<&mut Vec<u8>>,
 ) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
 	let mut v = Vec::new();
 	let payload_encode_buf = payload_encode_buf.unwrap_or(&mut v);
 
@@ -790,6 +777,101 @@ pub mod id {
 
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
+}
+
+/// This helper trait ensures that we can encode Statement as CompactStatement,
+/// and anything as itself.
+///
+/// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
+/// EncodeLike is a marker trait which asserts at the typesystem level that
+/// one type's encoding is a valid encoding for another type. It doesn't
+/// perform any type conversion when encoding.
+///
+/// This trait, on the other hand, provides a method which can be used to
+/// simultaneously convert and encode one type as another.
+pub trait EncodeAs<T> {
+	/// Convert Self into T, then encode T.
+	///
+	/// This is useful when T is a subset of Self, reducing encoding costs;
+	/// its signature also means that we do not need to clone Self in order
+	/// to retain ownership, as we would if we were to do
+	/// `self.clone().into().encode()`.
+	fn encode_as(&self) -> Vec<u8>;
+}
+
+impl<T: Encode> EncodeAs<T> for T {
+	fn encode_as(&self) -> Vec<u8> {
+		self.encode()
+	}
+}
+
+/// A signed type which encapsulates the common desire to sign some data and validate a signature.
+///
+/// Note that the internal fields are not public; they are all accessable by immutable getters.
+/// This reduces the chance that they are accidentally mutated, invalidating the signature.
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+pub struct Signed<Payload, RealPayload = Payload> {
+	/// The payload is part of the signed data. The rest is the signing context,
+	/// which is known both at signing and at validation.
+	payload: Payload,
+	/// The index of the validator signing this statement.
+	validator_index: ValidatorIndex,
+	/// The signature by the validator of the signed payload.
+	signature: ValidatorSignature,
+	/// This ensures the real payload is tracked at the typesystem level.
+	real_payload: sp_std::marker::PhantomData<RealPayload>,
+}
+
+// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
+// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
+// own trait which does what we need: EncodeAs.
+impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
+	fn payload_data(payload: &Payload, context: SigningContext) -> Vec<u8> {
+		(payload.encode_as(), context).encode()
+	}
+
+	/// Sign this payload with the given context and key, storing the validator index.
+	#[cfg(feature = "std")]
+	pub fn sign(
+		payload: Payload,
+		context: SigningContext,
+		validator_index: ValidatorIndex,
+		key: &ValidatorPair,
+	) -> Self {
+		let data = Self::payload_data(&payload, context);
+		let signature = key.sign(&data);
+		Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		}
+	}
+
+	/// Validate the payload given the context and public key.
+	pub fn validate(&self, context: SigningContext, key: &ValidatorId) -> bool {
+		let data = Self::payload_data(&self.payload, context);
+		self.signature.verify(data.as_slice(), key)
+	}
+
+	/// Immutably access the payload.
+	#[inline]
+	pub fn payload(&self) -> &Payload {
+		&self.payload
+	}
+
+	/// Immutably access the validator index.
+	#[inline]
+	pub fn validator_index(&self) -> ValidatorIndex {
+		self.validator_index
+	}
+
+	/// Immutably access the signature.
+	#[inline]
+	pub fn signature(&self) -> &ValidatorSignature {
+		&self.signature
+	}
 }
 
 #[cfg(test)]
