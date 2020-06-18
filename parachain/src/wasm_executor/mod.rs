@@ -284,7 +284,7 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("commit: unsupported feature for parachain validation")
 	}
 
-	fn read_write_count(&self) {
+	fn read_write_count(&self) -> (u32, u32, u32, u32) {
 		panic!("read_write_count: unsupported feature for parachain validation")
 	}
 
