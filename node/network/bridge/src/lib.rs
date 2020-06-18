@@ -21,12 +21,14 @@ use futures::prelude::*;
 use futures::stream::BoxStream;
 
 use sc_network::{
-	ObservedRole, ReputationChange, PeerId, config::ProtocolId as SubstrateProtocolId,
+	ObservedRole, ReputationChange, PeerId,
 	Event as NetworkEvent,
 };
 use sp_runtime::ConsensusEngineId;
 
-use messages::{NetworkBridgeEvent, NetworkBridgeMessage, FromOverseer, OverseerSignal};
+use messages::{
+	NetworkBridgeEvent, NetworkBridgeMessage, FromOverseer, OverseerSignal, AllMessages,
+};
 use overseer::{Subsystem, SubsystemContext, SpawnedSubsystem};
 use node_primitives::{ProtocolId, View};
 use polkadot_primitives::{Block, Hash};
@@ -43,7 +45,7 @@ pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/2";
 
 /// Messages received on the network.
 #[derive(Encode, Decode)]
-pub enum Message {
+pub enum WireMessage {
 	/// A message from a peer on a specific protocol.
 	#[codec(index = "1")]
 	ProtocolMessage(ProtocolId, Vec<u8>),
@@ -110,47 +112,151 @@ struct PeerData {
 	view: View,
 }
 
+enum Action {
+	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
+	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	ReportPeer(PeerId, ReputationChange),
+	StartWork(Hash),
+	StopWork(Hash),
+
+	PeerConnected(PeerId, ObservedRole),
+	PeerDisconnected(PeerId),
+	PeerMalformedMessage(PeerId),
+	PeerMessages(PeerId, Vec<WireMessage>),
+	PeerViewChange(PeerId, View),
+
+	Abort,
+}
+
+fn action_from_overseer_message(
+	res: overseer::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
+) -> Action {
+	match res {
+		Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)))
+			=> Action::StartWork(relay_parent),
+		Ok(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)))
+			=> Action::StopWork(relay_parent),
+		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
+		Ok(FromOverseer::Communication { msg }) => match msg {
+			NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer)
+				=>  Action::RegisterEventProducer(protocol_id, message_producer),
+			NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
+			NetworkBridgeMessage::SendMessage(peers, protocol, message)
+				=> Action::SendMessage(peers, protocol, message),
+		},
+		Err(e) => {
+			log::warn!("Shutting down Network Bridge due to error {:?}", e);
+			Action::Abort
+		}
+	}
+}
+
+fn action_from_network_message(event: Option<NetworkEvent>) -> Option<Action> {
+	match event {
+		None => {
+			log::warn!("Shutting down Network Bridge: underlying event stream concluded");
+			Some(Action::Abort)
+		}
+		Some(NetworkEvent::Dht(_)) => None,
+		Some(NetworkEvent::NotificationStreamOpened { remote, engine_id, role }) => {
+			if engine_id == POLKADOT_ENGINE_ID {
+				Some(Action::PeerConnected(remote, role))
+			} else {
+				None
+			}
+		}
+		Some(NetworkEvent::NotificationStreamClosed { remote, engine_id }) => {
+			if engine_id == POLKADOT_ENGINE_ID {
+				Some(Action::PeerDisconnected(remote))
+			} else {
+				None
+			}
+		}
+		Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
+			let v: Result<Vec<_>, _> = messages.iter()
+				.filter(|(engine_id, _)| engine_id == &POLKADOT_ENGINE_ID)
+				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+				.collect();
+
+			match v {
+				Err(_) => Some(Action::PeerMalformedMessage(remote)),
+				Ok(v) => if v.is_empty() {
+					None
+				} else {
+					Some(Action::PeerMessages(remote, v))
+				}
+			}
+		}
+	}
+}
+
 async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeMessage>) {
 	let mut event_stream = net.event_stream().fuse();
+	let mut local_view = Vec::with_capacity(MAX_VIEW_HEADS);
 
-	// TODO [now]
-	// let peers = HashMap::new();
-	// let event_listeners = HashMap::new();
+	//let mut peers = HashMap::new();
+	let mut event_producers = HashMap::new();
 
 	loop {
 		let subsystem_next = ctx.recv().fuse();
 		let mut net_event_next = event_stream.next().fuse();
 		futures::pin_mut!(subsystem_next);
 
-		futures::select! {
-			subsystem_msg = subsystem_next => match subsystem_msg {
-				Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))) => {
-					// TODO [now]: update local view and send view update to peers.
+		let action = futures::select! {
+			subsystem_msg = subsystem_next => Some(action_from_overseer_message(subsystem_msg)),
+			net_event = net_event_next => action_from_network_message(net_event),
+		};
+
+		let action = match action {
+			None => continue,
+			Some(a) => a,
+		};
+
+		match action {
+			Action::RegisterEventProducer(protocol_id, event_producer) => {
+				// insert only if none present.
+				event_producers.entry(protocol_id).or_insert(event_producer);
+			}
+			Action::SendMessage(peers, protocol, message) => {
+				let message = WireMessage::ProtocolMessage(protocol, message).encode();
+
+				for peer in peers.iter().skip(1).cloned() {
+					net.write_notification(peer, message.clone());
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))) => {
-					// TODO [now]: update local view and send view update to peers.
+
+				if let Some(peer) = peers.first() {
+					net.write_notification(peer.clone(), message);
 				}
-				Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-				Ok(FromOverseer::Communication { msg }) => match msg {
-					NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer) => {
-						// TODO [now]: add event producer.
-					}
-					NetworkBridgeMessage::ReportPeer(peer, rep) => {
-						// TODO [now]: report a peer to network service.
-					}
-					NetworkBridgeMessage::SendMessage(peers, protocol, message) => {
-						// TODO [now]: Send the message to all peers with `write_notification`.
-					}
-				},
-				Err(e) => {
-					// TODO [now]: log error.
-					return;
-				}
+			}
+			Action::ReportPeer(peer, rep) => {
+				net.report_peer(peer, rep)
+			}
+			Action::StartWork(relay_parent) => {
+				local_view.push(relay_parent);
+				// TODO [now]: send view change.
+			}
+			Action::StopWork(relay_parent) => {
+				local_view.retain(|h| h != &relay_parent)
+				// TODO [now]: send view change.
+			}
+
+			Action::PeerConnected(peer, role) => {
+
+			}
+			Action::PeerDisconnected(peer) => {
+
 			},
-			net_event = net_event_next => {
-				// TODO [now]: Update peer tracker, filter out anything not to do with this
-				// engine, and transform all updates to be sent to the overseer.
+			Action::PeerMalformedMessage(peer) => {
+
 			},
+			Action::PeerMessages(peer, messages) => {
+
+			},
+			Action::PeerViewChange(peer, new_view) => {
+
+			},
+
+			Action::Abort => return,
 		}
 	}
 }
