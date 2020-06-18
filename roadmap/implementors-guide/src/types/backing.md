@@ -24,27 +24,27 @@ enum ValidityAttestation {
 There are a few distinct types which we desire to sign, and validate the signatures of. Instead of duplicating this work, we extract a signed wrapper.
 
 ```rust,ignore
+/// A signed type which encapsulates the common desire to sign some data and validate a signature.
+///
+/// Note that the internal fields are not public; they are all accessable by immutable getters.
+/// This reduces the chance that they are accidentally mutated, invalidating the signature.
 struct Signed<Payload, RealPayload=Payload> {
     /// The payload is part of the signed data. The rest is the signing context,
     /// which is known both at signing and at validation.
-    ///
-    /// Note that this field is not publicly accessible: this reduces the chances
-    /// of accidentally invalidating the signature by mutating the payload.
     payload: Payload,
     /// The index of the validator signing this statement.
-    pub validator_index: ValidatorIndex,
+    validator_index: ValidatorIndex,
     /// The signature by the validator of the signed payload.
-    pub signature: ValidatorSignature,
+    signature: ValidatorSignature,
 }
 
 impl<Payload: Encode + Into<RealPayload>, RealPayload> Signed<Payload, RealPayload> {
     fn sign(payload: Payload, context: SigningContext, index: ValidatorIndex, key: PrivateKey) -> Signed<Payload, RealPayload> { ... }
     fn validate(&self, context: SigningContext, key: PublicKey) -> bool { ... }
-    fn payload(&self) -> &Payload { &self.payload }
 }
 ```
 
-Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks. Converting the `T` into `U` is a NOP most of the time, but it allows us to substitute `CompactStatement`s for `Statement`s on demand, which helps efficiency.
+Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks. Converting the `Payload` into `RealPayload` is a NOP most of the time, but it allows us to substitute `CompactStatement`s for `Statement`s on demand, which helps efficiency.
 
 ## Statement Type
 
