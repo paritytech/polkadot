@@ -34,6 +34,7 @@ pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ma
 sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 async-std = { version = "1.2.0", features = [ "attributes" ] }

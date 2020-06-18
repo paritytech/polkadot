@@ -49,6 +49,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 use sc_executor::native_executor_instance;
+use sp_keyring::Sr25519Keyring;
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -165,7 +166,7 @@ pub fn run_test_node(
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
 	port: u16,
-	key: &str,
+	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 ) -> Result<
 	(
@@ -193,7 +194,7 @@ pub fn run_test_node(
 			sentry_nodes: Vec::new(),
 		},
 		task_executor,
-		Some(format!("//{}", key)),
+		Some(key.to_seed()),
 		port,
 		&base_path,
 	);
