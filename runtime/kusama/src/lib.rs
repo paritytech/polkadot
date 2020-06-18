@@ -27,15 +27,16 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
-use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
+use runtime_common::{
+	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, TransactionCallFilter,
+	MaximumExtrinsicWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
 	traits::{
@@ -56,11 +57,12 @@ use frame_support::{
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
+use system::{EnsureRoot, EnsureOneOf};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::{historical as session_historical};
-use frame_utils::{SignedExtensionProvider, IndexFor};
+use system::extras::{SignedExtensionProvider, SignedExtensionData, ExtrasParamsBuilder};
 use static_assertions::const_assert;
 
 #[cfg(feature = "std")]
@@ -76,7 +78,6 @@ pub use parachains::Call as ParachainsCall;
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
 use sp_runtime::generic::Era;
-use sp_runtime::traits::SignedExtension;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -87,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2005,
+	spec_version: 2012,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -109,14 +110,19 @@ impl Filter<Call> for BaseFilter {
 		!matches!(call, Call::Slots(_) | Call::Registrar(_))
 	}
 }
-pub struct IsCallable;
-frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
+
+type MoreThanHalfCouncil = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
+>;
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
 impl system::Trait for Runtime {
+	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -195,22 +201,14 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
-
-// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-const_assert!(
-	TargetBlockFullness::get().deconstruct() <
-	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
-		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
-);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = DealWithFees;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
+	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
 parameter_types! {
@@ -296,6 +294,12 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
+type SlashCancelOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
+>;
+
 impl staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
@@ -307,8 +311,8 @@ impl staking::Trait for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	// A majority of the council or root can cancel the slash.
+	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -426,11 +430,11 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 
 impl membership::Trait<membership::Instance1> for Runtime {
 	type Event = Event;
-	type AddOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type RemoveOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type SwapOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ResetOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type PrimeOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type AddOrigin = MoreThanHalfCouncil;
+	type RemoveOrigin = MoreThanHalfCouncil;
+	type SwapOrigin = MoreThanHalfCouncil;
+	type ResetOrigin = MoreThanHalfCouncil;
+	type PrimeOrigin = MoreThanHalfCouncil;
 	type MembershipInitialized = TechnicalCommittee;
 	type MembershipChanged = TechnicalCommittee;
 }
@@ -448,10 +452,16 @@ parameter_types! {
 	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
 }
 
+type ApproveOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
+>;
+
 impl treasury::Trait for Runtime {
 	type Currency = Balances;
-	type ApproveOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
-	type RejectOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type ApproveOrigin = ApproveOrigin;
+	type RejectOrigin = MoreThanHalfCouncil;
 	type Tippers = ElectionsPhragmen;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
@@ -570,33 +580,97 @@ impl parachains::Trait for Runtime {
 	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
-impl frame_utils::SignedExtensionProvider for Runtime {
+#[derive(Default)]
+pub struct RuntimeExtrasBuilder {
+	tip: u128,
+	genesis_hash: Option<<Runtime as system::Trait>::Hash>,
+	era_start_hash: Option<<Runtime as system::Trait>::Hash>,
+}
+
+pub struct RuntimeExtrasParams {
+	era: Era,
+	tip: u128,
+	index: <Runtime as system::Trait>::Index,
+	genesis_hash: Option<<Runtime as system::Trait>::Hash>,
+	era_start_hash: Option<<Runtime as system::Trait>::Hash>,
+}
+
+impl ExtrasParamsBuilder<Runtime> for RuntimeExtrasBuilder {
+	type ExtrasParams = RuntimeExtrasParams;
+
+	fn set_tip(mut self, tip: u128) -> Self {
+		self.tip = tip;
+		self
+	}
+
+	fn set_starting_era_hash(mut self, hash: <Runtime as system::Trait>::Hash) -> Self {
+		self.era_start_hash = Some(hash);
+		self
+	}
+
+	fn set_genesis_hash(mut self, hash: <Runtime as system::Trait>::Hash) -> Self {
+		self.genesis_hash = Some(hash);
+		self
+	}
+
+	fn build(self, index: <Runtime as system::Trait>::Index, era: Era) -> Self::ExtrasParams {
+		RuntimeExtrasParams {
+			era,
+			index,
+			tip: self.tip,
+			genesis_hash: self.genesis_hash,
+			era_start_hash: self.era_start_hash,
+		}
+	}
+}
+
+
+impl SignedExtensionProvider for Runtime {
 	type Extra = SignedExtra;
+	type Builder = RuntimeExtrasBuilder;
 
-	fn construct_extras(nonce: IndexFor<Self>, era: Era, hash: Option<Self::Hash>) -> (
-		Self::Extra,
-		Option<<Self::Extra as SignedExtension>::AdditionalSigned>
-	) {
-		let tip = 0;
-		let extra = (
-			TransactionCallFilter::<IsCallable, Call>::new(),
-			system::CheckSpecVersion::<Runtime>::new(),
-			system::CheckTxVersion::<Runtime>::new(),
-			system::CheckGenesis::<Runtime>::new(),
-			system::CheckEra::<Runtime>::from(era),
-			system::CheckNonce::<Runtime>::from(nonce),
-			system::CheckWeight::<Runtime>::new(),
-			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
-			grandpa::ValidateEquivocationReport::<Runtime>::new(),
-		);
-		// if the hash hash is supplied, we can manually provide the additional signed data.
-		let additional = hash.map(|hash| {
-			((), VERSION.spec_version, VERSION.transaction_version, hash, hash, (), (), (), (), (), ())
-		});
+	fn extras_params_builder() -> RuntimeExtrasBuilder {
+		RuntimeExtrasBuilder::default()
+	}
 
-		(extra, additional)
+	fn construct_extras(params: RuntimeExtrasParams) -> SignedExtensionData<Self::Extra> {
+		let RuntimeExtrasParams {
+			tip,
+			era,
+			index,
+			era_start_hash,
+			genesis_hash
+		} = params;
+		SignedExtensionData {
+			extra:  (
+				system::CheckSpecVersion::<Runtime>::new(),
+				system::CheckTxVersion::<Runtime>::new(),
+				system::CheckGenesis::<Runtime>::new(),
+				system::CheckEra::<Runtime>::from(era),
+				system::CheckNonce::<Runtime>::from(index),
+				system::CheckWeight::<Runtime>::new(),
+				transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+				registrar::LimitParathreadCommits::<Runtime>::new(),
+				parachains::ValidateDoubleVoteReports::<Runtime>::new(),
+				grandpa::ValidateEquivocationReport::<Runtime>::new(),
+			),
+			// if the hash is supplied, we can manually provide the additional signed data.
+			additional: match (genesis_hash, era_start_hash) {
+				(Some(genesis), Some(era)) => Some((
+					VERSION.spec_version,
+					VERSION.transaction_version,
+					genesis,
+					era,
+					(),
+					(),
+					(),
+					(),
+					(),
+					(),
+				)),
+				_ => None
+			}
+		}
 	}
 }
 
@@ -623,7 +697,9 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			// so the actual block number is `n`.
 			.saturating_sub(1);
 		let era = Era::mortal(period, current_block);
-		let (extra, _) = Runtime::construct_extras(nonce, era, None);
+		let input = Runtime::extras_params_builder()
+			.build(nonce, era);
+		let SignedExtensionData { extra, additional: _ } = Runtime::construct_extras(input);
 		let raw_payload = SignedPayload::new(call, extra)
 			.map_err(|e| {
 				debug::warn!("Unable to create signed payload: {:?}", e);
@@ -685,6 +761,7 @@ impl claims::Trait for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
+	type MoveClaimOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
 }
 
 parameter_types! {
@@ -707,14 +784,13 @@ impl identity::Trait for Runtime {
 	type MaxSubAccounts = MaxSubAccounts;
 	type MaxAdditionalFields = MaxAdditionalFields;
 	type MaxRegistrars = MaxRegistrars;
-	type RegistrarOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
-	type ForceOrigin = collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>;
+	type RegistrarOrigin = MoreThanHalfCouncil;
+	type ForceOrigin = MoreThanHalfCouncil;
 }
 
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -732,7 +808,6 @@ impl multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -843,7 +918,6 @@ impl proxy::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
-	type IsCallable = IsCallable;
 	type ProxyType = ProxyType;
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
@@ -935,7 +1009,6 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	TransactionCallFilter<IsCallable, Call>,
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,

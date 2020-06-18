@@ -33,7 +33,7 @@ use system::ensure_root;
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default)]
 #[cfg_attr(test, derive(Debug))]
-pub struct HostConfiguration<BlockNumber: Default> {
+pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
@@ -49,7 +49,7 @@ pub struct HostConfiguration<BlockNumber: Default> {
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
-	/// How often parachain groups should be rotated across parachains.
+	/// How often parachain groups should be rotated across parachains. Must be non-zero.
 	pub parachain_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
@@ -275,37 +275,37 @@ mod tests {
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
 
 			Configuration::set_validation_upgrade_frequency(
-				Origin::ROOT, new_config.validation_upgrade_frequency,
+				Origin::root(), new_config.validation_upgrade_frequency,
 			).unwrap();
 			Configuration::set_validation_upgrade_delay(
-				Origin::ROOT, new_config.validation_upgrade_delay,
+				Origin::root(), new_config.validation_upgrade_delay,
 			).unwrap();
 			Configuration::set_acceptance_period(
-				Origin::ROOT, new_config.acceptance_period,
+				Origin::root(), new_config.acceptance_period,
 			).unwrap();
 			Configuration::set_max_code_size(
-				Origin::ROOT, new_config.max_code_size,
+				Origin::root(), new_config.max_code_size,
 			).unwrap();
 			Configuration::set_max_head_data_size(
-				Origin::ROOT, new_config.max_head_data_size,
+				Origin::root(), new_config.max_head_data_size,
 			).unwrap();
 			Configuration::set_parathread_cores(
-				Origin::ROOT, new_config.parathread_cores,
+				Origin::root(), new_config.parathread_cores,
 			).unwrap();
 			Configuration::set_parathread_retries(
-				Origin::ROOT, new_config.parathread_retries,
+				Origin::root(), new_config.parathread_retries,
 			).unwrap();
 			Configuration::set_parachain_rotation_frequency(
-				Origin::ROOT, new_config.parachain_rotation_frequency,
+				Origin::root(), new_config.parachain_rotation_frequency,
 			).unwrap();
 			Configuration::set_chain_availability_period(
-				Origin::ROOT, new_config.chain_availability_period,
+				Origin::root(), new_config.chain_availability_period,
 			).unwrap();
 			Configuration::set_thread_availability_period(
-				Origin::ROOT, new_config.thread_availability_period,
+				Origin::root(), new_config.thread_availability_period,
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
-				Origin::ROOT, new_config.scheduling_lookahead,
+				Origin::root(), new_config.scheduling_lookahead,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));
@@ -322,7 +322,7 @@ mod tests {
 	#[test]
 	fn setting_config_to_same_as_current_is_noop() {
 		new_test_ext(Default::default()).execute_with(|| {
-			Configuration::set_validation_upgrade_delay(Origin::ROOT, Default::default()).unwrap();
+			Configuration::set_validation_upgrade_delay(Origin::root(), Default::default()).unwrap();
 			assert!(<Configuration as Store>::PendingConfig::get().is_none())
 		});
 	}

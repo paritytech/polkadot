@@ -21,21 +21,20 @@
 #![recursion_limit="256"]
 
 use sp_std::prelude::*;
-use static_assertions::const_assert;
 use codec::{Encode, Decode};
 use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
-use runtime_common::{attestations, parachains, registrar,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
+use runtime_common::{
+	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
+	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
-	TransactionCallFilter,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Perquintill, curve::PiecewiseLinear, PerThing,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -59,7 +58,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use frame_utils::{SignedExtensionProvider, IndexFor};
+use system::extras::{SignedExtensionProvider, SignedExtensionData, ExtrasParamsBuilder};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -74,7 +73,6 @@ pub use parachains::Call as ParachainsCall;
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
 use sp_runtime::generic::Era;
-use sp_runtime::traits::SignedExtension;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -85,7 +83,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 25,
+	spec_version: 32,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -107,14 +105,13 @@ impl Filter<Call> for BaseFilter {
 		!matches!(call, Call::Registrar(_))
 	}
 }
-pub struct IsCallable;
-frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
 impl system::Trait for Runtime {
+	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -185,22 +182,14 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
-
-// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-const_assert!(
-	TargetBlockFullness::get().deconstruct() <
-	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
-		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
-);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = ToAuthor<Runtime>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
+	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
 parameter_types! {
@@ -425,34 +414,97 @@ impl parachains::Trait for Runtime {
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
 }
+#[derive(Default)]
+pub struct RuntimeExtrasBuilder {
+	tip: u128,
+	genesis_hash: Option<<Runtime as system::Trait>::Hash>,
+	era_start_hash: Option<<Runtime as system::Trait>::Hash>,
+}
 
-impl frame_utils::SignedExtensionProvider for Runtime {
+pub struct RuntimeExtrasParams {
+	era: Era,
+	tip: u128,
+	index: <Runtime as system::Trait>::Index,
+	genesis_hash: Option<<Runtime as system::Trait>::Hash>,
+	era_start_hash: Option<<Runtime as system::Trait>::Hash>,
+}
+
+impl ExtrasParamsBuilder<Runtime> for RuntimeExtrasBuilder {
+	type ExtrasParams = RuntimeExtrasParams;
+
+	fn set_tip(mut self, tip: u128) -> Self {
+		self.tip = tip;
+		self
+	}
+
+	fn set_starting_era_hash(mut self, hash: <Runtime as system::Trait>::Hash) -> Self {
+		self.era_start_hash = Some(hash);
+		self
+	}
+
+	fn set_genesis_hash(mut self, hash: <Runtime as system::Trait>::Hash) -> Self {
+		self.genesis_hash = Some(hash);
+		self
+	}
+
+	fn build(self, index: <Runtime as system::Trait>::Index, era: Era) -> Self::ExtrasParams {
+		RuntimeExtrasParams {
+			era,
+			index,
+			tip: self.tip,
+			genesis_hash: self.genesis_hash,
+			era_start_hash: self.era_start_hash,
+		}
+	}
+}
+
+
+impl SignedExtensionProvider for Runtime {
 	type Extra = SignedExtra;
+	type Builder = RuntimeExtrasBuilder;
 
-	fn construct_extras(nonce: IndexFor<Self>, era: Era, hash: Option<Self::Hash>) -> (
-		Self::Extra,
-		Option<<Self::Extra as SignedExtension>::AdditionalSigned>
-	) {
-		let tip = 0;
-		let extra = (
-			TransactionCallFilter::<IsCallable, Call>::new(),
-			system::CheckSpecVersion::<Runtime>::new(),
-			system::CheckTxVersion::<Runtime>::new(),
-			system::CheckGenesis::<Runtime>::new(),
-			system::CheckEra::<Runtime>::from(era),
-			system::CheckNonce::<Runtime>::from(nonce),
-			system::CheckWeight::<Runtime>::new(),
-			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
-			grandpa::ValidateEquivocationReport::<Runtime>::new(),
-		);
-		// if the hash is supplied, we can manually provide the additional signed data.
-		let additional = hash.map(|hash| {
-			((), VERSION.spec_version, VERSION.transaction_version, hash, hash, (), (), (), (), (), ())
-		});
+	fn extras_params_builder() -> RuntimeExtrasBuilder {
+		RuntimeExtrasBuilder::default()
+	}
 
-		(extra, additional)
+	fn construct_extras(params: RuntimeExtrasParams) -> SignedExtensionData<Self::Extra> {
+		let RuntimeExtrasParams {
+			tip,
+			era,
+			index,
+			era_start_hash,
+			genesis_hash
+		} = params;
+		SignedExtensionData {
+			extra:  (
+				system::CheckSpecVersion::<Runtime>::new(),
+				system::CheckTxVersion::<Runtime>::new(),
+				system::CheckGenesis::<Runtime>::new(),
+				system::CheckEra::<Runtime>::from(era),
+				system::CheckNonce::<Runtime>::from(index),
+				system::CheckWeight::<Runtime>::new(),
+				transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+				registrar::LimitParathreadCommits::<Runtime>::new(),
+				parachains::ValidateDoubleVoteReports::<Runtime>::new(),
+				grandpa::ValidateEquivocationReport::<Runtime>::new(),
+			),
+			// if the hash is supplied, we can manually provide the additional signed data.
+			additional: match (genesis_hash, era_start_hash) {
+				(Some(genesis), Some(era)) => Some((
+					VERSION.spec_version,
+					VERSION.transaction_version,
+					genesis,
+					era,
+					(),
+					(),
+					(),
+					(),
+					(),
+					(),
+				)),
+				_ => None
+			}
+		}
 	}
 }
 
@@ -479,7 +531,9 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			// so the actual block number is `n`.
 			.saturating_sub(1);
 		let era = Era::mortal(period, current_block);
-		let (extra, _) = Runtime::construct_extras(nonce, era, None);
+		let input = Runtime::extras_params_builder()
+			.build(nonce, era);
+		let SignedExtensionData { extra, additional: _ } = Runtime::construct_extras(input);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
 		}).ok()?;
@@ -546,7 +600,6 @@ impl identity::Trait for Runtime {
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -564,7 +617,6 @@ impl multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -628,9 +680,11 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
 					| Call::Utility(utility::Call::as_limited_sub(..))
 			),
-			ProxyType::SudoBalances => matches!(c,
-				Call::Sudo(sudo::Call::sudo(x)) if matches!(x.as_ref(), &Call::Balances(..))
-			),
+			ProxyType::SudoBalances => match c {
+				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
+				Call::Utility(utility::Call::batch(..)) => true,
+				_ => false,
+			},
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -648,7 +702,6 @@ impl proxy::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
-	type IsCallable = IsCallable;
 	type ProxyType = ProxyType;
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
@@ -728,7 +781,6 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	TransactionCallFilter<IsCallable, Call>,
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
