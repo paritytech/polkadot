@@ -75,6 +75,10 @@ pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::Call as ParachainsCall;
+pub use staking;
+pub use system;
+pub use balances;
+pub use elections_phragmen;
 
 /// Constant values used within the runtime.
 pub mod constants;
