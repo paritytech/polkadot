@@ -148,16 +148,17 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		self.signature.verify(data.as_slice(), key)
 	}
 
+	#[inline]
 	pub fn payload(&self) -> &Payload {
 		&self.payload
 	}
 
-	// REVIEW: this works because ValidatorIndex is Copy, but that's dissimilar to the
-	// other getters. Keep it like this, or borrow it?
+	#[inline]
 	pub fn validator_index(&self) -> ValidatorIndex {
 		self.validator_index
 	}
 
+	#[inline]
 	pub fn signature(&self) -> &ValidatorSignature {
 		&self.signature
 	}
