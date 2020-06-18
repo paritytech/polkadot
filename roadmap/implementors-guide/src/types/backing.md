@@ -19,6 +19,33 @@ enum ValidityAttestation {
 }
 ```
 
+## Signed Wrapper
+
+There are a few distinct types which we desire to sign, and validate the signatures of. Instead of duplicating this work, we extract a signed wrapper.
+
+```rust,ignore
+struct Signed<Payload, RealPayload=Payload> {
+    /// The payload is part of the signed data. The rest is the signing context,
+    /// which is known both at signing and at validation.
+    ///
+    /// Note that this field is not publicly accessible: this reduces the chances
+    /// of accidentally invalidating the signature by mutating the payload.
+    payload: Payload,
+    /// The index of the validator signing this statement.
+    pub validator_index: ValidatorIndex,
+    /// The signature by the validator of the signed payload.
+    pub signature: ValidatorSignature,
+}
+
+impl<Payload: Encode + Into<RealPayload>, RealPayload> Signed<Payload, RealPayload> {
+    fn sign(payload: Payload, context: SigningContext, index: ValidatorIndex, key: PrivateKey) -> Signed<Payload, RealPayload> { ... }
+    fn validate(&self, context: SigningContext, key: PublicKey) -> bool { ... }
+    fn payload(&self) -> &Payload { &self.payload }
+}
+```
+
+Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks. Converting the `T` into `U` is a NOP most of the time, but it allows us to substitute `CompactStatement`s for `Statement`s on demand, which helps efficiency.
+
 ## Statement Type
 
 The [Candidate Backing subsystem](../node/backing/candidate-backing.html) issues and signs these after candidate validation.
@@ -38,28 +65,36 @@ enum Statement {
   /// A statement about the invalidity of a candidate.
   Invalid(Hash),
 }
-```
 
-## Signed Statement Type
-
-A statement, the identifier of a validator, and a signature.
-
-```rust
-/// A signed statement.
-struct SignedStatement {
-  /// The index of the validator signing this statement.
-  validator_index: ValidatorIndex,
-  /// The statement itself.
-  statement: Statement,
-  /// The signature by the validator on the signing payload.
-  signature: ValidatorSignature
+/// A statement about the validity of a parachain candidate.
+///
+/// This variant should only be used in the production of `SignedStatement`s. The only difference between
+/// this enum and `Statement` is that the `Seconded` variant contains a `Hash` instead of a `CandidateReceipt`.
+/// The rationale behind the difference is that a `CandidateReceipt` contains `HeadData`, which does not have
+/// bounded size. By using this enum instead, we ensure that the production and validation of signatures is fast
+/// while retaining their necessary cryptographic properties.
+enum CompactStatement {
+  /// A statement about a new candidate being seconded by a validator. This is an implicit validity vote.
+  Seconded(Hash),
+  /// A statement about the validity of a candidate, based on candidate's hash.
+  Valid(Hash),
+  /// A statement about the invalidity of a candidate.
+  Invalid(Hash),
 }
 ```
 
-The actual signed payload will be the SCALE encoding of `(compact_statement, signing_context)` where
-`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types/candidate.html#signing-context).
+`CompactStatement` exists because a `CandidateReceipt` includes `HeadData`, which does not have a bounded size.
 
-This prevents against replay attacks and allows the candidate receipt itself to be omitted when checking a signature on a `Seconded` statement in situations where the hash is known.
+## Signed Statement Type
+
+A statement which has been [cryptographically signed](#signed-wrapper) by a validator.
+
+```rust
+/// A signed statement.
+pub type SignedStatement = Signed<Statement, CompactStatement>;
+```
+
+Munging the signed `Statement` into a `CompactStatement` before signing allows the candidate receipt itself to be omitted when checking a signature on a `Seconded` statement.
 
 ## Backed Candidate
 
