@@ -37,7 +37,7 @@ use sc_network::{
 	multiaddr,
 };
 use service::{
-	config::{DatabaseConfig, KeystoreConfig, WasmExecutionMethod},
+	config::{DatabaseConfig, MultiaddrWithPeerId, KeystoreConfig, WasmExecutionMethod},
 	error::Error as ServiceError,
 	TaskType,
 };
@@ -95,6 +95,7 @@ fn node_config<P: AsRef<Path>>(
 	key_seed: Option<String>,
 	port: u16,
 	root: P,
+	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Configuration {
 	let root = root.as_ref().to_path_buf();
 	let mut network_config = NetworkConfiguration::new(
@@ -103,6 +104,8 @@ fn node_config<P: AsRef<Path>>(
 		Default::default(),
 		None,
 	);
+
+	network_config.boot_nodes = boot_nodes;
 
 	network_config.allow_non_globals_in_dht = true;
 
@@ -113,7 +116,7 @@ fn node_config<P: AsRef<Path>>(
 	);
 
 	network_config.transport = TransportConfig::Normal {
-		enable_mdns: true, // TODO: keep it that way or disable it?
+		enable_mdns: false,
 		allow_private_ipv4: true,
 		wasm_external_transport: None,
 		use_yamux_flow_control: true,
@@ -161,13 +164,13 @@ fn node_config<P: AsRef<Path>>(
 	}
 }
 
-pub fn run_test_node(
+pub async fn run_test_node(
 	task_executor: Arc<
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
-	port: u16,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
+	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Result<
 	(
 		impl AbstractService,
@@ -195,8 +198,9 @@ pub fn run_test_node(
 		},
 		task_executor,
 		Some(key.to_seed()),
-		port,
+		0,
 		&base_path,
+		boot_nodes,
 	);
 	let authority_discovery_enabled = false;
 	let (service, client, handles) =

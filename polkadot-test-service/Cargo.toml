@@ -8,6 +8,7 @@ edition = "2018"
 log = "0.4.8"
 futures = "0.3.4"
 tempfile = "3.1.0"
+rand = "0.7.3"
 av_store = { package = "polkadot-availability-store", path = "../availability-store" }
 consensus = { package = "polkadot-validation", path = "../validation" }
 polkadot-primitives = { path = "../primitives" }
