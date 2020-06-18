@@ -34,7 +34,7 @@ async fn ensure_test_service_build_blocks() {
 	};
 
 	sc_cli::init_logger("");
-	let (service_alice, client_alice, _handles_alice, _base_path_alice) = run_test_node(
+	let (service_alice, client_alice, _handles_alice, alice_boot_node, _base_path_alice) = run_test_node(
 		task_executor(),
 		Sr25519Keyring::Alice,
 		|| {
@@ -43,10 +43,9 @@ async fn ensure_test_service_build_blocks() {
 		},
 		Vec::new(),
 	)
-	.await
 	.unwrap();
 
-	let (service_bob, client_bob, _handles_bob, _base_path_bob) = run_test_node(
+	let (service_bob, client_bob, _handles_bob, _bob_boot_node, _base_path_bob) = run_test_node(
 		task_executor(),
 		Sr25519Keyring::Bob,
 		|| {
@@ -54,17 +53,9 @@ async fn ensure_test_service_build_blocks() {
 			SlotDuration::set(&2000);
 		},
 		vec![
-			{
-				let network = service_alice.network();
-
-				MultiaddrWithPeerId {
-					multiaddr: network.listen_addresses().await.remove(0),
-					peer_id: network.local_peer_id().clone(),
-				}
-			},
+			alice_boot_node,
 		],
 	)
-	.await
 	.unwrap();
 
 	let t1 = service_alice.fuse();

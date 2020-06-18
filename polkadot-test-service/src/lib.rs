@@ -33,8 +33,8 @@ use polkadot_service::PolkadotClient;
 use polkadot_service::{new_full, new_full_start, FullNodeHandles};
 use sc_chain_spec::ChainSpec;
 use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
+	config::{NetworkConfiguration, TransportConfig, NodeKeyConfig, Secret},
+	multiaddr, PeerId,
 };
 use service::{
 	config::{DatabaseConfig, MultiaddrWithPeerId, KeystoreConfig, WasmExecutionMethod},
@@ -98,6 +98,7 @@ fn node_config<P: AsRef<Path>>(
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Configuration {
 	let root = root.as_ref().to_path_buf();
+
 	let mut network_config = NetworkConfiguration::new(
 		format!("Polkadot Test Node on {}", port),
 		"network/test/0.1",
@@ -110,9 +111,7 @@ fn node_config<P: AsRef<Path>>(
 	network_config.allow_non_globals_in_dht = true;
 
 	network_config.listen_addresses.push(
-		std::iter::once(multiaddr::Protocol::Ip4(Ipv4Addr::new(127, 0, 0, 1)))
-			.chain(std::iter::once(multiaddr::Protocol::Tcp(port)))
-			.collect(),
+		multiaddr::Protocol::Memory(rand::random()).into(),
 	);
 
 	network_config.transport = TransportConfig::Normal {
@@ -164,7 +163,7 @@ fn node_config<P: AsRef<Path>>(
 	}
 }
 
-pub async fn run_test_node(
+pub fn run_test_node(
 	task_executor: Arc<
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
@@ -176,6 +175,7 @@ pub async fn run_test_node(
 		impl AbstractService,
 		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
 		FullNodeHandles,
+		MultiaddrWithPeerId,
 		tempfile::TempDir,
 	),
 	(),
@@ -202,9 +202,16 @@ pub async fn run_test_node(
 		&base_path,
 		boot_nodes,
 	);
+	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
 	let (service, client, handles) =
 		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000).unwrap();
 
-	Ok((service, client, handles, base_path))
+	let peer_id = service.network().local_peer_id().clone();
+	let multiaddr_with_peer_id = MultiaddrWithPeerId {
+		multiaddr,
+		peer_id
+	};
+
+	Ok((service, client, handles, multiaddr_with_peer_id, base_path))
 }
