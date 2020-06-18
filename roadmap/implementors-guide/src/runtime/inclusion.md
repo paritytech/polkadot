@@ -28,6 +28,12 @@ Storage Layout:
 bitfields: map ValidatorIndex => AvailabilityBitfield;
 /// Candidates pending availability.
 PendingAvailability: map ParaId => CandidatePendingAvailability;
+
+/// The current validators, by their parachain session keys.
+Validators: Vec<ValidatorId>;
+
+/// The current session index.
+CurrentSessionIndex: SessionIndex;
 ```
 
 > TODO: `CandidateReceipt` and `AbridgedCandidateReceipt` can contain code upgrades which make them very large. the code entries should be split into a different storage map with infrequent access patterns
@@ -36,6 +42,8 @@ PendingAvailability: map ParaId => CandidatePendingAvailability;
 
 1. Clear out all candidates pending availability.
 1. Clear out all validator bitfields.
+1. Update `Validators` with the validators from the session change notification.
+1. Update `CurrentSessionIndex` with the session index from the session change notification.
 
 ## Routines
 
@@ -50,11 +58,15 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
   1. > TODO: pass it onwards to `Validity` module.
   1. Return a list of freed cores consisting of the cores where candidates have become available.
-* `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>)`:
-  1. check that each candidate corresponds to a scheduled core and that they are ordered in ascending order by `ParaId`.
-  1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of the currently scheduled upgrade, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
-  1. check the backing of the candidate using the signatures and the bitfields.
-  1. check that the upward messages are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
+* `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
+  1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
+  1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
+  1. check that there is no candidate pending availability for any scheduled `ParaId`.
+  1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
+  1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
+  1. Check the collator's signature on the pov block.
+  1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
+  1. check that the upward messages, when combined with the existing queue size, are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
 * `enact_candidate(relay_parent_number: BlockNumber, AbridgedCandidateReceipt)`:

@@ -174,7 +174,7 @@ decl_storage! {
 		/// All parathreads.
 		Parathreads: map hasher(twox_64_concat) ParaId => Option<()>;
 		/// The head-data of every registered para.
-		Heads get(fn parachain_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
+		Heads get(fn para_head): map hasher(twox_64_concat) ParaId => Option<HeadData>;
 		/// The validation code of every live para.
 		CurrentCode get(fn current_code): map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Actual past code, indicated by the para id as well as the block number at which it became outdated.
@@ -368,7 +368,7 @@ impl<T: Trait> Module<T> {
 							<Self as Store>::PastCode::remove(&(para_id, pruned_repl_at));
 						}
 
-						meta.most_recent_change().is_none() && Self::parachain_head(&para_id).is_none()
+						meta.most_recent_change().is_none() && Self::para_head(&para_id).is_none()
 					});
 
 					// This parachain has been removed and now the vestigial code
@@ -428,7 +428,6 @@ impl<T: Trait> Module<T> {
 	/// with number >= `expected_at`
 	///
 	/// If there is already a scheduled code upgrade for the para, this is a no-op.
-	#[allow(unused)]
 	pub(crate) fn schedule_code_upgrade(
 		id: ParaId,
 		new_code: ValidationCode,
@@ -448,15 +447,14 @@ impl<T: Trait> Module<T> {
 	/// Note that a para has progressed to a new head, where the new head was executed in the context
 	/// of a relay-chain block with given number. This will apply pending code upgrades based
 	/// on the block number provided.
-	#[allow(unused)]
 	pub(crate) fn note_new_head(
 		id: ParaId,
 		new_head: HeadData,
 		execution_context: T::BlockNumber,
 	) -> Weight {
-		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
-			Heads::insert(&id, new_head);
+		Heads::insert(&id, new_head);
 
+		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
 			if expected_at <= execution_context {
 				<Self as Store>::FutureCodeUpgrades::remove(&id);
 
@@ -481,7 +479,7 @@ impl<T: Trait> Module<T> {
 				T::DbWeight::get().reads_writes(1, 1 + 0)
 			}
 		} else {
-			T::DbWeight::get().reads_writes(1, 0)
+			T::DbWeight::get().reads_writes(1, 1)
 		}
 	}
 
@@ -525,6 +523,18 @@ impl<T: Trait> Module<T> {
 	/// Whether a para ID corresponds to any live parathread.
 	pub(crate) fn is_parathread(id: ParaId) -> bool {
 		Parathreads::get(&id).is_some()
+	}
+
+	/// The block number of the last scheduled upgrade of the requested para. Includes future upgrades
+	/// if the flag is set. This is the `expected_at` number, not the `activated_at` number.
+	pub(crate) fn last_code_upgrade(id: ParaId, include_future: bool) -> Option<T::BlockNumber> {
+		if include_future {
+			if let Some(at) = Self::future_code_upgrade_at(id) {
+				return Some(at);
+			}
+		}
+
+		Self::past_code_meta(&id).most_recent_change()
 	}
 }
 
@@ -680,6 +690,40 @@ mod tests {
 			run_to_block(pruned_at, None);
 			assert!(<Paras as Store>::PastCode::get(&(id, at_block)).is_none());
 			assert!(Paras::past_code_meta(&id).most_recent_change().is_none());
+		});
+	}
+
+	#[test]
+	fn note_new_head_sets_head() {
+		let acceptance_period = 10;
+		let paras = vec![
+			(0u32.into(), ParaGenesisArgs {
+				parachain: true,
+				genesis_head: Default::default(),
+				validation_code: Default::default(),
+			}),
+		];
+
+		let genesis_config = MockGenesisConfig {
+			paras: GenesisConfig { paras, ..Default::default() },
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					acceptance_period,
+					..Default::default()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		new_test_ext(genesis_config).execute_with(|| {
+			let id_a = ParaId::from(0u32);
+
+			assert_eq!(Paras::para_head(&id_a), Some(Default::default()));
+
+			Paras::note_new_head(id_a, vec![1, 2, 3].into(), 0);
+
+			assert_eq!(Paras::para_head(&id_a), Some(vec![1, 2, 3].into()));
 		});
 	}
 

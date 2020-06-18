@@ -111,6 +111,8 @@ OutgoingParas: Vec<ParaId>;
 * `validation_code_at(ParaId, at: BlockNumber, assume_intermediate: Option<BlockNumber>)`: Fetches the validation code to be used when validating a block in the context of the given relay-chain height. A second block number parameter may be used to tell the lookup to proceed as if an intermediate parablock has been included at the given relay-chain height. This may return past, current, or (with certain choices of `assume_intermediate`) future code. `assume_intermediate`, if provided, must be before `at`. If the validation code has been pruned, this will return `None`.
 * `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread.
 
+* `last_code_upgrade(id: ParaId, include_future: bool) -> Option<BlockNumber>`: The block number of the last scheduled upgrade of the requested para. Includes future upgrades if the flag is set. This is the `expected_at` number, not the `activated_at` number.
+
 ## Finalization
 
 No finalization routine runs for this module.
