@@ -1,6 +1,6 @@
 # Router Module
 
-The Router module is responsible for storing and dispatching Upwards and Downwards messages from and to parachains respectively. It is intended to later handle the XCMP logic as well.
+The Router module is responsible for storing and dispatching Upward and Downward messages from and to parachains respectively. It is intended to later handle the XCMP logic as well.
 
 For each enacted block the `queue_upward_messages` entry-point is called.
 
@@ -10,8 +10,8 @@ Storage layout:
 
 ```rust,ignore
 /// Messages ready to be dispatched onto the relay chain.
-/// This is subject to `max_upwards_queue_count` and
-///`watermark_queue_size` from `HostConfiguration`.
+/// This is subject to `max_upward_queue_count` and
+/// `watermark_queue_size` from `HostConfiguration`.
 RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
@@ -32,4 +32,4 @@ No initialization routine runs for this module.
 
 ## Finalization 
 
-  1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.watermark_queue_size` and `config.max_upwards_queue_count` limits.
+  1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.watermark_upward_queue_size` and `config.max_upward_queue_count` limits.

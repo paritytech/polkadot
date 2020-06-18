@@ -35,10 +35,10 @@ struct HostConfiguration {
 	/// The amount of blocks ahead to schedule parathreads.
 	pub scheduling_lookahead: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	pub max_upwards_queue_count: u32,
+	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
-	pub watermark_queue_size: u32,
+	pub watermark_upward_queue_size: u32,
 }
 ```
