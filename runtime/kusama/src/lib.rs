@@ -27,15 +27,16 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
-use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
+use runtime_common::{
+	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
 	traits::{
@@ -85,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2010,
+	spec_version: 2011,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -198,22 +199,14 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
-
-// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-const_assert!(
-	TargetBlockFullness::get().deconstruct() <
-	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
-		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
-);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = DealWithFees;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
+	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
 parameter_types! {

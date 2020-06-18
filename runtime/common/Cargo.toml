@@ -31,6 +31,7 @@ system = { package = "frame-system", git = "https://github.com/paritytech/substr
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -76,6 +77,7 @@ std = [
 	"system/std",
 	"timestamp/std",
 	"vesting/std",
+	"transaction-payment/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
