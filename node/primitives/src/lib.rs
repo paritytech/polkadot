@@ -20,13 +20,14 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
-use runtime_primitives::traits::AppVerify;
-use polkadot_primitives::Hash;
+use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, CandidateReceipt, SigningContext, ValidatorSignature,
-	ValidatorIndex, ValidatorId,
+	AbridgedCandidateReceipt, CandidateReceipt, SigningContext, ValidatorId, ValidatorIndex,
+	ValidatorPair, ValidatorSignature,
 };
-use parity_scale_codec::{Encode, Decode};
+use polkadot_primitives::Hash;
+use runtime_primitives::traits::AppVerify;
+use sp_core::crypto::Pair;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -53,6 +54,112 @@ impl Statement {
 		};
 
 		statement.signing_payload(context)
+	}
+}
+
+/// This helper trait ensures that we can encode Statement as CompactStatement,
+/// and anything as itself.
+pub trait EncodeAs<T> {
+	fn encode_as(&self) -> Vec<u8>;
+}
+
+impl<T: Encode> EncodeAs<T> for T {
+	fn encode_as(&self) -> Vec<u8> {
+		self.encode()
+	}
+}
+
+/// A statement about the validity of a parachain candidate.
+///
+/// This variant should only be used in the production of `SignedStatement`s. The only difference between
+/// this enum and `Statement` is that the `Seconded` variant contains a `Hash` instead of a `CandidateReceipt`.
+/// The rationale behind the difference is that a `CandidateReceipt` contains `HeadData`, which does not have
+/// bounded size. By using this enum instead, we ensure that the production and validation of signatures is fast
+/// while retaining their necessary cryptographic properties.
+#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+enum CompactStatement {
+	/// A statement about a new candidate being seconded by a validator. This is an implicit validity vote.
+	#[codec(index = "1")]
+	Seconded(Hash),
+	/// A statement about the validity of a candidate, based on candidate's hash.
+	#[codec(index = "2")]
+	Valid(Hash),
+	/// A statement about the invalidity of a candidate.
+	#[codec(index = "3")]
+	Invalid(Hash),
+}
+
+impl EncodeAs<CompactStatement> for Statement {
+	fn encode_as(&self) -> Vec<u8> {
+		let statement = match *self {
+			Statement::Seconded(ref c) => {
+				polkadot_primitives::parachain::Statement::Candidate(c.hash())
+			}
+			Statement::Valid(hash) => polkadot_primitives::parachain::Statement::Valid(hash),
+			Statement::Invalid(hash) => polkadot_primitives::parachain::Statement::Invalid(hash),
+		};
+		statement.encode()
+	}
+}
+
+/// A signed type which encapsulates the common desire to sign some data and validate a signature.
+///
+/// Note that the internal fields are not public; they are all accessable by immutable getters.
+/// This reduces the chance that they are accidentally mutated, invalidating the signature.
+pub struct Signed<Payload, RealPayload = Payload> {
+	/// The payload is part of the signed data. The rest is the signing context,
+	/// which is known both at signing and at validation.
+	payload: Payload,
+	/// The index of the validator signing this statement.
+	validator_index: ValidatorIndex,
+	/// The signature by the validator of the signed payload.
+	signature: ValidatorSignature,
+	/// This ensures the real payload is tracked at the typesystem level.
+	real_payload: std::marker::PhantomData<RealPayload>,
+}
+
+// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
+// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
+// own trait which does what we need: EncodeAs.
+impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
+	fn payload_data(payload: &Payload, context: SigningContext) -> Vec<u8> {
+		(payload.encode_as(), context).encode()
+	}
+
+	pub fn sign(
+		payload: Payload,
+		context: SigningContext,
+		validator_index: ValidatorIndex,
+		key: &ValidatorPair,
+	) -> Self {
+		let data = Self::payload_data(&payload, context);
+		let signature = key.sign(&data);
+		Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		}
+	}
+
+	pub fn validate(&self, context: SigningContext, key: &ValidatorId) -> bool {
+		let data = Self::payload_data(&self.payload, context);
+		self.signature.verify(data.as_slice(), key)
+	}
+
+	pub fn payload(&self) -> &Payload {
+		&self.payload
+	}
+
+	// REVIEW: this works because ValidatorIndex is Copy, but that's dissimilar to the
+	// other getters. Keep it like this, or borrow it?
+	pub fn validator_index(&self) -> ValidatorIndex {
+		self.validator_index
+	}
+
+	pub fn signature(&self) -> &ValidatorSignature {
+		&self.signature
 	}
 }
 

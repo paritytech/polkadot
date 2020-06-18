@@ -38,13 +38,15 @@ struct Signed<Payload, RealPayload=Payload> {
     signature: ValidatorSignature,
 }
 
-impl<Payload: Encode + Into<RealPayload>, RealPayload> Signed<Payload, RealPayload> {
-    fn sign(payload: Payload, context: SigningContext, index: ValidatorIndex, key: PrivateKey) -> Signed<Payload, RealPayload> { ... }
-    fn validate(&self, context: SigningContext, key: PublicKey) -> bool { ... }
+impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
+    fn sign(payload: Payload, context: SigningContext, index: ValidatorIndex, key: ValidatorPair) -> Signed<Payload, RealPayload> { ... }
+    fn validate(&self, context: SigningContext, key: ValidatorId) -> bool { ... }
 }
 ```
 
-Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks. Converting the `Payload` into `RealPayload` is a NOP most of the time, but it allows us to substitute `CompactStatement`s for `Statement`s on demand, which helps efficiency.
+Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks.
+
+`EncodeAs` is a helper trait with a blanket impl which ensures that any `T` can `EncodeAs<T>`. Therefore, for the generic case where `RealPayload = Payload`, it changes nothing. However, we  `impl EncodeAs<CompactStatement> for Statement`, which helps efficiency.
 
 ## Statement Type
 
