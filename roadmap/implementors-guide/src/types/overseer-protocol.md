@@ -32,6 +32,11 @@ Messages received by the availability distribution subsystem.
 
 ```rust
 enum AvailabilityDistributionMessage {
+	/// Distribute an availability chunk to other validators.
+	DistributeChunk(Hash, ErasureChunk),
+	/// Fetch an erasure chunk from network by candidate hash and chunk index.
+	FetchChunk(Hash, u32),
+	/// Event from the network.
 	/// An update on network state from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
@@ -142,7 +147,6 @@ enum NetworkBridgeEvent {
 }
 ```
 
-## Misbehavior Arbitration Message
 
 ```rust
 enum MisbehaviorReport {

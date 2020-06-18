@@ -32,7 +32,7 @@ use sp_blockchain::HeaderBackend;
 use polkadot_overseer::{
 	self as overseer,
 	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
-	ValidationSubsystemMessage, CandidateBackingSubsystemMessage,
+	CandidateValidationMessage, CandidateBackingMessage,
 };
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
@@ -268,10 +268,10 @@ macro_rules! new_full_start {
 	}}
 }
 
-struct ValidationSubsystem;
+struct CandidateValidationSubsystem;
 
-impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
-	fn start(&mut self, mut ctx: SubsystemContext<ValidationSubsystemMessage>) -> SpawnedSubsystem {
+impl Subsystem<CandidateValidationMessage> for CandidateValidationSubsystem {
+	fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))
@@ -280,8 +280,8 @@ impl Subsystem<ValidationSubsystemMessage> for ValidationSubsystem {
 
 struct CandidateBackingSubsystem;
 
-impl Subsystem<CandidateBackingSubsystemMessage> for CandidateBackingSubsystem {
-	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingSubsystemMessage>) -> SpawnedSubsystem {
+impl Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem {
+	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))
@@ -292,7 +292,7 @@ fn real_overseer<S: futures::task::Spawn>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	let validation = Box::new(ValidationSubsystem);
+	let validation = Box::new(CandidateValidationSubsystem);
 	let candidate_backing = Box::new(CandidateBackingSubsystem);
 	Overseer::new(leaves, validation, candidate_backing, s)
 		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))

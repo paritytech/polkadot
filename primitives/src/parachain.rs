@@ -737,8 +737,7 @@ impl AvailabilityBitfield {
 	/// Encodes the signing payload into a fresh byte-vector.
 	pub fn encode_signing_payload<H: Encode>(
 		&self,
-		signing_context:
-		&SigningContext<H>,
+		signing_context: &SigningContext<H>,
 	) -> Vec<u8> {
 		let mut v = Vec::new();
 		self.encode_signing_payload_into(signing_context, &mut v);
