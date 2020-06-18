@@ -91,7 +91,7 @@ pub enum CandidateValidationMessage {
 }
 
 /// Events from network.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum NetworkBridgeEvent {
 	/// A peer has connected.
 	PeerConnected(PeerId, ObservedRole),
