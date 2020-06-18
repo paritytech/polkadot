@@ -45,7 +45,7 @@
     - [Overseer and Subsystem Protocol](types/overseer-protocol.md)
     - [Runtime](types/runtime.md)
     - [Chain](types/chain.md)
-	- [Messages](types/messages.md)
+    - [Messages](types/messages.md)
 
 [Glossary](glossary.md)
 [Further Reading](further-reading.md)
