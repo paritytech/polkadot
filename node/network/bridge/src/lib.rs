@@ -26,7 +26,7 @@ use sc_network::{
 };
 use sp_runtime::ConsensusEngineId;
 
-use messages::{NetworkBridgeEvent, NetworkBridgeMessage};
+use messages::{NetworkBridgeEvent, NetworkBridgeMessage, FromOverseer, OverseerSignal};
 use overseer::{Subsystem, SubsystemContext, SpawnedSubsystem};
 use node_primitives::{ProtocolId, View};
 use polkadot_primitives::{Block, Hash};
@@ -101,8 +101,7 @@ impl<N> NetworkBridge<N> {
 
 impl<N: Network> Subsystem<NetworkBridgeMessage> for NetworkBridge<N> {
 	fn start(&mut self, ctx: SubsystemContext<NetworkBridgeMessage>) -> SpawnedSubsystem {
-		unimplemented!();
-		// TODO [now]: Spawn substrate-network notifications protocol & event stream.
+		SpawnedSubsystem(run_network(self.0.clone(), ctx).boxed())
 	}
 }
 
@@ -111,6 +110,47 @@ struct PeerData {
 	view: View,
 }
 
-struct ProtocolHandler {
-	peers: HashMap<PeerId, PeerData>,
+async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeMessage>) {
+	let mut event_stream = net.event_stream().fuse();
+
+	// TODO [now]
+	// let peers = HashMap::new();
+	// let event_listeners = HashMap::new();
+
+	loop {
+		let subsystem_next = ctx.recv().fuse();
+		let mut net_event_next = event_stream.next().fuse();
+		futures::pin_mut!(subsystem_next);
+
+		futures::select! {
+			subsystem_msg = subsystem_next => match subsystem_msg {
+				Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))) => {
+					// TODO [now]: update local view and send view update to peers.
+				}
+				Ok(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))) => {
+					// TODO [now]: update local view and send view update to peers.
+				}
+				Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+				Ok(FromOverseer::Communication { msg }) => match msg {
+					NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer) => {
+						// TODO [now]: add event producer.
+					}
+					NetworkBridgeMessage::ReportPeer(peer, rep) => {
+						// TODO [now]: report a peer to network service.
+					}
+					NetworkBridgeMessage::SendMessage(peers, protocol, message) => {
+						// TODO [now]: Send the message to all peers with `write_notification`.
+					}
+				},
+				Err(e) => {
+					// TODO [now]: log error.
+					return;
+				}
+			},
+			net_event = net_event_next => {
+				// TODO [now]: Update peer tracker, filter out anything not to do with this
+				// engine, and transform all updates to be sent to the overseer.
+			},
+		}
+	}
 }
