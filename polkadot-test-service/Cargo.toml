@@ -39,4 +39,3 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 
 [dev-dependencies]
 async-std = { version = "1.2.0", features = [ "attributes" ] }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
