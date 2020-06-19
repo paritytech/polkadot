@@ -33,8 +33,8 @@ use polkadot_service::PolkadotClient;
 use polkadot_service::{new_full, new_full_start, FullNodeHandles};
 use sc_chain_spec::ChainSpec;
 use sc_network::{
-	config::{NetworkConfiguration, TransportConfig, NodeKeyConfig, Secret},
-	multiaddr, PeerId,
+	config::{NetworkConfiguration, TransportConfig},
+	multiaddr,
 };
 use service::{
 	config::{DatabaseConfig, MultiaddrWithPeerId, KeystoreConfig, WasmExecutionMethod},
@@ -43,7 +43,6 @@ use service::{
 };
 use service::{AbstractService, Configuration, Role, TFullBackend};
 use sp_state_machine::BasicExternalities;
-use std::net::Ipv4Addr;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -114,12 +113,7 @@ fn node_config<P: AsRef<Path>>(
 		multiaddr::Protocol::Memory(rand::random()).into(),
 	);
 
-	network_config.transport = TransportConfig::Normal {
-		enable_mdns: false,
-		allow_private_ipv4: true,
-		wasm_external_transport: None,
-		use_yamux_flow_control: true,
-	};
+	network_config.transport = TransportConfig::MemoryOnly;
 
 	Configuration {
 		impl_name: "polkadot-test-node",
