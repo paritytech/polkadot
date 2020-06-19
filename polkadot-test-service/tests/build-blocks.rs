@@ -26,7 +26,6 @@ async fn ensure_test_service_build_blocks() {
 	))
 	.fuse();
 	let t2 = async {
-		sc_cli::init_logger("");
 		let alice = run_test_node(
 			task_executor(),
 			Sr25519Keyring::Alice,
@@ -72,7 +71,7 @@ async fn ensure_test_service_build_blocks() {
 
 	select! {
 		_ = t1 => {
-			panic!("the test took too long, maybe no parachain blocks have been produced");
+			panic!("the test took too long, maybe no blocks have been produced");
 		},
 		_ = t2 => {},
 	}

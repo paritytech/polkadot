@@ -4703,7 +4703,6 @@ dependencies = [
  "rand 0.7.3",
  "sc-authority-discovery",
  "sc-chain-spec",
- "sc-cli",
  "sc-client-api",
  "sc-consensus",
  "sc-consensus-babe",
