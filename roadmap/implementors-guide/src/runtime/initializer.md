@@ -17,6 +17,7 @@ The other modules are initialized in this order:
 1. Scheduler
 1. Inclusion
 1. Validity.
+1. Router.
 
 The [Configuration Module](configuration.html) is first, since all other modules need to operate under the same configuration as each other. It would lead to inconsistency if, for example, the scheduler ran first and then the configuration was updated before the Inclusion module.
 
