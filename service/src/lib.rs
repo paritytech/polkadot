@@ -30,7 +30,7 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 pub use service::{
-	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
+	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
 	Configuration, ChainSpec, ServiceBuilderCommand, ServiceComponents, KeepAliveServiceComponents,
 };
@@ -635,9 +635,12 @@ macro_rules! new_light {
 			})?
 			.build_light()
 			.map(|ServiceComponents { task_manager, telemetry, base_path, rpc, rpc_handlers, .. }| {
-				KeepAliveServiceComponents {
-					task_manager, other: Box::new((telemetry, base_path, rpc, rpc_handlers))
-				}
+				(
+					KeepAliveServiceComponents {
+						task_manager, other: Box::new((telemetry, base_path, rpc))
+					},
+					rpc_handlers,
+				)
 			})
 	}}
 }
@@ -777,19 +780,25 @@ pub struct FullNodeHandles {
 }
 
 /// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(mut config: Configuration) -> Result<KeepAliveServiceComponents, ServiceError>
+pub fn polkadot_new_light(mut config: Configuration) -> Result<
+	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+>
 {
 	new_light!(config, polkadot_runtime::RuntimeApi, PolkadotExecutor)
 }
 
 /// Create a new Kusama service for a light client.
-pub fn kusama_new_light(mut config: Configuration) -> Result<KeepAliveServiceComponents, ServiceError>
+pub fn kusama_new_light(mut config: Configuration) -> Result<
+	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+>
 {
 	new_light!(config, kusama_runtime::RuntimeApi, KusamaExecutor)
 }
 
 /// Create a new Westend service for a light client.
-pub fn westend_new_light(mut config: Configuration, ) -> Result<KeepAliveServiceComponents, ServiceError>
+pub fn westend_new_light(mut config: Configuration, ) -> Result<
+	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+>
 {
 	new_light!(config, westend_runtime::RuntimeApi, KusamaExecutor)
 }

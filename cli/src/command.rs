@@ -118,7 +118,7 @@ pub fn run() -> Result<()> {
 
 				runtime.run_node(
 					|config| {
-						service::kusama_new_light(config)
+						service::kusama_new_light(config).map(|(components, _)| components)
 					},
 					|config| {
 						service::kusama_new_full(
@@ -136,7 +136,7 @@ pub fn run() -> Result<()> {
 			} else if chain_spec.is_westend() {
 				runtime.run_node(
 					|config| {
-						service::westend_new_light(config)
+						service::westend_new_light(config).map(|(components, _)| components)
 					},
 					|config| {
 						service::westend_new_full(
@@ -154,7 +154,7 @@ pub fn run() -> Result<()> {
 			} else {
 				runtime.run_node(
 					|config| {
-						service::polkadot_new_light(config)
+						service::polkadot_new_light(config).map(|(components, _)| components)
 					},
 					|config| {
 						service::polkadot_new_full(
