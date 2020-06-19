@@ -1,15 +1,11 @@
-use futures::{future, pin_mut, select, FutureExt as _, StreamExt};
+use futures::{future, pin_mut, select, FutureExt as _};
 use polkadot_test_service::*;
-use service::{AbstractService, TaskType, config::MultiaddrWithPeerId};
 use std::pin::Pin;
 use std::sync::Arc;
 use sp_keyring::Sr25519Keyring;
-use sc_client_api::client::BlockchainEvents;
-use std::collections::HashSet;
-use polkadot_primitives::Block as RelayBlock;
 
 fn task_executor(
-) -> Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync> {
+) -> Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, service::TaskType) + Send + Sync> {
 	Arc::new(
 		move |fut: Pin<Box<dyn futures::Future<Output = ()> + Send>>, _| {
 			async_std::task::spawn(fut.unit_error());
@@ -19,22 +15,8 @@ fn task_executor(
 
 #[async_std::test]
 async fn ensure_test_service_build_blocks() {
-	let ensure_blocks_created = |client: Arc<dyn BlockchainEvents<RelayBlock>>| {
-		async move {
-			let mut import_notification_stream = client.import_notification_stream();
-			let mut blocks = HashSet::new();
-
-			while let Some(notification) = import_notification_stream.next().await {
-				blocks.insert(notification.hash);
-				if blocks.len() == 3 {
-					break;
-				}
-			}
-		}
-	};
-
 	sc_cli::init_logger("");
-	let (service_alice, client_alice, _handles_alice, alice_boot_node, _base_path_alice) = run_test_node(
+	let alice = run_test_node(
 		task_executor(),
 		Sr25519Keyring::Alice,
 		|| {
@@ -45,7 +27,7 @@ async fn ensure_test_service_build_blocks() {
 	)
 	.unwrap();
 
-	let (service_bob, client_bob, _handles_bob, _bob_boot_node, _base_path_bob) = run_test_node(
+	let bob = run_test_node(
 		task_executor(),
 		Sr25519Keyring::Bob,
 		|| {
@@ -53,23 +35,23 @@ async fn ensure_test_service_build_blocks() {
 			SlotDuration::set(&2000);
 		},
 		vec![
-			alice_boot_node,
+			alice.multiaddr_with_peer_id.clone(),
 		],
 	)
 	.unwrap();
 
-	let t1 = service_alice.fuse();
-	let t2 = service_bob.fuse();
-	let t3 = future::join(
-		ensure_blocks_created(client_alice),
-		ensure_blocks_created(client_bob),
+	let t1 = future::join(
+		alice.wait_for_blocks(3),
+		bob.wait_for_blocks(3),
 	).fuse();
+	let t2 = alice.service.fuse();
+	let t3 = bob.service.fuse();
 
 	pin_mut!(t1, t2, t3);
 
 	select! {
-		_ = t1 => panic!("service Alice failed"),
-		_ = t2 => panic!("service Bob failed"),
-		_ = t3 => {},
+		_ = t1 => {},
+		_ = t2 => panic!("service Alice failed"),
+		_ = t3 => panic!("service Bob failed"),
 	}
 }

@@ -49,6 +49,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use sc_executor::native_executor_instance;
 use sp_keyring::Sr25519Keyring;
+use std::collections::HashSet;
+use sc_client_api::BlockchainEvents;
+use futures::{future::Future, StreamExt};
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -165,22 +168,15 @@ pub fn run_test_node(
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Result<
-	(
-		impl AbstractService,
-		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
-		FullNodeHandles,
-		MultiaddrWithPeerId,
-		tempfile::TempDir,
-	),
-	(),
+	PolkadotTestNode<impl AbstractService, impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
+	ServiceError,
 > {
 	let base_path = tempfile::Builder::new()
 		.prefix("polkadot-test-service")
-		.tempdir()
-		.unwrap();
+		.tempdir()?;
 	let mut spec = polkadot_local_testnet_config();
 
-	let mut storage = spec.as_storage_builder().build_storage().unwrap();
+	let mut storage = spec.as_storage_builder().build_storage()?;
 	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
 
 	spec.set_storage(storage);
@@ -199,7 +195,7 @@ pub fn run_test_node(
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
 	let (service, client, handles) =
-		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000).unwrap();
+		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
 
 	let peer_id = service.network().local_peer_id().clone();
 	let multiaddr_with_peer_id = MultiaddrWithPeerId {
@@ -207,5 +203,43 @@ pub fn run_test_node(
 		peer_id
 	};
 
-	Ok((service, client, handles, multiaddr_with_peer_id, base_path))
+	let node = PolkadotTestNode {
+		service,
+		client,
+		handles,
+		multiaddr_with_peer_id,
+		base_path,
+	};
+
+	Ok(node)
+}
+
+pub struct PolkadotTestNode<S, C> {
+	pub service: S,
+	pub client: Arc<C>,
+	pub handles: FullNodeHandles,
+	pub multiaddr_with_peer_id: MultiaddrWithPeerId,
+	pub base_path: tempfile::TempDir,
+}
+
+impl<S, C> PolkadotTestNode<S, C>
+where
+	C: BlockchainEvents<Block>,
+{
+	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
+		assert_ne!(count, 0, "'count' argument must be greater than 1");
+		let client = self.client.clone();
+
+		async move {
+			let mut import_notification_stream = client.import_notification_stream();
+			let mut blocks = HashSet::new();
+
+			while let Some(notification) = import_notification_stream.next().await {
+				blocks.insert(notification.hash);
+				if blocks.len() == 3 {
+					break;
+				}
+			}
+		}
+	}
 }
