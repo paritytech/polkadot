@@ -15,7 +15,7 @@ jobs:
           remove-labels: 'A0-pleasereview'
       - name: Label PRs
         uses: andymckay/labeler@master
-        if: github.event.pull_request.draft == false and ! contains(github.event.pull_request.labels.*.name, 'A2-insubstantial')
+        if: github.event.pull_request.draft == false && ! contains(github.event.pull_request.labels.*.name, 'A2-insubstantial')
         with:
           add-labels: 'A0-pleasereview'
           remove-labels: 'A3-inprogress'
