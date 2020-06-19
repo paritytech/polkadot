@@ -20,6 +20,7 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use consensus_common::{block_validation::Chain, SelectChain};
+use futures::{future::Future, StreamExt};
 use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
 use log::info;
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
@@ -32,26 +33,25 @@ use polkadot_primitives::{
 use polkadot_service::PolkadotClient;
 use polkadot_service::{new_full, new_full_start, FullNodeHandles};
 use sc_chain_spec::ChainSpec;
+use sc_client_api::BlockchainEvents;
+use sc_executor::native_executor_instance;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
 };
 use service::{
-	config::{DatabaseConfig, MultiaddrWithPeerId, KeystoreConfig, WasmExecutionMethod},
+	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	error::Error as ServiceError,
 	TaskType,
 };
 use service::{AbstractService, Configuration, Role, TFullBackend};
+use sp_keyring::Sr25519Keyring;
 use sp_state_machine::BasicExternalities;
+use std::collections::HashSet;
 use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
-use sc_executor::native_executor_instance;
-use sp_keyring::Sr25519Keyring;
-use std::collections::HashSet;
-use sc_client_api::BlockchainEvents;
-use futures::{future::Future, StreamExt};
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -112,9 +112,9 @@ fn node_config<P: AsRef<Path>>(
 
 	network_config.allow_non_globals_in_dht = true;
 
-	network_config.listen_addresses.push(
-		multiaddr::Protocol::Memory(rand::random()).into(),
-	);
+	network_config
+		.listen_addresses
+		.push(multiaddr::Protocol::Memory(rand::random()).into());
 
 	network_config.transport = TransportConfig::MemoryOnly;
 
@@ -168,7 +168,10 @@ pub fn run_test_node(
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Result<
-	PolkadotTestNode<impl AbstractService, impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
+	PolkadotTestNode<
+		impl AbstractService,
+		impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
+	>,
 	ServiceError,
 > {
 	let base_path = tempfile::Builder::new()
@@ -198,10 +201,7 @@ pub fn run_test_node(
 		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
 
 	let peer_id = service.network().local_peer_id().clone();
-	let multiaddr_with_peer_id = MultiaddrWithPeerId {
-		multiaddr,
-		peer_id
-	};
+	let multiaddr_with_peer_id = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	let node = PolkadotTestNode {
 		service,
