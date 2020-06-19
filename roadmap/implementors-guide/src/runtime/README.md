@@ -48,6 +48,8 @@ struct SessionChangeNotification {
  new_config: HostConfiguration,
  // A secure randomn seed for the session, gathered from BABE.
  random_seed: [u8; 32],
+ // The session index of the beginning session.
+ session_index: SessionIndex,
 }
 ```
 
