@@ -21,7 +21,12 @@
 //! there.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::{parachain::{AbridgedCandidateReceipt, CandidateReceipt, CompactStatement, EncodeAs, Signed}, Hash};
+use polkadot_primitives::{Hash,
+	parachain::{
+		AbridgedCandidateReceipt, CandidateReceipt, CompactStatement,
+		EncodeAs, Signed,
+	}
+};
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -53,7 +58,10 @@ impl EncodeAs<CompactStatement> for Statement {
 /// A statement, the corresponding signature, and the index of the sender.
 ///
 /// Signing context and validator set should be apparent from context.
-pub type SignedStatement = Signed<Statement, CompactStatement>;
+///
+/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
+/// Only the compact `SignedStatement` is suitable for submission to the chain.
+pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// A misbehaviour report.
 pub enum MisbehaviorReport {
@@ -65,9 +73,9 @@ pub enum MisbehaviorReport {
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
 	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
 	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+	DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }

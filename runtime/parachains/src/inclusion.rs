@@ -498,7 +498,7 @@ mod tests {
 	use primitives::{BlockNumber, Hash};
 	use primitives::parachain::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments,
+		CandidateCommitments, SignedStatement,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -578,13 +578,19 @@ mod tests {
 
 		let mut validity_votes = Vec::with_capacity(signing);
 		let candidate_hash = candidate.hash();
-		let payload = Statement::Valid(candidate_hash).signing_payload(signing_context);
 
 		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
 			let key: Sr25519Keyring = validators[*val_idx as usize];
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
-			validity_votes.push(ValidityAttestation::Explicit(key.sign(&payload[..]).into()));
+			let signature = SignedStatement::sign(
+				Statement::Valid(candidate_hash),
+				signing_context,
+				*val_idx,
+				&key.pair().into(),
+			).signature().clone();
+
+			validity_votes.push(ValidityAttestation::Explicit(signature).into());
 		}
 
 		let backed = BackedCandidate {
@@ -661,13 +667,12 @@ mod tests {
 	)
 		-> SignedAvailabilityBitfield
 	{
-		let payload = bitfield.encode_signing_payload(signing_context);
-
-		SignedAvailabilityBitfield {
+		SignedAvailabilityBitfield::sign(
+			bitfield,
+			&signing_context,
 			validator_index,
-			bitfield: bitfield,
-			signature: key.sign(&payload[..]).into(),
-		}
+			&key.pair().into(),
+		)
 	}
 
 	#[test]

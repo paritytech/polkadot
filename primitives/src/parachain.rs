@@ -604,6 +604,9 @@ pub enum CompactStatement {
 	Invalid(Hash),
 }
 
+/// A signed compact statement, suitable to be sent to the chain.
+pub type SignedStatement = Signed<CompactStatement>;
+
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
@@ -709,28 +712,6 @@ pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
 		AvailabilityBitfield(inner)
-	}
-}
-
-impl AvailabilityBitfield {
-	/// Encodes the signing payload into the given buffer.
-	pub fn encode_signing_payload_into<H: Encode>(
-		&self,
-		signing_context: &SigningContext<H>,
-		buf: &mut Vec<u8>,
-	) {
-		self.0.encode_to(buf);
-		signing_context.encode_to(buf);
-	}
-
-	/// Encodes the signing payload into a fresh byte-vector.
-	pub fn encode_signing_payload<H: Encode>(
-		&self,
-		signing_context: &SigningContext<H>,
-	) -> Vec<u8> {
-		let mut v = Vec::new();
-		self.encode_signing_payload_into(signing_context, &mut v);
-		v
 	}
 }
 
