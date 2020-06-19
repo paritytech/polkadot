@@ -141,7 +141,6 @@ fn node_config<P: AsRef<Path>>(
 		execution_strategies: Default::default(),
 		rpc_http: None,
 		rpc_ws: None,
-		rpc_ipc: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
