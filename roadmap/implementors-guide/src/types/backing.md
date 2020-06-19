@@ -91,7 +91,7 @@ enum CompactStatement {
 A statement which has been [cryptographically signed](#signed-wrapper) by a validator.
 
 ```rust
-/// A signed statement, containing the abridged candidate receipt in the `Seconded` variant.
+/// A signed statement, containing the committed candidate receipt in the `Seconded` variant.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// A signed statement, containing only the hash.
