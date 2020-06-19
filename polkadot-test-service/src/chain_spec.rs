@@ -73,7 +73,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 /// Helper function to create polkadot GenesisConfig for testing
 fn polkadot_testnet_genesis(
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ValidatorId)>,
-	_root_key: AccountId, // TODO
+	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	use polkadot_test_runtime as polkadot;
@@ -145,11 +145,8 @@ fn polkadot_testnet_genesis(
 			vesting: vec![],
 		}),
 		vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
-		// TODO: it should have one?
-		/*
 		sudo: Some(polkadot::SudoConfig {
 			key: root_key,
 		}),
-		*/
 	}
 }
