@@ -3,6 +3,10 @@ use polkadot_test_service::*;
 use std::pin::Pin;
 use std::sync::Arc;
 use sp_keyring::Sr25519Keyring;
+use std::time::Duration;
+use async_std::task::sleep;
+
+static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
 fn task_executor(
 ) -> Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, service::TaskType) + Send + Sync> {
@@ -15,43 +19,61 @@ fn task_executor(
 
 #[async_std::test]
 async fn ensure_test_service_build_blocks() {
-	sc_cli::init_logger("");
-	let alice = run_test_node(
-		task_executor(),
-		Sr25519Keyring::Alice,
-		|| {
-			use polkadot_test_runtime::*;
-			SlotDuration::set(&2000);
-		},
-		Vec::new(),
-	)
-	.unwrap();
+	let t1 = sleep(Duration::from_secs(
+		INTEGRATION_TEST_ALLOWED_TIME
+			.and_then(|x| x.parse().ok())
+			.unwrap_or(600),
+	))
+	.fuse();
+	let t2 = async {
+		sc_cli::init_logger("");
+		let alice = run_test_node(
+			task_executor(),
+			Sr25519Keyring::Alice,
+			|| {
+				use polkadot_test_runtime::*;
+				SlotDuration::set(&2000);
+			},
+			Vec::new(),
+		)
+		.unwrap();
 
-	let bob = run_test_node(
-		task_executor(),
-		Sr25519Keyring::Bob,
-		|| {
-			use polkadot_test_runtime::*;
-			SlotDuration::set(&2000);
-		},
-		vec![
-			alice.multiaddr_with_peer_id.clone(),
-		],
-	)
-	.unwrap();
+		let bob = run_test_node(
+			task_executor(),
+			Sr25519Keyring::Bob,
+			|| {
+				use polkadot_test_runtime::*;
+				SlotDuration::set(&2000);
+			},
+			vec![
+				alice.multiaddr_with_peer_id.clone(),
+			],
+		)
+		.unwrap();
 
-	let t1 = future::join(
-		alice.wait_for_blocks(3),
-		bob.wait_for_blocks(3),
-	).fuse();
-	let t2 = alice.service.fuse();
-	let t3 = bob.service.fuse();
+		let t1 = future::join(
+			alice.wait_for_blocks(3),
+			bob.wait_for_blocks(3),
+		).fuse();
+		let t2 = alice.service.fuse();
+		let t3 = bob.service.fuse();
 
-	pin_mut!(t1, t2, t3);
+		pin_mut!(t1, t2, t3);
+
+		select! {
+			_ = t1 => {},
+			_ = t2 => panic!("service Alice failed"),
+			_ = t3 => panic!("service Bob failed"),
+		}
+	}
+	.fuse();
+
+	pin_mut!(t1, t2);
 
 	select! {
-		_ = t1 => {},
-		_ = t2 => panic!("service Alice failed"),
-		_ = t3 => panic!("service Bob failed"),
+		_ = t1 => {
+			panic!("the test took too long, maybe no parachain blocks have been produced");
+		},
+		_ = t2 => {},
 	}
 }
