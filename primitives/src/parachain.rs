@@ -796,7 +796,10 @@ pub struct Signed<Payload, RealPayload = Payload> {
 // own trait which does what we need: EncodeAs.
 impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
 	fn payload_data(payload: &Payload, context: SigningContext) -> Vec<u8> {
-		(payload.encode_as(), context).encode()
+		// equivalent to (real_payload, context).encode()
+		let mut out = payload.encode_as();
+		out.extend(context.encode());
+		out
 	}
 
 	/// Sign this payload with the given context and key, storing the validator index.
