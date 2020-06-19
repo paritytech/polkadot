@@ -45,6 +45,7 @@ members = [
 
 	"node/messages",
 	"node/overseer",
+	"node/primitives",
 	"node/service",
 
 	"parachain/test-parachains",

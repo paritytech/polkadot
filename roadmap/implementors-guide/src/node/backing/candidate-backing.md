@@ -2,7 +2,7 @@
 
 The Candidate Backing subsystem ensures every parablock considered for relay block inclusion has been seconded by at least one validator, and approved by a quorum. Parablocks for which no validator will assert correctness are discarded. If the block later proves invalid, the initial backers are slashable; this gives polkadot a rational threat model during subsequent stages.
 
-Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [`Statement`s](../../type-definitions.html#statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
+Its role is to produce backable candidates for inclusion in new relay-chain blocks. It does so by issuing signed [`Statement`s](../../types/backing.html#statement-type) and tracking received statements signed by other validators. Once enough statements are received, they can be combined into backing for specific candidates.
 
 Note that though the candidate backing subsystem attempts to produce as many backable candidates as possible, it does _not_ attempt to choose a single authoritative one. The choice of which actually gets included is ultimately up to the block author, by whatever metrics it may use; those are opaque to this subsystem.
 
@@ -10,9 +10,9 @@ Once a sufficient quorum has agreed that a candidate is valid, this subsystem no
 
 ## Protocol
 
-The [Candidate Selection subsystem](candidate-selection.html) is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingMessage`s](../../type-definitions.html#candidate-backing-message), and passes them to this subsystem.
+The [Candidate Selection subsystem](candidate-selection.html) is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingMessage`s](../../types/overseer-protocol.html#candidate-backing-message), and passes them to this subsystem.
 
-This subsystem validates the candidates and generates an appropriate [`Statement`](../../type-definitions.html#statement-type). All `Statement`s are then passed on to the [Statement Distribution subsystem](statement-distribution.html) to be gossiped to peers. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
+This subsystem validates the candidates and generates an appropriate [`Statement`](../../types/backing.html#statement-type). All `Statement`s are then passed on to the [Statement Distribution subsystem](statement-distribution.html) to be gossiped to peers. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
 ## Functionality
 
@@ -20,8 +20,8 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 
 ### On Overseer Signal
 
-* If the signal is an [`OverseerSignal`](../../type-definitions.html#overseer-signal)`::StartWork(relay_parent)`, spawn a Candidate Backing Job with the given relay parent, storing a bidirectional channel with the Candidate Backing Job in the set of handles.
-* If the signal is an [`OverseerSignal`](../../type-definitions.html#overseer-signal)`::StopWork(relay_parent)`, cease the Candidate Backing Job under that relay parent, if any.
+* If the signal is an [`OverseerSignal`](../../types/overseer-protocol.html#overseer-signal)`::StartWork(relay_parent)`, spawn a Candidate Backing Job with the given relay parent, storing a bidirectional channel with the Candidate Backing Job in the set of handles.
+* If the signal is an [`OverseerSignal`](../../types/overseer-protocol.html#overseer-signal)`::StopWork(relay_parent)`, cease the Candidate Backing Job under that relay parent, if any.
 
 ### On `CandidateBackingMessage`
 
@@ -39,7 +39,7 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 
 The Candidate Backing Job represents the work a node does for backing candidates with respect to a particular relay-parent.
 
-The goal of a Candidate Backing Job is to produce as many backable candidates as possible. This is done via signed [`Statement`s](../../type-definitions.html#statement-type) by validators. If a candidate receives a majority of supporting Statements from the Parachain Validators currently assigned, then that candidate is considered backable.
+The goal of a Candidate Backing Job is to produce as many backable candidates as possible. This is done via signed [`Statement`s](../../types/backing.html#statement-type) by validators. If a candidate receives a majority of supporting Statements from the Parachain Validators currently assigned, then that candidate is considered backable.
 
 ### On Startup
 
