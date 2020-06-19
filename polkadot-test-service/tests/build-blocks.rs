@@ -30,10 +30,7 @@ async fn ensure_test_service_build_blocks() {
 		let alice = run_test_node(
 			task_executor(),
 			Sr25519Keyring::Alice,
-			|| {
-				use polkadot_test_runtime::*;
-				SlotDuration::set(&2000);
-			},
+			|| {},
 			Vec::new(),
 		)
 		.unwrap();
@@ -41,10 +38,7 @@ async fn ensure_test_service_build_blocks() {
 		let bob = run_test_node(
 			task_executor(),
 			Sr25519Keyring::Bob,
-			|| {
-				use polkadot_test_runtime::*;
-				SlotDuration::set(&2000);
-			},
+			|| {},
 			vec![alice.multiaddr_with_peer_id.clone()],
 		)
 		.unwrap();
