@@ -636,11 +636,11 @@ impl ValidityAttestation {
 	) -> Vec<u8> {
 		match *self {
 			ValidityAttestation::Implicit(_) => (
-				Statement::Candidate(candidate_hash),
+				CompactStatement::Candidate(candidate_hash),
 				signing_context,
 			).encode(),
 			ValidityAttestation::Explicit(_) => (
-				Statement::Valid(candidate_hash),
+				CompactStatement::Valid(candidate_hash),
 				signing_context,
 			).encode(),
 		}
@@ -771,8 +771,6 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
 	group_len: usize,
 	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
 ) -> Result<usize, ()> {
-	use runtime_primitives::traits::AppVerify;
-
 	if backed.validator_indices.len() != group_len {
 		return Err(())
 	}
@@ -914,9 +912,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 
 	/// Validate the payload given the context and public key.
-	pub fn validate(&self, context: SigningContext, key: &ValidatorId) -> bool {
+	pub fn check_signature(&self, context: SigningContext, key: &ValidatorId) -> Result<(), ()> {
 		let data = Self::payload_data(&self.payload, context);
-		self.signature.verify(data.as_slice(), key)
+		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
 	}
 
 	/// Immutably access the payload.
