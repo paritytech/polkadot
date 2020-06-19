@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-runtime"
-version = "0.8.8"
+version = "0.8.9"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"

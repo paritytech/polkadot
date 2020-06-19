@@ -57,7 +57,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## Candidate Selection Message
 
-These messages are sent from the overseer to the [Candidate Selection subsystem](/node/backing/candidate-selection.html) when new parablocks are available for validation.
+These messages are sent from the overseer to the [Candidate Selection subsystem](node/backing/candidate-selection.html) when new parablocks are available for validation.
 
 ```rust
 enum CandidateSelectionMessage {
@@ -88,7 +88,7 @@ enum CandidateBackingMessage {
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](/node/utility/candidate-validation.html) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](node/utility/candidate-validation.html) validate a block with this message
 
 ```rust
 enum PoVOrigin {
@@ -106,7 +106,7 @@ enum CandidateValidationMessage {
 
 ## Statement Type
 
-The [Candidate Validation subsystem](/node/utility/candidate-validation.html) issues these messages in reponse to `ValidationRequest`s. The [Candidate Backing subsystem](/node/backing/candidate-backing.html) may upgrade the `Valid` variant to `Seconded`.
+The [Candidate Validation subsystem](node/utility/candidate-validation.html) issues these messages in reponse to `ValidationRequest`s. The [Candidate Backing subsystem](node/backing/candidate-backing.html) may upgrade the `Valid` variant to `Seconded`.
 
 ```rust
 /// A statement about the validity of a parachain candidate.
@@ -156,7 +156,7 @@ enum StatementDistributionMessage {
 ## Misbehavior Arbitration Message
 
 ```rust
-enum MisbehaviorArbitrationMessage {
+enum MisbehaviorReport {
   /// These validator nodes disagree on this candidate's validity, please figure it out
   ///
   /// Most likely, the list of statments all agree except for the final one. That's not
@@ -170,6 +170,33 @@ enum MisbehaviorArbitrationMessage {
   SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
   /// This peer has seconded more than one parachain candidate for this relay parent head
   DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+}
+```
+
+## Provisioner Message
+
+```rust
+/// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
+enum ProvisionableData {
+  /// This bitfield indicates the availability of various candidate blocks.
+  Bitfield(Hash, SignedAvailabilityBitfield),
+  /// The Candidate Backing subsystem believes that this candidate is valid, pending availability.
+  BackedCandidate(BackedCandidate),
+  /// Misbehavior reports are self-contained proofs of validator misbehavior.
+  MisbehaviorReport(Hash, MisbehaviorReport),
+  /// Disputes trigger a broad dispute resolution process.
+  Dispute(Hash, Signature),
+}
+
+/// Message to the Provisioner.
+///
+/// In all cases, the Hash is that of the relay parent.
+enum ProvisionerMessage {
+  /// This message allows potential block authors to be kept updated with all new authorship data
+  /// as it becomes available.
+  RequestBlockAuthorshipData(Hash, Sender<ProvisionableData>),
+  /// This data should become part of a relay chain block
+  ProvisionableData(ProvisionableData),
 }
 ```
 
