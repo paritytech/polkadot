@@ -491,6 +491,11 @@ impl vesting::Trait for Runtime {
 	type MinVestedTransfer = MinVestedTransfer;
 }
 
+impl sudo::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -530,6 +535,9 @@ construct_runtime! {
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Sudo. Last module.
+		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
 
