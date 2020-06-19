@@ -886,7 +886,7 @@ pub struct Signed<Payload, RealPayload = Payload> {
 // because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
 // own trait which does what we need: EncodeAs.
 impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
-	fn payload_data(payload: &Payload, context: SigningContext) -> Vec<u8> {
+	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
 		// equivalent to (real_payload, context).encode()
 		let mut out = payload.encode_as();
 		out.extend(context.encode());
@@ -895,9 +895,9 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
-	pub fn sign(
+	pub fn sign<H: Encode>(
 		payload: Payload,
-		context: SigningContext,
+		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
 		key: &ValidatorPair,
 	) -> Self {
@@ -912,7 +912,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	}
 
 	/// Validate the payload given the context and public key.
-	pub fn check_signature(&self, context: SigningContext, key: &ValidatorId) -> Result<(), ()> {
+	pub fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
 		let data = Self::payload_data(&self.payload, context);
 		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
 	}
@@ -933,6 +933,15 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	#[inline]
 	pub fn signature(&self) -> &ValidatorSignature {
 		&self.signature
+	}
+
+	/// Discard signing data, get the payload
+	// Note: can't `impl<P, R> From<Signed<P, R>> for P` because the orphan rule exception doesn't
+	// handle this case yet. Likewise can't `impl<P, R> Into<P> for Signed<P, R>` because it might
+	// potentially conflict with the global blanket impl, even though it currently doesn't.
+	#[inline]
+	pub fn into_payload(self) -> Payload {
+		self.payload
 	}
 }
 
