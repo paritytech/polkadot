@@ -170,9 +170,17 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ## PoV Distribution
 
-Messages received by the PoV Distribution subsystem are unspecified and highly tied to gossip.
+Messages
 
-> TODO
+```rust
+enum PoVDistributionMessage {
+	/// Fetch a PoV from the network.
+	/// (relay_parent, PoV-hash, Response channel).
+	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
+	///
+	DistributePoV(Hash, PoV),
+}
+```
 
 ## Provisioner Message
 
