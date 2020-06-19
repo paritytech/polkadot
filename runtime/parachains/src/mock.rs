@@ -99,6 +99,8 @@ impl crate::paras::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
+impl crate::inclusion::Trait for Test { }
+
 pub type System = system::Module<Test>;
 
 /// Mocked initializer.
@@ -112,6 +114,9 @@ pub type Paras = crate::paras::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;
+
+/// Mocked inclusion module.
+pub type Inclusion = crate::inclusion::Module<Test>;
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
