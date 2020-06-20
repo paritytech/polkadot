@@ -2,25 +2,22 @@
 
 Our Parachain Host includes a blockchain known as the relay-chain. A blockchain is a Directed Acyclic Graph (DAG) of state transitions, where every block can be considered to be the head of a linked-list (known as a "chain" or "fork") with a cumulative state which is determined by applying the state transition of each block in turn. All paths through the DAG terminate at the Genesis Block. In fact, the blockchain is a tree, since each block can have only one parent.
 
-```text
-          +----------------+     +----------------+
-          |    Block 4     |     | Block 5        |
-          +----------------+     +----------------+
-                        \           /
-                         V         V
-                      +---------------+
-                      |    Block 3    |
-                      +---------------+
-                              |
-                              V
-                     +----------------+     +----------------+
-                     |    Block 1     |     |   Block 2      |
-                     +----------------+     +----------------+
-                                  \            /
-                                   V          V
-                                +----------------+
-                                |    Genesis     |
-                                +----------------+
+```dot process
+digraph {
+	node [shape=box];
+    genesis [label = Genesis]
+	b1 [label = "Block 1"]
+	b2 [label = "Block 2"]
+	b3 [label = "Block 3"]
+	b4 [label = "Block 4"]
+	b5 [label = "Block 5"]
+
+	b5 -> b3
+	b4 -> b3
+	b3 -> b1
+	b2 -> genesis
+	b1 -> genesis
+}
 ```
 
 A blockchain network is comprised of nodes. These nodes each have a view of many different forks of a blockchain and must decide which forks to follow and what actions to take based on the forks of the chain that they are aware of.
@@ -34,26 +31,16 @@ The first category of questions will be addressed by the Runtime, which defines 
 
 The second category of questions addressed by Node-side behavior. Node-side behavior defines all activities that a node undertakes, given its view of the blockchain/block-DAG. Node-side behavior can take into account all or many of the forks of the blockchain, and only conditionally undertake certain activities based on which forks it is aware of, as well as the state of the head of those forks.
 
-```text
+```dot process
+digraph G {
+    Runtime [shape=box]
+    "Node" [shape=box margin=0.5]
+    Transport [shape=rectangle width=5]
 
-                     __________________________________
-                    /                                  \
-                    |            Runtime               |
-                    |                                  |
-                    \_________(Runtime API )___________/
-                                |       ^
-                                V       |
-               +----------------------------------------------+
-               |                                              |
-               |                   Node                       |
-               |                                              |
-               |                                              |
-               +----------------------------------------------+
-                                   +  +
-                                   |  |
-               --------------------+  +------------------------
-                                 Transport
-               ------------------------------------------------
+    Runtime -> "Node" [dir=both label="Runtime API"]
+
+    "Node" -> Transport [penwidth=1]
+}
 
 ```
 
