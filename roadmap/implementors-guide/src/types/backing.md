@@ -1,6 +1,6 @@
 # Backing Types
 
-[Candidates](candidate.html) go through many phases before being considered included in a fork of the relay chain and eventually accepted.
+[Candidates](candidate.md) go through many phases before being considered included in a fork of the relay chain and eventually accepted.
 
 These types describe the data used in the backing phase. Some are sent over the wire within subsystems, and some are simply included in the relay-chain block.
 
@@ -50,7 +50,7 @@ Note the presence of the [`SigningContext`](../types/candidate.html#signing-cont
 
 ## Statement Type
 
-The [Candidate Backing subsystem](../node/backing/candidate-backing.html) issues and signs these after candidate validation.
+The [Candidate Backing subsystem](../node/backing/candidate-backing.md) issues and signs these after candidate validation.
 
 ```rust
 /// A statement about the validity of a parachain candidate.
@@ -103,7 +103,7 @@ Munging the signed `Statement` into a `CompactStatement` before signing allows t
 
 ## Backed Candidate
 
-An [`AbridgedCandidateReceipt`](candidate.html#abridgedcandidatereceipt) along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
+An [`AbridgedCandidateReceipt`](candidate.md#abridgedcandidatereceipt) along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
 
 ```rust
 struct BackedCandidate {

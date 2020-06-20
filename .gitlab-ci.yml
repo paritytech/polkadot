@@ -188,6 +188,15 @@ build-linux-release:               &build
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
 
+
+generate-impl-guide:
+  stage:                          build
+  image:
+    name: michaelfbryan/mdbook-docker-image:latest
+    entrypoint: [""]
+  script:
+    - mdbook build roadmap/implementors-guide
+
 .publish-build:                    &publish-build
   stage:                           publish
   dependencies:
