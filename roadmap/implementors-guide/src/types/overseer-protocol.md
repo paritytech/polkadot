@@ -24,7 +24,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## All Messages
 
-> TODO [now]
+> TODO (now)
 
 ## Availability Distribution Message
 
