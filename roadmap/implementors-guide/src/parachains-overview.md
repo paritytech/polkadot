@@ -18,11 +18,11 @@ Here is a description of the Inclusion Pipeline: the path a parachain block (or 
 
 1. Validators are selected and assigned to parachains by the Validator Assignment routine.
 1. A collator produces the parachain block, which is known as a parachain candidate or candidate, along with a PoV for the candidate.
-1. The collator forwards the candidate and PoV to validators assigned to the same parachain via the [Collation Distribution subsystem](node/collators/collation-distribution.html).
-1. The validators assigned to a parachain at a given point in time participate in the [Candidate Backing subsystem](node/backing/candidate-backing.html) to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backable". Their backing is the set of signed validity statements.
+1. The collator forwards the candidate and PoV to validators assigned to the same parachain via the [Collation Distribution subsystem](node/collators/collation-distribution.md).
+1. The validators assigned to a parachain at a given point in time participate in the [Candidate Backing subsystem](node/backing/candidate-backing.md) to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backable". Their backing is the set of signed validity statements.
 1. A relay-chain block author, selected by BABE, can note up to one (1) backable candidate for each parachain to include in the relay-chain block alongside its backing. A backable candidate once included in the relay-chain is considered backed in that fork of the relay-chain.
 1. Once backed in the relay-chain, the parachain candidate is considered to be "pending availability". It is not considered to be included as part of the parachain until it is proven available.
-1. In the following relay-chain blocks, validators will participate in the [Availability Distribution subsystem](node/availability/availability-distribution.html) to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.
+1. In the following relay-chain blocks, validators will participate in the [Availability Distribution subsystem](node/availability/availability-distribution.md) to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.
 1. Once the relay-chain state machine has enough information to consider the candidate's PoV as being available, the candidate is considered to be part of the parachain and is graduated to being a full parachain block, or parablock for short.
 
 Note that the candidate can fail to be included in any of the following ways:
