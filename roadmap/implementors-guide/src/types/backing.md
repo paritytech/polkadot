@@ -72,9 +72,8 @@ enum Statement {
 ///
 /// This variant should only be used in the production of `SignedStatement`s. The only difference between
 /// this enum and `Statement` is that the `Seconded` variant contains a `Hash` instead of a `CandidateReceipt`.
-/// The rationale behind the difference is that a `CandidateReceipt` contains `HeadData`, which does not have
-/// bounded size. By using this enum instead, we ensure that the production and validation of signatures is fast
-/// while retaining their necessary cryptographic properties.
+/// The rationale behind the difference is that the signature should always be on the hash instead of the
+/// full data, as this lowers the requirement for checking while retaining necessary cryptographic properties
 enum CompactStatement {
   /// A statement about a new candidate being seconded by a validator. This is an implicit validity vote.
   Seconded(Hash),
