@@ -44,7 +44,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 }
 ```
 
-Note the presence of the [`SigningContext`](../types/candidate.html#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks.
+Note the presence of the [`SigningContext`](../types/candidate.md#signing-context) in the signatures of the `sign` and `validate` methods. To ensure cryptographic security, the actual signed payload is always the SCALE encoding of `(payload.into(), signing_context)`. Including the signing context prevents replay attacks.
 
 `EncodeAs` is a helper trait with a blanket impl which ensures that any `T` can `EncodeAs<T>`. Therefore, for the generic case where `RealPayload = Payload`, it changes nothing. However, we  `impl EncodeAs<CompactStatement> for Statement`, which helps efficiency.
 

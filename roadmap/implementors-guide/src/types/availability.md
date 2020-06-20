@@ -5,7 +5,7 @@ candidates for the duration of a challenge period. This is done via an erasure-c
 
 ## Signed Availability Bitfield
 
-A bitfield [signed](backing.html#signed-wrapper) by a particular validator about the availability of pending candidates.
+A bitfield [signed](backing.md#signed-wrapper) by a particular validator about the availability of pending candidates.
 
 
 ```rust

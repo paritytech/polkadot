@@ -65,7 +65,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
-  1. Transform each [`CommittedCandidateReceipt`](../../types/candidate.html#committed-candidate-receipt) into the corresponding [`CandidateReceipt`](../../types/candidate.html#candidate-receipt), setting the commitments aside.
+  1. Transform each [`CommittedCandidateReceipt`](../../types/candidate.md#committed-candidate-receipt) into the corresponding [`CandidateReceipt`](../../types/candidate.md#candidate-receipt), setting the commitments aside.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. check that the upward messages, when combined with the existing queue size, are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
@@ -74,7 +74,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
 * `enact_candidate(relay_parent_number: BlockNumber, CommittedCandidateReceipt)`:
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
-  1. call `Router::queue_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../../types/messages.html#upward-message) from the [`CandidateCommitments`](../../types/candidate.html#candidate-commitments).
+  1. call `Router::queue_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../../types/messages.md#upward-message) from the [`CandidateCommitments`](../../types/candidate.md#candidate-commitments).
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
 * `collect_pending`:
 

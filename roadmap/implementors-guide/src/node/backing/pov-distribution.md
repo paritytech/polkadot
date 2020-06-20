@@ -6,7 +6,7 @@ This subsystem is responsible for distributing PoV blocks. For now, unified with
 
 `ProtocolId`: `b"povd"`
 
-Input: [`PoVDistributionMessage`](../../types/overseer-protocol.html#pov-distribution-message)
+Input: [`PoVDistributionMessage`](../../types/overseer-protocol.md#pov-distribution-message)
 
 
 Output:
@@ -18,7 +18,7 @@ Output:
 
 ## Functionality
 
-This network protocol is responsible for distributing [`PoV`s](../../types/availability.html#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly.
+This network protocol is responsible for distributing [`PoV`s](../../types/availability.md#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly.
 
 This protocol is described in terms of "us" and our peers, with the understanding that this is the procedure that any honest node will run. It has the following goals:
   - We never have to buffer an unbounded amount of data
@@ -26,9 +26,9 @@ This protocol is described in terms of "us" and our peers, with the understandin
 
 As we are gossiping, we need to track which PoVs our peers are waiting for to avoid sending them data that they are not expecting. It is not reasonable to expect our peers to buffer unexpected PoVs, just as we will not buffer unexpected PoVs. So notification to our peers about what is being awaited is key. However it is important that the notifications system is also bounded.
 
-For this, in order to avoid reaching into the internals of the [Statement Distribution](statement-distribution.html) Subsystem, we can rely on an expected propery of candidate backing: that each validator can only second one candidate at each chain head. So we can set a cap on the number of PoVs each peer is allowed to notify us that they are waiting for at a given relay-parent. This cap will be the number of validators at that relay-parent. And the view update mechanism of the [Network Bridge](../utility/network-bridge.html) ensures that peers are only allowed to consider a certain set of relay-parents as live. So this bounding mechanism caps the amount of data we need to store per peer at any time at `sum({ n_validators_at_head(head) | head in view_heads })`. Additionally, peers should only be allowed to notify us of PoV hashes they are waiting for in the context of relay-parents in our own local view, which means that `n_validators_at_head` is implied to be `0` for relay-parents not in our own local view.
+For this, in order to avoid reaching into the internals of the [Statement Distribution](statement-distribution.md) Subsystem, we can rely on an expected propery of candidate backing: that each validator can only second one candidate at each chain head. So we can set a cap on the number of PoVs each peer is allowed to notify us that they are waiting for at a given relay-parent. This cap will be the number of validators at that relay-parent. And the view update mechanism of the [Network Bridge](../utility/network-bridge.md) ensures that peers are only allowed to consider a certain set of relay-parents as live. So this bounding mechanism caps the amount of data we need to store per peer at any time at `sum({ n_validators_at_head(head) | head in view_heads })`. Additionally, peers should only be allowed to notify us of PoV hashes they are waiting for in the context of relay-parents in our own local view, which means that `n_validators_at_head` is implied to be `0` for relay-parents not in our own local view.
 
-View updates from peers and our own view updates are received from the network bridge. These will lag somewhat behind the `StartWork` and `StopWork` messages received from the overseer, which will influence the actual data we store. The `OurViewUpdate`s from the [`NetworkBridgeEvent`](../../types/overseer-protocol.html#network-bridge-update) must be considered canonical in terms of our peers' perception of us.
+View updates from peers and our own view updates are received from the network bridge. These will lag somewhat behind the `StartWork` and `StopWork` messages received from the overseer, which will influence the actual data we store. The `OurViewUpdate`s from the [`NetworkBridgeEvent`](../../types/overseer-protocol.md#network-bridge-update) must be considered canonical in terms of our peers' perception of us.
 
 Lastly, the system needs to be bootstrapped with our own perception of which PoVs we are cognizant of but awaiting data for. This is done by receipt of the [`PoVDistributionMessage`](../../types/overseer-protocolhtml#pov-distribution-message)::ValidatorStatement variant. We can ignore anything except for `Seconded` statements.
 
@@ -55,7 +55,7 @@ struct PeerState {
 }
 ```
 
-We also assume the following network messages, which are sent and received by the [Network Bridge](../utility/network-bridge.html)
+We also assume the following network messages, which are sent and received by the [Network Bridge](../utility/network-bridge.md)
 
 ```rust
 enum NetworkMessage {
@@ -72,7 +72,7 @@ Here is the logic of the state machine:
 
 *Overseer Signals*
 - On `StartWork(relay_parent)`:
-	- Get the number of validators at that relay parent by querying the [Runtime API](../utility/runtime-api.html) for the validators and then counting them.
+	- Get the number of validators at that relay parent by querying the [Runtime API](../utility/runtime-api.md) for the validators and then counting them.
 	- Create a blank entry in `relay_parent_state` under `relay_parent` with correct `n_validators` set.
 - On `StopWork(relay_parent)`:
 	- Remove the entry for `relay_parent` from `relay_parent_state`.
@@ -81,7 +81,7 @@ Here is the logic of the state machine:
 *PoV Distribution Messages*
 - On `ValidatorStatement(relay_parent, statement)`
 	- If this is not `Statement::Seconded`, ignore.
-	- If there is an entry under `relay_parent` in `relay_parent_state`, add the `pov_hash` of the seconded Candidate's [`CandidateDescriptor`](../../types/candidate.html#candidate-descriptor) to the `awaited` set of the entry.
+	- If there is an entry under `relay_parent` in `relay_parent_state`, add the `pov_hash` of the seconded Candidate's [`CandidateDescriptor`](../../types/candidate.md#candidate-descriptor) to the `awaited` set of the entry.
 	- If the `pov_hash` was not previously awaited and there are `n_validators` or fewer entries in the `awaited` set, send `NetworkMessage::Awaiting(relay_parent, vec![pov_hash])` to all peers.
 - On `FetchPoV(relay_parent, descriptor, response_channel)`
 	- If there is no entry in `relay_parent_state` under `relay_parent`, ignore.
