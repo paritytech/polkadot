@@ -6,7 +6,7 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 `ProtocolId`: `b"bitd"`
 
-Input: [`BitfieldDistributionMessage`](../../overseer-protocol.md#bitfield-distribution-message)
+Input: [`BitfieldDistributionMessage`](../../types/overseer-protocol.md#bitfield-distribution-message)
 Output:
 
 - `NetworkBridge::RegisterEventProducer(ProtocolId)`
