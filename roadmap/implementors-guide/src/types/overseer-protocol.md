@@ -158,11 +158,11 @@ enum MisbehaviorReport {
   /// this message should be dispatched with all of them, in arbitrary order.
   ///
   /// This variant is also used when our own validity checks disagree with others'.
-  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
   /// I've noticed a peer contradicting itself about a particular candidate
-  SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+  SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
   /// This peer has seconded more than one parachain candidate for this relay parent head
-  DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+  DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
 ```
 
@@ -227,7 +227,7 @@ enum RuntimeApiMessage {
 
 ## Statement Distribution Message
 
-The Statement Distribution subsystem distributes signed statements from validators to other validators.
+The Statement Distribution subsystem distributes signed statements and candidates from validators to other validators. It does this by distributing full statements, which embed the candidate receipt, as opposed to compact statements which don't.
 It receives updates from the network bridge and signed statements to share with other validators.
 
 ```rust
@@ -239,7 +239,7 @@ enum StatementDistributionMessage {
 	///
 	/// The statement distribution subsystem assumes that the statement should be correctly
 	/// signed.
-	Share(Hash, SignedStatement),
+	Share(Hash, SignedFullStatement),
 }
 ```
 

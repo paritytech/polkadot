@@ -184,7 +184,6 @@ impl<T: Trait> Module<T> {
 				.collect();
 
 			let mut last_index = None;
-			let mut payload_encode_buf = Vec::new();
 
 			let signing_context = SigningContext {
 				parent_hash: <system::Module<T>>::parent_hash(),
@@ -193,46 +192,37 @@ impl<T: Trait> Module<T> {
 
 			for signed_bitfield in &signed_bitfields.0 {
 				ensure!(
-					signed_bitfield.bitfield.0.len() == n_bits,
+					signed_bitfield.payload().0.len() == n_bits,
 					Error::<T>::WrongBitfieldSize,
 				);
 
 				ensure!(
-					last_index.map_or(true, |last| last < signed_bitfield.validator_index),
+					last_index.map_or(true, |last| last < signed_bitfield.validator_index()),
 					Error::<T>::BitfieldDuplicateOrUnordered,
 				);
 
 				ensure!(
-					signed_bitfield.validator_index < validators.len() as ValidatorIndex,
+					signed_bitfield.validator_index() < validators.len() as ValidatorIndex,
 					Error::<T>::ValidatorIndexOutOfBounds,
 				);
 
 				ensure!(
-					occupied_bitmask.clone() & signed_bitfield.bitfield.0.clone() == signed_bitfield.bitfield.0,
+					occupied_bitmask.clone() & signed_bitfield.payload().0.clone() == signed_bitfield.payload().0,
 					Error::<T>::UnoccupiedBitInBitfield,
 				);
 
-				let validator_public = &validators[signed_bitfield.validator_index as usize];
+				let validator_public = &validators[signed_bitfield.validator_index() as usize];
 
-				if let Err(()) = primitives::parachain::check_availability_bitfield_signature(
-					&signed_bitfield.bitfield,
-					validator_public,
-					&signed_bitfield.signature,
-					&signing_context,
-					Some(&mut payload_encode_buf),
-				) {
-					Err(Error::<T>::InvalidBitfieldSignature)?;
-				}
+				signed_bitfield.check_signature(&signing_context, validator_public).map_err(|_| Error::<T>::InvalidBitfieldSignature)?;
 
-				last_index = Some(signed_bitfield.validator_index);
-				payload_encode_buf.clear();
+				last_index = Some(signed_bitfield.validator_index());
 			}
 		}
 
 		let now = <system::Module<T>>::block_number();
 		for signed_bitfield in signed_bitfields.0 {
 			for (bit_idx, _)
-				in signed_bitfield.bitfield.0.iter().enumerate().filter(|(_, is_av)| **is_av)
+				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
 				let record = assigned_paras_record[bit_idx]
 					.as_mut()
@@ -240,7 +230,7 @@ impl<T: Trait> Module<T> {
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
-				let val_idx = signed_bitfield.validator_index as usize;
+				let val_idx = signed_bitfield.validator_index() as usize;
 				if let Some(mut bit) = record.1.as_mut()
 					.and_then(|r| r.availability_votes.get_mut(val_idx))
 				{
@@ -250,12 +240,13 @@ impl<T: Trait> Module<T> {
 				}
 			}
 
+			let validator_index = signed_bitfield.validator_index();
 			let record = AvailabilityBitfieldRecord {
-				bitfield: signed_bitfield.bitfield,
+				bitfield: signed_bitfield.into_payload(),
 				submitted_at: now,
 			};
 
-			<AvailabilityBitfields<T>>::insert(&signed_bitfield.validator_index, record);
+			<AvailabilityBitfields<T>>::insert(&validator_index, record);
 		}
 
 		let threshold = availability_threshold(validators.len());
@@ -506,8 +497,8 @@ mod tests {
 
 	use primitives::{BlockNumber, Hash};
 	use primitives::parachain::{
-		SignedAvailabilityBitfield, Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments,
+		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
+		CandidateCommitments, SignedStatement,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -587,13 +578,19 @@ mod tests {
 
 		let mut validity_votes = Vec::with_capacity(signing);
 		let candidate_hash = candidate.hash();
-		let payload = Statement::Valid(candidate_hash).signing_payload(signing_context);
 
 		for (idx_in_group, val_idx) in group.iter().enumerate().take(signing) {
 			let key: Sr25519Keyring = validators[*val_idx as usize];
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
-			validity_votes.push(ValidityAttestation::Explicit(key.sign(&payload[..]).into()));
+			let signature = SignedStatement::sign(
+				Statement::Valid(candidate_hash),
+				signing_context,
+				*val_idx,
+				&key.pair().into(),
+			).signature().clone();
+
+			validity_votes.push(ValidityAttestation::Explicit(signature).into());
 		}
 
 		let backed = BackedCandidate {
@@ -670,13 +667,12 @@ mod tests {
 	)
 		-> SignedAvailabilityBitfield
 	{
-		let payload = bitfield.encode_signing_payload(signing_context);
-
-		SignedAvailabilityBitfield {
+		SignedAvailabilityBitfield::sign(
+			bitfield,
+			&signing_context,
 			validator_index,
-			bitfield: bitfield,
-			signature: key.sign(&payload[..]).into(),
-		}
+			&key.pair().into(),
+		)
 	}
 
 	#[test]
