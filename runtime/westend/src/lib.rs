@@ -581,6 +581,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Staking,
 	SudoBalances,
+	RegistrarJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -632,6 +633,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..) => true,
 				_ => false,
 			},
+			ProxyType::RegistrarJudgement => matches!(c,
+				Call::Identity(identity::Call::provide_judgement(..))
+			)
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
