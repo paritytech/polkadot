@@ -1,6 +1,6 @@
 # Backing Types
 
-[Candidates](candidate.html) go through many phases before being considered included in a fork of the relay chain and eventually accepted.
+[Candidates](candidate.md) go through many phases before being considered included in a fork of the relay chain and eventually accepted.
 
 These types describe the data used in the backing phase. Some are sent over the wire within subsystems, and some are simply included in the relay-chain block.
 
@@ -21,7 +21,7 @@ enum ValidityAttestation {
 
 ## Statement Type
 
-The [Candidate Backing subsystem](../node/backing/candidate-backing.html) issues and signs these after candidate validation.
+The [Candidate Backing subsystem](../node/backing/candidate-backing.md) issues and signs these after candidate validation.
 
 ```rust
 /// A statement about the validity of a parachain candidate.
@@ -57,13 +57,13 @@ struct SignedStatement {
 ```
 
 The actual signed payload will be the SCALE encoding of `(compact_statement, signing_context)` where
-`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types/candidate.html#signing-context).
+`compact_statement` is a tweak of the [`Statement`](#statement) enum where all variants, including `Seconded`, contain only the hash of the candidate, and the `signing_context` is a [`SigningContext`](../types/candidate.md#signing-context).
 
 This prevents against replay attacks and allows the candidate receipt itself to be omitted when checking a signature on a `Seconded` statement in situations where the hash is known.
 
 ## Backed Candidate
 
-An [`AbridgedCandidateReceipt`](candidate.html#abridgedcandidatereceipt) along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
+An [`AbridgedCandidateReceipt`](candidate.md#abridgedcandidatereceipt) along with all data necessary to prove its backing. This is submitted to the relay-chain to process and move along the candidate to the pending-availability stage.
 
 ```rust
 struct BackedCandidate {

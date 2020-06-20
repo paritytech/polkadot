@@ -18,7 +18,7 @@ struct SignedAvailabilityBitfield {
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
 ```
 
-The signed payload is the SCALE encoding of the tuple `(bitfield, signing_context)` where `signing_context` is a [`SigningContext`](../types/candidate.html#signing-context).
+The signed payload is the SCALE encoding of the tuple `(bitfield, signing_context)` where `signing_context` is a [`SigningContext`](../types/candidate.md#signing-context).
 
 ## Proof-of-Validity
 
