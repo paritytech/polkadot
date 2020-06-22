@@ -449,6 +449,15 @@ decl_storage! {
 	{
 		/// All authorities' keys at the moment.
 		pub Authorities get(fn authorities): Vec<ValidatorId>;
+		/// All authorities' keys from the last block.
+		///
+		/// These are most of the time the same as [`Authorities`] and
+		/// only when the current block switches the authority set it will
+		/// be different for the time of the block. This is required, as `set_heads`
+		/// signatures still come from the "old" set.
+		LastAuthorities get(fn last_authorities): Vec<ValidatorId>;
+		/// Were the authorities updated in this block?
+		AuthoritiesUpdated: bool;
 		/// The active code of a currently-registered parachain.
 		pub Code get(fn parachain_code): map hasher(twox_64_concat) ParaId => Option<ValidationCode>;
 		/// Past code of parachains. The parachains themselves may not be registered anymore,
@@ -550,6 +559,9 @@ decl_module! {
 
 		fn on_finalize() {
 			assert!(<Self as Store>::DidUpdate::exists(), "Parachain heads must be updated once in the block");
+			if AuthoritiesUpdated::take() {
+				LastAuthorities::put(Authorities::get());
+			}
 		}
 
 		/// Provide candidate receipts for parachains, in ascending order by id.
@@ -958,11 +970,17 @@ impl<T: Trait> Module<T> {
 	/// Calculate the current block's duty roster using system's random seed.
 	/// Returns the duty roster along with the random seed.
 	pub fn calculate_duty_roster() -> (DutyRoster, [u8; 32]) {
+		let count = Authorities::decode_len().unwrap_or(0);
+		Self::calculate_duty_roster_with_validator_count(count)
+	}
+
+	/// See [`Module::calculate_duty_roster`].
+	fn calculate_duty_roster_with_validator_count(
+		validator_count: usize,
+	) -> (DutyRoster, [u8; 32]) {
 		let parachains = Self::active_parachains();
 		let parachain_count = parachains.len();
 
-		// TODO: use decode length. substrate #2794
-		let validator_count = Self::authorities().len();
 		let validators_per_parachain =
 			if parachain_count == 0 {
 				0
@@ -1155,8 +1173,8 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let authorities = Self::authorities();
-		let (duty_roster, random_seed) = Self::calculate_duty_roster();
+		let authorities = Self::last_authorities();
+		let (duty_roster, random_seed) = Self::calculate_duty_roster_with_validator_count(authorities.len());
 
 		// convert a duty roster, which is originally a Vec<Chain>, where each
 		// item corresponds to the same position in the session keys, into
@@ -1363,7 +1381,8 @@ impl<T: Trait> Module<T> {
 	fn initialize_authorities(authorities: &[ValidatorId]) {
 		if !authorities.is_empty() {
 			assert!(Authorities::get().is_empty(), "Authorities are already initialized!");
-			Authorities::put(authorities);
+			Authorities::put(&authorities[..]);
+			LastAuthorities::put(authorities);
 		}
 	}
 
@@ -1401,7 +1420,8 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
 		if changed {
-			<Self as Store>::Authorities::put(validators.map(|(_, key)| key).collect::<Vec<_>>());
+			Authorities::put(validators.map(|(_, key)| key).collect::<Vec<_>>());
+			AuthoritiesUpdated::put(true);
 		}
 	}
 
@@ -1543,7 +1563,7 @@ mod tests {
 	use super::Call as ParachainsCall;
 	use bitvec::{bitvec, vec::BitVec};
 	use sp_io::TestExternalities;
-	use sp_core::{H256, Blake2Hasher, sr25519};
+	use sp_core::{H256, Blake2Hasher, sr25519, Pair};
 	use sp_trie::NodeCodec;
 	use sp_runtime::{
 		impl_opaque_keys,
@@ -1571,7 +1591,7 @@ mod tests {
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
-	use session::{SessionHandler, SessionManager};
+	use session::{SessionHandler, SessionManager, OneSessionHandler};
 	use staking::EraIndex;
 
 	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
@@ -3509,6 +3529,69 @@ mod tests {
 					},
 				);
 			}
+		});
+	}
+
+	/// This test ensures that when we switch to a new session with new authorities
+	/// we still can verify the signature of a candidate.
+	#[test]
+	fn verify_signature_works_on_new_session() {
+		let id = ParaId::from(0);
+
+		let parachains = vec![
+			(id, vec![].into(), vec![].into()),
+		];
+
+		new_test_ext(parachains.clone()).execute_with(|| {
+			run_to_block(2);
+
+			let raw_candidate = raw_candidate(id);
+			let mut candidate = make_blank_attested(raw_candidate);
+			make_attestations(&mut candidate);
+
+			// Just reverse the old authorities to make sure we got different
+			// indices per authority.
+			let mut new_authorities = Parachains::authorities();
+			new_authorities.reverse();
+
+			let authority_id = Default::default();
+			let new_authorities = new_authorities.into_iter().map(|v| (&authority_id, v)).collect::<Vec<_>>();
+
+			Parachains::on_new_session(
+				true,
+				new_authorities.into_iter(),
+				Vec::new().into_iter(),
+			);
+			assert!(AuthoritiesUpdated::get());
+
+			assert_ok!(Call::from(set_heads(vec![candidate])).dispatch(Origin::none()));
+		});
+	}
+
+	#[test]
+	fn last_authorities_updated_correctly() {
+		new_test_ext(Vec::new()).execute_with(|| {
+			let authorities = Authorities::get();
+			let mut new_authorities = authorities.clone();
+			new_authorities[3] = ValidatorId::from(sr25519::Pair::generate().0.public());
+
+			let authority_id = Default::default();
+			let new_authorities_on_session = new_authorities
+				.clone()
+				.into_iter()
+				.map(|v| (&authority_id, v))
+				.collect::<Vec<_>>();
+
+			Parachains::on_new_session(true, new_authorities_on_session.into_iter(), Vec::new().into_iter());
+
+			Parachains::on_initialize(1);
+			DidUpdate::put(Vec::<ParaId>::new());
+			assert_eq!(Authorities::get(), new_authorities);
+			assert_eq!(LastAuthorities::get(), authorities);
+
+			Parachains::on_finalize(1);
+			assert_eq!(Authorities::get(), new_authorities);
+			assert_eq!(Authorities::get(), LastAuthorities::get());
 		});
 	}
 }
