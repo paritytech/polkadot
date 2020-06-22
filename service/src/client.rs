@@ -19,6 +19,7 @@
 use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
+use sc_block_builder::BlockBuilderProvider;
 use sc_client_api::{Backend as BackendT, BlockchainEvents};
 
 /// Polkadot client abstraction, this super trait only pulls in functionality required for
@@ -27,6 +28,7 @@ pub trait PolkadotClient<Block, Backend, Runtime>:
 	BlockchainEvents<Block> + Sized + Send + Sync
 	+ ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
 	+ HeaderBackend<Block>
+	+ BlockBuilderProvider<Backend, Block, Self>
 	+ CallApiAt<
 		Block,
 		Error = sp_blockchain::Error,
@@ -44,6 +46,7 @@ impl<Block, Backend, Runtime, Client> PolkadotClient<Block, Backend, Runtime> fo
 		Runtime: ConstructRuntimeApi<Block, Self>,
 		Backend: BackendT<Block>,
 		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + HeaderBackend<Block>
+			+ BlockBuilderProvider<Backend, Block, Self>
 			+ Sized + Send + Sync
 			+ CallApiAt<
 				Block,
