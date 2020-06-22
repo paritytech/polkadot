@@ -16,7 +16,7 @@ Included: Option<()>,
 
 ## Entry Points
 
-* `inclusion`: This entry-point accepts two parameters: [`Bitfields`](../types/availability.html#signed-availability-bitfield) and [`BackedCandidates`](../type-definitions.html#backed-candidate).
+* `inclusion`: This entry-point accepts two parameters: [`Bitfields`](../types/availability.md#signed-availability-bitfield) and [`BackedCandidates`](../types/backing.md#backed-candidate).
     1. The `Bitfields` are first forwarded to the `Inclusion::process_bitfields` routine, returning a set of freed cores. Provide a `Scheduler::core_para` as a core-lookup to the `process_bitfields` routine. Annotate each of these freed cores with `FreedReason::Concluded`.
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it, and add timed-out cores to the free cores, annotated with `FreedReason::TimedOut`.
     1. Invoke `Scheduler::schedule(freed)`

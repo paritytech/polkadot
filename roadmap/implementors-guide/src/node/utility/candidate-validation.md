@@ -6,7 +6,7 @@ A variety of subsystems want to know if a parachain block candidate is valid. No
 
 ## Protocol
 
-Input: [`CandidateValidationMessage`](../../types/overseer-protocol.html#validation-request-type)
+Input: [`CandidateValidationMessage`](../../types/overseer-protocol.md#validation-request-type)
 
 Output: Validation result via the provided response side-channel.
 

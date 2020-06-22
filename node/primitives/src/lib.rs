@@ -20,13 +20,13 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
-use runtime_primitives::traits::AppVerify;
-use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, CandidateReceipt, SigningContext, ValidatorSignature,
-	ValidatorIndex, ValidatorId,
+use parity_scale_codec::{Decode, Encode};
+use polkadot_primitives::{Hash,
+	parachain::{
+		AbridgedCandidateReceipt, CandidateReceipt, CompactStatement,
+		EncodeAs, Signed,
+	}
 };
-use parity_scale_codec::{Encode, Decode};
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 #[derive(Debug, Clone, PartialEq, Encode, Decode)]
@@ -42,54 +42,26 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
-impl Statement {
-	/// Get the signing payload of the statement.
-	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
-		// convert to fully hash-based payload.
+impl EncodeAs<CompactStatement> for Statement {
+	fn encode_as(&self) -> Vec<u8> {
 		let statement = match *self {
-			Statement::Seconded(ref c) => polkadot_primitives::parachain::Statement::Candidate(c.hash()),
-			Statement::Valid(hash) => polkadot_primitives::parachain::Statement::Valid(hash),
-			Statement::Invalid(hash) => polkadot_primitives::parachain::Statement::Invalid(hash),
+			Statement::Seconded(ref c) => {
+				polkadot_primitives::parachain::CompactStatement::Candidate(c.hash())
+			}
+			Statement::Valid(hash) => polkadot_primitives::parachain::CompactStatement::Valid(hash),
+			Statement::Invalid(hash) => polkadot_primitives::parachain::CompactStatement::Invalid(hash),
 		};
-
-		statement.signing_payload(context)
+		statement.encode()
 	}
 }
 
 /// A statement, the corresponding signature, and the index of the sender.
 ///
 /// Signing context and validator set should be apparent from context.
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
-pub struct SignedStatement {
-	/// The statement signed.
-	pub statement: Statement,
-	/// The signature of the validator.
-	pub signature: ValidatorSignature,
-	/// The index in the validator set of the signing validator. Which validator set should
-	/// be apparent from context.
-	pub sender: ValidatorIndex,
-}
-
-impl SignedStatement {
-	/// Check the signature on a statement. Provide a list of validators to index into
-	/// and the context in which the statement is presumably signed.
-	///
-	/// Returns an error if out of bounds or the signature is invalid. Otherwise, returns Ok.
-	pub fn check_signature(
-		&self,
-		validators: &[ValidatorId],
-		signing_context: &SigningContext,
-	) -> Result<(), ()> {
-		let validator = validators.get(self.sender as usize).ok_or(())?;
-		let payload = self.statement.signing_payload(signing_context);
-
-		if self.signature.verify(&payload[..], validator) {
-			Ok(())
-		} else {
-			Err(())
-		}
-	}
-}
+///
+/// This statement is "full" in the sense that the `Seconded` variant includes the candidate receipt.
+/// Only the compact `SignedStatement` is suitable for submission to the chain.
+pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
 /// A misbehaviour report.
 pub enum MisbehaviorReport {
@@ -101,9 +73,9 @@ pub enum MisbehaviorReport {
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
 	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
 	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+	DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
