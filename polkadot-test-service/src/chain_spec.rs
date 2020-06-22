@@ -145,8 +145,6 @@ fn polkadot_testnet_genesis(
 			vesting: vec![],
 		}),
 		vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
-		sudo: Some(polkadot::SudoConfig {
-			key: root_key,
-		}),
+		sudo: Some(polkadot::SudoConfig { key: root_key }),
 	}
 }

@@ -29,7 +29,7 @@ pub mod time {
 	use primitives::{Moment, BlockNumber};
 	// Testnet
 	pub const MILLISECS_PER_BLOCK: Moment = 1000;
-	pub const SLOT_DURATION: Moment = 3000;
+	pub const SLOT_DURATION: Moment = 0; // must stay 0 for some tests
 	// Testnet
 	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 10 * MINUTES;
 
