@@ -386,7 +386,7 @@ macro_rules! new_full {
 				max_block_data_size,
 			}.build();
 
-			task_manager.spawn_essential("validation-service", Box::pin(validation_service));
+			task_manager.spawn_essential_handle().spawn_blocking("validation-service", Box::pin(validation_service));
 
 			handles.validation_service_handle = Some(validation_service_handle.clone());
 
@@ -432,7 +432,7 @@ macro_rules! new_full {
 			};
 
 			let babe = babe::start_babe(babe_config)?;
-			task_manager.spawn_essential("babe", babe);
+			task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 		}
 
 		if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
@@ -465,7 +465,7 @@ macro_rules! new_full {
 					prometheus_registry.clone(),
 				);
 
-				task_manager.spawn("authority-discovery", authority_discovery);
+				task_manager.spawn_handle().spawn("authority-discovery", authority_discovery);
 			}
 		}
 
@@ -526,7 +526,7 @@ macro_rules! new_full {
 				shared_voter_state,
 			};
 
-			task_manager.spawn_essential(
+			task_manager.spawn_essential_handle().spawn_blocking(
 				"grandpa-voter",
 				grandpa::run_grandpa_voter(grandpa_config)?
 			);
