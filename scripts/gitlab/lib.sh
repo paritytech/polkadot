@@ -9,9 +9,7 @@ sanitised_git_logs(){
   # Only find messages referencing a PR
   grep -E '\(#[0-9]+\)' |
   # Strip any asterisks
-  sed 's/^* //g' |
-  # And add them all back
-  sed 's/^/* /g'
+  sed 's/^* //g'
 }
 
 # Checks whether a tag on github has been verified
