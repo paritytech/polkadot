@@ -181,12 +181,6 @@ pub fn run_test_node(
 	let mut spec = polkadot_local_testnet_config();
 
 	let mut storage = spec.as_storage_builder().build_storage()?;
-	BasicExternalities::execute_with_storage(&mut storage, || {
-		use polkadot_test_runtime::*;
-
-		// NOTE: this is required because the default value is 0 for testing without a service
-		SlotDuration::set(&2000);
-	});
 	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
 
 	spec.set_storage(storage);
