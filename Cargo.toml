@@ -43,6 +43,7 @@ members = [
 	"validation",
 
 	"node/messages",
+	"node/network/statement-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
