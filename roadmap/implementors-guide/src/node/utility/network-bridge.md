@@ -10,7 +10,7 @@ So in short, this Subsystem acts as a bridge between an actual network component
 
 ## Protocol
 
-Input: [`NetworkBridgeMessage`](../../types/overseer-protocol.html#network-bridge-message)
+Input: [`NetworkBridgeMessage`](../../types/overseer-protocol.md#network-bridge-message)
 Output: Varying, based on registered event producers.
 
 ## Functionality

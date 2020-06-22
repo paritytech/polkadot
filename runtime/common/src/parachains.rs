@@ -41,7 +41,7 @@ use primitives::{
 	Balance,
 	BlockNumber,
 	parachain::{
-		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
+		Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
