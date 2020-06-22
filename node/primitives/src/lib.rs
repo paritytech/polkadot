@@ -63,7 +63,7 @@ impl EncodeAs<CompactStatement> for Statement {
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
-/// A misbehaviour report.
+/// A misbehavior report.
 pub enum MisbehaviorReport {
 	/// These validator nodes disagree on this candidate's validity, please figure it out
 	///

@@ -97,32 +97,35 @@ pub struct View(pub Vec<Hash>);
 
 /// Events from network.
 pub enum NetworkBridgeEvent {
-	/// A peer has connected.
+	/// A peer with given ID is now connected.
 	PeerConnected(PeerId, ObservedRole),
 
-	/// A peer has disconnected.
+	/// A peer with given ID is now disconnected.
 	PeerDisconnected(PeerId),
 
-	/// Peer has sent a message.
-	PeerMessage(PeerId, Vec<u8>),
+	/// We received a message from the given peer. Protocol ID should be apparent from context.
+	PeerMessage(PeerId, Bytes),
 
-	/// Peer's `View` has changed.
+	/// The given peer has updated its description of its view.
+	///
+	/// This is guaranteed to come after the `PeerConnected` event for a given peer.
 	PeerViewChange(PeerId, View),
 
-	/// Our `View` has changed.
+	/// We have posted the given view update to all connected peers.
 	OurViewChange(View),
 }
 
 /// Messages received by the network bridge subsystem.
-pub enum NetworkBridgeSubsystemMessage {
-	/// Register an event producer on startup.
-	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
+pub enum NetworkBridgeMessage {
+	/// Register an event producer with the network bridge. This should be done early and cannot
+	/// be de-registered.
+	RegisterEventProducer(ProtocolId, Box<dyn Fn(NetworkBridgeEvent) -> AllMessages>),
 
-	/// Report a peer for their actions.
-	ReportPeer(PeerId, ReputationChange),
+	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
+	ReportPeer(PeerId, i32),
 
-	/// Send a message to multiple peers.
-	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	/// Send a message to one or more peers on the given protocol ID.
+	SendMessage([PeerId], ProtocolId, Bytes),
 }
 
 /// Availability Distribution Message.
