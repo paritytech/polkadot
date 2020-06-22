@@ -359,7 +359,7 @@ macro_rules! new_full {
 
 		let (overseer, handler) = real_overseer(leaves, spawner)?;
 
-		task_manager.spawn_essential("overseer", Box::pin(async move {
+		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
 
 			let forward = overseer::forward_events(overseer_client, handler);
@@ -405,7 +405,7 @@ macro_rules! new_full {
 			};
 
 			let babe = babe::start_babe(babe_config)?;
-			task_manager.spawn_essential("babe", babe);
+			task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 		}
 
 		// if the node isn't actively participating in consensus then it doesn't
@@ -465,7 +465,7 @@ macro_rules! new_full {
 				shared_voter_state,
 			};
 
-			task_manager.spawn_essential(
+			task_manager.spawn_essential_handle().spawn_blocking(
 				"grandpa-voter",
 				grandpa::run_grandpa_voter(grandpa_config)?
 			);
