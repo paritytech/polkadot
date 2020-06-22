@@ -384,3 +384,52 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use futures::mpsc;
+	use std::sync::Arc;
+
+	enum OutgoingEvent {
+		ReputationChange(PeerId, ReputationChange),
+		Message(PeerId, Vec<u8>),
+	}
+
+	#[derive(Clone)]
+	struct TestNetwork {
+		net_events: Arc<Mutex<Option<mpsc::UnboundedReceiver<NetworkEvent>>>>,
+		outgoing_tx: mpsc::UnboundedSender<OutgoingEvent>,
+	}
+
+	struct TestHost {
+		outgoing_rx: mpsc::UnboundedReceiver<OutgoingEvent>,
+		net_tx: mpsc::UnboundedSender<NetworkEvent>,
+	}
+
+	fn new_test_host() -> (
+		TestNetwork,
+		mpsc::UnboundedSender<NetworkEvent>,
+		mpsc::UnboundedReceiver<OutgoingEvent>,
+	 {
+		let (net_tx, net_rx) = mpsc::unbounded();
+		let (outgoing_tx, outgoing_rx) = mpsc::unbounded();
+
+		let net = TestNetwork {
+			net_events: Arc::new(Mutex::new(Some(net_rx))),
+			outgoing_tx,
+		};
+
+		(net, net_tx, outgoing_rx)
+	 })
+
+	impl TestNetwork {
+
+	}
+
+
+	// TODO [now]: our view updates are sent.
+	// TODO [now]: peer view updates get sent via overseer.
+
+	// TODO [now]: peer messages are sent via event producer
+}
