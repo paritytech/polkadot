@@ -18,7 +18,7 @@ pub type PolkadotChainSpec =
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 	PolkadotChainSpec::from_genesis(
 		"Local Testnet",
-		"local_testnet",
+		"test_local_testnet",
 		ChainType::Local,
 		polkadot_local_testnet_genesis,
 		vec![],

@@ -23,6 +23,7 @@ polkadot-network = { path = "../network" }
 polkadot-validation = { path = "../validation" }
 polkadot-service = { path = "../service", optional = true}
 polkadot-service-new = { path = "../node/service", optional = true }
+polkadot-test-service = { path = "../polkadot-test-service" }
 log = "0.4.8"
 tokio = "0.2.13"
 futures-timer = "2.0"

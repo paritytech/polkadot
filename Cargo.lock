@@ -4151,6 +4151,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-service",
  "polkadot-service-new",
+ "polkadot-test-service",
  "polkadot-validation",
  "sc-cli",
  "sc-client-api",

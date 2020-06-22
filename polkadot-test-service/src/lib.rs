@@ -243,3 +243,15 @@ where
 		}
 	}
 }
+
+/// Can be called for a `Configuration` to check if it is a configuration for the `Test` network.
+pub trait IdentifyVariant {
+	/// Returns if this is a configuration for the `Test` network.
+	fn is_test(&self) -> bool;
+}
+
+impl IdentifyVariant for Box<dyn ChainSpec> {
+	fn is_test(&self) -> bool {
+		self.id().starts_with("test") || self.id().starts_with("tst") // TODO not sure why I need a 3 chars variant
+	}
+}

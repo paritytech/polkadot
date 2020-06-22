@@ -63,7 +63,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant,
+	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant as _,
 	service::{self, Role}
 };
 pub use polkadot_cli::service::Configuration;
@@ -81,6 +81,7 @@ use polkadot_service_new::{
 	self as polkadot_service,
 	Error as ServiceError, FullNodeHandles, PolkadotClient,
 };
+use polkadot_test_service::IdentifyVariant as _;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -417,6 +418,23 @@ where
 			6000,
 			None,
 			informant_prefix,
+		)?;
+		let spawn_handle = service.spawn_task_handle();
+		build_collator_service(
+			spawn_handle,
+			handlers,
+			client,
+			para_id,
+			key,
+			build_parachain_context
+		)?.await;
+	} else if config.chain_spec.is_test() {
+		let (service, client, handlers) = polkadot_test_service::polkadot_test_new_full(
+			config,
+			Some((key.public(), para_id)),
+			None,
+			false,
+			6000,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
