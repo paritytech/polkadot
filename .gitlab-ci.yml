@@ -16,8 +16,6 @@ image:                             paritytech/ci-linux:production
 variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
-  CARGO_HOME:                      "/ci-cache/${CI_PROJECT_NAME}/cargo/${CI_JOB_NAME}"
-  SCCACHE_DIR:                     "/ci-cache/${CI_PROJECT_NAME}/sccache"
   CI_SERVER_NAME:                  "GitLab CI"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
@@ -189,6 +187,15 @@ build-linux-release:               &build
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
+
+
+generate-impl-guide:
+  stage:                          build
+  image:
+    name: michaelfbryan/mdbook-docker-image:latest
+    entrypoint: [""]
+  script:
+    - mdbook build roadmap/implementors-guide
 
 .publish-build:                    &publish-build
   stage:                           publish

@@ -24,7 +24,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## All Messages
 
-> TODO [now]
+> TODO (now)
 
 ## Availability Distribution Message
 
@@ -100,7 +100,7 @@ enum CandidateBackingMessage {
 
 ## Candidate Selection Message
 
-These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) as a means of providing feedback on its outputs.
+These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.md) as a means of providing feedback on its outputs.
 
 ```rust
 enum CandidateSelectionMessage {
@@ -128,7 +128,7 @@ enum NetworkBridgeMessage {
 
 ## Network Bridge Update
 
-These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.html) to other subsystems based on registered listeners.
+These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.md) to other subsystems based on registered listeners.
 
 ```rust
 struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
@@ -158,11 +158,11 @@ enum MisbehaviorReport {
   /// this message should be dispatched with all of them, in arbitrary order.
   ///
   /// This variant is also used when our own validity checks disagree with others'.
-  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
   /// I've noticed a peer contradicting itself about a particular candidate
-  SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+  SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
   /// This peer has seconded more than one parachain candidate for this relay parent head
-  DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+  DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
 ```
 
@@ -227,7 +227,7 @@ enum RuntimeApiMessage {
 
 ## Statement Distribution Message
 
-The Statement Distribution subsystem distributes signed statements from validators to other validators.
+The Statement Distribution subsystem distributes signed statements and candidates from validators to other validators. It does this by distributing full statements, which embed the candidate receipt, as opposed to compact statements which don't.
 It receives updates from the network bridge and signed statements to share with other validators.
 
 ```rust
@@ -239,13 +239,13 @@ enum StatementDistributionMessage {
 	///
 	/// The statement distribution subsystem assumes that the statement should be correctly
 	/// signed.
-	Share(Hash, SignedStatement),
+	Share(Hash, SignedFullStatement),
 }
 ```
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
 
 ```rust
 enum CandidateValidationMessage {
