@@ -18,6 +18,7 @@
 
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
+use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 
 use sc_network::{
@@ -75,10 +76,10 @@ pub trait Network: Clone + Send + Sync + 'static {
 	fn event_stream(&self) -> BoxStream<NetworkEvent>;
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
-	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange);
+	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()>;
 
 	/// Write a notification to a peer on the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID) topic.
-	fn write_notification(&self, who: PeerId, message: Vec<u8>);
+	fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()>;
 }
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
@@ -86,12 +87,14 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
-	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) {
-		sc_network::NetworkService::report_peer(self, who, cost_benefit)
+	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
+		sc_network::NetworkService::report_peer(self, who, cost_benefit);
+		future::ready(()).boxed()
 	}
 
-	fn write_notification(&self, who: PeerId, message: Vec<u8>) {
-		sc_network::NetworkService::write_notification(self, who, POLKADOT_ENGINE_ID, message)
+	fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
+		sc_network::NetworkService::write_notification(self, who, POLKADOT_ENGINE_ID, message);
+		future::ready(()).boxed()
 	}
 }
 
@@ -212,6 +215,27 @@ async fn dispatch_update_to_all(
 	ctx.send_msgs(messages).await
 }
 
+async fn update_view(
+	peers: &HashMap<PeerId, PeerData>,
+	live_heads: &[Hash],
+	net: &impl Network,
+	local_view: &mut View,
+) -> Option<NetworkBridgeEvent> {
+	let new_view = construct_view(live_heads);
+	if *local_view == new_view { return None }
+	*local_view = new_view.clone();
+
+	let message = WireMessage::ViewUpdate(new_view.clone()).encode();
+
+	let write_all = peers.keys().cloned().map(|peer| {
+		net.write_notification(peer, message.clone())
+	});
+
+	future::join_all(write_all).await;
+
+	Some(NetworkBridgeEvent::OurViewChange(local_view.clone()))
+}
+
 async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeMessage>) {
 	let mut event_stream = net.event_stream().fuse();
 
@@ -239,19 +263,6 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 			}
 		};
 
-		let update_view = |peers: &HashMap<PeerId, PeerData>, live_heads, local_view: &mut View| {
-			let new_view = construct_view(live_heads);
-			if *local_view == new_view { return None }
-			*local_view = new_view.clone();
-
-			let message = WireMessage::ViewUpdate(new_view).encode();
-			for peer in peers.keys().cloned() {
-				net.write_notification(peer, message.clone())
-			}
-
-			Some(NetworkBridgeEvent::OurViewChange(local_view.clone()))
-		};
-
 		match action {
 			Action::RegisterEventProducer(protocol_id, event_producer) => {
 				// insert only if none present.
@@ -261,19 +272,21 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 				let message = WireMessage::ProtocolMessage(protocol, message).encode();
 
 				for peer in peers.iter().skip(1).cloned() {
-					net.write_notification(peer, message.clone());
+					net.write_notification(peer, message.clone()).await;
 				}
 
 				if let Some(peer) = peers.first() {
-					net.write_notification(peer.clone(), message);
+					net.write_notification(peer.clone(), message).await;
 				}
 			}
 			Action::ReportPeer(peer, rep) => {
-				net.report_peer(peer, rep)
+				net.report_peer(peer, rep).await
 			}
 			Action::StartWork(relay_parent) => {
 				live_heads.push(relay_parent);
-				if let Some(view_update) = update_view(&peers, &live_heads, &mut local_view) {
+				if let Some(view_update)
+					= update_view(&peers, &live_heads, &net, &mut local_view).await
+				{
 					if let Err(_) = dispatch_update_to_all(
 						view_update,
 						event_producers.values(),
@@ -286,7 +299,9 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 			}
 			Action::StopWork(relay_parent) => {
 				live_heads.retain(|h| h != &relay_parent);
-				if let Some(view_update) = update_view(&peers, &live_heads, &mut local_view) {
+				if let Some(view_update)
+					= update_view(&peers, &live_heads, &net, &mut local_view).await
+				{
 					if let Err(_) = dispatch_update_to_all(
 						view_update,
 						event_producers.values(),
@@ -340,7 +355,7 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 					match message {
 						WireMessage::ViewUpdate(new_view) => {
 							if new_view.0.len() > MAX_VIEW_HEADS {
-								net.report_peer(peer.clone(), MALFORMED_VIEW_COST);
+								net.report_peer(peer.clone(), MALFORMED_VIEW_COST).await;
 								continue
 							}
 
@@ -362,7 +377,7 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 									NetworkBridgeEvent::PeerMessage(peer.clone(), message)
 								)),
 								None => {
-									net.report_peer(peer.clone(), UNKNOWN_PROTO_COST);
+									net.report_peer(peer.clone(), UNKNOWN_PROTO_COST).await;
 									None
 								}
 							};
@@ -411,7 +426,7 @@ mod tests {
 		TestNetwork,
 		mpsc::UnboundedSender<NetworkEvent>,
 		mpsc::UnboundedReceiver<OutgoingEvent>,
-	 {
+	) {
 		let (net_tx, net_rx) = mpsc::unbounded();
 		let (outgoing_tx, outgoing_rx) = mpsc::unbounded();
 
@@ -421,7 +436,7 @@ mod tests {
 		};
 
 		(net, net_tx, outgoing_rx)
-	 })
+	}
 
 	impl TestNetwork {
 
