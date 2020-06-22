@@ -88,21 +88,28 @@ pub fn polkadot_test_new_full(
 	Ok((service, client, handles))
 }
 
-fn node_config<P: AsRef<Path>>(
-	spec: &PolkadotChainSpec,
-	role: Role,
+pub fn node_config<P: AsRef<Path>>(
+	storage_update_func: impl Fn(),
 	task_executor: Arc<
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
-	key_seed: Option<String>,
-	port: u16,
+	key: Sr25519Keyring,
 	root: P,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> Configuration {
+) -> Result<Configuration, ServiceError> {
 	let root = root.as_ref().to_path_buf();
+	let role = Role::Authority {
+		sentry_nodes: Vec::new(),
+	};
+	let key_seed = key.to_seed();
+	let mut spec = polkadot_local_testnet_config();
+	let mut storage = spec.as_storage_builder().build_storage()?;
+
+	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
+	spec.set_storage(storage);
 
 	let mut network_config = NetworkConfiguration::new(
-		format!("Polkadot Test Node on {}", port),
+		format!("Polkadot Test Node for: {}", key_seed),
 		"network/test/0.1",
 		Default::default(),
 		None,
@@ -118,7 +125,7 @@ fn node_config<P: AsRef<Path>>(
 
 	network_config.transport = TransportConfig::MemoryOnly;
 
-	Configuration {
+	Ok(Configuration {
 		impl_name: "polkadot-test-node",
 		impl_version: "0.1",
 		role,
@@ -136,7 +143,7 @@ fn node_config<P: AsRef<Path>>(
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		pruning: Default::default(),
-		chain_spec: Box::new((*spec).clone()),
+		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
 		execution_strategies: Default::default(),
 		rpc_http: None,
@@ -151,13 +158,13 @@ fn node_config<P: AsRef<Path>>(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
-		dev_key_seed: key_seed,
+		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
 		announce_block: true,
 		base_path: Some(root.into()),
-	}
+	})
 }
 
 pub fn run_test_node(
@@ -177,24 +184,14 @@ pub fn run_test_node(
 	let base_path = tempfile::Builder::new()
 		.prefix("polkadot-test-service")
 		.tempdir()?;
-	let mut spec = polkadot_local_testnet_config();
-
-	let mut storage = spec.as_storage_builder().build_storage()?;
-	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
-
-	spec.set_storage(storage);
 
 	let config = node_config(
-		&spec,
-		Role::Authority {
-			sentry_nodes: Vec::new(),
-		},
+		storage_update_func,
 		task_executor,
-		Some(key.to_seed()),
-		0,
+		key,
 		&base_path,
 		boot_nodes,
-	);
+	)?;
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
 	let (service, client, handles) =
