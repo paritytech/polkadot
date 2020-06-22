@@ -4251,6 +4251,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-network-bridge"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "polkadot-node-messages",
+ "polkadot-node-primitives",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "sc-network",
+ "sp-runtime",
+ "streamunordered",
+]
+
+[[package]]
 name = "polkadot-network-test"
 version = "0.8.11"
 dependencies = [

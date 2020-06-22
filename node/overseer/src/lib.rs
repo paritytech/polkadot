@@ -65,7 +65,7 @@ use futures::channel::{mpsc, oneshot};
 use futures::{
 	pending, poll, select,
 	future::{BoxFuture, RemoteHandle},
-	stream::FuturesUnordered,
+	stream::{self, FuturesUnordered},
 	task::{Spawn, SpawnError, SpawnExt},
 	Future, FutureExt, SinkExt, StreamExt,
 };
@@ -326,6 +326,16 @@ impl<M: Debug> SubsystemContext<M> {
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.tx.send(ToOverseer::SubsystemMessage(msg)).await?;
+
+		Ok(())
+	}
+
+	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
+	pub async fn send_msgs(&mut self, msgs: impl IntoIterator<Item=AllMessages>)
+		-> SubsystemResult<()>
+	{
+		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
+		self.tx.send_all(&mut msgs).await?;
 
 		Ok(())
 	}

@@ -63,7 +63,9 @@ impl EncodeAs<CompactStatement> for Statement {
 /// Only the compact `SignedStatement` is suitable for submission to the chain.
 pub type SignedFullStatement = Signed<Statement, CompactStatement>;
 
+
 /// A misbehavior report.
+#[derive(Debug)]
 pub enum MisbehaviorReport {
 	/// These validator nodes disagree on this candidate's validity, please figure it out
 	///
@@ -79,3 +81,12 @@ pub enum MisbehaviorReport {
 	/// This peer has seconded more than one parachain candidate for this relay parent head
 	DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
+
+/// A unique identifier for a network protocol.
+pub type ProtocolId = [u8; 4];
+
+/// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
+///
+/// Up to `N` (5?) chain heads.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct View(pub Vec<Hash>);

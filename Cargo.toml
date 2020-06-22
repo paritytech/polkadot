@@ -48,6 +48,8 @@ members = [
 	"node/primitives",
 	"node/service",
 
+	"node/network/bridge",
+
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
