@@ -807,7 +807,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Indices(indices::Call::claim(..)) |
 				Call::Indices(indices::Call::free(..)) |
 				Call::Indices(indices::Call::freeze(..)) |
-				// Specifically omitting `transfer`, `force_transfer`
+				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
 				Call::Staking(..) |
@@ -837,10 +837,10 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Recovery(recovery::Call::close_recovery(..)) |
 				Call::Recovery(recovery::Call::remove_recovery(..)) |
 				Call::Recovery(recovery::Call::cancel_recovered(..)) |
-				// Specifically omitting `create_recovery`, `initiate_recovery`
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
 				Call::Vesting(vesting::Call::vest(..)) |
 				Call::Vesting(vesting::Call::vest_other(..)) |
-				// Specifically omitting `vested_transfer`, and `force_vested_transfer`
+				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				Call::Scheduler(..) |
 				Call::Proxy(..) |
 				Call::Multisig(..)
