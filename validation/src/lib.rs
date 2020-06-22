@@ -36,7 +36,7 @@ use std::{
 use codec::Encode;
 use polkadot_primitives::parachain::{
 	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
-	Statement as PrimitiveStatement,
+	CompactStatement as PrimitiveStatement,
 	PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,
 	ValidatorPair, ValidatorId, SigningContext,
 };

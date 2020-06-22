@@ -81,7 +81,7 @@ Unlike the [`GlobalValidationData`](#globalvalidationdata), which only depends o
 
 This choice can also be expressed as a choice of which parent head of the para will be built on - either optimistically on the candidate pending availability or pessimistically on the one that is surely included.
 
-Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](/runtime/inclusioninherent.html) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
+Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
 
 > TODO: determine if balance/fees are even needed here.
 

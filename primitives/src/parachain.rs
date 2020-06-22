@@ -27,9 +27,9 @@ use super::{Hash, Balance, BlockNumber};
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::bytes;
+use primitives::{bytes, crypto::Pair};
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::Block as BlockT;
+use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
@@ -245,8 +245,6 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
 	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
 	if signature.verify(&payload[..], collator) {
 		Ok(())
@@ -594,7 +592,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 /// actual values that are signed.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum Statement {
+pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
 	Candidate(Hash),
@@ -606,14 +604,8 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
-impl Statement {
-	/// Produce a payload on this statement that is used for signing.
-	///
-	/// It includes the context provided.
-	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
-		(self, context).encode()
-	}
-}
+/// A signed compact statement, suitable to be sent to the chain.
+pub type SignedStatement = Signed<CompactStatement>;
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
@@ -647,11 +639,11 @@ impl ValidityAttestation {
 	) -> Vec<u8> {
 		match *self {
 			ValidityAttestation::Implicit(_) => (
-				Statement::Candidate(candidate_hash),
+				CompactStatement::Candidate(candidate_hash),
 				signing_context,
 			).encode(),
 			ValidityAttestation::Explicit(_) => (
-				Statement::Valid(candidate_hash),
+				CompactStatement::Valid(candidate_hash),
 				signing_context,
 			).encode(),
 		}
@@ -723,64 +715,8 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 	}
 }
 
-impl AvailabilityBitfield {
-	/// Encodes the signing payload into the given buffer.
-	pub fn encode_signing_payload_into<H: Encode>(
-		&self,
-		signing_context: &SigningContext<H>,
-		buf: &mut Vec<u8>,
-	) {
-		self.0.encode_to(buf);
-		signing_context.encode_to(buf);
-	}
-
-	/// Encodes the signing payload into a fresh byte-vector.
-	pub fn encode_signing_payload<H: Encode>(
-		&self,
-		signing_context: &SigningContext<H>,
-	) -> Vec<u8> {
-		let mut v = Vec::new();
-		self.encode_signing_payload_into(signing_context, &mut v);
-		v
-	}
-}
-
 /// A bitfield signed by a particular validator about the availability of pending candidates.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct SignedAvailabilityBitfield {
-	/// The index of the validator in the current set.
-	pub validator_index: ValidatorIndex,
-	/// The bitfield itself, with one bit per core. Only occupied cores may have the `1` bit set.
-	pub bitfield: AvailabilityBitfield,
-	/// The signature by the validator on the bitfield's signing payload. The context of the signature
-	/// should be apparent when checking the signature.
-	pub signature: ValidatorSignature,
-}
-
-/// Check a signature on an availability bitfield. Provide the bitfield, the validator who signed it,
-/// the signature, the signing context, and an optional buffer in which to encode.
-///
-/// If the buffer is provided, it is assumed to be empty.
-pub fn check_availability_bitfield_signature<H: Encode>(
-	bitfield: &AvailabilityBitfield,
-	validator: &ValidatorId,
-	signature: &ValidatorSignature,
-	signing_context: &SigningContext<H>,
-	payload_encode_buf: Option<&mut Vec<u8>>,
-) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
-	let mut v = Vec::new();
-	let payload_encode_buf = payload_encode_buf.unwrap_or(&mut v);
-
-	bitfield.encode_signing_payload_into(signing_context, payload_encode_buf);
-
-	if signature.verify(&payload_encode_buf[..], validator) {
-		Ok(())
-	} else {
-		Err(())
-	}
-}
+pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -816,8 +752,6 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
 	group_len: usize,
 	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
 ) -> Result<usize, ()> {
-	use runtime_primitives::traits::AppVerify;
-
 	if backed.validator_indices.len() != group_len {
 		return Err(())
 	}
@@ -883,6 +817,113 @@ pub mod id {
 
 	/// Parachain host runtime API id.
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
+}
+
+/// This helper trait ensures that we can encode Statement as CompactStatement,
+/// and anything as itself.
+///
+/// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
+/// EncodeLike is a marker trait which asserts at the typesystem level that
+/// one type's encoding is a valid encoding for another type. It doesn't
+/// perform any type conversion when encoding.
+///
+/// This trait, on the other hand, provides a method which can be used to
+/// simultaneously convert and encode one type as another.
+pub trait EncodeAs<T> {
+	/// Convert Self into T, then encode T.
+	///
+	/// This is useful when T is a subset of Self, reducing encoding costs;
+	/// its signature also means that we do not need to clone Self in order
+	/// to retain ownership, as we would if we were to do
+	/// `self.clone().into().encode()`.
+	fn encode_as(&self) -> Vec<u8>;
+}
+
+impl<T: Encode> EncodeAs<T> for T {
+	fn encode_as(&self) -> Vec<u8> {
+		self.encode()
+	}
+}
+
+/// A signed type which encapsulates the common desire to sign some data and validate a signature.
+///
+/// Note that the internal fields are not public; they are all accessable by immutable getters.
+/// This reduces the chance that they are accidentally mutated, invalidating the signature.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct Signed<Payload, RealPayload = Payload> {
+	/// The payload is part of the signed data. The rest is the signing context,
+	/// which is known both at signing and at validation.
+	payload: Payload,
+	/// The index of the validator signing this statement.
+	validator_index: ValidatorIndex,
+	/// The signature by the validator of the signed payload.
+	signature: ValidatorSignature,
+	/// This ensures the real payload is tracked at the typesystem level.
+	real_payload: sp_std::marker::PhantomData<RealPayload>,
+}
+
+// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
+// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
+// own trait which does what we need: EncodeAs.
+impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
+	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
+		// equivalent to (real_payload, context).encode()
+		let mut out = payload.encode_as();
+		out.extend(context.encode());
+		out
+	}
+
+	/// Sign this payload with the given context and key, storing the validator index.
+	#[cfg(feature = "std")]
+	pub fn sign<H: Encode>(
+		payload: Payload,
+		context: &SigningContext<H>,
+		validator_index: ValidatorIndex,
+		key: &ValidatorPair,
+	) -> Self {
+		let data = Self::payload_data(&payload, context);
+		let signature = key.sign(&data);
+		Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		}
+	}
+
+	/// Validate the payload given the context and public key.
+	pub fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
+		let data = Self::payload_data(&self.payload, context);
+		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
+	}
+
+	/// Immutably access the payload.
+	#[inline]
+	pub fn payload(&self) -> &Payload {
+		&self.payload
+	}
+
+	/// Immutably access the validator index.
+	#[inline]
+	pub fn validator_index(&self) -> ValidatorIndex {
+		self.validator_index
+	}
+
+	/// Immutably access the signature.
+	#[inline]
+	pub fn signature(&self) -> &ValidatorSignature {
+		&self.signature
+	}
+
+	/// Discard signing data, get the payload
+	// Note: can't `impl<P, R> From<Signed<P, R>> for P` because the orphan rule exception doesn't
+	// handle this case yet. Likewise can't `impl<P, R> Into<P> for Signed<P, R>` because it might
+	// potentially conflict with the global blanket impl, even though it currently doesn't.
+	#[inline]
+	pub fn into_payload(self) -> Payload {
+		self.payload
+	}
 }
 
 #[cfg(test)]
