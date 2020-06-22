@@ -266,11 +266,16 @@ impl session::historical::Trait for Runtime {
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
 
+// TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
+// re-built in case input parameters have changed. The `ideal_stake` should be determined by the
+// amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
 		max_inflation: 0_100_000,
-		ideal_stake: 0_500_000,
+		// 3:2:1 staked : parachains : float.
+		// while there's no parachains, then this is 75% staked : 25% float.
+		ideal_stake: 0_750_000,
 		falloff: 0_050_000,
 		max_piece_count: 40,
 		test_precision: 0_005_000,
