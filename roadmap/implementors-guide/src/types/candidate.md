@@ -4,18 +4,34 @@ Para candidates are some of the most common types, both within the runtime and o
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
-This section will describe the base candidate type, its components, and abridged counterpart.
+This section will describe the base candidate type, its components, and variants that contain extra data.
 
-## CandidateReceipt
+## Candidate Receipt
 
-This is the base receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`AbridgedCandidateReceipt`](#abridgedcandidatereceipt) variant is often used instead for this reason.
+Much info in a [`FullCandidateReceipt`](#full-candidate-receipt) is duplicated from the relay-chain state. When the corresponding relay-chain state is considered widely available, the Candidate Receipt should be favored over the `FullCandidateReceipt`.
 
-However, the full CandidateReceipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
+Examples of situations where the state is readily available includes within the scope of work done by subsystems working on a given relay-parent, or within the logic of the runtime importing a backed candidate.
+
+```rust
+/// A candidate-receipt.
+struct CandidateReceipt {
+	/// The descriptor of the candidate.
+	descriptor: CandidateDescriptor,
+	/// The hash of the encoded commitments made as a result of candidate execution.
+	commitments_hash: Hash,
+}
+```
+
+## Full Candidate Receipt
+
+This is the full receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
+
+However, the Full Candidate Receipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
 ```rust
 /// All data pertaining to the execution of a para candidate.
-struct CandidateReceipt {
-	inner: AbridgedCandidateReceipt,
+struct FullCandidateReceipt {
+	inner: CandidateReceipt,
 	/// The global validation schedule.
 	global_validation: GlobalValidationSchedule,
 	/// The local validation data.
@@ -23,38 +39,49 @@ struct CandidateReceipt {
 }
 ```
 
-## AbridgedCandidateReceipt
+## Committed Candidate Receipt
 
-Much info in a [`CandidateReceipt`](#candidatereceipt) is duplicated from the relay-chain state. When the corresponding relay-chain state is considered widely available, the Abridged Candidate Receipt should be favored.
+This is a variant of the candidate receipt which includes the commitments of the candidate receipt alongside the descriptor. This should be favored over the [`Candidate Receipt`](#candidate-receipt) in situations where the candidate is not going to be executed but the actual data committed to is important. This is often the case in the backing phase.
 
-Examples of situations where the state is readily available includes within the scope of work done by subsystems working on a given relay-parent, or within the logic of the runtime importing a backed candidate.
+The hash of the committed candidate receipt will be the same as the corresponding [`Candidate Receipt`](#candidate-receipt), because it is computed by first hashing the encoding of the commitments to form a plain [`Candidate Receipt`](#candidate-receipt).
 
 ```rust
-/// An abridged candidate-receipt.
-struct AbridgedCandidateReceipt {
+/// A candidate-receipt with commitments directly included.
+struct CommittedCandidateReceipt {
+	/// The descriptor of the candidate.
+	descriptor: CandidateDescriptor,
+	/// The commitments of the candidate receipt.
+	commitments: CandidateCommitments,
+}
+```
+
+## Candidate Descriptor
+
+This struct is pure description of the candidate, in a lightweight format.
+
+```rust
+/// A unique descriptor of the candidate receipt.
+struct CandidateDescriptor {
 	/// The ID of the para this is a candidate for.
 	para_id: Id,
 	/// The hash of the relay-chain block this is executed in the context of.
 	relay_parent: Hash,
-	/// The head-data produced as a result of execution.
-	head_data: HeadData,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
 	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, the head data, and the pov_hash.
+	/// The parachain index, the relay parent, and the pov_hash.
 	signature: CollatorSignature,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
-	/// Commitments made as a result of validation.
-	commitments: CandidateCommitments,
 }
 ```
+
 
 ## GlobalValidationSchedule
 
 The global validation schedule comprises of information describing the global environment for para execution, as derived from a particular relay-parent. These are parameters that will apply to all parablocks executed in the context of this relay-parent.
 
-> TODO: message queue watermarks (first upward messages, then XCMP channels)
+> TODO: message queue watermarks (first downward messages, then XCMP channels)
 
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -88,13 +115,13 @@ Para validation happens optimistically before the block is authored, so it is no
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
-pub struct LocalValidationData {
+struct LocalValidationData {
 	/// The parent head-data.
-	pub parent_head: HeadData,
+	parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
-	pub balance: Balance,
+	balance: Balance,
 	/// The blake2-256 hash of the validation code used to execute the candidate.
-	pub validation_code_hash: Hash,
+	validation_code_hash: Hash,
 	/// Whether the parachain is allowed to upgrade its validation code.
 	///
 	/// This is `Some` if so, and contains the number of the minimum relay-chain
@@ -106,7 +133,7 @@ pub struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
-	pub code_upgrade_allowed: Option<BlockNumber>,
+	code_upgrade_allowed: Option<BlockNumber>,
 }
 ```
 
@@ -118,7 +145,7 @@ Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes o
 struct HeadData(Vec<u8>);
 ```
 
-## CandidateCommitments
+## Candidate Commitments
 
 The execution and validation of parachain or parathread candidates produces a number of values which either must be committed to on the relay chain or committed to the state of the relay chain.
 
@@ -126,15 +153,17 @@ The execution and validation of parachain or parathread candidates produces a nu
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateCommitments {
+struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
+	fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
+	erasure_root: Hash,
 	/// New validation code.
-	pub new_validation_code: Option<ValidationCode>,
+	new_validation_code: Option<ValidationCode>,
+	/// The head-data produced as a result of execution.
+	head_data: HeadData,
 }
 ```
 

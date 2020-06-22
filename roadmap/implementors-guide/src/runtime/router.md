@@ -27,9 +27,9 @@ No initialization routine runs for this module.
 
 ## Routines
 
-* `queue_upward_messages(AbridgedCandidateReceipt)`:
+* `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
 
-## Finalization 
+## Finalization
 
   1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.watermark_upward_queue_size` and `config.max_upward_queue_count` limits.
