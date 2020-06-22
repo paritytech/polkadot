@@ -8,13 +8,11 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 Input:
 
-- NetworkBridgeUpdate(update)
+- [`NetworkBridgeUpdate`](../../types/overseer-protocol.md#network-bridge-update)
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`ProtocolId`)
-- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
-- NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
+- [`NetworkBridgeMessage`](../../types/overseer-protocol.md#network-bridge-message)
 
 ## Functionality
 
