@@ -10,7 +10,7 @@ log = "0.4.8"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", rev = "31c3e06ded197bdf28130ac0c5310283b2d1b5b3" }
 messages = { package = "polkadot-node-messages", path = "../messages" }
 
 [dev-dependencies]
