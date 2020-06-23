@@ -145,7 +145,7 @@ Head data is a type-safe abstraction around bytes (`Vec<u8>`) for the purposes o
 struct HeadData(Vec<u8>);
 ```
 
-## CandidateCommitments
+## Candidate Commitments
 
 The execution and validation of parachain or parathread candidates produces a number of values which either must be committed to on the relay chain or committed to the state of the relay chain.
 

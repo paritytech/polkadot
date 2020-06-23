@@ -30,7 +30,7 @@ For this, in order to avoid reaching into the internals of the [Statement Distri
 
 View updates from peers and our own view updates are received from the network bridge. These will lag somewhat behind the `StartWork` and `StopWork` messages received from the overseer, which will influence the actual data we store. The `OurViewUpdate`s from the [`NetworkBridgeEvent`](../../types/overseer-protocol.md#network-bridge-update) must be considered canonical in terms of our peers' perception of us.
 
-Lastly, the system needs to be bootstrapped with our own perception of which PoVs we are cognizant of but awaiting data for. This is done by receipt of the [`PoVDistributionMessage`](../../types/overseer-protocolhtml#pov-distribution-message)::ValidatorStatement variant. We can ignore anything except for `Seconded` statements.
+Lastly, the system needs to be bootstrapped with our own perception of which PoVs we are cognizant of but awaiting data for. This is done by receipt of the [`PoVDistributionMessage`](../../types/overseer-protocol.md#pov-distribution-message)::ValidatorStatement variant. We can ignore anything except for `Seconded` statements.
 
 ## Formal Description
 
@@ -118,4 +118,3 @@ Here is the logic of the state machine:
 	- Remove all entries under `peer.awaited` that are not within `view`.
 - On `OurViewChange(view)`
 	- Update `our_view` to `view`
-
