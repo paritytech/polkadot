@@ -673,7 +673,7 @@ mod tests {
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
+			CandidateReceipt, HeadData, ValidityAttestation, CompactStatement as Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
 		Balance, BlockNumber, Header, Signature,
@@ -723,6 +723,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 	impl system::Trait for Test {
+		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
@@ -1134,7 +1135,7 @@ mod tests {
 	#[test]
 	fn swap_chain_and_thread_works() {
 		new_test_ext(vec![]).execute_with(|| {
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 1));
 
 			// Need to trigger on_initialize
 			run_to_block(2);
@@ -1147,7 +1148,7 @@ mod tests {
 			));
 
 			// Lease out a new parachain
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(1), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1213,7 +1214,7 @@ mod tests {
 	#[test]
 	fn swap_handles_funds_correctly() {
 		new_test_ext(vec![]).execute_with(|| {
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 1));
 
 			// Need to trigger on_initialize
 			run_to_block(2);
@@ -1229,7 +1230,7 @@ mod tests {
 			));
 
 			// User 2 leases out a new parachain
-			assert_ok!(Slots::new_auction(Origin::ROOT, 5, 1));
+			assert_ok!(Slots::new_auction(Origin::root(), 5, 1));
 			assert_ok!(Slots::bid(Origin::signed(2), 0, 1, 1, 4, 1));
 
 			run_to_block(9);
@@ -1270,7 +1271,7 @@ mod tests {
 
 			// Register a new parachain
 			assert_ok!(Registrar::register_para(
-				Origin::ROOT,
+				Origin::root(),
 				2u32.into(),
 				ParaInfo { scheduling: Scheduling::Always },
 				vec![2; 3].into(),
@@ -1303,7 +1304,7 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(&ParaId::from(2u32)), Some(vec![2; 3].into()));
 			assert_eq!(Parachains::parachain_code(&user_id(0)), Some(vec![3; 3].into()));
 
-			assert_ok!(Registrar::deregister_para(Origin::ROOT, 2u32.into()));
+			assert_ok!(Registrar::deregister_para(Origin::root(), 2u32.into()));
 			assert_ok!(Registrar::deregister_parathread(
 				parachains::Origin::Parachain(user_id(0)).into()
 			));
@@ -1324,7 +1325,7 @@ mod tests {
 	#[test]
 	fn parathread_scheduling_works() {
 		new_test_ext(vec![]).execute_with(|| {
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 1));
 
 			run_to_block(2);
 
@@ -1345,7 +1346,7 @@ mod tests {
 			assert_eq!(Registrar::active_paras(), vec![
 				(user_id(0), Some((col.clone(), Retriable::WithRetries(0))))
 			]);
-			assert_ok!(Parachains::set_heads(Origin::NONE, vec![
+			assert_ok!(Parachains::set_heads(Origin::none(), vec![
 				attest(user_id(0), &Sr25519Keyring::One.pair().into(), &[3; 3], &[0; 0])
 			]));
 
@@ -1358,7 +1359,7 @@ mod tests {
 	#[test]
 	fn removing_scheduled_parathread_works() {
 		new_test_ext(vec![]).execute_with(|| {
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 1));
 
 			run_to_block(2);
 
@@ -1401,7 +1402,7 @@ mod tests {
 	#[test]
 	fn parathread_rescheduling_works() {
 		new_test_ext(vec![]).execute_with(|| {
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 1));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 1));
 
 			run_to_block(2);
 
@@ -1429,7 +1430,7 @@ mod tests {
 			assert_eq!(Registrar::active_paras(), vec![]);
 
 			// schedule and miss all 3 and check that they go through the queueing system ok.
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 2));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 2));
 			schedule_thread(user_id(0), &[3; 3], &col);
 			schedule_thread(user_id(1), &[4; 3], &col);
 
@@ -1499,7 +1500,7 @@ mod tests {
 			let info = &DispatchInfo::default();
 
 			// Allow for threads
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 10));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 10));
 
 			// Bad parathread id
 			let col = CollatorId::default();
@@ -1552,7 +1553,7 @@ mod tests {
 			}
 
 			// Only 3 slots available... who will win??
-			assert_ok!(Registrar::set_thread_count(Origin::ROOT, 3));
+			assert_ok!(Registrar::set_thread_count(Origin::root(), 3));
 
 			// Everyone wants a thread
 			for x in 0..5 {

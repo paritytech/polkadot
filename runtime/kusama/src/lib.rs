@@ -27,15 +27,16 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
 };
-use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment, ToAuthor},
+use runtime_common::{
+	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, TransactionCallFilter,
+	MaximumExtrinsicWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, Perquintill, PerThing,
+	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	curve::PiecewiseLinear,
 	traits::{
@@ -85,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2008,
+	spec_version: 2012,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -110,8 +111,6 @@ impl Filter<Call> for BaseFilter {
 		!matches!(call, Call::Slots(_) | Call::Registrar(_))
 	}
 }
-pub struct IsCallable;
-frame_support::impl_filter_stack!(IsCallable, BaseFilter, Call, is_callable);
 
 type MoreThanHalfCouncil = EnsureOneOf<
 	AccountId,
@@ -124,6 +123,7 @@ parameter_types! {
 }
 
 impl system::Trait for Runtime {
+	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -202,22 +202,14 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
-
-// for a sane configuration, this should always be less than `AvailableBlockRatio`.
-const_assert!(
-	TargetBlockFullness::get().deconstruct() <
-	(AvailableBlockRatio::get().deconstruct() as <Perquintill as PerThing>::Inner)
-		* (<Perquintill as PerThing>::ACCURACY / <Perbill as PerThing>::ACCURACY as <Perquintill as PerThing>::Inner)
-);
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = DealWithFees;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
+	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
 parameter_types! {
@@ -613,7 +605,6 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
-			TransactionCallFilter::<IsCallable, Call>::new(),
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
@@ -716,7 +707,6 @@ impl identity::Trait for Runtime {
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -734,7 +724,6 @@ impl multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type IsCallable = IsCallable;
 }
 
 parameter_types! {
@@ -814,9 +803,50 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Vesting(vesting::Call::vested_transfer(..))
-					| Call::Indices(indices::Call::transfer(..))
+			ProxyType::NonTransfer => matches!(c,
+				Call::System(..) |
+				Call::Babe(..) |
+				Call::Timestamp(..) |
+				Call::Indices(indices::Call::claim(..)) |
+				Call::Indices(indices::Call::free(..)) |
+				Call::Indices(indices::Call::freeze(..)) |
+				// Specifically omitting Indices `transfer`, `force_transfer`
+				// Specifically omitting the entire Balances pallet
+				Call::Authorship(..) |
+				Call::Staking(..) |
+				Call::Offences(..) |
+				Call::Session(..) |
+				Call::FinalityTracker(..) |
+				Call::Grandpa(..) |
+				Call::ImOnline(..) |
+				Call::AuthorityDiscovery(..) |
+				Call::Democracy(..) |
+				Call::Council(..) |
+				Call::TechnicalCommittee(..) |
+				Call::ElectionsPhragmen(..) |
+				Call::TechnicalMembership(..) |
+				Call::Treasury(..) |
+				Call::Claims(..) |
+				Call::Parachains(..) |
+				Call::Attestations(..) |
+				Call::Slots(..) |
+				Call::Registrar(..) |
+				Call::Utility(..) |
+				Call::Identity(..) |
+				Call::Society(..) |
+				Call::Recovery(recovery::Call::as_recovered(..)) |
+				Call::Recovery(recovery::Call::vouch_recovery(..)) |
+				Call::Recovery(recovery::Call::claim_recovery(..)) |
+				Call::Recovery(recovery::Call::close_recovery(..)) |
+				Call::Recovery(recovery::Call::remove_recovery(..)) |
+				Call::Recovery(recovery::Call::cancel_recovered(..)) |
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
+				Call::Vesting(vesting::Call::vest(..)) |
+				Call::Vesting(vesting::Call::vest_other(..)) |
+				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
+				Call::Scheduler(..) |
+				Call::Proxy(..) |
+				Call::Multisig(..)
 			),
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
@@ -845,7 +875,6 @@ impl proxy::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
-	type IsCallable = IsCallable;
 	type ProxyType = ProxyType;
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
@@ -937,7 +966,6 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	TransactionCallFilter<IsCallable, Call>,
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,

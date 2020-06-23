@@ -41,7 +41,7 @@ use primitives::{
 	Balance,
 	BlockNumber,
 	parachain::{
-		Id as ParaId, Chain, DutyRoster, AttestedCandidate, Statement, ParachainDispatchOrigin,
+		Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
 		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
@@ -1698,6 +1698,7 @@ mod tests {
 	}
 
 	impl system::Trait for Test {
+		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
@@ -2231,7 +2232,7 @@ mod tests {
 			if System::block_number() > 1 {
 				println!("Finalizing {}", System::block_number());
 				if !DidUpdate::get().is_some() {
-					Parachains::set_heads(Origin::NONE, vec![]).unwrap();
+					Parachains::set_heads(Origin::none(), vec![]).unwrap();
 				}
 
 				Parachains::on_finalize(System::block_number());
@@ -2512,10 +2513,7 @@ mod tests {
 			];
 			candidates.iter_mut().for_each(make_attestations);
 
-			assert_ok!(Parachains::dispatch(
-				set_heads(candidates),
-				Origin::NONE,
-			));
+			assert_ok!(Call::from(set_heads(candidates)).dispatch(Origin::none()));
 
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert!(<RelayDispatchQueue>::get(ParaId::from(1)).is_empty());
@@ -2552,21 +2550,21 @@ mod tests {
 			assert_eq!(Parachains::parachain_code(ParaId::from(100u32)), Some(vec![4,5,6].into()));
 
 			assert_ok!(Registrar::register_para(
-				Origin::ROOT,
+				Origin::root(),
 				99u32.into(),
 				ParaInfo{scheduling: Scheduling::Always},
 				vec![7,8,9].into(),
 				vec![1, 1, 1].into(),
 			));
-			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
+			assert_ok!(Parachains::set_heads(Origin::none(), vec![]));
 
 			run_to_block(3);
 
 			assert_eq!(Parachains::active_parachains(), vec![(5u32.into(), None), (99u32.into(), None), (100u32.into(), None)]);
 			assert_eq!(Parachains::parachain_code(&ParaId::from(99u32)), Some(vec![7,8,9].into()));
 
-			assert_ok!(Registrar::deregister_para(Origin::ROOT, 5u32.into()));
-			assert_ok!(Parachains::set_heads(Origin::NONE, vec![]));
+			assert_ok!(Registrar::deregister_para(Origin::root(), 5u32.into()));
+			assert_ok!(Parachains::set_heads(Origin::none(), vec![]));
 
 			// parachain still active this block. another block must pass before it's inactive.
 			run_to_block(4);
@@ -2622,7 +2620,7 @@ mod tests {
 		new_test_ext(parachains.clone()).execute_with(|| {
 			run_to_block(2);
 			let candidate = make_blank_attested(raw_candidate(0.into()));
-			assert!(Parachains::dispatch(set_heads(vec![candidate]), Origin::NONE).is_err());
+			assert!(Call::from(set_heads(vec![candidate])).dispatch(Origin::none()).is_err());
 		})
 	}
 
@@ -2643,15 +2641,11 @@ mod tests {
 			make_attestations(&mut candidate_a);
 			make_attestations(&mut candidate_b);
 
-			assert!(Parachains::dispatch(
-				set_heads(vec![candidate_b.clone(), candidate_a.clone()]),
-				Origin::NONE,
-			).is_err());
+			assert!(Call::from(set_heads(vec![candidate_b.clone(), candidate_a.clone()]))
+				.dispatch(Origin::none()).is_err());
 
-			assert_ok!(Parachains::dispatch(
-				set_heads(vec![candidate_a.clone(), candidate_b.clone()]),
-				Origin::NONE,
-			));
+			assert_ok!(Call::from(set_heads(vec![candidate_a.clone(), candidate_b.clone()]))
+				.dispatch(Origin::none()));
 
 			assert_eq!(Heads::get(&ParaId::from(0)), Some(candidate_a.candidate.head_data));
 			assert_eq!(Heads::get(&ParaId::from(1)), Some(candidate_b.candidate.head_data));
@@ -2675,10 +2669,7 @@ mod tests {
 			double_validity.validity_votes.push(candidate.validity_votes[0].clone());
 			double_validity.validator_indices.push(true);
 
-			assert!(Parachains::dispatch(
-				set_heads(vec![double_validity]),
-				Origin::NONE,
-			).is_err());
+			assert!(Call::from(set_heads(vec![double_validity])).dispatch(Origin::none()).is_err());
 		});
 	}
 
@@ -2699,10 +2690,7 @@ mod tests {
 			assert!(candidate.validator_indices.pop().is_some());
 			candidate.validator_indices.append(&mut bitvec![0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]);
 
-			assert!(Parachains::dispatch(
-				set_heads(vec![candidate]),
-				Origin::NONE,
-			).is_err());
+			assert!(Call::from(set_heads(vec![candidate])).dispatch(Origin::none()).is_err());
 		});
 	}
 
@@ -2863,10 +2851,7 @@ mod tests {
 				assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert!(Parachains::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(Parachains::code_upgrade_schedule(&para_id), Some(applied_after));
@@ -2887,10 +2872,7 @@ mod tests {
 
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert!(Parachains::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(Parachains::code_upgrade_schedule(&para_id), Some(applied_after));
@@ -2909,10 +2891,7 @@ mod tests {
 
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert_eq!(
 					Parachains::past_code_meta(&para_id).most_recent_change(),
@@ -2954,10 +2933,7 @@ mod tests {
 				assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert!(Parachains::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(Parachains::code_upgrade_schedule(&para_id), Some(applied_after));
@@ -2976,10 +2952,7 @@ mod tests {
 
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert_eq!(
 					Parachains::past_code_meta(&para_id).most_recent_change(),
@@ -3016,10 +2989,7 @@ mod tests {
 
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 			};
 
 			run_to_block(3);
@@ -3033,10 +3003,7 @@ mod tests {
 				make_attestations(&mut candidate_a);
 
 				assert_err!(
-					Parachains::dispatch(
-						set_heads(vec![candidate_a.clone()]),
-						Origin::NONE,
-					),
+					Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()),
 					Error::<Test>::DisallowedCodeUpgrade,
 				);
 			}
@@ -3065,10 +3032,7 @@ mod tests {
 				assert_eq!(applied_after, 1 + ValidationUpgradeDelay::get());
 				make_attestations(&mut candidate_a);
 
-				assert_ok!(Parachains::dispatch(
-					set_heads(vec![candidate_a.clone()]),
-					Origin::NONE,
-				));
+				assert_ok!(Call::from(set_heads(vec![candidate_a.clone()])).dispatch(Origin::none()));
 
 				assert!(Parachains::past_code_meta(&para_id).most_recent_change().is_none());
 				assert_eq!(Parachains::code_upgrade_schedule(&para_id), Some(applied_after));
@@ -3166,7 +3130,7 @@ mod tests {
 
 			let inner = report_double_vote(report).unwrap();
 
-			assert_ok!(Parachains::dispatch(inner, Origin::signed(1)));
+			assert_ok!(Call::from(inner).dispatch(Origin::signed(1)));
 
 			start_era(2);
 
@@ -3259,10 +3223,7 @@ mod tests {
 				signing_context,
 			};
 
-			assert_ok!(Parachains::dispatch(
-				report_double_vote(report).unwrap(),
-				Origin::signed(1),
-			));
+			assert_ok!(Call::from(report_double_vote(report).unwrap()).dispatch(Origin::signed(1)));
 
 			start_era(2);
 
@@ -3356,10 +3317,7 @@ mod tests {
 				signing_context,
 			};
 
-			assert_ok!(Parachains::dispatch(
-				report_double_vote(report).unwrap(),
-				Origin::signed(1),
-			));
+			assert_ok!(Call::from(report_double_vote(report).unwrap()).dispatch(Origin::signed(1)));
 
 			start_era(2);
 
@@ -3456,15 +3414,9 @@ mod tests {
 				signing_context,
 			};
 
-			assert_ok!(Parachains::dispatch(
-				report_double_vote(report.clone()).unwrap(),
-				Origin::signed(1),
-			));
+			assert_ok!(Call::from(report_double_vote(report.clone()).unwrap()).dispatch(Origin::signed(1)));
 
-			assert!(Parachains::dispatch(
-					report_double_vote(report).unwrap(),
-					Origin::signed(1),
-				).is_err()
+			assert!(Call::from(report_double_vote(report).unwrap()).dispatch(Origin::signed(1)).is_err()
 			);
 
 			start_era(2);

@@ -27,7 +27,7 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
-use crate::{configuration::{self, HostConfiguration}, paras, scheduler};
+use crate::{configuration::{self, HostConfiguration}, paras, scheduler, inclusion};
 
 /// Information about a session change that has just occurred.
 #[derive(Default, Clone)]
@@ -42,9 +42,13 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub new_config: HostConfiguration<BlockNumber>,
 	/// A secure random seed for the session, gathered from BABE.
 	pub random_seed: [u8; 32],
+	/// New session index.
+	pub session_index: sp_staking::SessionIndex,
 }
 
-pub trait Trait: system::Trait + configuration::Trait + paras::Trait + scheduler::Trait {
+pub trait Trait:
+	system::Trait + configuration::Trait + paras::Trait + scheduler::Trait + inclusion::Trait
+{
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
 }
@@ -81,7 +85,8 @@ decl_module! {
 			// - Validity
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
-				scheduler::Module::<T>::initializer_initialize(now);
+				scheduler::Module::<T>::initializer_initialize(now) +
+				inclusion::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -91,6 +96,7 @@ decl_module! {
 		fn on_finalize() {
 			// reverse initialization order.
 
+			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
 			configuration::Module::<T>::initializer_finalize();
@@ -101,16 +107,25 @@ decl_module! {
 
 impl<T: Trait> Module<T> {
 	/// Should be called when a new session occurs. Forwards the session notification to all
-	/// wrapped modules.
+	/// wrapped modules. If `queued` is `None`, the `validators` are considered queued.
 	///
 	/// Panics if the modules have already been initialized.
-	fn on_new_session<'a, I: 'a>(_changed: bool, validators: I, queued: I)
+	fn on_new_session<'a, I: 'a>(
+		_changed: bool,
+		session_index: sp_staking::SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	)
 		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
 	{
 		assert!(HasInitialized::get().is_none());
 
 		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
-		let queued: Vec<_> = queued.map(|(_, v)| v).collect();
+		let queued: Vec<_> = if let Some(queued) = queued {
+			queued.map(|(_, v)| v).collect()
+		} else {
+			validators.clone()
+		};
 
 		let prev_config = <configuration::Module<T>>::config();
 
@@ -134,10 +149,12 @@ impl<T: Trait> Module<T> {
 			prev_config,
 			new_config,
 			random_seed,
+			session_index,
 		};
 
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
+		inclusion::Module::<T>::initializer_on_new_session(&notification);
 	}
 }
 
@@ -145,7 +162,7 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: session::Trait + Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
@@ -157,7 +174,8 @@ impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		<Module<T>>::on_new_session(changed, validators, queued);
+		let session_index = <session::Module<T>>::current_index();
+		<Module<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 
 	fn on_disabled(_i: usize) { }
@@ -175,7 +193,12 @@ mod tests {
 	fn panics_if_session_changes_after_on_initialize() {
 		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
-			Initializer::on_new_session(false, Vec::new().into_iter(), Vec::new().into_iter());
+			Initializer::on_new_session(
+				false,
+				1,
+				Vec::new().into_iter(),
+				Some(Vec::new().into_iter()),
+			);
 		});
 	}
 
