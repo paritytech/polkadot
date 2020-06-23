@@ -52,6 +52,7 @@ use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use sc_client_api::execution_extensions::ExecutionStrategies;
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -145,7 +146,13 @@ pub fn node_config<P: AsRef<Path>>(
 		pruning: Default::default(),
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
-		execution_strategies: Default::default(),
+		execution_strategies: ExecutionStrategies {
+			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+		},
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ws_max_connections: None,
