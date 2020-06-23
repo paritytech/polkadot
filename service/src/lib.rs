@@ -386,7 +386,7 @@ macro_rules! new_full {
 				max_block_data_size,
 			}.build();
 
-			task_manager.spawn_essential_handle().spawn_blocking("validation-service", Box::pin(validation_service));
+			task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));
 
 			handles.validation_service_handle = Some(validation_service_handle.clone());
 
