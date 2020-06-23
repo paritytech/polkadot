@@ -607,7 +607,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Parachains(..) |
 				Call::Attestations(..) |
 				Call::Registrar(..) |
-				Call::Utility(..) |
+				Call::Utility(utility::Call::batch(..)) |
+				Call::Utility(utility::Call::as_limited_sub(..)) |
+				// Specifically omitting Utility `as_sub`
 				Call::Identity(..) |
 				Call::Recovery(recovery::Call::as_recovered(..)) |
 				Call::Recovery(recovery::Call::vouch_recovery(..)) |

@@ -816,7 +816,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Vesting(vesting::Call::vest(..)) |
 				Call::Vesting(vesting::Call::vest_other(..)) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-				Call::Utility(..) |
+				Call::Utility(utility::Call::batch(..)) |
+				Call::Utility(utility::Call::as_limited_sub(..)) |
+				// Specifically omitting Utility `as_sub`
 				// Specifically omitting Sudo pallet
 				Call::Identity(..) |
 				Call::Proxy(..) |
