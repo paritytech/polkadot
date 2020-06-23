@@ -50,7 +50,9 @@ This release was built with the following versions of \`rustc\`. Other versions 
 - $nightly_rustc
 "
 
-runtime_changes=""
+declare -a misc_changes
+declare -a runtime_changes
+declare -a client_changes
 
 # Following variables are for tracking the priority of the release (i.e.,
 # how important it is for the user to upgrade).
@@ -72,7 +74,9 @@ declare -A priority_descriptions=(
 ['C9-critical']="Upgrade priority: ❗❗ **URGENT** ❗❗ PLEASE UPGRADE IMMEDIATELY"
 )
 
-max_label=-1
+# We don't actually take any action on C1-low, so we can start at medium
+# But set C1-low as the default
+max_label=1
 priority="${priority_descriptions['C1-low']}"
 declare -a priority_changes
 
@@ -93,6 +97,7 @@ while IFS= read -r line; do
       prev_label="$max_label"
       max_label="$index"
       priority="${priority_descriptions[$cur_label]}"
+
       # If it's not an increase in priority, we just append the PR to the list
       if [ "$prev_label" == "$max_label" ]; then
         priority_changes+=("${line/\* /}")
@@ -101,6 +106,12 @@ while IFS= read -r line; do
       if [ "$prev_label" != "$max_label" ]; then
         priority_changes=("${line/\* /}")
       fi
+
+      # Append priority to change
+      # Skip first 3 chars
+      note=${cur_label:3}
+      # And capitalise
+      line=" \`${note^}\` $line"
     fi
   done
 
@@ -111,25 +122,15 @@ while IFS= read -r line; do
 
   # If the PR has a runtimenoteworthy label, add to the runtime_changes section
   if has_label 'paritytech/polkadot' "$pr_id" 'B2-runtimenoteworthy'; then
-    runtime_changes="$runtime_changes
-$line"
+    runtime_changes+=("$line")
   fi
   # If the PR has a releasenotes label, add to the release section
   if has_label 'paritytech/polkadot' "$pr_id" 'B1-releasenotes'; then
-    release_text="$release_text
-$line"
+    misc_changes+=("$line")
   fi
 done <<< "$(sanitised_git_logs "$last_version" "$version" | \
   sed '/^\[contracts\].*/d' | \
   sed '/^contracts:.*/d' )"
-
-if [ -n "$runtime_changes" ]; then
-    release_text="$release_text
-
-## Runtime
-$runtime_changes"
-fi
-echo "$release_text"
 
 # Get substrate changes between last polkadot version and current
 # By grepping the Cargo.lock for a substrate crate, and grepping out the commit hash
@@ -140,10 +141,6 @@ pushd $substrate_dir || exit
   git checkout master > /dev/null
   git pull > /dev/null
   all_substrate_changes="$(sanitised_git_logs "$old_substrate_commit" "$cur_substrate_commit" | sed 's/(#/(paritytech\/substrate#/')"
-  substrate_runtime_changes=""
-  substrate_api_changes=""
-  substrate_client_changes=""
-  substrate_changes=""
 
   echo "[+] Iterating through substrate changes to find labelled PRs"
   while IFS= read -r line; do
@@ -159,6 +156,7 @@ pushd $substrate_dir || exit
         prev_label="$max_label"
         max_label="$index"
         priority="${priority_descriptions[$cur_label]}"
+
         # If it's not an increase in priority, we just append
         if [ "$prev_label" == "$max_label" ]; then
           priority_changes+=("${line/\* /}")
@@ -167,6 +165,12 @@ pushd $substrate_dir || exit
         if [ "$prev_label" != "$max_label" ]; then
           priority_changes=("${line/\* /}")
         fi
+
+        # Append priority to change
+        # Skip first 3 chars
+        note=${cur_label:3}
+        # And capitalise
+        line=" \`${note^}\` $line"
       fi
     done
 
@@ -174,55 +178,17 @@ pushd $substrate_dir || exit
     if has_label 'paritytech/substrate' "$pr_id" 'B0-silent'; then
       continue
     fi
-    if has_label 'paritytech/substrate' "$pr_id" 'B3-apinoteworthy' ; then
-      substrate_api_changes="$substrate_api_changes
-$line"
-      continue
-    fi
     if has_label 'paritytech/substrate' "$pr_id" 'B5-clientnoteworthy'; then
-      substrate_client_changes="$substrate_client_changes
-$line"
+      client_changes+=("$line")
     fi
     if has_label 'paritytech/substrate' "$pr_id" 'B7-runtimenoteworthy'; then
-      substrate_runtime_changes="$substrate_runtime_changes
-$line"
+      runtime_changes+=("$line")
     fi
   done <<< "$all_substrate_changes"
 popd || exit
 
-# Make the substrate section if there are any substrate changes
-if [ -n "$substrate_runtime_changes" ] ||
-   [ -n "$substrate_api_changes" ] ||
-   [ -n "$substrate_client_changes" ]; then
-  substrate_changes=$(cat << EOF
-# Substrate changes
 
-EOF
-)
-  if [ -n "$substrate_runtime_changes" ]; then
-    substrate_changes="$substrate_changes
-
-## Runtime
-$substrate_runtime_changes"
-  fi
-  if [ -n "$substrate_client_changes" ]; then
-    substrate_changes="$substrate_changes
-
-## Client
-$substrate_client_changes"
-  fi
-  if [ -n "$substrate_api_changes" ]; then
-    substrate_changes="$substrate_changes
-
-## API
-$substrate_api_changes"
-  fi
-  release_text="$release_text
-
-$substrate_changes"
-fi
-
-# Finally, add the priorities to the *start* of the release notes
+# Add the priorities to the *start* of the release notes
 # If polkadot and substrate priority = low, no need for list of changes
 if [ "$priority" == "${priority_descriptions['C1-low']}" ]; then
   release_text="$priority
@@ -232,6 +198,29 @@ else
   release_text="$priority - due to change(s): *${priority_changes[*]}*
 
 $release_text"
+fi
+
+# Append all notable changes to the release notes
+
+if [ "${#misc_changes[*]}" -gt 0 ] ; then
+  release_text="$release_text
+
+## Changes
+$(printf '* %s\n' "${misc_changes[@]}")"
+fi
+
+if [ "${#client_changes[*]}" -gt 0 ] ; then
+  release_text="$release_text
+
+## Client
+$(printf '* %s\n' "${client_changes[@]}")"
+fi
+
+if [ "${#runtime_changes[*]}" -gt 0 ] ; then
+  release_text="$release_text
+
+## Runtime
+$(printf '* %s\n' "${runtime_changes[@]}")"
 fi
 
 echo "[+] Release text generated: "

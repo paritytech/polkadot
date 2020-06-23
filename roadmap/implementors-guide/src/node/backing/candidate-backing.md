@@ -12,7 +12,7 @@ Once a sufficient quorum has agreed that a candidate is valid, this subsystem no
 
 The [Candidate Selection subsystem](candidate-selection.md) is the primary source of non-overseer messages into this subsystem. That subsystem generates appropriate [`CandidateBackingMessage`s](../../types/overseer-protocol.md#candidate-backing-message), and passes them to this subsystem.
 
-This subsystem validates the candidates and generates an appropriate [`Statement`](../../types/backing.md#statement-type). All `Statement`s are then passed on to the [Statement Distribution subsystem](statement-distribution.md) to be gossiped to peers. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
+This subsystem validates the candidates and generates an appropriate [`SignedStatement`](../../types/backing.md#signed-statement-type). All `SignedStatement`s are then passed on to the [Statement Distribution subsystem](statement-distribution.md) to be gossiped to peers. All [Proofs of Validity](../../types/availability.md#proof-of-validity) should be distributed via the [PoV Distribution](pov-distribution.md) subsystem. When this subsystem decides that a candidate is invalid, and it was recommended to us to second by our own Candidate Selection subsystem, a message is sent to the Candidate Selection subsystem with the candidate's hash so that the collator which recommended it can be penalized.
 
 ## Functionality
 
