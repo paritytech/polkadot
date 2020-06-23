@@ -501,14 +501,14 @@ mod tests {
 		}
 	}
 
-	// Make sure that the future returned by `start_collator` implementes `Send`.
+	// Make sure that the future returned by `start_collator` implements `Send`.
 	#[test]
 	fn start_collator_is_send() {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = Arc::new(|_, _| unimplemented!());
-		let config = cli.create_configuration(&cli.run.base, task_executor).unwrap();
+		let task_executor = |_, _| unimplemented!();
+		let config = cli.create_configuration(&cli.run.base, task_executor.into()).unwrap();
 
 		check_send(start_collator(
 			BuildDummyParachainContext,
