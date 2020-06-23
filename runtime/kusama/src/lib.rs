@@ -800,9 +800,50 @@ impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
 		match self {
 			ProxyType::Any => true,
-			ProxyType::NonTransfer => !matches!(c,
-				Call::Balances(..) | Call::Vesting(vesting::Call::vested_transfer(..))
-					| Call::Indices(indices::Call::transfer(..))
+			ProxyType::NonTransfer => matches!(c,
+				Call::System(..) |
+				Call::Babe(..) |
+				Call::Timestamp(..) |
+				Call::Indices(indices::Call::claim(..)) |
+				Call::Indices(indices::Call::free(..)) |
+				Call::Indices(indices::Call::freeze(..)) |
+				// Specifically omitting Indices `transfer`, `force_transfer`
+				// Specifically omitting the entire Balances pallet
+				Call::Authorship(..) |
+				Call::Staking(..) |
+				Call::Offences(..) |
+				Call::Session(..) |
+				Call::FinalityTracker(..) |
+				Call::Grandpa(..) |
+				Call::ImOnline(..) |
+				Call::AuthorityDiscovery(..) |
+				Call::Democracy(..) |
+				Call::Council(..) |
+				Call::TechnicalCommittee(..) |
+				Call::ElectionsPhragmen(..) |
+				Call::TechnicalMembership(..) |
+				Call::Treasury(..) |
+				Call::Claims(..) |
+				Call::Parachains(..) |
+				Call::Attestations(..) |
+				Call::Slots(..) |
+				Call::Registrar(..) |
+				Call::Utility(..) |
+				Call::Identity(..) |
+				Call::Society(..) |
+				Call::Recovery(recovery::Call::as_recovered(..)) |
+				Call::Recovery(recovery::Call::vouch_recovery(..)) |
+				Call::Recovery(recovery::Call::claim_recovery(..)) |
+				Call::Recovery(recovery::Call::close_recovery(..)) |
+				Call::Recovery(recovery::Call::remove_recovery(..)) |
+				Call::Recovery(recovery::Call::cancel_recovered(..)) |
+				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
+				Call::Vesting(vesting::Call::vest(..)) |
+				Call::Vesting(vesting::Call::vest_other(..)) |
+				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
+				Call::Scheduler(..) |
+				Call::Proxy(..) |
+				Call::Multisig(..)
 			),
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
