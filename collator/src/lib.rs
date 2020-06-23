@@ -390,7 +390,7 @@ where
 	}
 
 	if config.chain_spec.is_kusama() {
-		let (components, client, handlers) = service::kusama_new_full(
+		let (task_manager, client, handlers) = service::kusama_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -399,7 +399,7 @@ where
 			None,
 			informant_prefix,
 		)?;
-		let spawn_handle = components.task_manager.spawn_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handlers,
@@ -409,7 +409,7 @@ where
 			build_parachain_context
 		)?.await;
 	} else if config.chain_spec.is_westend() {
-		let (components, client, handlers) = service::westend_new_full(
+		let (task_manager, client, handlers) = service::westend_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -418,7 +418,7 @@ where
 			None,
 			informant_prefix,
 		)?;
-		let spawn_handle = components.task_manager.spawn_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handlers,
@@ -428,7 +428,7 @@ where
 			build_parachain_context
 		)?.await;
 	} else {
-		let (components, client, handles) = service::polkadot_new_full(
+		let (task_manager, client, handles) = service::polkadot_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -437,7 +437,7 @@ where
 			None,
 			informant_prefix,
 		)?;
-		let spawn_handle = components.task_manager.spawn_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handles,

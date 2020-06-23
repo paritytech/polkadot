@@ -32,7 +32,7 @@ use log::info;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand, ServiceComponents, KeepAliveServiceComponents,
+	Configuration, ChainSpec, ServiceBuilderCommand, ServiceComponents, TaskManager,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -302,7 +302,7 @@ macro_rules! new_full {
 
 		let ServiceComponents {
 			client, network, select_chain, keystore, transaction_pool, prometheus_registry,
-			task_manager, telemetry_on_connect_sinks, telemetry, base_path, rpc, rpc_handlers, ..
+			task_manager, telemetry_on_connect_sinks, ..
 		} = builder
 			.with_finality_proof_provider(|client, backend| {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
@@ -539,12 +539,7 @@ macro_rules! new_full {
 		}
 
 		handles.polkadot_network = Some(polkadot_network_service);
-		(
-			KeepAliveServiceComponents {
-				task_manager, other: Box::new((telemetry, base_path, rpc, rpc_handlers))
-			},
-			client, handles
-		)
+		(task_manager, client, handles)
 	}}
 }
 
@@ -634,13 +629,8 @@ macro_rules! new_light {
 				Ok(polkadot_rpc::create_light(light_deps))
 			})?
 			.build_light()
-			.map(|ServiceComponents { task_manager, telemetry, base_path, rpc, rpc_handlers, .. }| {
-				(
-					KeepAliveServiceComponents {
-						task_manager, other: Box::new((telemetry, base_path, rpc))
-					},
-					rpc_handlers,
-				)
+			.map(|ServiceComponents { task_manager, rpc_handlers, .. }| {
+				(task_manager, rpc_handlers)
 			})
 	}}
 }
@@ -672,7 +662,7 @@ pub fn polkadot_new_full(
 	informant_prefix: Option<String>,
 )
 	-> Result<(
-		KeepAliveServiceComponents,
+		TaskManager,
 		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
@@ -707,7 +697,7 @@ pub fn kusama_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 	informant_prefix: Option<String>,
 ) -> Result<(
-		KeepAliveServiceComponents,
+		TaskManager,
 		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
@@ -744,7 +734,7 @@ pub fn westend_new_full(
 	informant_prefix: Option<String>,
 )
 	-> Result<(
-		KeepAliveServiceComponents,
+		TaskManager,
 		Arc<impl PolkadotClient<
 			Block,
 			TFullBackend<Block>,
@@ -781,7 +771,7 @@ pub struct FullNodeHandles {
 
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(mut config: Configuration) -> Result<
-	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+	(TaskManager, RpcHandlers), ServiceError
 >
 {
 	new_light!(config, polkadot_runtime::RuntimeApi, PolkadotExecutor)
@@ -789,7 +779,7 @@ pub fn polkadot_new_light(mut config: Configuration) -> Result<
 
 /// Create a new Kusama service for a light client.
 pub fn kusama_new_light(mut config: Configuration) -> Result<
-	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+	(TaskManager, RpcHandlers), ServiceError
 >
 {
 	new_light!(config, kusama_runtime::RuntimeApi, KusamaExecutor)
@@ -797,7 +787,7 @@ pub fn kusama_new_light(mut config: Configuration) -> Result<
 
 /// Create a new Westend service for a light client.
 pub fn westend_new_light(mut config: Configuration, ) -> Result<
-	(KeepAliveServiceComponents, RpcHandlers), ServiceError
+	(TaskManager, RpcHandlers), ServiceError
 >
 {
 	new_light!(config, westend_runtime::RuntimeApi, KusamaExecutor)
