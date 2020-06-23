@@ -4,7 +4,7 @@ The Runtime API subsystem is responsible for providing a single point of access 
 
 ## Protocol
 
-Input: [`RuntimeApiMessage`](../../types/overseer-protocol.html#runtime-api-message)
+Input: [`RuntimeApiMessage`](../../types/overseer-protocol.md#runtime-api-message)
 
 Output: None
 
