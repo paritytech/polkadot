@@ -28,7 +28,7 @@ use primitives::{
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
 use parking_lot::Mutex;
-use futures::future::{Ready, ready, err, TryFutureExt};
+use futures::future::{Ready, ready, TryFutureExt};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
