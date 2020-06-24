@@ -27,10 +27,8 @@ use sc_network::{
 };
 use sp_runtime::ConsensusEngineId;
 
-use messages::{
-	NetworkBridgeEvent, NetworkBridgeMessage, FromOverseer, OverseerSignal, AllMessages,
-};
-use overseer::{Subsystem, SubsystemContext, SpawnedSubsystem};
+use polkadot_subsystem::{FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem};
+use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages,};
 use node_primitives::{ProtocolId, View};
 use polkadot_primitives::{Block, Hash};
 
@@ -111,8 +109,10 @@ impl<N> NetworkBridge<N> {
 	}
 }
 
-impl<N: Network> Subsystem<NetworkBridgeMessage> for NetworkBridge<N> {
-	fn start(&mut self, ctx: SubsystemContext<NetworkBridgeMessage>) -> SpawnedSubsystem {
+impl<N: Network, C> Subsystem<C> for NetworkBridge<N>
+	where C: SubsystemContext<Message=NetworkBridgeMessage>
+{
+	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(run_network(self.0.clone(), ctx).boxed())
 	}
 }
@@ -137,7 +137,7 @@ enum Action {
 }
 
 fn action_from_overseer_message(
-	res: overseer::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
+	res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 ) -> Action {
 	match res {
 		Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)))
@@ -205,14 +205,14 @@ fn construct_view(live_heads: &[Hash]) -> View {
 async fn dispatch_update_to_all(
 	update: NetworkBridgeEvent,
 	event_producers: impl IntoIterator<Item=&fn(NetworkBridgeEvent) -> AllMessages>,
-	ctx: &mut SubsystemContext<NetworkBridgeMessage>,
-) -> overseer::SubsystemResult<()> {
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> polkadot_subsystem::SubsystemResult<()> {
 	// collect messages here to avoid the borrow lasting across await boundary.
 	let messages: Vec<_> = event_producers.into_iter()
 		.map(|producer| producer(update.clone()))
 		.collect();
 
-	ctx.send_msgs(messages).await
+	ctx.send_messages(messages).await
 }
 
 async fn update_view(
@@ -236,7 +236,7 @@ async fn update_view(
 	Some(NetworkBridgeEvent::OurViewChange(local_view.clone()))
 }
 
-async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeMessage>) {
+async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>) {
 	let mut event_stream = net.event_stream().fuse();
 
 	// Most recent heads are at the back.
@@ -389,7 +389,7 @@ async fn run_network(net: impl Network, mut ctx: SubsystemContext<NetworkBridgeM
 					}
 				}
 
-				if let Err(_) = ctx.send_msgs(outgoing_messages).await {
+				if let Err(_) = ctx.send_messages(outgoing_messages).await {
 					log::warn!("Aborting - Failure to dispatch messages to overseer");
 					return
 				}

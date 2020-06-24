@@ -4274,7 +4274,6 @@ dependencies = [
  "parking_lot 0.10.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
- "polkadot-overseer",
  "polkadot-primitives",
  "sc-network",
  "sp-runtime",
