@@ -39,3 +39,4 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "cecton
 
 [dev-dependencies]
 async-std = { version = "1.2.0", features = [ "attributes" ] }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "cecton-fix-int-test-3" }

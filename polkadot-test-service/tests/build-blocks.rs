@@ -5,6 +5,7 @@ use sp_keyring::Sr25519Keyring;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use substrate_test_client::ClientBlockImportExt;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
@@ -42,6 +43,8 @@ async fn ensure_test_service_build_blocks() {
 			vec![alice.multiaddr_with_peer_id.clone()],
 		)
 		.unwrap();
+
+		alice.client.import((), ()).unwrap(); // TODO
 
 		let t1 = future::join(alice.wait_for_blocks(3), bob.wait_for_blocks(3)).fuse();
 		let t2 = alice.service.fuse();

@@ -30,7 +30,6 @@ pub trait PolkadotClient<Block, Backend, Runtime>:
 	+ ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
 	+ HeaderBackend<Block>
 	+ BlockBuilderProvider<Backend, Block, Self>
-	+ BlockImport<Block, Error = consensus_common::Error, Transaction = TransactionFor<Backend, Block>>
 	+ CallApiAt<
 		Block,
 		Error = sp_blockchain::Error,
@@ -39,7 +38,8 @@ pub trait PolkadotClient<Block, Backend, Runtime>:
 	where
 		Block: BlockT,
 		Backend: BackendT<Block>,
-		Runtime: ConstructRuntimeApi<Block, Self>
+		Runtime: ConstructRuntimeApi<Block, Self>,
+		for<'r> &'r Self: BlockImport<Block, Error = consensus_common::Error, Transaction = TransactionFor<Backend, Block>>,
 {}
 
 impl<Block, Backend, Runtime, Client> PolkadotClient<Block, Backend, Runtime> for Client
@@ -49,11 +49,11 @@ impl<Block, Backend, Runtime, Client> PolkadotClient<Block, Backend, Runtime> fo
 		Backend: BackendT<Block>,
 		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + HeaderBackend<Block>
 			+ BlockBuilderProvider<Backend, Block, Self>
-			+ BlockImport<Block, Error = consensus_common::Error, Transaction = TransactionFor<Backend, Block>>
 			+ Sized + Send + Sync
 			+ CallApiAt<
 				Block,
 				Error = sp_blockchain::Error,
 				StateBackend = Backend ::State
-			>
+			>,
+		for<'r> &'r Client: BlockImport<Block, Error = consensus_common::Error, Transaction = TransactionFor<Backend, Block>>,
 {}
