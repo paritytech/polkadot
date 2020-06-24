@@ -149,7 +149,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
 macro_rules! new_full_start {
-	($config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
+	($config:expr, $runtime:ty, $executor:ty) => {{
 		set_prometheus_registry(&mut $config)?;
 
 		let mut import_setup = None;
@@ -158,7 +158,6 @@ macro_rules! new_full_start {
 		let builder = service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
 		>($config)?
-			.with_informant_prefix($informant_prefix.unwrap_or_default())?
 			.with_select_chain(|_, backend| {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
@@ -276,7 +275,6 @@ macro_rules! new_full {
 		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
-		$informant_prefix:expr $(,)?
 	) => {{
 		use sc_network::Event;
 		use sc_client_api::ExecutorProvider;
@@ -298,7 +296,7 @@ macro_rules! new_full {
 		let slot_duration = $slot_duration;
 
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
-			new_full_start!($config, $runtime, $dispatch, $informant_prefix);
+			new_full_start!($config, $runtime, $dispatch);
 
 		let service = builder
 			.with_finality_proof_provider(|client, backend| {
@@ -649,7 +647,7 @@ where
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch, None).0)
+	Ok(new_full_start!(config, Runtime, Dispatch).0)
 }
 
 /// Create a new Polkadot service for a full node.
@@ -661,7 +659,6 @@ pub fn polkadot_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -682,7 +679,6 @@ pub fn polkadot_new_full(
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
 		PolkadotExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -697,7 +693,6 @@ pub fn kusama_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 ) -> Result<(
 		impl AbstractService,
 		Arc<impl PolkadotClient<
@@ -718,7 +713,6 @@ pub fn kusama_new_full(
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
 		KusamaExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -733,7 +727,6 @@ pub fn westend_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -754,7 +747,6 @@ pub fn westend_new_full(
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
