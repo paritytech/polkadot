@@ -395,9 +395,10 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use polkadot_overseer::{
-	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     CandidateValidationMessage, CandidateBackingMessage,
+	/// # use polkadot_overseer::Overseer;
+	/// # use polkadot_subsystem::{
+	/// #     Subsystem, SpawnedSubsystem, SubsystemContext,
+	/// #     messages::{CandidateValidationMessage, CandidateBackingMessage},
 	/// # };
 	///
 	/// struct ValidationSubsystem;
