@@ -211,6 +211,8 @@ Other subsystems query this data by sending these messages.
 enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(ResponseChannel<Vec<ValidatorId>>),
+	/// Get the assignments of validators to parachains.
+	DutyRoster(ResponseChannel<DutyRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(ResponseChannel<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and
