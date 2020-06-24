@@ -18,11 +18,11 @@ Here is a description of the Inclusion Pipeline: the path a parachain block (or 
 
 1. Validators are selected and assigned to parachains by the Validator Assignment routine.
 1. A collator produces the parachain block, which is known as a parachain candidate or candidate, along with a PoV for the candidate.
-1. The collator forwards the candidate and PoV to validators assigned to the same parachain via the [Collation Distribution subsystem](node/collators/collation-distribution.html).
-1. The validators assigned to a parachain at a given point in time participate in the [Candidate Backing subsystem](node/backing/candidate-backing.html) to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backable". Their backing is the set of signed validity statements.
+1. The collator forwards the candidate and PoV to validators assigned to the same parachain via the [Collation Distribution subsystem](node/collators/collation-distribution.md).
+1. The validators assigned to a parachain at a given point in time participate in the [Candidate Backing subsystem](node/backing/candidate-backing.md) to validate candidates that were put forward for validation. Candidates which gather enough signed validity statements from validators are considered "backable". Their backing is the set of signed validity statements.
 1. A relay-chain block author, selected by BABE, can note up to one (1) backable candidate for each parachain to include in the relay-chain block alongside its backing. A backable candidate once included in the relay-chain is considered backed in that fork of the relay-chain.
 1. Once backed in the relay-chain, the parachain candidate is considered to be "pending availability". It is not considered to be included as part of the parachain until it is proven available.
-1. In the following relay-chain blocks, validators will participate in the [Availability Distribution subsystem](node/availability/availability-distribution.html) to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.
+1. In the following relay-chain blocks, validators will participate in the [Availability Distribution subsystem](node/availability/availability-distribution.md) to ensure availability of the candidate. Information regarding the availability of the candidate will be noted in the subsequent relay-chain blocks.
 1. Once the relay-chain state machine has enough information to consider the candidate's PoV as being available, the candidate is considered to be part of the parachain and is graduated to being a full parachain block, or parablock for short.
 
 Note that the candidate can fail to be included in any of the following ways:
@@ -60,61 +60,46 @@ Reiterating the lifecycle of a candidate:
 
 It is also important to take note of the fact that the relay-chain is extended by BABE, which is a forkful algorithm. That means that different block authors can be chosen at the same time, and may not be building on the same block parent. Furthermore, the set of validators is not fixed, nor is the set of parachains. And even with the same set of validators and parachains, the validators' assignments to parachains is flexible. This means that the architecture proposed in the next chapters must deal with the variability and multiplicity of the network state.
 
-```text
 
-   ....... Validator Group 1 ..........
-   .                                  .
-   .         (Validator 4)            .
-   .  (Validator 1) (Validator 2)     .
-   .         (Validator 5)            .
-   .                                  .
-   ..........Building on C  ...........        ........ Validator Group 2 ...........
-            +----------------------+           .                                    .
-            |    Relay Block C     |           .           (Validator 7)            .
-            +----------------------+           .    ( Validator 3) (Validator 6)    .
-                            \                  .                                    .
-                             \                 ......... Building on B  .............
-                              \
-                      +----------------------+
-                      |  Relay Block B       |
-                      +----------------------+
-                              |
-                      +----------------------+
-                      |  Relay Block A       |
-                      +----------------------+
+```dot process
+digraph {
+	rca [label = "Relay Block A" shape=rectangle]
+	rcb [label = "Relay Block B" shape=rectangle]
+	rcc [label = "Relay Block C" shape=rectangle]
 
+	vg1 [label =<<b>Validator Group 1</b><br/><br/><font point-size="10">(Validator 4)<br/>(Validator 1) (Validator 2)<br/>(Validator 5)</font>>]
+	vg2 [label =<<b>Validator Group 2</b><br/><br/><font point-size="10">(Validator 7)<br/>(Validator 3) (Validator 6)</font>>]
+
+	rcb -> rca
+	rcc -> rcb
+
+	vg1 -> rcc [label="Building on C" style=dashed arrowhead=none]
+	vg2 -> rcb [label="Building on B" style=dashed arrowhead=none]
+}
 ```
 
 In this example, group 1 has received block C while the others have not due to network asynchrony. Now, a validator from group 2 may be able to build another block on top of B, called C'. Assume that afterwards, some validators become aware of both C and C', while others remain only aware of one.
 
-```text
-   ....... Validator Group 1 ..........      ........ Validator Group 2 ...........
-   .                                  .      .                                    .
-   .  (Validator 4) (Validator 1)     .      .    (Validator 7) (Validator 6)     .
-   .                                  .      .                                    .
-   .......... Building on C  ..........      ......... Building on C' .............
+```dot process
+digraph {
+	rca [label = "Relay Block A" shape=rectangle]
+	rcb [label = "Relay Block B" shape=rectangle]
+	rcc [label = "Relay Block C" shape=rectangle]
+	rcc_prime [label = "Relay Block C'" shape=rectangle]
 
+	vg1 [label =<<b>Validator Group 1</b><br/><br/><font point-size="10">(Validator 4) (Validator 1)</font>>]
+	vg2 [label =<<b>Validator Group 2</b><br/><br/><font point-size="10">(Validator 7) (Validator 6)</font>>]
+	vg3 [label =<<b>Validator Group 3</b><br/><br/><font point-size="10">(Validator 2) (Validator 3)<br/>(Validator 5)</font>>]
 
-   ....... Validator Group 3 ..........
-   .                                  .
-   .   (Validator 2) (Validator 3)    .
-   .        (Validator 5)             .
-   .                                  .
-   ....... Building on C and C' .......
+	rcb -> rca
+	rcc -> rcb
+	rcc_prime -> rcb
 
-            +----------------------+         +----------------------+
-            |    Relay Block C     |         |    Relay Block C'    |
-            +----------------------+         +----------------------+
-                            \                 /
-                             \               /
-                              \             /
-                      +----------------------+
-                      |  Relay Block B       |
-                      +----------------------+
-                              |
-                      +----------------------+
-                      |  Relay Block A       |
-                      +----------------------+
+	vg1 -> rcc [style=dashed arrowhead=none]
+	vg2 -> rcc_prime [style=dashed arrowhead=none]
+	vg3 -> rcc_prime [style=dashed arrowhead=none]
+	vg3 -> rcc [style=dashed arrowhead=none]
+}
 ```
 
 Those validators that are aware of many competing heads must be aware of the work happening on each one. They may contribute to some or a full extent on both. It is possible that due to network asynchrony two forks may grow in parallel for some time, although in the absence of an adversarial network this is unlikely in the case where there are validators who are aware of both chain heads.

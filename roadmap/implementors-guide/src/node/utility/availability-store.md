@@ -25,7 +25,7 @@ There may be multiple competing blocks all ending the availability phase for a p
 
 ## Protocol
 
-Input: [`AvailabilityStoreMessage`](../../types/overseer-protocol.html#availability-store-message)
+Input: [`AvailabilityStoreMessage`](../../types/overseer-protocol.md#availability-store-message)
 
 ## Functionality
 

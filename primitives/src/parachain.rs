@@ -27,9 +27,9 @@ use super::{Hash, Balance, BlockNumber};
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::bytes;
+use primitives::{bytes, crypto::Pair};
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::Block as BlockT;
+use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 
@@ -176,20 +176,20 @@ pub struct DutyRoster {
 /// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule {
+pub struct GlobalValidationSchedule<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: BlockNumber,
+	pub block_number: N,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct LocalValidationData {
+pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
@@ -205,28 +205,28 @@ pub struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
-	pub code_upgrade_allowed: Option<BlockNumber>,
+	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateCommitments {
+pub struct CandidateCommitments<H = Hash> {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
-	pub erasure_root: Hash,
+	pub erasure_root: H,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
-pub fn collator_signature_payload(
-	relay_parent: &Hash,
+pub fn collator_signature_payload<H: AsRef<[u8]>>(
+	relay_parent: &H,
 	parachain_index: &Id,
-	pov_block_hash: &Hash,
+	pov_block_hash: &H,
 ) -> [u8; 68] {
 	// 32-byte hash length is protected in a test below.
 	let mut payload = [0u8; 68];
@@ -238,15 +238,13 @@ pub fn collator_signature_payload(
 	payload
 }
 
-fn check_collator_signature(
-	relay_parent: &Hash,
+fn check_collator_signature<H: AsRef<[u8]>>(
+	relay_parent: &H,
 	parachain_index: &Id,
-	pov_block_hash: &Hash,
+	pov_block_hash: &H,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
 	let payload = collator_signature_payload(relay_parent, parachain_index, pov_block_hash);
 	if signature.verify(&payload[..], collator) {
 		Ok(())
@@ -258,12 +256,12 @@ fn check_collator_signature(
 /// All data pertaining to the execution of a parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateReceipt {
+pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
-	pub relay_parent: Hash,
+	pub relay_parent: H,
 	/// The head-data
 	pub head_data: HeadData,
 	/// The collator's relay-chain account ID
@@ -271,16 +269,16 @@ pub struct CandidateReceipt {
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
 	/// The hash of the PoV-block.
-	pub pov_block_hash: Hash,
+	pub pov_block_hash: H,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 	/// Commitments made as a result of validation.
-	pub commitments: CandidateCommitments,
+	pub commitments: CandidateCommitments<H>,
 }
 
-impl CandidateReceipt {
+impl<H: AsRef<[u8]>, N> CandidateReceipt<H, N> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
@@ -294,7 +292,7 @@ impl CandidateReceipt {
 
 	/// Abridge this `CandidateReceipt`, splitting it into an `AbridgedCandidateReceipt`
 	/// and its omitted component.
-	pub fn abridge(self) -> (AbridgedCandidateReceipt, OmittedValidationData) {
+	pub fn abridge(self) -> (AbridgedCandidateReceipt<H>, OmittedValidationData<N>) {
 		let CandidateReceipt {
 			parachain_index,
 			relay_parent,
@@ -345,11 +343,11 @@ impl Ord for CandidateReceipt {
 /// is necessary for validation of the parachain candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct OmittedValidationData {
+pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 }
 
 /// An abridged candidate-receipt.
@@ -359,14 +357,14 @@ pub struct OmittedValidationData {
 /// be re-generated from relay-chain state.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct AbridgedCandidateReceipt {
+pub struct AbridgedCandidateReceipt<H = Hash> {
 	/// The ID of the parachain this is a candidate for.
 	pub parachain_index: Id,
 	/// The hash of the relay-chain block this should be executed in
 	/// the context of.
 	// NOTE: the fact that the hash includes this value means that code depends
 	// on this for deduplication. Removing this field is likely to break things.
-	pub relay_parent: Hash,
+	pub relay_parent: H,
 	/// The head-data
 	pub head_data: HeadData,
 	/// The collator's relay-chain account ID
@@ -374,12 +372,23 @@ pub struct AbridgedCandidateReceipt {
 	/// Signature on blake2-256 of the block data by collator.
 	pub signature: CollatorSignature,
 	/// The hash of the pov-block.
-	pub pov_block_hash: Hash,
+	pub pov_block_hash: H,
 	/// Commitments made as a result of validation.
-	pub commitments: CandidateCommitments,
+	pub commitments: CandidateCommitments<H>,
 }
 
-impl AbridgedCandidateReceipt {
+impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
+	/// Check integrity vs. provided block data.
+	pub fn check_signature(&self) -> Result<(), ()> {
+		check_collator_signature(
+			&self.relay_parent,
+			&self.parachain_index,
+			&self.pov_block_hash,
+			&self.collator,
+			&self.signature,
+		)
+	}
+
 	/// Compute the hash of the abridged candidate receipt.
 	///
 	/// This is often used as the canonical hash of the receipt, rather than
@@ -391,7 +400,9 @@ impl AbridgedCandidateReceipt {
 		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
 	}
+}
 
+impl AbridgedCandidateReceipt {
 	/// Combine the abridged candidate receipt with the omitted data,
 	/// forming a full `CandidateReceipt`.
 	pub fn complete(self, omitted: OmittedValidationData) -> CandidateReceipt {
@@ -581,7 +592,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 /// actual values that are signed.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
-pub enum Statement {
+pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
 	Candidate(Hash),
@@ -593,14 +604,8 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
-impl Statement {
-	/// Produce a payload on this statement that is used for signing.
-	///
-	/// It includes the context provided.
-	pub fn signing_payload(&self, context: &SigningContext) -> Vec<u8> {
-		(self, context).encode()
-	}
-}
+/// A signed compact statement, suitable to be sent to the chain.
+pub type SignedStatement = Signed<CompactStatement>;
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
@@ -616,13 +621,42 @@ pub enum ValidityAttestation {
 	Explicit(ValidatorSignature),
 }
 
+impl ValidityAttestation {
+	/// Get a reference to the signature.
+	pub fn signature(&self) -> &ValidatorSignature {
+		match *self {
+			ValidityAttestation::Implicit(ref sig) => sig,
+			ValidityAttestation::Explicit(ref sig) => sig,
+		}
+	}
+
+	/// Produce the underlying signed payload of the attestation, given the hash of the candidate,
+	/// which should be known in context.
+	pub fn signed_payload<H: Encode>(
+		&self,
+		candidate_hash: Hash,
+		signing_context: &SigningContext<H>,
+	) -> Vec<u8> {
+		match *self {
+			ValidityAttestation::Implicit(_) => (
+				CompactStatement::Candidate(candidate_hash),
+				signing_context,
+			).encode(),
+			ValidityAttestation::Explicit(_) => (
+				CompactStatement::Valid(candidate_hash),
+				signing_context,
+			).encode(),
+		}
+	}
+}
+
 /// A type returned by runtime with current session index and a parent hash.
 #[derive(Clone, Eq, PartialEq, Default, Decode, Encode, RuntimeDebug)]
-pub struct SigningContext {
+pub struct SigningContext<H = Hash> {
 	/// Current session index.
 	pub session_index: sp_staking::SessionIndex,
 	/// Hash of the parent.
-	pub parent_hash: Hash,
+	pub parent_hash: H,
 }
 
 /// An attested candidate. This is submitted to the relay chain by a block author.
@@ -681,65 +715,8 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 	}
 }
 
-impl AvailabilityBitfield {
-	/// Encodes the signing payload into the given buffer.
-	pub fn encode_signing_payload_into(
-		&self,
-		signing_context: &SigningContext,
-		buf: &mut Vec<u8>,
-	) {
-		self.0.encode_to(buf);
-		signing_context.encode_to(buf);
-	}
-
-	/// Encodes the signing payload into a fresh byte-vector.
-	pub fn encode_signing_payload(
-		&self,
-		signing_context:
-		&SigningContext,
-	) -> Vec<u8> {
-		let mut v = Vec::new();
-		self.encode_signing_payload_into(signing_context, &mut v);
-		v
-	}
-}
-
 /// A bitfield signed by a particular validator about the availability of pending candidates.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct SignedAvailabilityBitfield {
-	/// The index of the validator in the current set.
-	pub validator_index: ValidatorIndex,
-	/// The bitfield itself, with one bit per core. Only occupied cores may have the `1` bit set.
-	pub bitfield: AvailabilityBitfield,
-	/// The signature by the validator on the bitfield's signing payload. The context of the signature
-	/// should be apparent when checking the signature.
-	pub signature: ValidatorSignature,
-}
-
-/// Check a signature on an availability bitfield. Provide the bitfield, the validator who signed it,
-/// the signature, the signing context, and an optional buffer in which to encode.
-///
-/// If the buffer is provided, it is assumed to be empty.
-pub fn check_availability_bitfield_signature<H: Encode>(
-	bitfield: &AvailabilityBitfield,
-	validator: &ValidatorId,
-	signature: &ValidatorSignature,
-	signing_context: &SigningContext,
-	payload_encode_buf: Option<&mut Vec<u8>>,
-) -> Result<(),()> {
-	use runtime_primitives::traits::AppVerify;
-
-	let mut v = Vec::new();
-	let payload_encode_buf = payload_encode_buf.unwrap_or(&mut v);
-
-	bitfield.encode_signing_payload_into(signing_context, payload_encode_buf);
-
-	if signature.verify(&payload_encode_buf[..], validator) {
-		Ok(())
-	} else {
-		Err(())
-	}
-}
+pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -750,13 +727,63 @@ pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 // After https://github.com/paritytech/polkadot/issues/1250
 // they should be unified to this type.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct BackedCandidate {
+pub struct BackedCandidate<H = Hash> {
 	/// The candidate referred to.
-	pub candidate: AbridgedCandidateReceipt,
+	pub candidate: AbridgedCandidateReceipt<H>,
 	/// The validity votes themselves, expressed as signatures.
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// The indices of the validators within the group, expressed as a bitfield.
 	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
+}
+
+/// Verify the backing of the given candidate.
+///
+/// Provide a lookup from the index of a validator within the group assigned to this para,
+/// as opposed to the index of the validator within the overall validator set, as well as
+/// the number of validators in the group.
+///
+/// Also provide the signing context.
+///
+/// Returns either an error, indicating that one of the signatures was invalid or that the index
+/// was out-of-bounds, or the number of signatures checked.
+pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
+	backed: &BackedCandidate<H>,
+	signing_context: &SigningContext<H>,
+	group_len: usize,
+	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
+) -> Result<usize, ()> {
+	if backed.validator_indices.len() != group_len {
+		return Err(())
+	}
+
+	if backed.validity_votes.len() > group_len {
+		return Err(())
+	}
+
+	// this is known, even in runtime, to be blake2-256.
+	let hash: Hash = backed.candidate.hash();
+
+	let mut signed = 0;
+	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
+		.filter(|(_, signed)| **signed)
+		.zip(backed.validity_votes.iter())
+	{
+		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
+		let payload = attestation.signed_payload(hash.clone(), signing_context);
+		let sig = attestation.signature();
+
+		if sig.verify(&payload[..], &validator_id) {
+			signed += 1;
+		} else {
+			return Err(())
+		}
+	}
+
+	if signed != backed.validity_votes.len() {
+		return Err(())
+	}
+
+	Ok(signed)
 }
 
 sp_api::decl_runtime_apis! {
@@ -792,6 +819,113 @@ pub mod id {
 	pub const PARACHAIN_HOST: ApiId = *b"parahost";
 }
 
+/// This helper trait ensures that we can encode Statement as CompactStatement,
+/// and anything as itself.
+///
+/// This resembles `parity_scale_codec::EncodeLike`, but it's distinct:
+/// EncodeLike is a marker trait which asserts at the typesystem level that
+/// one type's encoding is a valid encoding for another type. It doesn't
+/// perform any type conversion when encoding.
+///
+/// This trait, on the other hand, provides a method which can be used to
+/// simultaneously convert and encode one type as another.
+pub trait EncodeAs<T> {
+	/// Convert Self into T, then encode T.
+	///
+	/// This is useful when T is a subset of Self, reducing encoding costs;
+	/// its signature also means that we do not need to clone Self in order
+	/// to retain ownership, as we would if we were to do
+	/// `self.clone().into().encode()`.
+	fn encode_as(&self) -> Vec<u8>;
+}
+
+impl<T: Encode> EncodeAs<T> for T {
+	fn encode_as(&self) -> Vec<u8> {
+		self.encode()
+	}
+}
+
+/// A signed type which encapsulates the common desire to sign some data and validate a signature.
+///
+/// Note that the internal fields are not public; they are all accessable by immutable getters.
+/// This reduces the chance that they are accidentally mutated, invalidating the signature.
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+pub struct Signed<Payload, RealPayload = Payload> {
+	/// The payload is part of the signed data. The rest is the signing context,
+	/// which is known both at signing and at validation.
+	payload: Payload,
+	/// The index of the validator signing this statement.
+	validator_index: ValidatorIndex,
+	/// The signature by the validator of the signed payload.
+	signature: ValidatorSignature,
+	/// This ensures the real payload is tracked at the typesystem level.
+	real_payload: sp_std::marker::PhantomData<RealPayload>,
+}
+
+// We can't bound this on `Payload: Into<RealPayload>` beacuse that conversion consumes
+// the payload, and we don't want that. We can't bound it on `Payload: AsRef<RealPayload>`
+// because there's no blanket impl of `AsRef<T> for T`. In the end, we just invent our
+// own trait which does what we need: EncodeAs.
+impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPayload> {
+	fn payload_data<H: Encode>(payload: &Payload, context: &SigningContext<H>) -> Vec<u8> {
+		// equivalent to (real_payload, context).encode()
+		let mut out = payload.encode_as();
+		out.extend(context.encode());
+		out
+	}
+
+	/// Sign this payload with the given context and key, storing the validator index.
+	#[cfg(feature = "std")]
+	pub fn sign<H: Encode>(
+		payload: Payload,
+		context: &SigningContext<H>,
+		validator_index: ValidatorIndex,
+		key: &ValidatorPair,
+	) -> Self {
+		let data = Self::payload_data(&payload, context);
+		let signature = key.sign(&data);
+		Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		}
+	}
+
+	/// Validate the payload given the context and public key.
+	pub fn check_signature<H: Encode>(&self, context: &SigningContext<H>, key: &ValidatorId) -> Result<(), ()> {
+		let data = Self::payload_data(&self.payload, context);
+		if self.signature.verify(data.as_slice(), key) { Ok(()) } else { Err(()) }
+	}
+
+	/// Immutably access the payload.
+	#[inline]
+	pub fn payload(&self) -> &Payload {
+		&self.payload
+	}
+
+	/// Immutably access the validator index.
+	#[inline]
+	pub fn validator_index(&self) -> ValidatorIndex {
+		self.validator_index
+	}
+
+	/// Immutably access the signature.
+	#[inline]
+	pub fn signature(&self) -> &ValidatorSignature {
+		&self.signature
+	}
+
+	/// Discard signing data, get the payload
+	// Note: can't `impl<P, R> From<Signed<P, R>> for P` because the orphan rule exception doesn't
+	// handle this case yet. Likewise can't `impl<P, R> Into<P> for Signed<P, R>` because it might
+	// potentially conflict with the global blanket impl, even though it currently doesn't.
+	#[inline]
+	pub fn into_payload(self) -> Payload {
+		self.payload
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -811,9 +945,9 @@ mod tests {
 		assert_eq!(h.as_ref().len(), 32);
 
 		let _payload = collator_signature_payload(
-			&[1; 32].into(),
+			&Hash::from([1; 32]),
 			&5u32.into(),
-			&[2; 32].into(),
+			&Hash::from([2; 32]),
 		);
 	}
 }
