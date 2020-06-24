@@ -5,5 +5,8 @@ multilingual = false
 src = "src"
 title = "The Polkadot Parachain Host Implementers' Guide"
 
+[preprocessor.graphviz]
+command = "mdbook-graphviz"
+
 [output.html]
 [output.linkcheck]
