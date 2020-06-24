@@ -105,8 +105,9 @@ pub type SubsystemResult<T> = Result<T, SubsystemError>;
 /// [`Overseer`]: struct.Overseer.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
 #[async_trait]
-pub trait SubsystemContext {
-	/// The message type of this context.
+pub trait SubsystemContext: Send + 'static {
+	/// The message type of this context. Subsystems launched with this context will expect
+	/// to receive messages of this type.
 	type Message: Send;
 
 	/// Try to asynchronously receive a message.
@@ -125,7 +126,8 @@ pub trait SubsystemContext {
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
 
 	/// Send multiple direct messages to other `Subsystem`s, routed based on message type.
-	async fn send_messages(&mut self, msgs: impl IntoIterator<Item=AllMessages>) -> SubsystemResult<()>;
+	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send;
 }
 
 /// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
