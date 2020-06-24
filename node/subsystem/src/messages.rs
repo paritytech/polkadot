@@ -34,17 +34,6 @@ use polkadot_node_primitives::{
 	MisbehaviorReport, SignedStatement, View, ProtocolId,
 };
 
-/// Signals sent by an overseer to a subsystem.
-#[derive(PartialEq, Clone, Debug)]
-pub enum OverseerSignal {
-	/// `Subsystem` should start working on block-based work, given by the relay-chain block hash.
-	StartWork(Hash),
-	/// `Subsystem` should stop working on block-based work specified by the relay-chain block hash.
-	StopWork(Hash),
-	/// Conclude the work of the `Overseer` and all `Subsystem`s.
-	Conclude,
-}
-
 /// A notification of a new backed candidate.
 #[derive(Debug)]
 pub struct NewBackedCandidate(pub BackedCandidate);
@@ -218,20 +207,4 @@ pub enum AllMessages {
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
 	CandidateBacking(CandidateBackingMessage),
-}
-
-/// A message type that a subsystem receives from an overseer.
-/// It wraps signals from an overseer and messages that are circulating
-/// between subsystems.
-///
-/// It is generic over over the message type `M` that a particular `Subsystem` may use.
-#[derive(Debug)]
-pub enum FromOverseer<M: std::fmt::Debug> {
-	/// Signal from the `Overseer`.
-	Signal(OverseerSignal),
-
-	/// Some other `Subsystem`'s message.
-	Communication {
-		msg: M,
-	},
 }

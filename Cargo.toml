@@ -42,10 +42,10 @@ members = [
 	"service",
 	"validation",
 
-	"node/messages",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
+	"node/subsystem",
 
 	"node/network/bridge",
 

@@ -202,6 +202,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
+dependencies = [
+ "proc-macro2 1.0.17",
+ "quote 1.0.6",
+ "syn 1.0.27",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4261,8 +4272,8 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "polkadot-node-messages",
  "polkadot-node-primitives",
+ "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-network",
@@ -4292,24 +4303,26 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-messages"
+name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sp-runtime",
+]
+
+[[package]]
+name = "polkadot-node-subsystem"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
  "futures 0.3.5",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",
-]
-
-[[package]]
-name = "polkadot-node-primitives"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-statement-table",
- "sp-runtime",
 ]
 
 [[package]]
@@ -4321,7 +4334,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "log 0.4.8",
- "polkadot-node-messages",
+ "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-client-api",
  "streamunordered",
