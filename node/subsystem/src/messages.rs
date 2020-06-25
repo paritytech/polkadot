@@ -207,4 +207,18 @@ pub enum AllMessages {
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
 	CandidateBacking(CandidateBackingMessage),
+	/// Message for the candidate selection subsystem.
+	CandidateSelection(CandidateSelectionMessage),
+	/// Message for the statement distribution subsystem.
+	StatementDistribution(StatementDistributionMessage),
+	/// Message for the availability distribution subsystem.
+	AvailabilityDistribution(AvailabilityDistributionMessage),
+	/// Message for the bitfield distribution subsystem.
+	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the Provisioner subsystem.
+	Provisioner(ProvisionerMessage),
+	/// Message for the Runtime API subsystem.
+	RuntimeApi(RuntimeApiMessage),
+	/// Message for the availability store subsystem.
+	AvailabilityStore(AvailabilityStoreMessage),
 }

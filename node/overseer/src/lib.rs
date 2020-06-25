@@ -640,6 +640,12 @@ where
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
+			_ => {
+				// TODO: temporary catch-all until all subsystems are integrated with overseer.
+				// The overseer is not complete until this is an exhaustive match with all
+				// messages targeting an included subsystem.
+				// https://github.com/paritytech/polkadot/issues/1317
+			}
 		}
 	}
 
