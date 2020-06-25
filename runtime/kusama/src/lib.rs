@@ -854,11 +854,11 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
 					| Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_limited_sub(..))
+					| Call::Utility(utility::Call::as_alternative(..))
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_limited_sub(..))
+					| Call::Utility(utility::Call::as_alternative(..))
 			),
 		}
 	}
