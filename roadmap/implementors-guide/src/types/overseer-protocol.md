@@ -90,8 +90,8 @@ enum CandidateBackingMessage {
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
-  /// given relay-parent (ref. by hash). This candidate must be validated.
-  Second(Hash, CandidateReceipt),
+  /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
+  Second(Hash, CandidateReceipt, PoV),
   /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
   /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
   Statement(Statement),
@@ -168,11 +168,23 @@ enum MisbehaviorReport {
 
 If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
 
-## PoV Distribution
+## PoV Distribution Message
 
-Messages received by the PoV Distribution subsystem are unspecified and highly tied to gossip.
-
-> TODO
+```rust
+enum PoVDistributionMessage {
+	/// Note a statement by a validator on a relay-parent. `Seconded` statements must always
+	/// have been passed in before `Valid` or `Invalid` statements.
+	ValidatorStatement(Hash, SignedFullStatement),
+	/// Fetch a PoV from the network.
+	/// (relay_parent, PoV-hash, Response channel).
+	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
+	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
+	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
+	DistributePoV(Hash, CandidateDescriptor, PoV),
+	/// An update from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+```
 
 ## Provisioner Message
 
