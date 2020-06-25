@@ -54,7 +54,7 @@ const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
 /// Messages received on the network.
-#[derive(Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub enum WireMessage {
 	/// A message from a peer on a specific protocol.
 	#[codec(index = "1")]
@@ -178,7 +178,7 @@ impl<N: Network, C> Subsystem<C> for NetworkBridge<N>
 	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		SpawnedSubsystem(run_network(self.0.clone(), ctx).map(|_| ()).boxed())
+		SpawnedSubsystem(run_network(self.0.clone(), ctx, |_| ()).map(|_| ()).boxed())
 	}
 }
 
@@ -187,6 +187,7 @@ struct PeerData {
 	view: View,
 }
 
+#[derive(Debug)]
 enum Action {
 	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
@@ -227,7 +228,7 @@ fn action_from_overseer_message(
 fn action_from_network_message(event: Option<NetworkEvent>) -> Option<Action> {
 	match event {
 		None => {
-			log::warn!("Shutting down Network Bridge: underlying event stream concluded");
+			log::info!("Shutting down Network Bridge: underlying event stream concluded");
 			Some(Action::Abort)
 		}
 		Some(NetworkEvent::Dht(_)) => None,
@@ -303,6 +304,7 @@ async fn update_view(
 async fn run_network<N: Network>(
 	mut net: N,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+	action_inspector: impl Fn(&Action), // side-channel for tests to inspect internals
 ) -> SubsystemResult<()> {
 	let mut event_stream = net.event_stream().fuse();
 
@@ -329,6 +331,8 @@ async fn run_network<N: Network>(
 				None => continue,
 			}
 		};
+
+		action_inspector(&action);
 
 		match action {
 			Action::RegisterEventProducer(protocol_id, event_producer) => {
@@ -505,6 +509,7 @@ mod tests {
 
 	use std::sync::Arc;
 	use parking_lot::Mutex;
+	use assert_matches::assert_matches;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	#[derive(Clone)]
@@ -518,6 +523,47 @@ mod tests {
 	struct TestNetworkHandle {
 		action_rx: mpsc::UnboundedReceiver<NetworkAction>,
 		net_tx: mpsc::UnboundedSender<NetworkEvent>,
+	}
+
+	// a record of an action internal to the network.
+	#[derive(Debug)]
+	enum InternalActionRecord {
+		RegisterEventProducer(ProtocolId),
+		SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+		ReportPeer(PeerId, ReputationChange),
+		StartWork(Hash),
+		StopWork(Hash),
+
+		PeerConnected(PeerId, ObservedRole),
+		PeerDisconnected(PeerId),
+		PeerMessages(PeerId, Vec<WireMessage>),
+
+		Abort,
+	}
+
+	impl<'a> From<&'a Action> for InternalActionRecord {
+		fn from(action: &'a Action) -> Self {
+			match *action {
+				Action::RegisterEventProducer(protocol, _)
+					=> InternalActionRecord::RegisterEventProducer(protocol),
+				Action::SendMessage(ref peers, protocol, ref message)
+					=> InternalActionRecord::SendMessage(peers.clone(), protocol, message.clone()),
+				Action::ReportPeer(ref peer, rep)
+					=> InternalActionRecord::ReportPeer(peer.clone(), rep.clone()),
+
+				Action::StartWork(hash) => InternalActionRecord::StartWork(hash),
+				Action::StopWork(hash) => InternalActionRecord::StopWork(hash),
+
+				Action::PeerConnected(ref peer, ref role)
+					=> InternalActionRecord::PeerConnected(peer.clone(), role.clone()),
+				Action::PeerDisconnected(ref peer)
+					=> InternalActionRecord::PeerDisconnected(peer.clone()),
+				Action::PeerMessages(ref peer, ref messages)
+					=> InternalActionRecord::PeerMessages(peer.clone(), messages.clone()),
+
+				Action::Abort => InternalActionRecord::Abort,
+			}
+		}
 	}
 
 	fn new_test_network() -> (
@@ -597,6 +643,8 @@ mod tests {
 		}
 	}
 
+	// network actions are sensitive to ordering of `PeerId`s within a `HashMap`, so
+	// we need to use this to prevent fragile reliance on peer ordering.
 	fn network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) -> bool {
 		actions.iter().find(|&x| x == action).is_some()
 	}
@@ -606,19 +654,37 @@ mod tests {
 		let pool = ThreadPool::new().unwrap();
 
 		let (network, mut network_handle) = new_test_network();
-		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
-		pool.spawn_ok(
-			run_network(network, context)
-				.map_err(|_| panic!("subsystem execution failed"))
-				.map(|_| ())
-		);
+		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool);
+		let (action_tx, mut action_rx) = mpsc::unbounded::<InternalActionRecord>();
 
-		executor::block_on(async move {
+		let network_bridge = run_network(
+			network,
+			context,
+			move |action| { let _ = action_tx.unbounded_send(action.into()); },
+		)
+			.map_err(|_| panic!("subsystem execution failed"))
+			.map(|_| ());
+
+		let test_fut = async move {
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
 
 			network_handle.connect_peer(peer_a.clone(), ObservedRole::Full);
 			network_handle.connect_peer(peer_b.clone(), ObservedRole::Full);
+
+			assert_matches!(
+				action_rx.next().await.unwrap(),
+				InternalActionRecord::PeerConnected(p, ObservedRole::Full) => {
+					assert_eq!(p, peer_a);
+				}
+			);
+
+			assert_matches!(
+				action_rx.next().await.unwrap(),
+				InternalActionRecord::PeerConnected(p, ObservedRole::Full) => {
+					assert_eq!(p, peer_b);
+				}
+			);
 
 			let hash_a = Hash::from([1; 32]);
 
@@ -635,7 +701,12 @@ mod tests {
 				&actions,
 				&NetworkAction::WriteNotification(peer_b, wire_message.clone()),
 			));
-		});
+		};
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(network_bridge);
+
+		executor::block_on(future::select(test_fut, network_bridge));
 	}
 
 
