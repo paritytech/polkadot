@@ -625,12 +625,11 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_alternative(..))
+				Call::Staking(..) | Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
-				Call::Utility(utility::Call::batch(..)) => true,
+				Call::Utility(..) => true,
 				_ => false,
 			},
 		}
