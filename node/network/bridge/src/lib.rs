@@ -228,6 +228,7 @@ async fn update_view(
 	let message = WireMessage::ViewUpdate(new_view.clone()).encode();
 
 	let write_all = peers.keys().cloned().map(|peer| {
+		println!("Sending view update message to peer {:?}", peer);
 		net.write_notification(peer, message.clone())
 	});
 
@@ -283,6 +284,7 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 				net.report_peer(peer, rep).await
 			}
 			Action::StartWork(relay_parent) => {
+				println!("New relay parent. Updating view.");
 				live_heads.push(relay_parent);
 				if let Some(view_update)
 					= update_view(&peers, &live_heads, &net, &mut local_view).await
@@ -314,6 +316,7 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 			}
 
 			Action::PeerConnected(peer, role) => {
+				println!("New peer {:?}", peer);
 				match peers.entry(peer.clone()) {
 					Entry::Occupied(_) => continue,
 					Entry::Vacant(vacant) => {
@@ -404,9 +407,11 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 mod tests {
 	use super::*;
 	use futures::channel::mpsc;
+	use futures::executor::{self, ThreadPool};
 	use std::sync::Arc;
 	use parking_lot::Mutex;
 
+	#[derive(PartialEq)]
 	enum NetworkAction {
 		ReputationChange(PeerId, ReputationChange),
 		Message(PeerId, Vec<u8>),
@@ -473,8 +478,19 @@ mod tests {
 	}
 
 	impl TestNetworkHandle {
+		// Get the next network action.
 		async fn next_network_action(&mut self) -> NetworkAction {
 			self.action_rx.next().await.expect("subsystem concluded early")
+		}
+
+		// Wait for the next N network actions.
+		async fn next_network_actions(&mut self, n: usize) -> Vec<NetworkAction> {
+			let mut v = Vec::with_capacity(n);
+			for _ in 0..n {
+				v.push(self.next_network_action().await);
+			}
+
+			v
 		}
 
 		fn connect_peer(&self, peer: PeerId, role: ObservedRole) {
@@ -504,9 +520,47 @@ mod tests {
 		}
 	}
 
+	fn network_actions_contains(actions: &[NetworkAction], action: &NetworkAction) -> bool {
+		actions.iter().find(|&x| x == action).is_some()
+	}
+
 	#[test]
 	fn sends_view_updates_to_peers() {
+		let pool = ThreadPool::new().unwrap();
 
+		let (network, mut network_handle) = new_test_network();
+		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
+		pool.spawn_ok(run_network(network, context));
+
+		let protocol_id: ProtocolId = *b"test";
+
+		executor::block_on(async move {
+			let peer_a = PeerId::random();
+			let peer_b = PeerId::random();
+
+			network_handle.connect_peer(peer_a.clone(), ObservedRole::Full);
+			network_handle.connect_peer(peer_b.clone(), ObservedRole::Full);
+
+			let hash_a = Hash::from([1; 32]);
+
+			virtual_overseer.send(FromOverseer::Communication {
+				msg: NetworkBridgeMessage::RegisterEventProducer(protocol_id, )
+			});
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(hash_a)));
+
+			let actions = network_handle.next_network_actions(2).await;
+			let wire_message = WireMessage::ViewUpdate(View(vec![hash_a])).encode();
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::Message(peer_a, wire_message.clone()),
+			));
+
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::Message(peer_b, wire_message.clone()),
+			));
+		});
 	}
 
 
