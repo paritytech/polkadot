@@ -27,12 +27,16 @@ use sc_network::{
 };
 use sp_runtime::ConsensusEngineId;
 
-use polkadot_subsystem::{FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem};
-use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages,};
+use polkadot_subsystem::{
+	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
+	SubsystemResult,
+};
+use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
 use node_primitives::{ProtocolId, View};
 use polkadot_primitives::{Block, Hash};
 
 use std::collections::hash_map::{HashMap, Entry};
+use std::pin::Pin;
 use std::sync::Arc;
 
 const MAX_VIEW_HEADS: usize = 5;
@@ -66,33 +70,92 @@ pub fn notifications_protocol_info() -> (ConsensusEngineId, std::borrow::Cow<'st
 	(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME.into())
 }
 
+/// An action to be carried out by the network.
+#[derive(PartialEq)]
+pub enum NetworkAction {
+	/// Note a change in reputation for a peer.
+	ReputationChange(PeerId, ReputationChange),
+	/// Write a notification to a given peer.
+	WriteNotification(PeerId, Vec<u8>),
+}
+
 /// An abstraction over networking for the purposes of this subsystem.
-pub trait Network: Clone + Send + Sync + 'static {
+pub trait Network: Clone + Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
 	/// to the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID).
-	fn event_stream(&self) -> BoxStream<NetworkEvent>;
+	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
+
+	/// Get access to an underlying sink for all network actions.
+	fn action_sink<'a>(&'a mut self) -> Pin<
+		Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>
+	>;
 
 	/// Report a given peer as either beneficial (+) or costly (-) according to the given scalar.
-	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()>;
+	fn report_peer(&mut self, who: PeerId, cost_benefit: ReputationChange)
+		-> BoxFuture<SubsystemResult<()>>
+	{
+		async move {
+			self.action_sink().send(NetworkAction::ReputationChange(who, cost_benefit)).await
+		}.boxed()
+	}
 
 	/// Write a notification to a peer on the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID) topic.
-	fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()>;
+	fn write_notification(&mut self, who: PeerId, message: Vec<u8>)
+		-> BoxFuture<SubsystemResult<()>>
+	{
+		async move {
+			self.action_sink().send(NetworkAction::WriteNotification(who, message)).await
+		}.boxed()
+	}
 }
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
-	fn event_stream(&self) -> BoxStream<NetworkEvent> {
+	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 		sc_network::NetworkService::event_stream(self, "polkadot-network-bridge").boxed()
 	}
 
-	fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
-		sc_network::NetworkService::report_peer(self, who, cost_benefit);
-		future::ready(()).boxed()
-	}
+	fn action_sink<'a>(&'a mut self)
+		-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
+	{
+		use futures::task::{Poll, Context};
 
-	fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
-		sc_network::NetworkService::write_notification(self, who, POLKADOT_ENGINE_ID, message);
-		future::ready(()).boxed()
+		// wrapper around a NetworkService to make it act like a sink.
+		struct ActionSink<'b>(&'b sc_network::NetworkService<Block, Hash>);
+
+		impl<'b> Sink<NetworkAction> for ActionSink<'b> {
+			type Error = SubsystemError;
+
+			fn poll_ready(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
+				Poll::Ready(Ok(()))
+			}
+
+			fn start_send(self: Pin<&mut Self>, action: NetworkAction) -> SubsystemResult<()> {
+				match action {
+					NetworkAction::ReputationChange(peer, cost_benefit) => self.0.report_peer(
+						peer,
+						cost_benefit,
+					),
+					NetworkAction::WriteNotification(peer, message) => self.0.write_notification(
+						peer,
+						POLKADOT_ENGINE_ID,
+						message,
+					),
+				}
+
+				Ok(())
+			}
+
+			fn poll_flush(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
+				Poll::Ready(Ok(()))
+			}
+
+			fn poll_close(self: Pin<&mut Self>, _: &mut Context) -> Poll<SubsystemResult<()>> {
+				Poll::Ready(Ok(()))
+			}
+		}
+
+		Box::pin(ActionSink(&**self))
 	}
 }
 
@@ -113,7 +176,9 @@ impl<N: Network, C> Subsystem<C> for NetworkBridge<N>
 	where C: SubsystemContext<Message=NetworkBridgeMessage>
 {
 	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(run_network(self.0.clone(), ctx).boxed())
+		// Swallow error because failure is fatal to the node and we log with more precision
+		// within `run_network`.
+		SpawnedSubsystem(run_network(self.0.clone(), ctx).map(|_| ()).boxed())
 	}
 }
 
@@ -218,26 +283,27 @@ async fn dispatch_update_to_all(
 async fn update_view(
 	peers: &HashMap<PeerId, PeerData>,
 	live_heads: &[Hash],
-	net: &impl Network,
+	net: &mut impl Network,
 	local_view: &mut View,
-) -> Option<NetworkBridgeEvent> {
+) -> SubsystemResult<Option<NetworkBridgeEvent>> {
 	let new_view = construct_view(live_heads);
-	if *local_view == new_view { return None }
+	if *local_view == new_view { return Ok(None) }
 	*local_view = new_view.clone();
 
 	let message = WireMessage::ViewUpdate(new_view.clone()).encode();
 
-	let write_all = peers.keys().cloned().map(|peer| {
-		println!("Sending view update message to peer {:?}", peer);
-		net.write_notification(peer, message.clone())
-	});
+	let notifications = peers.keys().cloned()
+		.map(move |peer| Ok(NetworkAction::WriteNotification(peer, message.clone())));
 
-	future::join_all(write_all).await;
+	net.action_sink().send_all(&mut stream::iter(notifications)).await?;
 
-	Some(NetworkBridgeEvent::OurViewChange(local_view.clone()))
+	Ok(Some(NetworkBridgeEvent::OurViewChange(local_view.clone())))
 }
 
-async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>) {
+async fn run_network<N: Network>(
+	mut net: N,
+	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> SubsystemResult<()> {
 	let mut event_stream = net.event_stream().fuse();
 
 	// Most recent heads are at the back.
@@ -270,47 +336,64 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 				event_producers.entry(protocol_id).or_insert(event_producer);
 			}
 			Action::SendMessage(peers, protocol, message) => {
-				let message = WireMessage::ProtocolMessage(protocol, message).encode();
+				let mut message_producer = stream::iter({
+					let n_peers = peers.len();
+					let mut message = Some(
+						WireMessage::ProtocolMessage(protocol, message).encode()
+					);
 
-				for peer in peers.iter().skip(1).cloned() {
-					net.write_notification(peer, message.clone()).await;
-				}
+					peers.iter().cloned().enumerate().map(move |(i, peer)| {
+						// optimization: avoid cloning the message for the last peer in the
+						// list. The message payload can be quite large. If the underlying
+						// network used `Bytes` this would not be necessary.
+						let message =if i == n_peers - 1 {
+							message.take()
+								.expect("Only taken in last iteration of loop, never afterwards; qed")
+						} else {
+							message.as_ref()
+								.expect("Only taken in last iteratio of loop, we are not there yet; qed")
+								.clone()
+						};
 
-				if let Some(peer) = peers.first() {
-					net.write_notification(peer.clone(), message).await;
-				}
+						Ok(NetworkAction::WriteNotification(peer, message))
+					})
+				});
+
+				net.action_sink().send_all(&mut message_producer).await?;
 			}
 			Action::ReportPeer(peer, rep) => {
-				net.report_peer(peer, rep).await
+				// let binding required here to avoid unnecessary sync bound.
+				let report_fut = net.report_peer(peer, rep);
+				report_fut.await?
 			}
 			Action::StartWork(relay_parent) => {
 				println!("New relay parent. Updating view.");
 				live_heads.push(relay_parent);
 				if let Some(view_update)
-					= update_view(&peers, &live_heads, &net, &mut local_view).await
+					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
 				{
-					if let Err(_) = dispatch_update_to_all(
+					if let Err(e) = dispatch_update_to_all(
 						view_update,
 						event_producers.values(),
 						&mut ctx,
 					).await {
 						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return
+						return Err(e)
 					}
 				}
 			}
 			Action::StopWork(relay_parent) => {
 				live_heads.retain(|h| h != &relay_parent);
 				if let Some(view_update)
-					= update_view(&peers, &live_heads, &net, &mut local_view).await
+					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
 				{
-					if let Err(_) = dispatch_update_to_all(
+					if let Err(e) = dispatch_update_to_all(
 						view_update,
 						event_producers.values(),
 						&mut ctx,
 					).await {
 						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return
+						return Err(e)
 					}
 				}
 			}
@@ -324,26 +407,26 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 							view: View(Vec::new()),
 						});
 
-						if let Err(_) = dispatch_update_to_all(
+						if let Err(e) = dispatch_update_to_all(
 							NetworkBridgeEvent::PeerConnected(peer, role),
 							event_producers.values(),
 							&mut ctx,
 						).await {
 							log::warn!("Aborting - Failure to dispatch messages to overseer");
-							return
+							return Err(e)
 						}
 					}
 				}
 			}
 			Action::PeerDisconnected(peer) => {
 				if peers.remove(&peer).is_some() {
-					if let Err(_) = dispatch_update_to_all(
+					if let Err(e) = dispatch_update_to_all(
 						NetworkBridgeEvent::PeerDisconnected(peer),
 						event_producers.values(),
 						&mut ctx,
 					).await {
 						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return
+						return Err(e)
 					}
 				}
 			},
@@ -358,7 +441,12 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 					match message {
 						WireMessage::ViewUpdate(new_view) => {
 							if new_view.0.len() > MAX_VIEW_HEADS {
-								net.report_peer(peer.clone(), MALFORMED_VIEW_COST).await;
+								let report_fut = net.report_peer(
+									peer.clone(),
+									MALFORMED_VIEW_COST,
+								);
+
+								report_fut.await?;
 								continue
 							}
 
@@ -380,7 +468,12 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 									NetworkBridgeEvent::PeerMessage(peer.clone(), message)
 								)),
 								None => {
-									net.report_peer(peer.clone(), UNKNOWN_PROTO_COST).await;
+									let report_fut = net.report_peer(
+										peer.clone(),
+										UNKNOWN_PROTO_COST,
+									);
+
+									report_fut.await?;
 									None
 								}
 							};
@@ -392,13 +485,14 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 					}
 				}
 
-				if let Err(_) = ctx.send_messages(outgoing_messages).await {
+				let send_messages = ctx.send_messages(outgoing_messages);
+				if let Err(e) = send_messages.await {
 					log::warn!("Aborting - Failure to dispatch messages to overseer");
-					return
+					return Err(e)
 				}
 			},
 
-			Action::Abort => return,
+			Action::Abort => return Ok(()),
 		}
 	}
 }
@@ -410,12 +504,6 @@ mod tests {
 	use futures::executor::{self, ThreadPool};
 	use std::sync::Arc;
 	use parking_lot::Mutex;
-
-	#[derive(PartialEq)]
-	enum NetworkAction {
-		ReputationChange(PeerId, ReputationChange),
-		Message(PeerId, Vec<u8>),
-	}
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	#[derive(Clone)]
@@ -451,14 +539,14 @@ mod tests {
 	}
 
 	impl Network for TestNetwork {
-		fn event_stream(&self) -> BoxStream<NetworkEvent> {
+		fn event_stream(&mut self) -> BoxStream<NetworkEvent> {
 			self.net_events.lock()
 				.take()
 				.expect("Subsystem made more than one call to `event_stream`")
 				.boxed()
 		}
 
-		fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
+		fn report_peer(&mut self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
 			let x = async move {
 				self.action_tx.unbounded_send(NetworkAction::ReputationChange(who, cost_benefit))
 					.expect("test hung up on network");
@@ -467,9 +555,9 @@ mod tests {
 			x.boxed()
 		}
 
-		fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
+		fn write_notification(&mut self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
 			let x = async move {
-				self.action_tx.unbounded_send(NetworkAction::Message(who, message))
+				self.action_tx.unbounded_send(NetworkAction::WriteNotification(who, message))
 					.expect("test hung up on network");
 			};
 
@@ -532,8 +620,6 @@ mod tests {
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
 		pool.spawn_ok(run_network(network, context));
 
-		let protocol_id: ProtocolId = *b"test";
-
 		executor::block_on(async move {
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
@@ -543,22 +629,18 @@ mod tests {
 
 			let hash_a = Hash::from([1; 32]);
 
-			virtual_overseer.send(FromOverseer::Communication {
-				msg: NetworkBridgeMessage::RegisterEventProducer(protocol_id, )
-			});
-
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(hash_a)));
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::ViewUpdate(View(vec![hash_a])).encode();
 			assert!(network_actions_contains(
 				&actions,
-				&NetworkAction::Message(peer_a, wire_message.clone()),
+				&NetworkAction::WriteNotification(peer_a, wire_message.clone()),
 			));
 
 			assert!(network_actions_contains(
 				&actions,
-				&NetworkAction::Message(peer_b, wire_message.clone()),
+				&NetworkAction::WriteNotification(peer_b, wire_message.clone()),
 			));
 		});
 	}
