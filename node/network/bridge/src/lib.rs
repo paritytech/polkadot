@@ -346,7 +346,7 @@ async fn run_network<N: Network>(
 						// optimization: avoid cloning the message for the last peer in the
 						// list. The message payload can be quite large. If the underlying
 						// network used `Bytes` this would not be necessary.
-						let message =if i == n_peers - 1 {
+						let message = if i == n_peers - 1 {
 							message.take()
 								.expect("Only taken in last iteration of loop, never afterwards; qed")
 						} else {
