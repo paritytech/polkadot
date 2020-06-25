@@ -296,6 +296,18 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("commit: unsupported feature for parachain validation")
 	}
 
+	fn read_write_count(&self) -> (u32, u32, u32, u32) {
+		panic!("read_write_count: unsupported feature for parachain validation")
+	}
+
+	fn reset_read_write_count(&mut self) {
+		panic!("reset_read_write_count: unsupported feature for parachain validation")
+	}
+
+	fn set_whitelist(&mut self, _: Vec<Vec<u8>>) {
+		panic!("set_whitelist: unsupported feature for parachain validation")
+	}
+
 	fn set_offchain_storage(&mut self, _: &[u8], _: std::option::Option<&[u8]>) {
 		panic!("set_offchain_storage: unsupported feature for parachain validation")
 	}
