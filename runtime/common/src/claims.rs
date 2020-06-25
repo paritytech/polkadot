@@ -194,7 +194,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
