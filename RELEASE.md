@@ -8,3 +8,4 @@ The following checks should be completed before releasing a new version of the P
 - [ ] Verify new extrinsics have been correctly whitelisted/blacklisted for proxy filters.
 - [ ] Check that the new client releases have run on the network without issue for 24 hours.
 - [ ] Verify benchmarks have been updated for any modified runtime logic.
+- [ ] Verify Polkadot JS Apps is up to date with the latest runtime changes.
