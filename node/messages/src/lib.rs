@@ -29,6 +29,7 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
+	CoreAssignment, CoreOccupied,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement,
@@ -158,10 +159,24 @@ pub enum AvailabilityStoreMessage {
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
 }
 
+/// The information on scheduler assignments that some somesystems may be querying.
+pub struct SchedulerRoster {
+	/// Validator-to-groups assignments.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// All scheduled paras.
+	pub scheduled: Vec<CoreAssignment>,
+	/// Upcoming paras (chains and threads).
+	pub upcoming: Vec<ParaId>,
+	/// Occupied cores.
+	pub availability_cores: Vec<Option<CoreOccupied>>,
+}
+
 /// A request to the Runtime API subsystem.
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(oneshot::Sender<Vec<ValidatorId>>),
+	/// Get the assignments of validators to cores.
+	ValidatorGroups(oneshot::Sender<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(oneshot::Sender<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and

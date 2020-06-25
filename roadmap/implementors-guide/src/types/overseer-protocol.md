@@ -208,11 +208,24 @@ The Runtime API subsystem is responsible for providing an interface to the state
 Other subsystems query this data by sending these messages.
 
 ```rust
+/// The information on validator groups, core assignments,
+/// upcoming paras and availability cores.
+struct SchedulerRoster {
+	/// Validator-to-groups assignments.
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// All scheduled paras.
+	scheduled: Vec<CoreAssignment>,
+	/// Upcoming paras (chains and threads).
+	upcoming: Vec<ParaId>,
+	/// Occupied cores.
+	availability_cores: Vec<Option<CoreOccupied>>,
+}
+
 enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(ResponseChannel<Vec<ValidatorId>>),
-	/// Get the assignments of validators to parachains.
-	DutyRoster(ResponseChannel<DutyRoster>),
+	/// Get the assignments of validators to cores, upcoming parachains.
+	SchedulerRoster(ResponseChannel<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(ResponseChannel<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and

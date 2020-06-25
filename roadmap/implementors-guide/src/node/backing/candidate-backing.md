@@ -54,14 +54,14 @@ The goal of a Candidate Backing Job is to produce as many backable candidates as
 
 ### On Startup
 
-* Fetch current validator set, validator -> parachain assignments from [`Runtime API`][RA] subsystem using [`RuntimeApiRequest::Validators`][RAM] and [`RuntimeApiRequest::DutyRoster`][RAM]
+* Fetch current validator set, validator -> parachain assignments from [`Runtime API`][RA] subsystem using [`RuntimeApiRequest::Validators`][RAM] and [`RuntimeApiRequest::ValidatorGroups`][RAM]
 * Determine if the node controls a key in the current validator set. Call this the local key if so.
 * If the local key exists, extract the parachain head and validation function from the [`Runtime API`][RA] for the parachain the local key is assigned to by issuing a [`RuntimeApiRequest::Validators`][RAM]
 * Issue a [`RuntimeApiRequest::SigningContext`][RAM] message to get a context that will later be used upon signing.
 
 ### On Receiving New Candidate Backing Message
 
-```rust,ignore
+```rust
 match msg {
   CandidateBackingMessage::Second(hash, candidate) => {
     if candidate is unknown and in local assignment {
@@ -71,11 +71,11 @@ match msg {
 }
 ```
 
-Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage::ProvisionableData(ProvisionableData::BackedCandidate(BackedCandidate))`][PM] message.
+Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(BackedCandidate))` message.
 
 ### Validating Candidates.
 
-```rust,ignore
+```rust
 fn spawn_validation_work(candidate, parachain head, validation function) {
   asynchronously {
     let pov = (fetch pov block).await
