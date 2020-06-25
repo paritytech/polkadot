@@ -649,13 +649,18 @@ mod tests {
 		actions.iter().find(|&x| x == action).is_some()
 	}
 
-	#[test]
-	fn sends_view_updates_to_peers() {
+	struct TestHarness {
+		network_handle: TestNetworkHandle,
+		virtual_overseer: subsystem_test::TestSubsystemContextHandle<NetworkBridgeMessage>,
+		action_rx: mpsc::UnboundedReceiver<InternalActionRecord>,
+	}
+
+	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
 		let pool = ThreadPool::new().unwrap();
 
-		let (network, mut network_handle) = new_test_network();
+		let (network, network_handle) = new_test_network();
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool);
-		let (action_tx, mut action_rx) = mpsc::unbounded::<InternalActionRecord>();
+		let (action_tx, action_rx) = mpsc::unbounded::<InternalActionRecord>();
 
 		let network_bridge = run_network(
 			network,
@@ -665,7 +670,23 @@ mod tests {
 			.map_err(|_| panic!("subsystem execution failed"))
 			.map(|_| ());
 
-		let test_fut = async move {
+		let test_fut = test(TestHarness {
+			network_handle,
+			virtual_overseer,
+			action_rx,
+		});
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(network_bridge);
+
+		executor::block_on(future::select(test_fut, network_bridge));
+	}
+
+	#[test]
+	fn sends_view_updates_to_peers() {
+		test_harness(|test_harness| async move {
+			let TestHarness { mut network_handle, virtual_overseer, mut action_rx } = test_harness;
+
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
 
@@ -701,16 +722,14 @@ mod tests {
 				&actions,
 				&NetworkAction::WriteNotification(peer_b, wire_message.clone()),
 			));
-		};
-
-		futures::pin_mut!(test_fut);
-		futures::pin_mut!(network_bridge);
-
-		executor::block_on(future::select(test_fut, network_bridge));
+		});
 	}
 
+	#[test]
+	fn peer_view_updates_sent_via_overseer() {
 
-	// TODO [now]: our view updates are sent.
+	}
+
 	// TODO [now]: peer view updates get sent via overseer.
 
 	// TODO [now]: peer messages are sent via event producer
