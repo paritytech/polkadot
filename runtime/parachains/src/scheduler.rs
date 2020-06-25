@@ -227,7 +227,7 @@ decl_error! {
 
 decl_module! {
 	/// The scheduler module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 	}
 }
