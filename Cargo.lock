@@ -4275,6 +4275,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
+ "polkadot-subsystem-test-helpers",
  "sc-network",
  "sp-runtime",
  "streamunordered",

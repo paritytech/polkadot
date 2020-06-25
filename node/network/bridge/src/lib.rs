@@ -403,42 +403,109 @@ async fn run_network(net: impl Network, mut ctx: impl SubsystemContext<Message=N
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::mpsc;
+	use futures::channel::mpsc;
 	use std::sync::Arc;
+	use parking_lot::Mutex;
 
-	enum OutgoingEvent {
+	enum NetworkAction {
 		ReputationChange(PeerId, ReputationChange),
 		Message(PeerId, Vec<u8>),
 	}
 
+	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	#[derive(Clone)]
 	struct TestNetwork {
 		net_events: Arc<Mutex<Option<mpsc::UnboundedReceiver<NetworkEvent>>>>,
-		outgoing_tx: mpsc::UnboundedSender<OutgoingEvent>,
+		action_tx: mpsc::UnboundedSender<NetworkAction>,
 	}
 
-	struct TestHost {
-		outgoing_rx: mpsc::UnboundedReceiver<OutgoingEvent>,
+	// The test's view of the network. This receives updates from the subsystem in the form
+	// of `NetworkAction`s.
+	struct TestNetworkHandle {
+		action_rx: mpsc::UnboundedReceiver<NetworkAction>,
 		net_tx: mpsc::UnboundedSender<NetworkEvent>,
 	}
 
-	fn new_test_host() -> (
+	fn new_test_network() -> (
 		TestNetwork,
-		mpsc::UnboundedSender<NetworkEvent>,
-		mpsc::UnboundedReceiver<OutgoingEvent>,
+		TestNetworkHandle,
 	) {
 		let (net_tx, net_rx) = mpsc::unbounded();
-		let (outgoing_tx, outgoing_rx) = mpsc::unbounded();
+		let (action_tx, action_rx) = mpsc::unbounded();
 
-		let net = TestNetwork {
-			net_events: Arc::new(Mutex::new(Some(net_rx))),
-			outgoing_tx,
-		};
-
-		(net, net_tx, outgoing_rx)
+		(
+			TestNetwork {
+				net_events: Arc::new(Mutex::new(Some(net_rx))),
+				action_tx,
+			},
+			TestNetworkHandle {
+				action_rx,
+				net_tx,
+			},
+		)
 	}
 
-	impl TestNetwork {
+	impl Network for TestNetwork {
+		fn event_stream(&self) -> BoxStream<NetworkEvent> {
+			self.net_events.lock()
+				.take()
+				.expect("Subsystem made more than one call to `event_stream`")
+				.boxed()
+		}
+
+		fn report_peer(&self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
+			let x = async move {
+				self.action_tx.unbounded_send(NetworkAction::ReputationChange(who, cost_benefit))
+					.expect("test hung up on network");
+			};
+
+			x.boxed()
+		}
+
+		fn write_notification(&self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
+			let x = async move {
+				self.action_tx.unbounded_send(NetworkAction::Message(who, message))
+					.expect("test hung up on network");
+			};
+
+			x.boxed()
+		}
+	}
+
+	impl TestNetworkHandle {
+		async fn next_network_action(&mut self) -> NetworkAction {
+			self.action_rx.next().await.expect("subsystem concluded early")
+		}
+
+		fn connect_peer(&self, peer: PeerId, role: ObservedRole) {
+			self.send_network_event(NetworkEvent::NotificationStreamOpened {
+				remote: peer,
+				engine_id: POLKADOT_ENGINE_ID,
+				role,
+			});
+		}
+
+		fn disconnect_peer(&self, peer: PeerId) {
+			self.send_network_event(NetworkEvent::NotificationStreamClosed {
+				remote: peer,
+				engine_id: POLKADOT_ENGINE_ID,
+			});
+		}
+
+		fn peer_message(&self, peer: PeerId, message: Vec<u8>) {
+			self.send_network_event(NetworkEvent::NotificationsReceived {
+				remote: peer,
+				messages: vec![(POLKADOT_ENGINE_ID, message.into())],
+			});
+		}
+
+		fn send_network_event(&self, event: NetworkEvent) {
+			self.net_tx.unbounded_send(event).expect("subsystem concluded early");
+		}
+	}
+
+	#[test]
+	fn sends_view_updates_to_peers() {
 
 	}
 
