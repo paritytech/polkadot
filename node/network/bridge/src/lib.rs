@@ -502,6 +502,7 @@ mod tests {
 	use super::*;
 	use futures::channel::mpsc;
 	use futures::executor::{self, ThreadPool};
+
 	use std::sync::Arc;
 	use parking_lot::Mutex;
 
@@ -539,29 +540,17 @@ mod tests {
 	}
 
 	impl Network for TestNetwork {
-		fn event_stream(&mut self) -> BoxStream<NetworkEvent> {
+		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 			self.net_events.lock()
 				.take()
 				.expect("Subsystem made more than one call to `event_stream`")
 				.boxed()
 		}
 
-		fn report_peer(&mut self, who: PeerId, cost_benefit: ReputationChange) -> BoxFuture<()> {
-			let x = async move {
-				self.action_tx.unbounded_send(NetworkAction::ReputationChange(who, cost_benefit))
-					.expect("test hung up on network");
-			};
-
-			x.boxed()
-		}
-
-		fn write_notification(&mut self, who: PeerId, message: Vec<u8>) -> BoxFuture<()> {
-			let x = async move {
-				self.action_tx.unbounded_send(NetworkAction::WriteNotification(who, message))
-					.expect("test hung up on network");
-			};
-
-			x.boxed()
+		fn action_sink<'a>(&'a mut self)
+			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
+		{
+			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
 		}
 	}
 
@@ -618,7 +607,11 @@ mod tests {
 
 		let (network, mut network_handle) = new_test_network();
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
-		pool.spawn_ok(run_network(network, context));
+		pool.spawn_ok(
+			run_network(network, context)
+				.map_err(|_| panic!("subsystem execution failed"))
+				.map(|_| ())
+		);
 
 		executor::block_on(async move {
 			let peer_a = PeerId::random();
