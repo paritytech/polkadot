@@ -173,6 +173,8 @@ pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedStatement),
+	/// Event from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
