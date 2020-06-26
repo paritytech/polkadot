@@ -374,7 +374,7 @@ async fn run_network<N: Network>(
 								.expect("Only taken in last iteration of loop, never afterwards; qed")
 						} else {
 							message.as_ref()
-								.expect("Only taken in last iteratio of loop, we are not there yet; qed")
+								.expect("Only taken in last iteration of loop, we are not there yet; qed")
 								.clone()
 						};
 
