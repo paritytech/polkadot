@@ -842,6 +842,7 @@ impl InstanceFilter<Call> for ProxyType {
 			},
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(identity::Call::provide_judgement(..))
+				| Call::Utility(utility::Call::batch(..))
 			)
 		}
 	}
