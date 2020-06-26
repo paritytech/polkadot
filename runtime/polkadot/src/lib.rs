@@ -783,7 +783,7 @@ pub enum ProxyType {
 	Governance,
 	Staking,
 	SudoBalances,
-	RegistrarJudgement,
+	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -840,7 +840,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..) => true,
 				_ => false,
 			},
-			ProxyType::RegistrarJudgement => matches!(c,
+			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(identity::Call::provide_judgement(..))
 			)
 		}
