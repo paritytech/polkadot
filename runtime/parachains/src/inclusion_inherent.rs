@@ -21,20 +21,23 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
-use sp_std::prelude::*;
-use primitives::{
-	parachain::{BackedCandidate, SignedAvailabilityBitfields},
+use crate::{
+	inclusion,
+	scheduler::{self, FreedReason},
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure,
+	decl_error, decl_module, decl_storage,
 	dispatch::DispatchResult,
-	weights::{DispatchClass, Weight},
+	ensure,
 	traits::Get,
+	weights::{DispatchClass, Weight},
 };
+use primitives::parachain::{BackedCandidate, SignedAvailabilityBitfields};
+use sp_std::prelude::*;
 use system::ensure_none;
-use crate::{inclusion, scheduler::{self, FreedReason}};
+use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
-pub trait Trait: inclusion::Trait + scheduler::Trait { }
+pub trait Trait: inclusion::Trait + scheduler::Trait {}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaInclusionInherent {
@@ -116,5 +119,19 @@ decl_module! {
 
 			Ok(())
 		}
+	}
+}
+
+impl<T: Trait> ProvideInherent for Module<T> {
+	type Call = Call<T>;
+	type Error = MakeFatalError<()>;
+	const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+
+	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+		data.get_data(&Self::INHERENT_IDENTIFIER)
+			.expect("inherent identifier data failed to decode")
+			.map(|(signed_bitfields, backed_candidates)| {
+				Call::inclusion(signed_bitfields, backed_candidates)
+			})
 	}
 }
