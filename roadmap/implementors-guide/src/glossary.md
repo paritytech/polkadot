@@ -29,6 +29,6 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Validator: Specially-selected node in the network who is responsible for validating parachain blocks and issuing attestations about their validity.
 - Validation Function: A piece of Wasm code that describes the state-transition function of a parachain.
 
-Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/overview/glossary).
+Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary).
 
 [0]: https://wiki.polkadot.network/docs/en/learn-consensus

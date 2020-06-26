@@ -57,10 +57,22 @@ use crate::{configuration, paras, initializer::SessionChangeNotification};
 #[cfg_attr(test, derive(Debug))]
 pub struct CoreIndex(u32);
 
+impl From<u32> for CoreIndex {
+	fn from(i: u32) -> CoreIndex {
+		CoreIndex(i)
+	}
+}
+
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct GroupIndex(u32);
+
+impl From<u32> for GroupIndex {
+	fn from(i: u32) -> GroupIndex {
+		GroupIndex(i)
+	}
+}
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
@@ -130,7 +142,7 @@ pub enum AssignmentKind {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Encode, Decode)]
+#[derive(Clone, Encode, Decode)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
@@ -145,7 +157,6 @@ pub struct CoreAssignment {
 
 impl CoreAssignment {
 	/// Get the ID of a collator who is required to collate this block.
-	#[allow(unused)]
 	pub(crate) fn required_collator(&self) -> Option<&CollatorId> {
 		match self.kind {
 			AssignmentKind::Parachain => None,
@@ -153,7 +164,6 @@ impl CoreAssignment {
 		}
 	}
 
-	#[allow(unused)]
 	fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
@@ -168,7 +178,6 @@ impl CoreAssignment {
 }
 
 /// Reasons a core might be freed
-#[allow(unused)]
 pub enum FreedReason {
 	/// The core's work concluded and the parablock assigned to it is considered available.
 	Concluded,
@@ -525,7 +534,6 @@ impl<T: Trait> Module<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
-	#[allow(unused)]
 	pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
 		if now_occupied.is_empty() { return }
 
@@ -557,7 +565,6 @@ impl<T: Trait> Module<T> {
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
 	/// out of bounds will return `None`, as will indices of unassigned cores.
-	#[allow(unused)]
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
@@ -571,7 +578,6 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the validators in the given group, if the group index is valid for this session.
-	#[allow(unused)]
 	pub(crate) fn group_validators(group_index: GroupIndex) -> Option<Vec<ValidatorIndex>> {
 		ValidatorGroups::get().get(group_index.0 as usize).map(|g| g.clone())
 	}
@@ -615,10 +621,9 @@ impl<T: Trait> Module<T> {
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
 	/// of the last rotation would this return `Some`.
 	///
-	/// This really should not be a box, but is working around a compiler limitation described here:
-	/// https://users.rust-lang.org/t/cannot-unify-associated-type-in-impl-fn-with-concrete-type/44129
+	/// This really should not be a box, but is working around a compiler limitation filed here:
+	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
-	#[allow(unused)]
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
 		let now = <system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();

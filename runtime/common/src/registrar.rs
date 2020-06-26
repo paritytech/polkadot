@@ -673,7 +673,7 @@ mod tests {
 	use primitives::{
 		parachain::{
 			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, Statement, Chain,
+			CandidateReceipt, HeadData, ValidityAttestation, CompactStatement as Statement, Chain,
 			CollatorPair, CandidateCommitments,
 		},
 		Balance, BlockNumber, Header, Signature,

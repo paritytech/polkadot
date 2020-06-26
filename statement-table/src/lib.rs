@@ -19,7 +19,7 @@ pub mod generic;
 pub use generic::Table;
 
 use primitives::parachain::{
-	Id, AbridgedCandidateReceipt, Statement as PrimitiveStatement, ValidatorSignature, ValidatorIndex,
+	Id, AbridgedCandidateReceipt, CompactStatement as PrimitiveStatement, ValidatorSignature, ValidatorIndex,
 };
 use primitives::Hash;
 

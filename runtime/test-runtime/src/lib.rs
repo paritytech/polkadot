@@ -26,14 +26,15 @@ use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext}, ValidityError,
 };
-use runtime_common::{attestations, claims, parachains, registrar, slots,
-	impls::{CurrencyToVoteHandler, TargetedFeeAdjustment},
+use runtime_common::{
+	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	impls::CurrencyToVoteHandler,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Perbill, Perquintill, RuntimeDebug, KeyTypeId,
+	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
 	transaction_validity::{
 		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
 	},
@@ -81,7 +82,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1052,
+	spec_version: 1053,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -201,7 +202,6 @@ impl balances::Trait for Runtime {
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
-	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 }
 
 impl transaction_payment::Trait for Runtime {
@@ -209,7 +209,7 @@ impl transaction_payment::Trait for Runtime {
 	type OnTransactionPayment = ();
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
-	type FeeMultiplierUpdate = TargetedFeeAdjustment<TargetBlockFullness, Self>;
+	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
 parameter_types! {
@@ -401,7 +401,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			system::CheckSpecVersion::<Runtime>::new(),
 			system::CheckTxVersion::<Runtime>::new(),
 			system::CheckGenesis::<Runtime>::new(),
-			system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			system::CheckMortality::<Runtime>::from(generic::Era::mortal(period, current_block)),
 			system::CheckNonce::<Runtime>::from(nonce),
 			system::CheckWeight::<Runtime>::new(),
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
@@ -545,7 +545,7 @@ pub type SignedExtra = (
 	system::CheckSpecVersion<Runtime>,
 	system::CheckTxVersion<Runtime>,
 	system::CheckGenesis<Runtime>,
-	system::CheckEra<Runtime>,
+	system::CheckMortality<Runtime>,
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	transaction_payment::ChargeTransactionPayment::<Runtime>,

@@ -24,7 +24,7 @@ Either way, there will be some top-level type encapsulating messages from the ov
 
 ## All Messages
 
-> TODO [now]
+> TODO (now)
 
 ## Availability Distribution Message
 
@@ -90,8 +90,8 @@ enum CandidateBackingMessage {
   /// in a child of the given relay-parent, referenced by its hash.
   RegisterBackingWatcher(Hash, TODO),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
-  /// given relay-parent (ref. by hash). This candidate must be validated.
-  Second(Hash, CandidateReceipt),
+  /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
+  Second(Hash, CandidateReceipt, PoV),
   /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
   /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
   Statement(Statement),
@@ -100,7 +100,7 @@ enum CandidateBackingMessage {
 
 ## Candidate Selection Message
 
-These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.html) as a means of providing feedback on its outputs.
+These messages are sent to the [Candidate Selection subsystem](../node/backing/candidate-selection.md) as a means of providing feedback on its outputs.
 
 ```rust
 enum CandidateSelectionMessage {
@@ -128,7 +128,7 @@ enum NetworkBridgeMessage {
 
 ## Network Bridge Update
 
-These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.html) to other subsystems based on registered listeners.
+These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.md) to other subsystems based on registered listeners.
 
 ```rust
 struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
@@ -158,21 +158,33 @@ enum MisbehaviorReport {
   /// this message should be dispatched with all of them, in arbitrary order.
   ///
   /// This variant is also used when our own validity checks disagree with others'.
-  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedStatement>),
+  CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
   /// I've noticed a peer contradicting itself about a particular candidate
-  SelfContradiction(CandidateReceipt, SignedStatement, SignedStatement),
+  SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
   /// This peer has seconded more than one parachain candidate for this relay parent head
-  DoubleVote(CandidateReceipt, SignedStatement, SignedStatement),
+  DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
 ```
 
 If this subsystem chooses to second a parachain block, it dispatches a `CandidateBackingSubsystemMessage`.
 
-## PoV Distribution
+## PoV Distribution Message
 
-Messages received by the PoV Distribution subsystem are unspecified and highly tied to gossip.
-
-> TODO
+```rust
+enum PoVDistributionMessage {
+	/// Note a statement by a validator on a relay-parent. `Seconded` statements must always
+	/// have been passed in before `Valid` or `Invalid` statements.
+	ValidatorStatement(Hash, SignedFullStatement),
+	/// Fetch a PoV from the network.
+	/// (relay_parent, PoV-hash, Response channel).
+	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
+	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
+	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
+	DistributePoV(Hash, CandidateDescriptor, PoV),
+	/// An update from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+```
 
 ## Provisioner Message
 
@@ -227,7 +239,7 @@ enum RuntimeApiMessage {
 
 ## Statement Distribution Message
 
-The Statement Distribution subsystem distributes signed statements from validators to other validators.
+The Statement Distribution subsystem distributes signed statements and candidates from validators to other validators. It does this by distributing full statements, which embed the candidate receipt, as opposed to compact statements which don't.
 It receives updates from the network bridge and signed statements to share with other validators.
 
 ```rust
@@ -239,13 +251,13 @@ enum StatementDistributionMessage {
 	///
 	/// The statement distribution subsystem assumes that the statement should be correctly
 	/// signed.
-	Share(Hash, SignedStatement),
+	Share(Hash, SignedFullStatement),
 }
 ```
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.html) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
 
 ```rust
 enum CandidateValidationMessage {

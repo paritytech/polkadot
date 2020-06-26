@@ -31,7 +31,7 @@ use polkadot_primitives::parachain::{
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedStatement, View, ProtocolId,
+	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
 
 /// A notification of a new backed candidate.
@@ -57,7 +57,7 @@ pub enum CandidateBackingMessage {
 	Second(Hash, AbridgedCandidateReceipt),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
-	Statement(Hash, SignedStatement),
+	Statement(Hash, SignedFullStatement),
 }
 
 /// Blanket error for validation failing.
@@ -172,7 +172,7 @@ pub enum RuntimeApiMessage {
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
-	Share(Hash, SignedStatement),
+	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
