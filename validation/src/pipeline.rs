@@ -336,14 +336,32 @@ pub fn full_output_validation_with_api<P>(
 		max_block_data_size,
 		&encoded_pov,
 	)
-		.and_then(|()| validate(
-			validation_pool,
-			&collation,
-			&pov_block,
-			&local_validation,
-			&global_validation,
-			&validation_code,
-		))
+		.and_then(|()| {
+			let res = validate(
+				validation_pool,
+				&collation,
+				&pov_block,
+				&local_validation,
+				&global_validation,
+				&validation_code,
+			);
+
+			match res {
+				Err(ref err) => log::debug!(
+					target: "validation",
+					"Failed to validate PoVBlock for parachain ({}): {:?}",
+					para_id,
+					err,
+				),
+				Ok(_) => log::debug!(
+					target: "validation",
+					"Successfully validated PoVBlock for parachain ({}).",
+					para_id,
+				),
+			}
+
+			res
+		})
 		.and_then(|validated| validated.full_output(n_validators))
 }
 
