@@ -4349,6 +4349,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-proposer"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-telemetry",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "tokio-executor 0.2.0-alpha.6",
+]
+
+[[package]]
 name = "polkadot-rpc"
 version = "0.8.13"
 dependencies = [
