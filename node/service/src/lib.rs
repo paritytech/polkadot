@@ -34,6 +34,7 @@ use polkadot_overseer::{
 	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
 	CandidateValidationMessage, CandidateBackingMessage,
 };
+use polkadot_proposer::ProposerFactory;
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -381,11 +382,9 @@ macro_rules! new_full {
 			let can_author_with =
 				consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-			// TODO: custom proposer (https://github.com/paritytech/polkadot/issues/1248)
-			let proposer = sc_basic_authorship::ProposerFactory::new(
+			let proposer = ProposerFactory::new(
 				client.clone(),
 				service.transaction_pool(),
-				None,
 			);
 
 			let babe_config = babe::BabeParams {
