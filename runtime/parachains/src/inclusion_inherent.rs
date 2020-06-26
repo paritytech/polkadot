@@ -22,7 +22,10 @@
 //! this module.
 
 use sp_std::prelude::*;
-use primitives::parachain::{BackedCandidate, SignedAvailabilityBitfields};
+use primitives::{
+	inclusion_inherent,
+	parachain::{BackedCandidate, SignedAvailabilityBitfields},
+};
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
 	dispatch::DispatchResult,
@@ -124,7 +127,7 @@ decl_module! {
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+	const INHERENT_IDENTIFIER: InherentIdentifier = inclusion_inherent::INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
