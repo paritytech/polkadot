@@ -562,7 +562,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	type Transaction = sp_api::TransactionFor<P, Block>;
 
 	fn import_block(
-		&mut self,
+		&self,
 		block: BlockImportParams<Block, Self::Transaction>,
 		new_cache: HashMap<CacheKeyId, Vec<u8>>,
 	) -> Result<ImportResult, Self::Error> {
@@ -630,7 +630,7 @@ impl<I, P> BlockImport<Block> for AvailabilityBlockImport<I, P> where
 	}
 
 	fn check_block(
-		&mut self,
+		&self,
 		block: BlockCheckParams<Block>,
 	) -> Result<ImportResult, Self::Error> {
 		self.inner.check_block(block).map_err(Into::into)
