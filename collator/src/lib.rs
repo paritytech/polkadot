@@ -50,7 +50,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::pin::Pin;
 
-use futures::{future, Future, Stream, FutureExt, TryFutureExt, StreamExt, task::Spawn};
+use futures::{future, Future, Stream, FutureExt, StreamExt, task::Spawn};
 use log::warn;
 use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
@@ -100,24 +100,17 @@ impl Network for polkadot_network::protocol::Service {
 	}
 }
 
-/// Error to return when the head data was invalid.
-#[derive(Clone, Copy, Debug)]
-pub struct InvalidHead;
-
 /// Collation errors.
 #[derive(Debug)]
 pub enum Error {
 	/// Error on the relay-chain side of things.
 	Polkadot(String),
-	/// Error on the collator side of things.
-	Collator(InvalidHead),
 }
 
 impl fmt::Display for Error {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
 			Error::Polkadot(ref err) => write!(f, "Polkadot node error: {}", err),
-			Error::Collator(_) => write!(f, "Collator node error: Invalid head data"),
 		}
 	}
 }
@@ -147,7 +140,7 @@ pub trait BuildParachainContext {
 /// This can be implemented through an externally attached service or a stub.
 /// This is expected to be a lightweight, shared type like an Arc.
 pub trait ParachainContext: Clone {
-	type ProduceCandidate: Future<Output = Result<(BlockData, HeadData), InvalidHead>>;
+	type ProduceCandidate: Future<Output = Option<(BlockData, HeadData)>>;
 
 	/// Produce a candidate, given the relay parent hash, the latest ingress queue information
 	/// and the last parachain head.
@@ -169,8 +162,7 @@ pub async fn collate<P>(
 	downward_messages: Vec<DownwardMessage>,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
-)
-	-> Result<parachain::Collation, Error>
+) -> Option<parachain::Collation>
 	where
 		P: ParachainContext,
 		P::ProduceCandidate: Send,
@@ -180,7 +172,7 @@ pub async fn collate<P>(
 		global_validation,
 		local_validation_data,
 		downward_messages,
-	).map_err(Error::Collator).await?;
+	).await?;
 
 	let pov_block = PoVBlock {
 		block_data,
@@ -207,7 +199,7 @@ pub async fn collate<P>(
 		pov: pov_block,
 	};
 
-	Ok(collation)
+	Some(collation)
 }
 
 #[cfg(feature = "service-rewr")]
@@ -346,8 +338,13 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 					downward_messages,
 					parachain_context,
 					key,
-				).map_ok(move |collation| {
-					network.distribute_collation(targets, collation)
+				).map(move |collation| {
+					match collation {
+						Some(collation) => network.distribute_collation(targets, collation),
+						None => log::trace!("Skipping collation as `collate` returned `None`"),
+					}
+
+					Ok(())
 				});
 
 				future::Either::Right(collation_work)
@@ -381,7 +378,6 @@ pub async fn start_collator<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-	informant_prefix: Option<String>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: 'static + BuildParachainContext,
@@ -402,7 +398,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -421,7 +416,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -440,7 +434,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -475,7 +468,7 @@ mod tests {
 	struct DummyParachainContext;
 
 	impl ParachainContext for DummyParachainContext {
-		type ProduceCandidate = future::Ready<Result<(BlockData, HeadData), InvalidHead>>;
+		type ProduceCandidate = future::Ready<Option<(BlockData, HeadData)>>;
 
 		fn produce_candidate(
 			&mut self,
@@ -485,10 +478,10 @@ mod tests {
 			_: Vec<DownwardMessage>,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
-			future::ok((
+			future::ready(Some((
 				BlockData(vec![1, 2, 3, 4, 5,]),
 				HeadData(vec![9, 9, 9]),
-			))
+			)))
 		}
 	}
 
@@ -521,7 +514,6 @@ mod tests {
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
 			config,
-			None,
 		));
 	}
 }
