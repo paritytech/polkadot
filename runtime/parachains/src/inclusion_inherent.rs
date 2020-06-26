@@ -21,20 +21,19 @@
 //! as it has no initialization logic and its finalization logic depends only on the details of
 //! this module.
 
+use sp_std::prelude::*;
+use primitives::parachain::{BackedCandidate, SignedAvailabilityBitfields};
+use frame_support::{
+	decl_error, decl_module, decl_storage, ensure,
+	dispatch::DispatchResult,
+	weights::{DispatchClass, Weight},
+	traits::Get,
+};
+use system::ensure_none;
 use crate::{
 	inclusion,
 	scheduler::{self, FreedReason},
 };
-use frame_support::{
-	decl_error, decl_module, decl_storage,
-	dispatch::DispatchResult,
-	ensure,
-	traits::Get,
-	weights::{DispatchClass, Weight},
-};
-use primitives::parachain::{BackedCandidate, SignedAvailabilityBitfields};
-use sp_std::prelude::*;
-use system::ensure_none;
 use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
 pub trait Trait: inclusion::Trait + scheduler::Trait {}
@@ -129,7 +128,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
-			.expect("inherent identifier data failed to decode")
+			.expect("inclusion inherent data failed to decode")
 			.map(|(signed_bitfields, backed_candidates)| {
 				Call::inclusion(signed_bitfields, backed_candidates)
 			})
