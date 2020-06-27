@@ -88,6 +88,12 @@ impl From<futures::task::SpawnError> for SubsystemError {
     }
 }
 
+impl From<std::convert::Infallible> for SubsystemError {
+	fn from(e: std::convert::Infallible) -> Self {
+		match e {}
+	}
+}
+
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
