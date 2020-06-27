@@ -390,7 +390,7 @@ async fn run_network<N: Network>(
 				net.action_sink().send_all(&mut message_producer).await?;
 			}
 			Action::ReportPeer(peer, rep) => {
-				net.report_peer(peer, rep).await;
+				net.report_peer(peer, rep).await?;
 			}
 			Action::StartWork(relay_parent) => {
 				live_heads.push(relay_parent);
@@ -469,7 +469,7 @@ async fn run_network<N: Network>(
 								net.report_peer(
 									peer.clone(),
 									MALFORMED_VIEW_COST,
-								).await;
+								).await?;
 
 								continue
 							}
@@ -495,7 +495,7 @@ async fn run_network<N: Network>(
 									net.report_peer(
 										peer.clone(),
 										UNKNOWN_PROTO_COST,
-									).await;
+									).await?;
 
 									None
 								}
