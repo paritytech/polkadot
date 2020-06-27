@@ -590,7 +590,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Hash)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
