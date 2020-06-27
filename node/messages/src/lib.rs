@@ -29,7 +29,7 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied,
+	CoreAssignment, CoreOccupied, HeadData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement,
@@ -148,6 +148,7 @@ pub enum BitfieldDistributionMessage {
 }
 
 /// Availability store subsystem message.
+#[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `PoVBlock` from the AV store.
 	QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
@@ -160,6 +161,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 /// The information on scheduler assignments that some somesystems may be querying.
+#[derive(Debug)]
 pub struct SchedulerRoster {
 	/// Validator-to-groups assignments.
 	pub validator_groups: Vec<Vec<ValidatorIndex>>,
@@ -172,6 +174,7 @@ pub struct SchedulerRoster {
 }
 
 /// A request to the Runtime API subsystem.
+#[derive(Debug)]
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(oneshot::Sender<Vec<ValidatorId>>),
@@ -183,15 +186,19 @@ pub enum RuntimeApiRequest {
 	/// an optional block number representing an intermediate parablock executed in the context of
 	/// that block.
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
+	/// Get head data for a specific para.
+	HeadData(ParaId, oneshot::Sender<HeadData>),
 }
 
 /// A message to the Runtime API subsystem.
+#[derive(Debug)]
 pub enum RuntimeApiMessage {
 	/// Make a request of the runtime API against the post-state of the given relay-parent.
 	Request(Hash, RuntimeApiRequest),
 }
 
 /// Statement distribution message.
+#[derive(Debug)]
 pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
@@ -228,6 +235,12 @@ pub enum AllMessages {
 	CandidateValidation(CandidateValidationMessage),
 	/// Message for the candidate backing subsystem.
 	CandidateBacking(CandidateBackingMessage),
+	/// Message for Runtime API subsystem.
+	RuntimeApi(RuntimeApiMessage),
+	/// Message for the Availability Store subsystem.
+	AvailabilityStore(AvailabilityStoreMessage),
+	/// Message for the Statement Distribution subsystem.
+	StatementDistribution(StatementDistributionMessage),
 }
 
 /// A message type that a subsystem receives from an overseer.

@@ -336,6 +336,25 @@ impl<M: Debug> SubsystemContext<M> {
 			tx,
 		}
 	}
+
+	pub fn new_testing(
+		rx: mpsc::Receiver<FromOverseer<M>>,
+	) -> (Self, impl futures::Stream<Item = AllMessages>) {
+		let (tx, sender) = mpsc::channel(64);
+
+		(
+			Self {
+				rx,
+				tx,
+			},
+			sender.filter_map(|x| async move {
+				match x {
+					ToOverseer::SubsystemMessage(msg) => Some(msg),
+					_ => None,
+				}
+			}),
+		)
+	}
 }
 
 /// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
@@ -680,6 +699,9 @@ where
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
+			AllMessages::RuntimeApi(_) => unimplemented!(),
+			AllMessages::AvailabilityStore(_) => unimplemented!(),
+			AllMessages::StatementDistribution(_) => unimplemented!(),
 		}
 	}
 

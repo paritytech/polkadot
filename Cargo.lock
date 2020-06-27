@@ -225,6 +225,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 
 [[package]]
+name = "backing"
+version = "0.1.0"
+dependencies = [
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "polkadot-node-messages",
+ "polkadot-node-primitives",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "sc-client-api",
+ "sc-keystore",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-keyring",
+ "streamunordered",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -836,9 +857,9 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.8"
+version = "0.99.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc655351f820d774679da6cdc23355a93de496867d8203496675162e17b1d671"
+checksum = "298998b1cf6b5b2c8a7b023dfd45821825ce3ba8a8af55c921a0e734e4653f76"
 dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",
@@ -4135,7 +4156,7 @@ dependencies = [
 name = "polkadot-availability-store"
 version = "0.8.12"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "exit-future",
  "futures 0.3.5",
  "kvdb",
@@ -4311,7 +4332,7 @@ dependencies = [
 name = "polkadot-parachain"
 version = "0.8.12"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
@@ -5534,7 +5555,7 @@ version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
  "bytes 0.5.4",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "libp2p",
@@ -5630,7 +5651,7 @@ dependencies = [
  "ansi_term 0.12.1",
  "atty",
  "chrono",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "env_logger",
  "fdlimit",
  "futures 0.3.5",
@@ -5667,7 +5688,7 @@ name = "sc-client-api"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "fnv",
  "futures 0.3.5",
  "hash-db",
@@ -5743,7 +5764,7 @@ name = "sc-consensus-babe"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "fork-tree",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -5785,7 +5806,7 @@ name = "sc-consensus-babe-rpc"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -5858,7 +5879,7 @@ name = "sc-executor"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "lazy_static",
  "libsecp256k1",
  "log 0.4.8",
@@ -5886,7 +5907,7 @@ name = "sc-executor-common"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "log 0.4.8",
  "parity-scale-codec",
  "parity-wasm",
@@ -5940,7 +5961,7 @@ version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
  "assert_matches",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "finality-grandpa",
  "fork-tree",
  "futures 0.3.5",
@@ -5977,7 +5998,7 @@ name = "sc-finality-grandpa-rpc"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "finality-grandpa",
  "futures 0.3.5",
  "jsonrpc-core",
@@ -6013,7 +6034,7 @@ name = "sc-keystore"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "hex",
  "merlin",
  "parking_lot 0.10.2",
@@ -6051,7 +6072,7 @@ dependencies = [
  "bitflags",
  "bs58",
  "bytes 0.5.4",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "either",
  "erased-serde",
  "fnv",
@@ -6223,7 +6244,7 @@ name = "sc-rpc-api"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -6263,7 +6284,7 @@ name = "sc-service"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "directories",
  "exit-future",
  "futures 0.1.29",
@@ -6379,7 +6400,7 @@ name = "sc-transaction-graph"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "linked-hash-map",
  "log 0.4.8",
@@ -6399,7 +6420,7 @@ name = "sc-transaction-pool"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "futures-diagnose",
  "intervalier",
@@ -6786,7 +6807,7 @@ name = "sp-allocator"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "log 0.4.8",
  "sp-core",
  "sp-std",
@@ -6885,7 +6906,7 @@ name = "sp-blockchain"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "log 0.4.8",
  "lru",
  "parity-scale-codec",
@@ -6910,7 +6931,7 @@ name = "sp-consensus"
 version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "libp2p",
@@ -6981,7 +7002,7 @@ dependencies = [
  "base58",
  "blake2-rfc",
  "byteorder",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "ed25519-dalek",
  "futures 0.3.5",
  "hash-db",
@@ -7076,7 +7097,7 @@ name = "sp-inherents"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "sp-core",
@@ -7314,7 +7335,7 @@ name = "sp-transaction-pool"
 version = "2.0.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures 0.3.5",
  "log 0.4.8",
  "parity-scale-codec",
@@ -7558,7 +7579,7 @@ version = "0.8.0-rc3"
 source = "git+https://github.com/paritytech/substrate#7f5dd736f42a408b62885669f7d76ef5baa13572"
 dependencies = [
  "async-std",
- "derive_more 0.99.8",
+ "derive_more 0.99.9",
  "futures-util",
  "hyper 0.13.6",
  "log 0.4.8",

@@ -172,7 +172,7 @@ pub struct DutyRoster {
 
 /// The unique (during session) index of a core.
 #[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(test, derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -183,7 +183,7 @@ impl From<u32> for CoreIndex {
 
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -194,12 +194,12 @@ impl From<u32> for GroupIndex {
 
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadClaim(pub Id, pub CollatorId);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ParathreadEntry {
 	/// The claim.
 	pub claim: ParathreadClaim,
@@ -209,7 +209,7 @@ pub struct ParathreadEntry {
 
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum CoreOccupied {
 	/// A parathread.
 	Parathread(ParathreadEntry),
@@ -219,7 +219,7 @@ pub enum CoreOccupied {
 
 /// The assignment type.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
@@ -229,7 +229,7 @@ pub enum AssignmentKind {
 
 /// How a free core is scheduled to be assigned.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,

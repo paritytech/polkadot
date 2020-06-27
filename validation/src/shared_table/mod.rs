@@ -706,6 +706,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
+
 		let signed_statement = ::table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),

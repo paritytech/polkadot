@@ -498,7 +498,7 @@ mod tests {
 	use primitives::{BlockNumber, Hash};
 	use primitives::parachain::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments, SignedStatement,
+		CandidateCommitments, SignedStatement, AssignmentKind,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -510,7 +510,6 @@ mod tests {
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use crate::paras::ParaGenesisArgs;
-	use crate::scheduler::AssignmentKind;
 
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();

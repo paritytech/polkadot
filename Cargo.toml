@@ -46,6 +46,7 @@ members = [
 	"node/overseer",
 	"node/primitives",
 	"node/service",
+	"node/core/backing",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",

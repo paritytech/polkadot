@@ -586,7 +586,7 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
-	use primitives::{BlockNumber, parachain::ValidatorId};
+	use primitives::{BlockNumber, parachain::{CollatorId, ValidatorId}};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
