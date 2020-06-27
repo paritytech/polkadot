@@ -146,5 +146,5 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
-	fn start(&mut self, ctx: C) -> SpawnedSubsystem;
+	fn start(self, ctx: C) -> SpawnedSubsystem;
 }
