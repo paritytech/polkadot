@@ -92,3 +92,20 @@ pub type ProtocolId = [u8; 4];
 /// Up to `N` (5?) chain heads.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct View(pub Vec<Hash>);
+
+impl View {
+	/// Returns an iterator of the hashes present in `Self` but not in `other`.
+	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = Hash> + 'a {
+		self.0.iter().cloned().filter(move |h| !other.contains(h))
+	}
+
+	/// An iterator containing hashes present in both `Self` and in `other`.
+	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = Hash> + 'a {
+		self.0.iter().cloned().filter(move |h| other.contains(h))
+	}
+
+	/// Whether the view contains a given hash.
+	pub fn contains(&self, hash: &Hash) -> bool {
+		self.0.contains(hash)
+	}
+}
