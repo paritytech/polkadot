@@ -30,11 +30,11 @@ use polkadot_subsystem::messages::{
 use node_primitives::{ProtocolId, View, SignedFullStatement};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{CompactStatement, ValidatorIndex};
+use parity_scale_codec::{Encode, Decode};
 
 use futures::prelude::*;
 
-use std::cmp::Ordering;
-use std::collections::{HashMap, HashSet, BTreeSet};
+use std::collections::{HashMap, HashSet};
 
 const PROTOCOL_V1: ProtocolId = *b"sdn1";
 
@@ -70,10 +70,58 @@ struct PeerRelayParentKnowledge {
 	known_statements: HashSet<(CompactStatement, ValidatorIndex)>,
 }
 
+impl PeerRelayParentKnowledge {
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint.
+	///
+	/// This returns `false` if the peer cannot accept this statement, without altering internal
+	/// state.
+	///
+	/// If the peer can accept the statement, this returns `true` and updates the internal state.
+	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
+	fn accept(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+		if self.known_statements.contains(fingerprint) {
+			return false;
+		}
+
+		match fingerprint.0 {
+			CompactStatement::Candidate(ref h) => {
+				self.known_candidates.insert(h.clone());
+			},
+			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
+				// The peer can only accept Valid and Invalid statements for which it is aware
+				// of the corresponding candidate.
+				if self.known_candidates.contains(h) {
+					return false;
+				}
+			}
+		}
+
+		self.known_statements.insert(fingerprint.clone());
+		true
+	}
+}
+
 struct PeerData {
 	role: ObservedRole,
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
+}
+
+impl PeerData {
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint.
+	///
+	/// This returns `false` if the peer cannot accept this statement, without altering internal
+	/// state.
+	///
+	/// If the peer can accept the statement, this returns `true` and updates the internal state.
+	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
+	fn accept(
+		&mut self,
+		relay_parent: &Hash,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+	) -> bool {
+		self.view_knowledge.get_mut(relay_parent).map_or(false, |k| k.accept(fingerprint))
+	}
 }
 
 // A statement stored while a relay chain head is active.
@@ -92,39 +140,102 @@ impl StoredStatement {
 	}
 }
 
-impl PartialOrd for StoredStatement {
-	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-		Some(self.cmp(other))
+impl std::borrow::Borrow<CompactStatement> for StoredStatement {
+	fn borrow(&self) -> &CompactStatement {
+		&self.compact
 	}
 }
 
-impl Ord for StoredStatement {
-	fn cmp(&self, other: &Self) -> Ordering {
-		let to_idx = |x: &CompactStatement| match *x {
-			CompactStatement::Candidate(_) => 0u8,
-			CompactStatement::Valid(_) => 1,
-			CompactStatement::Invalid(_) => 2,
-		};
-
-		match (&self.compact, &other.compact) {
-			(&CompactStatement::Candidate(ref h), &CompactStatement::Candidate(ref h2)) |
-			(&CompactStatement::Valid(ref h), &CompactStatement::Valid(ref h2)) |
-			(&CompactStatement::Invalid(ref h), &CompactStatement::Invalid(ref h2)) => {
-				h.cmp(h2).then(
-					self.statement.validator_index().cmp(&other.statement.validator_index())
-				)
-			},
-
-			(ref a, ref b) => to_idx(a).cmp(&to_idx(b)),
-		}
+impl std::hash::Hash for StoredStatement {
+	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+		self.fingerprint().hash(state)
 	}
 }
 
 struct ActiveHeadData {
 	// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<Hash>,
-	// Stored statements for circulation to peers.
-	statements: BTreeSet<StoredStatement>,
+	// Stored seconded statements for circulation to peers.
+	seconded_statements: HashSet<StoredStatement>,
+	// Stored other statements for circulation to peers.
+	other_statements: HashSet<StoredStatement>,
+}
+
+impl ActiveHeadData {
+	/// Note the given statement. If it was not already known, returns `Some`, with a handle to the
+	/// statement.
+	fn note_statement(&mut self, statement: SignedFullStatement) -> Option<&StoredStatement> {
+		let compact = statement.payload().to_compact();
+		let stored = StoredStatement {
+			compact: compact.clone(),
+			statement,
+		};
+
+		match compact {
+			CompactStatement::Candidate(h) => {
+				self.candidates.insert(h);
+				if self.seconded_statements.insert(stored) {
+					// This will always return `Some` because it was just inserted.
+					self.seconded_statements.get(&compact)
+				} else {
+					None
+				}
+			}
+			CompactStatement::Valid(_) | CompactStatement::Invalid(_) => {
+				if self.other_statements.insert(stored) {
+					// This will always return `Some` because it was just inserted.
+					self.other_statements.get(&compact)
+				} else {
+					None
+				}
+			}
+		}
+	}
+
+	/// Get an iterator over all statements for the active head. Seconded statements come first.
+	fn statements(&self) -> impl Iterator<Item = &'_ StoredStatement> + '_ {
+		self.seconded_statements.iter().chain(self.other_statements.iter())
+	}
+}
+
+async fn share_message(
+	peers: &mut HashMap<PeerId, PeerData>,
+	active_heads: &mut HashMap<Hash, ActiveHeadData>,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	statement: SignedFullStatement,
+) -> SubsystemResult<()> {
+	if let Some(stored)
+		= active_heads.get_mut(&relay_parent).and_then(|d| d.note_statement(statement))
+	{
+		let fingerprint = stored.fingerprint();
+		let peers_to_send: Vec<_> = peers.iter_mut()
+			.filter_map(|(p, data)| if data.accept(&relay_parent, &fingerprint) {
+				Some(p.clone())
+			} else {
+				None
+			})
+			.collect();
+
+		if peers_to_send.is_empty() { return Ok(()) }
+
+		let payload = stored.statement.encode();
+		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+			peers_to_send,
+			PROTOCOL_V1,
+			payload,
+		))).await?;
+	}
+	Ok(())
+}
+
+async fn handle_network_update(
+	peers: &mut HashMap<PeerId, PeerData>,
+	active_heads: &mut HashMap<Hash, ActiveHeadData>,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	update: NetworkBridgeEvent,
+) -> SubsystemResult<()> {
+	Ok(())
 }
 
 async fn run(
@@ -144,20 +255,30 @@ async fn run(
 		let message = ctx.recv().await?;
 		match message {
 			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-
+				active_heads.entry(relay_parent).or_insert(ActiveHeadData {
+					candidates: HashSet::new(),
+					seconded_statements: HashSet::new(),
+					other_statements: HashSet::new(),
+				});
 			}
 			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-
+				// do nothing - we will handle this when our view changes.
 			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
 			FromOverseer::Communication { msg } => match msg {
-				StatementDistributionMessage::Share(relay_parent, statement) => {
-					// place into `active_heads` and circulate to all peers with
-					// the head in their view.
-				}
-				StatementDistributionMessage::NetworkBridgeUpdate(event) => match event {
-					_ => unimplemented!(),
-				}
+				StatementDistributionMessage::Share(relay_parent, statement) => share_message(
+					&mut peers,
+					&mut active_heads,
+					&mut ctx,
+					relay_parent,
+					statement,
+				).await?,
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => handle_network_update(
+					&mut peers,
+					&mut active_heads,
+					&mut ctx,
+					event,
+				).await?,
 			}
 		}
 	}
