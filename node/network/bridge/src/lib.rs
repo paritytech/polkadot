@@ -390,9 +390,7 @@ async fn run_network<N: Network>(
 				net.action_sink().send_all(&mut message_producer).await?;
 			}
 			Action::ReportPeer(peer, rep) => {
-				// let binding required here to avoid unnecessary sync bound.
-				let report_fut = net.report_peer(peer, rep);
-				report_fut.await?
+				net.report_peer(peer, rep).await;
 			}
 			Action::StartWork(relay_parent) => {
 				live_heads.push(relay_parent);
@@ -468,12 +466,11 @@ async fn run_network<N: Network>(
 					match message {
 						WireMessage::ViewUpdate(new_view) => {
 							if new_view.0.len() > MAX_VIEW_HEADS {
-								let report_fut = net.report_peer(
+								net.report_peer(
 									peer.clone(),
 									MALFORMED_VIEW_COST,
-								);
+								).await;
 
-								report_fut.await?;
 								continue
 							}
 
@@ -495,12 +492,11 @@ async fn run_network<N: Network>(
 									NetworkBridgeEvent::PeerMessage(peer.clone(), message)
 								)),
 								None => {
-									let report_fut = net.report_peer(
+									net.report_peer(
 										peer.clone(),
 										UNKNOWN_PROTO_COST,
-									);
+									).await;
 
-									report_fut.await?;
 									None
 								}
 							};
