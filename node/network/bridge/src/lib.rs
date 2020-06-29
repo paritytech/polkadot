@@ -173,8 +173,10 @@ impl<N> NetworkBridge<N> {
 	}
 }
 
-impl<N: Network, C> Subsystem<C> for NetworkBridge<N>
-	where C: SubsystemContext<Message=NetworkBridgeMessage>
+impl<Network, Context> Subsystem<Context> for NetworkBridge<Network>
+	where 
+		Network: Network,
+		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
 	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(match self.0.take() {
