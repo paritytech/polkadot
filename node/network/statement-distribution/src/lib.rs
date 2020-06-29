@@ -29,7 +29,9 @@ use polkadot_subsystem::messages::{
 };
 use node_primitives::{ProtocolId, View, SignedFullStatement};
 use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{CompactStatement, ValidatorIndex};
+use polkadot_primitives::parachain::{
+	CompactStatement, ValidatorIndex, ValidatorId, SigningContext,
+};
 use parity_scale_codec::{Encode, Decode};
 
 use futures::prelude::*;
@@ -40,6 +42,7 @@ const PROTOCOL_V1: ProtocolId = *b"sdn1";
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
+const COST_INVALID_MESSAGE: Rep = Rep::new(-500, "Invalid message");
 
 const BENEFIT_VALID_STATEMENT: Rep = Rep::new(25, "Peer provided a valid statement");
 
@@ -68,6 +71,8 @@ struct PeerRelayParentKnowledge {
 	// fingerprints of all statements a peer should be aware of: those that
 	// were sent to us by the peer or sent to the peer by us.
 	known_statements: HashSet<(CompactStatement, ValidatorIndex)>,
+	// How many candidates this peer is aware of for each given validator index.
+	seconded_counts: HashMap<ValidatorIndex, usize>,
 }
 
 impl PeerRelayParentKnowledge {
@@ -85,6 +90,14 @@ impl PeerRelayParentKnowledge {
 
 		match fingerprint.0 {
 			CompactStatement::Candidate(ref h) => {
+				// Each peer is allowed to be aware of two seconded statements per validator per
+				// relay-parent hash.
+				let count = self.seconded_counts.entry(fingerprint.1).or_insert(0);
+				if *count >= 2 {
+					return false;
+				}
+				*count += 1;
+
 				self.known_candidates.insert(h.clone());
 			},
 			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
@@ -153,17 +166,38 @@ impl std::hash::Hash for StoredStatement {
 }
 
 struct ActiveHeadData {
-	// All candidates we are aware of for this head, keyed by hash.
+	/// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<Hash>,
-	// Stored seconded statements for circulation to peers.
+	/// Stored seconded statements for circulation to peers.
 	seconded_statements: HashSet<StoredStatement>,
-	// Stored other statements for circulation to peers.
+	/// Stored other statements for circulation to peers.
 	other_statements: HashSet<StoredStatement>,
+	/// The validators at this head.
+	validators: Vec<ValidatorId>,
+	/// The session index this head is at.
+	session_index: sp_staking::SessionIndex,
 }
 
 impl ActiveHeadData {
-	/// Note the given statement. If it was not already known, returns `Some`, with a handle to the
-	/// statement.
+	fn new(validators: Vec<ValidatorId>, session_index: sp_staking::SessionIndex) -> Self {
+		ActiveHeadData {
+			candidates: Default::default(),
+			seconded_statements: Default::default(),
+			other_statements: Default::default(),
+			validators,
+			session_index,
+		}
+	}
+
+	/// Note the given statement.
+	///
+	/// If it was not already known and can be accepted,  returns `Some`,
+	/// with a handle to the statement.
+	///
+	/// `Seconded` statements are always accepted, and are assumed to have passed flood-mitigation
+	/// measures before reaching this point.
+	///
+	/// Other statements that reference a candidate we are not aware of cannot be accepted.
 	fn note_statement(&mut self, statement: SignedFullStatement) -> Option<&StoredStatement> {
 		let compact = statement.payload().to_compact();
 		let stored = StoredStatement {
@@ -181,7 +215,11 @@ impl ActiveHeadData {
 					None
 				}
 			}
-			CompactStatement::Valid(_) | CompactStatement::Invalid(_) => {
+			CompactStatement::Valid(h) | CompactStatement::Invalid(h) => {
+				if !self.candidates.contains(&h) {
+					return None;
+				}
+
 				if self.other_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
 					self.other_statements.get(&compact)
@@ -198,6 +236,29 @@ impl ActiveHeadData {
 	}
 }
 
+/// Check a statement signature under this parent hash.
+fn check_statement_signature(
+	head: &ActiveHeadData,
+	relay_parent: Hash,
+	statement: &SignedFullStatement,
+) -> Result<(), ()> {
+	let signing_context = SigningContext {
+		session_index: head.session_index,
+		parent_hash: relay_parent,
+	};
+
+	match head.validators.get(statement.validator_index() as usize) {
+		None => return Err(()),
+		Some(v) => statement.check_signature(&signing_context, v),
+	}
+}
+
+#[derive(Encode, Decode)]
+enum WireMessage {
+	/// relay-parent, full statement.
+	Statement(Hash, SignedFullStatement),
+}
+
 async fn share_message(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
@@ -208,34 +269,153 @@ async fn share_message(
 	if let Some(stored)
 		= active_heads.get_mut(&relay_parent).and_then(|d| d.note_statement(statement))
 	{
-		let fingerprint = stored.fingerprint();
-		let peers_to_send: Vec<_> = peers.iter_mut()
-			.filter_map(|(p, data)| if data.accept(&relay_parent, &fingerprint) {
-				Some(p.clone())
-			} else {
-				None
-			})
-			.collect();
-
-		if peers_to_send.is_empty() { return Ok(()) }
-
-		let payload = stored.statement.encode();
-		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
-			peers_to_send,
-			PROTOCOL_V1,
-			payload,
-		))).await?;
+		send_stored_to_peers(peers, ctx, relay_parent, stored).await?;
 	}
 	Ok(())
+}
+
+async fn send_stored_to_peers(
+	peers: &mut HashMap<PeerId, PeerData>,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	stored: &StoredStatement,
+) -> SubsystemResult<()> {
+	let fingerprint = stored.fingerprint();
+	let peers_to_send: Vec<_> = peers.iter_mut()
+		.filter_map(|(p, data)| if data.accept(&relay_parent, &fingerprint) {
+			Some(p.clone())
+		} else {
+			None
+		})
+		.collect();
+
+	if peers_to_send.is_empty() { return Ok(()) }
+
+	let payload = WireMessage::Statement(relay_parent, stored.statement.clone()).encode();
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+		peers_to_send,
+		PROTOCOL_V1,
+		payload,
+	))).await?;
+
+	Ok(())
+}
+
+async fn report_peer(
+	ctx: &mut impl SubsystemContext,
+	peer: PeerId,
+	rep: Rep,
+) -> SubsystemResult<()> {
+	ctx.send_message(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::ReportPeer(peer, rep)
+	)).await
+}
+
+// Handle an incoming wire message. Returns a reference to a newly-stored statement
+// if we were not already aware of it, along with the corresponding relay-parent.
+//
+// This function checks the signature and ensures the statement is compatible with our
+// view.
+async fn handle_incoming_message<'a>(
+	peer: PeerId,
+	peer_data: &mut PeerData,
+	our_view: &View,
+	active_heads: &'a mut HashMap<Hash, ActiveHeadData>,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	message: Vec<u8>,
+) -> SubsystemResult<Option<(Hash, &'a StoredStatement)>> {
+	let (relay_parent, statement) = match WireMessage::decode(&mut &message[..]) {
+		Err(_) => return report_peer(ctx, peer, COST_INVALID_MESSAGE).await.map(|_| None),
+		Ok(WireMessage::Statement(r, s)) => (r, s),
+	};
+
+	if !our_view.contains(relay_parent) {
+		return report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await.map(|_| None);
+	}
+
+	let active_head = match active_heads.get_mut(relay_parent) {
+		Some(h) => h,
+		None => {
+			// This should never be out-of-sync with our view if the view updates
+			// correspond to actual `StartWork` messages. So we just log and ignore.
+			log::warn!("Our view out-of-sync with active heads. Head {} not found", relay_parent);
+			return Ok(None);
+		}
+	};
+
+	// check the signature on the statement.
+	if let Err(()) = check_statement_signature(&active_head, relay_parent, &statement) {
+		return report_peer(ctx, peer, COST_INVALID_SIGNATURE).await.map(|_| None);
+	}
+
+	// Ensure the statement is stored in the peer data.
+	//
+	// Note that if the peer is sending us something that is not within their view,
+	// it will not be kept within their log.
+	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
+	if !peer_data.accept(&relay_parent, fingerprint) {
+		// If the peer was already aware of this statement or it was not within their own view,
+		// then we note the peer as being costly.
+		//
+		// This can race if we send the message to the peer at exactly the same time,
+		// but the report cost is relatively low, and the expected amounts of reports due to
+		// that race is also low.
+		//
+		// Regardless, this serves as a deterrent for peers to avoid spamming us with the same
+		// message over and over again, as we will disconnect from such peers.
+		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
+	}
+
+	// Note: `peer_data.accept` already ensures that the statement is not an unbounded equivocation
+	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
+	Ok(active_head.note_statement(statement).map(|s| (relay_parent, s)))
 }
 
 async fn handle_network_update(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	our_view: &mut View,
 	update: NetworkBridgeEvent,
 ) -> SubsystemResult<()> {
-	Ok(())
+	match update {
+		NetworkBridgeEvent::PeerConnected(peer, role) => {
+			peers.insert(peer, PeerData {
+				role,
+				view: Default::default(),
+				view_knowledge: Default::default(),
+			});
+
+			Ok(())
+		}
+		NetworkBridgeEvent::PeerDisconnected(peer) => {
+			peers.remove(&peer);
+			Ok(())
+		}
+		NetworkBridgeEvent::PeerMessage(peer, message) => {
+			match peers.get_mut(&peer) {
+				Some(data) => handle_incoming_message(
+					peer,
+					data,
+					&*our_view,
+					active_heads,
+					ctx,
+					message,
+				).await?,
+				None => Ok(()),
+			}
+
+		}
+		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			// 1. Update the view.
+			// 2. Send this peer all messages that we have for new active heads in the view.
+		}
+		NetworkBridgeEvent::OurViewChange(view) => {
+			// 1. Update our view.
+			// 2. Clean up everything that is not in the new view.
+		}
+	}
+
 }
 
 async fn run(
@@ -255,11 +435,8 @@ async fn run(
 		let message = ctx.recv().await?;
 		match message {
 			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-				active_heads.entry(relay_parent).or_insert(ActiveHeadData {
-					candidates: HashSet::new(),
-					seconded_statements: HashSet::new(),
-					other_statements: HashSet::new(),
-				});
+				active_heads.entry(relay_parent)
+					.or_insert(ActiveHeadData::new(unimplemented!(), unimplemented!()));
 			}
 			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
 				// do nothing - we will handle this when our view changes.
@@ -277,6 +454,7 @@ async fn run(
 					&mut peers,
 					&mut active_heads,
 					&mut ctx,
+					&mut our_view,
 					event,
 				).await?,
 			}
