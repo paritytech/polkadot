@@ -32,8 +32,7 @@ use polkadot_primitives::{
 	parachain::{self},
 	BlockId, Hash,
 };
-use polkadot_service::PolkadotClient;
-use polkadot_service::{new_full, new_full_start, FullNodeHandles};
+use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotClient, BlockT};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -251,16 +250,26 @@ where
 		assert_ne!(count, 0, "'count' argument must be greater than 1");
 		let client = self.client.clone();
 
-		async move {
-			let mut import_notification_stream = client.import_notification_stream();
-			let mut blocks = HashSet::new();
+		wait_for_blocks(client.clone(), count)
+	}
+}
 
-			while let Some(notification) = import_notification_stream.next().await {
-				blocks.insert(notification.hash);
-				if blocks.len() == count {
-					break;
-				}
-			}
+/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
+/// are ever created, thus you should restrict the maximum amount of time of the test execution.
+pub async fn wait_for_blocks<C, B>(client: Arc<C>, count: usize)
+where
+	C: BlockchainEvents<B>,
+	B: BlockT,
+{
+	assert_ne!(count, 0, "'count' argument must be greater than 1");
+
+	let mut import_notification_stream = client.import_notification_stream();
+	let mut blocks = HashSet::new();
+
+	while let Some(notification) = import_notification_stream.next().await {
+		blocks.insert(notification.hash);
+		if blocks.len() == count {
+			break;
 		}
 	}
 }
