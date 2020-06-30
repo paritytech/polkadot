@@ -51,6 +51,8 @@ decl_event!(
 	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
 		/// Someone's account validity was updated
 		ValidityUpdated(AccountId, AccountValidity),
+		/// Someone's account validity statement was removed
+		ValidityRemoved(AccountId),
 	}
 );
 
@@ -75,11 +77,24 @@ decl_module! {
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
 
+		/// Add a validity statement to a specified account.
+		///
+		/// Origin must match the `ValidityOrigin`.
 		#[weight = 0]
 		fn set_account_validity(origin, who: T::AccountId, validity: AccountValidity) {
 			T::ValidityOrigin::ensure_origin(origin)?;
 			ValidityStatements::<T>::insert(&who, validity);
 			Self::deposit_event(RawEvent::ValidityUpdated(who, validity));
+		}
+
+		/// Remove a validity statement from a specified account.
+		///
+		/// Origin must match the `ValidityOrigin`.
+		#[weight = 0]
+		fn remove_account_validity(origin, who: T::AccountId) {
+			T::ValidityOrigin::ensure_origin(origin)?;
+			ValidityStatements::<T>::remove(&who);
+			Self::deposit_event(RawEvent::ValidityRemoved(who));
 		}
 	}
 }
@@ -163,12 +178,20 @@ mod tests {
 	}
 
 	#[test]
-	fn set_account_validity_works() {
+	fn basic_stuff_works() {
 		new_test_ext().execute_with(|| {
+			// User initially has no validity statement
 			assert_eq!(ValidityStatements::<Test>::get(42), None);
+			// Origin must be the `ValidityOrigin`
 			assert_noop!(Crowdsale::set_account_validity(Origin::signed(1), 42, AccountValidity::ValidLow), BadOrigin);
 			assert_ok!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::ValidLow));
+			// Account is updated
 			assert_eq!(ValidityStatements::<Test>::get(42), Some(AccountValidity::ValidLow));
+			// We remove validity statement
+			assert_noop!(Crowdsale::remove_account_validity(Origin::signed(1), 42), BadOrigin);
+			assert_ok!(Crowdsale::remove_account_validity(Origin::signed(6), 42));
+			// Validity statement is removed
+			assert_eq!(ValidityStatements::<Test>::get(42), None);
 		});
 	}
 }
