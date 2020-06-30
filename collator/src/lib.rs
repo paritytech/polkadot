@@ -63,7 +63,7 @@ use polkadot_primitives::{
 	}
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, AbstractService, ParachainHost, IdentifyVariant,
+	ProvideRuntimeApi, ParachainHost, IdentifyVariant,
 	service::{self, Role}
 };
 pub use polkadot_cli::service::Configuration;
@@ -386,7 +386,7 @@ where
 	}
 
 	if config.chain_spec.is_kusama() {
-		let (service, client, handlers) = service::kusama_new_full(
+		let (task_manager, client, handlers) = service::kusama_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -394,7 +394,7 @@ where
 			6000,
 			None,
 		)?;
-		let spawn_handle = service.spawn_task_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handlers,
@@ -404,7 +404,7 @@ where
 			build_parachain_context
 		)?.await;
 	} else if config.chain_spec.is_westend() {
-		let (service, client, handlers) = service::westend_new_full(
+		let (task_manager, client, handlers) = service::westend_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -412,7 +412,7 @@ where
 			6000,
 			None,
 		)?;
-		let spawn_handle = service.spawn_task_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handlers,
@@ -422,7 +422,7 @@ where
 			build_parachain_context
 		)?.await;
 	} else {
-		let (service, client, handles) = service::polkadot_new_full(
+		let (task_manager, client, handles) = service::polkadot_new_full(
 			config,
 			Some((key.public(), para_id)),
 			None,
@@ -430,7 +430,7 @@ where
 			6000,
 			None,
 		)?;
-		let spawn_handle = service.spawn_task_handle();
+		let spawn_handle = task_manager.spawn_handle();
 		build_collator_service(
 			spawn_handle,
 			handles,
