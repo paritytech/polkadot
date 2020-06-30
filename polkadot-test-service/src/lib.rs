@@ -45,10 +45,11 @@ use sc_network::{
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	error::Error as ServiceError,
-	TaskExecutor, TaskManager,
+	RpcHandlers, RpcSession, TaskExecutor, TaskManager,
 };
-use service::{Configuration, Role, TFullBackend, BasePath};
+use service::{BasePath, Configuration, Role, TFullBackend};
 use sp_keyring::Sr25519Keyring;
+use sp_runtime::{codec::Encode, OpaqueExtrinsic};
 use sp_state_machine::BasicExternalities;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -74,10 +75,11 @@ pub fn polkadot_test_new_full(
 		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
+		Arc<RpcHandlers>,
 	),
 	ServiceError,
 > {
-	let (task_manager, client, handles, network) = new_full!(test
+	let (task_manager, client, handles, network, rpc_handlers) = new_full!(test
 		config,
 		collating_for,
 		max_block_data_size,
@@ -87,7 +89,7 @@ pub fn polkadot_test_new_full(
 		PolkadotTestExecutor,
 	);
 
-	Ok((task_manager, client, handles, network))
+	Ok((task_manager, client, handles, network, rpc_handlers))
 }
 
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
@@ -194,15 +196,10 @@ pub fn run_test_node(
 	>,
 	ServiceError,
 > {
-	let config = node_config(
-		storage_update_func,
-		task_executor,
-		key,
-		boot_nodes,
-	)?;
+	let config = node_config(storage_update_func, task_executor, key, boot_nodes)?;
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
-	let (task_manager, client, handles, network) =
+	let (task_manager, client, handles, network, rpc_handlers) =
 		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
 
 	let peer_id = network.local_peer_id().clone();
@@ -213,6 +210,7 @@ pub fn run_test_node(
 		client,
 		handles,
 		multiaddr_with_peer_id,
+		rpc_handlers,
 	};
 
 	Ok(node)
@@ -228,6 +226,8 @@ pub struct PolkadotTestNode<S, C> {
 	pub handles: FullNodeHandles,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub multiaddr_with_peer_id: MultiaddrWithPeerId,
+	/// RPCHandlers to make RPC queries.
+	pub rpc_handlers: Arc<RpcHandlers>,
 }
 
 impl<S, C> PolkadotTestNode<S, C>
@@ -241,6 +241,22 @@ where
 		let client = self.client.clone();
 
 		wait_for_blocks(client.clone(), count)
+	}
+
+	/// Send a transaction through the RPCHandlers.
+	pub fn send_transaction(
+		&self,
+		extrinsic: OpaqueExtrinsic,
+	) -> impl Future<
+		Output = (
+			Option<String>,
+			RpcSession,
+			futures01::sync::mpsc::Receiver<String>,
+		),
+	> {
+		let rpc_handlers = self.rpc_handlers.clone();
+
+		send_transaction(rpc_handlers, extrinsic)
 	}
 }
 
@@ -262,4 +278,34 @@ where
 			break;
 		}
 	}
+}
+
+/// Send a transaction through the RPCHandlers.
+pub async fn send_transaction(
+	rpc_handlers: Arc<RpcHandlers>,
+	extrinsic: OpaqueExtrinsic,
+) -> (
+	Option<String>,
+	RpcSession,
+	futures01::sync::mpsc::Receiver<String>,
+) {
+	let (tx, rx) = futures01::sync::mpsc::channel(0);
+	let mem = RpcSession::new(tx.into());
+	let res = rpc_handlers
+		.rpc_query(
+			&mem,
+			format!(
+				r#"{{
+			"jsonrpc": "2.0",
+			"method": "author_submitExtrinsic",
+			"params": ["0x{}"],
+			"id": 0
+		}}"#,
+				hex::encode(extrinsic.encode())
+			)
+			.as_str(),
+		)
+		.await;
+
+	(res, mem, rx)
 }

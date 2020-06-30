@@ -319,7 +319,7 @@ macro_rules! new_full {
 
 		let ServiceComponents {
 			client, network, select_chain, keystore, transaction_pool, prometheus_registry,
-			task_manager, telemetry_on_connect_sinks, ..
+			task_manager, telemetry_on_connect_sinks, rpc_handlers, ..
 		} = builder
 			.with_finality_proof_provider(|client, backend| {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
@@ -556,7 +556,7 @@ macro_rules! new_full {
 		}
 
 		handles.polkadot_network = Some(polkadot_network_service);
-		(task_manager, client, handles, network)
+		(task_manager, client, handles, network, rpc_handlers)
 	}};
 	(
 		$config:expr,
@@ -730,7 +730,7 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -764,7 +764,7 @@ pub fn kusama_new_full(
 		FullNodeHandles
 	), ServiceError>
 {
-	let (service, client, handles, _) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -798,7 +798,7 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,

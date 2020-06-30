@@ -4858,7 +4858,9 @@ version = "0.8.2"
 dependencies = [
  "async-std",
  "frame-benchmarking",
+ "futures 0.1.29",
  "futures 0.3.5",
+ "hex",
  "log 0.4.8",
  "pallet-staking",
  "polkadot-availability-store",
