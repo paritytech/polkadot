@@ -34,7 +34,7 @@ use polkadot_overseer::{
 	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
 	CandidateValidationMessage, CandidateBackingMessage,
 };
-use polkadot_proposer::ProposerFactory;
+use polkadot_node_core_proposer::ProposerFactory;
 pub use service::{
 	AbstractService, Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
