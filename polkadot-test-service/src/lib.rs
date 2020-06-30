@@ -32,7 +32,7 @@ use polkadot_primitives::{
 	parachain::{self},
 	BlockId, Hash,
 };
-use polkadot_service::{new_full, new_full_start, FullNodeHandles, PolkadotClient, BlockT};
+use polkadot_service::{new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -43,14 +43,13 @@ use sc_network::{
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	error::Error as ServiceError,
-	TaskType,
+	TaskExecutor,
 };
 use service::{AbstractService, Configuration, Role, TFullBackend};
 use sp_keyring::Sr25519Keyring;
 use sp_state_machine::BasicExternalities;
 use std::collections::HashSet;
 use std::path::Path;
-use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -94,9 +93,7 @@ pub fn polkadot_test_new_full(
 /// adjustements to the runtime before the node starts.
 pub fn node_config<P: AsRef<Path>>(
 	storage_update_func: impl Fn(),
-	task_executor: Arc<
-		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
-	>,
+	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	root: P,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
@@ -183,9 +180,7 @@ pub fn node_config<P: AsRef<Path>>(
 /// need to provide boot nodes if you want it to be connected to other nodes. The `storage_update_func` can be used to
 /// make adjustements to the runtime before the node starts.
 pub fn run_test_node(
-	task_executor: Arc<
-		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
-	>,
+	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,

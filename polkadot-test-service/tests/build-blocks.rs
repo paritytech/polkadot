@@ -1,25 +1,18 @@
 use async_std::task::sleep;
 use futures::{future, pin_mut, select, FutureExt as _};
 use polkadot_test_service::*;
+use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
-use std::pin::Pin;
-use std::sync::Arc;
 use std::time::Duration;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
-fn task_executor(
-) -> Arc<dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, service::TaskType) + Send + Sync>
-{
-	Arc::new(
-		move |fut: Pin<Box<dyn futures::Future<Output = ()> + Send>>, _| {
-			async_std::task::spawn(fut.unit_error());
-		},
-	)
-}
-
 #[async_std::test]
 async fn ensure_test_service_build_blocks() {
+	let task_executor: TaskExecutor = (|fut, _| {
+		async_std::task::spawn(fut);
+	})
+	.into();
 	let t1 = sleep(Duration::from_secs(
 		INTEGRATION_TEST_ALLOWED_TIME
 			.and_then(|x| x.parse().ok())
@@ -28,7 +21,7 @@ async fn ensure_test_service_build_blocks() {
 	.fuse();
 	let t2 = async {
 		let alice = run_test_node(
-			task_executor(),
+			task_executor.clone(),
 			Sr25519Keyring::Alice,
 			|| {},
 			Vec::new(),
@@ -36,7 +29,7 @@ async fn ensure_test_service_build_blocks() {
 		.unwrap();
 
 		let bob = run_test_node(
-			task_executor(),
+			task_executor.clone(),
 			Sr25519Keyring::Bob,
 			|| {},
 			vec![alice.multiaddr_with_peer_id.clone()],

@@ -373,7 +373,6 @@ pub async fn start_collator<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-	informant_prefix: Option<String>,
 ) -> Result<(), polkadot_service::Error>
 where
 	P: 'static + BuildParachainContext,
@@ -394,7 +393,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -413,7 +411,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -432,7 +429,6 @@ where
 			false,
 			6000,
 			None,
-			informant_prefix,
 		)?;
 		let spawn_handle = service.spawn_task_handle();
 		build_collator_service(
@@ -512,7 +508,6 @@ mod tests {
 			0.into(),
 			Arc::new(CollatorPair::generate().0),
 			config,
-			None,
 		));
 	}
 }

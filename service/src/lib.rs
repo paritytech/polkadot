@@ -147,11 +147,10 @@ macro_rules! new_full_start {
 			*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 		}
 	}};
-	(start_builder $config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
+	(start_builder $config:expr, $runtime:ty, $executor:ty $(,)?) => {{
 		service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
 		>($config)?
-			.with_informant_prefix($informant_prefix.unwrap_or_default())?
 			.with_select_chain(|_, backend| {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
@@ -257,7 +256,7 @@ macro_rules! new_full_start {
 
 		(builder, $import_setup, $inherent_data_providers, rpc_setup)
 	}};
-	($config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
+	($config:expr, $runtime:ty, $executor:ty $(,)?) => {{
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let mut import_setup = None;
 		new_full_start!(prometheus_setup $config);
@@ -266,17 +265,17 @@ macro_rules! new_full_start {
 		} else {
 			Vec::new()
 		};
-		let builder = new_full_start!(start_builder $config, $runtime, $executor, $informant_prefix);
+		let builder = new_full_start!(start_builder $config, $runtime, $executor);
 		let builder = new_full_start!(import_queue_setup
 			builder, inherent_data_providers, import_setup, grandpa_hard_forks,
 		);
 		new_full_start!(finish_builder_setup builder, inherent_data_providers, import_setup)
 	}};
-	(test $config:expr, $runtime:ty, $executor:ty, $informant_prefix:expr $(,)?) => {{
+	(test $config:expr, $runtime:ty, $executor:ty $(,)?) => {{
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 		let mut import_setup = None;
 		let grandpa_hard_forks = Vec::new();
-		let builder = new_full_start!(start_builder $config, $runtime, $executor, $informant_prefix);
+		let builder = new_full_start!(start_builder $config, $runtime, $executor);
 		let builder = new_full_start!(import_queue_setup
 			builder, inherent_data_providers, import_setup, grandpa_hard_forks,
 		);
@@ -573,7 +572,6 @@ macro_rules! new_full {
 		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
-		$informant_prefix:expr,
 	) => {{
 		new_full!(with_full_start
 			$config,
@@ -582,7 +580,7 @@ macro_rules! new_full {
 			$authority_discovery_enabled,
 			$slot_duration,
 			$grandpa_pause,
-			new_full_start!($config, $runtime, $dispatch, $informant_prefix),
+			new_full_start!($config, $runtime, $dispatch),
 		)
 	}};
 	(
@@ -602,7 +600,7 @@ macro_rules! new_full {
 			$authority_discovery_enabled,
 			$slot_duration,
 			None,
-			new_full_start!(test $config, $runtime, $dispatch, None),
+			new_full_start!(test $config, $runtime, $dispatch),
 		)
 	}};
 }
@@ -711,7 +709,7 @@ where
 	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch, None).0)
+	Ok(new_full_start!(config, Runtime, Dispatch).0)
 }
 
 /// Create a new Polkadot service for a full node.
@@ -723,7 +721,6 @@ pub fn polkadot_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -744,7 +741,6 @@ pub fn polkadot_new_full(
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
 		PolkadotExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -759,7 +755,6 @@ pub fn kusama_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 ) -> Result<(
 		impl AbstractService,
 		Arc<impl PolkadotClient<
@@ -780,7 +775,6 @@ pub fn kusama_new_full(
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
 		KusamaExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
@@ -795,7 +789,6 @@ pub fn westend_new_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	informant_prefix: Option<String>,
 )
 	-> Result<(
 		impl AbstractService,
@@ -816,7 +809,6 @@ pub fn westend_new_full(
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,
-		informant_prefix,
 	);
 
 	Ok((service, client, handles))
