@@ -28,14 +28,14 @@ mod command;
 
 #[cfg(not(feature = "service-rewr"))]
 pub use service::{
-	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
+	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
 	Block, self, RuntimeApiCollection, TFullClient
 };
 
 #[cfg(feature = "service-rewr")]
 pub use service_new::{
 	self as service,
-	AbstractService, ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
+	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
 	Block, self, RuntimeApiCollection, TFullClient
 };
 
