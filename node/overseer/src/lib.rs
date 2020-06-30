@@ -406,7 +406,7 @@ where
 	/// 	where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
 	///     fn start(
-	///         &mut self,
+	///         self,
 	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
@@ -422,7 +422,7 @@ where
 	/// 	where C: SubsystemContext<Message=CandidateBackingMessage>
 	/// {
 	///     fn start(
-	///         &mut self,
+	///         self,
 	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
