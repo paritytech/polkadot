@@ -314,7 +314,6 @@ pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>>
 /// [`Subsystem`]: trait.Subsystem.html
 #[allow(dead_code)]
 struct OverseenSubsystem<M> {
-	subsystem: CompatibleSubsystem<M>,
 	instance: Option<SubsystemInstance<M>>,
 }
 
@@ -407,7 +406,7 @@ where
 	/// 	where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
 	///     fn start(
-	///         &mut self,
+	///         self,
 	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
@@ -423,7 +422,7 @@ where
 	/// 	where C: SubsystemContext<Message=CandidateBackingMessage>
 	/// {
 	///     fn start(
-	///         &mut self,
+	///         self,
 	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
@@ -438,8 +437,8 @@ where
 	/// let spawner = executor::ThreadPool::new().unwrap();
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
-	///     Box::new(ValidationSubsystem),
-	///     Box::new(CandidateBackingSubsystem),
+	///     ValidationSubsystem,
+	///     CandidateBackingSubsystem,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -458,8 +457,8 @@ where
 	/// ```
 	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		validation: CompatibleSubsystem<CandidateValidationMessage>,
-		candidate_backing: CompatibleSubsystem<CandidateBackingMessage>,
+		validation: impl Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		candidate_backing: impl Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)> {
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
@@ -658,7 +657,7 @@ fn spawn<S: Spawn, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<RemoteHandle<()>>,
 	streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
-	mut s: CompatibleSubsystem<M>,
+	s: impl Subsystem<OverseerSubsystemContext<M>>,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
 	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
 	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
@@ -675,7 +674,6 @@ fn spawn<S: Spawn, M: Send + 'static>(
 	});
 
 	Ok(OverseenSubsystem {
-		subsystem: s,
 		instance,
 	})
 }
@@ -692,8 +690,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
-			let mut sender = self.0.clone();
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
+			let mut sender = self.0;
 			SpawnedSubsystem(Box::pin(async move {
 				let mut i = 0;
 				loop {
@@ -717,8 +715,10 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
+			let sender = self.0.clone();
 			SpawnedSubsystem(Box::pin(async move {
+				let _sender = sender;
 				let mut c: usize = 0;
 				loop {
 					if c < 10 {
@@ -759,7 +759,7 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem4
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		fn start(&mut self, mut _ctx: C) -> SpawnedSubsystem {
+		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem(Box::pin(async move {
 				// Do nothing and exit.
 			}))
@@ -777,8 +777,8 @@ mod tests {
 
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
-				Box::new(TestSubsystem1(s1_tx)),
-				Box::new(TestSubsystem2(s2_tx)),
+				TestSubsystem1(s1_tx),
+				TestSubsystem2(s2_tx),
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -827,8 +827,8 @@ mod tests {
 			let (s1_tx, _) = mpsc::channel(64);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
-				Box::new(TestSubsystem1(s1_tx)),
-				Box::new(TestSubsystem4),
+				TestSubsystem1(s1_tx),
+				TestSubsystem4,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -846,7 +846,7 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {
@@ -872,7 +872,7 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {
@@ -925,8 +925,8 @@ mod tests {
 
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
-				Box::new(TestSubsystem5(tx_5)),
-				Box::new(TestSubsystem6(tx_6)),
+				TestSubsystem5(tx_5),
+				TestSubsystem6(tx_6),
 				spawner,
 			).unwrap();
 
@@ -1010,8 +1010,8 @@ mod tests {
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
-				Box::new(TestSubsystem5(tx_5)),
-				Box::new(TestSubsystem6(tx_6)),
+				TestSubsystem5(tx_5),
+				TestSubsystem6(tx_6),
 				spawner,
 			).unwrap();
 

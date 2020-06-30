@@ -164,7 +164,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 }
 
 /// The network bridge subsystem.
-pub struct NetworkBridge<N>(Option<N>);
+pub struct NetworkBridge<N>(N);
 
 impl<N> NetworkBridge<N> {
 	/// Create a new network bridge subsystem with underlying network service.
@@ -172,7 +172,7 @@ impl<N> NetworkBridge<N> {
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
 	pub fn new(net_service: N) -> Self {
-		NetworkBridge(Some(net_service))
+		NetworkBridge(net_service)
 	}
 }
 
@@ -181,18 +181,10 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 		Net: Network,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
-	fn start(&mut self, mut ctx: Context) -> SpawnedSubsystem {
-		SpawnedSubsystem(match self.0.take() {
-			None => async move { for _ in ctx.recv().await { } }.boxed(),
-			Some(net) => {
-				// Swallow error because failure is fatal to the node and we log with more precision
-				// within `run_network`.
-				run_network(net, ctx).map(|_| ()).boxed()
-			}
-		})
-
-
-
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		// Swallow error because failure is fatal to the node and we log with more precision
+		// within `run_network`.
+		SpawnedSubsystem(run_network(self.0, ctx).map(|_| ()).boxed())
 	}
 }
 

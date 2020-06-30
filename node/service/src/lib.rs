@@ -272,7 +272,7 @@ struct CandidateValidationSubsystem;
 impl<C> Subsystem<C> for CandidateValidationSubsystem
 	where C: SubsystemContext<Message = CandidateValidationMessage>
 {
-	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))
@@ -284,7 +284,7 @@ struct CandidateBackingSubsystem;
 impl<C> Subsystem<C> for CandidateBackingSubsystem
 	where C: SubsystemContext<Message = CandidateBackingMessage>
 {
-	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))
@@ -295,8 +295,8 @@ fn real_overseer<S: futures::task::Spawn>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	let validation = Box::new(CandidateValidationSubsystem);
-	let candidate_backing = Box::new(CandidateBackingSubsystem);
+	let validation = CandidateValidationSubsystem;
+	let candidate_backing = CandidateBackingSubsystem;
 	Overseer::new(leaves, validation, candidate_backing, s)
 		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
