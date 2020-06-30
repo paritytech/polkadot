@@ -4279,6 +4279,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log 0.4.8",
  "parity-scale-codec",
+ "polkadot-node-messages",
  "polkadot-overseer",
  "polkadot-primitives",
  "sc-basic-authorship",

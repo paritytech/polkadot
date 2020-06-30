@@ -9,6 +9,7 @@ futures = "0.3.4"
 futures-timer = "3.0.1"
 log = "0.4.8"
 parity-scale-codec = "1.3.0"
+polkadot-node-messages = { path = "../../messages" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
