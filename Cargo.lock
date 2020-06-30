@@ -257,6 +257,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "async-trait"
+version = "0.1.36"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.31",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4349,6 +4360,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-network-bridge"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "polkadot-subsystem-test-helpers",
+ "sc-network",
+ "sp-runtime",
+ "streamunordered",
+]
+
+[[package]]
 name = "polkadot-network-test"
 version = "0.8.13"
 dependencies = [
@@ -4370,9 +4400,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-messages"
+name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
+ "parity-scale-codec",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sp-runtime",
+]
+
+[[package]]
+name = "polkadot-node-subsystem"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
  "futures 0.3.5",
  "polkadot-node-primitives",
  "polkadot-primitives",
@@ -4381,25 +4423,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-primitives"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-statement-table",
- "sp-runtime",
-]
-
-[[package]]
 name = "polkadot-overseer"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "femme",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "kv-log-macro",
  "log 0.4.8",
- "polkadot-node-messages",
+ "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-client-api",
  "streamunordered",
@@ -4711,6 +4744,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "polkadot-network",
+ "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-rpc",
@@ -4758,6 +4792,16 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sp-core",
+]
+
+[[package]]
+name = "polkadot-subsystem-test-helpers"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "futures 0.3.5",
+ "parking_lot 0.10.2",
+ "polkadot-node-subsystem",
 ]
 
 [[package]]
