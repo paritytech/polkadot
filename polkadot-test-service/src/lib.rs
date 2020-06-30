@@ -16,6 +16,8 @@
 
 //! Polkadot test service only.
 
+#![warn(missing_docs)]
+
 mod chain_spec;
 
 pub use chain_spec::*;
@@ -33,7 +35,7 @@ use polkadot_primitives::{
 use polkadot_service::PolkadotClient;
 use polkadot_service::{new_full, new_full_start, FullNodeHandles};
 use sc_chain_spec::ChainSpec;
-use sc_client_api::BlockchainEvents;
+use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
@@ -88,21 +90,31 @@ pub fn polkadot_test_new_full(
 	Ok((service, client, handles))
 }
 
-fn node_config<P: AsRef<Path>>(
-	spec: &PolkadotChainSpec,
-	role: Role,
+/// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
+/// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
+/// adjustements to the runtime before the node starts.
+pub fn node_config<P: AsRef<Path>>(
+	storage_update_func: impl Fn(),
 	task_executor: Arc<
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
 	>,
-	key_seed: Option<String>,
-	port: u16,
+	key: Sr25519Keyring,
 	root: P,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> Configuration {
+) -> Result<Configuration, ServiceError> {
 	let root = root.as_ref().to_path_buf();
+	let role = Role::Authority {
+		sentry_nodes: Vec::new(),
+	};
+	let key_seed = key.to_seed();
+	let mut spec = polkadot_local_testnet_config();
+	let mut storage = spec.as_storage_builder().build_storage()?;
+
+	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
+	spec.set_storage(storage);
 
 	let mut network_config = NetworkConfiguration::new(
-		format!("Polkadot Test Node on {}", port),
+		format!("Polkadot Test Node for: {}", key_seed),
 		"network/test/0.1",
 		Default::default(),
 		None,
@@ -118,7 +130,7 @@ fn node_config<P: AsRef<Path>>(
 
 	network_config.transport = TransportConfig::MemoryOnly;
 
-	Configuration {
+	Ok(Configuration {
 		impl_name: "polkadot-test-node",
 		impl_version: "0.1",
 		role,
@@ -136,9 +148,16 @@ fn node_config<P: AsRef<Path>>(
 		state_cache_size: 16777216,
 		state_cache_child_ratio: None,
 		pruning: Default::default(),
-		chain_spec: Box::new((*spec).clone()),
+		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
-		execution_strategies: Default::default(),
+		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
+		execution_strategies: ExecutionStrategies {
+			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			importing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			block_construction: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			offchain_worker: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+			other: sc_client_api::ExecutionStrategy::NativeWhenPossible,
+		},
 		rpc_http: None,
 		rpc_ws: None,
 		rpc_ipc: None,
@@ -152,15 +171,18 @@ fn node_config<P: AsRef<Path>>(
 		offchain_worker: Default::default(),
 		force_authoring: false,
 		disable_grandpa: false,
-		dev_key_seed: key_seed,
+		dev_key_seed: Some(key_seed),
 		tracing_targets: None,
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
 		announce_block: true,
 		base_path: Some(root.into()),
-	}
+	})
 }
 
+/// Run a Polkadot test node using the Polkadot test runtime. The node will be using an in-memory socket, therefore you
+/// need to provide boot nodes if you want it to be connected to other nodes. The `storage_update_func` can be used to
+/// make adjustements to the runtime before the node starts.
 pub fn run_test_node(
 	task_executor: Arc<
 		dyn Fn(Pin<Box<dyn futures::Future<Output = ()> + Send>>, TaskType) + Send + Sync,
@@ -178,24 +200,14 @@ pub fn run_test_node(
 	let base_path = tempfile::Builder::new()
 		.prefix("polkadot-test-service")
 		.tempdir()?;
-	let mut spec = polkadot_local_testnet_config();
-
-	let mut storage = spec.as_storage_builder().build_storage()?;
-	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
-
-	spec.set_storage(storage);
 
 	let config = node_config(
-		&spec,
-		Role::Authority {
-			sentry_nodes: Vec::new(),
-		},
+		storage_update_func,
 		task_executor,
-		Some(key.to_seed()),
-		0,
+		key,
 		&base_path,
 		boot_nodes,
-	);
+	)?;
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
 	let (service, client, handles) =
@@ -215,11 +227,17 @@ pub fn run_test_node(
 	Ok(node)
 }
 
+/// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode<S, C> {
+	/// Service's instance.
 	pub service: S,
+	/// Client's instance.
 	pub client: Arc<C>,
+	/// Node's handles.
 	pub handles: FullNodeHandles,
+	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub multiaddr_with_peer_id: MultiaddrWithPeerId,
+	/// A `TempDir` where the node data is stored. The directory is deleted when the object is dropped.
 	pub base_path: tempfile::TempDir,
 }
 
@@ -227,6 +245,8 @@ impl<S, C> PolkadotTestNode<S, C>
 where
 	C: BlockchainEvents<Block>,
 {
+	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
+	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		assert_ne!(count, 0, "'count' argument must be greater than 1");
 		let client = self.client.clone();
@@ -237,7 +257,7 @@ where
 
 			while let Some(notification) = import_notification_stream.next().await {
 				blocks.insert(notification.hash);
-				if blocks.len() == 3 {
+				if blocks.len() == count {
 					break;
 				}
 			}

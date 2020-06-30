@@ -4,7 +4,7 @@ use pallet_staking::Forcing;
 use polkadot_primitives::{parachain::ValidatorId, AccountId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
 use polkadot_test_runtime::constants::currency::DOTS;
-use sc_chain_spec::ChainType;
+use sc_chain_spec::{ChainSpec, ChainType};
 use sp_core::sr25519;
 use sp_runtime::Perbill;
 
@@ -146,5 +146,17 @@ fn polkadot_testnet_genesis(
 		}),
 		vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
 		sudo: Some(polkadot::SudoConfig { key: root_key }),
+	}
+}
+
+/// Can be called for a `Configuration` to check if it is a configuration for the `Test` network.
+pub trait IdentifyVariant {
+	/// Returns if this is a configuration for the `Test` network.
+	fn is_test(&self) -> bool;
+}
+
+impl IdentifyVariant for Box<dyn ChainSpec> {
+	fn is_test(&self) -> bool {
+		self.id().starts_with("test") || self.id().starts_with("tst") // TODO not sure why I need a 3 chars variant
 	}
 }
