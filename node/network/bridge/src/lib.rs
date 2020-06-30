@@ -40,6 +40,9 @@ use std::collections::hash_map::{HashMap, Entry as HEntry};
 use std::pin::Pin;
 use std::sync::Arc;
 
+/// The maximum amount of heads a peer is allowed to have in their view at any time.
+///
+/// We use the same limit to compute the view sent to peers locally.
 const MAX_VIEW_HEADS: usize = 5;
 
 /// The engine ID of the polkadot network protocol.
@@ -173,12 +176,12 @@ impl<N> NetworkBridge<N> {
 	}
 }
 
-impl<Network, Context> Subsystem<Context> for NetworkBridge<Network>
-	where 
-		Network: Network,
+impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
+	where
+		Net: Network,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
-	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
+	fn start(&mut self, mut ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem(match self.0.take() {
 			None => async move { for _ in ctx.recv().await { } }.boxed(),
 			Some(net) => {
