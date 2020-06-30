@@ -50,7 +50,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::pin::Pin;
 
-use futures::{future, Future, Stream, FutureExt, StreamExt, task::Spawn};
+use futures::{future, Future, Stream, FutureExt, StreamExt, task::{Spawn, SpawnExt}};
 use log::warn;
 use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
@@ -278,7 +278,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 	let parachain_context = match build_parachain_context.build(
 		client.clone(),
-		spawner,
+		spawner.clone(),
 		polkadot_network.clone(),
 	) {
 		Ok(ctx) => ctx,
@@ -359,7 +359,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 			let future = silenced.map(drop);
 
-			tokio::spawn(future);
+			spawner.spawn(future).expect("could not run build collator task");
 		}
 	}.boxed();
 
