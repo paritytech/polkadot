@@ -47,7 +47,7 @@ services:
       - "--name"
       - "${VALIDATOR_NANE:-AlicesNode}"
       - "--reserved-nodes"
-      - "${VALIDATOR_RESERVED_NODES:-/dns4/sentry/tcp/30333/p2p/QmV7EhW6J6KgmNdr558RH1mPx2xGGznW7At4BhXzntRFsi}"
+      - "${VALIDATOR_RESERVED_NODES:-/dns/sentry/tcp/30333/p2p/QmV7EhW6J6KgmNdr558RH1mPx2xGGznW7At4BhXzntRFsi}"
       # Not only bind to localhost.
       - "--ws-external"
       - "--rpc-external"
@@ -90,7 +90,7 @@ services:
       - "--name"
       - "${SENTRY_NAME:-CharliesNode}"
       - "--bootnodes"
-      - "${SENTRY_BOOTNODES:-/dns4/validator-a/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR}"
+      - "${SENTRY_BOOTNODES:-/dns/validator-a/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR}"
       - "--no-telemetry"
       - "--rpc-cors"
       - "all"

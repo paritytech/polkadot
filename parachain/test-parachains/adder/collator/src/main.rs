@@ -26,11 +26,9 @@ use primitives::{
 	Hash,
 	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule},
 };
-use collator::{
-	InvalidHead, ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli,
-};
+use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
 use parking_lot::Mutex;
-use futures::future::{Ready, ok, err, TryFutureExt};
+use futures::future::{Ready, ready, TryFutureExt};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -55,7 +53,7 @@ struct AdderContext {
 
 /// The parachain context.
 impl ParachainContext for AdderContext {
-	type ProduceCandidate = Ready<Result<(BlockData, HeadData), InvalidHead>>;
+	type ProduceCandidate = Ready<Option<(BlockData, HeadData)>>;
 
 	fn produce_candidate(
 		&mut self,
@@ -64,9 +62,9 @@ impl ParachainContext for AdderContext {
 		local_validation: LocalValidationData,
 	) -> Self::ProduceCandidate
 	{
-		let adder_head = match AdderHead::decode(&mut &local_validation.parent_head.0[..]) {
-			Ok(adder_head) => adder_head,
-			Err(_) => return err(InvalidHead)
+		let adder_head = match AdderHead::decode(&mut &local_validation.parent_head.0[..]).ok() {
+			Some(res) => res,
+			None => return ready(None),
 		};
 
 		let mut db = self.db.lock();
@@ -94,7 +92,7 @@ impl ParachainContext for AdderContext {
 			next_head.number, next_body.state.overflowing_add(next_body.add).0);
 
 		db.insert(next_head.clone(), next_body);
-		ok((encoded_body, encoded_head))
+		ready(Some((encoded_body, encoded_head)))
 	}
 }
 
