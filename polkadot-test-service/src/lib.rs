@@ -47,11 +47,10 @@ use service::{
 	error::Error as ServiceError,
 	TaskExecutor, TaskManager,
 };
-use service::{Configuration, Role, TFullBackend};
+use service::{Configuration, Role, TFullBackend, BasePath};
 use sp_keyring::Sr25519Keyring;
 use sp_state_machine::BasicExternalities;
 use std::collections::HashSet;
-use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -94,14 +93,14 @@ pub fn polkadot_test_new_full(
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
 /// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
 /// adjustements to the runtime before the node starts.
-pub fn node_config<P: AsRef<Path>>(
+pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
-	root: P,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Result<Configuration, ServiceError> {
-	let root = root.as_ref().to_path_buf();
+	let base_path = BasePath::new_temp_dir()?;
+	let root = base_path.path();
 	let role = Role::Authority {
 		sentry_nodes: Vec::new(),
 	};
@@ -175,7 +174,7 @@ pub fn node_config<P: AsRef<Path>>(
 		tracing_receiver: Default::default(),
 		max_runtime_instances: 8,
 		announce_block: true,
-		base_path: Some(root.into()),
+		base_path: Some(base_path),
 		informant_output_format: Default::default(),
 	})
 }
@@ -195,13 +194,10 @@ pub fn run_test_node(
 	>,
 	ServiceError,
 > {
-	let base_path = tempfile::Builder::new().prefix("polkadot-test").tempdir()?;
-
 	let config = node_config(
 		storage_update_func,
 		task_executor,
 		key,
-		&base_path,
 		boot_nodes,
 	)?;
 	let multiaddr = config.network.listen_addresses[0].clone();
@@ -217,7 +213,6 @@ pub fn run_test_node(
 		client,
 		handles,
 		multiaddr_with_peer_id,
-		base_path,
 	};
 
 	Ok(node)
@@ -233,8 +228,6 @@ pub struct PolkadotTestNode<S, C> {
 	pub handles: FullNodeHandles,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub multiaddr_with_peer_id: MultiaddrWithPeerId,
-	/// A `TempDir` where the node data is stored. The directory is deleted when the object is dropped.
-	pub base_path: tempfile::TempDir,
 }
 
 impl<S, C> PolkadotTestNode<S, C>
