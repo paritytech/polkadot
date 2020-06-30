@@ -29,10 +29,10 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
-use polkadot_overseer::{
-	self as overseer,
-	BlockInfo, Overseer, OverseerHandler, Subsystem, SubsystemContext, SpawnedSubsystem,
-	CandidateValidationMessage, CandidateBackingMessage,
+use polkadot_overseer::{self as overseer, BlockInfo, Overseer, OverseerHandler};
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, SpawnedSubsystem,
+	messages::{CandidateValidationMessage, CandidateBackingMessage},
 };
 use polkadot_node_core_proposer::ProposerFactory;
 pub use service::{
@@ -270,8 +270,10 @@ macro_rules! new_full_start {
 
 struct CandidateValidationSubsystem;
 
-impl Subsystem<CandidateValidationMessage> for CandidateValidationSubsystem {
-	fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
+impl<C> Subsystem<C> for CandidateValidationSubsystem
+	where C: SubsystemContext<Message = CandidateValidationMessage>
+{
+	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))
@@ -280,8 +282,10 @@ impl Subsystem<CandidateValidationMessage> for CandidateValidationSubsystem {
 
 struct CandidateBackingSubsystem;
 
-impl Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem {
-	fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
+impl<C> Subsystem<C> for CandidateBackingSubsystem
+	where C: SubsystemContext<Message = CandidateBackingMessage>
+{
+	fn start(&mut self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			while let Ok(_) = ctx.recv().await {}
 		}))

@@ -1,6 +1,6 @@
 use futures::prelude::*;
 use polkadot_overseer::OverseerHandler;
-use polkadot_node_messages::{AllMessages, ProvisionableData, ProvisionerMessage};
+use polkadot_node_subsystem::{AllMessages, ProvisionableData, ProvisionerMessage};
 use polkadot_primitives::{inclusion_inherent, parachain::ParachainHost, Block, Header};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_api::{ApiExt, ProvideRuntimeApi};

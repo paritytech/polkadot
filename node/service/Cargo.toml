@@ -15,6 +15,7 @@ hex-literal = "0.2.1"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
 polkadot-overseer = { path = "../overseer" }
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
 polkadot-network = { path = "../../network", optional = true }
