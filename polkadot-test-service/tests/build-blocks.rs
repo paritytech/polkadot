@@ -20,7 +20,7 @@ async fn ensure_test_service_build_blocks() {
 	))
 	.fuse();
 	let t2 = async {
-		let alice = run_test_node(
+		let mut alice = run_test_node(
 			task_executor.clone(),
 			Sr25519Keyring::Alice,
 			|| {},
@@ -28,7 +28,7 @@ async fn ensure_test_service_build_blocks() {
 		)
 		.unwrap();
 
-		let bob = run_test_node(
+		let mut bob = run_test_node(
 			task_executor.clone(),
 			Sr25519Keyring::Bob,
 			|| {},
@@ -37,8 +37,8 @@ async fn ensure_test_service_build_blocks() {
 		.unwrap();
 
 		let t1 = future::join(alice.wait_for_blocks(3), bob.wait_for_blocks(3)).fuse();
-		let t2 = alice.service.fuse();
-		let t3 = bob.service.fuse();
+		let t2 = alice.task_manager.future().fuse();
+		let t3 = bob.task_manager.future().fuse();
 
 		pin_mut!(t1, t2, t3);
 

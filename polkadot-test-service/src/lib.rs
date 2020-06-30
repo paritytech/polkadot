@@ -32,20 +32,22 @@ use polkadot_primitives::{
 	parachain::{self},
 	BlockId, Hash,
 };
-use polkadot_service::{new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient};
+use polkadot_service::{
+	new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient, ServiceComponents,
+};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
+	multiaddr, NetworkService,
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	error::Error as ServiceError,
-	TaskExecutor,
+	TaskExecutor, TaskManager,
 };
-use service::{AbstractService, Configuration, Role, TFullBackend};
+use service::{Configuration, Role, TFullBackend};
 use sp_keyring::Sr25519Keyring;
 use sp_state_machine::BasicExternalities;
 use std::collections::HashSet;
@@ -69,13 +71,14 @@ pub fn polkadot_test_new_full(
 	slot_duration: u64,
 ) -> Result<
 	(
-		impl AbstractService,
+		TaskManager,
 		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
 		FullNodeHandles,
+		Arc<NetworkService<Block, Hash>>,
 	),
 	ServiceError,
 > {
-	let (service, client, handles) = new_full!(test
+	let (task_manager, client, handles, network) = new_full!(test
 		config,
 		collating_for,
 		max_block_data_size,
@@ -85,7 +88,7 @@ pub fn polkadot_test_new_full(
 		PolkadotTestExecutor,
 	);
 
-	Ok((service, client, handles))
+	Ok((task_manager, client, handles, network))
 }
 
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
@@ -173,6 +176,7 @@ pub fn node_config<P: AsRef<Path>>(
 		max_runtime_instances: 8,
 		announce_block: true,
 		base_path: Some(root.into()),
+		informant_output_format: Default::default(),
 	})
 }
 
@@ -186,14 +190,12 @@ pub fn run_test_node(
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> Result<
 	PolkadotTestNode<
-		impl AbstractService,
+		TaskManager,
 		impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
 	>,
 	ServiceError,
 > {
-	let base_path = tempfile::Builder::new()
-		.prefix("polkadot-test-service")
-		.tempdir()?;
+	let base_path = tempfile::Builder::new().prefix("polkadot-test").tempdir()?;
 
 	let config = node_config(
 		storage_update_func,
@@ -204,14 +206,14 @@ pub fn run_test_node(
 	)?;
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
-	let (service, client, handles) =
+	let (task_manager, client, handles, network) =
 		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
 
-	let peer_id = service.network().local_peer_id().clone();
+	let peer_id = network.local_peer_id().clone();
 	let multiaddr_with_peer_id = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	let node = PolkadotTestNode {
-		service,
+		task_manager,
 		client,
 		handles,
 		multiaddr_with_peer_id,
@@ -223,8 +225,8 @@ pub fn run_test_node(
 
 /// A Polkadot test node instance used for testing.
 pub struct PolkadotTestNode<S, C> {
-	/// Service's instance.
-	pub service: S,
+	/// TaskManager's instance.
+	pub task_manager: S,
 	/// Client's instance.
 	pub client: Arc<C>,
 	/// Node's handles.
