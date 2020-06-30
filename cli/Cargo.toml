@@ -25,6 +25,7 @@ sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "cect
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
 service = { package = "polkadot-service", path = "../service", default-features = false, optional = true }
 service-new = { package = "polkadot-service-new", path = "../node/service", default-features = false, optional = true }
+polkadot-test-service = { path = "../polkadot-test-service", default-features = false, optional = true }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers", optional = true }
@@ -47,6 +48,7 @@ cli = [
 	"sc-cli",
 	"sc-service",
 	"frame-benchmarking-cli",
+	"polkadot-test-service",
 ]
 service-old = [ "service/full-node" ]
 browser = [

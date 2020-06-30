@@ -4275,6 +4275,7 @@ dependencies = [
  "log 0.4.8",
  "polkadot-service",
  "polkadot-service-new",
+ "polkadot-test-service",
  "sc-cli",
  "sc-client-api",
  "sc-client-db",
