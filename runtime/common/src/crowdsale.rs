@@ -18,8 +18,8 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::RuntimeDebug;
-use frame_support::{decl_event, decl_storage, decl_module, decl_error};
-use frame_support::traits::EnsureOrigin;
+use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
+use frame_support::traits::{EnsureOrigin, IsDeadAccount};
 
 /// Configuration trait.
 pub trait Trait: system::Trait {
@@ -58,15 +58,14 @@ decl_event!(
 
 decl_error! {
 	pub enum Error for Module<T: Trait> {
+		/// Account used in the crowdsale already exists.
+		ExistingAccount,
 	}
 }
 
 decl_storage! {
-	// A macro for the Storage trait, and its implementation, for this module.
-	// This allows for type-safe usage of the Substrate storage database, so you can
-	// keep things around between blocks.
 	trait Store for Module<T: Trait> as Claims {
-		ValidityStatements: map hasher(blake2_128_concat) T::AccountId => Option<AccountValidity>;
+		ValidityStatements: map hasher(blake2_128_concat) T::AccountId => AccountValidity;
 	}
 }
 
@@ -83,18 +82,9 @@ decl_module! {
 		#[weight = 0]
 		fn set_account_validity(origin, who: T::AccountId, validity: AccountValidity) {
 			T::ValidityOrigin::ensure_origin(origin)?;
+			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
 			ValidityStatements::<T>::insert(&who, validity);
 			Self::deposit_event(RawEvent::ValidityUpdated(who, validity));
-		}
-
-		/// Remove a validity statement from a specified account.
-		///
-		/// Origin must match the `ValidityOrigin`.
-		#[weight = 0]
-		fn remove_account_validity(origin, who: T::AccountId) {
-			T::ValidityOrigin::ensure_origin(origin)?;
-			ValidityStatements::<T>::remove(&who);
-			Self::deposit_event(RawEvent::ValidityRemoved(who));
 		}
 	}
 }
@@ -112,6 +102,7 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
+	use frame_support::traits::Currency;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -157,17 +148,33 @@ mod tests {
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
-		type OnKilledAccount = ();
+		type OnKilledAccount = Balances;
 	}
 
 	ord_parameter_types! {
 		pub const Six: u64 = 6;
 	}
 
+	parameter_types! {
+		pub const ExistentialDeposit: u64 = 1;
+		pub const CreationFee: u64 = 0;
+		pub const MinVestedTransfer: u64 = 0;
+	}
+
+	impl balances::Trait for Test {
+		type Balance = u64;
+		type Event = ();
+		type DustRemoval = ();
+		type ExistentialDeposit = ExistentialDeposit;
+		type AccountStore = System;
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type ValidityOrigin = system::EnsureSignedBy<Six, u64>;
 	}
+	type System = system::Module<Test>;
+	type Balances = balances::Module<Test>;
 	type Crowdsale = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
@@ -178,20 +185,30 @@ mod tests {
 	}
 
 	#[test]
-	fn basic_stuff_works() {
+	fn set_account_validity_works() {
 		new_test_ext().execute_with(|| {
-			// User initially has no validity statement
-			assert_eq!(ValidityStatements::<Test>::get(42), None);
+			// User initially has no validity statement, by default, they are `Invalid`.
+			assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::Invalid);
 			// Origin must be the `ValidityOrigin`
 			assert_noop!(Crowdsale::set_account_validity(Origin::signed(1), 42, AccountValidity::ValidLow), BadOrigin);
 			assert_ok!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::ValidLow));
 			// Account is updated
-			assert_eq!(ValidityStatements::<Test>::get(42), Some(AccountValidity::ValidLow));
-			// We remove validity statement
-			assert_noop!(Crowdsale::remove_account_validity(Origin::signed(1), 42), BadOrigin);
-			assert_ok!(Crowdsale::remove_account_validity(Origin::signed(6), 42));
-			// Validity statement is removed
-			assert_eq!(ValidityStatements::<Test>::get(42), None);
+			assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::ValidLow);
+			// We update validity statement
+			assert_ok!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::Invalid));
+			assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::Invalid);
+		});
+	}
+
+	#[test]
+	fn set_account_validity_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Create an "existing account"
+			Balances::make_free_balance_be(&42, 500);
+			// Origin must be the `ValidityOrigin`
+			assert_noop!(Crowdsale::set_account_validity(Origin::signed(1), 42, AccountValidity::ValidLow), BadOrigin);
+			// Account must be dead
+			assert_noop!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::ValidLow), Error::<Test>::ExistingAccount);
 		});
 	}
 }
