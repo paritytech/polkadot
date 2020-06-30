@@ -722,6 +722,12 @@ pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
 
+impl From<Vec<SignedAvailabilityBitfield>> for SignedAvailabilityBitfields {
+	fn from(fields: Vec<SignedAvailabilityBitfield>) -> SignedAvailabilityBitfields {
+		SignedAvailabilityBitfields(fields)
+	}
+}
+
 /// A backed (or backable, depending on context) candidate.
 // TODO: yes, this is roughly the same as AttestedCandidate.
 // After https://github.com/paritytech/polkadot/issues/1250
