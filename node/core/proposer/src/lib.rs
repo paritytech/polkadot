@@ -1,6 +1,6 @@
 use futures::prelude::*;
+use polkadot_node_subsystem::messages::{AllMessages, ProvisionableData, ProvisionerMessage};
 use polkadot_overseer::OverseerHandler;
-use polkadot_node_subsystem::{AllMessages, ProvisionableData, ProvisionerMessage};
 use polkadot_primitives::{inclusion_inherent, parachain::ParachainHost, Block, Header};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -14,6 +14,7 @@ use std::{pin::Pin, sync::Arc, time};
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
 	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
+	client: Arc<Client>,
 	overseer: OverseerHandler,
 }
 
@@ -24,7 +25,8 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		overseer: OverseerHandler,
 	) -> Self {
 		ProposerFactory {
-			inner: sc_basic_authorship::ProposerFactory::new(client, transaction_pool, None),
+			inner: sc_basic_authorship::ProposerFactory::new(client.clone(), transaction_pool, None),
+			client,
 			overseer,
 		}
 	}
@@ -60,6 +62,7 @@ where
 
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
+	client: Arc<Client>,
 	overseer: OverseerHandler,
 }
 
@@ -93,12 +96,16 @@ where
 		// REVIEW: per the guide, block authors must re-send a new request for block authorship data
 		// for each block. I'm assuming that this function gets called once per block, but it is not
 		// obvious from the documentation that that assumption is in fact true.
-		let (sender, receiver) = futures::channel::mpsc::channel(1);
 		let mut bitfields = Vec::new();
 		let mut candidates = Vec::new();
 
 		async move {
-			self.overseer.send_msg(AllMessages::ProvisionerMessage(ProvisionerMessage::RequestBlockAuthorshipData(unimplemented!(), sender)));
+			let (sender, receiver) = futures::channel::mpsc::channel(1);
+			self.overseer.send_msg(AllMessages::Provisioner(ProvisionerMessage::RequestBlockAuthorshipData(
+				// REVIEW: is this in fact the hash we want to use here?
+				self.client.info().best_hash,
+				sender,
+			)));
 			receiver.for_each_concurrent(None, |item| {
 				match item {
 					ProvisionableData::Bitfield(_, signed_bitfield) => bitfields.push(signed_bitfield),
@@ -106,8 +113,7 @@ where
 					_ => {},
 				}
 			});
-			inherent_data.put_data(inclusion_inherent::INHERENT_IDENTIFIER, &(bitfields, candidates))
-				.map_err(Error::Inherent)?;
+			inherent_data.put_data(inclusion_inherent::INHERENT_IDENTIFIER, &(bitfields, candidates))?;
 			self.inner.propose(inherent_data, inherent_digests, max_duration, record_proof).await.map_err(Into::into)
 		}.boxed()
 	}
@@ -129,5 +135,11 @@ impl From<sp_consensus::Error> for Error {
 impl From<sp_blockchain::Error> for Error {
 	fn from(e: sp_blockchain::Error) -> Error {
 		Error::Blockchain(e)
+	}
+}
+
+impl From<sp_inherents::Error> for Error {
+	fn from(e: sp_inherents::Error) -> Error {
+		Error::Inherent(e)
 	}
 }
