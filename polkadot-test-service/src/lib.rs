@@ -296,11 +296,11 @@ pub async fn send_transaction(
 			&mem,
 			format!(
 				r#"{{
-			"jsonrpc": "2.0",
-			"method": "author_submitExtrinsic",
-			"params": ["0x{}"],
-			"id": 0
-		}}"#,
+					"jsonrpc": "2.0",
+					"method": "author_submitExtrinsic",
+					"params": ["0x{}"],
+					"id": 0
+				}}"#,
 				hex::encode(extrinsic.encode())
 			)
 			.as_str(),
