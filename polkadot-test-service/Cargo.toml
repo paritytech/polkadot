@@ -18,6 +18,7 @@ polkadot-test-runtime = { path = "../runtime/test-runtime" }
 polkadot-network = { path = "../network" }
 polkadot-rpc = { path = "../rpc" }
 polkadot-service = { path = "../service" }
+polkadot-runtime-common = { path = "../runtime/common" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -39,13 +40,12 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-informant = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 async-std = "1.5"
 serde_json = "1.0"
-polkadot-runtime-common = { path = "../runtime/common" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }

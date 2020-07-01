@@ -30,9 +30,11 @@ use polkadot_primitives::{
 	parachain::{self, CollatorId},
 	Block, BlockId, Hash,
 };
+use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_service::{
 	new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient, ServiceComponents,
 };
+use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -47,8 +49,10 @@ use service::{
 	RpcHandlers, RpcSession, TaskExecutor, TaskManager,
 };
 use service::{BasePath, Configuration, Role, TFullBackend};
+use sp_arithmetic::traits::SaturatedConversion;
+use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::{codec::Encode, OpaqueExtrinsic};
+use sp_runtime::{codec::Encode, generic, OpaqueExtrinsic};
 use sp_state_machine::BasicExternalities;
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -245,7 +249,9 @@ where
 
 		wait_for_blocks(client.clone(), count)
 	}
+}
 
+impl<S, C> PolkadotTestNode<S, C> {
 	/// Send a transaction through the RPCHandlers.
 	pub fn send_transaction(
 		&self,
@@ -260,6 +266,69 @@ where
 		let rpc_handlers = self.rpc_handlers.clone();
 
 		send_transaction(rpc_handlers, extrinsic)
+	}
+}
+
+impl<S, C> PolkadotTestNode<S, C>
+where
+	C: HeaderBackend<Block>,
+{
+	/// Send a transaction through RPCHandlers to call a function.
+	pub async fn call_function(
+		&self,
+		function: polkadot_test_runtime::Call,
+		caller: Sr25519Keyring,
+	) -> (
+		Option<String>,
+		RpcSession,
+		futures01::sync::mpsc::Receiver<String>,
+	) {
+		let current_block_hash = self.client.info().best_hash;
+		let current_block = self.client.info().best_number.saturated_into();
+		let genesis_block = self.client.hash(0).unwrap().unwrap();
+		let nonce = 0;
+		let period = BlockHashCount::get()
+			.checked_next_power_of_two()
+			.map(|c| c / 2)
+			.unwrap_or(2) as u64;
+		let tip = 0;
+		let extra: SignedExtra = (
+			RestrictFunctionality,
+			frame_system::CheckSpecVersion::<Runtime>::new(),
+			frame_system::CheckTxVersion::<Runtime>::new(),
+			frame_system::CheckGenesis::<Runtime>::new(),
+			frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+			frame_system::CheckNonce::<Runtime>::from(nonce),
+			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+			registrar::LimitParathreadCommits::<Runtime>::new(),
+			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
+		);
+		let raw_payload = SignedPayload::from_raw(
+			function.clone(),
+			extra.clone(),
+			(
+				(),
+				VERSION.spec_version,
+				VERSION.transaction_version,
+				genesis_block,
+				current_block_hash,
+				(),
+				(),
+				(),
+				(),
+				(),
+			),
+		);
+		let signature = raw_payload.using_encoded(|e| caller.sign(e));
+		let extrinsic = polkadot_test_runtime::UncheckedExtrinsic::new_signed(
+			function.clone(),
+			polkadot_test_runtime::Address::Id(caller.public().into()),
+			polkadot_primitives::Signature::Sr25519(signature.clone()),
+			extra.clone(),
+		);
+
+		self.send_transaction(extrinsic.into()).await
 	}
 }
 
