@@ -1,7 +1,12 @@
+use futures::lock::Mutex;
 use futures::prelude::*;
 use polkadot_node_subsystem::messages::{AllMessages, ProvisionableData, ProvisionerMessage};
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::{inclusion_inherent, parachain::ParachainHost, Block, Header};
+use polkadot_primitives::{
+	inclusion_inherent,
+	parachain::{ParachainHost, SignedAvailabilityBitfields},
+	Block, Header,
+};
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
@@ -25,7 +30,11 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		overseer: OverseerHandler,
 	) -> Self {
 		ProposerFactory {
-			inner: sc_basic_authorship::ProposerFactory::new(client.clone(), transaction_pool, None),
+			inner: sc_basic_authorship::ProposerFactory::new(
+				client.clone(),
+				transaction_pool,
+				None,
+			),
 			client,
 			overseer,
 		}
@@ -49,13 +58,23 @@ where
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
-	type CreateProposer = Pin<Box<
-		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static
-	>>;
+	type CreateProposer =
+		Pin<Box<dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static>>;
 	type Proposer = Proposer<TxPool, Backend, Client>;
 	type Error = sp_blockchain::Error;
 
 	fn init(&mut self, parent_header: &Header) -> Self::CreateProposer {
+		// we know that this function will be called at least once per proposed block,
+		// because this is where the parent header is supplied. Therefore, we can send
+		// the request for authorship data here.
+
+		// note that the buffer of 1 here is actually an _overflow_ bound; every sender also
+		// has a guaranteed slot in the channel:
+		// https://docs.rs/futures/0.3.5/futures/channel/mpsc/fn.channel.html
+		let (sender, receiver) = futures::channel::mpsc::channel(1);
+		self.overseer.send_msg(AllMessages::Provisioner(
+			ProvisionerMessage::RequestBlockAuthorshipData(parent_header.hash(), sender),
+		));
 		unimplemented!()
 	}
 }
@@ -64,6 +83,7 @@ pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 	client: Arc<Client>,
 	overseer: OverseerHandler,
+	provisionable_data: futures::channel::mpsc::Receiver<ProvisionableData>,
 }
 
 impl<TxPool, Backend, Client> sp_consensus::Proposer<Block> for Proposer<TxPool, Backend, Client>
@@ -83,7 +103,9 @@ where
 	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
 	type Transaction = sc_client_api::TransactionFor<Backend, Block>;
-	type Proposal = Pin<Box<dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>> + Send>>;
+	type Proposal = Pin<Box<
+			dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>> + Send,
+	>>;
 	type Error = Error;
 
 	fn propose(
@@ -93,29 +115,40 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		// REVIEW: per the guide, block authors must re-send a new request for block authorship data
-		// for each block. I'm assuming that this function gets called once per block, but it is not
-		// obvious from the documentation that that assumption is in fact true.
-		let mut bitfields = Vec::new();
-		let mut candidates = Vec::new();
+		let bitfields = Mutex::new(Vec::new());
+		let candidates = Mutex::new(Vec::new());
 
 		async move {
-			let (sender, receiver) = futures::channel::mpsc::channel(1);
-			self.overseer.send_msg(AllMessages::Provisioner(ProvisionerMessage::RequestBlockAuthorshipData(
-				// REVIEW: is this in fact the hash we want to use here?
-				self.client.info().best_hash,
-				sender,
-			)));
-			receiver.for_each_concurrent(None, |item| {
-				match item {
-					ProvisionableData::Bitfield(_, signed_bitfield) => bitfields.push(signed_bitfield),
-					ProvisionableData::BackedCandidate(candidate) => candidates.push(candidate),
-					_ => {},
-				}
-			});
-			inherent_data.put_data(inclusion_inherent::INHERENT_IDENTIFIER, &(bitfields, candidates))?;
-			self.inner.propose(inherent_data, inherent_digests, max_duration, record_proof).await.map_err(Into::into)
-		}.boxed()
+			// At most two items can be simultaneously processed: one bitfield, one candidate
+			// allowing more concurrent tasks to be spawned just wastes resources
+			// This is not strictly true in the case of the ignored variants,
+			// but those should be discarded quickly enough not to produce backpressure.
+			self.provisionable_data
+				.for_each_concurrent(2, |item| async {
+					match item {
+						ProvisionableData::Bitfield(_, signed_bitfield) => {
+							bitfields.lock().await.push(signed_bitfield)
+						}
+						ProvisionableData::BackedCandidate(candidate) => {
+							candidates.lock().await.push(candidate)
+						}
+						_ => {}
+					}
+				})
+				.await;
+			inherent_data.put_data(
+				inclusion_inherent::INHERENT_IDENTIFIER,
+				&(
+					SignedAvailabilityBitfields(bitfields.into_inner()),
+					candidates.into_inner(),
+				),
+			)?;
+			self.inner
+				.propose(inherent_data, inherent_digests, max_duration, record_proof)
+				.await
+				.map_err(Into::into)
+		}
+		.boxed()
 	}
 }
 
