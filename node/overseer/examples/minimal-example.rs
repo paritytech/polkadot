@@ -28,17 +28,16 @@ use futures_timer::Delay;
 use kv_log_macro as log;
 
 use polkadot_primitives::parachain::{BlockData, PoVBlock};
-use polkadot_overseer::Overseer;
+use polkadot_overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateValidationMessage
+use messages::{
+	AllMessages, CandidateBackingMessage, FromOverseer, CandidateValidationMessage
 };
 
 struct Subsystem1;
 
 impl Subsystem1 {
-	async fn run(mut ctx: impl SubsystemContext<Message=CandidateBackingMessage>)  {
+	async fn run(mut ctx: SubsystemContext<CandidateBackingMessage>)  {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -57,7 +56,7 @@ impl Subsystem1 {
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
-			ctx.send_message(AllMessages::CandidateValidation(
+			ctx.send_msg(AllMessages::CandidateValidation(
 				CandidateValidationMessage::Validate(
 					Default::default(),
 					Default::default(),
@@ -71,10 +70,8 @@ impl Subsystem1 {
 	}
 }
 
-impl<C> Subsystem<C> for Subsystem1
-	where C: SubsystemContext<Message=CandidateBackingMessage>
-{
-	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
+impl Subsystem<CandidateBackingMessage> for Subsystem1 {
+	fn start(&mut self, ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -84,7 +81,7 @@ impl<C> Subsystem<C> for Subsystem1
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
+	async fn run(mut ctx: SubsystemContext<CandidateValidationMessage>)  {
 		ctx.spawn(Box::pin(async {
 			loop {
 				log::info!("Job tick");
@@ -108,10 +105,8 @@ impl Subsystem2 {
 	}
 }
 
-impl<C> Subsystem<C> for Subsystem2
-	where C: SubsystemContext<Message=CandidateValidationMessage>
-{
-	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
+impl Subsystem<CandidateValidationMessage> for Subsystem2 {
+	fn start(&mut self, ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))

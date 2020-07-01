@@ -600,7 +600,7 @@ pub trait TestNetFactory: Sized {
 			transaction_pool: Arc::new(EmptyTransactionPool),
 			protocol_id: ProtocolId::from(&b"test-protocol-name"[..]),
 			import_queue,
-			block_announce_validator: Box::new(DefaultBlockAnnounceValidator),
+			block_announce_validator: Box::new(DefaultBlockAnnounceValidator::new(client.clone())),
 			metrics_registry: None,
 		}).unwrap();
 
@@ -677,7 +677,7 @@ pub trait TestNetFactory: Sized {
 			transaction_pool: Arc::new(EmptyTransactionPool),
 			protocol_id: ProtocolId::from(&b"test-protocol-name"[..]),
 			import_queue,
-			block_announce_validator: Box::new(DefaultBlockAnnounceValidator),
+			block_announce_validator: Box::new(DefaultBlockAnnounceValidator::new(client.clone())),
 			metrics_registry: None,
 		}).unwrap();
 
@@ -804,7 +804,7 @@ impl TestNetFactory for TestNet {
 	fn make_verifier(&self, _client: PeersClient, _config: &ProtocolConfig, _peer_data: &())
 		-> Self::Verifier
 	{
-		PassThroughVerifier::new(false)
+		PassThroughVerifier(false)
 	}
 
 	fn peer(&mut self, i: usize) -> &mut Peer<()> {

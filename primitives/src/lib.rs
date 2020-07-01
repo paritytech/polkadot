@@ -23,7 +23,6 @@
 use runtime_primitives::{generic, MultiSignature};
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
 
-pub mod inclusion_inherent;
 pub mod parachain;
 
 pub use parity_scale_codec::Compact;
