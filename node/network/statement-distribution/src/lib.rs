@@ -25,7 +25,8 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, NetworkBridgeMessage, NetworkBridgeEvent, StatementDistributionMessage,
-	PeerId, ObservedRole, ReputationChange as Rep, CandidateBackingMessage,
+	PeerId, ObservedRole, ReputationChange as Rep, CandidateBackingMessage, RuntimeApiMessage,
+	RuntimeApiRequest,
 };
 use node_primitives::{ProtocolId, View, SignedFullStatement};
 use polkadot_primitives::Hash;
@@ -35,6 +36,7 @@ use polkadot_primitives::parachain::{
 use parity_scale_codec::{Encode, Decode};
 
 use futures::prelude::*;
+use futures::channel::oneshot;
 
 use std::collections::{HashMap, HashSet};
 
@@ -721,9 +723,26 @@ async fn run(
 		let message = ctx.recv().await?;
 		match message {
 			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-				// TODO [now]: set these up with non-empty values.
+				let (validators, session_index) = {
+					let (val_tx, val_rx) = oneshot::channel();
+					let (session_tx, session_rx) = oneshot::channel();
+
+					let val_message = AllMessages::RuntimeApi(
+						RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Validators(val_tx)),
+					);
+					let session_message = AllMessages::RuntimeApi(
+						RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::SigningContext(session_tx)),
+					);
+
+					ctx.send_messages(
+						std::iter::once(val_message).chain(std::iter::once(session_message))
+					).await?;
+
+					(val_rx.await?, session_rx.await?.session_index)
+				};
+
 				active_heads.entry(relay_parent)
-					.or_insert(ActiveHeadData::new(unimplemented!(), unimplemented!()));
+					.or_insert(ActiveHeadData::new(validators, session_index));
 			}
 			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
 				// do nothing - we will handle this when our view changes.
