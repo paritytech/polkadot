@@ -81,6 +81,7 @@ use polkadot_service_new::{
 	self as polkadot_service,
 	Error as ServiceError, FullNodeHandles, PolkadotClient,
 };
+use sc_service::SpawnTaskHandle;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -236,8 +237,8 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 
 #[cfg(not(feature = "service-rewr"))]
-fn build_collator_service<SP, P, C, R, Extrinsic>(
-	spawner: SP,
+fn build_collator_service<P, C, R, Extrinsic>(
+	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
 	client: Arc<C>,
 	para_id: ParaId,
@@ -265,7 +266,6 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 		Extrinsic: service::Codec + Send + Sync + 'static,
-		SP: Spawn + Clone + Send + Sync + 'static,
 {
 	let polkadot_network = handles.polkadot_network
 		.ok_or_else(|| "Collator cannot run when Polkadot-specific networking has not been started")?;
@@ -278,7 +278,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 	let parachain_context = match build_parachain_context.build(
 		client.clone(),
-		spawner,
+		spawner.clone(),
 		polkadot_network.clone(),
 	) {
 		Ok(ctx) => ctx,
@@ -359,7 +359,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 			let future = silenced.map(drop);
 
-			tokio::spawn(future);
+			spawner.spawn("collation-work", future);
 		}
 	}.boxed();
 
