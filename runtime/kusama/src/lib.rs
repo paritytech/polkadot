@@ -86,10 +86,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2012,
+	spec_version: 2013,
 	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
-	transaction_version: 1,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: version::create_apis_vec![[]],
+	transaction_version: 2,
 };
 
 /// Native version.
@@ -799,6 +802,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
+	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -852,14 +856,15 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
-					| Call::ElectionsPhragmen(..) | Call::Treasury(..)
-					| Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_limited_sub(..))
+					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_limited_sub(..))
+				Call::Staking(..) | Call::Utility(..)
 			),
+			ProxyType::IdentityJudgement => matches!(c,
+				Call::Identity(identity::Call::provide_judgement(..))
+				| Call::Utility(utility::Call::batch(..))
+			)
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -881,6 +886,14 @@ impl proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
+}
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		treasury::Module::<Runtime>::migrate_retract_tip_for_tip_new();
+		500_000_000
+	}
 }
 
 construct_runtime! {
@@ -984,10 +997,18 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = executive::Executive<
+	Runtime,
+	Block,
+	system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	CustomOnRuntimeUpgrade
+>;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
+#[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
@@ -1085,6 +1106,9 @@ sp_api::impl_runtime_apis! {
 		}
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
+		}
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+			Parachains::downward_messages(id)
 		}
 	}
 

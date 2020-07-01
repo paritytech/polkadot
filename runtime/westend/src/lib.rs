@@ -81,10 +81,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 32,
+	spec_version: 33,
 	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
-	transaction_version: 1,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: version::create_apis_vec![[]],
+	transaction_version: 2,
 };
 
 /// Native version.
@@ -581,6 +584,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Staking,
 	SudoBalances,
+	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -625,14 +629,17 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(utility::Call::batch(..))
-					| Call::Utility(utility::Call::as_limited_sub(..))
+				Call::Staking(..) | Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
-				Call::Utility(utility::Call::batch(..)) => true,
+				Call::Utility(..) => true,
 				_ => false,
 			},
+			ProxyType::IdentityJudgement => matches!(c,
+				Call::Identity(identity::Call::provide_judgement(..))
+				| Call::Utility(utility::Call::batch(..))
+			)
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -749,6 +756,7 @@ pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<R
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
+#[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
@@ -846,6 +854,9 @@ sp_api::impl_runtime_apis! {
 		}
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
+		}
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+			Parachains::downward_messages(id)
 		}
 	}
 
