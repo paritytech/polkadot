@@ -23,7 +23,7 @@ use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use sp_core::Pair;
 use codec::{Encode, Decode};
 use primitives::{
-	Hash,
+	Hash, DownwardMessage,
 	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule},
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
@@ -60,6 +60,7 @@ impl ParachainContext for AdderContext {
 		_relay_parent: Hash,
 		_global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
+		_: Vec<DownwardMessage>,
 	) -> Self::ProduceCandidate
 	{
 		let adder_head = match AdderHead::decode(&mut &local_validation.parent_head.0[..]).ok() {

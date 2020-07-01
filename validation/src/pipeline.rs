@@ -17,8 +17,6 @@
 //! The pipeline of validation functions a parachain block must pass through before
 //! it can be voted for.
 
-use std::sync::Arc;
-
 use codec::Encode;
 use polkadot_erasure_coding as erasure;
 use polkadot_primitives::parachain::{
@@ -33,7 +31,6 @@ use parachain::{
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
-use parking_lot::Mutex;
 use crate::Error;
 
 pub use parachain::wasm_executor::ValidationPool;
@@ -65,67 +62,6 @@ pub fn basic_checks(
 	}
 
 	Ok(())
-}
-
-struct ExternalitiesInner {
-	upward: Vec<UpwardMessage>,
-	fees_charged: Balance,
-	free_balance: Balance,
-	fee_schedule: FeeSchedule,
-}
-
-impl wasm_executor::Externalities for ExternalitiesInner {
-	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
-		self.apply_message_fee(message.data.len())?;
-
-		self.upward.push(message);
-
-		Ok(())
-	}
-}
-
-impl ExternalitiesInner {
-	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
-		Self {
-			free_balance,
-			fee_schedule,
-			fees_charged: 0,
-			upward: Vec::new(),
-		}
-	}
-
-	fn apply_message_fee(&mut self, message_len: usize) -> Result<(), String> {
-		let fee = self.fee_schedule.compute_message_fee(message_len);
-		let new_fees_charged = self.fees_charged.saturating_add(fee);
-		if new_fees_charged > self.free_balance {
-			Err("could not cover fee.".into())
-		} else {
-			self.fees_charged = new_fees_charged;
-			Ok(())
-		}
-	}
-
-	// Returns the noted outputs of execution so far - upward messages and balances.
-	fn outputs(self) -> (Vec<UpwardMessage>, Balance) {
-		(self.upward, self.fees_charged)
-	}
-}
-
-#[derive(Clone)]
-struct Externalities(Arc<Mutex<ExternalitiesInner>>);
-
-impl Externalities {
-	fn new(free_balance: Balance, fee_schedule: FeeSchedule) -> Self {
-		Self(Arc::new(Mutex::new(
-			ExternalitiesInner::new(free_balance, fee_schedule)
-		)))
-	}
-}
-
-impl wasm_executor::Externalities for Externalities {
-	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String> {
-		self.0.lock().post_upward_message(message)
-	}
 }
 
 /// Data from a fully-outputted validation of a parachain candidate. This contains
@@ -163,6 +99,7 @@ pub struct ValidatedCandidate<'a> {
 	local_validation: &'a LocalValidationData,
 	upward_messages: Vec<UpwardMessage>,
 	fees: Balance,
+	processed_downward_messages: u32,
 }
 
 impl<'a> ValidatedCandidate<'a> {
@@ -175,6 +112,7 @@ impl<'a> ValidatedCandidate<'a> {
 			local_validation,
 			upward_messages,
 			fees,
+			processed_downward_messages,
 		} = self;
 
 		let omitted_validation = OmittedValidationData {
@@ -212,6 +150,7 @@ impl<'a> ValidatedCandidate<'a> {
 			fees,
 			erasure_root,
 			new_validation_code: None,
+			processed_downward_messages,
 		};
 
 		Ok(FullOutput {
@@ -221,6 +160,27 @@ impl<'a> ValidatedCandidate<'a> {
 			n_validators,
 		})
 	}
+}
+
+/// Validate that the given `UpwardMessage`s are covered by the given `free_balance`.
+///
+/// Will return an error if the `free_balance` does not cover the required fees to the
+/// given `msgs`. On success it returns the fees that need to be charged for the `msgs`.
+fn validate_upward_messages(
+	msgs: &[UpwardMessage],
+	fee_schedule: FeeSchedule,
+	free_balance: Balance,
+) -> Result<Balance, Error> {
+	msgs.iter().try_fold(Balance::from(0u128), |fees_charged, msg| {
+		let fees = fee_schedule.compute_message_fee(msg.data.len());
+		let fees_charged = fees_charged.saturating_add(fees);
+
+		if fees_charged > free_balance {
+			Err(Error::CouldNotCoverFee)
+		} else {
+			Ok(fees_charged)
+		}
+	})
 }
 
 /// Does full checks of a collation, with provided PoV-block and contextual data.
@@ -258,28 +218,26 @@ pub fn validate<'a>(
 		.map(ExecutionMode::Remote)
 		.unwrap_or(ExecutionMode::Local);
 
-	let ext = Externalities::new(local_validation.balance, fee_schedule);
 	match wasm_executor::validate_candidate(
 		&validation_code.0,
 		params,
-		ext.clone(),
 		execution_mode,
 	) {
 		Ok(result) => {
 			if result.head_data == collation.head_data {
-				let (upward_messages, fees) = Arc::try_unwrap(ext.0)
-					.map_err(|_| "<non-unique>")
-					.expect("Wasm executor drops passed externalities on completion; \
-						call has concluded; qed")
-					.into_inner()
-					.outputs();
+				let fees = validate_upward_messages(
+					&result.upward_messages,
+					fee_schedule,
+					local_validation.balance,
+				)?;
 
 				Ok(ValidatedCandidate {
 					pov_block,
 					global_validation,
 					local_validation,
-					upward_messages,
+					upward_messages: result.upward_messages,
 					fees,
+					processed_downward_messages: result.processed_downward_messages,
 				})
 			} else {
 				Err(Error::HeadDataMismatch)
@@ -368,37 +326,34 @@ pub fn full_output_validation_with_api<P>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use parachain::wasm_executor::Externalities as ExternalitiesTrait;
 	use parachain::primitives::ParachainDispatchOrigin;
 
+	fn add_msg(size: usize, msgs: &mut Vec<UpwardMessage>) {
+		let msg = UpwardMessage { data: vec![0; size], origin: ParachainDispatchOrigin::Parachain };
+		msgs.push(msg);
+	}
+
 	#[test]
-	fn ext_checks_fees_and_updates_correctly() {
-		let mut ext = ExternalitiesInner {
-			upward: vec![
-				UpwardMessage { data: vec![42], origin: ParachainDispatchOrigin::Parachain },
-			],
-			fees_charged: 0,
-			free_balance: 1_000_000,
-			fee_schedule: FeeSchedule {
-				base: 1000,
-				per_byte: 10,
-			},
+	fn validate_upward_messages_works() {
+		let fee_schedule = FeeSchedule {
+			base: 1000,
+			per_byte: 10,
 		};
+		let free_balance = 1_000_000;
+		let mut msgs = Vec::new();
 
-		ext.apply_message_fee(100).unwrap();
-		assert_eq!(ext.fees_charged, 2000);
+		add_msg(100, &mut msgs);
+		assert_eq!(2000, validate_upward_messages(&msgs, fee_schedule, free_balance).unwrap());
 
-		ext.post_upward_message(UpwardMessage {
-			origin: ParachainDispatchOrigin::Signed,
-			data: vec![0u8; 100],
-		}).unwrap();
-		assert_eq!(ext.fees_charged, 4000);
+		add_msg(100, &mut msgs);
+		assert_eq!(4000, validate_upward_messages(&msgs, fee_schedule, free_balance).unwrap());
 
-
-		ext.apply_message_fee((1_000_000 - 4000 - 1000) / 10).unwrap();
-		assert_eq!(ext.fees_charged, 1_000_000);
+		add_msg((1_000_000 - 4000 - 1000) / 10, &mut msgs);
+		assert_eq!(1_000_000, validate_upward_messages(&msgs, fee_schedule, free_balance).unwrap());
 
 		// cannot pay fee.
-		assert!(ext.apply_message_fee(1).is_err());
+		add_msg(1, &mut msgs);
+		let err = validate_upward_messages(&msgs, fee_schedule, free_balance).unwrap_err();
+		assert!(matches!(err, Error::CouldNotCoverFee));
 	}
 }

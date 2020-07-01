@@ -60,8 +60,8 @@ system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "http
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -164,3 +164,9 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"hex-literal",
 ]
+# When enabled, the runtime api will not be build.
+#
+# This is required by Cumulus to access certain types of the
+# runtime without clashing with the runtime api exported functions
+# in WASM.
+disable-runtime-api = []

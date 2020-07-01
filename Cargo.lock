@@ -4320,6 +4320,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-core-primitives"
+version = "0.7.30"
+dependencies = [
+ "parity-scale-codec",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "polkadot-erasure-coding"
 version = "0.8.13"
 dependencies = [
@@ -4446,13 +4456,13 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "polkadot-core-primitives",
  "sc-executor",
  "serde",
  "shared_memory",
  "sp-core",
  "sp-externalities",
  "sp-io",
- "sp-runtime-interface",
  "sp-std",
  "sp-wasm-interface",
 ]
@@ -4464,6 +4474,7 @@ dependencies = [
  "bitvec",
  "frame-system",
  "parity-scale-codec",
+ "polkadot-core-primitives",
  "polkadot-parachain",
  "pretty_assertions",
  "serde",
@@ -8043,6 +8054,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -8070,6 +8082,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]

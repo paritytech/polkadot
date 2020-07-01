@@ -8,7 +8,6 @@ edition = "2018"
 serde = { version = "1.0.102", optional = true, features = ["derive"] }
 parity-scale-codec = { version = "1.3.0", default-features = false, features = ["bit-vec", "derive"] }
 primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -17,8 +16,10 @@ sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", 
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
+polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -27,9 +28,9 @@ pretty_assertions = "0.5.1"
 [features]
 default = ["std"]
 std = [
+	"application-crypto/std",
 	"parity-scale-codec/std",
 	"primitives/std",
-	"system/std",
 	"inherents/std",
 	"trie/std",
 	"sp-api/std",
@@ -39,5 +40,7 @@ std = [
 	"runtime_primitives/std",
 	"serde",
 	"polkadot-parachain/std",
+	"polkadot-core-primitives/std",
 	"bitvec/std",
+	"frame-system/std",
 ]

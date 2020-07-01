@@ -18,7 +18,7 @@
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 use codec::{Encode, Decode};
-use polkadot_erasure_coding::{self as erasure};
+use polkadot_erasure_coding as erasure;
 use polkadot_primitives::{
 	Hash,
 	parachain::{

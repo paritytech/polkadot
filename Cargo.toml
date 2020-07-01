@@ -26,6 +26,7 @@ members = [
 	"availability-store",
 	"cli",
 	"collator",
+	"core-primitives",
 	"erasure-coding",
 	"network",
 	"network/test",
