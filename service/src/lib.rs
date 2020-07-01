@@ -640,6 +640,7 @@ pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) ->
 		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
 		Arc<TFullBackend<Block>>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+		TaskManager,
 	),
 	ServiceError
 >
