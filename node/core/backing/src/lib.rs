@@ -23,6 +23,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
 
+use bitvec::vec::BitVec;
 use log;
 use futures::{
 	select, FutureExt, SinkExt, StreamExt,
@@ -38,7 +39,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, BlockNumber,
 	parachain::{
-		AbridgedCandidateReceipt, Id as ParaId, ValidatorPair, ValidatorId, ValidatorIndex,
+		AbridgedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId, ValidatorIndex,
 		HeadData, ValidationCode, SigningContext, PoVBlock, GroupIndex,
 	},
 };
@@ -49,10 +50,14 @@ use messages::{
 	OverseerSignal, RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
 	StatementDistributionMessage, NewBackedCandidate,
 };
+use statement_table::{
+	generic::{AttestedCandidate as TableAttestedCandidate},
+	self, Table, Context as TableContextTrait,
+	Statement as TableStatement, SignedStatement as TableSignedStatement,
+};
 
 #[derive(Debug, derive_more::From)]
 enum Error {
-	NotInValidatorSet,
 	#[from]
 	ValidationFailed(ValidationFailed),
 	#[from]
@@ -74,28 +79,68 @@ struct CandidateBackingJob {
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 
-	/// Validator set.
-	validators: Vec<ValidatorId>,
 	/// The validation codes of the `ParaId`s we are assigned as validators to.
-	validation_code: HashMap<ParaId, ValidationCode>,
+	validation_code: ValidationCode,
 	/// `HeadData`s of the parachains that this validator is assigned to.
-	head_data: HashMap<ParaId, HeadData>,
-	/// `SigningContext` to use when signing.
-	signing_context: SigningContext,
-	/// This validator's signing key.
-	signing_key: Arc<ValidatorPair>,
-	/// Index of this validator.
-	index: ValidatorIndex,
+	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
-	assigned_ids: HashSet<ParaId>,
+	assignment: ParaId,
 	/// We issued `Valid` statements on about these candidates.
 	issued_validity: HashSet<Hash>,
+	/// We sent `NewBackedCandidate` on these candidates.
+	backed_candidates: HashSet<Hash>,
 	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
 	seconded: Option<Hash>,
 	/// Registered backing watchers.
-	backing_watchers: HashMap<Hash, Vec<mpsc::Sender<NewBackedCandidate>>>,
-	/// Valid votes by candidate hash.
-	valid_votes: HashMap<Hash, Vec<ValidatorIndex>>,
+	backing_watchers: Vec<mpsc::Sender<NewBackedCandidate>>,
+
+	table: Table<TableContext>,
+	table_context: TableContext,
+}
+
+const fn needed_votes(n_validators: usize) -> usize {
+	let mut threshold = (n_validators * 2) / 3;
+	threshold += (n_validators * 2) % 3;
+	threshold
+}
+
+#[derive(Default)]
+struct TableContext {
+	signing_context: SigningContext,
+	key: Option<Arc<ValidatorPair>>,
+	groups: HashMap<ParaId, HashSet<ValidatorId>>,
+	validators: Vec<ValidatorId>,
+}
+
+impl TableContextTrait for TableContext {
+	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
+		let key = match self.validators.get(authority as usize) {
+			Some(val) => val,
+			None => return false,
+		};
+
+		self.groups.get(group).map_or(false, |g| g.get(&key).is_some())
+	}
+
+	fn requisite_votes(&self, group: &ParaId) -> usize {
+		self.groups.get(group).map_or(usize::max_value(), |g| needed_votes(g.len()))
+	}
+}
+
+impl TableContext {
+	fn local_id(&self) -> Option<ValidatorId> {
+		self.key.as_ref().map(|k| k.public())
+	}
+
+	fn local_index(&self) -> Option<ValidatorIndex> {
+		self.local_id().and_then(|id|
+			self.validators
+				.iter()
+				.enumerate()
+				.find(|(_, k)| k == &&id)
+				.map(|(i, _)| i as ValidatorIndex)
+		)
+	}
 }
 
 const CHANNEL_CAPACITY: usize = 64;
@@ -127,6 +172,22 @@ impl From<FromJob> for AllMessages {
 	}
 }
 
+// It looks like it's not possible to do an `impl From` given the current state of
+// the code. So this does the necessary conversion.
+fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
+	let statement = match s.payload() {
+		Statement::Seconded(c) => TableStatement::Candidate(c.clone()),
+		Statement::Valid(h) => TableStatement::Valid(h.clone()),
+		Statement::Invalid(h) => TableStatement::Invalid(h.clone()),
+	};
+
+	TableSignedStatement {
+		statement,
+		signature: s.signature().clone(),
+		sender: s.validator_index(),
+	}
+}
+
 // finds the first key we are capable of signing with out of the given set of validators,
 // if any.
 fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Arc<ValidatorPair>> {
@@ -153,18 +214,17 @@ impl CandidateBackingJob {
 				tx_to,
 				tx_from,
 
-				validators: Vec::new(),
-				validation_code: HashMap::default(),
-				head_data: HashMap::default(),
-				signing_key: Arc::new(Pair::from_seed(&[1; 32])), // TODO: No no no
-				signing_context: SigningContext::default(),
-				assigned_ids: HashSet::default(),
-				index: 0,
+				validation_code: ValidationCode::default(),
+				head_data: HeadData::default(),
+				assignment: ParaId::default(),
 
 				issued_validity: HashSet::default(),
+				backed_candidates: HashSet::default(),
 				seconded: None,
-				backing_watchers: HashMap::default(),
-				valid_votes: HashMap::default(),
+				backing_watchers: Vec::new(),
+
+				table: Table::default(),
+				table_context: TableContext::default(),
 			},
 			rx_from,
 		)
@@ -252,36 +312,30 @@ impl CandidateBackingJob {
 	
 		let roster = self.request_validator_groups().await?; 
 
-		self.signing_key = signing_key(&validators[..], &self.keystore).unwrap();
-		self.index = validators
-			.iter()
-			.position(|x| *x == self.signing_key.as_ref().public())
-			.ok_or_else(|| Error::NotInValidatorSet)? as u32;
+		self.table_context.key = signing_key(&validators[..], &self.keystore);
 
-		let mut our_groups = HashSet::<GroupIndex>::default();
+		for assignment in roster.scheduled {
+			self.table_context.groups.insert(
+				assignment.para_id,
+				roster.validator_groups[assignment.group_idx.0 as usize]
+				.iter()
+				.map(|idx| validators[*idx as usize].clone())
+				.collect()
+			);
+		}
 
-		self.validators = validators;
-
-		for (i, group) in roster.validator_groups.iter().enumerate() {
-			if group.iter().find(|id| **id == self.index).is_some() {
-				our_groups.insert((i as u32).into());
+		if let Some(ref key) = self.table_context.key {
+			for (para_id, group) in self.table_context.groups.iter() {
+				if group.contains(&key.as_ref().public()) {
+					self.assignment = *para_id;
+				}
 			}
 		}
 
-		for assignment in roster.scheduled.iter() {
-			if our_groups.contains(&assignment.group_idx) {
-				self.assigned_ids.insert(assignment.para_id);
-
-				let validation_code = self.request_validation_code(assignment.para_id, 0, None).await?;
-				self.validation_code.insert(assignment.para_id, validation_code);
-
-				let head_data = self.request_head_data(assignment.para_id).await?;
-
-				self.head_data.insert(assignment.para_id, head_data);
-			}
-		}
-
-		self.signing_context = self.request_signing_context().await?;
+		self.validation_code = self.request_validation_code(self.assignment, 0, None).await?;
+		self.head_data = self.request_head_data(self.assignment).await?;
+		self.table_context.signing_context = self.request_signing_context().await?;
+		self.table_context.validators = validators;
 
 		Ok(())
 	}
@@ -316,14 +370,75 @@ impl CandidateBackingJob {
 			Err(_) => Statement::Invalid(candidate.hash()),
 		};
 
-		let signed_statement = SignedFullStatement::sign(
-			statement,
-			&self.signing_context,
-			self.index,
-			&self.signing_key,
-		);
+		if let Some(ref signing_key) = self.table_context.key {
+			if let Some(local_index) = self.table_context.local_index() {
+				let signed_statement = SignedFullStatement::sign(
+					statement,
+					&self.table_context.signing_context,
+					local_index,
+					signing_key,
+				);
 
-		self.distribute_signed_statement(signed_statement).await?;
+				self.distribute_signed_statement(signed_statement).await?;
+			}
+		}
+
+		Ok(())
+	}
+
+	async fn import_statement(&mut self, statement: SignedFullStatement) -> Result<(), Error> {
+		let idx = statement.validator_index() as usize;
+
+		if self.table_context.validators.len() > idx {
+			match statement.check_signature(
+				&self.table_context.signing_context,
+				&self.table_context.validators[idx],
+			) {
+				Ok(()) => {
+					let stmt = primitive_statement_to_table(&statement);
+
+					self.table.import_statement(&self.table_context, stmt);
+
+					let proposed = self.table.proposed_candidates(&self.table_context);
+
+					for p in proposed.into_iter() {
+						if !self.backed_candidates.contains(&p.candidate.hash()) {
+							let TableAttestedCandidate { candidate, validity_votes, .. } = p;
+
+							let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
+										.into_iter()
+										.map(|(id, vote)| (id, vote.into()))
+										.unzip();
+
+							self.backed_candidates.insert(candidate.hash());
+
+							let mut validator_indices = BitVec::with_capacity(
+								self.table_context.validators.len(),
+							);
+
+							validator_indices.resize(self.table_context.validators.len(), false);
+
+							for id in ids.iter() {
+								validator_indices.set(*id as usize, true);
+							}
+
+							let backed = BackedCandidate {
+								candidate,
+								validity_votes,
+								validator_indices,
+							};
+
+							for watcher in self.backing_watchers.iter_mut() {
+								let _ = watcher.send(NewBackedCandidate(backed.clone())).await;
+							}
+						}
+					}
+				}
+				Err(()) => {
+					return Err(Error::ValidationFailed(ValidationFailed));
+				}
+			}
+		};
 
 		Ok(())
 	}
@@ -350,41 +465,11 @@ impl CandidateBackingJob {
 					},
 				}
 			}
-			CandidateBackingMessage::Statement(hash, statement) => {
-				let idx = statement.validator_index() as usize;
-
-				if self.validators.len() < idx {
-					match statement.check_signature(&self.signing_context, &self.validators[idx]) {
-						Ok(()) => {
-							// TODO: check if the validator issuing this statent is a part of the group for the
-							// `ParaId` in question.
-							// TODO: check if the validator issuing this statement is not equivocating.
-							match statement.payload() {
-								Statement::Seconded(candidate) => {
-									let hash = candidate.hash();
-									self.valid_votes.entry(hash).or_default().push(statement.validator_index());
-								}
-								Statement::Valid(hash) => {
-									self.valid_votes.entry(*hash).or_default().push(statement.validator_index());
-								}
-								Statement::Invalid(_) => {},
-							}
-
-							if let Some(_) = self.valid_votes.get(&hash) {
-								// TODO: check the quorum.
-								// How do we go from `ParaId` in the 
-							}
-						}
-						Err(()) => {
-						}
-					}
-				}
+			CandidateBackingMessage::Statement(_, statement) => {
+				let _ = self.import_statement(statement).await;
 			}
-			CandidateBackingMessage::RegisterBackingWatcher(hash, tx) => {
-				match self.backing_watchers.get_mut(&hash) {
-					Some(watchers) => watchers.push(tx),
-					None => { self.backing_watchers.insert(hash, vec![tx]); }
-				}
+			CandidateBackingMessage::RegisterBackingWatcher(_, tx) => {
+				self.backing_watchers.push(tx);
 			}
 		}
 
@@ -572,7 +657,9 @@ impl<S: Spawn + Clone> CandidateBackingSubsystem<S> {
 							}
 							FromOverseer::Communication { msg } => {
 								match msg {
-									CandidateBackingMessage::Second(hash, _) => {
+									CandidateBackingMessage::Second(hash, _) |
+									CandidateBackingMessage::Statement(hash, _) |
+									CandidateBackingMessage::RegisterBackingWatcher(hash, _) => {
 										let _ = jobs.send_msg(hash.clone(), ToJob::CandidateBacking(msg)).await;
 									}
 									_ => (),
@@ -612,25 +699,61 @@ impl<S: Spawn + Send + Clone + 'static> Subsystem<CandidateBackingMessage> for C
 mod tests {
 	use super::*;
 	use futures::{channel::mpsc, executor, pin_mut, StreamExt};
-	use sp_keyring::sr25519::Keyring;
-	use primitives::Pair;
+	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::parachain::{
-		AssignmentKind, CoreAssignment, BlockData, CoreIndex,
+		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, ValidityAttestation,
 	};
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
 
 	#[test]
 	fn backing_works() {
-		let spawner = executor::ThreadPool::new().unwrap();
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let thread_a = ParaId::from(3);
+
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+
+		let validator_public = validator_pubkeys(&validators);
+
 		let keystore = keystore::Store::new_in_memory();
-
-		let alice_key = Keyring::Alice.pair();
-		let alice_id: ValidatorId = alice_key.public().into();
-		let bob_key = Keyring::Bob.pair();
-		let bob_id: ValidatorId = bob_key.public().into();
-
 		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
-		keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&Keyring::Alice.to_seed())
+		keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
 			.expect("Insert key into keystore");
+		let spawner = executor::ThreadPool::new().unwrap();
+
+		let chain_a_assignment = CoreAssignment {
+			core: CoreIndex::from(0),
+			para_id: chain_a,
+			kind: AssignmentKind::Parachain,
+			group_idx: GroupIndex::from(0),
+		};
+
+		let chain_b_assignment = CoreAssignment {
+			core: CoreIndex::from(1),
+			para_id: chain_b,
+			kind: AssignmentKind::Parachain,
+			group_idx: GroupIndex::from(1),
+		};
+
+		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+
+		let thread_a_assignment = CoreAssignment {
+			core: CoreIndex::from(2),
+			para_id: thread_a,
+			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			group_idx: GroupIndex::from(2),
+		};
+
+		let validator_groups = vec![vec![0, 2], vec![1, 3], vec![4]];
 
 		executor::block_on(async move {
 			let parent_hash_1 = [1; 32].into();
@@ -639,14 +762,11 @@ mod tests {
 			let (ctx, outgoing) = SubsystemContext::<CandidateBackingMessage>::new_testing(rx);
 
 			let roster = SchedulerRoster {
-				validator_groups: vec![vec![0], vec![1]],
+				validator_groups,
 				scheduled: vec![
-					CoreAssignment {
-						core: CoreIndex(0),
-						para_id: 0u32.into(),
-						kind: AssignmentKind::Parachain,
-						group_idx: GroupIndex(0),
-					}
+					chain_a_assignment,
+					chain_b_assignment,
+					thread_a_assignment,
 				],
 				upcoming: vec![],
 				availability_cores: vec![],
@@ -671,7 +791,7 @@ mod tests {
 				AllMessages::RuntimeApi(
 					RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 				) if parent == parent_hash_1 => {
-					tx.send(vec![alice_id.clone(), bob_id]).unwrap();
+					tx.send(validator_public.clone()).unwrap();
 				}
 				msg => panic!("unexpected message {:?}", msg),
 			}
@@ -716,55 +836,114 @@ mod tests {
 				msg => panic!("unexpected message {:?}", msg),
 			}
 
-			let mut candidate = AbridgedCandidateReceipt::default();
-			candidate.parachain_index = 0.into();
-			candidate.relay_parent = parent_hash_1;
-			candidate.pov_block_hash = [2; 32].into();
+			// Check that `Second` message issues all necessary requests.
+			{
+				let candidate = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: parent_hash_1,
+					pov_block_hash: [2; 32].into(),
+					..Default::default()
+				};
 
-			let second = CandidateBackingMessage::Second(parent_hash_1, candidate.clone());
+				let second = CandidateBackingMessage::Second(parent_hash_1, candidate.clone());
 
-			tx.send(FromOverseer::Communication{ msg: second }).await.unwrap();
+				tx.send(FromOverseer::Communication{ msg: second }).await.unwrap();
 
-			let pov_block = PoVBlock {
-				block_data: BlockData(vec![42, 43, 44]),
-			};
+				let pov_block = PoVBlock {
+					block_data: BlockData(vec![42, 43, 44]),
+				};
 
-			match outgoing.next().await.unwrap() {
-				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::QueryPoV(
-						pov_hash,
-						tx,
-					)
-				) if pov_hash == [2; 32].into() => {
-					tx.send(Some(pov_block.clone())).unwrap();
+				match outgoing.next().await.unwrap() {
+					AllMessages::AvailabilityStore(
+						AvailabilityStoreMessage::QueryPoV(
+							pov_hash,
+							tx,
+						)
+					) if pov_hash == [2; 32].into() => {
+						tx.send(Some(pov_block.clone())).unwrap();
+					}
+					msg => panic!("unexpected msg {:?}", msg),
 				}
-				msg => panic!("unexpected msg {:?}", msg),
+
+				match outgoing.next().await.unwrap() {
+					AllMessages::CandidateValidation(
+						CandidateValidationMessage::Validate(
+							parent_hash,
+							c,
+							pov,
+							tx,
+						)
+					) if parent_hash == parent_hash_1 && pov == pov_block && c == candidate => {
+						tx.send(Ok(())).unwrap();
+					}
+					msg => panic!("unexpected msg {:?}", msg),
+				}
+
+				match outgoing.next().await.unwrap() {
+					AllMessages::StatementDistribution(
+						StatementDistributionMessage::Share(
+							parent_hash,
+							signed_statement,
+						)
+					) if parent_hash == parent_hash_1 => {
+						signed_statement.check_signature(&signing_context, &validator_public[0]).unwrap();
+					}
+					msg => panic!("unexpected message {:?}", msg),
+				}
 			}
 
-			match outgoing.next().await.unwrap() {
-				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						parent_hash,
-						c,
-						pov,
-						tx,
-					)
-				) if parent_hash == parent_hash_1 && pov == pov_block && c == candidate => {
-					tx.send(Ok(())).unwrap();
-				}
-				msg => panic!("unexpected msg {:?}", msg),
-			}
+			// Check that reaching a required quorum on a candidate issues a correct message
+			// to the `BackingWatcher`.
+			{
+				let (backed_tx, mut backed_rx) = mpsc::channel(64);
 
-			match outgoing.next().await.unwrap() {
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(
-						parent_hash,
-						signed_statement,
-					)
-				) if parent_hash == parent_hash_1 => {
-					signed_statement.check_signature(&signing_context, &alice_id).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+				let register_watcher = CandidateBackingMessage::RegisterBackingWatcher(parent_hash_1, backed_tx);
+
+				tx.send(FromOverseer::Communication{ msg: register_watcher}).await.unwrap();
+
+				let candidate_a = AbridgedCandidateReceipt {
+					parachain_index: chain_a,
+					relay_parent: parent_hash_1,
+					pov_block_hash: Hash::from([5; 32]),
+					..Default::default()
+				};
+				let candidate_a_hash = candidate_a.hash();
+
+				let signed_a = SignedFullStatement::sign(
+					Statement::Seconded(candidate_a.clone()),
+					&signing_context,
+					2,
+					&validators[2].pair().into(),
+				);
+
+				let signed_b = SignedFullStatement::sign(
+					Statement::Valid(candidate_a_hash),
+					&signing_context,
+					0,
+					&validators[0].pair().into(),
+				);
+
+				let statement = CandidateBackingMessage::Statement(parent_hash_1, signed_a.clone());
+
+				tx.send(FromOverseer::Communication{ msg: statement }).await.unwrap();
+
+				let statement = CandidateBackingMessage::Statement(parent_hash_1, signed_b.clone());
+
+				tx.send(FromOverseer::Communication{ msg: statement }).await.unwrap();
+
+				let backed = backed_rx.next().await.unwrap();
+
+				// `validity_votes` may be in any order so we can't do this in a single assert.
+				assert_eq!(backed.0.candidate, candidate_a);
+				assert_eq!(backed.0.validity_votes.len(), 2);
+				assert!(backed.0.validity_votes.contains(
+					&ValidityAttestation::Explicit(signed_b.signature().clone())
+				));
+				assert!(backed.0.validity_votes.contains(
+					&ValidityAttestation::Implicit(signed_a.signature().clone())
+				));
+
+				assert_eq!(backed.0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 0, 0]);
 			}
 
 			tx.send(FromOverseer::Signal(OverseerSignal::StopWork(parent_hash_1))).await.unwrap();

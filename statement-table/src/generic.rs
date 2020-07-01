@@ -28,6 +28,8 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
 use std::fmt::Debug;
 
+use primitives::parachain::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
+
 use codec::{Encode, Decode};
 
 /// Context for the statement table.
@@ -178,6 +180,15 @@ pub enum ValidityAttestation<S> {
 	/// An explicit attestation. This corresponds to issuance of a
 	/// `Valid` statement.
 	Explicit(S),
+}
+
+impl Into<PrimitiveValidityAttestation> for ValidityAttestation<ValidatorSignature> {
+	fn into(self) -> PrimitiveValidityAttestation {
+		match self {
+			Self::Implicit(s) => PrimitiveValidityAttestation::Implicit(s),
+			Self::Explicit(s) => PrimitiveValidityAttestation::Explicit(s),
+		}
+	}
 }
 
 /// An attested-to candidate.
