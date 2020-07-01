@@ -53,7 +53,7 @@ browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"browser-utils",
-	"sc-service",
+	"service",
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 service-rewr = [ "service-new/full-node" ]
