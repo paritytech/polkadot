@@ -26,11 +26,9 @@ use futures::{future::Future, StreamExt};
 use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
 use log::info;
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use polkadot_primitives::parachain::CollatorId;
-use polkadot_primitives::Block;
 use polkadot_primitives::{
-	parachain::{self},
-	BlockId, Hash,
+	parachain::{self, CollatorId},
+	Block, BlockId, Hash,
 };
 use polkadot_service::{
 	new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient, ServiceComponents,
