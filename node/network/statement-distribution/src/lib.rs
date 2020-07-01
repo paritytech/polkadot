@@ -25,7 +25,7 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, NetworkBridgeMessage, NetworkBridgeEvent, StatementDistributionMessage,
-	PeerId, ObservedRole, ReputationChange as Rep,
+	PeerId, ObservedRole, ReputationChange as Rep, CandidateBackingMessage,
 };
 use node_primitives::{ProtocolId, View, SignedFullStatement};
 use polkadot_primitives::Hash;
@@ -673,8 +673,13 @@ async fn handle_network_update(
 						message,
 					).await?;
 
-					if let Some(new) = new_stored {
-						// TODO [now]: send to `CandidateBacking` subsystem.
+					if let Some((relay_parent, new)) = new_stored {
+						// When we receive a new message from a peer, we forward it to the
+						// candidate backing subsystem.
+						let message = AllMessages::CandidateBacking(
+							CandidateBackingMessage::Statement(relay_parent, new.statement.clone())
+						);
+						ctx.send_message(message).await?;
 					}
 
 					Ok(())
