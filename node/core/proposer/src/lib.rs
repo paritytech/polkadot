@@ -1,10 +1,10 @@
 use futures::prelude::*;
-use futures::{lock::Mutex, select};
-use polkadot_node_subsystem::messages::{AllMessages, ProvisionableData, ProvisionerMessage};
+use futures::select;
+use polkadot_node_subsystem::messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::{
 	inclusion_inherent,
-	parachain::{ParachainHost, SignedAvailabilityBitfields},
+	parachain::ParachainHost,
 	Block, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
@@ -75,9 +75,9 @@ where
 		// note that the buffer of 1 here is actually an _overflow_ bound; every sender also
 		// has a guaranteed slot in the channel:
 		// https://docs.rs/futures/0.3.5/futures/channel/mpsc/fn.channel.html
-		let (sender, receiver) = futures::channel::mpsc::channel(1);
+		let (sender, receiver) = futures::channel::oneshot::channel();
 		self.overseer.send_msg(AllMessages::Provisioner(
-			ProvisionerMessage::RequestBlockAuthorshipData(parent_header.hash(), sender),
+			ProvisionerMessage::RequestInherentData(parent_header.hash(), sender),
 		));
 		unimplemented!()
 	}
@@ -87,7 +87,7 @@ pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 	client: Arc<Client>,
 	overseer: OverseerHandler,
-	provisionable_data: futures::channel::mpsc::Receiver<ProvisionableData>,
+	provisioner_inherent_data: futures::channel::oneshot::Receiver<ProvisionerInherentData>,
 }
 
 impl<TxPool, Backend, Client> sp_consensus::Proposer<Block> for Proposer<TxPool, Backend, Client>
@@ -119,34 +119,14 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		let bitfields = Mutex::new(Vec::new());
-		let candidates = Mutex::new(Vec::new());
-
 		let mut proposal = async move {
-			// At most two items can be simultaneously processed: one bitfield, one candidate
-			// allowing more concurrent tasks to be spawned just wastes resources
-			// This is not strictly true in the case of the ignored variants,
-			// but those should be discarded quickly enough not to produce backpressure.
-			self.provisionable_data
-				.for_each_concurrent(2, |item| async {
-					match item {
-						ProvisionableData::Bitfield(_, signed_bitfield) => {
-							bitfields.lock().await.push(signed_bitfield)
-						}
-						ProvisionableData::BackedCandidate(candidate) => {
-							candidates.lock().await.push(candidate)
-						}
-						_ => {}
-					}
-				})
-				.await;
+			let provisioner_inherent_data = self.provisioner_inherent_data.await.map_err(Error::ClosedChannelFromProvisioner)?;
+
 			inherent_data.put_data(
 				inclusion_inherent::INHERENT_IDENTIFIER,
-				&(
-					SignedAvailabilityBitfields(bitfields.into_inner()),
-					candidates.into_inner(),
-				),
+				&provisioner_inherent_data,
 			)?;
+
 			self.inner
 				.propose(inherent_data, inherent_digests, max_duration, record_proof)
 				.await
@@ -173,6 +153,7 @@ pub enum Error {
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
 	Timeout,
+	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
 }
 
 impl From<sp_consensus::Error> for Error {
