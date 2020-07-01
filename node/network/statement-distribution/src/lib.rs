@@ -663,8 +663,6 @@ async fn handle_incoming_message<'a>(
 
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
-	// TODO [now]: reward the peer if the statement was new or something we'd be interested in.
-	// slightly lower reward for losing races.
 	match active_head.note_statement(statement) {
 		NotedStatement::NotUseful => Ok(None),
 		NotedStatement::UsefulButKnown => {
