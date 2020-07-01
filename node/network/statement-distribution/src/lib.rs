@@ -20,12 +20,12 @@
 //! validity amongst validators.
 
 use polkadot_subsystem::{
-	Subsystem, SubsystemResult, SubsystemError, SubsystemContext, SpawnedSubsystem,
+	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	FromOverseer, OverseerSignal,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, NetworkBridgeMessage, NetworkBridgeEvent, StatementDistributionMessage,
-	PeerId, ObservedRole, ReputationChange as Rep, CandidateBackingMessage, RuntimeApiMessage,
+	PeerId, ReputationChange as Rep, CandidateBackingMessage, RuntimeApiMessage,
 	RuntimeApiRequest,
 };
 use node_primitives::{ProtocolId, View, SignedFullStatement};
@@ -57,16 +57,6 @@ const BENEFIT_VALID_STATEMENT: Rep = Rep::new(25, "Peer provided a valid stateme
 /// Typically we will only keep 1, but when a validator equivocates we will need to track 2.
 const VC_THRESHOLD: usize = 2;
 
-/// The maximum amount of candidates each peer can be aware of each validator seconding at
-/// any relay-parent. Short for "Validator Candidate per Peer Threshold".
-///
-/// This is 2 times the `VC_THRESHOLD` because it includes the candidates in
-/// our state that we may have sent them, and the candidates that they may have received from
-/// other peers in the meantime. Peers are unlikely to ever be aware of more than 2 candidates
-/// except in the case of a targeted attack by a sophisticated adversary. Nevertheless, we
-/// establish a finite bound on memory used in such a situation.
-const VC_PEER_THRESHOLD: usize = 2 * VC_THRESHOLD;
-
 /// The statement distribution subsystem.
 pub struct StatementDistribution;
 
@@ -96,10 +86,6 @@ struct VcPerPeerTracker {
 }
 
 impl VcPerPeerTracker {
-	fn contains(&self, h: &Hash) -> bool {
-		self.local_observed.contains(h) || self.remote_observed.contains(h)
-	}
-
 	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
 	// based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: Hash) {
@@ -135,6 +121,7 @@ fn note_hash(
 }
 
 // knowledge that a peer has about goings-on in a relay parent.
+#[derive(Default)]
 struct PeerRelayParentKnowledge {
 	// candidates that the peer is aware of. This indicates that we can
 	// send other statements pertaining to that candidate.
@@ -261,7 +248,6 @@ impl PeerRelayParentKnowledge {
 }
 
 struct PeerData {
-	role: ObservedRole,
 	view: View,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
 }
@@ -564,6 +550,32 @@ async fn send_statements_about(
 	Ok(())
 }
 
+/// Send all statements at a given relay-parent to a peer.
+async fn send_statements(
+	peer: PeerId,
+	peer_data: &mut PeerData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	active_head: &ActiveHeadData
+) -> SubsystemResult<()> {
+	for statement in active_head.statements() {
+		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
+			let payload = WireMessage::Statement(
+				relay_parent,
+				statement.statement.clone(),
+			).encode();
+
+			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+				vec![peer.clone()],
+				PROTOCOL_V1,
+				payload,
+			))).await?;
+		}
+	}
+
+	Ok(())
+}
+
 async fn report_peer(
 	ctx: &mut impl SubsystemContext,
 	peer: PeerId,
@@ -618,8 +630,8 @@ async fn handle_incoming_message<'a>(
 	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
 	let max_message_count = active_head.validators.len() * 2;
 	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
-		Err(e) => {
-			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
+		Err(rep) => {
+			report_peer(ctx, peer, rep).await?;
 			return Ok(None)
 		}
 		Ok(true) => {
@@ -639,7 +651,44 @@ async fn handle_incoming_message<'a>(
 
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
+	// TODO [now]: reward the peer if the statement was new or something we'd be interested in.
+	// slightly lower reward for losing races.
 	Ok(active_head.note_statement(statement).map(|s| (relay_parent, s)))
+}
+
+/// Update a peer's view. Sends all newly unlocked statements based on the previous
+async fn update_peer_view_and_send_unlocked(
+	peer: PeerId,
+	peer_data: &mut PeerData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	active_heads: &HashMap<Hash, ActiveHeadData>,
+	new_view: View,
+) -> SubsystemResult<()> {
+	let old_view = std::mem::replace(&mut peer_data.view, new_view);
+
+	// Remove entries for all relay-parents in the old view but not the new.
+	for removed in old_view.difference(&peer_data.view) {
+		let _ = peer_data.view_knowledge.remove(&removed);
+	}
+
+	// Add entries for all relay-parents in the new view but not the old.
+	// Furthermore, send all statements we have for those relay parents.
+	let new_view = peer_data.view.difference(&old_view).collect::<Vec<_>>();
+	for new in new_view.iter().copied() {
+		peer_data.view_knowledge.insert(new, Default::default());
+
+		if let Some(active_head) = active_heads.get(&new) {
+			send_statements(
+				peer.clone(),
+				peer_data,
+				ctx,
+				new,
+				active_head,
+			).await?;
+		}
+	}
+
+	Ok(())
 }
 
 async fn handle_network_update(
@@ -650,9 +699,8 @@ async fn handle_network_update(
 	update: NetworkBridgeEvent,
 ) -> SubsystemResult<()> {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role) => {
+		NetworkBridgeEvent::PeerConnected(peer, _role) => {
 			peers.insert(peer, PeerData {
-				role,
 				view: Default::default(),
 				view_knowledge: Default::default(),
 			});
@@ -691,15 +739,31 @@ async fn handle_network_update(
 
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
-			// TODO [now]
-			// 1. Update the view.
-			// 2. Send this peer all messages that we have for active heads in the view.
-			Ok(())
+			match peers.get_mut(&peer) {
+				Some(data) => {
+					update_peer_view_and_send_unlocked(
+						peer,
+						data,
+						ctx,
+						&*active_heads,
+						view,
+					).await
+				}
+				None => Ok(()),
+			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
-			// TODO [now]
-			// 1. Update our view.
-			// 2. Clean up everything that is not in the new view.
+			let old_view = std::mem::replace(our_view, view);
+			active_heads.retain(|head, _| our_view.contains(head));
+
+			for new in our_view.difference(&old_view) {
+				if !active_heads.contains_key(&new) {
+					log::warn!(target: "statement_distribution", "Our network bridge view update \
+						inconsistent with `StartWork` messages we have received from overseer. \
+						Contains unknown hash {}", new);
+				}
+			}
+
 			Ok(())
 		}
 	}
@@ -744,7 +808,7 @@ async fn run(
 				active_heads.entry(relay_parent)
 					.or_insert(ActiveHeadData::new(validators, session_index));
 			}
-			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
+			FromOverseer::Signal(OverseerSignal::StopWork(_relay_parent)) => {
 				// do nothing - we will handle this when our view changes.
 			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
