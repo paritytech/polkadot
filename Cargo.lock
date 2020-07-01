@@ -2416,7 +2416,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "static_assertions",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
 
@@ -4574,7 +4574,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "static_assertions",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
  "trie-db 0.20.1",
 ]
@@ -4855,7 +4855,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
 
@@ -7783,7 +7783,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
- "substrate-wasm-builder-runner 1.0.6 (git+https://github.com/paritytech/substrate)",
+ "substrate-wasm-builder-runner",
  "trie-db 0.21.0",
 ]
 
@@ -7812,12 +7812,6 @@ dependencies = [
 name = "substrate-wasm-builder-runner"
 version = "1.0.6"
 source = "git+https://github.com/paritytech/substrate#e8f901868997be15635cba9b21a99b212009adc8"
-
-[[package]]
-name = "substrate-wasm-builder-runner"
-version = "1.0.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2a965994514ab35d3893e9260245f2947fd1981cdd4fffd2c6e6d1a9ce02e6a"
 
 [[package]]
 name = "substrate-wasmtime"
@@ -8043,7 +8037,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
 
@@ -8070,7 +8064,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
 
@@ -8078,7 +8072,7 @@ dependencies = [
 name = "test-parachain-halt"
 version = "0.8.13"
 dependencies = [
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
 ]
 
 [[package]]
@@ -9076,7 +9070,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "static_assertions",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
 
