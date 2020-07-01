@@ -86,14 +86,12 @@ fn send_transaction_actually_work() {
 
 		let (res, _mem, _rx) = alice.send_transaction(extrinsic.into()).await;
 
-		assert!(res.is_some(), "return value expected");
-		let json = serde_json::from_str::<serde_json::Value>(res.unwrap().as_str()).expect("valid JSON");
-		assert!(json.is_object(), "JSON is an object");
-		let object = json.as_object().unwrap();
+		let res = res.expect("return value expected");
+		let json = serde_json::from_str::<serde_json::Value>(res.as_str()).expect("valid JSON");
+		let object = json.as_object().expect("JSON is an object");
 		assert!(object.contains_key("jsonrpc"), "key jsonrpc exists");
 		let result = object.get("result");
-		assert!(result.is_some(), "key result exists");
-		let result = result.unwrap();
+		let result = result.expect("key result exists");
 		assert_eq!(result.as_str().map(|x| x.starts_with("0x")), Some(true), "result starts with 0x");
 
 		alice.task_manager.terminate();
