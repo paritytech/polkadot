@@ -110,7 +110,12 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..)) => true,
+			Call::Parachains(parachains::Call::set_heads(..))
+				| Call::Democracy(democracy::Call::vote(..))
+				| Call::Democracy(democracy::Call::remove_vote(..))
+				| Call::Democracy(democracy::Call::delegate(..))
+				| Call::Democracy(democracy::Call::undelegate(..))
+				=> true,
 
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
@@ -394,20 +399,38 @@ impl democracy::Trait for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	type ExternalOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
+	type ExternalMajorityOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
+	type ExternalDefaultOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
-	type InstantOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>;
+	type FastTrackOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
+	type InstantOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+	type CancellationOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	// Any single technical committee member may veto a coming council proposal, however they can
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
