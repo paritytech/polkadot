@@ -327,7 +327,15 @@ impl std::borrow::Borrow<CompactStatement> for StoredStatement {
 
 impl std::hash::Hash for StoredStatement {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		self.fingerprint().hash(state)
+		// Hash + Eq is supposed to have the property that if `Hash(X) == Hash(Y)`, then `X == Y`.
+		// However, the candidate receipt types don't implement `Hash`.
+		//
+		// The fingerprint plus the signature data provides an assurance that this property will hold,
+		// not in general, but for all use-cases where the data within this struct has had the
+		// signature checked, even when validators equivocate by issuing two different signatures
+		// on the same data, although I am unsure if that is even possible with sr25519.
+		self.fingerprint().hash(state);
+		self.statement.signature().hash(state);
 	}
 }
 
@@ -852,4 +860,15 @@ async fn run(
 		}
 	}
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	// TODO [now]: active head data accepts 2 seconded messages per validator
+	// TODO [now]: note_local
+	// TODO [now]: note_remote
+	// TODO [now]: peer view update leads to messages being sent
+	// TODO [now]: circulating statement goes to all peers.
 }
