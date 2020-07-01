@@ -1,10 +1,9 @@
-use async_std::task::sleep;
+use async_std::task::{block_on, sleep};
 use futures::{pin_mut, select, FutureExt as _};
 use polkadot_primitives::parachain::{Info, Scheduling};
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use polkadot_test_service::*;
-use service::TaskExecutor;
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring::Alice;
@@ -13,12 +12,18 @@ use std::time::Duration;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
-#[async_std::test]
-async fn send_transaction_actually_work() {
-	let task_executor: TaskExecutor = (|fut, _| {
-		async_std::task::spawn(fut);
-	})
-	.into();
+#[test]
+fn send_transaction_actually_work() {
+	let mut alice = run_test_node(
+		(|fut, _| {
+			async_std::task::spawn(fut);
+		})
+		.into(),
+		Alice,
+		|| {},
+		Vec::new(),
+	)
+	.unwrap();
 	let t1 = sleep(Duration::from_secs(
 		INTEGRATION_TEST_ALLOWED_TIME
 			.and_then(|x| x.parse().ok())
@@ -26,14 +31,6 @@ async fn send_transaction_actually_work() {
 	))
 	.fuse();
 	let t2 = async {
-		let mut alice = run_test_node(
-			task_executor.clone(),
-			Alice,
-			|| {},
-			Vec::new(),
-		)
-		.unwrap();
-
 		let wasm = vec![0_u8; 32];
 		let genesis_state = b"0x0x000000000000000000000000000000000000000000000000000000000000000000eb21415d4113e9bb8c\
 							0c3fa5533d873c439e94960c56f4c1dd1105ddc6b7b2e903170a2e7597b7b7e3d84c05391d139a62b157e78786\
@@ -103,12 +100,14 @@ async fn send_transaction_actually_work() {
 	}
 	.fuse();
 
-	pin_mut!(t1, t2);
+	block_on(async move {
+		pin_mut!(t1, t2);
 
-	select! {
-		_ = t1 => {
-			panic!("the test took too long, maybe no blocks have been produced");
-		},
-		_ = t2 => {},
-	}
+		select! {
+			_ = t1 => {
+				panic!("the test took too long, maybe no blocks have been produced");
+			},
+			_ = t2 => {},
+		}
+	});
 }
