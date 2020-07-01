@@ -4721,6 +4721,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-transaction-pool",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "westend-runtime",
 ]
@@ -4781,6 +4782,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-transaction-pool",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "westend-runtime",
 ]
