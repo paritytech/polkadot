@@ -30,19 +30,19 @@ fn get_exec_name() -> Option<String> {
 }
 
 impl SubstrateCli for Cli {
-	fn impl_name() -> &'static str { "Parity Polkadot" }
+	fn impl_name() -> String { String::from("Parity Polkadot") }
 
-	fn impl_version() -> &'static str { env!("SUBSTRATE_CLI_IMPL_VERSION") }
+	fn impl_version() -> String { String::from(env!("SUBSTRATE_CLI_IMPL_VERSION")) }
 
-	fn description() -> &'static str { env!("CARGO_PKG_DESCRIPTION") }
+	fn description() -> String { String::from(env!("CARGO_PKG_DESCRIPTION")) }
 
-	fn author() -> &'static str { env!("CARGO_PKG_AUTHORS") }
+	fn author() -> String { String::from(env!("CARGO_PKG_AUTHORS")) }
 
-	fn support_url() -> &'static str { "https://github.com/paritytech/polkadot/issues/new" }
+	fn support_url() -> String { String::from("https://github.com/paritytech/polkadot/issues/new") }
 
 	fn copyright_start_year() -> i32 { 2017 }
 
-	fn executable_name() -> &'static str { "polkadot" }
+	fn executable_name() -> String { String::from("polkadot") }
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
