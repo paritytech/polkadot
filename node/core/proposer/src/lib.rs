@@ -16,6 +16,10 @@ use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
 use std::{pin::Pin, sync::Arc, time};
 
+/// How long proposal can take before we give up and err out
+// REVIEW: this value is a SWAG; receptive to better ideas.
+const PROPOSE_TIMEOUT: tokio::time::Duration = tokio::time::Duration::from_secs(2);
+
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
 	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
@@ -118,7 +122,7 @@ where
 		let bitfields = Mutex::new(Vec::new());
 		let candidates = Mutex::new(Vec::new());
 
-		async move {
+		let proposal = async move {
 			// At most two items can be simultaneously processed: one bitfield, one candidate
 			// allowing more concurrent tasks to be spawned just wastes resources
 			// This is not strictly true in the case of the ignored variants,
@@ -148,7 +152,12 @@ where
 				.await
 				.map_err(Into::into)
 		}
-		.boxed()
+		.boxed();
+
+		// FIXME!
+		// Pin<Box<dyn Future<Output=Result<Proposal, Error>>>> !=
+		// Pin<Box<dyn Future<Output=Result<Result<Proposal, Error>, Elapsed>>>>
+		tokio::time::timeout(PROPOSE_TIMEOUT, proposal).boxed()
 	}
 }
 
@@ -157,6 +166,7 @@ pub enum Error {
 	Consensus(sp_consensus::Error),
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
+	Timeout(tokio::time::Elapsed),
 }
 
 impl From<sp_consensus::Error> for Error {
@@ -174,5 +184,11 @@ impl From<sp_blockchain::Error> for Error {
 impl From<sp_inherents::Error> for Error {
 	fn from(e: sp_inherents::Error) -> Error {
 		Error::Inherent(e)
+	}
+}
+
+impl From<tokio::time::Elapsed> for Error {
+	fn from(e: tokio::time::Elapsed) -> Error {
+		Error::Timeout(e)
 	}
 }

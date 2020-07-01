@@ -23,4 +23,5 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = "0.2.21"
 tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
