@@ -157,9 +157,9 @@ impl PeerRelayParentKnowledge {
 	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
 	///
-	/// This returns `Some(Some(hash))` if this is the first time the peer has become aware of a
-	/// candidate with a given hash.
-	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> Option<Option<Hash>> {
+	/// This returns `Some(true)` if this is the first time the peer has become aware of a
+	/// candidate with the given hash.
+	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> Option<bool> {
 		let already_known = self.sent_statements.contains(fingerprint)
 			|| self.received_statements.contains(fingerprint);
 
@@ -167,13 +167,13 @@ impl PeerRelayParentKnowledge {
 			return None;
 		}
 
-		let (candidate_hash, new_known) = match fingerprint.0 {
+		let new_known = match fingerprint.0 {
 			CompactStatement::Candidate(ref h) => {
 				self.seconded_counts.entry(fingerprint.1)
 					.or_insert_with(Default::default)
 					.note_local(h.clone());
 
-				(h.clone(), self.known_candidates.insert(h.clone()))
+				self.known_candidates.insert(h.clone())
 			},
 			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
@@ -182,17 +182,13 @@ impl PeerRelayParentKnowledge {
 					return None;
 				}
 
-				(h.clone(), false)
+				false
 			}
 		};
 
 		self.sent_statements.insert(fingerprint.clone());
 
-		if new_known {
-			Some(Some(candidate_hash.clone()))
-		} else {
-			Some(None)
-		}
+		Some(new_known)
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -209,13 +205,13 @@ impl PeerRelayParentKnowledge {
 	/// If this returns `Ok`, the internal state has been altered. After `receive`ing a new
 	/// candidate, we are then cleared to send the peer further statements about that candidate.
 	///
-	/// This returns `Ok(Some(hash))` if this is the first time the peer has become aware of a
+	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
 	fn receive(
 		&mut self,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		max_message_count: usize,
-	) -> Result<Option<Hash>, Rep> {
+	) -> Result<bool, Rep> {
 		// We don't check `sent_statements` because a statement could be in-flight from both
 		// sides at the same time.
 		if self.received_statements.contains(fingerprint) {
@@ -256,11 +252,7 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		if self.known_candidates.insert(candidate_hash.clone()) {
-			Ok(Some(candidate_hash.clone()))
-		} else {
-			Ok(None)
-		}
+		Ok(self.known_candidates.insert(candidate_hash.clone()))
 	}
 }
 
@@ -280,13 +272,13 @@ impl PeerData {
 	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
 	///
-	/// This returns `Some(Some(hash))` if this is the first time the peer has become aware of a
-	/// candidate with a given hash.
+	/// This returns `Some(true)` if this is the first time the peer has become aware of a
+	/// candidate with the given hash.
 	fn send(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
-	) -> Option<Option<Hash>> {
+	) -> Option<bool> {
 		self.view_knowledge.get_mut(relay_parent).map_or(None, |k| k.send(fingerprint))
 	}
 
@@ -304,14 +296,14 @@ impl PeerData {
 	/// If this returns `Ok`, the internal state has been altered. After `receive`ing a new
 	/// candidate, we are then cleared to send the peer further statements about that candidate.
 	///
-	/// This returns `Ok(Some(hash))` if this is the first time the peer has become aware of a
+	/// This returns `Ok(true)` if this is the first time the peer has become aware of a
 	/// candidate with given hash.
 	fn receive(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		max_message_count: usize,
-	) -> Result<Option<Hash>, Rep> {
+	) -> Result<bool, Rep> {
 		self.view_knowledge.get_mut(relay_parent).ok_or(COST_UNEXPECTED_STATEMENT)?
 			.receive(fingerprint, max_message_count)
 	}
@@ -427,6 +419,13 @@ impl ActiveHeadData {
 	fn statements(&self) -> impl Iterator<Item = &'_ StoredStatement> + '_ {
 		self.seconded_statements.iter().chain(self.other_statements.iter())
 	}
+
+	/// Get an iterator over all statements for the active head that are for a particular candidate.
+	fn statements_about(&self, candidate_hash: Hash)
+		-> impl Iterator<Item = &'_ StoredStatement> + '_
+	{
+		self.statements().filter(move |s| s.compact.candidate_hash() == &candidate_hash)
+	}
 }
 
 /// Check a statement signature under this parent hash.
@@ -452,47 +451,111 @@ enum WireMessage {
 	Statement(Hash, SignedFullStatement),
 }
 
-async fn share_message(
+/// Places the statement in storage if it is new, and then
+/// circulates the statement to all peers who have not seen it yet, and
+/// sends all statements dependent on that statement to peers who could previously not receive
+/// them but now can.
+async fn circulate_statement_and_dependents(
 	peers: &mut HashMap<PeerId, PeerData>,
 	active_heads: &mut HashMap<Hash, ActiveHeadData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 ) -> SubsystemResult<()> {
-	if let Some(stored)
-		= active_heads.get_mut(&relay_parent).and_then(|d| d.note_statement(statement))
-	{
-		send_stored_to_peers(peers, ctx, relay_parent, stored).await?;
+	if let Some(active_head)= active_heads.get_mut(&relay_parent) {
+
+		// First circulate the statement directly to all peers needing it.
+		// The borrow of `active_head` needs to encompass only this (Rust) statement.
+		let outputs: Option<(Hash, Vec<PeerId>)> = {
+			match active_head.note_statement(statement) {
+				Some(stored) => Some((
+					stored.compact.candidate_hash().clone(),
+					circulate_statement(peers, ctx, relay_parent, stored).await?,
+				)),
+				None => None,
+			}
+		};
+
+		// Now send dependent statements to all peers needing them, if any.
+		if let Some((candidate_hash, peers_needing_dependents)) = outputs {
+			for peer in peers_needing_dependents {
+				if let Some(peer_data) = peers.get_mut(&peer) {
+					// defensive: the peer data should always be some because the iterator
+					// of peers is derived from the set of peers.
+					send_statements_about(
+						peer,
+						peer_data,
+						ctx,
+						relay_parent,
+						candidate_hash,
+						&*active_head
+					).await?;
+				}
+			}
+		}
 	}
+
 	Ok(())
 }
 
-async fn send_stored_to_peers(
+/// Circulates a statement to all peers who have not seen it yet, and returns
+/// an iterator over peers who need to have dependent statements sent.
+async fn circulate_statement(
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	relay_parent: Hash,
 	stored: &StoredStatement,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<Vec<PeerId>> {
 	let fingerprint = stored.fingerprint();
 
-	let peers_to_send: Vec<_> = peers.iter_mut()
-		.filter_map(|(p, data)| data.send(&relay_parent, &fingerprint).map(|fresh| {
-			// TODO [now]: if this message indicates a fresh candidate, send
-			// unlocked messages to the peer.
+	let mut peers_to_send = HashMap::new();
 
-			p.clone()
-		}))
-		.collect();
+	for (peer, data) in peers.iter_mut() {
+		if let Some(new_known) = data.send(&relay_parent, &fingerprint) {
+			peers_to_send.insert(peer.clone(), new_known);
+		}
+	}
 
-	if peers_to_send.is_empty() { return Ok(()) }
+	// Send all these peers the initial statement.
+	if !peers_to_send.is_empty() {
+		let payload = WireMessage::Statement(relay_parent, stored.statement.clone()).encode();
+		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+			peers_to_send.keys().cloned().collect(),
+			PROTOCOL_V1,
+			payload,
+		))).await?;
+	}
 
+	Ok(peers_to_send.into_iter().filter_map(|(peer, needs_dependent)| if needs_dependent {
+		Some(peer)
+	} else {
+		None
+	}).collect())
+}
 
-	let payload = WireMessage::Statement(relay_parent, stored.statement.clone()).encode();
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
-		peers_to_send,
-		PROTOCOL_V1,
-		payload,
-	))).await?;
+/// Send all statements about a given candidate hash to a peer.
+async fn send_statements_about(
+	peer: PeerId,
+	peer_data: &mut PeerData,
+	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
+	relay_parent: Hash,
+	candidate_hash: Hash,
+	active_head: &ActiveHeadData,
+) -> SubsystemResult<()> {
+	for statement in active_head.statements_about(candidate_hash) {
+		if peer_data.send(&relay_parent, &statement.fingerprint()).is_some() {
+			let payload = WireMessage::Statement(
+				relay_parent,
+				statement.statement.clone(),
+			).encode();
+
+			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+				vec![peer.clone()],
+				PROTOCOL_V1,
+				payload,
+			))).await?;
+		}
+	}
 
 	Ok(())
 }
@@ -555,10 +618,10 @@ async fn handle_incoming_message<'a>(
 			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
 			return Ok(None)
 		}
-		Ok(Some(hash)) => {
+		Ok(true) => {
 			// TODO [now]: trigger send of new messages if this is a `Candidate` message.
 		}
-		Ok(None) => {}
+		Ok(false) => {}
 	}
 
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
@@ -612,7 +675,7 @@ async fn handle_network_update(
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
 			// TODO [now]
 			// 1. Update the view.
-			// 2. Send this peer all messages that we have for new active heads in the view.
+			// 2. Send this peer all messages that we have for active heads in the view.
 			Ok(())
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
@@ -650,13 +713,14 @@ async fn run(
 			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
 			FromOverseer::Communication { msg } => match msg {
-				StatementDistributionMessage::Share(relay_parent, statement) => share_message(
-					&mut peers,
-					&mut active_heads,
-					&mut ctx,
-					relay_parent,
-					statement,
-				).await?,
+				StatementDistributionMessage::Share(relay_parent, statement) =>
+					circulate_statement_and_dependents(
+						&mut peers,
+						&mut active_heads,
+						&mut ctx,
+						relay_parent,
+						statement,
+					).await?,
 				StatementDistributionMessage::NetworkBridgeUpdate(event) => handle_network_update(
 					&mut peers,
 					&mut active_heads,

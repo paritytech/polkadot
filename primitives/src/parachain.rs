@@ -604,6 +604,18 @@ pub enum CompactStatement {
 	Invalid(Hash),
 }
 
+impl CompactStatement {
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &Hash {
+		match *self {
+			CompactStatement::Candidate(ref h)
+				| CompactStatement::Valid(ref h)
+				| CompactStatement::Invalid(ref h)
+				=> h
+		}
+	}
+}
+
 /// A signed compact statement, suitable to be sent to the chain.
 pub type SignedStatement = Signed<CompactStatement>;
 
