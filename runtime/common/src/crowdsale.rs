@@ -64,7 +64,7 @@ decl_error! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Claims {
+	trait Store for Module<T: Trait> as Crowdsale {
 		ValidityStatements: map hasher(blake2_128_concat) T::AccountId => AccountValidity;
 	}
 }
