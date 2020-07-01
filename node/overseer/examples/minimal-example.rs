@@ -74,7 +74,7 @@ impl Subsystem1 {
 impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
-	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -111,7 +111,7 @@ impl Subsystem2 {
 impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
-	fn start(&mut self, ctx: C) -> SpawnedSubsystem {
+	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx).await;
 		}))
@@ -129,8 +129,8 @@ fn main() {
 
 		let (overseer, _handler) = Overseer::new(
 			vec![],
-			Box::new(Subsystem2),
-			Box::new(Subsystem1),
+			Subsystem2,
+			Subsystem1,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();
