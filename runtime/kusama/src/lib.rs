@@ -88,7 +88,10 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	authoring_version: 2,
 	spec_version: 2013,
 	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: version::create_apis_vec![[]],
 	transaction_version: 2,
 };
 
@@ -1005,6 +1008,7 @@ pub type Executive = executive::Executive<
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
+#[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
@@ -1102,6 +1106,9 @@ sp_api::impl_runtime_apis! {
 		}
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
+		}
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+			Parachains::downward_messages(id)
 		}
 	}
 
