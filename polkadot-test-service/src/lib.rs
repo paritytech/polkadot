@@ -230,7 +230,7 @@ pub struct PolkadotTestNode<S, C> {
 	/// Node's handles.
 	pub handles: FullNodeHandles,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
-	pub multiaddr_with_peer_id: MultiaddrWithPeerId,
+	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
 	pub rpc_handlers: Arc<RpcHandlers>,
 }
