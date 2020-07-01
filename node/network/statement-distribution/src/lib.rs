@@ -619,7 +619,16 @@ async fn handle_incoming_message<'a>(
 			return Ok(None)
 		}
 		Ok(true) => {
-			// TODO [now]: trigger send of new messages if this is a `Candidate` message.
+			// Send the peer all statements concerning the candidate that we have,
+			// since it appears to have just learned about the candidate.
+			send_statements_about(
+				peer,
+				peer_data,
+				ctx,
+				relay_parent,
+				fingerprint.0.candidate_hash().clone(),
+				&*active_head,
+			).await?
 		}
 		Ok(false) => {}
 	}
