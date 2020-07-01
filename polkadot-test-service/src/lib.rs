@@ -208,13 +208,13 @@ pub fn run_test_node(
 		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
 
 	let peer_id = network.local_peer_id().clone();
-	let multiaddr_with_peer_id = MultiaddrWithPeerId { multiaddr, peer_id };
+	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	let node = PolkadotTestNode {
 		task_manager,
 		client,
 		handles,
-		multiaddr_with_peer_id,
+		addr,
 		rpc_handlers,
 	};
 

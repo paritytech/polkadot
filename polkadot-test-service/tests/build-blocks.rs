@@ -24,7 +24,7 @@ fn ensure_test_service_build_blocks() {
 		task_executor.clone(),
 		Sr25519Keyring::Bob,
 		|| {},
-		vec![alice.multiaddr_with_peer_id.clone()],
+		vec![alice.addr.clone()],
 	)
 	.unwrap();
 	let t1 = sleep(Duration::from_secs(
