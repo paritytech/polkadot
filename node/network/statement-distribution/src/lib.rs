@@ -48,7 +48,11 @@ const COST_INVALID_MESSAGE: Rep = Rep::new(-500, "Invalid message");
 const COST_DUPLICATE_STATEMENT: Rep = Rep::new(-250, "Statement sent more than once by peer");
 const COST_APPARENT_FLOOD: Rep = Rep::new(-1000, "Peer appears to be flooding us with statements");
 
-const BENEFIT_VALID_STATEMENT: Rep = Rep::new(25, "Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT: Rep = Rep::new(5, "Peer provided a valid statement");
+const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::new(
+	25,
+	"Peer was the first to provide a valid statement",
+);
 
 /// The maximum amount of candidates each validator is allowed to second at any relay-parent.
 /// Short for "Validator Candidate Threshold".
@@ -327,6 +331,12 @@ impl std::hash::Hash for StoredStatement {
 	}
 }
 
+enum NotedStatement<'a> {
+	NotUseful,
+	Fresh(&'a StoredStatement),
+	UsefulButKnown
+}
+
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<Hash>,
@@ -365,7 +375,7 @@ impl ActiveHeadData {
 	/// the signature is valid.
 	///
 	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted.
-	fn note_statement(&mut self, statement: SignedFullStatement) -> Option<&StoredStatement> {
+	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
 		let compact = statement.payload().to_compact();
 		let validator_index = statement.validator_index();
 		let stored = StoredStatement {
@@ -377,7 +387,7 @@ impl ActiveHeadData {
 			CompactStatement::Candidate(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= 2 {
-					return None;
+					return NotedStatement::NotUseful;
 				} else {
 					*seconded_so_far += 1;
 				}
@@ -385,21 +395,23 @@ impl ActiveHeadData {
 				self.candidates.insert(h);
 				if self.seconded_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
-					self.seconded_statements.get(&compact)
+					NotedStatement::Fresh(self.seconded_statements.get(&compact)
+						.expect("Statement was just inserted; qed"))
 				} else {
-					None
+					NotedStatement::UsefulButKnown
 				}
 			}
 			CompactStatement::Valid(h) | CompactStatement::Invalid(h) => {
 				if !self.candidates.contains(&h) {
-					return None;
+					return NotedStatement::NotUseful;
 				}
 
 				if self.other_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
-					self.other_statements.get(&compact)
+					NotedStatement::Fresh(self.other_statements.get(&compact)
+						.expect("Statement was just inserted; qed"))
 				} else {
-					None
+					NotedStatement::UsefulButKnown
 				}
 			}
 		}
@@ -458,11 +470,11 @@ async fn circulate_statement_and_dependents(
 		// The borrow of `active_head` needs to encompass only this (Rust) statement.
 		let outputs: Option<(Hash, Vec<PeerId>)> = {
 			match active_head.note_statement(statement) {
-				Some(stored) => Some((
+				NotedStatement::Fresh(stored) => Some((
 					stored.compact.candidate_hash().clone(),
 					circulate_statement(peers, ctx, relay_parent, stored).await?,
 				)),
-				None => None,
+				_ => None,
 			}
 		};
 
@@ -638,7 +650,7 @@ async fn handle_incoming_message<'a>(
 			// Send the peer all statements concerning the candidate that we have,
 			// since it appears to have just learned about the candidate.
 			send_statements_about(
-				peer,
+				peer.clone(),
 				peer_data,
 				ctx,
 				relay_parent,
@@ -653,7 +665,17 @@ async fn handle_incoming_message<'a>(
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	// TODO [now]: reward the peer if the statement was new or something we'd be interested in.
 	// slightly lower reward for losing races.
-	Ok(active_head.note_statement(statement).map(|s| (relay_parent, s)))
+	match active_head.note_statement(statement) {
+		NotedStatement::NotUseful => Ok(None),
+		NotedStatement::UsefulButKnown => {
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT).await?;
+			Ok(None)
+		}
+		NotedStatement::Fresh(statement) => {
+			report_peer(ctx, peer, BENEFIT_VALID_STATEMENT_FIRST).await?;
+			Ok(Some((relay_parent, statement)))
+		}
+	}
 }
 
 /// Update a peer's view. Sends all newly unlocked statements based on the previous
