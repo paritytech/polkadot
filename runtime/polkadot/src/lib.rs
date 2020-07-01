@@ -110,7 +110,12 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..)) => true,
+			Call::Parachains(parachains::Call::set_heads(..))
+				| Call::Democracy(democracy::Call::vote(..))
+				| Call::Democracy(democracy::Call::remove_vote(..))
+				| Call::Democracy(democracy::Call::delegate(..))
+				| Call::Democracy(democracy::Call::undelegate(..))
+				=> true,
 
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
