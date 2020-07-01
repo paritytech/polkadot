@@ -101,14 +101,9 @@ impl VcPerPeerTracker {
 	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
 	// based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: Hash) {
-		if self.local_observed.contains(&h) { return }
-
-		if self.local_observed.is_full() {
+		if !note_hash(&mut self.local_observed, h) {
 			log::warn!("Statement distribution is erroneously attempting to distribute more \
 				than {} candidate(s) per validator index. Ignoring", VC_THRESHOLD);
-		} else {
-			self.local_observed.try_push(h).expect("length of storage guarded above; \
-				only panics if length exceeds capacity; qed");
 		}
 	}
 
@@ -117,16 +112,23 @@ impl VcPerPeerTracker {
 	//
 	// Returns `true` if the peer was allowed to send us such a message, `false` otherwise.
 	fn note_remote(&mut self, h: Hash) -> bool {
-		if self.remote_observed.contains(&h) { return true; }
+		note_hash(&mut self.remote_observed, h)
+	}
+}
 
-		if self.remote_observed.is_full() {
-			return false;
-		} else {
-			self.remote_observed.try_push(h).expect("length of storage guarded above; \
-				only panics if length exceeds capacity; qed");
+fn note_hash(
+	observed: &mut arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
+	h: Hash,
+) -> bool {
+	if observed.contains(&h) { return true; }
 
-			true
-		}
+	if observed.is_full() {
+		false
+	} else {
+		observed.try_push(h).expect("length of storage guarded above; \
+			only panics if length exceeds capacity; qed");
+
+		true
 	}
 }
 
@@ -170,7 +172,7 @@ impl PeerRelayParentKnowledge {
 		let new_known = match fingerprint.0 {
 			CompactStatement::Candidate(ref h) => {
 				self.seconded_counts.entry(fingerprint.1)
-					.or_insert_with(Default::default)
+					.or_default()
 					.note_local(h.clone());
 
 				self.known_candidates.insert(h.clone())
