@@ -23,18 +23,23 @@
 
 use sp_std::prelude::*;
 use primitives::{
+	inclusion_inherent,
 	parachain::{BackedCandidate, SignedAvailabilityBitfields},
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure,
+	decl_error, decl_module, decl_storage, ensure,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 	traits::Get,
 };
 use system::ensure_none;
-use crate::{inclusion, scheduler::{self, FreedReason}};
+use crate::{
+	inclusion,
+	scheduler::{self, FreedReason},
+};
+use inherents::{InherentIdentifier, InherentData, MakeFatalError, ProvideInherent};
 
-pub trait Trait: inclusion::Trait + scheduler::Trait { }
+pub trait Trait: inclusion::Trait + scheduler::Trait {}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaInclusionInherent {
@@ -116,5 +121,25 @@ decl_module! {
 
 			Ok(())
 		}
+	}
+}
+
+impl<T: Trait> ProvideInherent for Module<T> {
+	type Call = Call<T>;
+	type Error = MakeFatalError<()>;
+	const INHERENT_IDENTIFIER: InherentIdentifier = inclusion_inherent::INHERENT_IDENTIFIER;
+
+	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
+		data.get_data(&Self::INHERENT_IDENTIFIER)
+			.expect("inclusion inherent data failed to decode")
+			.map(|(signed_bitfields, backed_candidates): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>)| {
+				// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
+				// See github.com/paritytech/polkadot/issues/1327
+				if Self::inclusion(system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone()).is_ok() {
+					Call::inclusion(signed_bitfields, backed_candidates)
+				} else {
+					Call::inclusion(Vec::new().into(), Vec::new())
+				}
+			})
 	}
 }

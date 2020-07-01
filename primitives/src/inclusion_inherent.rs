@@ -14,36 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot CLI library.
+//! Inclusion Inherent primitives define types and constants which can be imported
+//! without needing to import the entire inherent module.
 
-#![warn(missing_docs)]
-#![warn(unused_extern_crates)]
+use inherents::InherentIdentifier;
 
-#[cfg(feature = "browser")]
-mod browser;
-#[cfg(feature = "cli")]
-mod cli;
-#[cfg(feature = "cli")]
-mod command;
-
-#[cfg(not(feature = "service-rewr"))]
-pub use service::{
-	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
-	Block, self, RuntimeApiCollection, TFullClient
-};
-
-#[cfg(feature = "service-rewr")]
-pub use service_new::{
-	self as service,
-	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
-	Block, self, RuntimeApiCollection, TFullClient
-};
-
-#[cfg(feature = "cli")]
-pub use cli::*;
-
-#[cfg(feature = "cli")]
-pub use command::*;
-
-#[cfg(feature = "cli")]
-pub use sc_cli::{Error, Result};
+/// Unique identifier for the Inclusion Inherent
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";

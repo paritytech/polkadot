@@ -65,8 +65,8 @@ use futures::channel::{mpsc, oneshot};
 use futures::{
 	pending, poll, select,
 	future::{BoxFuture, RemoteHandle},
-	stream::FuturesUnordered,
-	task::{Spawn, SpawnError, SpawnExt},
+	stream::{self, FuturesUnordered},
+	task::{Spawn, SpawnExt},
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use futures_timer::Delay;
@@ -75,50 +75,14 @@ use streamunordered::{StreamYield, StreamUnordered};
 use polkadot_primitives::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
-pub use messages::{
-	OverseerSignal, CandidateValidationMessage, CandidateBackingMessage, AllMessages,
-	FromOverseer,
+use polkadot_subsystem::messages::{
+	CandidateValidationMessage, CandidateBackingMessage, AllMessages
+};
+pub use polkadot_subsystem::{
+	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
+	SpawnedSubsystem,
 };
 
-/// An error type that describes faults that may happen
-///
-/// These are:
-///   * Channels being closed
-///   * Subsystems dying when they are not expected to
-///   * Subsystems not dying when they are told to die
-///   * etc.
-#[derive(Debug)]
-pub struct SubsystemError;
-
-impl From<mpsc::SendError> for SubsystemError {
-	fn from(_: mpsc::SendError) -> Self {
-		Self
-	}
-}
-
-impl From<oneshot::Canceled> for SubsystemError {
-	fn from(_: oneshot::Canceled) -> Self {
-		Self
-	}
-}
-
-impl From<SpawnError> for SubsystemError {
-    fn from(_: SpawnError) -> Self {
-		Self
-    }
-}
-
-/// A `Result` type that wraps [`SubsystemError`].
-///
-/// [`SubsystemError`]: struct.SubsystemError.html
-pub type SubsystemResult<T> = Result<T, SubsystemError>;
-
-/// An asynchronous subsystem task that runs inside and being overseen by the [`Overseer`].
-///
-/// In essence it's just a newtype wrapping a `BoxFuture`.
-///
-/// [`Overseer`]: struct.Overseer.html
-pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
@@ -278,7 +242,7 @@ impl Debug for ToOverseer {
 /// A running instance of some [`Subsystem`].
 ///
 /// [`Subsystem`]: trait.Subsystem.html
-struct SubsystemInstance<M: Debug> {
+struct SubsystemInstance<M> {
 	tx: mpsc::Sender<FromOverseer<M>>,
 }
 
@@ -289,17 +253,17 @@ struct SubsystemInstance<M: Debug> {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`SubsystemJob`]: trait.SubsystemJob.html
-pub struct SubsystemContext<M: Debug>{
+#[derive(Debug)]
+pub struct OverseerSubsystemContext<M>{
 	rx: mpsc::Receiver<FromOverseer<M>>,
 	tx: mpsc::Sender<ToOverseer>,
 }
 
-impl<M: Debug> SubsystemContext<M> {
-	/// Try to asyncronously receive a message.
-	///
-	/// This has to be used with caution, if you loop over this without
-	/// using `pending!()` macro you will end up with a busy loop!
-	pub async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
+#[async_trait::async_trait]
+impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
+	type Message = M;
+
+	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
 		match poll!(self.rx.next()) {
 			Poll::Ready(Some(msg)) => Ok(Some(msg)),
 			Poll::Ready(None) => Err(()),
@@ -307,13 +271,11 @@ impl<M: Debug> SubsystemContext<M> {
 		}
 	}
 
-	/// Receive a message.
-	pub async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
+	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
 		self.rx.next().await.ok_or(SubsystemError)
 	}
 
-	/// Spawn a child task on the executor.
-	pub async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
+	async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
 		let (tx, rx) = oneshot::channel();
 		self.tx.send(ToOverseer::SpawnJob {
 			s,
@@ -323,33 +285,25 @@ impl<M: Debug> SubsystemContext<M> {
 		rx.await?
 	}
 
-	/// Send a direct message to some other `Subsystem`, routed based on message type.
-	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
+	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.tx.send(ToOverseer::SubsystemMessage(msg)).await?;
 
 		Ok(())
 	}
 
-	fn new(rx: mpsc::Receiver<FromOverseer<M>>, tx: mpsc::Sender<ToOverseer>) -> Self {
-		Self {
-			rx,
-			tx,
-		}
+	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
+		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
+	{
+		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
+		self.tx.send_all(&mut msgs).await?;
+
+		Ok(())
 	}
 }
 
-/// A trait that describes the [`Subsystem`]s that can run on the [`Overseer`].
-///
-/// It is generic over the message type circulating in the system.
-/// The idea that we want some type contaning persistent state that
-/// can spawn actually running subsystems when asked to.
-///
-/// [`Overseer`]: struct.Overseer.html
-/// [`Subsystem`]: trait.Subsystem.html
-pub trait Subsystem<M: Debug> {
-	/// Start this `Subsystem` and return `SpawnedSubsystem`.
-	fn start(&mut self, ctx: SubsystemContext<M>) -> SpawnedSubsystem;
-}
+/// A subsystem compatible with the overseer - one which can be run in the context of the
+/// overseer.
+pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>> + Send>;
 
 /// A subsystem that we oversee.
 ///
@@ -359,8 +313,7 @@ pub trait Subsystem<M: Debug> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 #[allow(dead_code)]
-struct OverseenSubsystem<M: Debug> {
-	subsystem: Box<dyn Subsystem<M> + Send>,
+struct OverseenSubsystem<M> {
 	instance: Option<SubsystemInstance<M>>,
 }
 
@@ -441,16 +394,20 @@ where
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
 	/// # use futures_timer::Delay;
-	/// # use polkadot_overseer::{
-	/// #     Overseer, Subsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     CandidateValidationMessage, CandidateBackingMessage,
+	/// # use polkadot_overseer::Overseer;
+	/// # use polkadot_subsystem::{
+	/// #     Subsystem, SpawnedSubsystem, SubsystemContext,
+	/// #     messages::{CandidateValidationMessage, CandidateBackingMessage},
 	/// # };
 	///
 	/// struct ValidationSubsystem;
-	/// impl Subsystem<CandidateValidationMessage> for ValidationSubsystem {
+	///
+	/// impl<C> Subsystem<C> for ValidationSubsystem
+	/// 	where C: SubsystemContext<Message=CandidateValidationMessage>
+	/// {
 	///     fn start(
-	///         &mut self,
-	///         mut ctx: SubsystemContext<CandidateValidationMessage>,
+	///         self,
+	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
 	///             loop {
@@ -461,10 +418,12 @@ where
 	/// }
 	///
 	/// struct CandidateBackingSubsystem;
-	/// impl Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem {
+	/// impl<C> Subsystem<C> for CandidateBackingSubsystem
+	/// 	where C: SubsystemContext<Message=CandidateBackingMessage>
+	/// {
 	///     fn start(
-	///         &mut self,
-	///         mut ctx: SubsystemContext<CandidateBackingMessage>,
+	///         self,
+	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
 	///         SpawnedSubsystem(Box::pin(async move {
 	///             loop {
@@ -478,8 +437,8 @@ where
 	/// let spawner = executor::ThreadPool::new().unwrap();
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
-	///     Box::new(ValidationSubsystem),
-	///     Box::new(CandidateBackingSubsystem),
+	///     ValidationSubsystem,
+	///     CandidateBackingSubsystem,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -498,8 +457,8 @@ where
 	/// ```
 	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		validation: Box<dyn Subsystem<CandidateValidationMessage> + Send>,
-		candidate_backing: Box<dyn Subsystem<CandidateBackingMessage> + Send>,
+		validation: impl Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		candidate_backing: impl Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)> {
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
@@ -680,6 +639,12 @@ where
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
+			_ => {
+				// TODO: temporary catch-all until all subsystems are integrated with overseer.
+				// The overseer is not complete until this is an exhaustive match with all
+				// messages targeting an included subsystem.
+				// https://github.com/paritytech/polkadot/issues/1317
+			}
 		}
 	}
 
@@ -688,15 +653,15 @@ where
 	}
 }
 
-fn spawn<S: Spawn, M: Debug>(
+fn spawn<S: Spawn, M: Send + 'static>(
 	spawner: &mut S,
 	futures: &mut FuturesUnordered<RemoteHandle<()>>,
 	streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
-	mut s: Box<dyn Subsystem<M> + Send>,
+	s: impl Subsystem<OverseerSubsystemContext<M>>,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
 	let (to_tx, to_rx) = mpsc::channel(CHANNEL_CAPACITY);
 	let (from_tx, from_rx) = mpsc::channel(CHANNEL_CAPACITY);
-	let ctx = SubsystemContext::new(to_rx, from_tx);
+	let ctx = OverseerSubsystemContext { rx: to_rx, tx: from_tx };
 	let f = s.start(ctx);
 
 	let handle = spawner.spawn_with_handle(f.0)?;
@@ -709,7 +674,6 @@ fn spawn<S: Spawn, M: Debug>(
 	});
 
 	Ok(OverseenSubsystem {
-		subsystem: s,
 		instance,
 	})
 }
@@ -723,9 +687,11 @@ mod tests {
 
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
-	impl Subsystem<CandidateValidationMessage> for TestSubsystem1 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
-			let mut sender = self.0.clone();
+	impl<C> Subsystem<C> for TestSubsystem1
+		where C: SubsystemContext<Message=CandidateValidationMessage>
+	{
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
+			let mut sender = self.0;
 			SpawnedSubsystem(Box::pin(async move {
 				let mut i = 0;
 				loop {
@@ -746,14 +712,18 @@ mod tests {
 
 	struct TestSubsystem2(mpsc::Sender<usize>);
 
-	impl Subsystem<CandidateBackingMessage> for TestSubsystem2 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
+	impl<C> Subsystem<C> for TestSubsystem2
+		where C: SubsystemContext<Message=CandidateBackingMessage>
+	{
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
+			let sender = self.0.clone();
 			SpawnedSubsystem(Box::pin(async move {
+				let _sender = sender;
 				let mut c: usize = 0;
 				loop {
 					if c < 10 {
 						let (tx, _) = oneshot::channel();
-						ctx.send_msg(
+						ctx.send_message(
 							AllMessages::CandidateValidation(
 								CandidateValidationMessage::Validate(
 									Default::default(),
@@ -786,8 +756,10 @@ mod tests {
 
 	struct TestSubsystem4;
 
-	impl Subsystem<CandidateBackingMessage> for TestSubsystem4 {
-		fn start(&mut self, mut _ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
+	impl<C> Subsystem<C> for TestSubsystem4
+		where C: SubsystemContext<Message=CandidateBackingMessage>
+	{
+		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem(Box::pin(async move {
 				// Do nothing and exit.
 			}))
@@ -805,8 +777,8 @@ mod tests {
 
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
-				Box::new(TestSubsystem1(s1_tx)),
-				Box::new(TestSubsystem2(s2_tx)),
+				TestSubsystem1(s1_tx),
+				TestSubsystem2(s2_tx),
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -855,8 +827,8 @@ mod tests {
 			let (s1_tx, _) = mpsc::channel(64);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
-				Box::new(TestSubsystem1(s1_tx)),
-				Box::new(TestSubsystem4),
+				TestSubsystem1(s1_tx),
+				TestSubsystem4,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -871,8 +843,10 @@ mod tests {
 
 	struct TestSubsystem5(mpsc::Sender<OverseerSignal>);
 
-	impl Subsystem<CandidateValidationMessage> for TestSubsystem5 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
+	impl<C> Subsystem<C> for TestSubsystem5
+		where C: SubsystemContext<Message=CandidateValidationMessage>
+	{
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {
@@ -895,8 +869,10 @@ mod tests {
 
 	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
 
-	impl Subsystem<CandidateBackingMessage> for TestSubsystem6 {
-		fn start(&mut self, mut ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
+	impl<C> Subsystem<C> for TestSubsystem6
+		where C: SubsystemContext<Message=CandidateBackingMessage>
+	{
+		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
 			SpawnedSubsystem(Box::pin(async move {
@@ -949,8 +925,8 @@ mod tests {
 
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
-				Box::new(TestSubsystem5(tx_5)),
-				Box::new(TestSubsystem6(tx_6)),
+				TestSubsystem5(tx_5),
+				TestSubsystem6(tx_6),
 				spawner,
 			).unwrap();
 
@@ -1034,8 +1010,8 @@ mod tests {
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
-				Box::new(TestSubsystem5(tx_5)),
-				Box::new(TestSubsystem6(tx_6)),
+				TestSubsystem5(tx_5),
+				TestSubsystem6(tx_6),
 				spawner,
 			).unwrap();
 

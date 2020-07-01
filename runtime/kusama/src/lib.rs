@@ -802,6 +802,7 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
+	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -860,6 +861,10 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(..)
 			),
+			ProxyType::IdentityJudgement => matches!(c,
+				Call::Identity(identity::Call::provide_judgement(..))
+				| Call::Utility(utility::Call::batch(..))
+			)
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -881,6 +886,14 @@ impl proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
+}
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		treasury::Module::<Runtime>::migrate_retract_tip_for_tip_new();
+		500_000_000
+	}
 }
 
 construct_runtime! {
@@ -984,7 +997,14 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = executive::Executive<
+	Runtime,
+	Block,
+	system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	CustomOnRuntimeUpgrade
+>;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 

@@ -1,9 +1,9 @@
 [package]
-name = "polkadot-node-messages"
+name = "polkadot-node-subsystem"
 version = "0.1.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
-description = "Message types used by Subsystems"
+description = "Subsystem traits and message definitions"
 
 [dependencies]
 polkadot-primitives = { path = "../../primitives" }
@@ -11,3 +11,4 @@ polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-primitives = { path = "../primitives" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.5"
+async-trait = "0.1"
