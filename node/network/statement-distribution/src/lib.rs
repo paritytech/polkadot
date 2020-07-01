@@ -151,38 +151,48 @@ impl PeerRelayParentKnowledge {
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
 	/// on something that we would like to send to the peer.
 	///
-	/// This returns `false` if the peer cannot accept this statement, without altering internal
+	/// This returns `None` if the peer cannot accept this statement, without altering internal
 	/// state.
 	///
-	/// If the peer can accept the statement, this returns `true` and updates the internal state.
+	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
-	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+	///
+	/// This returns `Some(Some(hash))` if this is the first time the peer has become aware of a
+	/// candidate with a given hash.
+	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> Option<Option<Hash>> {
 		let already_known = self.sent_statements.contains(fingerprint)
 			|| self.received_statements.contains(fingerprint);
 
 		if already_known {
-			return false;
+			return None;
 		}
 
-		match fingerprint.0 {
+		let (candidate_hash, new_known) = match fingerprint.0 {
 			CompactStatement::Candidate(ref h) => {
 				self.seconded_counts.entry(fingerprint.1)
 					.or_insert_with(Default::default)
 					.note_local(h.clone());
 
-				self.known_candidates.insert(h.clone());
+				(h.clone(), self.known_candidates.insert(h.clone()))
 			},
 			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
 				// of the corresponding candidate.
 				if !self.known_candidates.contains(h) {
-					return false;
+					return None;
 				}
+
+				(h.clone(), false)
 			}
-		}
+		};
 
 		self.sent_statements.insert(fingerprint.clone());
-		true
+
+		if new_known {
+			Some(Some(candidate_hash.clone()))
+		} else {
+			Some(None)
+		}
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -196,13 +206,16 @@ impl PeerRelayParentKnowledge {
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
 	///
-	/// If this returns `Ok(())`, the internal state has been altered. After `receive`ing a new
+	/// If this returns `Ok`, the internal state has been altered. After `receive`ing a new
 	/// candidate, we are then cleared to send the peer further statements about that candidate.
+	///
+	/// This returns `Ok(Some(hash))` if this is the first time the peer has become aware of a
+	/// candidate with given hash.
 	fn receive(
 		&mut self,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		max_message_count: usize,
-	) -> Result<(), Rep> {
+	) -> Result<Option<Hash>, Rep> {
 		// We don't check `sent_statements` because a statement could be in-flight from both
 		// sides at the same time.
 		if self.received_statements.contains(fingerprint) {
@@ -243,9 +256,11 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		self.known_candidates.insert(candidate_hash.clone());
-
-		Ok(())
+		if self.known_candidates.insert(candidate_hash.clone()) {
+			Ok(Some(candidate_hash.clone()))
+		} else {
+			Ok(None)
+		}
 	}
 }
 
@@ -259,17 +274,20 @@ impl PeerData {
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
 	/// on something that we would like to send to the peer.
 	///
-	/// This returns `false` if the peer cannot accept this statement, without altering internal
+	/// This returns `None` if the peer cannot accept this statement, without altering internal
 	/// state.
 	///
-	/// If the peer can accept the statement, this returns `true` and updates the internal state.
+	/// If the peer can accept the statement, this returns `Some` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
+	///
+	/// This returns `Some(Some(hash))` if this is the first time the peer has become aware of a
+	/// candidate with a given hash.
 	fn send(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
-	) -> bool {
-		self.view_knowledge.get_mut(relay_parent).map_or(false, |k| k.send(fingerprint))
+	) -> Option<Option<Hash>> {
+		self.view_knowledge.get_mut(relay_parent).map_or(None, |k| k.send(fingerprint))
 	}
 
 	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
@@ -283,14 +301,17 @@ impl PeerData {
 	/// This returns an error if the peer should not have sent us this message according to protocol
 	/// rules for flood protection.
 	///
-	/// If this returns `Ok(())`, the internal state has been altered. After `receive`ing a new
+	/// If this returns `Ok`, the internal state has been altered. After `receive`ing a new
 	/// candidate, we are then cleared to send the peer further statements about that candidate.
+	///
+	/// This returns `Ok(Some(hash))` if this is the first time the peer has become aware of a
+	/// candidate with given hash.
 	fn receive(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 		max_message_count: usize,
-	) -> Result<(), Rep> {
+	) -> Result<Option<Hash>, Rep> {
 		self.view_knowledge.get_mut(relay_parent).ok_or(COST_UNEXPECTED_STATEMENT)?
 			.receive(fingerprint, max_message_count)
 	}
@@ -453,15 +474,14 @@ async fn send_stored_to_peers(
 	stored: &StoredStatement,
 ) -> SubsystemResult<()> {
 	let fingerprint = stored.fingerprint();
+
 	let peers_to_send: Vec<_> = peers.iter_mut()
-		.filter_map(|(p, data)| if data.send(&relay_parent, &fingerprint) {
+		.filter_map(|(p, data)| data.send(&relay_parent, &fingerprint).map(|fresh| {
 			// TODO [now]: if this message indicates a fresh candidate, send
 			// unlocked messages to the peer.
 
-			Some(p.clone())
-		} else {
-			None
-		})
+			p.clone()
+		}))
 		.collect();
 
 	if peers_to_send.is_empty() { return Ok(()) }
@@ -535,9 +555,10 @@ async fn handle_incoming_message<'a>(
 			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
 			return Ok(None)
 		}
-		Ok(()) => {
+		Ok(Some(hash)) => {
 			// TODO [now]: trigger send of new messages if this is a `Candidate` message.
 		}
+		Ok(None) => {}
 	}
 
 	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
