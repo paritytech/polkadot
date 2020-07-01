@@ -272,7 +272,7 @@ where
 	C: BlockchainEvents<B>,
 	B: BlockT,
 {
-	assert_ne!(count, 0, "'count' argument must be greater than 1");
+	assert!(count > 0, "'count' argument must be greater than 0");
 
 	let mut import_notification_stream = client.import_notification_stream();
 	let mut blocks = HashSet::new();
