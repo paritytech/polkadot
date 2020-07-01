@@ -4421,8 +4421,8 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-transaction-pool",
- "tokio 0.2.21",
  "tokio-executor 0.2.0-alpha.6",
+ "wasm-timer",
 ]
 
 [[package]]
