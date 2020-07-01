@@ -886,10 +886,11 @@ impl proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 	impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		treasury::Module::<Runtime>::migrate_retract_tip_for_tip_new();
 		if scheduler::Module::<Runtime>::migrate_v1_to_t2() {
 			<Runtime as system::Trait>::MaximumBlockWeight::get()
 		} else {
-			<Runtime as system::Trait>::DbWeight::get().reads(1)
+			<Runtime as system::Trait>::DbWeight::get().reads(1) + 500_000_000
 		}
 	}
 }
