@@ -43,8 +43,27 @@ const PROTOCOL_V1: ProtocolId = *b"sdn1";
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
 const COST_INVALID_MESSAGE: Rep = Rep::new(-500, "Invalid message");
+const COST_DUPLICATE_STATEMENT: Rep = Rep::new(-250, "Statement sent more than once by peer");
+const COST_APPARENT_FLOOD: Rep = Rep::new(-1000, "Peer appears to be flooding us with statements");
 
 const BENEFIT_VALID_STATEMENT: Rep = Rep::new(25, "Peer provided a valid statement");
+
+/// The maximum amount of candidates each validator is allowed to second at any relay-parent.
+/// Short for "Validator Candidate Threshold".
+///
+/// This is the amount of candidates we keep per validator at any relay-parent.
+/// Typically we will only keep 1, but when a validator equivocates we will need to track 2.
+const VC_THRESHOLD: usize = 2;
+
+/// The maximum amount of candidates each peer can be aware of each validator seconding at
+/// any relay-parent. Short for "Validator Candidate per Peer Threshold".
+///
+/// This is 2 times the `VC_THRESHOLD` because it includes the candidates in
+/// our state that we may have sent them, and the candidates that they may have received from
+/// other peers in the meantime. Peers are unlikely to ever be aware of more than 2 candidates
+/// except in the case of a targeted attack by a sophisticated adversary. Nevertheless, we
+/// establish a finite bound on memory used in such a situation.
+const VC_PEER_THRESHOLD: usize = 2 * VC_THRESHOLD;
 
 /// The statement distribution subsystem.
 pub struct StatementDistribution;
@@ -63,54 +82,170 @@ fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
 	AllMessages::StatementDistribution(StatementDistributionMessage::NetworkBridgeUpdate(n))
 }
 
+/// Tracks our impression of a single peer's view of the candidates a validator has seconded
+/// for a given relay-parent.
+///
+/// It is expected to receive at most `VC_THRESHOLD` from us and be aware of at most `VC_THRESHOLD`
+/// via other means.
+#[derive(Default)]
+struct VcPerPeerTracker {
+	local_observed: arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
+	remote_observed: arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
+}
+
+impl VcPerPeerTracker {
+	fn contains(&self, h: &Hash) -> bool {
+		self.local_observed.contains(h) || self.remote_observed.contains(h)
+	}
+
+	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
+	// based on a message that we have sent it from our local pool.
+	fn note_local(&mut self, h: Hash) {
+		if self.local_observed.contains(&h) { return }
+
+		if self.local_observed.is_full() {
+			log::warn!("Statement distribution is erroneously attempting to distribute more \
+				than {} candidate(s) per validator index. Ignoring", VC_THRESHOLD);
+		} else {
+			self.local_observed.try_push(h).expect("length of storage guarded above; \
+				only panics if length exceeds capacity; qed");
+		}
+	}
+
+	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
+	// based on a message that it has sent us.
+	//
+	// Returns `true` if the peer was allowed to send us such a message, `false` otherwise.
+	fn note_remote(&mut self, h: Hash) -> bool {
+		if self.remote_observed.contains(&h) { return true; }
+
+		if self.remote_observed.is_full() {
+			return false;
+		} else {
+			self.remote_observed.try_push(h).expect("length of storage guarded above; \
+				only panics if length exceeds capacity; qed");
+
+			true
+		}
+	}
+}
+
 // knowledge that a peer has about goings-on in a relay parent.
 struct PeerRelayParentKnowledge {
-	// candidates that a peer is aware of. This indicates that we can send
-	// statements pertaining to that candidate.
+	// candidates that the peer is aware of. This indicates that we can
+	// send other statements pertaining to that candidate.
 	known_candidates: HashSet<Hash>,
 	// fingerprints of all statements a peer should be aware of: those that
-	// were sent to us by the peer or sent to the peer by us.
-	known_statements: HashSet<(CompactStatement, ValidatorIndex)>,
+	// were sent to the peer by us.
+	sent_statements: HashSet<(CompactStatement, ValidatorIndex)>,
+	// fingerprints of all statements a peer should be aware of: those that
+	// were sent to us by the peer.
+	received_statements: HashSet<(CompactStatement, ValidatorIndex)>,
 	// How many candidates this peer is aware of for each given validator index.
-	seconded_counts: HashMap<ValidatorIndex, usize>,
+	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
+	// How many statements we've received for each candidate that we're aware of.
+	received_message_count: HashMap<Hash, usize>,
 }
 
 impl PeerRelayParentKnowledge {
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint.
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// on something that we would like to send to the peer.
 	///
 	/// This returns `false` if the peer cannot accept this statement, without altering internal
 	/// state.
 	///
 	/// If the peer can accept the statement, this returns `true` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
-	fn accept(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
-		if self.known_statements.contains(fingerprint) {
+	fn send(&mut self, fingerprint: &(CompactStatement, ValidatorIndex)) -> bool {
+		let already_known = self.sent_statements.contains(fingerprint)
+			|| self.received_statements.contains(fingerprint);
+
+		if already_known {
 			return false;
 		}
 
 		match fingerprint.0 {
 			CompactStatement::Candidate(ref h) => {
-				// Each peer is allowed to be aware of two seconded statements per validator per
-				// relay-parent hash.
-				let count = self.seconded_counts.entry(fingerprint.1).or_insert(0);
-				if *count >= 2 {
-					return false;
-				}
-				*count += 1;
+				self.seconded_counts.entry(fingerprint.1)
+					.or_insert_with(Default::default)
+					.note_local(h.clone());
 
 				self.known_candidates.insert(h.clone());
 			},
 			CompactStatement::Valid(ref h) | CompactStatement::Invalid(ref h) => {
 				// The peer can only accept Valid and Invalid statements for which it is aware
 				// of the corresponding candidate.
-				if self.known_candidates.contains(h) {
+				if !self.known_candidates.contains(h) {
 					return false;
 				}
 			}
 		}
 
-		self.known_statements.insert(fingerprint.clone());
+		self.sent_statements.insert(fingerprint.clone());
 		true
+	}
+
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
+	/// a message we are receiving from the peer.
+	///
+	/// Provide the maximum message count that we can receive per candidate. In practice we should
+	/// not receive more statements for any one candidate than there are members in the group assigned
+	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
+	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	///
+	/// This returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	///
+	/// If this returns `Ok(())`, the internal state has been altered. After `receive`ing a new
+	/// candidate, we are then cleared to send the peer further statements about that candidate.
+	fn receive(
+		&mut self,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		// We don't check `sent_statements` because a statement could be in-flight from both
+		// sides at the same time.
+		if self.received_statements.contains(fingerprint) {
+			return Err(COST_DUPLICATE_STATEMENT);
+		}
+
+		let candidate_hash = match fingerprint.0 {
+			CompactStatement::Candidate(ref h) => {
+				let allowed_remote = self.seconded_counts.entry(fingerprint.1)
+					.or_insert_with(Default::default)
+					.note_remote(h.clone());
+
+				if !allowed_remote {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+			CompactStatement::Valid(ref h)| CompactStatement::Invalid(ref h) => {
+				if !self.known_candidates.contains(&h) {
+					return Err(COST_UNEXPECTED_STATEMENT);
+				}
+
+				h
+			}
+		};
+
+		{
+			let received_per_candidate = self.received_message_count
+				.entry(candidate_hash.clone())
+				.or_insert(0);
+
+			if *received_per_candidate + 1 >= max_message_count {
+				return Err(COST_APPARENT_FLOOD);
+			}
+
+			*received_per_candidate += 1;
+		}
+
+		self.received_statements.insert(fingerprint.clone());
+		self.known_candidates.insert(candidate_hash.clone());
+
+		Ok(())
 	}
 }
 
@@ -121,19 +256,43 @@ struct PeerData {
 }
 
 impl PeerData {
-	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint.
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based
+	/// on something that we would like to send to the peer.
 	///
 	/// This returns `false` if the peer cannot accept this statement, without altering internal
 	/// state.
 	///
 	/// If the peer can accept the statement, this returns `true` and updates the internal state.
 	/// Once the knowledge has incorporated a statement, it cannot be incorporated again.
-	fn accept(
+	fn send(
 		&mut self,
 		relay_parent: &Hash,
 		fingerprint: &(CompactStatement, ValidatorIndex),
 	) -> bool {
-		self.view_knowledge.get_mut(relay_parent).map_or(false, |k| k.accept(fingerprint))
+		self.view_knowledge.get_mut(relay_parent).map_or(false, |k| k.send(fingerprint))
+	}
+
+	/// Attempt to update our view of the peer's knowledge with this statement's fingerprint based on
+	/// a message we are receiving from the peer.
+	///
+	/// Provide the maximum message count that we can receive per candidate. In practice we should
+	/// not receive more statements for any one candidate than there are members in the group assigned
+	/// to that para, but this maximum needs to be lenient to account for equivocations that may be
+	/// cross-group. As such, a maximum of 2 * n_validators is recommended.
+	///
+	/// This returns an error if the peer should not have sent us this message according to protocol
+	/// rules for flood protection.
+	///
+	/// If this returns `Ok(())`, the internal state has been altered. After `receive`ing a new
+	/// candidate, we are then cleared to send the peer further statements about that candidate.
+	fn receive(
+		&mut self,
+		relay_parent: &Hash,
+		fingerprint: &(CompactStatement, ValidatorIndex),
+		max_message_count: usize,
+	) -> Result<(), Rep> {
+		self.view_knowledge.get_mut(relay_parent).ok_or(COST_UNEXPECTED_STATEMENT)?
+			.receive(fingerprint, max_message_count)
 	}
 }
 
@@ -176,6 +335,8 @@ struct ActiveHeadData {
 	validators: Vec<ValidatorId>,
 	/// The session index this head is at.
 	session_index: sp_staking::SessionIndex,
+	/// How many `Seconded` statements we've seen per validator.
+	seconded_counts: HashMap<ValidatorIndex, usize>,
 }
 
 impl ActiveHeadData {
@@ -186,6 +347,7 @@ impl ActiveHeadData {
 			other_statements: Default::default(),
 			validators,
 			session_index,
+			seconded_counts: Default::default(),
 		}
 	}
 
@@ -194,12 +356,15 @@ impl ActiveHeadData {
 	/// If it was not already known and can be accepted,  returns `Some`,
 	/// with a handle to the statement.
 	///
-	/// `Seconded` statements are always accepted, and are assumed to have passed flood-mitigation
-	/// measures before reaching this point.
+	/// We accept up to `VC_THRESHOLD` (2 at time of writing) `Seconded` statements
+	/// per validator. These will be the first ones we see. The statement is assumed
+	/// to have been checked, including that the validator index is not out-of-bounds and
+	/// the signature is valid.
 	///
-	/// Other statements that reference a candidate we are not aware of cannot be accepted.
+	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted.
 	fn note_statement(&mut self, statement: SignedFullStatement) -> Option<&StoredStatement> {
 		let compact = statement.payload().to_compact();
+		let validator_index = statement.validator_index();
 		let stored = StoredStatement {
 			compact: compact.clone(),
 			statement,
@@ -207,6 +372,13 @@ impl ActiveHeadData {
 
 		match compact {
 			CompactStatement::Candidate(h) => {
+				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
+				if *seconded_so_far >= 2 {
+					return None;
+				} else {
+					*seconded_so_far += 1;
+				}
+
 				self.candidates.insert(h);
 				if self.seconded_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
@@ -282,7 +454,10 @@ async fn send_stored_to_peers(
 ) -> SubsystemResult<()> {
 	let fingerprint = stored.fingerprint();
 	let peers_to_send: Vec<_> = peers.iter_mut()
-		.filter_map(|(p, data)| if data.accept(&relay_parent, &fingerprint) {
+		.filter_map(|(p, data)| if data.send(&relay_parent, &fingerprint) {
+			// TODO [now]: if this message indicates a fresh candidate, send
+			// unlocked messages to the peer.
+
 			Some(p.clone())
 		} else {
 			None
@@ -290,6 +465,7 @@ async fn send_stored_to_peers(
 		.collect();
 
 	if peers_to_send.is_empty() { return Ok(()) }
+
 
 	let payload = WireMessage::Statement(relay_parent, stored.statement.clone()).encode();
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
@@ -329,11 +505,11 @@ async fn handle_incoming_message<'a>(
 		Ok(WireMessage::Statement(r, s)) => (r, s),
 	};
 
-	if !our_view.contains(relay_parent) {
+	if !our_view.contains(&relay_parent) {
 		return report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await.map(|_| None);
 	}
 
-	let active_head = match active_heads.get_mut(relay_parent) {
+	let active_head = match active_heads.get_mut(&relay_parent) {
 		Some(h) => h,
 		None => {
 			// This should never be out-of-sync with our view if the view updates
@@ -353,20 +529,18 @@ async fn handle_incoming_message<'a>(
 	// Note that if the peer is sending us something that is not within their view,
 	// it will not be kept within their log.
 	let fingerprint = (statement.payload().to_compact(), statement.validator_index());
-	if !peer_data.accept(&relay_parent, fingerprint) {
-		// If the peer was already aware of this statement or it was not within their own view,
-		// then we note the peer as being costly.
-		//
-		// This can race if we send the message to the peer at exactly the same time,
-		// but the report cost is relatively low, and the expected amounts of reports due to
-		// that race is also low.
-		//
-		// Regardless, this serves as a deterrent for peers to avoid spamming us with the same
-		// message over and over again, as we will disconnect from such peers.
-		report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
+	let max_message_count = active_head.validators.len() * 2;
+	match peer_data.receive(&relay_parent, &fingerprint, max_message_count) {
+		Err(e) => {
+			report_peer(ctx, peer, COST_UNEXPECTED_STATEMENT).await?;
+			return Ok(None)
+		}
+		Ok(()) => {
+			// TODO [now]: trigger send of new messages if this is a `Candidate` message.
+		}
 	}
 
-	// Note: `peer_data.accept` already ensures that the statement is not an unbounded equivocation
+	// Note: `peer_data.receive` already ensures that the statement is not an unbounded equivocation
 	// or unpinned to a seconded candidate. So it is safe to place it into the storage.
 	Ok(active_head.note_statement(statement).map(|s| (relay_parent, s)))
 }
@@ -394,25 +568,37 @@ async fn handle_network_update(
 		}
 		NetworkBridgeEvent::PeerMessage(peer, message) => {
 			match peers.get_mut(&peer) {
-				Some(data) => handle_incoming_message(
-					peer,
-					data,
-					&*our_view,
-					active_heads,
-					ctx,
-					message,
-				).await?,
+				Some(data) => {
+					let new_stored = handle_incoming_message(
+						peer,
+						data,
+						&*our_view,
+						active_heads,
+						ctx,
+						message,
+					).await?;
+
+					if let Some(new) = new_stored {
+						// TODO [now]: send to `CandidateBacking` subsystem.
+					}
+
+					Ok(())
+				}
 				None => Ok(()),
 			}
 
 		}
 		NetworkBridgeEvent::PeerViewChange(peer, view) => {
+			// TODO [now]
 			// 1. Update the view.
 			// 2. Send this peer all messages that we have for new active heads in the view.
+			Ok(())
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
+			// TODO [now]
 			// 1. Update our view.
 			// 2. Clean up everything that is not in the new view.
+			Ok(())
 		}
 	}
 

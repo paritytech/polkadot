@@ -4789,6 +4789,7 @@ dependencies = [
 name = "polkadot-statement-distribution"
 version = "0.1.0"
 dependencies = [
+ "arrayvec 0.5.1",
  "assert_matches",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -4800,6 +4801,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-subsystem-test-helpers",
  "sp-runtime",
+ "sp-staking",
  "streamunordered",
 ]
 
