@@ -4871,6 +4871,7 @@ dependencies = [
  "sc-consensus-babe",
  "sc-executor",
  "sc-finality-grandpa",
+ "sc-informant",
  "sc-network",
  "sc-service",
  "sc-transaction-pool",

@@ -38,6 +38,7 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-informant = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 async-std = "1.5"

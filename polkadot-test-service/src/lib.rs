@@ -38,6 +38,7 @@ use polkadot_service::{
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
+use sc_informant::OutputFormat;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr, NetworkService,
@@ -119,6 +120,10 @@ pub fn node_config(
 		Default::default(),
 		None,
 	);
+	let informant_output_format = OutputFormat {
+		enable_color: false,
+		prefix: format!("[{}] ", key_seed),
+	};
 
 	network_config.boot_nodes = boot_nodes;
 
@@ -177,7 +182,7 @@ pub fn node_config(
 		max_runtime_instances: 8,
 		announce_block: true,
 		base_path: Some(base_path),
-		informant_output_format: Default::default(),
+		informant_output_format,
 	})
 }
 
