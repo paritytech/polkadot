@@ -14,7 +14,7 @@ use sp_consensus::{Proposal, RecordProof};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
-use std::{pin::Pin, sync::Arc, time};
+use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
 const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(2);
@@ -183,5 +183,29 @@ impl From<sp_inherents::Error> for Error {
 impl From<SubsystemError> for Error {
 	fn from(e: SubsystemError) -> Error {
 		Error::Subsystem(e)
+	}
+}
+
+impl fmt::Display for Error {
+	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+		match self {
+			Self::Consensus(err) => write!(f, "consensus error: {}", err),
+			Self::Blockchain(err) => write!(f, "blockchain error: {}", err),
+			Self::Inherent(err) => write!(f, "inherent error: {:?}", err),
+			Self::Timeout => write!(f, "timeout: provisioner did not return inherent data after {:?}", PROPOSE_TIMEOUT),
+			Self::ClosedChannelFromProvisioner(err) => write!(f, "provisioner closed inherent data channel before sending: {}", err),
+			Self::Subsystem(err) => write!(f, "subsystem error: {:?}", err),
+		}
+	}
+}
+
+impl std::error::Error for Error {
+	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+		match self {
+			Self::Consensus(err) => Some(err),
+			Self::Blockchain(err) => Some(err),
+			Self::ClosedChannelFromProvisioner(err) => Some(err),
+			_ => None
+		}
 	}
 }
