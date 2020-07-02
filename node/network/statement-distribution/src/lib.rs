@@ -720,12 +720,12 @@ async fn update_peer_view_and_send_unlocked(
 
 	// Remove entries for all relay-parents in the old view but not the new.
 	for removed in old_view.difference(&peer_data.view) {
-		let _ = peer_data.view_knowledge.remove(&removed);
+		let _ = peer_data.view_knowledge.remove(removed);
 	}
 
 	// Add entries for all relay-parents in the new view but not the old.
 	// Furthermore, send all statements we have for those relay parents.
-	let new_view = peer_data.view.difference(&old_view).collect::<Vec<_>>();
+	let new_view = peer_data.view.difference(&old_view).copied().collect::<Vec<_>>();
 	for new in new_view.iter().copied() {
 		peer_data.view_knowledge.insert(new, Default::default());
 

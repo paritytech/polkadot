@@ -95,13 +95,13 @@ pub struct View(pub Vec<Hash>);
 
 impl View {
 	/// Returns an iterator of the hashes present in `Self` but not in `other`.
-	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = Hash> + 'a {
-		self.0.iter().cloned().filter(move |h| !other.contains(h))
+	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.0.iter().filter(move |h| !other.contains(h))
 	}
 
 	/// An iterator containing hashes present in both `Self` and in `other`.
-	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = Hash> + 'a {
-		self.0.iter().cloned().filter(move |h| other.contains(h))
+	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.0.iter().filter(move |h| other.contains(h))
 	}
 
 	/// Whether the view contains a given hash.
