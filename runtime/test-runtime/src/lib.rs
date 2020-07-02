@@ -52,7 +52,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{Get, KeyOwnerProofSystem, Randomness},
+	traits::{KeyOwnerProofSystem, Randomness},
 	weights::Weight,
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;

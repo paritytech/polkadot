@@ -22,6 +22,7 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use consensus_common::{block_validation::Chain, SelectChain};
+use futures::future::Future;
 use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
 use log::info;
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
@@ -35,7 +36,7 @@ use polkadot_service::{
 };
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
-use sc_client_api::execution_extensions::ExecutionStrategies;
+use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
 use sc_informant::OutputFormat;
 use sc_network::{
@@ -55,7 +56,7 @@ use sp_runtime::{codec::Encode, generic};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
 use std::time::Duration;
-use substrate_test_client::RpcHandlersExt;
+use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt};
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -306,9 +307,6 @@ where
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
 	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
-		assert_ne!(count, 0, "'count' argument must be greater than 1");
-		let client = self.client.clone();
-
-		wait_for_blocks(client.clone(), count)
+		self.client.wait_for_blocks(count)
 	}
 }

@@ -4,7 +4,6 @@ use polkadot_test_service::*;
 use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use std::time::Duration;
-use substrate_test_client::BlockchainEventsExt;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
