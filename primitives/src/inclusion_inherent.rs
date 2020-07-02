@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,18 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-mod adder;
-mod code_upgrader;
-mod wasm_executor;
+//! Inclusion Inherent primitives define types and constants which can be imported
+//! without needing to import the entire inherent module.
 
-use parachain::wasm_executor::run_worker;
+use inherents::InherentIdentifier;
 
-// This is not an actual test, but rather an entry point for out-of process WASM executor.
-// When executing tests the executor spawns currently executing binary, which happens to be test binary.
-// It then passes "validation_worker" on CLI effectivly making rust test executor to run this single test.
-#[test]
-fn validation_worker() {
-	if let Some(id) = std::env::args().find(|a| a.starts_with("/shmem_rs_")) {
-		run_worker(&id).unwrap()
-	}
-}
+/// Unique identifier for the Inclusion Inherent
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
