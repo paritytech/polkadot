@@ -44,6 +44,7 @@ members = [
 	"validation",
 
 	"node/network/bridge",
+	"node/network/pov-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
