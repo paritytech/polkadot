@@ -889,6 +889,7 @@ mod tests {
 	use node_primitives::Statement;
 	use polkadot_primitives::parachain::{AbridgedCandidateReceipt};
 	use assert_matches::assert_matches;
+	use futures::executor::{self, ThreadPool};
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -1130,7 +1131,137 @@ mod tests {
 
 	#[test]
 	fn peer_view_update_sends_messages() {
-		// TODO [now]
+		let hash_a = [1; 32].into();
+		let hash_b = [2; 32].into();
+		let hash_c = [3; 32].into();
+
+		let candidate = {
+			let mut c = AbridgedCandidateReceipt::default();
+			c.relay_parent = hash_c;
+			c.parachain_index = 1.into();
+			c
+		};
+		let candidate_hash = candidate.hash();
+
+		let old_view = View(vec![hash_a, hash_b]);
+		let new_view = View(vec![hash_b, hash_c]);
+
+		let mut active_heads = HashMap::new();
+		let validators = vec![
+			Sr25519Keyring::Alice.public().into(),
+			Sr25519Keyring::Bob.public().into(),
+			Sr25519Keyring::Charlie.public().into(),
+		];
+
+		let session_index = 1;
+		let signing_context = SigningContext {
+			parent_hash: hash_c,
+			session_index,
+		};
+
+		let new_head_data = {
+			let mut data = ActiveHeadData::new(validators, session_index);
+
+			let noted = data.note_statement(SignedFullStatement::sign(
+				Statement::Seconded(candidate.clone()),
+				&signing_context,
+				0,
+				&Sr25519Keyring::Alice.pair().into(),
+			));
+
+			assert_matches!(noted, NotedStatement::Fresh(_));
+
+			let noted = data.note_statement(SignedFullStatement::sign(
+				Statement::Valid(candidate_hash),
+				&signing_context,
+				1,
+				&Sr25519Keyring::Bob.pair().into(),
+			));
+
+			assert_matches!(noted, NotedStatement::Fresh(_));
+
+			let noted = data.note_statement(SignedFullStatement::sign(
+				Statement::Valid(candidate_hash),
+				&signing_context,
+				2,
+				&Sr25519Keyring::Charlie.pair().into(),
+			));
+
+			assert_matches!(noted, NotedStatement::Fresh(_));
+
+			data
+		};
+
+		active_heads.insert(hash_c, new_head_data);
+
+		let mut peer_data = PeerData {
+			view: old_view,
+			view_knowledge: {
+				let mut k = HashMap::new();
+
+				k.insert(hash_a, Default::default());
+				k.insert(hash_b, Default::default());
+
+				k
+			},
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let peer = PeerId::random();
+
+		executor::block_on(async move {
+			update_peer_view_and_send_unlocked(
+				peer.clone(),
+				&mut peer_data,
+				&mut ctx,
+				&active_heads,
+				new_view.clone(),
+			).await.unwrap();
+
+			assert_eq!(peer_data.view, new_view);
+			assert!(!peer_data.view_knowledge.contains_key(&hash_a));
+			assert!(peer_data.view_knowledge.contains_key(&hash_b));
+
+			let c_knowledge = peer_data.view_knowledge.get(&hash_c).unwrap();
+
+			assert!(c_knowledge.known_candidates.contains(&candidate_hash));
+			assert!(c_knowledge.sent_statements.contains(
+				&(CompactStatement::Candidate(candidate_hash), 0)
+			));
+			assert!(c_knowledge.sent_statements.contains(
+				&(CompactStatement::Valid(candidate_hash), 1)
+			));
+			assert!(c_knowledge.sent_statements.contains(
+				&(CompactStatement::Valid(candidate_hash), 2)
+			));
+
+			// now see if we got the 3 messages from the active head data.
+			let active_head = active_heads.get(&hash_c).unwrap();
+
+			// semi-fragile because hashmap iterator ordering is undefined, but in practice
+			// it will not change between runs of the program.
+			for statement in active_head.statements_about(candidate_hash) {
+				let message = handle.recv().await;
+				let expected_to = vec![peer.clone()];
+				let expected_protocol = PROTOCOL_V1;
+				let expected_payload
+					= WireMessage::Statement(hash_c, statement.statement.clone()).encode();
+
+				assert_matches!(
+					message,
+					AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+						to,
+						protocol,
+						payload,
+					)) => {
+						assert_eq!(to, expected_to);
+						assert_eq!(protocol, expected_protocol);
+						assert_eq!(payload, expected_payload)
+					}
+				)
+			}
+		});
 	}
 
 	#[test]
