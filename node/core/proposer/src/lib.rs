@@ -152,6 +152,10 @@ where
 	}
 }
 
+// It would have been more ergonomic to use thiserror to derive the
+// From implementations, Display, and std::error::Error, but unfortunately
+// two of the wrapped errors (sp_inherents::Error, SubsystemError) also
+// don't impl std::error::Error, which breaks the thiserror derive.
 #[derive(Debug)]
 pub enum Error {
 	Consensus(sp_consensus::Error),
