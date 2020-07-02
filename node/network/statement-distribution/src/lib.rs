@@ -987,12 +987,38 @@ mod tests {
 
 	#[test]
 	fn note_local_works() {
-		// TODO [now]
+		let hash_a: Hash = [1; 32].into();
+		let hash_b: Hash = [2; 32].into();
+
+		let mut per_peer_tracker = VcPerPeerTracker::default();
+		per_peer_tracker.note_local(hash_a.clone());
+		per_peer_tracker.note_local(hash_b.clone());
+
+		assert!(per_peer_tracker.local_observed.contains(&hash_a));
+		assert!(per_peer_tracker.local_observed.contains(&hash_b));
+
+		assert!(!per_peer_tracker.remote_observed.contains(&hash_a));
+		assert!(!per_peer_tracker.remote_observed.contains(&hash_b));
 	}
 
 	#[test]
 	fn note_remote_works() {
-		// TODO [now]
+		let hash_a: Hash = [1; 32].into();
+		let hash_b: Hash = [2; 32].into();
+		let hash_c: Hash = [3; 32].into();
+
+		let mut per_peer_tracker = VcPerPeerTracker::default();
+		assert!(per_peer_tracker.note_remote(hash_a.clone()));
+		assert!(per_peer_tracker.note_remote(hash_b.clone()));
+		assert!(!per_peer_tracker.note_remote(hash_c.clone()));
+
+		assert!(per_peer_tracker.remote_observed.contains(&hash_a));
+		assert!(per_peer_tracker.remote_observed.contains(&hash_b));
+		assert!(!per_peer_tracker.remote_observed.contains(&hash_c));
+
+		assert!(!per_peer_tracker.local_observed.contains(&hash_a));
+		assert!(!per_peer_tracker.local_observed.contains(&hash_b));
+		assert!(!per_peer_tracker.local_observed.contains(&hash_c));
 	}
 
 	#[test]
