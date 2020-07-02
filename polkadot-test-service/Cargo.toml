@@ -49,4 +49,4 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 [dev-dependencies]
 async-std = "1.5"
 serde_json = "1.0"
-pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers", default-features = false }
