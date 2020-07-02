@@ -239,7 +239,7 @@ impl PeerRelayParentKnowledge {
 				.entry(candidate_hash.clone())
 				.or_insert(0);
 
-			if *received_per_candidate + 1 >= max_message_count {
+			if *received_per_candidate >= max_message_count {
 				return Err(COST_APPARENT_FLOOD);
 			}
 
@@ -1019,6 +1019,113 @@ mod tests {
 		assert!(!per_peer_tracker.local_observed.contains(&hash_a));
 		assert!(!per_peer_tracker.local_observed.contains(&hash_b));
 		assert!(!per_peer_tracker.local_observed.contains(&hash_c));
+	}
+
+	#[test]
+	fn per_peer_relay_parent_knowledge_send() {
+		let mut knowledge = PeerRelayParentKnowledge::default();
+
+		let hash_a: Hash = [1; 32].into();
+
+		// Sending an un-pinned statement should not work and should have no effect.
+		assert!(knowledge.send(&(CompactStatement::Valid(hash_a), 0)).is_none());
+		assert!(!knowledge.known_candidates.contains(&hash_a));
+		assert!(knowledge.sent_statements.is_empty());
+		assert!(knowledge.received_statements.is_empty());
+		assert!(knowledge.seconded_counts.is_empty());
+		assert!(knowledge.received_message_count.is_empty());
+
+		// Make the peer aware of the candidate.
+		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), 0)), Some(true));
+		assert_eq!(knowledge.send(&(CompactStatement::Candidate(hash_a), 1)), Some(false));
+		assert!(knowledge.known_candidates.contains(&hash_a));
+		assert_eq!(knowledge.sent_statements.len(), 2);
+		assert!(knowledge.received_statements.is_empty());
+		assert_eq!(knowledge.seconded_counts.len(), 2);
+		assert!(knowledge.received_message_count.get(&hash_a).is_none());
+
+		// And now it should accept the dependent message.
+		assert_eq!(knowledge.send(&(CompactStatement::Valid(hash_a), 0)), Some(false));
+		assert!(knowledge.known_candidates.contains(&hash_a));
+		assert_eq!(knowledge.sent_statements.len(), 3);
+		assert!(knowledge.received_statements.is_empty());
+		assert_eq!(knowledge.seconded_counts.len(), 2);
+		assert!(knowledge.received_message_count.get(&hash_a).is_none());
+	}
+
+	#[test]
+	fn cant_send_after_receiving() {
+		let mut knowledge = PeerRelayParentKnowledge::default();
+
+		let hash_a: Hash = [1; 32].into();
+		assert!(knowledge.receive(&(CompactStatement::Candidate(hash_a), 0), 3).unwrap());
+		assert!(knowledge.send(&(CompactStatement::Candidate(hash_a), 0)).is_none());
+	}
+
+	#[test]
+	fn per_peer_relay_parent_knowledge_receive() {
+		let mut knowledge = PeerRelayParentKnowledge::default();
+
+		let hash_a: Hash = [1; 32].into();
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Valid(hash_a), 0), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Candidate(hash_a), 0), 3),
+			Ok(true),
+		);
+
+		// Push statements up to the flood limit.
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Valid(hash_a), 1), 3),
+			Ok(false),
+		);
+
+		assert!(knowledge.known_candidates.contains(&hash_a));
+		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 2);
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Valid(hash_a), 2), 3),
+			Ok(false),
+		);
+
+		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 3);
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Valid(hash_a), 7), 3),
+			Err(COST_APPARENT_FLOOD),
+		);
+
+		assert_eq!(*knowledge.received_message_count.get(&hash_a).unwrap(), 3);
+		assert_eq!(knowledge.received_statements.len(), 3); // number of prior `Ok`s.
+
+		// Now make sure that the seconding limit is respected.
+		let hash_b: Hash = [2; 32].into();
+		let hash_c: Hash = [3; 32].into();
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Candidate(hash_b), 0), 3),
+			Ok(true),
+		);
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Candidate(hash_c), 0), 3),
+			Err(COST_UNEXPECTED_STATEMENT),
+		);
+
+		// Last, make sure that already-known statements are disregarded.
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Valid(hash_a), 2), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
+
+		assert_eq!(
+			knowledge.receive(&(CompactStatement::Candidate(hash_b), 0), 3),
+			Err(COST_DUPLICATE_STATEMENT),
+		);
 	}
 
 	#[test]
