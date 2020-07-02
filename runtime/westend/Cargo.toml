@@ -174,3 +174,9 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"hex-literal",
 ]
+# When enabled, the runtime api will not be build.
+#
+# This is required by Cumulus to access certain types of the
+# runtime without clashing with the runtime api exported functions
+# in WASM.
+disable-runtime-api = []

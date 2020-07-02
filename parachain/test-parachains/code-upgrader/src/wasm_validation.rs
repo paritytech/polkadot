@@ -21,22 +21,6 @@ use core::{intrinsics, panic};
 use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
 use codec::{Encode, Decode};
 
-#[panic_handler]
-#[no_mangle]
-pub fn panic(_info: &panic::PanicInfo) -> ! {
-	unsafe {
-		intrinsics::abort()
-	}
-}
-
-#[alloc_error_handler]
-#[no_mangle]
-pub fn oom(_: core::alloc::Layout) -> ! {
-	unsafe {
-		intrinsics::abort();
-	}
-}
-
 #[no_mangle]
 pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 	let params = unsafe { parachain::load_params(params, len) };
@@ -64,6 +48,8 @@ pub extern fn validate_block(params: *const u8, len: usize) -> u64 {
 			&ValidationResult {
 				head_data: GenericHeadData(output.head_data.encode()),
 				new_validation_code: output.new_validation_code,
+				upward_messages: sp_std::vec::Vec::new(),
+				processed_downward_messages: 0,
 			}
 		),
 		Err(_) => panic!("execution failure"),

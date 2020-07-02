@@ -66,9 +66,9 @@ utility = { package = "pallet-utility", git = "https://github.com/paritytech/sub
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.2.1", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -170,3 +170,9 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"hex-literal",
 ]
+# When enabled, the runtime api will not be build.
+#
+# This is required by Cumulus to access certain types of the
+# runtime without clashing with the runtime api exported functions
+# in WASM.
+disable-runtime-api = []
