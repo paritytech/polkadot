@@ -1,6 +1,6 @@
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage};
+use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::{
 	inclusion_inherent,
@@ -17,13 +17,11 @@ use sp_transaction_pool::TransactionPool;
 use std::{pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
-// REVIEW: this value is a SWAG; receptive to better ideas.
 const PROPOSE_TIMEOUT: core::time::Duration = core::time::Duration::from_secs(2);
 
 /// Custom Proposer factory for Polkadot
 pub struct ProposerFactory<TxPool, Backend, Client> {
 	inner: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
-	client: Arc<Client>,
 	overseer: OverseerHandler,
 }
 
@@ -35,11 +33,10 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
-				client.clone(),
+				client,
 				transaction_pool,
 				None,
 			),
-			client,
 			overseer,
 		}
 	}
@@ -62,31 +59,39 @@ where
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
 {
-	type CreateProposer =
-		Pin<Box<dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static>>;
+	type CreateProposer = Pin<Box<
+		dyn Future<Output = Result<Self::Proposer, Self::Error>> + Send + 'static,
+	>>;
 	type Proposer = Proposer<TxPool, Backend, Client>;
-	type Error = sp_blockchain::Error;
+	type Error = Error;
 
 	fn init(&mut self, parent_header: &Header) -> Self::CreateProposer {
+		// create the inner proposer
+		let proposer = self.inner.init(parent_header).into_inner();
+
+		// clone the overseer handle (lightweight) so it can be moved into the future
+		let mut overseer = self.overseer.clone();
+
 		// we know that this function will be called at least once per proposed block,
 		// because this is where the parent header is supplied. Therefore, we can send
 		// the request for authorship data here.
-
-		// note that the buffer of 1 here is actually an _overflow_ bound; every sender also
-		// has a guaranteed slot in the channel:
-		// https://docs.rs/futures/0.3.5/futures/channel/mpsc/fn.channel.html
 		let (sender, receiver) = futures::channel::oneshot::channel();
-		self.overseer.send_msg(AllMessages::Provisioner(
-			ProvisionerMessage::RequestInherentData(parent_header.hash(), sender),
-		));
-		unimplemented!()
+		let parent_header_hash = parent_header.hash();
+
+		async move {
+			overseer.send_msg(AllMessages::Provisioner(
+				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+			)).await?;
+			Ok(Proposer {
+				inner: proposer?,
+				provisioner_inherent_data: receiver,
+			})
+		}.boxed()
 	}
 }
 
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
-	client: Arc<Client>,
-	overseer: OverseerHandler,
 	provisioner_inherent_data: futures::channel::oneshot::Receiver<ProvisionerInherentData>,
 }
 
@@ -154,6 +159,7 @@ pub enum Error {
 	Inherent(sp_inherents::Error),
 	Timeout,
 	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
+	Subsystem(SubsystemError)
 }
 
 impl From<sp_consensus::Error> for Error {
@@ -171,5 +177,11 @@ impl From<sp_blockchain::Error> for Error {
 impl From<sp_inherents::Error> for Error {
 	fn from(e: sp_inherents::Error) -> Error {
 		Error::Inherent(e)
+	}
+}
+
+impl From<SubsystemError> for Error {
+	fn from(e: SubsystemError) -> Error {
+		Error::Subsystem(e)
 	}
 }
