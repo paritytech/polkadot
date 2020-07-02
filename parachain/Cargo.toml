@@ -13,11 +13,11 @@ codec = { package = "parity-scale-codec", version = "1.1.0", default-features = 
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 
 # all optional crates.
 derive_more = { version = "0.99.2", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
-sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true, default-features = false }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -29,7 +29,7 @@ shared_memory = { version = "0.10.0", optional = true }
 
 [features]
 default = ["std"]
-wasm-api = ["sp-runtime-interface"]
+wasm-api = []
 std = [
 	"codec/std",
 	"derive_more",
@@ -39,8 +39,8 @@ std = [
 	"sp-core/std",
 	"parking_lot",
 	"log",
-	"sp-runtime-interface/std",
 	"sp-externalities",
 	"sc-executor",
 	"sp-io",
+	"polkadot-core-primitives/std",
 ]

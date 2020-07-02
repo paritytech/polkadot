@@ -56,7 +56,7 @@ use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
 use sp_core::Pair;
 use polkadot_primitives::{
-	BlockId, Hash, Block,
+	BlockId, Hash, Block, DownwardMessage,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, Id as ParaId,
 		PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
@@ -150,6 +150,7 @@ pub trait ParachainContext: Clone {
 		relay_parent: Hash,
 		global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
+		downward_messages: Vec<DownwardMessage>,
 	) -> Self::ProduceCandidate;
 }
 
@@ -159,6 +160,7 @@ pub async fn collate<P>(
 	local_id: ParaId,
 	global_validation: GlobalValidationSchedule,
 	local_validation_data: LocalValidationData,
+	downward_messages: Vec<DownwardMessage>,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
 ) -> Option<parachain::Collation>
@@ -170,6 +172,7 @@ pub async fn collate<P>(
 		relay_parent,
 		global_validation,
 		local_validation_data,
+		downward_messages,
 	).await?;
 
 	let pov_block = PoVBlock {
@@ -317,6 +320,7 @@ fn build_collator_service<P, C, R, Extrinsic>(
 					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
 				};
+				let downward_messages = try_fr!(api.downward_messages(&id, para_id));
 
 				let validators = try_fr!(api.validators(&id));
 
@@ -331,6 +335,7 @@ fn build_collator_service<P, C, R, Extrinsic>(
 					para_id,
 					global_validation,
 					local_validation,
+					downward_messages,
 					parachain_context,
 					key,
 				).map(move |collation| {
@@ -470,6 +475,7 @@ mod tests {
 			_relay_parent: Hash,
 			_global: GlobalValidationSchedule,
 			_local_validation: LocalValidationData,
+			_: Vec<DownwardMessage>,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
 			future::ready(Some((
