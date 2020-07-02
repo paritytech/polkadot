@@ -39,19 +39,21 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::{
 	Hash, BlockNumber,
 	parachain::{
-		AbridgedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId, ValidatorIndex,
-		HeadData, ValidationCode, SigningContext, PoVBlock, GroupIndex,
+		AbridgedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
+		ValidatorIndex, HeadData, ValidationCode, SigningContext, PoVBlock,
 	},
 };
-use polkadot_overseer::{Subsystem, SubsystemContext, SpawnedSubsystem};
 use polkadot_node_primitives::{Statement, SignedFullStatement};
-use messages::{
-	AllMessages, AvailabilityStoreMessage, FromOverseer, CandidateBackingMessage, SchedulerRoster,
-	OverseerSignal, RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
+use polkadot_subsystem::{
+	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
+};
+use polkadot_subsystem::messages::{
+	AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, SchedulerRoster,
+	RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
 	StatementDistributionMessage, NewBackedCandidate,
 };
 use statement_table::{
-	generic::{AttestedCandidate as TableAttestedCandidate},
+	generic::AttestedCandidate as TableAttestedCandidate,
 	self, Table, Context as TableContextTrait,
 	Statement as TableStatement, SignedStatement as TableSignedStatement,
 };
@@ -624,21 +626,27 @@ impl<S: Spawn> Jobs<S> {
 	}
 }
 
-pub struct CandidateBackingSubsystem<S> {
+pub struct CandidateBackingSubsystem<S, Context> {
 	spawner: S,
 	keystore: KeyStorePtr,
+	_context: std::marker::PhantomData<Context>,
 }
 
-impl<S: Spawn + Clone> CandidateBackingSubsystem<S> {
+impl<S, Context> CandidateBackingSubsystem<S, Context>
+	where
+		S: Spawn + Clone,
+		Context: SubsystemContext<Message=CandidateBackingMessage>,
+{
 	pub fn new(keystore: KeyStorePtr, spawner: S) -> Self {
 		Self {
 			spawner,
 			keystore,
+			_context: std::marker::PhantomData,
 		}
 	}
 
 	async fn run(
-		mut ctx: SubsystemContext<CandidateBackingMessage>,
+		mut ctx: Context,
 		keystore: KeyStorePtr,
 		spawner: S,
 	) {
@@ -673,7 +681,7 @@ impl<S: Spawn + Clone> CandidateBackingSubsystem<S> {
 				outgoing = jobs.next().fuse() => {
 					match outgoing {
 						Some(msg) => {
-							let _ = ctx.send_msg(msg.into()).await;
+							let _ = ctx.send_message(msg.into()).await;
 						}
 						None => break,
 					}
@@ -684,8 +692,12 @@ impl<S: Spawn + Clone> CandidateBackingSubsystem<S> {
 	}
 }
 
-impl<S: Spawn + Send + Clone + 'static> Subsystem<CandidateBackingMessage> for CandidateBackingSubsystem<S> {
-	fn start(&mut self, ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
+impl<S, Context> Subsystem<Context> for CandidateBackingSubsystem<S, Context>
+	where
+		S: Spawn + Send + Clone + 'static,
+		Context: SubsystemContext<Message=CandidateBackingMessage>,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let keystore = self.keystore.clone();
 		let spawner = self.spawner.clone();
 
@@ -698,68 +710,81 @@ impl<S: Spawn + Send + Clone + 'static> Subsystem<CandidateBackingMessage> for C
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{channel::mpsc, executor, pin_mut, StreamExt};
+	use futures::{
+		channel::mpsc, Future,
+		executor::{self, ThreadPool},
+	};
+	use std::collections::HashMap;
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::parachain::{
-		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, ValidityAttestation,
+		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
 	};
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
-	#[test]
-	fn backing_works() {
-		let chain_a = ParaId::from(1);
-		let chain_b = ParaId::from(2);
-		let thread_a = ParaId::from(3);
+	struct TestState {
+		chain_ids: Vec<ParaId>,
+		keystore: KeyStorePtr,
+		validators: Vec<Sr25519Keyring>,
+		validator_public: Vec<ValidatorId>,
+		roster: SchedulerRoster,
+		validation_code: HashMap<ParaId, ValidationCode>,
+		head_data: HashMap<ParaId, HeadData>,
+		signing_context: SigningContext,
+		relay_parent: Hash,
+	}
 
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-		];
+	impl Default for TestState {
+		fn default() -> Self {
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+			let thread_a = ParaId::from(3);
 
-		let validator_public = validator_pubkeys(&validators);
+			let chain_ids = vec![chain_a, chain_b, thread_a];
 
-		let keystore = keystore::Store::new_in_memory();
-		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
-		keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
-			.expect("Insert key into keystore");
-		let spawner = executor::ThreadPool::new().unwrap();
+			let validators = vec![
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+				Sr25519Keyring::Ferdie,
+			];
 
-		let chain_a_assignment = CoreAssignment {
-			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(0),
-		};
+			let keystore = keystore::Store::new_in_memory();
+			// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
+			keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
+				.expect("Insert key into keystore");
 
-		let chain_b_assignment = CoreAssignment {
-			core: CoreIndex::from(1),
-			para_id: chain_b,
-			kind: AssignmentKind::Parachain,
-			group_idx: GroupIndex::from(1),
-		};
+			let validator_public = validator_pubkeys(&validators);
 
-		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
+			let chain_a_assignment = CoreAssignment {
+				core: CoreIndex::from(0),
+				para_id: chain_a,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(0),
+			};
 
-		let thread_a_assignment = CoreAssignment {
-			core: CoreIndex::from(2),
-			para_id: thread_a,
-			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-			group_idx: GroupIndex::from(2),
-		};
+			let chain_b_assignment = CoreAssignment {
+				core: CoreIndex::from(1),
+				para_id: chain_b,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(1),
+			};
 
-		let validator_groups = vec![vec![0, 2], vec![1, 3], vec![4]];
+			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 
-		executor::block_on(async move {
+			let thread_a_assignment = CoreAssignment {
+				core: CoreIndex::from(2),
+				para_id: thread_a,
+				kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+				group_idx: GroupIndex::from(2),
+			};
+
+			let validator_groups = vec![vec![0, 2], vec![1, 3], vec![4]];
+
 			let parent_hash_1 = [1; 32].into();
-			let mut cbs = CandidateBackingSubsystem::new(keystore, spawner.clone());
-			let (mut tx, rx) = mpsc::channel(64); 
-			let (ctx, outgoing) = SubsystemContext::<CandidateBackingMessage>::new_testing(rx);
 
 			let roster = SchedulerRoster {
 				validator_groups,
@@ -771,101 +796,152 @@ mod tests {
 				upcoming: vec![],
 				availability_cores: vec![],
 			};
-			let validation_code = ValidationCode(vec![1, 2, 3]);
-			let head_data = HeadData(vec![4, 5, 6]);
 			let signing_context = SigningContext {
 				session_index: 1,
 				parent_hash: parent_hash_1,
 			};
 
-			let spawned = cbs.start(ctx).0;
+			let mut head_data = HashMap::new();
+			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
-			spawner.spawn(spawned).unwrap();
-			pin_mut!(outgoing);
+			let mut validation_code = HashMap::new();
+			validation_code.insert(chain_a, ValidationCode(vec![1, 2, 3]));
 
-			// Start work on some new parent.
-			tx.send(FromOverseer::Signal(OverseerSignal::StartWork(parent_hash_1))).await.unwrap();
+			let relay_parent = Hash::from([5; 32]);
 
-			// Check that subsystem job issues a request for a validator set.
-			match outgoing.next().await.unwrap() {
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
-				) if parent == parent_hash_1 => {
-					tx.send(validator_public.clone()).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+			Self {
+				chain_ids,
+				keystore,
+				validators,
+				validator_public,
+				roster,
+				validation_code,
+				head_data,
+				signing_context,
+				relay_parent,
 			}
+		}
+	}
 
-			// Check that subsystem job issues a request for the validator groups.
-			match outgoing.next().await.unwrap() {
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
-				) if parent == parent_hash_1 => {
-					tx.send(roster).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+	struct TestHarness {
+		virtual_overseer: subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+	}
+
+	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
+		let pool = ThreadPool::new().unwrap();
+
+		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
+
+		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
+
+		let test_fut = test(TestHarness {
+			virtual_overseer,
+		});
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(subsystem);
+
+		executor::block_on(future::select(test_fut, subsystem));
+	}
+
+	async fn test_startup(
+		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+		test_state: &TestState,
+	) {
+		// Start work on some new parent.
+		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(test_state.relay_parent))).await;
+
+		// Check that subsystem job issues a request for a validator set.
+		match virtual_overseer.recv().await {
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(test_state.validator_public.clone()).unwrap();
 			}
+			msg => panic!("unexpected message {:?}", msg),
+		}
 
-			// Check that subsystem job issues a request for the validation code.
-			match outgoing.next().await.unwrap() {
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidationCode(_, _, _, tx))
-				) if parent == parent_hash_1 => {
-					tx.send(validation_code.clone()).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+		// Check that subsystem job issues a request for the validator groups.
+		match virtual_overseer.recv().await {
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(test_state.roster.clone()).unwrap();
 			}
+			msg => panic!("unexpected message {:?}", msg),
+		}
 
-			// Check that subsystem job issues a request for the head data.
-			match outgoing.next().await.unwrap() {
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::HeadData(_, tx))
-				) if parent == parent_hash_1 => {
-					tx.send(head_data.clone()).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+		// Check that subsystem job issues a request for the validation code.
+		match virtual_overseer.recv().await {
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidationCode(id, _, _, tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(test_state.validation_code.get(&id).unwrap().clone()).unwrap();
 			}
+			msg => panic!("unexpected message {:?}", msg),
+		}
 
-			// Check that subsystem job issues a request for the signing context.
-			match outgoing.next().await.unwrap() {
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::SigningContext(tx))
-				) if parent == parent_hash_1 => {
-					tx.send(signing_context.clone()).unwrap();
-				}
-				msg => panic!("unexpected message {:?}", msg),
+		// Check that subsystem job issues a request for the head data.
+		match virtual_overseer.recv().await {
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::HeadData(id, tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(test_state.head_data.get(&id).unwrap().clone()).unwrap();
 			}
+			msg => panic!("unexpected message {:?}", msg),
+		}
 
+		// Check that subsystem job issues a request for the signing context.
+		match virtual_overseer.recv().await {
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SigningContext(tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(test_state.signing_context.clone()).unwrap();
+			}
+			msg => panic!("unexpected message {:?}", msg),
+		}
+	}
+
+	#[test]
+	fn backing_works() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+
+			let TestHarness { mut virtual_overseer } = test_harness;
+			
+			test_startup(&mut virtual_overseer, &test_state).await;
+	
 			// Check that `Second` message issues all necessary requests.
 			{
-				let candidate = AbridgedCandidateReceipt {
-					parachain_index: chain_a,
-					relay_parent: parent_hash_1,
-					pov_block_hash: [2; 32].into(),
-					..Default::default()
-				};
-
-				let second = CandidateBackingMessage::Second(parent_hash_1, candidate.clone());
-
-				tx.send(FromOverseer::Communication{ msg: second }).await.unwrap();
-
 				let pov_block = PoVBlock {
 					block_data: BlockData(vec![42, 43, 44]),
 				};
 
-				match outgoing.next().await.unwrap() {
+				let pov_block_hash = pov_block.hash();
+				let candidate = AbridgedCandidateReceipt {
+					parachain_index: test_state.chain_ids[0],
+					relay_parent: test_state.relay_parent,
+					pov_block_hash,
+					..Default::default()
+				};
+
+				let second = CandidateBackingMessage::Second(test_state.relay_parent, candidate.clone());
+
+				virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
+
+				match virtual_overseer.recv().await {
 					AllMessages::AvailabilityStore(
 						AvailabilityStoreMessage::QueryPoV(
 							pov_hash,
 							tx,
 						)
-					) if pov_hash == [2; 32].into() => {
+					) if pov_hash == pov_block_hash => {
 						tx.send(Some(pov_block.clone())).unwrap();
 					}
 					msg => panic!("unexpected msg {:?}", msg),
 				}
 
-				match outgoing.next().await.unwrap() {
+				match virtual_overseer.recv().await {
 					AllMessages::CandidateValidation(
 						CandidateValidationMessage::Validate(
 							parent_hash,
@@ -873,20 +949,23 @@ mod tests {
 							pov,
 							tx,
 						)
-					) if parent_hash == parent_hash_1 && pov == pov_block && c == candidate => {
+					) if parent_hash == test_state.relay_parent && pov == pov_block && c == candidate => {
 						tx.send(Ok(())).unwrap();
 					}
 					msg => panic!("unexpected msg {:?}", msg),
 				}
 
-				match outgoing.next().await.unwrap() {
+				match virtual_overseer.recv().await {
 					AllMessages::StatementDistribution(
 						StatementDistributionMessage::Share(
 							parent_hash,
 							signed_statement,
 						)
-					) if parent_hash == parent_hash_1 => {
-						signed_statement.check_signature(&signing_context, &validator_public[0]).unwrap();
+					) if parent_hash == test_state.relay_parent => {
+						signed_statement.check_signature(
+							&test_state.signing_context,
+							&test_state.validator_public[0],
+						).unwrap();
 					}
 					msg => panic!("unexpected message {:?}", msg),
 				}
@@ -897,13 +976,16 @@ mod tests {
 			{
 				let (backed_tx, mut backed_rx) = mpsc::channel(64);
 
-				let register_watcher = CandidateBackingMessage::RegisterBackingWatcher(parent_hash_1, backed_tx);
+				let register_watcher = CandidateBackingMessage::RegisterBackingWatcher(
+					test_state.relay_parent,
+					backed_tx,
+				);
 
-				tx.send(FromOverseer::Communication{ msg: register_watcher}).await.unwrap();
+				virtual_overseer.send(FromOverseer::Communication{ msg: register_watcher}).await;
 
 				let candidate_a = AbridgedCandidateReceipt {
-					parachain_index: chain_a,
-					relay_parent: parent_hash_1,
+					parachain_index: test_state.chain_ids[0],
+					relay_parent: test_state.relay_parent,
 					pov_block_hash: Hash::from([5; 32]),
 					..Default::default()
 				};
@@ -911,25 +993,25 @@ mod tests {
 
 				let signed_a = SignedFullStatement::sign(
 					Statement::Seconded(candidate_a.clone()),
-					&signing_context,
+					&test_state.signing_context,
 					2,
-					&validators[2].pair().into(),
+					&test_state.validators[2].pair().into(),
 				);
 
 				let signed_b = SignedFullStatement::sign(
 					Statement::Valid(candidate_a_hash),
-					&signing_context,
+					&test_state.signing_context,
 					0,
-					&validators[0].pair().into(),
+					&test_state.validators[0].pair().into(),
 				);
 
-				let statement = CandidateBackingMessage::Statement(parent_hash_1, signed_a.clone());
+				let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-				tx.send(FromOverseer::Communication{ msg: statement }).await.unwrap();
+				virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-				let statement = CandidateBackingMessage::Statement(parent_hash_1, signed_b.clone());
+				let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-				tx.send(FromOverseer::Communication{ msg: statement }).await.unwrap();
+				virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
 				let backed = backed_rx.next().await.unwrap();
 
@@ -946,7 +1028,7 @@ mod tests {
 				assert_eq!(backed.0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 0, 0]);
 			}
 
-			tx.send(FromOverseer::Signal(OverseerSignal::StopWork(parent_hash_1))).await.unwrap();
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StopWork(test_state.relay_parent))).await;
 		});
 	}
 }
