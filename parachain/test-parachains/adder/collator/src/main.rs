@@ -28,7 +28,7 @@ use primitives::{
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
 use parking_lot::Mutex;
-use futures::future::{Ready, ready, TryFutureExt};
+use futures::future::{Ready, ready, FutureExt};
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -135,12 +135,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 	let cli = Cli::from_iter(&["-dev"]);
 	let runner = cli.create_runner(&cli.run.base)?;
 	runner.async_run(|config| {
-		collator::start_collator(
+		let (future, task_manager) = collator::start_collator(
 			context,
 			id,
 			key,
 			config,
-		).map_err(|e| e.into())
+		)?;
+
+		Ok((future.map(Ok), task_manager))
 	})?;
 
 	Ok(())
