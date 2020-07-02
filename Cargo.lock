@@ -4941,6 +4941,7 @@ dependencies = [
  "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
+ "substrate-test-client",
  "tempfile",
 ]
 

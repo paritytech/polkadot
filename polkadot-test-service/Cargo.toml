@@ -44,6 +44,7 @@ frame-system = { git = "https://github.com/paritytech/substrate", branch = "cect
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "cecton-testing-helpers" }
 
 [dev-dependencies]
 async-std = "1.5"
