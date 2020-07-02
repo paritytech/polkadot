@@ -100,7 +100,7 @@ pub enum ValidityDoubleVote<C, D, S> {
 	/// Implicit vote by issuing and explicitly voting invalidity
 	IssuedAndInvalidity((C, S), (D, S)),
 	/// Direct votes for validity and invalidity
-	ValidityAndInvalidity(D, S, S),
+	ValidityAndInvalidity(C, S, S),
 }
 
 /// Misbehavior: multiple signatures on same statement.
@@ -561,7 +561,7 @@ impl<C: Context> Table<C> {
 						// valid vote conflicting with invalid vote
 						(ValidityVote::Valid(good), ValidityVote::Invalid(bad)) |
 						(ValidityVote::Invalid(bad), ValidityVote::Valid(good)) =>
-							make_vdv(ValidityDoubleVote::ValidityAndInvalidity(digest, good, bad)),
+							make_vdv(ValidityDoubleVote::ValidityAndInvalidity(votes.candidate.clone(), good, bad)),
 
 						// two signatures on same candidate
 						(ValidityVote::Issued(a), ValidityVote::Issued(b)) =>
@@ -828,7 +828,7 @@ mod tests {
 		assert_eq!(
 			table.detected_misbehavior.get(&AuthorityId(2)).unwrap(),
 			&Misbehavior::ValidityDoubleVote(ValidityDoubleVote::ValidityAndInvalidity(
-				candidate_digest,
+				Candidate(2, 100),
 				Signature(2),
 				Signature(2),
 			))

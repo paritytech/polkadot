@@ -22,6 +22,7 @@ use std::collections::{HashMap, HashSet};
 use std::pin::Pin;
 use std::sync::Arc;
 use std::time::Duration;
+use std::convert::TryFrom;
 
 use bitvec::vec::BitVec;
 use log;
@@ -43,19 +44,19 @@ use polkadot_primitives::{
 		ValidatorIndex, HeadData, ValidationCode, SigningContext, PoVBlock,
 	},
 };
-use polkadot_node_primitives::{Statement, SignedFullStatement};
+use polkadot_node_primitives::{Statement, SignedFullStatement, MisbehaviorReport};
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, SchedulerRoster,
 	RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
-	StatementDistributionMessage, NewBackedCandidate,
+	StatementDistributionMessage, NewBackedCandidate, ProvisionerMessage, ProvisionableData,
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
-	self, Table, Context as TableContextTrait,
-	Statement as TableStatement, SignedStatement as TableSignedStatement,
+	Table, Context as TableContextTrait, Statement as TableStatement,
+	SignedStatement as TableSignedStatement,
 };
 
 #[derive(Debug, derive_more::From)]
@@ -95,6 +96,8 @@ struct CandidateBackingJob {
 	seconded: Option<Hash>,
 	/// Registered backing watchers.
 	backing_watchers: Vec<mpsc::Sender<NewBackedCandidate>>,
+	/// We have already reported misbehaviors for these validators.
+	reported_misbehavior_for: HashSet<ValidatorIndex>,
 
 	table: Table<TableContext>,
 	table_context: TableContext,
@@ -161,6 +164,7 @@ enum FromJob {
 	AvailabilityStoreMessage(AvailabilityStoreMessage),
 	CandidateValidation(CandidateValidationMessage),
 	StatementDistribution(StatementDistributionMessage),
+	Provisioner(ProvisionerMessage),
 }
 
 impl From<FromJob> for AllMessages {
@@ -170,6 +174,7 @@ impl From<FromJob> for AllMessages {
 			FromJob::AvailabilityStoreMessage(msg) => AllMessages::AvailabilityStore(msg),
 			FromJob::CandidateValidation(msg) => AllMessages::CandidateValidation(msg),
 			FromJob::StatementDistribution(msg) => AllMessages::StatementDistribution(msg),
+			FromJob::Provisioner(msg) => AllMessages::Provisioner(msg),
 		}
 	}
 }
@@ -224,6 +229,7 @@ impl CandidateBackingJob {
 				backed_candidates: HashSet::default(),
 				seconded: None,
 				backing_watchers: Vec::new(),
+				reported_misbehavior_for: HashSet::default(),
 
 				table: Table::default(),
 				table_context: TableContext::default(),
@@ -435,6 +441,26 @@ impl CandidateBackingJob {
 							}
 						}
 					}
+
+					let mut reports = Vec::new();
+
+					for (k, v) in self.table.get_misbehavior().iter() {
+						if !self.reported_misbehavior_for.contains(k) {
+							self.reported_misbehavior_for.insert(*k);
+
+							if let Ok(report) = MisbehaviorReport::try_from((*k, v.clone())) {
+								let message = ProvisionerMessage::ProvisionableData(
+									ProvisionableData::MisbehaviorReport(self.parent, report)
+								);
+
+								reports.push(message);
+							}
+						}
+					}
+
+					for report in reports.drain(..) {
+						self.send_to_provisioner(report).await?
+					}
 				}
 				Err(()) => {
 					return Err(Error::ValidationFailed(ValidationFailed));
@@ -474,6 +500,12 @@ impl CandidateBackingJob {
 				self.backing_watchers.push(tx);
 			}
 		}
+
+		Ok(())
+	}
+
+	async fn send_to_provisioner(&mut self, msg: ProvisionerMessage) -> Result<(), Error> {
+		self.tx_from.send(FromJob::Provisioner(msg)).await?;
 
 		Ok(())
 	}
@@ -997,6 +1029,7 @@ mod tests {
 				pov_block_hash: Hash::from([5; 32]),
 				..Default::default()
 			};
+
 			let candidate_a_hash = candidate_a.hash();
 
 			let signed_a = SignedFullStatement::sign(
@@ -1036,6 +1069,81 @@ mod tests {
 			assert_eq!(backed.0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 0, 0]);
 
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StopWork(test_state.relay_parent))).await;
+		});
+	}
+
+	#[test]
+	fn backing_misbehavior_works() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let candidate_a = AbridgedCandidateReceipt {
+				parachain_index: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_block_hash: Hash::from([5; 32]),
+				..Default::default()
+			};
+
+			let candidate_a_hash = candidate_a.hash();
+
+			let signed_a = SignedFullStatement::sign(
+				Statement::Seconded(candidate_a.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
+
+			let signed_b = SignedFullStatement::sign(
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				0,
+				&test_state.validators[0].pair().into(),
+			);
+
+			let signed_c = SignedFullStatement::sign(
+				Statement::Invalid(candidate_a_hash),
+				&test_state.signing_context,
+				0,
+				&test_state.validators[0].pair().into(),
+			);
+
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						ProvisionableData::MisbehaviorReport(
+							relay_parent,
+							MisbehaviorReport::SelfContradiction(_, s1, s2),
+						)
+					)
+				) if relay_parent == test_state.relay_parent => {
+					s1.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[s1.validator_index() as usize],
+					).unwrap();
+
+					s2.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[s2.validator_index() as usize],
+					).unwrap();
+				}
+			);
+
 		});
 	}
 }

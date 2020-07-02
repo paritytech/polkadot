@@ -981,6 +981,21 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		out
 	}
 
+	/// Used to create a `Signed` from already existing parts.
+	#[cfg(feature = "std")]
+	pub fn new(
+		payload: Payload,
+		validator_index: ValidatorIndex,
+		signature: ValidatorSignature,
+	) -> Self {
+		Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		}
+	}
+
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
 	pub fn sign<H: Encode>(

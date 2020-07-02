@@ -23,9 +23,13 @@
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{Hash,
 	parachain::{
-		AbridgedCandidateReceipt, CandidateReceipt, CompactStatement,
-		EncodeAs, Signed,
+		AbridgedCandidateReceipt, CompactStatement,
+		EncodeAs, Signed, ValidatorIndex,
 	}
+};
+use polkadot_statement_table::{
+	self as table,
+	Misbehavior as TableMisbehavior,
 };
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
@@ -74,11 +78,50 @@ pub enum MisbehaviorReport {
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
 	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
+	CandidateValidityDisagreement(AbridgedCandidateReceipt, Vec<SignedFullStatement>),
 	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
+	SelfContradiction(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
+	DoubleVote(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
+}
+
+impl std::convert::TryFrom<(ValidatorIndex, TableMisbehavior)> for MisbehaviorReport {
+	type Error = ();
+
+	fn try_from(a: (ValidatorIndex, TableMisbehavior)) -> Result<Self, Self::Error> {
+		let (id, report) = a;
+
+		match report {
+			TableMisbehavior::ValidityDoubleVote(dv) => {
+				match dv {
+					table::generic::ValidityDoubleVote::IssuedAndValidity((c, s1), (d, s2)) => {
+						let receipt = c.clone();
+						let signed_1 = SignedFullStatement::new(Statement::Seconded(c), id, s1);
+						let signed_2 = SignedFullStatement::new(Statement::Valid(d), id, s2);
+
+						Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+					}
+					table::generic::ValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2)) => {
+						let receipt = c.clone();
+						let signed_1 = SignedFullStatement::new(Statement::Seconded(c), id, s1);
+						let signed_2 = SignedFullStatement::new(Statement::Invalid(d), id, s2);
+
+						Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+					}
+					table::generic::ValidityDoubleVote::ValidityAndInvalidity(c, s1, s2) => {
+						let signed_1 = SignedFullStatement::new(Statement::Valid(c.hash()), id, s1);
+						let signed_2 = SignedFullStatement::new(Statement::Invalid(c.hash()), id, s2);
+
+						Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
+					}
+				}
+			}
+			_ => {
+				// TODO: match other cases
+				Err(())
+			}
+		}
+	}
 }
 
 /// A unique identifier for a network protocol.
