@@ -7,7 +7,7 @@ use std::time::Duration;
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
 #[test]
-fn send_transaction_actually_work() {
+fn call_function_actually_work() {
 	let mut alice = run_test_node(
 		(|fut, _| {
 			async_std::task::spawn(fut);
