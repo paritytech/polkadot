@@ -1266,11 +1266,111 @@ mod tests {
 
 	#[test]
 	fn circulated_statement_goes_to_all_peers_with_view() {
-		// TODO [now]
-	}
+		let hash_a = [1; 32].into();
+		let hash_b = [2; 32].into();
+		let hash_c = [3; 32].into();
 
-	#[test]
-	fn smoke() {
-		// TODO [now]
+		let candidate = {
+			let mut c = AbridgedCandidateReceipt::default();
+			c.relay_parent = hash_b;
+			c.parachain_index = 1.into();
+			c
+		};
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+		let peer_c = PeerId::random();
+
+		let peer_a_view = View(vec![hash_a]);
+		let peer_b_view = View(vec![hash_a, hash_b]);
+		let peer_c_view = View(vec![hash_b, hash_c]);
+
+		let session_index = 1;
+
+		let peer_data_from_view = |view: View| PeerData {
+			view: view.clone(),
+			view_knowledge: view.0.iter().map(|v| (v.clone(), Default::default())).collect(),
+		};
+
+		let mut peer_data: HashMap<_, _> = vec![
+			(peer_a.clone(), peer_data_from_view(peer_a_view)),
+			(peer_b.clone(), peer_data_from_view(peer_b_view)),
+			(peer_c.clone(), peer_data_from_view(peer_c_view)),
+		].into_iter().collect();
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			let statement = {
+				let signing_context = SigningContext {
+					parent_hash: hash_b,
+					session_index,
+				};
+
+				let statement = SignedFullStatement::sign(
+					Statement::Seconded(candidate),
+					&signing_context,
+					0,
+					&Sr25519Keyring::Alice.pair().into(),
+				);
+
+				StoredStatement {
+					comparator: StoredStatementComparator {
+						compact: statement.payload().to_compact(),
+						validator_index: 0,
+						signature: statement.signature().clone()
+					},
+					statement,
+				}
+			};
+
+			let needs_dependents = circulate_statement(
+				&mut peer_data,
+				&mut ctx,
+				hash_b,
+				&statement,
+			).await.unwrap();
+
+			{
+				assert_eq!(needs_dependents.len(), 2);
+				assert!(needs_dependents.contains(&peer_b));
+				assert!(needs_dependents.contains(&peer_c));
+			}
+
+			let fingerprint = (statement.compact().clone(), 0);
+
+			assert!(
+				peer_data.get(&peer_b).unwrap()
+				.view_knowledge.get(&hash_b).unwrap()
+				.sent_statements.contains(&fingerprint),
+			);
+
+			assert!(
+				peer_data.get(&peer_c).unwrap()
+				.view_knowledge.get(&hash_b).unwrap()
+				.sent_statements.contains(&fingerprint),
+			);
+
+			let message = handle.recv().await;
+			assert_matches!(
+				message,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+					to,
+					protocol,
+					payload,
+				)) => {
+					assert_eq!(to.len(), 2);
+					assert!(to.contains(&peer_b));
+					assert!(to.contains(&peer_c));
+
+					assert_eq!(protocol, PROTOCOL_V1);
+					assert_eq!(
+						payload,
+						WireMessage::Statement(hash_b, statement.statement.clone()).encode(),
+					);
+				}
+			)
+		});
 	}
 }
