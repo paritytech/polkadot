@@ -31,7 +31,7 @@ use polkadot_subsystem::messages::{
 use node_primitives::{ProtocolId, View, SignedFullStatement};
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{
-	CompactStatement, ValidatorIndex, ValidatorId, SigningContext,
+	CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature,
 };
 use parity_scale_codec::{Encode, Decode};
 
@@ -304,40 +304,53 @@ impl PeerData {
 }
 
 // A statement stored while a relay chain head is active.
-//
-// These are orderable first by (Seconded, Valid, Invalid), then by the underlying hash,
-// and lastly by the signing validator's index.
-#[derive(PartialEq, Eq)]
 struct StoredStatement {
-	compact: CompactStatement,
+	comparator: StoredStatementComparator,
 	statement: SignedFullStatement,
 }
 
+// A value used for comparison of stored statements to each other.
+//
+// The compact version of the statement, the validator index, and the signature of the validator
+// is enough to differentiate between all types of equivocations, as long as the signature is
+// actually checked to be valid. The same statement with 2 signatures and 2 statements with
+// different (or same) signatures wll all be correctly judged to be unequal with this comparator.
+#[derive(PartialEq, Eq, Hash, Clone)]
+struct StoredStatementComparator {
+	compact: CompactStatement,
+	validator_index: ValidatorIndex,
+	signature: ValidatorSignature,
+}
+
 impl StoredStatement {
+	fn compact(&self) -> &CompactStatement {
+		&self.comparator.compact
+	}
+
 	fn fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
-		(self.compact.clone(), self.statement.validator_index())
+		(self.comparator.compact.clone(), self.statement.validator_index())
 	}
 }
 
-impl std::borrow::Borrow<CompactStatement> for StoredStatement {
-	fn borrow(&self) -> &CompactStatement {
-		&self.compact
+impl std::borrow::Borrow<StoredStatementComparator> for StoredStatement {
+	fn borrow(&self) -> &StoredStatementComparator {
+		&self.comparator
 	}
 }
 
 impl std::hash::Hash for StoredStatement {
 	fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-		// Hash + Eq is supposed to have the property that if `Hash(X) == Hash(Y)`, then `X == Y`.
-		// However, the candidate receipt types don't implement `Hash`.
-		//
-		// The fingerprint plus the signature data provides an assurance that this property will hold,
-		// not in general, but for all use-cases where the data within this struct has had the
-		// signature checked, even when validators equivocate by issuing two different signatures
-		// on the same data, although I am unsure if that is even possible with sr25519.
-		self.fingerprint().hash(state);
-		self.statement.signature().hash(state);
+		self.comparator.hash(state)
 	}
 }
+
+impl std::cmp::PartialEq for StoredStatement {
+	fn eq(&self, other: &Self) -> bool {
+		&self.comparator == &other.comparator
+	}
+}
+
+impl std::cmp::Eq for StoredStatement {}
 
 enum NotedStatement<'a> {
 	NotUseful,
@@ -384,14 +397,19 @@ impl ActiveHeadData {
 	///
 	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted.
 	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
-		let compact = statement.payload().to_compact();
 		let validator_index = statement.validator_index();
+		let comparator = StoredStatementComparator {
+			compact: statement.payload().to_compact(),
+			validator_index,
+			signature: statement.signature().clone(),
+		};
+
 		let stored = StoredStatement {
-			compact: compact.clone(),
+			comparator: comparator.clone(),
 			statement,
 		};
 
-		match compact {
+		match comparator.compact {
 			CompactStatement::Candidate(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= 2 {
@@ -403,7 +421,7 @@ impl ActiveHeadData {
 				self.candidates.insert(h);
 				if self.seconded_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.seconded_statements.get(&compact)
+					NotedStatement::Fresh(self.seconded_statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
 					NotedStatement::UsefulButKnown
@@ -416,7 +434,7 @@ impl ActiveHeadData {
 
 				if self.other_statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.other_statements.get(&compact)
+					NotedStatement::Fresh(self.other_statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
 					NotedStatement::UsefulButKnown
@@ -434,7 +452,7 @@ impl ActiveHeadData {
 	fn statements_about(&self, candidate_hash: Hash)
 		-> impl Iterator<Item = &'_ StoredStatement> + '_
 	{
-		self.statements().filter(move |s| s.compact.candidate_hash() == &candidate_hash)
+		self.statements().filter(move |s| s.compact().candidate_hash() == &candidate_hash)
 	}
 }
 
@@ -479,7 +497,7 @@ async fn circulate_statement_and_dependents(
 		let outputs: Option<(Hash, Vec<PeerId>)> = {
 			match active_head.note_statement(statement) {
 				NotedStatement::Fresh(stored) => Some((
-					stored.compact.candidate_hash().clone(),
+					stored.compact().candidate_hash().clone(),
 					circulate_statement(peers, ctx, relay_parent, stored).await?,
 				)),
 				_ => None,
@@ -865,10 +883,78 @@ async fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use sp_keyring::Sr25519Keyring;
+	use node_primitives::Statement;
+	use polkadot_primitives::parachain::{AbridgedCandidateReceipt};
 
-	// TODO [now]: active head data accepts 2 seconded messages per validator
-	// TODO [now]: note_local
-	// TODO [now]: note_remote
-	// TODO [now]: peer view update leads to messages being sent
-	// TODO [now]: circulating statement goes to all peers.
+	#[test]
+	fn active_head_accepts_only_2_seconded_per_validator() {
+		let validators = vec![
+			Sr25519Keyring::Alice.public().into(),
+			Sr25519Keyring::Bob.public().into(),
+			Sr25519Keyring::Charlie.public().into(),
+		];
+		let parent_hash: Hash = [1; 32].into();
+
+		let session_index = 1;
+		let signing_context = SigningContext {
+			parent_hash,
+			session_index,
+		};
+
+		let candidate_a = {
+			let mut c = AbridgedCandidateReceipt::default();
+			c.relay_parent = parent_hash;
+			c.parachain_index = 1.into();
+			c
+		};
+
+		let candidate_b = {
+			let mut c = AbridgedCandidateReceipt::default();
+			c.relay_parent = parent_hash;
+			c.parachain_index = 2.into();
+			c
+		};
+
+		let candidate_c = {
+			let mut c = AbridgedCandidateReceipt::default();
+			c.relay_parent = parent_hash;
+			c.parachain_index = 3.into();
+			c
+		};
+
+		let mut head_data = ActiveHeadData::new(validators, session_index);
+
+		head_data.note_statement(SignedFullStatement::sign(
+			Statement::Seconded(candidate_a),
+			&signing_context,
+			0,
+			&Sr25519Keyring::Alice.pair().into(),
+		));
+	}
+
+	#[test]
+	fn note_local_works() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn note_remote_works() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn peer_view_update_sends_messages() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn circulated_statement_goes_to_all_peers_with_view() {
+		// TODO [now]
+	}
+
+	#[test]
+	fn smoke() {
+		// TODO [now]
+	}
 }

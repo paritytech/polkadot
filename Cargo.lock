@@ -4800,6 +4800,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "polkadot-subsystem-test-helpers",
+ "sp-keyring",
  "sp-runtime",
  "sp-staking",
  "streamunordered",
