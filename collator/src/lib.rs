@@ -379,7 +379,7 @@ pub fn start_collator<P>(
 	key: Arc<CollatorPair>,
 	config: Configuration,
 ) -> Result<
-	(Pin<Box<dyn Future<Output = ()>>>, sc_service::TaskManager),
+	(Pin<Box<dyn Future<Output = ()> + Send>>, sc_service::TaskManager),
 	polkadot_service::Error
 >
 where
@@ -510,7 +510,7 @@ mod tests {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = |_, _| unimplemented!();
+		let task_executor = |_, _| {};
 		let config = cli.create_configuration(&cli.run.base, task_executor.into()).unwrap();
 
 		check_send(start_collator(
