@@ -154,7 +154,7 @@ pub fn run() -> Result<()> {
 				})
 			} else if chain_spec.is_test() {
 				runtime.run_node_until_exit(|config| match config.role {
-					Role::Light => unimplemented!(),
+					Role::Light => Err("Light node for polkadot test runtime is not supported.".into()),
 					_ => polkadot_test_service::polkadot_test_new_full(
 							config,
 							None,
