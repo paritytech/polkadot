@@ -304,6 +304,7 @@ impl PeerData {
 }
 
 // A statement stored while a relay chain head is active.
+#[derive(Debug)]
 struct StoredStatement {
 	comparator: StoredStatementComparator,
 	statement: SignedFullStatement,
@@ -315,7 +316,7 @@ struct StoredStatement {
 // is enough to differentiate between all types of equivocations, as long as the signature is
 // actually checked to be valid. The same statement with 2 signatures and 2 statements with
 // different (or same) signatures wll all be correctly judged to be unequal with this comparator.
-#[derive(PartialEq, Eq, Hash, Clone)]
+#[derive(PartialEq, Eq, Hash, Clone, Debug)]
 struct StoredStatementComparator {
 	compact: CompactStatement,
 	validator_index: ValidatorIndex,
@@ -352,6 +353,7 @@ impl std::cmp::PartialEq for StoredStatement {
 
 impl std::cmp::Eq for StoredStatement {}
 
+#[derive(Debug)]
 enum NotedStatement<'a> {
 	NotUseful,
 	Fresh(&'a StoredStatement),
@@ -414,12 +416,12 @@ impl ActiveHeadData {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
 				if *seconded_so_far >= 2 {
 					return NotedStatement::NotUseful;
-				} else {
-					*seconded_so_far += 1;
 				}
 
 				self.candidates.insert(h);
 				if self.seconded_statements.insert(stored) {
+					*seconded_so_far += 1;
+
 					// This will always return `Some` because it was just inserted.
 					NotedStatement::Fresh(self.seconded_statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
@@ -886,6 +888,7 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use node_primitives::Statement;
 	use polkadot_primitives::parachain::{AbridgedCandidateReceipt};
+	use assert_matches::assert_matches;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -925,12 +928,61 @@ mod tests {
 
 		let mut head_data = ActiveHeadData::new(validators, session_index);
 
-		head_data.note_statement(SignedFullStatement::sign(
-			Statement::Seconded(candidate_a),
+		// note A
+		let a_seconded_val_0 = SignedFullStatement::sign(
+			Statement::Seconded(candidate_a.clone()),
+			&signing_context,
+			0,
+			&Sr25519Keyring::Alice.pair().into(),
+		);
+		let noted = head_data.note_statement(a_seconded_val_0.clone());
+
+		assert_matches!(noted, NotedStatement::Fresh(_));
+
+		// note A (duplicate)
+		let noted = head_data.note_statement(a_seconded_val_0);
+
+		assert_matches!(noted, NotedStatement::UsefulButKnown);
+
+		// note B
+		let noted = head_data.note_statement(SignedFullStatement::sign(
+			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			0,
 			&Sr25519Keyring::Alice.pair().into(),
 		));
+
+		assert_matches!(noted, NotedStatement::Fresh(_));
+
+		// note C (beyond 2 - ignored)
+		let noted = head_data.note_statement(SignedFullStatement::sign(
+			Statement::Seconded(candidate_c.clone()),
+			&signing_context,
+			0,
+			&Sr25519Keyring::Alice.pair().into(),
+		));
+
+		assert_matches!(noted, NotedStatement::NotUseful);
+
+		// note B (new validator)
+		let noted = head_data.note_statement(SignedFullStatement::sign(
+			Statement::Seconded(candidate_b.clone()),
+			&signing_context,
+			1,
+			&Sr25519Keyring::Bob.pair().into(),
+		));
+
+		assert_matches!(noted, NotedStatement::Fresh(_));
+
+		// note C (new validator)
+		let noted = head_data.note_statement(SignedFullStatement::sign(
+			Statement::Seconded(candidate_c.clone()),
+			&signing_context,
+			1,
+			&Sr25519Keyring::Bob.pair().into(),
+		));
+
+		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
 
 	#[test]
