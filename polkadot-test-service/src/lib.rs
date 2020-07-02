@@ -22,7 +22,6 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use consensus_common::{block_validation::Chain, SelectChain};
-use futures::{future::Future, StreamExt};
 use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
 use log::info;
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
@@ -32,11 +31,11 @@ use polkadot_primitives::{
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_service::{
-	new_full, new_full_start, BlockT, FullNodeHandles, PolkadotClient, ServiceComponents,
+	new_full, new_full_start, FullNodeHandles, PolkadotClient, ServiceComponents,
 };
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
-use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
+use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_executor::native_executor_instance;
 use sc_informant::OutputFormat;
 use sc_network::{
@@ -52,11 +51,11 @@ use service::{BasePath, Configuration, Role, TFullBackend};
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::{codec::Encode, generic, OpaqueExtrinsic};
+use sp_runtime::{codec::Encode, generic};
 use sp_state_machine::BasicExternalities;
-use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
+use substrate_test_client::RpcHandlersExt;
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -239,38 +238,6 @@ pub struct PolkadotTestNode<S, C> {
 
 impl<S, C> PolkadotTestNode<S, C>
 where
-	C: BlockchainEvents<Block>,
-{
-	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
-	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
-	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
-		assert_ne!(count, 0, "'count' argument must be greater than 1");
-		let client = self.client.clone();
-
-		wait_for_blocks(client.clone(), count)
-	}
-}
-
-impl<S, C> PolkadotTestNode<S, C> {
-	/// Send a transaction through the RPCHandlers.
-	pub fn send_transaction(
-		&self,
-		extrinsic: OpaqueExtrinsic,
-	) -> impl Future<
-		Output = (
-			Option<String>,
-			RpcSession,
-			futures01::sync::mpsc::Receiver<String>,
-		),
-	> {
-		let rpc_handlers = self.rpc_handlers.clone();
-
-		send_transaction(rpc_handlers, extrinsic)
-	}
-}
-
-impl<S, C> PolkadotTestNode<S, C>
-where
 	C: HeaderBackend<Block>,
 {
 	/// Send a transaction through RPCHandlers to call a function.
@@ -328,56 +295,6 @@ where
 			extra.clone(),
 		);
 
-		self.send_transaction(extrinsic.into()).await
+		self.rpc_handlers.send_transaction(extrinsic.into()).await
 	}
-}
-
-/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
-/// are ever created, thus you should restrict the maximum amount of time of the test execution.
-pub async fn wait_for_blocks<C, B>(client: Arc<C>, count: usize)
-where
-	C: BlockchainEvents<B>,
-	B: BlockT,
-{
-	assert!(count > 0, "'count' argument must be greater than 0");
-
-	let mut import_notification_stream = client.import_notification_stream();
-	let mut blocks = HashSet::new();
-
-	while let Some(notification) = import_notification_stream.next().await {
-		blocks.insert(notification.hash);
-		if blocks.len() == count {
-			break;
-		}
-	}
-}
-
-/// Send a transaction through the RPCHandlers.
-pub async fn send_transaction(
-	rpc_handlers: Arc<RpcHandlers>,
-	extrinsic: OpaqueExtrinsic,
-) -> (
-	Option<String>,
-	RpcSession,
-	futures01::sync::mpsc::Receiver<String>,
-) {
-	let (tx, rx) = futures01::sync::mpsc::channel(0);
-	let mem = RpcSession::new(tx.into());
-	let res = rpc_handlers
-		.rpc_query(
-			&mem,
-			format!(
-				r#"{{
-					"jsonrpc": "2.0",
-					"method": "author_submitExtrinsic",
-					"params": ["0x{}"],
-					"id": 0
-				}}"#,
-				hex::encode(extrinsic.encode())
-			)
-			.as_str(),
-		)
-		.await;
-
-	(res, mem, rx)
 }

@@ -4,6 +4,7 @@ use polkadot_test_service::*;
 use service::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use std::time::Duration;
+use substrate_test_client::BlockchainEventsExt;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
@@ -35,7 +36,7 @@ fn ensure_test_service_build_blocks() {
 	.fuse();
 	let t2 = async {
 		{
-			let t1 = future::join(alice.wait_for_blocks(3), bob.wait_for_blocks(3)).fuse();
+			let t1 = future::join(alice.client.wait_for_blocks(3), bob.client.wait_for_blocks(3)).fuse();
 			let t2 = alice.task_manager.future().fuse();
 			let t3 = bob.task_manager.future().fuse();
 
