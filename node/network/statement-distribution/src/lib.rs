@@ -37,6 +37,7 @@ use parity_scale_codec::{Encode, Decode};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
+use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
@@ -124,21 +125,21 @@ fn note_hash(
 	}
 }
 
-// knowledge that a peer has about goings-on in a relay parent.
+/// knowledge that a peer has about goings-on in a relay parent.
 #[derive(Default)]
 struct PeerRelayParentKnowledge {
-	// candidates that the peer is aware of. This indicates that we can
-	// send other statements pertaining to that candidate.
+	/// candidates that the peer is aware of. This indicates that we can
+	/// send other statements pertaining to that candidate.
 	known_candidates: HashSet<Hash>,
-	// fingerprints of all statements a peer should be aware of: those that
-	// were sent to the peer by us.
+	/// fingerprints of all statements a peer should be aware of: those that
+	/// were sent to the peer by us.
 	sent_statements: HashSet<(CompactStatement, ValidatorIndex)>,
-	// fingerprints of all statements a peer should be aware of: those that
-	// were sent to us by the peer.
+	/// fingerprints of all statements a peer should be aware of: those that
+	/// were sent to us by the peer.
 	received_statements: HashSet<(CompactStatement, ValidatorIndex)>,
-	// How many candidates this peer is aware of for each given validator index.
+	/// How many candidates this peer is aware of for each given validator index.
 	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
-	// How many statements we've received for each candidate that we're aware of.
+	/// How many statements we've received for each candidate that we're aware of.
 	received_message_count: HashMap<Hash, usize>,
 }
 
@@ -363,10 +364,11 @@ enum NotedStatement<'a> {
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
 	candidates: HashSet<Hash>,
-	/// Stored seconded statements for circulation to peers.
-	seconded_statements: HashSet<StoredStatement>,
-	/// Stored other statements for circulation to peers.
-	other_statements: HashSet<StoredStatement>,
+	/// Stored statements for circulation to peers.
+	///
+	/// These are iterable in insertion order, and `Seconded` statements are always
+	/// accepted before dependent statements.
+	statements: IndexSet<StoredStatement>,
 	/// The validators at this head.
 	validators: Vec<ValidatorId>,
 	/// The session index this head is at.
@@ -379,8 +381,7 @@ impl ActiveHeadData {
 	fn new(validators: Vec<ValidatorId>, session_index: sp_staking::SessionIndex) -> Self {
 		ActiveHeadData {
 			candidates: Default::default(),
-			seconded_statements: Default::default(),
-			other_statements: Default::default(),
+			statements: Default::default(),
 			validators,
 			session_index,
 			seconded_counts: Default::default(),
@@ -389,15 +390,18 @@ impl ActiveHeadData {
 
 	/// Note the given statement.
 	///
-	/// If it was not already known and can be accepted,  returns `Some`,
+	/// If it was not already known and can be accepted,  returns `NotedStatement::Fresh`,
 	/// with a handle to the statement.
+	///
+	/// If it can be accepted, but we already know it, returns `NotedStatement::UsefulButKnown`.
 	///
 	/// We accept up to `VC_THRESHOLD` (2 at time of writing) `Seconded` statements
 	/// per validator. These will be the first ones we see. The statement is assumed
 	/// to have been checked, including that the validator index is not out-of-bounds and
 	/// the signature is valid.
 	///
-	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted.
+	/// Any other statements or those that reference a candidate we are not aware of cannot be accepted
+	/// and will return `NotedStatement::NotUseful`.
 	fn note_statement(&mut self, statement: SignedFullStatement) -> NotedStatement {
 		let validator_index = statement.validator_index();
 		let comparator = StoredStatementComparator {
@@ -414,16 +418,16 @@ impl ActiveHeadData {
 		match comparator.compact {
 			CompactStatement::Candidate(h) => {
 				let seconded_so_far = self.seconded_counts.entry(validator_index).or_insert(0);
-				if *seconded_so_far >= 2 {
+				if *seconded_so_far >= VC_THRESHOLD {
 					return NotedStatement::NotUseful;
 				}
 
 				self.candidates.insert(h);
-				if self.seconded_statements.insert(stored) {
+				if self.statements.insert(stored) {
 					*seconded_so_far += 1;
 
 					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.seconded_statements.get(&comparator)
+					NotedStatement::Fresh(self.statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
 					NotedStatement::UsefulButKnown
@@ -434,9 +438,9 @@ impl ActiveHeadData {
 					return NotedStatement::NotUseful;
 				}
 
-				if self.other_statements.insert(stored) {
+				if self.statements.insert(stored) {
 					// This will always return `Some` because it was just inserted.
-					NotedStatement::Fresh(self.other_statements.get(&comparator)
+					NotedStatement::Fresh(self.statements.get(&comparator)
 						.expect("Statement was just inserted; qed"))
 				} else {
 					NotedStatement::UsefulButKnown
@@ -447,7 +451,7 @@ impl ActiveHeadData {
 
 	/// Get an iterator over all statements for the active head. Seconded statements come first.
 	fn statements(&self) -> impl Iterator<Item = &'_ StoredStatement> + '_ {
-		self.seconded_statements.iter().chain(self.other_statements.iter())
+		self.statements.iter()
 	}
 
 	/// Get an iterator over all statements for the active head that are for a particular candidate.
@@ -469,15 +473,15 @@ fn check_statement_signature(
 		parent_hash: relay_parent,
 	};
 
-	match head.validators.get(statement.validator_index() as usize) {
-		None => return Err(()),
-		Some(v) => statement.check_signature(&signing_context, v),
-	}
+	head.validators.get(statement.validator_index() as usize)
+		.ok_or(())
+		.and_then(|v| statement.check_signature(&signing_context, v))
 }
 
 #[derive(Encode, Decode)]
 enum WireMessage {
 	/// relay-parent, full statement.
+	#[codec(index = "0")]
 	Statement(Hash, SignedFullStatement),
 }
 

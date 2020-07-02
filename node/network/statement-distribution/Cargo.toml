@@ -17,6 +17,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 arrayvec = "0.5.1"
+indexmap = "1.4.0"
 
 [dev-dependencies]
 parking_lot = "0.10.0"
