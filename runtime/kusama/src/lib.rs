@@ -86,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2013,
+	spec_version: 2014,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -891,8 +891,11 @@ impl proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		treasury::Module::<Runtime>::migrate_retract_tip_for_tip_new();
-		500_000_000
+		if scheduler::Module::<Runtime>::migrate_v1_to_t2() {
+			<Runtime as system::Trait>::MaximumBlockWeight::get()
+		} else {
+			<Runtime as system::Trait>::DbWeight::get().reads(1) + 500_000_000
+		}
 	}
 }
 
