@@ -333,7 +333,7 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 }
 
 /// Origin for the parachains module.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Origin {
 	/// It comes from a parachain.
