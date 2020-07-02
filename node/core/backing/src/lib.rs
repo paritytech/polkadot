@@ -719,6 +719,7 @@ mod tests {
 	use polkadot_primitives::parachain::{
 		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
 	};
+	use assert_matches::assert_matches;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
@@ -862,171 +863,177 @@ mod tests {
 		}
 
 		// Check that subsystem job issues a request for the validator groups.
-		match virtual_overseer.recv().await {
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
 			) if parent == test_state.relay_parent => {
 				tx.send(test_state.roster.clone()).unwrap();
 			}
-			msg => panic!("unexpected message {:?}", msg),
-		}
+		);
 
 		// Check that subsystem job issues a request for the validation code.
-		match virtual_overseer.recv().await {
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidationCode(id, _, _, tx))
 			) if parent == test_state.relay_parent => {
 				tx.send(test_state.validation_code.get(&id).unwrap().clone()).unwrap();
 			}
-			msg => panic!("unexpected message {:?}", msg),
-		}
+		);
 
 		// Check that subsystem job issues a request for the head data.
-		match virtual_overseer.recv().await {
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::HeadData(id, tx))
 			) if parent == test_state.relay_parent => {
 				tx.send(test_state.head_data.get(&id).unwrap().clone()).unwrap();
 			}
-			msg => panic!("unexpected message {:?}", msg),
-		}
+		);
 
 		// Check that subsystem job issues a request for the signing context.
-		match virtual_overseer.recv().await {
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SigningContext(tx))
 			) if parent == test_state.relay_parent => {
 				tx.send(test_state.signing_context.clone()).unwrap();
 			}
-			msg => panic!("unexpected message {:?}", msg),
-		}
+		);
+	}
+
+	#[test]
+	fn backing_second_works() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+			
+			test_startup(&mut virtual_overseer, &test_state).await;
+	
+			let pov_block = PoVBlock {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_block_hash = pov_block.hash();
+			let candidate = AbridgedCandidateReceipt {
+				parachain_index: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_block_hash,
+				..Default::default()
+			};
+
+			let second = CandidateBackingMessage::Second(test_state.relay_parent, candidate.clone());
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::QueryPoV(
+						pov_hash,
+						tx,
+					)
+				) if pov_hash == pov_block_hash => {
+					tx.send(Some(pov_block.clone())).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::Validate(
+						parent_hash,
+						c,
+						pov,
+						tx,
+					)
+				) if parent_hash == test_state.relay_parent && pov == pov_block && c == candidate => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::Share(
+						parent_hash,
+						signed_statement,
+					)
+				) if parent_hash == test_state.relay_parent => {
+					signed_statement.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[0],
+					).unwrap();
+				}
+			);
+
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StopWork(test_state.relay_parent))).await;
+		});
 	}
 
 	#[test]
 	fn backing_works() {
 		let test_state = TestState::default();
 		test_harness(test_state.keystore.clone(), |test_harness| async move {
-
 			let TestHarness { mut virtual_overseer } = test_harness;
-			
+
 			test_startup(&mut virtual_overseer, &test_state).await;
-	
-			// Check that `Second` message issues all necessary requests.
-			{
-				let pov_block = PoVBlock {
-					block_data: BlockData(vec![42, 43, 44]),
-				};
-
-				let pov_block_hash = pov_block.hash();
-				let candidate = AbridgedCandidateReceipt {
-					parachain_index: test_state.chain_ids[0],
-					relay_parent: test_state.relay_parent,
-					pov_block_hash,
-					..Default::default()
-				};
-
-				let second = CandidateBackingMessage::Second(test_state.relay_parent, candidate.clone());
-
-				virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
-
-				match virtual_overseer.recv().await {
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::QueryPoV(
-							pov_hash,
-							tx,
-						)
-					) if pov_hash == pov_block_hash => {
-						tx.send(Some(pov_block.clone())).unwrap();
-					}
-					msg => panic!("unexpected msg {:?}", msg),
-				}
-
-				match virtual_overseer.recv().await {
-					AllMessages::CandidateValidation(
-						CandidateValidationMessage::Validate(
-							parent_hash,
-							c,
-							pov,
-							tx,
-						)
-					) if parent_hash == test_state.relay_parent && pov == pov_block && c == candidate => {
-						tx.send(Ok(())).unwrap();
-					}
-					msg => panic!("unexpected msg {:?}", msg),
-				}
-
-				match virtual_overseer.recv().await {
-					AllMessages::StatementDistribution(
-						StatementDistributionMessage::Share(
-							parent_hash,
-							signed_statement,
-						)
-					) if parent_hash == test_state.relay_parent => {
-						signed_statement.check_signature(
-							&test_state.signing_context,
-							&test_state.validator_public[0],
-						).unwrap();
-					}
-					msg => panic!("unexpected message {:?}", msg),
-				}
-			}
 
 			// Check that reaching a required quorum on a candidate issues a correct message
 			// to the `BackingWatcher`.
-			{
-				let (backed_tx, mut backed_rx) = mpsc::channel(64);
+			let (backed_tx, mut backed_rx) = mpsc::channel(64);
 
-				let register_watcher = CandidateBackingMessage::RegisterBackingWatcher(
-					test_state.relay_parent,
-					backed_tx,
-				);
+			let register_watcher = CandidateBackingMessage::RegisterBackingWatcher(
+				test_state.relay_parent,
+				backed_tx,
+			);
 
-				virtual_overseer.send(FromOverseer::Communication{ msg: register_watcher}).await;
+			virtual_overseer.send(FromOverseer::Communication{ msg: register_watcher}).await;
 
-				let candidate_a = AbridgedCandidateReceipt {
-					parachain_index: test_state.chain_ids[0],
-					relay_parent: test_state.relay_parent,
-					pov_block_hash: Hash::from([5; 32]),
-					..Default::default()
-				};
-				let candidate_a_hash = candidate_a.hash();
+			let candidate_a = AbridgedCandidateReceipt {
+				parachain_index: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_block_hash: Hash::from([5; 32]),
+				..Default::default()
+			};
+			let candidate_a_hash = candidate_a.hash();
 
-				let signed_a = SignedFullStatement::sign(
-					Statement::Seconded(candidate_a.clone()),
-					&test_state.signing_context,
-					2,
-					&test_state.validators[2].pair().into(),
-				);
+			let signed_a = SignedFullStatement::sign(
+				Statement::Seconded(candidate_a.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
 
-				let signed_b = SignedFullStatement::sign(
-					Statement::Valid(candidate_a_hash),
-					&test_state.signing_context,
-					0,
-					&test_state.validators[0].pair().into(),
-				);
+			let signed_b = SignedFullStatement::sign(
+				Statement::Valid(candidate_a_hash),
+				&test_state.signing_context,
+				0,
+				&test_state.validators[0].pair().into(),
+			);
 
-				let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
-				virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-				let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
+			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
-				virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-				let backed = backed_rx.next().await.unwrap();
+			let backed = backed_rx.next().await.unwrap();
 
-				// `validity_votes` may be in any order so we can't do this in a single assert.
-				assert_eq!(backed.0.candidate, candidate_a);
-				assert_eq!(backed.0.validity_votes.len(), 2);
-				assert!(backed.0.validity_votes.contains(
-					&ValidityAttestation::Explicit(signed_b.signature().clone())
-				));
-				assert!(backed.0.validity_votes.contains(
-					&ValidityAttestation::Implicit(signed_a.signature().clone())
-				));
+			// `validity_votes` may be in any order so we can't do this in a single assert.
+			assert_eq!(backed.0.candidate, candidate_a);
+			assert_eq!(backed.0.validity_votes.len(), 2);
+			assert!(backed.0.validity_votes.contains(
+				&ValidityAttestation::Explicit(signed_b.signature().clone())
+			));
+			assert!(backed.0.validity_votes.contains(
+				&ValidityAttestation::Implicit(signed_a.signature().clone())
+			));
 
-				assert_eq!(backed.0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 0, 0]);
-			}
+			assert_eq!(backed.0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 0, 1, 0, 0]);
 
 			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StopWork(test_state.relay_parent))).await;
 		});
