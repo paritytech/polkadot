@@ -39,6 +39,7 @@ use std::sync::Arc;
 
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
+const COST_MALFORMED_MESSAGE: Rep = Rep::new(-500, "Peer sent us a malformed message");
 
 const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
@@ -82,7 +83,8 @@ struct PeerState {
 	awaited: HashMap<Hash, HashSet<Hash>>,
 }
 
-// Handles the signal. If successful, returns `true` if the subsystem should conclude, `false` otherwise.
+/// Handles the signal. If successful, returns `true` if the subsystem should conclude,
+/// `false` otherwise.
 async fn handle_signal(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -113,9 +115,9 @@ async fn handle_signal(
 	}
 }
 
-// Notify peers that we are awaiting a given PoV hash.
-//
-// This only notifies peers who have the relay parent in their view.
+/// Notify peers that we are awaiting a given PoV hash.
+///
+/// This only notifies peers who have the relay parent in their view.
 async fn notify_we_are_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -142,7 +144,7 @@ async fn notify_we_are_awaiting(
 	))).await
 }
 
-// Distribute a PoV to peers who are awaiting it.
+/// Distribute a PoV to peers who are awaiting it.
 async fn distribute_to_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -174,7 +176,7 @@ async fn distribute_to_awaiting(
 	))).await
 }
 
-// Handles a `FetchPoV` message.
+/// Handles a `FetchPoV` message.
 async fn handle_fetch(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -220,7 +222,7 @@ async fn handle_fetch(
 	).await
 }
 
-// Handles a `DistributePoV` message.
+/// Handles a `DistributePoV` message.
 async fn handle_distribute(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -254,7 +256,16 @@ async fn handle_distribute(
 	).await
 }
 
-// Handles a network bridge update.
+/// Report a reputation change for a peer.
+async fn report_peer(
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	peer: PeerId,
+	rep: Rep,
+) -> SubsystemResult<()> {
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
+}
+
+/// Handles a network bridge update.
 async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -280,6 +291,21 @@ async fn handle_network_update(
 				}
 			}
 
+			Ok(())
+		}
+		NetworkBridgeEvent::PeerMessage(peer, bytes) => {
+			let _ = match WireMessage::decode(&mut &bytes[..]) {
+				Ok(msg) => msg,
+				Err(_) => {
+					report_peer(ctx, peer, COST_MALFORMED_MESSAGE).await?;
+					return Ok(());
+				}
+			};
+
+			Ok(())
+		}
+		NetworkBridgeEvent::OurViewChange(view) => {
+			state.our_view = view;
 			Ok(())
 		}
 		_ => Ok(()), // TODO [now] exhaustive match
