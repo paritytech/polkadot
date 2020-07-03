@@ -4898,6 +4898,7 @@ dependencies = [
 name = "polkadot-validation"
 version = "0.8.14"
 dependencies = [
+ "ansi_term 0.12.1",
  "bitvec",
  "derive_more 0.14.1",
  "exit-future",
