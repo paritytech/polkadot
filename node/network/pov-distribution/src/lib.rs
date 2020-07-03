@@ -76,6 +76,7 @@ struct BlockBasedState {
 	n_validators: usize,
 }
 
+#[derive(Default)]
 struct PeerState {
 	/// A set of awaited PoV-hashes for each relay-parent in the peer's view.
 	awaited: HashMap<Hash, HashSet<Hash>>,
@@ -259,7 +260,30 @@ async fn handle_network_update(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	update: NetworkBridgeEvent,
 ) -> SubsystemResult<()> {
-	unimplemented!()
+	match update {
+		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
+			state.peer_state.insert(peer, PeerState { awaited: HashMap::new() });
+			Ok(())
+		}
+		NetworkBridgeEvent::PeerDisconnected(peer) => {
+			state.peer_state.remove(&peer);
+			Ok(())
+		}
+		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
+			if let Some(peer_state) = state.peer_state.get_mut(&peer_id) {
+				// prune anything not in the new view.
+				peer_state.awaited.retain(|relay_parent, _| view.0.contains(&relay_parent));
+
+				// introduce things from the new view.
+				for relay_parent in view.0.iter() {
+					peer_state.awaited.entry(*relay_parent).or_default();
+				}
+			}
+
+			Ok(())
+		}
+		_ => Ok(()), // TODO [now] exhaustive match
+	}
 }
 
 fn network_update_message(update: NetworkBridgeEvent) -> AllMessages {
