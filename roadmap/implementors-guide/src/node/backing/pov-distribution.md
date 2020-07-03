@@ -80,8 +80,6 @@ Here is the logic of the state machine:
 - On `Concluded`: conclude.
 
 *PoV Distribution Messages*
-- On `ValidatorStatement(relay_parent, statement)`
-	- If this is not `Statement::Seconded`, ignore.
 - On `FetchPoV(relay_parent, descriptor, response_channel)`
 	- If there is no entry in `relay_parent_state` under `relay_parent`, ignore.
 	- If there is a PoV under `descriptor.pov_hash` in the `known` map, send that PoV on the channel and return.
