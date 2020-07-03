@@ -758,6 +758,69 @@ fn localized_payload(
 	encoded
 }
 
+/// Iterator that returns groups of validators that are assigned to the same chain.
+///
+/// Assumes that the inner validators are sorted by chain id.
+struct GroupedDutyIter<'a> {
+	next_idx: usize,
+	inner: &'a [(usize, ParaId)],
+}
+
+impl<'a> GroupedDutyIter<'a> {
+	fn new(inner: &'a [(usize, ParaId)]) -> Self {
+		GroupedDutyIter { next_idx: 0, inner }
+	}
+
+	fn group_for(&mut self, wanted_id: ParaId) -> Option<&'a [(usize, ParaId)]> {
+		while let Some((id, keys)) = self.next() {
+			if wanted_id == id {
+				return Some(keys)
+			}
+		}
+
+		None
+	}
+}
+
+impl<'a> Iterator for GroupedDutyIter<'a> {
+	type Item = (ParaId, &'a [(usize, ParaId)]);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.next_idx == self.inner.len() { return None }
+		let start_idx = self.next_idx;
+		self.next_idx += 1;
+		let start_id = self.inner[start_idx].1;
+
+		while self.inner.get(self.next_idx).map_or(false, |&(_, ref id)| id == &start_id) {
+			self.next_idx += 1;
+		}
+
+		Some((start_id, &self.inner[start_idx..self.next_idx]))
+	}
+}
+
+/// Convert a duty roster, which is originally a Vec<Chain>, where each
+/// item corresponds to the same position in the session keys, into
+/// a list containing (index, parachain duty) where indices are into the session keys.
+/// This list is sorted ascending by parachain duty, just like the
+/// parachain candidates are.
+fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
+	let mut sorted_duties = Vec::with_capacity(duty.len());
+	for (val_idx, duty) in duty.iter().enumerate() {
+		let id = match duty {
+			Chain::Relay => continue,
+			Chain::Parachain(id) => id,
+		};
+
+		let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
+			.unwrap_or_else(|idx| idx);
+
+		sorted_duties.insert(idx, (val_idx, *id));
+	}
+
+	sorted_duties
+}
+
 impl<T: Trait> Module<T> {
 	/// Initialize the state of a new parachain/parathread.
 	pub fn initialize_para(
@@ -1197,6 +1260,68 @@ impl<T: Trait> Module<T> {
 		T::ActiveParachains::active_paras()
 	}
 
+	/// Verify the signatures of all candidates.
+	///
+	/// Returns `false` if a signature is not correct.
+	fn verify_candidate_signatures(
+		candidate: &AttestedCandidate,
+		authorities: &[ValidatorId],
+		validator_group: &[(usize, ParaId)],
+		signing_context: &SigningContext,
+	) -> DispatchResult {
+		let mut expected_votes_len = 0;
+		let mut encoded_implicit = None;
+		let mut encoded_explicit = None;
+		let candidate_hash = candidate.candidate().hash();
+
+		for (vote_index, (auth_index, _)) in candidate.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| **bit)
+				.enumerate()
+		{
+			let validity_attestation = match candidate.validity_votes.get(vote_index) {
+				None => Err(Error::<T>::NotEnoughValidityVotes)?,
+				Some(v) => {
+					expected_votes_len = vote_index + 1;
+					v
+				}
+			};
+
+			if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
+				Err(Error::<T>::WrongValidatorAttesting)?
+			}
+
+			let (payload, sig) = match validity_attestation {
+				ValidityAttestation::Implicit(sig) => {
+					let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
+						Statement::Candidate(candidate_hash), signing_context,
+					));
+
+					(payload, sig)
+				}
+				ValidityAttestation::Explicit(sig) => {
+					let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
+						Statement::Valid(candidate_hash), signing_context,
+					));
+
+					(payload, sig)
+				}
+			};
+
+			ensure!(
+				sig.verify(&payload[..], &authorities[auth_index]),
+				Error::<T>::InvalidSignature,
+			);
+		}
+
+		if candidate.validity_votes.len() == expected_votes_len {
+			Ok(())
+		} else {
+			Err(Error::<T>::UntaggedVotes.into())
+		}
+	}
+
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
@@ -1204,70 +1329,8 @@ impl<T: Trait> Module<T> {
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError> {
-		// returns groups of slices that have the same chain ID.
-		// assumes the inner slice is sorted by id.
-		struct GroupedDutyIter<'a> {
-			next_idx: usize,
-			inner: &'a [(usize, ParaId)],
-		}
-
-		impl<'a> GroupedDutyIter<'a> {
-			fn new(inner: &'a [(usize, ParaId)]) -> Self {
-				GroupedDutyIter { next_idx: 0, inner }
-			}
-
-			fn group_for(&mut self, wanted_id: ParaId) -> Option<&'a [(usize, ParaId)]> {
-				while let Some((id, keys)) = self.next() {
-					if wanted_id == id {
-						return Some(keys)
-					}
-				}
-
-				None
-			}
-		}
-
-		impl<'a> Iterator for GroupedDutyIter<'a> {
-			type Item = (ParaId, &'a [(usize, ParaId)]);
-
-			fn next(&mut self) -> Option<Self::Item> {
-				if self.next_idx == self.inner.len() { return None }
-				let start_idx = self.next_idx;
-				self.next_idx += 1;
-				let start_id = self.inner[start_idx].1;
-
-				while self.inner.get(self.next_idx).map_or(false, |&(_, ref id)| id == &start_id) {
-					self.next_idx += 1;
-				}
-
-				Some((start_id, &self.inner[start_idx..self.next_idx]))
-			}
-		}
-
 		let authorities = Self::authorities();
 		let (duty_roster, random_seed) = Self::calculate_duty_roster();
-
-		// convert a duty roster, which is originally a Vec<Chain>, where each
-		// item corresponds to the same position in the session keys, into
-		// a list containing (index, parachain duty) where indices are into the session keys.
-		// this list is sorted ascending by parachain duty, just like the
-		// parachain candidates are.
-		let make_sorted_duties = |duty: &[Chain]| {
-			let mut sorted_duties = Vec::with_capacity(duty.len());
-			for (val_idx, duty) in duty.iter().enumerate() {
-				let id = match duty {
-					Chain::Relay => continue,
-					Chain::Parachain(id) => id,
-				};
-
-				let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
-					.unwrap_or_else(|idx| idx);
-
-				sorted_duties.insert(idx, (val_idx, *id));
-			}
-
-			sorted_duties
-		};
 
 		// computes the omitted validation data for a particular parachain.
 		//
@@ -1296,7 +1359,6 @@ impl<T: Trait> Module<T> {
 		let relay_height_now = <system::Module<T>>::block_number();
 		let parent_hash = <system::Module<T>>::parent_hash();
 		let signing_context = Self::signing_context();
-		let localized_payload = |statement: Statement| localized_payload(statement, &signing_context);
 		let code_upgrade_delay = T::ValidationUpgradeDelay::get();
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
@@ -1386,58 +1448,9 @@ impl<T: Trait> Module<T> {
 
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
-			let candidate_hash = candidate.candidate().hash();
-			let mut encoded_implicit = None;
-			let mut encoded_explicit = None;
+			Self::verify_candidate_signatures(candidate, &authorities, validator_group, &signing_context)?;
 
-			let mut expected_votes_len = 0;
-			for (vote_index, (auth_index, _)) in candidate.validator_indices
-				.iter()
-				.enumerate()
-				.filter(|(_, bit)| **bit)
-				.enumerate()
-			{
-				let validity_attestation = match candidate.validity_votes.get(vote_index) {
-					None => Err(Error::<T>::NotEnoughValidityVotes)?,
-					Some(v) => {
-						expected_votes_len = vote_index + 1;
-						v
-					}
-				};
-
-				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
-					Err(Error::<T>::WrongValidatorAttesting)?
-				}
-
-				let (payload, sig) = match validity_attestation {
-					ValidityAttestation::Implicit(sig) => {
-						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(candidate_hash),
-						));
-
-						(payload, sig)
-					}
-					ValidityAttestation::Explicit(sig) => {
-						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
-							Statement::Valid(candidate_hash),
-						));
-
-						(payload, sig)
-					}
-				};
-
-				ensure!(
-					sig.verify(&payload[..], &authorities[auth_index]),
-					Error::<T>::InvalidSignature,
-				);
-			}
-
-			ensure!(
-				candidate.validity_votes.len() == expected_votes_len,
-				Error::<T>::UntaggedVotes
-			);
-
-			para_block_hashes.push(candidate_hash);
+			para_block_hashes.push(candidate.candidate.hash());
 		}
 
 		Ok(IncludedBlocks {
@@ -1446,6 +1459,25 @@ impl<T: Trait> Module<T> {
 			random_seed,
 			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
 			para_blocks: para_block_hashes,
+		})
+	}
+
+	/// Checks all signatures from all given `candidates`.
+	///
+	/// Returns an error if any signature verification failed.
+	fn check_candidates_signatures(candidates: &[AttestedCandidate]) -> DispatchResult {
+		let authorities = Self::authorities();
+		let duty_roster = Self::calculate_duty_roster().0;
+		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
+		let signing_context = Self::signing_context();
+		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
+
+		candidates.iter().try_for_each(|c| {
+			let para_id = c.parachain_index();
+			let validator_group = validator_groups.group_for(para_id)
+				.ok_or(Error::<T>::NoValidatorGroup)?;
+
+			Self::verify_candidate_signatures(c, &authorities, validator_group, &signing_context)
 		})
 	}
 
@@ -1509,7 +1541,13 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.expect("Parachain heads could not be decoded.")
 			.expect("No parachain heads found in inherent data.");
 
-		Some(Call::set_heads(data))
+		// Temporary solution for:
+		// https://github.com/paritytech/polkadot/issues/1327
+		if Self::check_candidates_signatures(&data).is_ok() {
+			Some(Call::set_heads(data))
+		} else {
+			Some(Call::set_heads(Vec::new()))
+		}
 	}
 }
 
