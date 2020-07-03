@@ -138,8 +138,8 @@ pub fn node_config(
 	network_config.transport = TransportConfig::MemoryOnly;
 
 	Ok(Configuration {
-		impl_name: "polkadot-test-node",
-		impl_version: "0.1",
+		impl_name: "polkadot-test-node".to_string(),
+		impl_version: "0.1".to_string(),
 		role,
 		task_executor,
 		transaction_pool: Default::default(),
