@@ -291,30 +291,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 
 [[package]]
-name = "backing"
-version = "0.1.0"
-dependencies = [
- "assert_matches",
- "bitvec",
- "derive_more 0.99.9",
- "futures 0.3.5",
- "futures-timer 3.0.2",
- "log 0.4.8",
- "polkadot-node-primitives",
- "polkadot-node-subsystem",
- "polkadot-primitives",
- "polkadot-statement-table",
- "polkadot-subsystem-test-helpers",
- "sc-client-api",
- "sc-keystore",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-keyring",
- "streamunordered",
-]
-
-[[package]]
 name = "backtrace"
 version = "0.3.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4431,6 +4407,30 @@ dependencies = [
  "sp-consensus",
  "sp-core",
  "sp-runtime",
+]
+
+[[package]]
+name = "polkadot-node-core-backing"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "polkadot-subsystem-test-helpers",
+ "sc-client-api",
+ "sc-keystore",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-keyring",
+ "streamunordered",
 ]
 
 [[package]]

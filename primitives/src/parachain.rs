@@ -476,6 +476,52 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
+/// A unique descriptor of the candidate receipt.
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateDescriptor<H = Hash> {
+	/// The ID of the parachain this is a candidate for.
+	pub parachain_index: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	pub relay_parent: H,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of the block data by collator.
+	pub signature: CollatorSignature,
+	/// Hash of the PoVBlock.
+	pub pov_block_hash: H,
+}
+
+impl<H> From<AbridgedCandidateReceipt<H>> for CandidateDescriptor<H> {
+	fn from(a: AbridgedCandidateReceipt<H>) -> Self {
+		let AbridgedCandidateReceipt {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			pov_block_hash,
+			..
+		} = a;
+
+		Self {
+			parachain_index,
+			relay_parent,
+			collator,
+			signature,
+			pov_block_hash,
+		}
+	}
+}
+
+/// A candidate-receipt with commitments directly included.
+pub struct CommitedCandidateReceipt<H = Hash> {
+	/// The descriptor of the candidae.
+	pub descriptor: CandidateDescriptor,
+
+	/// The commitments of the candidate receipt.
+	pub commitments: CandidateCommitments<H>
+}
+
 impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
@@ -705,6 +751,15 @@ pub enum CompactStatement {
 
 /// A signed compact statement, suitable to be sent to the chain.
 pub type SignedStatement = Signed<CompactStatement>;
+
+/// Result of the validation of the candidate.
+#[derive(RuntimeDebug)]
+pub enum ValidationResult {
+	/// Candidate is valid.
+	Valid,
+	/// Candidate is invalid.
+	Invalid,
+}
 
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
@@ -983,17 +1038,23 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Used to create a `Signed` from already existing parts.
 	#[cfg(feature = "std")]
-	pub fn new(
+	pub fn new<H: Encode>(
 		payload: Payload,
 		validator_index: ValidatorIndex,
 		signature: ValidatorSignature,
-	) -> Self {
-		Self {
+		context: &SigningContext<H>,
+		key: &ValidatorId,
+	) -> Option<Self> {
+		let s = Self {
 			payload,
 			validator_index,
 			signature,
 			real_payload: std::marker::PhantomData,
-		}
+		};
+
+		s.check_signature(context, key).ok()?;
+
+		Some(s)
 	}
 
 	/// Sign this payload with the given context and key, storing the validator index.

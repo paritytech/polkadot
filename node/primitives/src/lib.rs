@@ -24,11 +24,11 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{Hash,
 	parachain::{
 		AbridgedCandidateReceipt, CompactStatement,
-		EncodeAs, Signed, ValidatorIndex,
+		EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	}
 };
 use polkadot_statement_table::{
-	self as table,
+	generic::ValidityDoubleVote as TableValidityDoubleVote,
 	Misbehavior as TableMisbehavior,
 };
 
@@ -85,36 +85,82 @@ pub enum MisbehaviorReport {
 	DoubleVote(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
 }
 
-impl std::convert::TryFrom<(ValidatorIndex, TableMisbehavior)> for MisbehaviorReport {
+pub struct FromTableMisbehavior {
+	pub id: ValidatorIndex,
+
+	pub report: TableMisbehavior,
+
+	pub signing_context: SigningContext,
+
+	pub key: ValidatorId,
+}
+
+impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 	type Error = ();
 
-	fn try_from(a: (ValidatorIndex, TableMisbehavior)) -> Result<Self, Self::Error> {
-		let (id, report) = a;
+	fn try_from(f: FromTableMisbehavior) -> Result<Self, Self::Error> {
+		match f.report {
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::IssuedAndValidity((c, s1), (d, s2))
+			) => {
+				let receipt = c.clone();
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(c),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Valid(d),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
 
-		match report {
-			TableMisbehavior::ValidityDoubleVote(dv) => {
-				match dv {
-					table::generic::ValidityDoubleVote::IssuedAndValidity((c, s1), (d, s2)) => {
-						let receipt = c.clone();
-						let signed_1 = SignedFullStatement::new(Statement::Seconded(c), id, s1);
-						let signed_2 = SignedFullStatement::new(Statement::Valid(d), id, s2);
+				Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+			}
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
+			) => {
+				let receipt = c.clone();
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(c),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Invalid(d),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
 
-						Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
-					}
-					table::generic::ValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2)) => {
-						let receipt = c.clone();
-						let signed_1 = SignedFullStatement::new(Statement::Seconded(c), id, s1);
-						let signed_2 = SignedFullStatement::new(Statement::Invalid(d), id, s2);
+				Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+			}
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
+			) => {
+				let signed_1 = SignedFullStatement::new(
+					Statement::Valid(c.hash()),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Invalid(c.hash()),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
 
-						Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
-					}
-					table::generic::ValidityDoubleVote::ValidityAndInvalidity(c, s1, s2) => {
-						let signed_1 = SignedFullStatement::new(Statement::Valid(c.hash()), id, s1);
-						let signed_2 = SignedFullStatement::new(Statement::Invalid(c.hash()), id, s2);
-
-						Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
-					}
-				}
+				Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
 			}
 			_ => {
 				// TODO: match other cases
