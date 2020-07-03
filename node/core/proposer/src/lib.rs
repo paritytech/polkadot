@@ -1,11 +1,11 @@
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
+use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerMessage}, SubsystemError};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::{
 	inclusion_inherent,
 	parachain::ParachainHost,
-	Block, Header,
+	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -69,22 +69,15 @@ where
 		// create the inner proposer
 		let proposer = self.inner.init(parent_header).into_inner();
 
-		// clone the overseer handle (lightweight) so it can be moved into the future
-		let mut overseer = self.overseer.clone();
-
-		// we know that this function will be called at least once per proposed block,
-		// because this is where the parent header is supplied. Therefore, we can send
-		// the request for authorship data here.
-		let (sender, receiver) = futures::channel::oneshot::channel();
+		// data to be moved into the future
+		let overseer = self.overseer.clone();
 		let parent_header_hash = parent_header.hash();
 
 		async move {
-			overseer.send_msg(AllMessages::Provisioner(
-				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-			)).await?;
 			Ok(Proposer {
 				inner: proposer?,
-				provisioner_inherent_data: receiver,
+				overseer,
+				parent_header_hash,
 			})
 		}.boxed()
 	}
@@ -92,7 +85,8 @@ where
 
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
-	provisioner_inherent_data: futures::channel::oneshot::Receiver<ProvisionerInherentData>,
+	overseer: OverseerHandler,
+	parent_header_hash: Hash,
 }
 
 impl<TxPool, Backend, Client> sp_consensus::Proposer<Block> for Proposer<TxPool, Backend, Client>
@@ -124,8 +118,22 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
+		// clone this (lightweight) data because we're going to move it into the future
+		let mut overseer = self.overseer.clone();
+		let parent_header_hash = self.parent_header_hash.clone();
+
 		let mut proposal = async move {
-			let provisioner_inherent_data = self.provisioner_inherent_data.await.map_err(Error::ClosedChannelFromProvisioner)?;
+			let (sender, receiver) = futures::channel::oneshot::channel();
+
+			// strictly speaking, we don't _have_ to .await this send_msg before opening the
+			// receiver; it's possible that the response there would be ready slightly before
+			// this call completes. IMO it's not worth the hassle or overhead of spawning a
+			// distinct task for that kind of miniscule efficiency improvement.
+			overseer.send_msg(AllMessages::Provisioner(
+				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+			)).await?;
+
+			let provisioner_inherent_data = receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
 
 			inherent_data.put_data(
 				inclusion_inherent::INHERENT_IDENTIFIER,
