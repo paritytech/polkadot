@@ -94,7 +94,7 @@ Here is the logic of the state machine:
 *Network Bridge Updates*
 - On `PeerConnected(peer_id, observed_role)`
 	- Make a fresh entry in the `peer_state` map for the `peer_id`.
-- On `PeerDisconnected(peer_id)
+- On `PeerDisconnected(peer_id)`
 	- Remove the entry for `peer_id` from the `peer_state` map.
 - On `PeerMessage(peer_id, bytes)`
 	- If the bytes do not decode to a `NetworkMessage` or the `peer_id` has no entry in the `peer_state` map, report and ignore.
