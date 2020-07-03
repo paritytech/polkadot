@@ -17,6 +17,7 @@
 //! Polkadot CLI library.
 
 use structopt::StructOpt;
+use sc_cli::LogRotationOpt;
 
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
@@ -84,11 +85,12 @@ pub struct RunCmd {
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-	#[allow(missing_docs)]
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
-	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub run: RunCmd,
+
+	#[structopt(flatten)]
+	pub log_rotation_opt: LogRotationOpt,
 }
