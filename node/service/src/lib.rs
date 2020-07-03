@@ -53,6 +53,7 @@ pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
 pub use codec::Codec;
 pub use polkadot_runtime;
+pub use origami_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 use prometheus_endpoint::Registry;
@@ -76,6 +77,14 @@ native_executor_instance!(
 	pub WestendExecutor,
 	westend_runtime::api::dispatch,
 	westend_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
+
+native_executor_instance!(
+	pub OrigamiExecutor,
+	origami_runtime::api::dispatch,
+	origami_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -681,6 +690,38 @@ pub fn westend_new_full(
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,
+	);
+
+	Ok((components, client, FullNodeHandles))
+}
+
+/// Create a new Polkadot service for a full node.
+#[cfg(feature = "full-node")]
+pub fn origami_new_full(
+	mut config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	_max_block_data_size: Option<u64>,
+	_authority_discovery_enabled: bool,
+	_slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+)
+	-> Result<(
+		TaskManager,
+		Arc<impl PolkadotClient<
+			Block,
+			TFullBackend<Block>,
+			polkadot_runtime::RuntimeApi
+		>>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	let (components, client) = new_full!(
+		config,
+		collating_for,
+		authority_discovery_enabled,
+		grandpa_pause,
+		origami_runtime::RuntimeApi,
+		OrigamiExecutor,
 	);
 
 	Ok((components, client, FullNodeHandles))

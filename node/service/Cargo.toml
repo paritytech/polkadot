@@ -18,6 +18,7 @@ polkadot-overseer = { path = "../overseer" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
+origami-runtime = { path = "../../runtime/origami" }
 polkadot-network = { path = "../../network", optional = true }
 polkadot-rpc = { path = "../../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
