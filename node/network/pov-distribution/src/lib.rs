@@ -22,10 +22,10 @@
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{PoVBlock as PoV, CandidateDescriptor};
 use polkadot_subsystem::{
-	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer,
+	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
 };
 use polkadot_subsystem::messages::{
-	PoVDistributionMessage, NetworkBridgeEvent, ObservedRole, ReputationChange as Rep, PeerId,
+	PoVDistributionMessage, NetworkBridgeEvent, ReputationChange as Rep, PeerId,
 	RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 };
 use node_primitives::{View, ProtocolId};
@@ -61,7 +61,18 @@ enum WireMessage {
     SendPoV(Hash, Hash, PoV),
 }
 
-pub struct PoVDistributionSubsystem;
+/// The PoV Distribution Subsystem.
+pub struct PoVDistribution;
+
+impl<C> Subsystem<C> for PoVDistribution
+	where C: SubsystemContext<Message = PoVDistributionMessage>
+{
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		// Swallow error because failure is fatal to the node and we log with more precision
+		// within `run`.
+		SpawnedSubsystem(run(ctx).map(|_| ()).boxed())
+	}
+}
 
 struct State {
 	relay_parent_state: HashMap<Hash, BlockBasedState>,
