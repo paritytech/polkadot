@@ -207,11 +207,10 @@ pub enum ProvisionerMessage {
 /// Message to the PoV Distribution Subsystem.
 #[derive(Debug)]
 pub enum PoVDistributionMessage {
-    /// Note a statement by a validator on a relay-parent. `Seconded` statements must always
-    /// have been passed in before `Valid` or `Invalid` statements.
-    ValidatorStatement(Hash, SignedFullStatement),
-    /// Fetch a PoV from the network.
-    /// (relay_parent, PoV-hash, Response channel).
+	/// Fetch a PoV from the network.
+	///
+	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
+	/// relay-parent hash.
     FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<PoVBlock>),
     /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
     /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor

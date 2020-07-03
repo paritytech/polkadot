@@ -25,8 +25,20 @@ use polkadot_subsystem::{OverseerSignal, SubsystemContext, Subsystem, SubsystemR
 use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ObservedRole, ReputationChange as Rep, PeerId,
 };
+use node_primitives::View;
 
+use futures::prelude::*;
+use futures::channel::oneshot;
 use parity_scale_codec::{Encode, Decode};
+
+use std::collections::{HashMap, HashSet};
+
+const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
+const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
+
+const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
+const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
+	but was not the first to do so");
 
 #[derive(Encode, Decode)]
 enum NetworkMessage {
@@ -38,4 +50,27 @@ enum NetworkMessage {
     /// (relay_parent, pov_hash, pov)
 	#[codec(index = "1")]
     SendPoV(Hash, Hash, PoV),
+}
+
+pub struct PoVDistributionSubsystem;
+
+struct State {
+	relay_parent_state: HashMap<Hash, BlockBasedState>,
+	peer_state: HashMap<PeerId, PeerState>,
+	our_view: View,
+}
+
+struct BlockBasedState {
+	known: HashMap<Hash, PoV>,
+	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
+	///
+	/// This may be an empty list, which indicates that we were once awaiting this PoV but have
+	/// received it already.
+	fetching: HashMap<Hash, Vec<oneshot::Sender<PoV>>>,
+	n_validators: usize,
+}
+
+struct PeerState {
+	/// A set of awaited PoV-hashes for each relay-parent in the peer's view.
+	awaited: HashMap<Hash, HashSet<Hash>>,
 }
