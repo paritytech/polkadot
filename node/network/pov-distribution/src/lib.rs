@@ -26,15 +26,16 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ObservedRole, ReputationChange as Rep, PeerId,
-	RuntimeApiMessage, RuntimeApiRequest, AllMessages,
+	RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 };
-use node_primitives::View;
+use node_primitives::{View, ProtocolId};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
 use parity_scale_codec::{Encode, Decode};
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{hash_map::{Entry, HashMap}, HashSet};
+use std::sync::Arc;
 
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
@@ -43,8 +44,10 @@ const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited Po
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
+const PROTOCOL_V1: ProtocolId = *b"pvd1";
+
 #[derive(Encode, Decode)]
-enum NetworkMessage {
+enum WireMessage {
     /// Notification that we are awaiting the given PoVs (by hash) against a
 	/// specific relay-parent hash.
 	#[codec(index = "0")]
@@ -64,12 +67,12 @@ struct State {
 }
 
 struct BlockBasedState {
-	known: HashMap<Hash, PoV>,
+	known: HashMap<Hash, Arc<PoV>>,
 	/// All the PoVs we are or were fetching, coupled with channels expecting the data.
 	///
 	/// This may be an empty list, which indicates that we were once awaiting this PoV but have
 	/// received it already.
-	fetching: HashMap<Hash, Vec<oneshot::Sender<PoV>>>,
+	fetching: HashMap<Hash, Vec<oneshot::Sender<Arc<PoV>>>>,
 	n_validators: usize,
 }
 
@@ -109,15 +112,79 @@ async fn handle_signal(
 	}
 }
 
+// Notify peers that we are awaiting a given PoV hash.
+//
+// This only notifies peers who have the relay parent in their view.
+async fn notify_awaiting(
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	peers: &mut HashMap<PeerId, PeerState>,
+	relay_parent: Hash,
+	pov_hash: Hash,
+) -> SubsystemResult<()> {
+	// We use `awaited` as a proxy for which heads are in the peer's view.
+	let peers_to_send: Vec<_> = peers.iter()
+		.filter_map(|(peer, state)| if state.awaited.contains_key(&relay_parent) {
+			Some(peer.clone())
+		} else {
+			None
+		})
+		.collect();
+
+	if peers_to_send.is_empty() { return Ok(()) }
+
+	let payload = WireMessage::Awaiting(relay_parent, vec![pov_hash]).encode();
+
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+		peers_to_send,
+		PROTOCOL_V1,
+		payload,
+	))).await
+}
+
 // Handles a `FetchPoV` message.
 async fn handle_fetch(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
-	response_sender: oneshot::Sender<PoV>,
+	response_sender: oneshot::Sender<Arc<PoV>>,
 ) -> SubsystemResult<()> {
-	unimplemented!()
+	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
+		Some(s) => s,
+		None => return Ok(()),
+	};
+
+	if let Some(pov) = relay_parent_state.known.get(&descriptor.pov_hash) {
+		let _  = response_sender.send(pov.clone());
+		return Ok(());
+	}
+
+	{
+		match relay_parent_state.fetching.entry(descriptor.pov_hash) {
+			Entry::Occupied(mut e) => {
+				// we are already awaiting this PoV if there is an entry.
+				e.get_mut().push(response_sender);
+				return Ok(());
+			}
+			Entry::Vacant(e) => {
+				e.insert(vec![response_sender]);
+			}
+		}
+	}
+
+	if relay_parent_state.fetching.len() > 2 * relay_parent_state.n_validators {
+		log::warn!("Other subsystems have requested PoV distribution to \
+			fetch more PoVs than reasonably expected: {}", relay_parent_state.fetching.len());
+		return Ok(());
+	}
+
+	// Issue an `Awaiting` message to all peers with this in their view.
+	notify_awaiting(
+		ctx,
+		&mut state.peer_state,
+		relay_parent,
+		descriptor.pov_hash
+	).await
 }
 
 // Handles a `DistributePoV` message.
@@ -126,7 +193,7 @@ async fn handle_distribute(
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	descriptor: CandidateDescriptor,
-	pov: PoV,
+	pov: Arc<PoV>,
 ) -> SubsystemResult<()> {
 	unimplemented!()
 }
@@ -140,9 +207,19 @@ async fn handle_network_update(
 	unimplemented!()
 }
 
+fn network_update_message(update: NetworkBridgeEvent) -> AllMessages {
+	AllMessages::PoVDistribution(PoVDistributionMessage::NetworkBridgeUpdate(update))
+}
+
 async fn run(
 	mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
 ) -> SubsystemResult<()> {
+	// startup: register the network protocol with the bridge.
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::RegisterEventProducer(
+		PROTOCOL_V1,
+		network_update_message,
+	))).await?;
+
 	let mut state = State {
 		relay_parent_state: HashMap::new(),
 		peer_state: HashMap::new(),

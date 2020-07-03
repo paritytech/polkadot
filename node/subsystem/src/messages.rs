@@ -34,6 +34,8 @@ use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
 
+use std::sync::Arc;
+
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
@@ -211,10 +213,10 @@ pub enum PoVDistributionMessage {
 	///
 	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
 	/// relay-parent hash.
-    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<PoVBlock>),
+    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoVBlock>>),
     /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
     /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-    DistributePoV(Hash, CandidateDescriptor, PoVBlock),
+    DistributePoV(Hash, CandidateDescriptor, Arc<PoVBlock>),
     /// An update from the network bridge.
     NetworkBridgeUpdate(NetworkBridgeEvent),
 }
@@ -242,4 +244,6 @@ pub enum AllMessages {
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
 	AvailabilityStore(AvailabilityStoreMessage),
+	/// Message for the network bridge subsystem.
+	NetworkBridge(NetworkBridgeMessage),
 }

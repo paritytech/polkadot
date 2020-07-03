@@ -84,7 +84,7 @@ Here is the logic of the state machine:
 	- If there is no entry in `relay_parent_state` under `relay_parent`, ignore.
 	- If there is a PoV under `descriptor.pov_hash` in the `known` map, send that PoV on the channel and return.
 	- Otherwise, place the `response_channel` in the `fetching` map under `descriptor.pov_hash`.
-	- If the `pov_hash` had no previous entry in `fetching` and there are `n_validators` or fewer entries in the `fetching` set, send `NetworkMessage::Awaiting(relay_parent, vec![pov_hash])` to all peers.
+	- If the `pov_hash` had no previous entry in `fetching` and there are `2 * n_validators` or fewer entries in the `fetching` set, send `NetworkMessage::Awaiting(relay_parent, vec![pov_hash])` to all peers.
 - On `DistributePoV(relay_parent, descriptor, PoV)`
 	- If there is no entry in `relay_parent_state` under `relay_parent`, ignore.
 	- Complete and remove any channels under `descriptor.pov_hash` in the `fetching` map.
