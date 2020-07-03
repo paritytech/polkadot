@@ -1,16 +1,19 @@
 # Initializer Module
 
-This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described above: accepting and forwarding session change notifications.
+This module is responsible for initializing the other modules in a deterministic order. It also has one other purpose as described in the overview of the runtime: accepting and forwarding session change notifications.
 
 ## Storage
 
 ```rust
-HasInitialized: bool
+HasInitialized: bool;
+BufferedSessionChange: Option<(ValidatorSet, ValidatorSet)>; // (new, queued)
 ```
 
 ## Initialization
 
-The other modules are initialized in this order:
+Before initializing modules, we apply the `BufferedSessionChange`, if any, and remove it from storage. The session change is applied to all modules in the same order as initialization.
+
+The other parachains modules are initialized in this order:
 
 1. Configuration
 1. Paras
@@ -25,8 +28,7 @@ Set `HasInitialized` to true.
 
 ## Session Change
 
-If `HasInitialized` is true, throw an unrecoverable error (panic).
-Otherwise, forward the session change notification to other modules in initialization order.
+Store the session change information in `BufferedSessionChange`. If there is already a value present, it should be overwritten. The only way there can already be a value present is if either 2 session changes occur within one block, or one session-change happens after initialization and then another happens before initialization in the next block. In either case, although both are far outside of the expected operational parameters of the chain, there is no time occupied where the clobbered validator set can reasonably be in charge of any validation work, so we do not lose anything by clobbering it.
 
 ## Finalization
 
