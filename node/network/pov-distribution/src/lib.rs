@@ -267,6 +267,7 @@ async fn report_peer(
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
+/// Handle a notification from a peer that they are awaiting some PoVs.
 async fn handle_awaiting(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -319,6 +320,9 @@ async fn handle_awaiting(
 	Ok(())
 }
 
+/// Handle an incoming PoV from our peer. Reports them if unexpected, rewards them if not.
+///
+/// Completes any requests awaiting that PoV.
 async fn handle_incoming_pov(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
@@ -327,8 +331,61 @@ async fn handle_incoming_pov(
 	pov_hash: Hash,
 	pov: PoV,
 ) -> SubsystemResult<()> {
-	// TODO [now]
-	Ok(())
+	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
+		None =>	{
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
+			return Ok(());
+		},
+		Some(r) => r,
+	};
+
+	let pov = {
+		// Do validity checks and complete all senders awaiting this PoV.
+		let fetching = match relay_parent_state.fetching.get_mut(&pov_hash) {
+			None => {
+				report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
+				return Ok(());
+			}
+			Some(f) => f,
+		};
+
+		let hash = pov.hash();
+		if hash != pov_hash {
+			report_peer(ctx, peer, COST_UNEXPECTED_POV).await?;
+			return Ok(());
+		}
+
+		let pov = Arc::new(pov);
+
+		if fetching.is_empty() {
+			// fetching is empty whenever we were awaiting something and
+			// it was completed afterwards.
+			report_peer(ctx, peer.clone(), BENEFIT_LATE_POV).await?;
+		} else {
+			// fetching is non-empty when the peer just provided us with data we needed.
+			report_peer(ctx, peer.clone(), BENEFIT_FRESH_POV).await?;
+		}
+
+		for response_sender in fetching.drain(..) {
+			let _ = response_sender.send(pov.clone());
+		}
+
+		pov
+	};
+
+	// make sure we don't consider this peer as awaiting that PoV anymore.
+	if let Some(peer_state) = state.peer_state.get_mut(&peer) {
+		peer_state.awaited.remove(&pov_hash);
+	}
+
+	// distribute the PoV to all other peers who are awaiting it.
+	distribute_to_awaiting(
+		&mut state.peer_state,
+		ctx,
+		relay_parent,
+		pov_hash,
+		&*pov,
+	).await
 }
 
 /// Handles a network bridge update.

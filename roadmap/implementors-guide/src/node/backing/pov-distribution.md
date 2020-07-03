@@ -105,10 +105,11 @@ Here is the logic of the state machine:
 		- For each new `pov_hash` in `pov_hashes`, if there is a `pov` under `pov_hash` in the `known` map, send the peer a `NetworkMessage::SendPoV(relay_parent, pov_hash, pov)`.
 		- Otherwise, add the `pov_hash` to the `awaited` map
 	- If this is `NetworkMessage::SendPoV(relay_parent, pov_hash, pov)`:
-		- If there is no entry under `relay_parent` in `relay_parent_state` or no entry under `pov_hash` in our `awaited` map for that `relay_parent`, report and ignore.
+		- If there is no entry under `relay_parent` in `relay_parent_state` or no entry under `pov_hash` in our `fetching` map for that `relay_parent`, report and ignore.
 		- If the blake2-256 hash of the pov doesn't equal `pov_hash`, report and ignore.
 		- Complete and remove any listeners in the `fetching` map under `pov_hash`. However, leave an empty set of listeners in the `fetching` map to denote that this was something we once awaited. This will allow us to recognize peers who have sent us something we were expecting, but just a little late.
 		- Add to `known` map.
+		- Remove the `pov_hash` from the `peer.awaited` map, if any.
 		- Send `NetworkMessage::SendPoV(relay_parent, descriptor.pov_hash, PoV)` to all peers who have the `descriptor.pov_hash` in the set under `relay_parent` in the `peer.awaited` map and remove the entry from `peer.awaited`.
 - On `PeerViewChange(peer_id, view)`
 	- If Peer is unknown, ignore.
