@@ -221,6 +221,7 @@ macro_rules! new_full_start {
 				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
 					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
 
+				let justification_receiver = grandpa_link.justification_receiver();
 				let shared_authority_set = grandpa_link.shared_authority_set().clone();
 				let shared_voter_state = grandpa::SharedVoterState::empty();
 
@@ -238,7 +239,7 @@ macro_rules! new_full_start {
 					.expect("SelectChain is present for full services or set up failed; qed.");
 				let keystore = builder.keystore().clone();
 
-				Ok(move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+				Ok(move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
 					let deps = polkadot_rpc::FullDeps {
 						client: client.clone(),
 						pool: pool.clone(),
@@ -252,6 +253,8 @@ macro_rules! new_full_start {
 						grandpa: polkadot_rpc::GrandpaDeps {
 							shared_voter_state: shared_voter_state.clone(),
 							shared_authority_set: shared_authority_set.clone(),
+							justification_receiver: justification_receiver.clone(),
+							subscriptions,
 						},
 					};
 

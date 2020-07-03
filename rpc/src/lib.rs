@@ -62,6 +62,10 @@ pub struct GrandpaDeps {
 	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
 	/// Authority set info.
 	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
+	/// Receives notifications about justification events from Grandpa.
+	pub justification_receiver: sc_finality_grandpa::GrandpaJustifications<Block>,
+	/// Subscription manager to keep track of pubsub subscribers.
+	pub subscriptions: jsonrpc_pubsub::manager::SubscriptionManager,
 }
 
 /// Full client dependencies
@@ -115,6 +119,8 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
+		justification_receiver,
+		subscriptions,
 	} = grandpa;
 
 	io.extend_with(
@@ -139,6 +145,8 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
 			shared_authority_set,
 			shared_voter_state,
+			justification_receiver,
+			subscriptions,
 		))
 	);
 	io

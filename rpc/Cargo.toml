@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 jsonrpc-core = "14.0.3"
+jsonrpc-pubsub = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }
