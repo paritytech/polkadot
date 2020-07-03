@@ -21,9 +21,12 @@
 
 use polkadot_primitives::Hash;
 use polkadot_primitives::parachain::{PoVBlock as PoV};
-use polkadot_subsystem::{OverseerSignal, SubsystemContext, Subsystem, SubsystemResult};
+use polkadot_subsystem::{
+	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer,
+};
 use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ObservedRole, ReputationChange as Rep, PeerId,
+	RuntimeApiMessage, RuntimeApiRequest, AllMessages,
 };
 use node_primitives::View;
 
@@ -73,4 +76,41 @@ struct BlockBasedState {
 struct PeerState {
 	/// A set of awaited PoV-hashes for each relay-parent in the peer's view.
 	awaited: HashMap<Hash, HashSet<Hash>>,
+}
+
+async fn run(
+	mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+) -> SubsystemResult<()> {
+	let mut state = State {
+		relay_parent_state: HashMap::new(),
+		peer_state: HashMap::new(),
+		our_view: View(Vec::new()),
+	};
+
+	loop {
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
+				let (vals_tx, vals_rx) = oneshot::channel();
+				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(vals_tx),
+				))).await?;
+
+				state.relay_parent_state.insert(relay_parent, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: vals_rx.await?.len(),
+				});
+			}
+			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
+				state.relay_parent_state.remove(&relay_parent);
+			}
+			FromOverseer::Signal(OverseerSignal::Conclude) => {
+				return Ok(());
+			}
+			FromOverseer::Communication { msg } => match msg {
+				_ => {}
+			},
+		}
+	}
 }
