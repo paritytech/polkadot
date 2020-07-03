@@ -40,6 +40,8 @@ use std::sync::Arc;
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
 const COST_MALFORMED_MESSAGE: Rep = Rep::new(-500, "Peer sent us a malformed message");
+const COST_AWAITED_NOT_IN_VIEW: Rep
+	= Rep::new(-100, "Peer claims to be awaiting something outside of its view");
 
 const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
@@ -265,14 +267,55 @@ async fn report_peer(
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
-async fn handle_awaited(
+async fn handle_awaiting(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	peer: PeerId,
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
 ) -> SubsystemResult<()> {
-	// TODO [now]
+	if state.our_view.0.contains(&relay_parent) {
+		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
+		return Ok(());
+	}
+
+	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
+		None => {
+			log::warn!("PoV Distribution relay parent state out-of-sync with our view");
+			return Ok(());
+		}
+		Some(s) => s,
+	};
+
+	let peer_awaiting = match
+		state.peer_state.get_mut(&peer).and_then(|s| s.awaited.get_mut(&relay_parent))
+	{
+		None => {
+			report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
+			return Ok(());
+		}
+		Some(a) => a,
+	};
+
+	let will_be_awaited = peer_awaiting.len() + pov_hashes.len();
+	if will_be_awaited <= 2 * relay_parent_state.n_validators {
+		for pov_hash in pov_hashes {
+			// For all requested PoV hashes, if we have it, we complete the request immediately.
+			// Otherwise, we note that the peer is awaiting the PoV.
+			if let Some(pov) = relay_parent_state.known.get(&pov_hash) {
+				ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+					vec![peer.clone()],
+					PROTOCOL_V1,
+					WireMessage::SendPoV(relay_parent, pov_hash, (&**pov).clone()).encode(),
+				))).await?;
+			} else {
+				peer_awaiting.insert(pov_hash);
+			}
+		}
+	} else {
+		report_peer(ctx, peer, COST_APPARENT_FLOOD).await?;
+	}
+
 	Ok(())
 }
 
@@ -319,7 +362,7 @@ async fn handle_network_update(
 		NetworkBridgeEvent::PeerMessage(peer, bytes) => {
 			match WireMessage::decode(&mut &bytes[..]) {
 				Ok(msg) => match msg {
-					WireMessage::Awaiting(relay_parent, pov_hashes) => handle_awaited(
+					WireMessage::Awaiting(relay_parent, pov_hashes) => handle_awaiting(
 						state,
 						ctx,
 						peer,
@@ -345,7 +388,6 @@ async fn handle_network_update(
 			state.our_view = view;
 			Ok(())
 		}
-		_ => Ok(()), // TODO [now] exhaustive match
 	}
 }
 
