@@ -157,6 +157,6 @@ pub trait IdentifyVariant {
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_test(&self) -> bool {
-		self.id().starts_with("test") || self.id().starts_with("tst") // TODO not sure why I need a 3 chars variant
+		self.id().starts_with("test")
 	}
 }
