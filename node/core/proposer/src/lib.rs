@@ -83,6 +83,10 @@ where
 	}
 }
 
+/// Custom Proposer for Polkadot.
+///
+/// This proposer gets the ProvisionerInherentData and injects it into the wrapped
+/// proposer's inherent data, then delegates the actual proposal generation.
 pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	inner: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 	overseer: OverseerHandler,
