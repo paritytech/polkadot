@@ -34,10 +34,11 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{CandidateValidationMessage, CandidateBackingMessage},
 };
+use sp_trie::PrefixedMemoryDB;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand, ServiceComponents, TaskManager,
+	Configuration, ChainSpec, ServiceComponents, TaskManager,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -576,18 +577,25 @@ macro_rules! new_light {
 }
 
 /// Builds a new object suitable for chain operations.
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration)
-	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
+pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
+	(
+		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
+		Arc<TFullBackend<Block>>,
+		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+		TaskManager,
+	),
+	ServiceError
+>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
 	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch).0)
+	let (builder, _, _, _) = new_full_start!(config, Runtime, Dispatch);
+	Ok(builder.to_chain_ops_parts())
 }
 
 /// Create a new Polkadot service for a full node.
