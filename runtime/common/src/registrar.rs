@@ -747,6 +747,7 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	impl<C> system::offchain::SendTransactionTypes<C> for Test where
@@ -766,6 +767,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types!{
@@ -814,6 +816,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -848,12 +851,14 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
+		type WeightInfo = ();
 	}
 
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
+		type WeightInfo = ();
 	}
 
 	impl session::historical::Trait for Test {
