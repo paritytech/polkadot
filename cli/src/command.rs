@@ -21,7 +21,6 @@ use service::{IdentifyVariant, self};
 use service_new::{IdentifyVariant, self as service};
 use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
-use polkadot_test_service::IdentifyVariant as _;
 
 fn get_exec_name() -> Option<String> {
 	std::env::current_exe()
@@ -66,7 +65,6 @@ impl SubstrateCli for Cli {
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),
-			"test" => Box::new(polkadot_test_service::polkadot_local_testnet_config()),
 			path if self.run.force_kusama => {
 				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
 			},
@@ -151,17 +149,6 @@ pub fn run() -> Result<()> {
 						6000,
 						grandpa_pause,
 					).map(|(components, _, _)| components)
-				})
-			} else if chain_spec.is_test() {
-				runtime.run_node_until_exit(|config| match config.role {
-					Role::Light => Err("Light node for polkadot test runtime is not supported.".into()),
-					_ => polkadot_test_service::polkadot_test_new_full(
-							config,
-							None,
-							None,
-							authority_discovery_enabled,
-							6000,
-						).map(|(components, _, _, _, _)| components)
 				})
 			} else {
 				runtime.run_node_until_exit(|config| match config.role {
