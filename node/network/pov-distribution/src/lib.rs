@@ -20,7 +20,7 @@
 //! among validators.
 
 use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{PoVBlock as PoV};
+use polkadot_primitives::parachain::{PoVBlock as PoV, CandidateDescriptor};
 use polkadot_subsystem::{
 	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer,
 };
@@ -78,6 +78,68 @@ struct PeerState {
 	awaited: HashMap<Hash, HashSet<Hash>>,
 }
 
+// Handles the signal. If successful, returns `true` if the subsystem should conclude, `false` otherwise.
+async fn handle_signal(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	signal: OverseerSignal,
+) -> SubsystemResult<bool> {
+	match signal {
+		OverseerSignal::Conclude => Ok(true),
+		OverseerSignal::StartWork(relay_parent) => {
+			let (vals_tx, vals_rx) = oneshot::channel();
+			ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Validators(vals_tx),
+			))).await?;
+
+			state.relay_parent_state.insert(relay_parent, BlockBasedState {
+				known: HashMap::new(),
+				fetching: HashMap::new(),
+				n_validators: vals_rx.await?.len(),
+			});
+
+			Ok(false)
+		}
+		OverseerSignal::StopWork(relay_parent) => {
+			state.relay_parent_state.remove(&relay_parent);
+
+			Ok(false)
+		}
+	}
+}
+
+// Handles a `FetchPoV` message.
+async fn handle_fetch(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	descriptor: CandidateDescriptor,
+	response_sender: oneshot::Sender<PoV>,
+) -> SubsystemResult<()> {
+	unimplemented!()
+}
+
+// Handles a `DistributePoV` message.
+async fn handle_distribute(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	descriptor: CandidateDescriptor,
+	pov: PoV,
+) -> SubsystemResult<()> {
+	unimplemented!()
+}
+
+// Handles a network bridge update.
+async fn handle_network_update(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	update: NetworkBridgeEvent,
+) -> SubsystemResult<()> {
+	unimplemented!()
+}
+
 async fn run(
 	mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
 ) -> SubsystemResult<()> {
@@ -89,27 +151,32 @@ async fn run(
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-				let (vals_tx, vals_rx) = oneshot::channel();
-				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(vals_tx),
-				))).await?;
-
-				state.relay_parent_state.insert(relay_parent, BlockBasedState {
-					known: HashMap::new(),
-					fetching: HashMap::new(),
-					n_validators: vals_rx.await?.len(),
-				});
-			}
-			FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-				state.relay_parent_state.remove(&relay_parent);
-			}
-			FromOverseer::Signal(OverseerSignal::Conclude) => {
+			FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
 				return Ok(());
-			}
+			},
 			FromOverseer::Communication { msg } => match msg {
-				_ => {}
+				PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
+					handle_fetch(
+						&mut state,
+						&mut ctx,
+						relay_parent,
+						descriptor,
+						response_sender,
+					).await?,
+				PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
+					handle_distribute(
+						&mut state,
+						&mut ctx,
+						relay_parent,
+						descriptor,
+						pov,
+					).await?,
+				PoVDistributionMessage::NetworkBridgeUpdate(event) =>
+					handle_network_update(
+						&mut state,
+						&mut ctx,
+						event,
+					).await?,
 			},
 		}
 	}
