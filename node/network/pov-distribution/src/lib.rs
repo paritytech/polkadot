@@ -115,9 +115,9 @@ async fn handle_signal(
 // Notify peers that we are awaiting a given PoV hash.
 //
 // This only notifies peers who have the relay parent in their view.
-async fn notify_awaiting(
-	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+async fn notify_we_are_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
 	pov_hash: Hash,
 ) -> SubsystemResult<()> {
@@ -133,6 +133,38 @@ async fn notify_awaiting(
 	if peers_to_send.is_empty() { return Ok(()) }
 
 	let payload = WireMessage::Awaiting(relay_parent, vec![pov_hash]).encode();
+
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+		peers_to_send,
+		PROTOCOL_V1,
+		payload,
+	))).await
+}
+
+// Distribute a PoV to peers who are awaiting it.
+async fn distribute_to_awaiting(
+	peers: &mut HashMap<PeerId, PeerState>,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent: Hash,
+	pov_hash: Hash,
+	pov: &PoV,
+) -> SubsystemResult<()> {
+	// Send to all peers who are awaiting the PoV and have that relay-parent in their view.
+	//
+	// Also removes it from their awaiting set.
+	let peers_to_send: Vec<_> = peers.iter_mut()
+		.filter_map(|(peer, state)| state.awaited.get_mut(&relay_parent).and_then(|awaited| {
+			if awaited.remove(&pov_hash) {
+				Some(peer.clone())
+			} else {
+				None
+			}
+		}))
+		.collect();
+
+	if peers_to_send.is_empty() { return Ok(()) }
+
+	let payload = WireMessage::SendPoV(relay_parent, pov_hash, pov.clone()).encode();
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 		peers_to_send,
@@ -179,9 +211,9 @@ async fn handle_fetch(
 	}
 
 	// Issue an `Awaiting` message to all peers with this in their view.
-	notify_awaiting(
-		ctx,
+	notify_we_are_awaiting(
 		&mut state.peer_state,
+		ctx,
 		relay_parent,
 		descriptor.pov_hash
 	).await
@@ -195,7 +227,30 @@ async fn handle_distribute(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 ) -> SubsystemResult<()> {
-	unimplemented!()
+	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
+		None => return Ok(()),
+		Some(s) => s,
+	};
+
+	if let Some(our_awaited) = relay_parent_state.fetching.get_mut(&descriptor.pov_hash) {
+		// Drain all the senders, but keep the entry in the map around intentionally.
+		//
+		// It signals that we were at one point awaiting this, so we will be able to tell
+		// why peers are sending it to us.
+		for response_sender in our_awaited.drain(..) {
+			let _ = response_sender.send(pov.clone());
+		}
+	}
+
+	relay_parent_state.known.insert(descriptor.pov_hash, pov.clone());
+
+	distribute_to_awaiting(
+		&mut state.peer_state,
+		ctx,
+		relay_parent,
+		descriptor.pov_hash,
+		&*pov,
+	).await
 }
 
 // Handles a network bridge update.
