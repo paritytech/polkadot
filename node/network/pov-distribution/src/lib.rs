@@ -265,6 +265,29 @@ async fn report_peer(
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep))).await
 }
 
+async fn handle_awaited(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	peer: PeerId,
+	relay_parent: Hash,
+	pov_hashes: Vec<Hash>,
+) -> SubsystemResult<()> {
+	// TODO [now]
+	Ok(())
+}
+
+async fn handle_incoming_pov(
+	state: &mut State,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	peer: PeerId,
+	relay_parent: Hash,
+	pov_hash: Hash,
+	pov: PoV,
+) -> SubsystemResult<()> {
+	// TODO [now]
+	Ok(())
+}
+
 /// Handles a network bridge update.
 async fn handle_network_update(
 	state: &mut State,
@@ -294,15 +317,29 @@ async fn handle_network_update(
 			Ok(())
 		}
 		NetworkBridgeEvent::PeerMessage(peer, bytes) => {
-			let _ = match WireMessage::decode(&mut &bytes[..]) {
-				Ok(msg) => msg,
+			match WireMessage::decode(&mut &bytes[..]) {
+				Ok(msg) => match msg {
+					WireMessage::Awaiting(relay_parent, pov_hashes) => handle_awaited(
+						state,
+						ctx,
+						peer,
+						relay_parent,
+						pov_hashes,
+					).await,
+					WireMessage::SendPoV(relay_parent, pov_hash, pov) => handle_incoming_pov(
+						state,
+						ctx,
+						peer,
+						relay_parent,
+						pov_hash,
+						pov,
+					).await,
+				},
 				Err(_) => {
 					report_peer(ctx, peer, COST_MALFORMED_MESSAGE).await?;
-					return Ok(());
+					Ok(())
 				}
-			};
-
-			Ok(())
+			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			state.our_view = view;
