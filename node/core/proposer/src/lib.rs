@@ -1,6 +1,6 @@
 use futures::prelude::*;
 use futures::select;
-use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerMessage}, SubsystemError};
+use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::{
 	inclusion_inherent,
@@ -93,6 +93,58 @@ pub struct Proposer<TxPool: TransactionPool<Block = Block>, Backend, Client> {
 	parent_header_hash: Hash,
 }
 
+// This impl has the same generic bounds as the Proposer impl.
+impl<TxPool, Backend, Client> Proposer<TxPool, Backend, Client>
+where
+	TxPool: 'static + TransactionPool<Block = Block>,
+	Client: 'static
+		+ BlockBuilderProvider<Backend, Block, Client>
+		+ ProvideRuntimeApi<Block>
+		+ HeaderBackend<Block>
+		+ Send
+		+ Sync,
+	Client::Api:
+		ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+	Backend:
+		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
+	// Rust bug: https://github.com/rust-lang/rust/issues/24159
+	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
+{
+	/// Get provisioner inherent data
+	///
+	/// This function has a constant timeout: `PROPOSE_TIMEOUT`.
+	fn get_provisioner_data(&self) -> impl Future<Output = Result<ProvisionerInherentData, Error>> {
+		// clone this (lightweight) data because we're going to move it into the future
+		let mut overseer = self.overseer.clone();
+		let parent_header_hash = self.parent_header_hash.clone();
+
+		let mut provisioner_inherent_data = async move {
+			let (sender, receiver) = futures::channel::oneshot::channel();
+
+			// strictly speaking, we don't _have_ to .await this send_msg before opening the
+			// receiver; it's possible that the response there would be ready slightly before
+			// this call completes. IMO it's not worth the hassle or overhead of spawning a
+			// distinct task for that kind of miniscule efficiency improvement.
+			overseer.send_msg(AllMessages::Provisioner(
+				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+			)).await?;
+
+			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
+		}
+		.boxed()
+		.fuse();
+
+		let mut timeout = wasm_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
+
+		async move {
+			select! {
+				pid = provisioner_inherent_data => pid,
+				_ = timeout => Err(Error::Timeout),
+			}
+		}
+	}
+}
+
 impl<TxPool, Backend, Client> sp_consensus::Proposer<Block> for Proposer<TxPool, Backend, Client>
 where
 	TxPool: 'static + TransactionPool<Block = Block>,
@@ -122,43 +174,26 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		// clone this (lightweight) data because we're going to move it into the future
-		let mut overseer = self.overseer.clone();
-		let parent_header_hash = self.parent_header_hash.clone();
+		let provisioner_data = self.get_provisioner_data();
 
-		let mut proposal = async move {
-			let (sender, receiver) = futures::channel::oneshot::channel();
-
-			// strictly speaking, we don't _have_ to .await this send_msg before opening the
-			// receiver; it's possible that the response there would be ready slightly before
-			// this call completes. IMO it's not worth the hassle or overhead of spawning a
-			// distinct task for that kind of miniscule efficiency improvement.
-			overseer.send_msg(AllMessages::Provisioner(
-				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-			)).await?;
-
-			let provisioner_inherent_data = receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+		async move {
+			let provisioner_data = match provisioner_data.await {
+				Ok(pd) => pd,
+				Err(err) => {
+					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
+					Default::default()
+				}
+			};
 
 			inherent_data.put_data(
 				inclusion_inherent::INHERENT_IDENTIFIER,
-				&provisioner_inherent_data,
+				&provisioner_data,
 			)?;
 
 			self.inner
 				.propose(inherent_data, inherent_digests, max_duration, record_proof)
 				.await
 				.map_err(Into::into)
-		}
-		.boxed()
-		.fuse();
-
-		let mut timeout = wasm_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
-
-		async move {
-			select! {
-				proposal_result = proposal => proposal_result,
-				_ = timeout => Err(Error::Timeout),
-			}
 		}
 		.boxed()
 	}
