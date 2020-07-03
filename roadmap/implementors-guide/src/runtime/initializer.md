@@ -6,12 +6,16 @@ This module is responsible for initializing the other modules in a deterministic
 
 ```rust
 HasInitialized: bool;
-BufferedSessionChange: Option<(ValidatorSet, ValidatorSet)>; // (new, queued)
+// buffered session changes along with the block number at which they should be applied.
+//
+// typically this will be empty or one element long. ordered ascending by BlockNumber and insertion
+// order.
+BufferedSessionChanges: Vec<(BlockNumber, ValidatorSet, ValidatorSet)>;
 ```
 
 ## Initialization
 
-Before initializing modules, we apply the `BufferedSessionChange`, if any, and remove it from storage. The session change is applied to all modules in the same order as initialization.
+Before initializing modules, remove all changes from the `BufferedSessionChanges` with number less than or equal to the current block number, and apply the last one. The session change is applied to all modules in the same order as initialization.
 
 The other parachains modules are initialized in this order:
 
@@ -28,7 +32,7 @@ Set `HasInitialized` to true.
 
 ## Session Change
 
-Store the session change information in `BufferedSessionChange`. If there is already a value present, it should be overwritten. The only way there can already be a value present is if either 2 session changes occur within one block, or one session-change happens after initialization and then another happens before initialization in the next block. In either case, although both are far outside of the expected operational parameters of the chain, there is no time occupied where the clobbered validator set can reasonably be in charge of any validation work, so we do not lose anything by clobbering it.
+Store the session change information in `BufferedSessionChange` along with the block number at which it was submitted, plus one. Although the expected operational parameters of the block authorship system should prevent more than one change from being buffered at any time, it may occur. Regardless, we always need to track the block number at which the session change can be applied so as to remain flexible over session change notifications being issued before or after initialization of the current block.
 
 ## Finalization
 
