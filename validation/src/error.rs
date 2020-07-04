@@ -81,7 +81,10 @@ pub enum Error {
 	/// Block data is too big
 	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
 	BlockDataTooBig { size: u64, max_size: u64 },
-	Join(tokio::task::JoinError)
+	Join(tokio::task::JoinError),
+	/// Could not cover fee for an operation e.g. for sending `UpwardMessage`.
+	#[display(fmt = "Parachain could not cover fee for an operation e.g. for sending an `UpwardMessage`.")]
+	CouldNotCoverFee,
 }
 
 impl std::error::Error for Error {

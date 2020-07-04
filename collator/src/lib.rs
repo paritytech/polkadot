@@ -56,7 +56,7 @@ use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
 use sp_core::Pair;
 use polkadot_primitives::{
-	BlockId, Hash, Block,
+	BlockId, Hash, Block, DownwardMessage,
 	parachain::{
 		self, BlockData, DutyRoster, HeadData, Id as ParaId,
 		PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
@@ -150,6 +150,7 @@ pub trait ParachainContext: Clone {
 		relay_parent: Hash,
 		global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
+		downward_messages: Vec<DownwardMessage>,
 	) -> Self::ProduceCandidate;
 }
 
@@ -159,6 +160,7 @@ pub async fn collate<P>(
 	local_id: ParaId,
 	global_validation: GlobalValidationSchedule,
 	local_validation_data: LocalValidationData,
+	downward_messages: Vec<DownwardMessage>,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
 ) -> Option<parachain::Collation>
@@ -170,6 +172,7 @@ pub async fn collate<P>(
 		relay_parent,
 		global_validation,
 		local_validation_data,
+		downward_messages,
 	).await?;
 
 	let pov_block = PoVBlock {
@@ -317,6 +320,7 @@ fn build_collator_service<P, C, R, Extrinsic>(
 					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
 				};
+				let downward_messages = try_fr!(api.downward_messages(&id, para_id));
 
 				let validators = try_fr!(api.validators(&id));
 
@@ -331,6 +335,7 @@ fn build_collator_service<P, C, R, Extrinsic>(
 					para_id,
 					global_validation,
 					local_validation,
+					downward_messages,
 					parachain_context,
 					key,
 				).map(move |collation| {
@@ -368,12 +373,15 @@ fn build_collator_service<P, C, R, Extrinsic>(
 
 /// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
 /// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-pub async fn start_collator<P>(
+pub fn start_collator<P>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-) -> Result<(), polkadot_service::Error>
+) -> Result<
+	(Pin<Box<dyn Future<Output = ()> + Send>>, sc_service::TaskManager),
+	polkadot_service::Error
+>
 where
 	P: 'static + BuildParachainContext,
 	P::ParachainContext: Send + 'static,
@@ -395,14 +403,15 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handlers,
 			client,
 			para_id,
 			key,
 			build_parachain_context
-		)?.await;
+		)?;
+		Ok((future.boxed(), task_manager))
 	} else if config.chain_spec.is_westend() {
 		let (task_manager, client, handlers) = service::westend_new_full(
 			config,
@@ -413,14 +422,15 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handlers,
 			client,
 			para_id,
 			key,
 			build_parachain_context
-		)?.await;
+		)?;
+		Ok((future.boxed(), task_manager))
 	} else {
 		let (task_manager, client, handles) = service::polkadot_new_full(
 			config,
@@ -431,17 +441,16 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handles,
 			client,
 			para_id,
 			key,
-			build_parachain_context,
-		)?.await;
+			build_parachain_context
+		)?;
+		Ok((future.boxed(), task_manager))
 	}
-
-	Ok(())
 }
 
 #[cfg(not(feature = "service-rewr"))]
@@ -470,6 +479,7 @@ mod tests {
 			_relay_parent: Hash,
 			_global: GlobalValidationSchedule,
 			_local_validation: LocalValidationData,
+			_: Vec<DownwardMessage>,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
 			future::ready(Some((
@@ -500,7 +510,7 @@ mod tests {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = |_, _| unimplemented!();
+		let task_executor = |_, _| {};
 		let config = cli.create_configuration(&cli.run.base, task_executor.into()).unwrap();
 
 		check_send(start_collator(

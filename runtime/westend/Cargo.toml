@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.8.13"
+version = "0.8.14"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -174,3 +174,9 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"hex-literal",
 ]
+# When enabled, the runtime api will not be build.
+#
+# This is required by Cumulus to access certain types of the
+# runtime without clashing with the runtime api exported functions
+# in WASM.
+disable-runtime-api = []

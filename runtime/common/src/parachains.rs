@@ -34,7 +34,7 @@ use sp_staking::{
 };
 use frame_support::{
 	traits::KeyOwnerProofSystem,
-	dispatch::{IsSubType},
+	dispatch::IsSubType,
 	weights::{DispatchClass, Weight},
 };
 use primitives::{
@@ -47,14 +47,13 @@ use primitives::{
 		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
 		ValidatorSignature, SigningContext, HeadData, ValidationCode,
 	},
+	Remark, DownwardMessage
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
 };
-use sp_runtime::{
-	transaction_validity::InvalidTransaction,
-};
+use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
@@ -91,6 +90,18 @@ impl<N: Saturating + One + PartialOrd + PartialEq + Clone> Iterator for BlockNum
 pub trait ParachainCurrency<AccountId> {
 	fn free_balance(para_id: ParaId) -> Balance;
 	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult;
+	fn transfer_in(
+		source: &AccountId,
+		dest: ParaId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult;
+	fn transfer_out(
+		source: ParaId,
+		dest: &AccountId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult;
 }
 
 impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
@@ -102,6 +113,8 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		T::free_balance(&para_account).into()
 	}
 
+	// TODO: this should really be the same API as `withdraw`, having NegativeImbalance as an
+	//   associated type.
 	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult {
 		let para_account = para_id.into_account();
 
@@ -114,6 +127,24 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 		)?;
 
 		Ok(())
+	}
+
+	fn transfer_in(
+		source: &AccountId,
+		dest: ParaId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult {
+		T::transfer(source, &dest.into_account(), amount.into(), existence_requirement)
+	}
+
+	fn transfer_out(
+		source: ParaId,
+		dest: &AccountId,
+		amount: Balance,
+		existence_requirement: ExistenceRequirement,
+	) -> DispatchResult {
+		T::transfer(&source.into_account(), dest, amount.into(), existence_requirement)
 	}
 }
 
@@ -226,12 +257,14 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
 
 	/// The outer origin type.
-	type Origin: From<Origin> + From<system::RawOrigin<Self::AccountId>>;
+	type Origin: From<Origin>
+		+ From<<Self as system::Trait>::Origin>
+		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable<Origin=<Self as Trait>::Origin> + From<Call<Self>>;
 
-	/// Some way of interacting with balances for fees.
+	/// Some way of interacting with balances for fees and transfers.
 	type ParachainCurrency: ParachainCurrency<Self::AccountId>;
 
 	/// Polkadot in practice will always use the `BlockNumber` type.
@@ -300,7 +333,7 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 }
 
 /// Origin for the parachains module.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Origin {
 	/// It comes from a parachain.
@@ -345,6 +378,8 @@ impl<Offender: Clone> Offence<Offender> for DoubleVoteOffence<Offender> {
 	}
 }
 
+/// Total number of individual messages allowed in the relay-chain -> parachain message queue.
+const MAX_DOWNWARD_QUEUE_COUNT: usize = 10;
 /// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 const MAX_QUEUE_COUNT: usize = 100;
 /// Total size of messages allowed in the parachain -> relay-chain message queue before which no
@@ -445,8 +480,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Parachains
-	{
+	trait Store for Module<T: Trait> as Parachains {
 		/// All authorities' keys at the moment.
 		pub Authorities get(fn authorities): Vec<ValidatorId>;
 		/// The active code of a currently-registered parachain.
@@ -484,6 +518,9 @@ decl_storage! {
 		///
 		/// `None` if not yet updated.
 		pub DidUpdate: Option<Vec<ParaId>>;
+
+		/// Messages waiting to be delivered from the Relay chain into the parachain.
+		pub DownwardMessageQueue: map hasher(twox_64_concat) ParaId => Vec<DownwardMessage<T::AccountId>>;
 	}
 	add_extra_genesis {
 		config(authorities): Vec<ValidatorId>;
@@ -531,6 +568,8 @@ decl_error! {
 		CannotPayFees,
 		/// Unexpected relay-parent for a candidate receipt.
 		UnexpectedRelayParent,
+		/// Downward message queue is full for the Parachain.
+		DownwardMessageQueueFull,
 	}
 }
 
@@ -595,6 +634,11 @@ decl_module! {
 							MAX_QUEUE_COUNT,
 							WATERMARK_QUEUE_SIZE,
 						)?;
+
+						Self::remove_processed_downward_messages(
+							id,
+							head.candidate.commitments.processed_downward_messages as usize,
+						);
 
 						let id = head.parachain_index();
 						proceeded.push(id);
@@ -668,6 +712,36 @@ decl_module! {
 
 			Ok(())
 		}
+
+		/// Transfer some tokens into a parachain and leave a message in the downward queue for it.
+		#[weight = 100_000]
+		pub fn transfer_to_parachain(
+			origin,
+			to: ParaId,
+			amount: Balance,
+			remark: Remark,
+		) {
+			let who = ensure_signed(origin)?;
+			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
+			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
+			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
+			DownwardMessageQueue::<T>::append(to, DownwardMessage::TransferInto(who, amount, remark));
+		}
+
+		/// Send a XCMP message to the given parachain.
+		///
+		/// The origin must be another parachain.
+		#[weight = 100_000]
+		pub fn send_xcmp_message(
+			origin,
+			to: ParaId,
+			msg: Vec<u8>,
+		) {
+			ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
+			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
+			DownwardMessageQueue::<T>::append(to, DownwardMessage::XCMPMessage(msg));
+		}
 	}
 }
 
@@ -682,6 +756,69 @@ fn localized_payload(
 	let mut encoded = statement.encode();
 	signing_context.using_encoded(|s| encoded.extend(s));
 	encoded
+}
+
+/// Iterator that returns groups of validators that are assigned to the same chain.
+///
+/// Assumes that the inner validators are sorted by chain id.
+struct GroupedDutyIter<'a> {
+	next_idx: usize,
+	inner: &'a [(usize, ParaId)],
+}
+
+impl<'a> GroupedDutyIter<'a> {
+	fn new(inner: &'a [(usize, ParaId)]) -> Self {
+		GroupedDutyIter { next_idx: 0, inner }
+	}
+
+	fn group_for(&mut self, wanted_id: ParaId) -> Option<&'a [(usize, ParaId)]> {
+		while let Some((id, keys)) = self.next() {
+			if wanted_id == id {
+				return Some(keys)
+			}
+		}
+
+		None
+	}
+}
+
+impl<'a> Iterator for GroupedDutyIter<'a> {
+	type Item = (ParaId, &'a [(usize, ParaId)]);
+
+	fn next(&mut self) -> Option<Self::Item> {
+		if self.next_idx == self.inner.len() { return None }
+		let start_idx = self.next_idx;
+		self.next_idx += 1;
+		let start_id = self.inner[start_idx].1;
+
+		while self.inner.get(self.next_idx).map_or(false, |&(_, ref id)| id == &start_id) {
+			self.next_idx += 1;
+		}
+
+		Some((start_id, &self.inner[start_idx..self.next_idx]))
+	}
+}
+
+/// Convert a duty roster, which is originally a Vec<Chain>, where each
+/// item corresponds to the same position in the session keys, into
+/// a list containing (index, parachain duty) where indices are into the session keys.
+/// This list is sorted ascending by parachain duty, just like the
+/// parachain candidates are.
+fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
+	let mut sorted_duties = Vec::with_capacity(duty.len());
+	for (val_idx, duty) in duty.iter().enumerate() {
+		let id = match duty {
+			Chain::Relay => continue,
+			Chain::Parachain(id) => id,
+		};
+
+		let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
+			.unwrap_or_else(|idx| idx);
+
+		sorted_duties.insert(idx, (val_idx, *id));
+	}
+
+	sorted_duties
 }
 
 impl<T: Trait> Module<T> {
@@ -814,11 +951,11 @@ impl<T: Trait> Module<T> {
 		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
-					system::RawOrigin::Signed(id.into_account()).into(),
+					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Signed(id.into_account()))),
 				ParachainDispatchOrigin::Parachain =>
 					Origin::Parachain(id).into(),
 				ParachainDispatchOrigin::Root =>
-					system::RawOrigin::Root.into(),
+					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Root)),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
 			// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -860,6 +997,17 @@ impl<T: Trait> Module<T> {
 			}
 		}
 		Ok(())
+	}
+
+	/// Remove processed downward messages from the `DownwardMessageQueue`.
+	fn remove_processed_downward_messages(id: ParaId, processed: usize) {
+		DownwardMessageQueue::<T>::mutate(id, |v| {
+			if processed > v.len() {
+				v.clear();
+			} else {
+				*v = v.split_off(processed);
+			}
+		});
 	}
 
 	/// Update routing information from the parachain heads. This queues upwards
@@ -1079,6 +1227,11 @@ impl<T: Trait> Module<T> {
 		})
 	}
 
+	/// Returns the `DownwardMessage`'s for the given parachain.
+	pub fn downward_messages(id: ParaId) -> Vec<DownwardMessage<T::AccountId>> {
+		DownwardMessageQueue::<T>::get(id)
+	}
+
 	/// Get the local validation data for a particular parent w.r.t. the current
 	/// block height.
 	pub fn current_local_validation_data(id: &ParaId) -> Option<LocalValidationData> {
@@ -1107,78 +1260,77 @@ impl<T: Trait> Module<T> {
 		T::ActiveParachains::active_paras()
 	}
 
+	/// Verify the signatures of all candidates.
+	///
+	/// Returns `false` if a signature is not correct.
+	fn verify_candidate_signatures(
+		candidate: &AttestedCandidate,
+		authorities: &[ValidatorId],
+		validator_group: &[(usize, ParaId)],
+		signing_context: &SigningContext,
+	) -> DispatchResult {
+		let mut expected_votes_len = 0;
+		let mut encoded_implicit = None;
+		let mut encoded_explicit = None;
+		let candidate_hash = candidate.candidate().hash();
+
+		for (vote_index, (auth_index, _)) in candidate.validator_indices
+				.iter()
+				.enumerate()
+				.filter(|(_, bit)| **bit)
+				.enumerate()
+		{
+			let validity_attestation = match candidate.validity_votes.get(vote_index) {
+				None => Err(Error::<T>::NotEnoughValidityVotes)?,
+				Some(v) => {
+					expected_votes_len = vote_index + 1;
+					v
+				}
+			};
+
+			if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
+				Err(Error::<T>::WrongValidatorAttesting)?
+			}
+
+			let (payload, sig) = match validity_attestation {
+				ValidityAttestation::Implicit(sig) => {
+					let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
+						Statement::Candidate(candidate_hash), signing_context,
+					));
+
+					(payload, sig)
+				}
+				ValidityAttestation::Explicit(sig) => {
+					let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
+						Statement::Valid(candidate_hash), signing_context,
+					));
+
+					(payload, sig)
+				}
+			};
+
+			ensure!(
+				sig.verify(&payload[..], &authorities[auth_index]),
+				Error::<T>::InvalidSignature,
+			);
+		}
+
+		if candidate.validity_votes.len() == expected_votes_len {
+			Ok(())
+		} else {
+			Err(Error::<T>::UntaggedVotes.into())
+		}
+	}
+
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
 		schedule: &GlobalValidationSchedule,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
-	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError>
-	{
-		// returns groups of slices that have the same chain ID.
-		// assumes the inner slice is sorted by id.
-		struct GroupedDutyIter<'a> {
-			next_idx: usize,
-			inner: &'a [(usize, ParaId)],
-		}
-
-		impl<'a> GroupedDutyIter<'a> {
-			fn new(inner: &'a [(usize, ParaId)]) -> Self {
-				GroupedDutyIter { next_idx: 0, inner }
-			}
-
-			fn group_for(&mut self, wanted_id: ParaId) -> Option<&'a [(usize, ParaId)]> {
-				while let Some((id, keys)) = self.next() {
-					if wanted_id == id {
-						return Some(keys)
-					}
-				}
-
-				None
-			}
-		}
-
-		impl<'a> Iterator for GroupedDutyIter<'a> {
-			type Item = (ParaId, &'a [(usize, ParaId)]);
-
-			fn next(&mut self) -> Option<Self::Item> {
-				if self.next_idx == self.inner.len() { return None }
-				let start_idx = self.next_idx;
-				self.next_idx += 1;
-				let start_id = self.inner[start_idx].1;
-
-				while self.inner.get(self.next_idx).map_or(false, |&(_, ref id)| id == &start_id) {
-					self.next_idx += 1;
-				}
-
-				Some((start_id, &self.inner[start_idx..self.next_idx]))
-			}
-		}
-
+	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError> {
 		let authorities = Self::authorities();
 		let (duty_roster, random_seed) = Self::calculate_duty_roster();
-
-		// convert a duty roster, which is originally a Vec<Chain>, where each
-		// item corresponds to the same position in the session keys, into
-		// a list containing (index, parachain duty) where indices are into the session keys.
-		// this list is sorted ascending by parachain duty, just like the
-		// parachain candidates are.
-		let make_sorted_duties = |duty: &[Chain]| {
-			let mut sorted_duties = Vec::with_capacity(duty.len());
-			for (val_idx, duty) in duty.iter().enumerate() {
-				let id = match duty {
-					Chain::Relay => continue,
-					Chain::Parachain(id) => id,
-				};
-
-				let idx = sorted_duties.binary_search_by_key(&id, |&(_, ref id)| id)
-					.unwrap_or_else(|idx| idx);
-
-				sorted_duties.insert(idx, (val_idx, *id));
-			}
-
-			sorted_duties
-		};
 
 		// computes the omitted validation data for a particular parachain.
 		//
@@ -1207,7 +1359,6 @@ impl<T: Trait> Module<T> {
 		let relay_height_now = <system::Module<T>>::block_number();
 		let parent_hash = <system::Module<T>>::parent_hash();
 		let signing_context = Self::signing_context();
-		let localized_payload = |statement: Statement| localized_payload(statement, &signing_context);
 		let code_upgrade_delay = T::ValidationUpgradeDelay::get();
 
 		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
@@ -1297,58 +1448,9 @@ impl<T: Trait> Module<T> {
 
 			T::ParachainCurrency::deduct(para_id, fees)?;
 
-			let candidate_hash = candidate.candidate().hash();
-			let mut encoded_implicit = None;
-			let mut encoded_explicit = None;
+			Self::verify_candidate_signatures(candidate, &authorities, validator_group, &signing_context)?;
 
-			let mut expected_votes_len = 0;
-			for (vote_index, (auth_index, _)) in candidate.validator_indices
-				.iter()
-				.enumerate()
-				.filter(|(_, bit)| **bit)
-				.enumerate()
-			{
-				let validity_attestation = match candidate.validity_votes.get(vote_index) {
-					None => Err(Error::<T>::NotEnoughValidityVotes)?,
-					Some(v) => {
-						expected_votes_len = vote_index + 1;
-						v
-					}
-				};
-
-				if validator_group.iter().find(|&(idx, _)| *idx == auth_index).is_none() {
-					Err(Error::<T>::WrongValidatorAttesting)?
-				}
-
-				let (payload, sig) = match validity_attestation {
-					ValidityAttestation::Implicit(sig) => {
-						let payload = encoded_implicit.get_or_insert_with(|| localized_payload(
-							Statement::Candidate(candidate_hash),
-						));
-
-						(payload, sig)
-					}
-					ValidityAttestation::Explicit(sig) => {
-						let payload = encoded_explicit.get_or_insert_with(|| localized_payload(
-							Statement::Valid(candidate_hash),
-						));
-
-						(payload, sig)
-					}
-				};
-
-				ensure!(
-					sig.verify(&payload[..], &authorities[auth_index]),
-					Error::<T>::InvalidSignature,
-				);
-			}
-
-			ensure!(
-				candidate.validity_votes.len() == expected_votes_len,
-				Error::<T>::UntaggedVotes
-			);
-
-			para_block_hashes.push(candidate_hash);
+			para_block_hashes.push(candidate.candidate.hash());
 		}
 
 		Ok(IncludedBlocks {
@@ -1357,6 +1459,25 @@ impl<T: Trait> Module<T> {
 			random_seed,
 			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
 			para_blocks: para_block_hashes,
+		})
+	}
+
+	/// Checks all signatures from all given `candidates`.
+	///
+	/// Returns an error if any signature verification failed.
+	fn check_candidates_signatures(candidates: &[AttestedCandidate]) -> DispatchResult {
+		let authorities = Self::authorities();
+		let duty_roster = Self::calculate_duty_roster().0;
+		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
+		let signing_context = Self::signing_context();
+		let mut validator_groups = GroupedDutyIter::new(&sorted_validators[..]);
+
+		candidates.iter().try_for_each(|c| {
+			let para_id = c.parachain_index();
+			let validator_group = validator_groups.group_for(para_id)
+				.ok_or(Error::<T>::NoValidatorGroup)?;
+
+			Self::verify_candidate_signatures(c, &authorities, validator_group, &signing_context)
 		})
 	}
 
@@ -1420,7 +1541,13 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.expect("Parachain heads could not be decoded.")
 			.expect("No parachain heads found in inherent data.");
 
-		Some(Call::set_heads(data))
+		// Temporary solution for:
+		// https://github.com/paritytech/polkadot/issues/1327
+		if Self::check_candidates_signatures(&data).is_ok() {
+			Some(Call::set_heads(data))
+		} else {
+			Some(Call::set_heads(Vec::new()))
+		}
 	}
 }
 
@@ -3509,6 +3636,42 @@ mod tests {
 					},
 				);
 			}
+		});
+	}
+
+	#[test]
+	fn downward_message_removal_works() {
+		let id = ParaId::from(0);
+
+		// That the list of egress queue roots is in ascending order by `ParaId`.
+		let parachains = vec![
+			(id, vec![].into(), vec![].into()),
+		];
+
+		new_test_ext(parachains).execute_with(|| {
+			run_to_block(2);
+
+			DownwardMessageQueue::<Test>::insert(
+				&id,
+				vec![
+					DownwardMessage::Opaque(vec![1]),
+					DownwardMessage::Opaque(vec![2]),
+					DownwardMessage::Opaque(vec![3])
+				]
+			);
+
+			let mut raw_candidate = raw_candidate(id);
+			raw_candidate.commitments.processed_downward_messages = 2;
+
+			let candidate = make_blank_attested(raw_candidate);
+			let mut candidates = vec![candidate];
+			candidates.iter_mut().for_each(make_attestations);
+
+			assert_ok!(Parachains::set_heads(Origin::none(), candidates));
+			assert_eq!(
+				vec![DownwardMessage::Opaque(vec![3])],
+				DownwardMessageQueue::<Test>::get(&id),
+			);
 		});
 	}
 }

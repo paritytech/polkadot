@@ -91,9 +91,12 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 13,
+	spec_version: 14,
 	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: version::create_apis_vec![[]],
 	transaction_version: 2,
 };
 
@@ -110,7 +113,12 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..)) => true,
+			Call::Parachains(parachains::Call::set_heads(..))
+				| Call::Democracy(democracy::Call::vote(..))
+				| Call::Democracy(democracy::Call::remove_vote(..))
+				| Call::Democracy(democracy::Call::delegate(..))
+				| Call::Democracy(democracy::Call::undelegate(..))
+				=> true,
 
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
@@ -175,8 +183,10 @@ impl system::Trait for Runtime {
 impl scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
 }
 
 parameter_types! {
@@ -394,20 +404,38 @@ impl democracy::Trait for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>;
+	type ExternalOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>;
+	type ExternalMajorityOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>;
+	type ExternalDefaultOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>;
-	type InstantOrigin = collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>;
+	type FastTrackOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
+	type InstantOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>;
+	type CancellationOrigin = system::EnsureOneOf<AccountId,
+		collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
+		system::EnsureRoot<AccountId>,
+	>;
 	// Any single technical committee member may veto a coming council proposal, however they can
 	// only do it once and it lasts only for the cooloff period.
 	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
@@ -416,6 +444,7 @@ impl democracy::Trait for Runtime {
 	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
+	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 }
 
@@ -783,6 +812,7 @@ pub enum ProxyType {
 	Governance,
 	Staking,
 	SudoBalances,
+	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -839,6 +869,10 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..) => true,
 				_ => false,
 			},
+			ProxyType::IdentityJudgement => matches!(c,
+				Call::Identity(identity::Call::provide_judgement(..))
+				| Call::Utility(utility::Call::batch(..))
+			)
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
@@ -860,6 +894,17 @@ impl proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
+}
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		if scheduler::Module::<Runtime>::migrate_v1_to_t2() {
+			<Runtime as system::Trait>::MaximumBlockWeight::get()
+		} else {
+			<Runtime as system::Trait>::DbWeight::get().reads(1)
+		}
+	}
 }
 
 construct_runtime! {
@@ -959,10 +1004,18 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = executive::Executive<
+	Runtime,
+	Block,
+	system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	CustomOnRuntimeUpgrade
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
+#[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
 		fn version() -> RuntimeVersion {
@@ -1060,6 +1113,9 @@ sp_api::impl_runtime_apis! {
 		}
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
+		}
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+			Parachains::downward_messages(id)
 		}
 	}
 
