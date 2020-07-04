@@ -766,6 +766,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type AccountRef = balances::SystemAccountRef<Test>;
 	}
 
 	parameter_types!{

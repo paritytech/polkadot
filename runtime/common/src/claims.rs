@@ -704,6 +704,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type AccountRef = balances::SystemAccountRef<Test>;
 	}
 
 	impl vesting::Trait for Test {

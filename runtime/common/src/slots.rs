@@ -945,6 +945,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type AccountRef = balances::SystemAccountRef<Test>;
 	}
 
 	thread_local! {

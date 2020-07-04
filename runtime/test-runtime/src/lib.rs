@@ -198,6 +198,7 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type AccountRef = balances::SystemAccountRef<Runtime>;
 }
 
 parameter_types! {

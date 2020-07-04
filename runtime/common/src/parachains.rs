@@ -1846,6 +1846,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type AccountRef = balances::SystemAccountRef<Test>;
 	}
 
 	pallet_staking_reward_curve::build! {
