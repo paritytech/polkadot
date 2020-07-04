@@ -86,9 +86,9 @@ enum BitfieldSigningMessage { }
 
 ```rust
 enum CandidateBackingMessage {
-  /// Registers a stream listener for updates to the set of backable candidates that could be backed
-  /// in a child of the given relay-parent, referenced by its hash.
-  RegisterBackingWatcher(Hash, TODO),
+  /// Requests a set of backable candidates that could be backed in a child of the given
+  /// relay-parent, referenced by its hash.
+  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   Second(Hash, CandidateReceipt, PoV),

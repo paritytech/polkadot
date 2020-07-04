@@ -29,10 +29,10 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, HeadData, ValidationResult, CandidateDescriptor,
+	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
+	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
 
 /// A notification of a new backed candidate.
@@ -50,8 +50,8 @@ pub enum CandidateSelectionMessage {
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
-	/// Registers a stream listener for updates to the set of backable candidates that could be backed
-	/// in a child of the given relay-parent, referenced by its hash.
+	/// Requests a set of backable candidates that could be backed in a child of the given
+	/// relay-parent, referenced by its hash.
 	GetBackedCandidates(Hash, oneshot::Sender<Vec<NewBackedCandidate>>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.

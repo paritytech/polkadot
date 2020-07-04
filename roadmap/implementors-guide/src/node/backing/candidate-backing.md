@@ -18,7 +18,8 @@ Output:
 - [`RuntimeApiMessage`][RAM]
 - [`CandidateSelectionMessage`][CSM]
 - [`ProvisionerMessage`][PM]
-- PoV Distribution (Statement Distribution)
+- [`PoVDistributionMessage`][PDM]
+- [`StatementDistributionMessage`][SDM]
 
 ## Functionality
 
@@ -35,8 +36,9 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 
 ### On Receiving `CandidateBackingMessage`
 
-* If the message is a [`CandidateBackingMessage`][CBM]`::RegisterBackingWatcher`, register the watcher and trigger it each time a new candidate is backable. Also trigger it once initially if there are any backable candidates at the time of receipt.
+* If the message is a [`CandidateBackingMessage`][CBM]`::GetBackedCandidates`, get all backable candidates from the statement table and send them back.
 * If the message is a [`CandidateBackingMessage`][CBM]`::Second`, sign and dispatch a `Seconded` statement only if we have not seconded any other candidate and have not signed a `Valid` statement for the requested candidate. Signing both a `Seconded` and `Valid` message is a double-voting misbehavior with a heavy penalty, and this could occur if another validator has seconded the same candidate and we've received their message before the internal seconding request.
+* If the message is a [`CandidateBackingMessage`][CBM]`::Statement`, count the statement to the quorum. If the statement in the message is `Seconded` and it contains a candidate that belongs to our assignment, request the corresponding `PoV` from the `PoVDistribution` and launch validation. Issue our own `Valid` or `Invalid` statement as a result.
 
 > big TODO: "contextual execution"
 >
@@ -63,15 +65,27 @@ The goal of a Candidate Backing Job is to produce as many backable candidates as
 
 ```rust
 match msg {
+  CetBackedCandidates(hash, tx) => {
+    // Send back a set of backable candidates.
+  }
   CandidateBackingMessage::Second(hash, candidate) => {
     if candidate is unknown and in local assignment {
       spawn_validation_work(candidate, parachain head, validation function)
     }
   }
+  CandidateBackingMessage::Statement(hash, statement) => {
+    // count to the votes on this candidate
+	if let Statement::Seconded(candidate) = statement {
+	  if candidate.parachain_id == our_assignment {
+	    spawn_validation_work(candidate, parachain head, validation function)
+	  }
+	}
+  }
 }
 ```
 
 Add `Seconded` statements and `Valid` statements to a quorum. If quorum reaches validator-group majority, send a [`ProvisionerMessage`][PM]`::ProvisionableData(ProvisionableData::BackedCandidate(BackedCandidate))` message.
+`Invalid` statements that conflict with already witnessed `Seconded` and `Valid` statements for the given candidate, statements that are double-votes, self-contradictions and so on, should result in issuing a [`ProvisionerMessage`][PM]`::MisbehaviorReport` message for each newly detected case of this kind.
 
 ### Validating Candidates.
 
@@ -94,14 +108,16 @@ fn spawn_validation_work(candidate, parachain head, validation function) {
 ### Fetch Pov Block
 
 Create a `(sender, receiver)` pair.
-Dispatch a `PovFetchSubsystemMessage(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
+Dispatch a [`PoVDistributionMessage`][PDM]`::FecthPoV(relay_parent, candidate_hash, sender)` and listen on the receiver for a response.
 
 ### Validate PoV Block
 
 Create a `(sender, receiver)` pair.
 Dispatch a `CandidateValidationMessage::Validate(validation function, candidate, pov, sender)` and listen on the receiver for a response.
 
-> TODO: send statements to Statement Distribution subsystem, handle shutdown signal from candidate backing subsystem
+### Distribute Signed Statemnet
+
+Dispatch a [`StatementDistributionMessage`][PDM]`::Share(relay_parent, SignedFullStatement)`.
 
 [OverseerSignal]: ../../types/overseer-protocol.md#overseer-signal
 [Statement]: ../../types/backing.md#statement-type
@@ -111,6 +127,8 @@ Dispatch a `CandidateValidationMessage::Validate(validation function, candidate,
 [CVM]: ../../types/overseer-protocol.md#validation-request-type
 [PM]: ../../types/overseer-protocol.md#provisioner-message
 [CBM]: ../../types/overseer-protocol.md#candidate-backing-message
+[PDM]: ../../types/overseer-protocol.md#pov-distribution-message
+[SDM]: ../../types/overseer-protocol.md#statement-distribution-message
 
 [CS]: candidate-selection.md
 [CV]: ../utility/candidate-validation.md

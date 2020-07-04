@@ -28,7 +28,10 @@ use polkadot_primitives::{Hash,
 	}
 };
 use polkadot_statement_table::{
-	generic::ValidityDoubleVote as TableValidityDoubleVote,
+	generic::{
+		ValidityDoubleVote as TableValidityDoubleVote,
+		MultipleCandidates as TableMultipleCandidates,
+	},
 	Misbehavior as TableMisbehavior,
 };
 
@@ -73,7 +76,7 @@ pub enum MisbehaviorReport {
 	/// These validator nodes disagree on this candidate's validity, please figure it out
 	///
 	/// Most likely, the list of statments all agree except for the final one. That's not
-	/// guaranteed, though; if somehow we become aware of lots of
+	/// guarjnteed, though; if somehow we become aware of lots of
 	/// statements disagreeing about the validity of a candidate before taking action,
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
@@ -82,17 +85,28 @@ pub enum MisbehaviorReport {
 	/// I've noticed a peer contradicting itself about a particular candidate
 	SelfContradiction(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
+	DoubleVote(SignedFullStatement, SignedFullStatement),
 }
 
+/// A utility struct used to convert `TableMisbehavior` to `MisbehaviorReport`s.
 pub struct FromTableMisbehavior {
+	/// Index of the validator.
 	pub id: ValidatorIndex,
-
+	/// The misbehavior reported by the table.
 	pub report: TableMisbehavior,
-
+	/// Signing context.
 	pub signing_context: SigningContext,
-
+	/// Misbehaving validator's public key.
 	pub key: ValidatorId,
+}
+
+/// Result of the validation of the candidate.
+#[derive(Debug)]
+pub enum ValidationResult {
+	/// Candidate is valid.
+	Valid,
+	/// Candidate is invalid.
+	Invalid,
 }
 
 impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
@@ -119,7 +133,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
@@ -140,7 +154,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::DoubleVote(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
@@ -162,10 +176,31 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 
 				Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
 			}
-			_ => {
-				// TODO: match other cases
-				Err(())
+			TableMisbehavior::MultipleCandidates(
+				TableMultipleCandidates {
+					first,
+					second,
+				}
+			) => {
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(first.0),
+					f.id,
+					first.1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				let signed_2 = SignedFullStatement::new(
+					Statement::Seconded(second.0),
+					f.id,
+					second.1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				Ok(MisbehaviorReport::DoubleVote(signed_1, signed_2))
 			}
+			_ => Err(()),
 		}
 	}
 }

@@ -41,12 +41,12 @@ use polkadot_primitives::{
 	Hash, BlockNumber,
 	parachain::{
 		AbridgedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
-		ValidatorIndex, HeadData, ValidationCode, SigningContext, PoVBlock, ValidationResult,
+		ValidatorIndex, HeadData, ValidationCode, SigningContext, PoVBlock,
 		CandidateDescriptor,
 	},
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -65,6 +65,7 @@ use statement_table::{
 
 #[derive(Debug, derive_more::From)]
 enum Error {
+	JobNotFound(Hash),
 	InvalidSignature,
 	#[from]
 	ValidationFailed(ValidationFailed),
@@ -705,14 +706,14 @@ impl<S: Spawn> Jobs<S> {
 		Ok(())
 	}
 
-	async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), ()> {
+	async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
 		match self.running.remove(&parent_hash) {
 			Some(handle) => {
 				Pin::new(&mut self.outgoing_msgs).remove(handle.su_handle);
 				handle.stop().await;
 				Ok(())
 			}
-			None => Err(())
+			None => Err(Error::JobNotFound(parent_hash))
 		}
 	}
 
@@ -769,7 +770,7 @@ impl<S, Context> CandidateBackingSubsystem<S, Context>
 								}
 							}
 							FromOverseer::Signal(OverseerSignal::StopWork(hash)) => {
-								if let Err(e) = jobs.stop_job(hash) {
+								if let Err(e) = jobs.stop_job(hash).await {
 									log::error!("Failed to spawn a job: {:?}", e);
 									break;
 								}

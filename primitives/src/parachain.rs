@@ -752,15 +752,6 @@ pub enum CompactStatement {
 /// A signed compact statement, suitable to be sent to the chain.
 pub type SignedStatement = Signed<CompactStatement>;
 
-/// Result of the validation of the candidate.
-#[derive(RuntimeDebug)]
-pub enum ValidationResult {
-	/// Candidate is valid.
-	Valid,
-	/// Candidate is invalid.
-	Invalid,
-}
-
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug)]
