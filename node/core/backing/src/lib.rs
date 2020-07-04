@@ -65,6 +65,7 @@ use statement_table::{
 
 #[derive(Debug, derive_more::From)]
 enum Error {
+	NotInValidatorSet,
 	JobNotFound(Hash),
 	InvalidSignature,
 	#[from]
@@ -79,21 +80,17 @@ enum Error {
 
 /// Holds all data needed for candidate backing job operation.
 struct CandidateBackingJob {
-	/// The keystore which holds the signing keys.
-	keystore: KeyStorePtr,
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// Inbound message channel receiving part.
 	rx_to: mpsc::Receiver<ToJob>,
-	/// Inbound message sending part. Handed out to whom it may concern.
-	tx_to: mpsc::Sender<ToJob>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 
 	/// The validation codes of the `ParaId`s we are assigned as validators to.
-	validation_code: ValidationCode,
+	_validation_code: ValidationCode,
 	/// `HeadData`s of the parachains that this validator is assigned to.
-	head_data: HeadData,
+	_head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` statements on about these candidates.
@@ -208,152 +205,8 @@ fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<Val
 }
 
 impl CandidateBackingJob {
-	/// Create a new `CandidateBackingJob` working on top of some parent and with a
-	/// keystore holding keys.
-	fn new(parent: Hash, keystore: KeyStorePtr) -> (Self, mpsc::Receiver<FromJob>) {
-		let (tx_to, rx_to) = mpsc::channel(CHANNEL_CAPACITY);
-		let (tx_from, rx_from) = mpsc::channel(CHANNEL_CAPACITY);
-
-		(
-			Self {
-				keystore,
-				parent,
-				rx_to,
-				tx_to,
-				tx_from,
-
-				validation_code: ValidationCode::default(),
-				head_data: HeadData::default(),
-				assignment: ParaId::default(),
-
-				issued_validity: HashSet::default(),
-				seconded: None,
-				reported_misbehavior_for: HashSet::default(),
-
-				table: Table::default(),
-				table_context: TableContext::default(),
-			},
-			rx_from,
-		)
-	}
-
-	/// Hand out the sending part of the channel to communicate with this job.
-	fn tx(&mut self) -> mpsc::Sender<ToJob> {
-		self.tx_to.clone()
-	}
-
-	/// Request a validator set from the `RuntimeApi`.
-	async fn request_validators(&mut self) -> Result<Vec<ValidatorId>, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-				self.parent.clone(),
-				RuntimeApiRequest::Validators(tx),
-			)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	/// Request the scheduler roster from `RuntimeApi`.
-	async fn request_validator_groups(&mut self) -> Result<SchedulerRoster, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-				self.parent.clone(),
-				RuntimeApiRequest::ValidatorGroups(tx),
-			)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	/// Request the validation code for some `ParaId` at given block
-	/// from `RuntimeApi`.
-	async fn request_validation_code(
-		&mut self,
-		id: ParaId,
-		parent: BlockNumber,
-		parablock: Option<BlockNumber>,
-	) -> Result<ValidationCode, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-				self.parent.clone(),
-				RuntimeApiRequest::ValidationCode(id, parent, parablock, tx),
-			)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	/// Request a `SigningContext` from the `RuntimeApi`.
-	async fn request_signing_context(&mut self) -> Result<SigningContext, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-				self.parent.clone(),
-				RuntimeApiRequest::SigningContext(tx),
-			)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	/// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-	async fn request_head_data(&mut self, id: ParaId) -> Result<HeadData, Error> {
-		let (tx, rx) = oneshot::channel();
-
-		self.tx_from.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-				self.parent.clone(),
-				RuntimeApiRequest::HeadData(id, tx),
-			)
-		)).await?;
-
-		Ok(rx.await?)
-	}
-
-	/// Logic that runs on startup.
-	async fn on_startup(&mut self) -> Result<(), Error> {
-		let validators = self.request_validators().await?;
-	
-		let roster = self.request_validator_groups().await?; 
-
-		self.table_context.key = signing_key(&validators[..], &self.keystore);
-
-		for assignment in roster.scheduled {
-			if let Some(groups) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
-				self.table_context.groups.insert(
-					assignment.para_id,
-					HashSet::from_iter(groups.iter().copied()),
-				);
-			}
-		}
-
-		if let Some(ref key) = self.table_context.key {
-			if let Some(idx) = validators.iter().position(|k| *k == key.public()) {
-				let idx = idx as u32;
-				for (para_id, group) in self.table_context.groups.iter() {
-					if group.contains(&idx) {
-						self.assignment = *para_id;
-						break;
-					}
-				}
-			}
-		}
-
-		self.validation_code = self.request_validation_code(self.assignment, 0, None).await?;
-		self.head_data = self.request_head_data(self.assignment).await?;
-		self.table_context.signing_context = self.request_signing_context().await?;
-		self.table_context.validators = validators;
-
-		Ok(())
-	}
-
 	/// Run asynchronously.
 	async fn run(mut self) -> Result<(), Error> {
-		self.on_startup().await?;
-
 		while let Some(msg) = self.rx_to.next().await {
 			match msg {
 				ToJob::CandidateBacking(msg) => {
@@ -665,6 +518,151 @@ struct Jobs<S> {
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJob>>,
 }
 
+async fn run_job(
+	parent: Hash,
+	keystore: KeyStorePtr,
+	rx_to: mpsc::Receiver<ToJob>,
+	mut tx_from: mpsc::Sender<FromJob>,
+) -> Result<(), Error> {
+	let validators = request_validators(parent, &mut tx_from).await?;
+	let roster = request_validator_groups(parent, &mut tx_from).await?;
+	let key = signing_key(&validators[..], &keystore).ok_or(Error::NotInValidatorSet)?;
+	let mut groups = HashMap::new();
+
+	for assignment in roster.scheduled {
+		if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
+			groups.insert(
+				assignment.para_id,
+				HashSet::from_iter(g.iter().copied()),
+			);
+		}
+	}
+
+	let mut assignment = Default::default();
+
+	if let Some(idx) = validators.iter().position(|k| *k == key.public()) {
+		let idx = idx as u32;
+		for (para_id, group) in groups.iter() {
+			if group.contains(&idx) {
+				assignment = *para_id;
+				break;
+			}
+		}
+	}
+
+	let validation_code = request_validation_code(parent, &mut tx_from, assignment, 0, None).await?;
+	let head_data = request_head_data(parent, &mut tx_from, assignment).await?;
+	let signing_context = request_signing_context(parent, &mut tx_from).await?;
+
+	let table_context = TableContext {
+		signing_context,
+		key: Some(key),
+		groups,
+		validators,
+	};
+
+	let job = CandidateBackingJob {
+		parent,
+		rx_to,
+		tx_from,
+		_validation_code: validation_code,
+		_head_data: head_data,
+		assignment,
+		issued_validity: HashSet::new(),
+		seconded: None,
+		reported_misbehavior_for: HashSet::new(),
+		table: Table::default(),
+		table_context,
+	};
+
+	job.run().await
+}
+
+/// Request a validator set from the `RuntimeApi`.
+async fn request_validators(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+) -> Result<Vec<ValidatorId>, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
+			parent,
+			RuntimeApiRequest::Validators(tx),
+		)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
+/// Request the scheduler roster from `RuntimeApi`.
+async fn request_validator_groups(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+) -> Result<SchedulerRoster, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
+			parent,
+			RuntimeApiRequest::ValidatorGroups(tx),
+		)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
+/// Request the validation code for some `ParaId` at given block
+/// from `RuntimeApi`.
+async fn request_validation_code(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+	id: ParaId,
+	parent_number: BlockNumber,
+	parablock: Option<BlockNumber>,
+) -> Result<ValidationCode, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
+			parent,
+			RuntimeApiRequest::ValidationCode(id, parent_number, parablock, tx),
+		)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
+/// Request a `SigningContext` from the `RuntimeApi`.
+async fn request_signing_context(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+) -> Result<SigningContext, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
+			parent,
+			RuntimeApiRequest::SigningContext(tx),
+		)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
+/// Request `HeadData` for some `ParaId` from `RuntimeApi`.
+async fn request_head_data(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+	id: ParaId,
+) -> Result<HeadData, Error> {
+	let (tx, rx) = oneshot::channel();
+
+	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
+			parent,
+			RuntimeApiRequest::HeadData(id, tx),
+		)
+	)).await?;
+
+	Ok(rx.await?)
+}
+
 impl<S: Spawn> Jobs<S> {
 	fn new(spawner: S) -> Self {
 		Self {
@@ -675,15 +673,19 @@ impl<S: Spawn> Jobs<S> {
 	}
 
 	fn spawn_job(&mut self, parent_hash: Hash, keystore: KeyStorePtr) -> Result<(), Error> {
-		let (mut job, from_job) = CandidateBackingJob::new(parent_hash,keystore);
-
-		let to_job = job.tx();
+		let (to_job_tx, to_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
+		let (from_job_tx, from_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = job.run().await {
-				log::error!("Job terminated with an an error: {:?}", e);
+			if let Err(e) = run_job(parent_hash, keystore, to_job_rx, from_job_tx).await {
+				log::error!(
+					"CandidateBackingJob({}) finished with an error {:?}",
+					parent_hash,
+					e,
+				);
 			}
 		});
+
 		let (finished_tx, finished) = oneshot::channel();
 
 		let future = async move {
@@ -692,11 +694,11 @@ impl<S: Spawn> Jobs<S> {
 		};
 		self.spawner.spawn(future)?;
 
-		let su_handle = self.outgoing_msgs.push(from_job);
+		let su_handle = self.outgoing_msgs.push(from_job_rx);
 
 		let handle = JobHandle {
 			abort_handle,
-			to_job,
+			to_job: to_job_tx,
 			finished,
 			su_handle,
 		};
