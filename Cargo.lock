@@ -4358,6 +4358,7 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-primitives",
  "polkadot-validation",
+ "rand 0.7.3",
  "sc-network",
  "sc-network-gossip",
  "sp-api",

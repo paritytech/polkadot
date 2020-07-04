@@ -24,6 +24,7 @@ use crate::legacy::collator_pool::Role;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use wasm_timer::Instant;
+use rand::seq::SliceRandom;
 
 const LIVE_FOR: Duration = Duration::from_secs(60 * 5);
 
@@ -106,9 +107,7 @@ impl<C: Clone> LocalCollations<C> {
 		relay_parent: Hash,
 		targets: HashSet<ValidatorId>,
 		collation: C
-	)
-		-> impl Iterator<Item=(ValidatorId, C)> + 'a
-	{
+	) -> impl Iterator<Item=(ValidatorId, C)> + 'a {
 		self.local_collations.insert(relay_parent, LocalCollation {
 			targets,
 			collation,
@@ -119,8 +118,17 @@ impl<C: Clone> LocalCollations<C> {
 			.expect("just inserted to this key; qed");
 
 		let borrowed_collation = &local.collation;
+
+		// If we are conected to multiple validators,
+		// make sure we always send the collation to one of the validators
+		// we are registered as backup. This ensures that one collator that
+		// is primary at multiple validators, desn't block the Parachain from progressing.
+		let mut rng = rand::thread_rng();
+		let diff = local.targets.difference(&self.primary_for).collect::<Vec<_>>();
+
 		local.targets
 			.intersection(&self.primary_for)
+			.chain(diff.choose(&mut rng).map(|r| r.clone()))
 			.map(move |k| (k.clone(), borrowed_collation.clone()))
 	}
 
@@ -149,7 +157,7 @@ mod tests {
 		};
 
 		let mut tracker = LocalCollations::new();
-		assert!(tracker.add_collation(relay_parent, targets, 5).next().is_none());
+		assert!(tracker.add_collation(relay_parent, targets, 5).next().is_some());
 		assert_eq!(tracker.note_validator_role(key, Role::Primary), vec![(relay_parent, 5)]);
 	}
 
@@ -165,7 +173,7 @@ mod tests {
 		};
 
 		let mut tracker: LocalCollations<u8> = LocalCollations::new();
-		assert!(tracker.add_collation(relay_parent, targets, 5).next().is_none());
+		assert!(tracker.add_collation(relay_parent, targets, 5).next().is_some());
 		assert!(tracker.note_validator_role(orig_key.clone(), Role::Primary).is_empty());
 		assert_eq!(tracker.fresh_key(&orig_key, &new_key), vec![(relay_parent, 5u8)]);
 	}
