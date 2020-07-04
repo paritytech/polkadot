@@ -734,6 +734,7 @@ impl<S: Spawn> Jobs<S> {
 	}
 }
 
+/// An implementation of the Candidate Backing subsystem.
 pub struct CandidateBackingSubsystem<S, Context> {
 	spawner: S,
 	keystore: KeyStorePtr,
@@ -745,6 +746,7 @@ impl<S, Context> CandidateBackingSubsystem<S, Context>
 		S: Spawn + Clone,
 		Context: SubsystemContext<Message=CandidateBackingMessage>,
 {
+	/// Creates a new `CandidateBackingSubsystem`.
 	pub fn new(keystore: KeyStorePtr, spawner: S) -> Self {
 		Self {
 			spawner,
@@ -974,17 +976,19 @@ mod tests {
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
-		virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(test_state.relay_parent))).await;
+		virtual_overseer.send(FromOverseer::Signal(
+			OverseerSignal::StartWork(test_state.relay_parent))
+		).await;
 
 		// Check that subsystem job issues a request for a validator set.
-		match virtual_overseer.recv().await {
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 			) if parent == test_state.relay_parent => {
 				tx.send(test_state.validator_public.clone()).unwrap();
 			}
-			msg => panic!("unexpected message {:?}", msg),
-		}
+		);
 
 		// Check that subsystem job issues a request for the validator groups.
 		assert_matches!(
