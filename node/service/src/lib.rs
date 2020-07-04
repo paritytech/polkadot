@@ -34,10 +34,11 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{CandidateValidationMessage, CandidateBackingMessage},
 };
+use sp_trie::PrefixedMemoryDB;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceBuilderCommand, ServiceComponents, TaskManager,
+	Configuration, ChainSpec, ServiceComponents, TaskManager,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -195,7 +196,7 @@ macro_rules! new_full_start {
 					grandpa::block_import_with_authority_set_hard_forks(
 						client.clone(),
 						&(client.clone() as Arc<_>),
-						select_chain,
+						select_chain.clone(),
 						grandpa_hard_forks,
 					)?;
 
@@ -213,6 +214,7 @@ macro_rules! new_full_start {
 					Some(Box::new(justification_import)),
 					None,
 					client,
+					select_chain,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
 					registry,
@@ -516,14 +518,18 @@ macro_rules! new_light {
 				client,
 				backend,
 				fetcher,
-				_select_chain,
+				mut select_chain,
 				_,
 				spawn_task_handle,
 				registry,
 			| {
+				let select_chain = select_chain.take()
+					.ok_or_else(|| service::Error::SelectChainRequired)?;
+
 				let fetch_checker = fetcher
 					.map(|fetcher| fetcher.checker().clone())
 					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
+
 				let grandpa_block_import = grandpa::light_block_import(
 					client.clone(), backend, &(client.clone() as Arc<_>), Arc::new(fetch_checker)
 				)?;
@@ -545,6 +551,7 @@ macro_rules! new_light {
 					None,
 					Some(Box::new(finality_proof_import)),
 					client,
+					select_chain,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
 					registry,
@@ -576,18 +583,25 @@ macro_rules! new_light {
 }
 
 /// Builds a new object suitable for chain operations.
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration)
-	-> Result<impl ServiceBuilderCommand<Block=Block>, ServiceError>
+pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
+	(
+		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
+		Arc<TFullBackend<Block>>,
+		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
+		TaskManager,
+	),
+	ServiceError
+>
 where
 	Runtime: ConstructRuntimeApi<Block, service::TFullClient<Block, Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
 	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<TFullBackend<Block>, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
 	Extrinsic: RuntimeExtrinsic,
-	<Runtime::RuntimeApi as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	Ok(new_full_start!(config, Runtime, Dispatch).0)
+	let (builder, _, _, _) = new_full_start!(config, Runtime, Dispatch);
+	Ok(builder.to_chain_ops_parts())
 }
 
 /// Create a new Polkadot service for a full node.
