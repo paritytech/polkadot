@@ -4416,6 +4416,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-proposer"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "polkadot-node-subsystem",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "sc-basic-authorship",
+ "sc-block-builder",
+ "sc-client-api",
+ "sc-telemetry",
+ "sp-api",
+ "sp-blockchain",
+ "sp-consensus",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-transaction-pool",
+ "tokio-executor 0.2.0-alpha.6",
+ "wasm-timer",
+]
+
+[[package]]
 name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
@@ -4762,6 +4788,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "polkadot-network",
+ "polkadot-node-core-proposer",
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
@@ -4769,7 +4796,6 @@ dependencies = [
  "polkadot-runtime",
  "polkadot-test-runtime-client",
  "sc-authority-discovery",
- "sc-basic-authorship",
  "sc-block-builder",
  "sc-chain-spec",
  "sc-client-api",

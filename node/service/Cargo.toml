@@ -20,6 +20,7 @@ kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
 polkadot-network = { path = "../../network", optional = true }
 polkadot-rpc = { path = "../../rpc" }
+polkadot-node-core-proposer = { path = "../core/proposer" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -57,7 +58,6 @@ sp-session = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
