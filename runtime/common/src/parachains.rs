@@ -1837,6 +1837,20 @@ mod tests {
 
 		// session module is the trigger
 		type EpochChangeTrigger = babe::ExternalTrigger;
+
+		type KeyOwnerProofSystem = ();
+
+		type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+			KeyTypeId,
+			babe::AuthorityId,
+		)>>::Proof;
+
+		type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+			KeyTypeId,
+			babe::AuthorityId,
+		)>>::IdentificationTuple;
+
+		type HandleEquivocation = ();
 	}
 
 	parameter_types! {
