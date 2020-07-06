@@ -934,7 +934,7 @@ construct_runtime! {
 		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
 
 		// Must be before session.
-		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp), ValidateUnsigned},
+		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
 
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
