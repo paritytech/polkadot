@@ -224,7 +224,7 @@ decl_module! {
 
 		/// Pay the user and complete the crowdsale process.
 		///
-		/// We check tht the account is valid for a balance transfer at this point.
+		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[weight = 0]
