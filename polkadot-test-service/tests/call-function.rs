@@ -1,3 +1,19 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use async_std::task::{block_on, sleep};
 use futures::{pin_mut, select, FutureExt as _};
 use polkadot_test_service::*;
@@ -16,8 +32,7 @@ fn call_function_actually_work() {
 		Alice,
 		|| {},
 		Vec::new(),
-	)
-	.unwrap();
+	);
 	let t1 = sleep(Duration::from_secs(
 		INTEGRATION_TEST_ALLOWED_TIME
 			.and_then(|x| x.parse().ok())
@@ -25,7 +40,10 @@ fn call_function_actually_work() {
 	))
 	.fuse();
 	let t2 = async {
-		let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(Default::default(), 1));
+		let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
+			Default::default(),
+			1,
+		));
 		let (res, _mem, _rx) = alice.call_function(function, Bob).await;
 
 		let res = res.expect("return value expected");
@@ -34,7 +52,11 @@ fn call_function_actually_work() {
 		assert!(object.contains_key("jsonrpc"), "key jsonrpc exists");
 		let result = object.get("result");
 		let result = result.expect("key result exists");
-		assert_eq!(result.as_str().map(|x| x.starts_with("0x")), Some(true), "result starts with 0x");
+		assert_eq!(
+			result.as_str().map(|x| x.starts_with("0x")),
+			Some(true),
+			"result starts with 0x"
+		);
 
 		alice.task_manager.terminate();
 	}

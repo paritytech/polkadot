@@ -103,15 +103,18 @@ pub fn node_config(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> Result<Configuration, ServiceError> {
-	let base_path = BasePath::new_temp_dir()?;
+) -> Configuration {
+	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
 	let root = base_path.path();
 	let role = Role::Authority {
 		sentry_nodes: Vec::new(),
 	};
 	let key_seed = key.to_seed();
 	let mut spec = polkadot_local_testnet_config();
-	let mut storage = spec.as_storage_builder().build_storage()?;
+	let mut storage = spec
+		.as_storage_builder()
+		.build_storage()
+		.expect("could not build storage");
 
 	BasicExternalities::execute_with_storage(&mut storage, storage_update_func);
 	spec.set_storage(storage);
@@ -137,7 +140,7 @@ pub fn node_config(
 
 	network_config.transport = TransportConfig::MemoryOnly;
 
-	Ok(Configuration {
+	Configuration {
 		impl_name: "polkadot-test-node".to_string(),
 		impl_version: "0.1".to_string(),
 		role,
@@ -185,7 +188,7 @@ pub fn node_config(
 		announce_block: true,
 		base_path: Some(base_path),
 		informant_output_format,
-	})
+	}
 }
 
 /// Run a Polkadot test node using the Polkadot test runtime. The node will be using an in-memory socket, therefore you
@@ -196,31 +199,27 @@ pub fn run_test_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> Result<
-	PolkadotTestNode<
-		TaskManager,
-		impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
-	>,
-	ServiceError,
+) -> PolkadotTestNode<
+	TaskManager,
+	impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
 > {
-	let config = node_config(storage_update_func, task_executor, key, boot_nodes)?;
+	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
 	let (task_manager, client, handles, network, rpc_handlers) =
-		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)?;
+		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)
+			.expect("could not create Polkadot test service");
 
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
-	let node = PolkadotTestNode {
+	PolkadotTestNode {
 		task_manager,
 		client,
 		handles,
 		addr,
 		rpc_handlers,
-	};
-
-	Ok(node)
+	}
 }
 
 /// A Polkadot test node instance used for testing.
