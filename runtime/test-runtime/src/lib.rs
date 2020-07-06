@@ -654,8 +654,6 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			// TODO and to fix
-			//AuthorityDiscovery::authorities()
 			Vec::new()
 		}
 	}
