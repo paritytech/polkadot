@@ -18,17 +18,23 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError};
-use sp_runtime::traits::{Bounded, Zero};
+use sp_runtime::traits::{Bounded, Saturating, Zero};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
-use frame_support::traits::{EnsureOrigin, IsDeadAccount, Currency};
+use frame_support::traits::{
+	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
+};
 use sp_core::sr25519;
 
 /// Configuration trait.
 pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
-	/// Balances
+	/// Balances Pallet
 	type Currency: Currency<Self::AccountId>;
+	/// Vesting Pallet
+	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber, Currency=Self::Currency>;
+	/// The number of blocks that the "locked" dots will be locked for.
+	type VestingTime: Get<Self::BlockNumber>;
 	/// The origin allowed to set account status.
 	type ValidityOrigin: EnsureOrigin<Self::Origin>;
 	/// The origin allowed to make final payments.
@@ -59,6 +65,16 @@ impl Default for AccountValidity {
 }
 
 impl AccountValidity {
+	fn is_valid(&self) -> bool {
+		match self {
+			Self::Invalid => false,
+			Self::Pending => false,
+			Self::ValidLow => true,
+			Self::ValidHigh => true,
+			Self::Completed => false,
+		}
+	}
+
 	fn max_amount<T: Trait>(&self) -> BalanceOf<T> {
 		match self {
 			Self::Invalid => Zero::zero(),
@@ -138,7 +154,10 @@ decl_error! {
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Crowdsale {
+		// A map of all participants in the crowdsale.
 		Accounts: map hasher(blake2_128_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
+		// The account that will be used to payout participants of the crowdsale.
+		PaymentAccount: T::AccountId;
 	}
 }
 
@@ -226,11 +245,58 @@ decl_module! {
 		///
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
-		/// Origin must match the `ValidityOrigin`.
+		/// Origin must match the `PaymentOrigin`.
 		#[weight = 0]
 		fn payout(origin, who: T::AccountId) {
 			T::PaymentOrigin::ensure_origin(origin)?;
-			// TODO
+
+			// Account should not be active.
+			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
+
+			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
+				// Account has a valid status (not Invalid, Pending, or Completed)...
+				ensure!(status.validity.is_valid(), Error::<T>::InvalidBalance);
+				// The balance we are going to transfer them matches their validity status
+				ensure!(status.balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
+
+				// Transfer funds from the payment account into the crowdsale user.
+				// TODO: This is totally safe? No chance of reentrancy?
+				let payment_account = PaymentAccount::<T>::get();
+				T::Currency::transfer(&payment_account, &who, status.balance, ExistenceRequirement::AllowDeath)?;
+
+				if status.locked {
+					// Account did not exist before this point, thus it should have no existing vesting schedule.
+					// So this function should never fail, however if it does, not much we can do about it at
+					// this point.
+					let unlock_block = system::Module::<T>::block_number().saturating_add(T::VestingTime::get());
+					let _ = T::VestingSchedule::add_vesting_schedule(
+						// Apply vesting schedule to this user
+						&who,
+						// For this much amount
+						status.balance,
+						// Unlocking the full amount after one block
+						status.balance,
+						// When everything unlocks
+						unlock_block
+					);
+				}
+
+				// Setting the user account to `Completed` ends the crowdsale process for this user.
+				status.validity = AccountValidity::Completed;
+				Ok(())
+			})?;
+		}
+
+		/* Admin Operations */
+
+		/// Set the account that will be used to payout users in the crowdsale.
+		///
+		/// Origin must match the `PaymentOrigin`
+		#[weight = 0]
+		fn set_payout_account(origin, who: T::AccountId) {
+			T::PaymentOrigin::ensure_origin(origin)?;
+			// Possibly this is worse than having the caller account be the payment account?
+			PaymentAccount::<T>::set(who);
 		}
 	}
 }
@@ -273,7 +339,7 @@ mod tests {
 	use sp_core::H256;
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup}, testing::Header};
+	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
@@ -327,15 +393,8 @@ mod tests {
 		type OnKilledAccount = Balances;
 	}
 
-	ord_parameter_types! {
-		pub const Six: u64 = 6;
-		pub const Seven: u64 = 7;
-	}
-
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
-		pub const CreationFee: u64 = 0;
-		pub const MinVestedTransfer: u64 = 0;
 	}
 
 	impl balances::Trait for Test {
@@ -346,15 +405,38 @@ mod tests {
 		type AccountStore = System;
 	}
 
+	parameter_types! {
+		pub const MinVestedTransfer: u64 = 0;
+	}
+
+	impl vesting::Trait for Test {
+		type Event = ();
+		type Currency = Balances;
+		type BlockNumberToBalance = Identity;
+		type MinVestedTransfer = MinVestedTransfer;
+	}
+
+	ord_parameter_types! {
+		pub const Six: u64 = 6;
+		pub const Seven: u64 = 7;
+	}
+
+	parameter_types! {
+		pub const VestingTime: u64 = 100;
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
+		type VestingSchedule = Vesting;
+		type VestingTime = VestingTime;
 		type ValidityOrigin = system::EnsureSignedBy<Six, u64>;
 		type PaymentOrigin = system::EnsureSignedBy<Seven, u64>;
 	}
 
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
+	type Vesting = vesting::Module<Test>;
 	type Crowdsale = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
