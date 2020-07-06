@@ -18,6 +18,7 @@ polkadot-primitives = { path = "../primitives" }
 polkadot-runtime = { path = "../runtime/polkadot" }
 kusama-runtime = { path = "../runtime/kusama" }
 westend-runtime = { path = "../runtime/westend" }
+rococo-runtime = { path = "../runtime/rococo" }
 polkadot-network = { path = "../network", optional = true }
 polkadot-rpc = { path = "../rpc" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }

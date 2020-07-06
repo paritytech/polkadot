@@ -76,6 +76,13 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
+native_executor_instance!(
+	pub RococoExecutor,
+	rococo_runtime::api::dispatch,
+	rococo_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -125,14 +132,22 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Westend` network.
 	fn is_westend(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Rococo` network.
+	fn is_rococo(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
+
 	fn is_westend(&self) -> bool {
 		self.id().starts_with("westend") || self.id().starts_with("wnd")
+	}
+
+	fn is_rococo(&self) -> bool {
+		self.id().starts_with("rococo") || self.id().starts_with("roc")
 	}
 }
 
@@ -730,7 +745,7 @@ pub fn kusama_new_full(
 	Ok((service, client, handles))
 }
 
-/// Create a new Kusama service for a full node.
+/// Create a new Westend service for a full node.
 #[cfg(feature = "full-node")]
 pub fn westend_new_full(
 	mut config: Configuration,
@@ -759,6 +774,39 @@ pub fn westend_new_full(
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,
+	);
+
+	Ok((service, client, handles))
+}
+
+/// Create a new Westend service for a full node.
+#[cfg(feature = "full-node")]
+pub fn rococo_new_full(
+	mut config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+)
+	-> Result<(
+		TaskManager,
+		Arc<impl PolkadotClient<
+			Block,
+			TFullBackend<Block>,
+			rococo_runtime::RuntimeApi
+		>>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	let (service, client, handles) = new_full!(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		None,
+		rococo_runtime::RuntimeApi,
+		RococoExecutor,
 	);
 
 	Ok((service, client, handles))
@@ -794,7 +842,13 @@ pub fn kusama_new_light(mut config: Configuration) -> Result<
 /// Create a new Westend service for a light client.
 pub fn westend_new_light(mut config: Configuration, ) -> Result<
 	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light!(config, westend_runtime::RuntimeApi, KusamaExecutor)
+> {
+	new_light!(config, westend_runtime::RuntimeApi, WestendExecutor)
+}
+
+/// Create a new Rococo service for a light client.
+pub fn rococo_new_light(mut config: Configuration, ) -> Result<
+	(TaskManager, Arc<RpcHandlers>), ServiceError
+> {
+	new_light!(config, rococo_runtime::RuntimeApi, RococoExecutor)
 }
