@@ -4832,6 +4832,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-statement-distribution"
+version = "0.1.0"
+dependencies = [
+ "arrayvec 0.5.1",
+ "assert_matches",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "indexmap",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "polkadot-subsystem-test-helpers",
+ "sp-keyring",
+ "sp-runtime",
+ "sp-staking",
+ "streamunordered",
+]
+
+[[package]]
 name = "polkadot-statement-table"
 version = "0.8.14"
 dependencies = [
