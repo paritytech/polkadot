@@ -26,6 +26,7 @@ futures-timer = "2.0"
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 wasm-timer = "0.2.4"
+rand = "0.7.3"
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

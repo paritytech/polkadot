@@ -175,6 +175,20 @@ impl babe::Trait for Runtime {
 
 	// session module is the trigger
 	type EpochChangeTrigger = babe::ExternalTrigger;
+
+	type KeyOwnerProofSystem = ();
+
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		babe::AuthorityId,
+	)>>::Proof;
+
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		babe::AuthorityId,
+	)>>::IdentificationTuple;
+
+	type HandleEquivocation = ();
 }
 
 parameter_types! {
@@ -703,6 +717,20 @@ sp_api::impl_runtime_apis! {
 
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn generate_key_ownership_proof(
+			_slot_number: babe_primitives::SlotNumber,
+			_authority_id: babe_primitives::AuthorityId,
+		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
+			None
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			_equivocation_proof: babe_primitives::EquivocationProof<<Block as BlockT>::Header>,
+			_key_owner_proof: babe_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			None
 		}
 	}
 
