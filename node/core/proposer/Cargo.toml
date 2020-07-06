@@ -1,0 +1,27 @@
+[package]
+name = "polkadot-node-core-proposer"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.4"
+futures-timer = "3.0.1"
+log = "0.4.8"
+parity-scale-codec = "1.3.0"
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-overseer = { path = "../../overseer" }
+polkadot-primitives = { path = "../../../primitives" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
+wasm-timer = "0.2.4"
