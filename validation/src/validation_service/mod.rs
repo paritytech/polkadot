@@ -43,6 +43,7 @@ use sp_api::{ProvideRuntimeApi, ApiExt};
 use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
 
+use ansi_term::Colour;
 use log::{warn, error, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
@@ -373,12 +374,18 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			sign_with.as_ref().map(|k| k.public()),
 		)?;
 
-		info!(
-			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
-			parent_hash,
-			local_duty,
-		);
-
+		if let Some(ref duty) = local_duty {
+			info!(
+				"✍️ Starting parachain attestation session (parent: {}) with active duty {}",
+				parent_hash,
+				Colour::Red.bold().paint(format!("{:?}", duty)),
+			);
+		} else {
+			debug!(
+				"✍️ Starting parachain attestation session (parent: {}). No local duty..",
+				parent_hash,
+			);
+		}
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);

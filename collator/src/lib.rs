@@ -373,12 +373,15 @@ fn build_collator_service<P, C, R, Extrinsic>(
 
 /// Async function that will run the collator node with the given `RelayChainContext` and `ParachainContext`
 /// built by the given `BuildParachainContext` and arguments to the underlying polkadot node.
-pub async fn start_collator<P>(
+pub fn start_collator<P>(
 	build_parachain_context: P,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	config: Configuration,
-) -> Result<(), polkadot_service::Error>
+) -> Result<
+	(Pin<Box<dyn Future<Output = ()> + Send>>, sc_service::TaskManager),
+	polkadot_service::Error
+>
 where
 	P: 'static + BuildParachainContext,
 	P::ParachainContext: Send + 'static,
@@ -400,14 +403,15 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handlers,
 			client,
 			para_id,
 			key,
 			build_parachain_context
-		)?.await;
+		)?;
+		Ok((future.boxed(), task_manager))
 	} else if config.chain_spec.is_westend() {
 		let (task_manager, client, handlers) = service::westend_new_full(
 			config,
@@ -418,14 +422,15 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handlers,
 			client,
 			para_id,
 			key,
 			build_parachain_context
-		)?.await;
+		)?;
+		Ok((future.boxed(), task_manager))
 	} else {
 		let (task_manager, client, handles) = service::polkadot_new_full(
 			config,
@@ -436,17 +441,16 @@ where
 			None,
 		)?;
 		let spawn_handle = task_manager.spawn_handle();
-		build_collator_service(
+		let future = build_collator_service(
 			spawn_handle,
 			handles,
 			client,
 			para_id,
 			key,
-			build_parachain_context,
-		)?.await;
+			build_parachain_context
+		)?;
+		Ok((future.boxed(), task_manager))
 	}
-
-	Ok(())
 }
 
 #[cfg(not(feature = "service-rewr"))]
@@ -506,7 +510,7 @@ mod tests {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = |_, _| unimplemented!();
+		let task_executor = |_, _| {};
 		let config = cli.create_configuration(&cli.run.base, task_executor.into()).unwrap();
 
 		check_send(start_collator(
