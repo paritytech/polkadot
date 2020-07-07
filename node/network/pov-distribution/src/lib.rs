@@ -311,7 +311,7 @@ async fn handle_awaiting(
 	relay_parent: Hash,
 	pov_hashes: Vec<Hash>,
 ) -> SubsystemResult<()> {
-	if state.our_view.0.contains(&relay_parent) {
+	if !state.our_view.0.contains(&relay_parent) {
 		report_peer(ctx, peer, COST_AWAITED_NOT_IN_VIEW).await?;
 		return Ok(());
 	}
@@ -1085,7 +1085,88 @@ mod tests {
 		});
 	}
 
-	// TODO [now] peer is punished for awaiting too much stuff.
+	#[test]
+	fn peer_reported_for_awaiting_too_much() {
+		let hash_a: Hash = [0; 32].into();
+
+		let peer_a = PeerId::random();
+		let n_validators = 10;
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators,
+				};
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			let max_plausibly_awaited = n_validators * 2;
+
+			// The peer awaits a plausible (albeit unlikely) amount of PoVs.
+			for i in 0..max_plausibly_awaited {
+				let pov_hash = make_pov(vec![i as u8; 32]).hash();
+				handle_network_update(
+					&mut state,
+					&mut ctx,
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
+					),
+				).await.unwrap();
+			}
+
+			assert_eq!(state.peer_state[&peer_a].awaited[&hash_a].len(), max_plausibly_awaited);
+
+			// The last straw:
+			let last_pov_hash = make_pov(vec![max_plausibly_awaited as u8; 32]).hash();
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::Awaiting(hash_a, vec![last_pov_hash]).encode(),
+				),
+			).await.unwrap();
+
+			// No more bookkeeping for you!
+			assert_eq!(state.peer_state[&peer_a].awaited[&hash_a].len(), max_plausibly_awaited);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_APPARENT_FLOOD);
+				}
+			);
+		});
+	}
+
+	// TODO [now] peer reported for awaiting something outside of their view.
+
+	// TODO [now] peer reported for awaiting something outside of our view.
 
 	// TODO [now] one peer completing our fetch leads to us fulfilling another peer's awaited.
 }
