@@ -76,7 +76,11 @@ use polkadot_primitives::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 use polkadot_subsystem::messages::{
-	CandidateValidationMessage, CandidateBackingMessage, AllMessages
+	CandidateValidationMessage, CandidateBackingMessage,
+	CandidateSelectionMessage, StatementDistributionMessage,
+	AvailabilityDistributionMessage, BitfieldDistributionMessage,
+	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage, 
+	NetworkBridgeMessage, AllMessages,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
@@ -319,11 +323,36 @@ struct OverseenSubsystem<M> {
 
 /// The `Overseer` itself.
 pub struct Overseer<S: Spawn> {
-	/// A validation subsystem
-	validation_subsystem: OverseenSubsystem<CandidateValidationMessage>,
+	/// A candidate validation subsystem.
+	candidate_validation_subsystem: OverseenSubsystem<CandidateValidationMessage>,
 
-	/// A candidate backing subsystem
+	/// A candidate backing subsystem.
 	candidate_backing_subsystem: OverseenSubsystem<CandidateBackingMessage>,
+
+	/// A candidate selection subsystem.
+	candidate_selection_subsystem: OverseenSubsystem<CandidateSelectionMessage>,
+
+	/// A statement distribution subsystem.
+	statement_distribution_subsystem: OverseenSubsystem<StatementDistributionMessage>,
+
+	/// An availability distribution subsystem.
+	availability_distribution_subsystem: OverseenSubsystem<AvailabilityDistributionMessage>,
+
+	/// A bitfield distribution subsystem.
+	bitfield_distribution_subsystem: OverseenSubsystem<BitfieldDistributionMessage>,
+
+	/// A provisioner subsystem.
+	provisioner_subsystem: OverseenSubsystem<ProvisionerMessage>,
+
+	/// A runtime API subsystem.
+	runtime_api_subsystem: OverseenSubsystem<RuntimeApiMessage>,
+
+	/// An availability store subsystem.
+	availability_store_subsystem: OverseenSubsystem<AvailabilityStoreMessage>,
+
+	/// A network bridge subsystem.
+	network_bridge_subsystem: OverseenSubsystem<NetworkBridgeMessage>,
+
 
 	/// Spawner to spawn tasks to.
 	s: S,
@@ -457,8 +486,16 @@ where
 	/// ```
 	pub fn new(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		validation: impl Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		candidate_validation: impl Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
 		candidate_backing: impl Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
+		candidate_selection: impl Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
+		statement_distribution: impl Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
+		availability_distribution: impl Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		bitfield_distribution: impl Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
+		provisioner: impl Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		runtime_api: impl Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
+		availability_store: impl Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
+		network_bridge: impl Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)> {
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
@@ -470,11 +507,11 @@ where
 		let mut running_subsystems_rx = StreamUnordered::new();
 		let mut running_subsystems = FuturesUnordered::new();
 
-		let validation_subsystem = spawn(
+		let candidate_validation_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			validation,
+			candidate_validation,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
@@ -482,6 +519,62 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			candidate_backing,
+		)?;
+
+		let candidate_selection_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			candidate_selection,
+		)?;
+
+		let statement_distribution_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			statement_distribution,
+		)?;
+
+		let availability_distribution_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			availability_distribution,
+		)?;
+
+		let bitfield_distribution_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			bitfield_distribution,
+		)?;
+
+		let provisioner_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			provisioner,
+		)?;
+
+		let runtime_api_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			runtime_api,
+		)?;
+
+		let availability_store_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			availability_store,
+		)?;
+
+		let network_bridge_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			network_bridge,
 		)?;
 
 		let active_leaves = HashSet::new();
@@ -492,8 +585,16 @@ where
 			.collect();
 
 		let this = Self {
-			validation_subsystem,
+			candidate_validation_subsystem,
 			candidate_backing_subsystem,
+			candidate_selection_subsystem,
+			statement_distribution_subsystem,
+			availability_distribution_subsystem,
+			bitfield_distribution_subsystem,
+			provisioner_subsystem,
+			runtime_api_subsystem,
+			availability_store_subsystem,
+			network_bridge_subsystem,
 			s,
 			running_subsystems,
 			running_subsystems_rx,
@@ -507,11 +608,43 @@ where
 
 	// Stop the overseer.
 	async fn stop(mut self) {
-		if let Some(ref mut s) = self.validation_subsystem.instance {
+		if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
 		if let Some(ref mut s) = self.candidate_backing_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.candidate_selection_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.statement_distribution_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.availability_distribution_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.bitfield_distribution_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.provisioner_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.runtime_api_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.availability_distribution_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.network_bridge_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -616,11 +749,43 @@ where
 	}
 
 	async fn broadcast_signal(&mut self, signal: OverseerSignal) -> SubsystemResult<()> {
-		if let Some(ref mut s) = self.validation_subsystem.instance {
+		if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
 
 		if let Some(ref mut s) = self.candidate_backing_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.candidate_selection_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.statement_distribution_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.availability_distribution_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.bitfield_distribution_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.provisioner_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.runtime_api_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.availability_store_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.network_bridge_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal)).await?;
 		}
 
@@ -630,7 +795,7 @@ where
 	async fn route_message(&mut self, msg: AllMessages) {
 		match msg {
 			AllMessages::CandidateValidation(msg) => {
-				if let Some(ref mut s) = self.validation_subsystem.instance {
+				if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
 					let _= s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
@@ -639,11 +804,45 @@ where
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
-			_ => {
-				// TODO: temporary catch-all until all subsystems are integrated with overseer.
-				// The overseer is not complete until this is an exhaustive match with all
-				// messages targeting an included subsystem.
-				// https://github.com/paritytech/polkadot/issues/1317
+			AllMessages::CandidateSelection(msg) => {
+				if let Some(ref mut s) = self.candidate_selection_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::StatementDistribution(msg) => {
+				if let Some(ref mut s) = self.statement_distribution_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::AvailabilityDistribution(msg) => {
+				if let Some(ref mut s) = self.availability_distribution_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::BitfieldDistribution(msg) => {
+				if let Some(ref mut s) = self.bitfield_distribution_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::Provisioner(msg) => {
+				if let Some(ref mut s) = self.provisioner_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::RuntimeApi(msg) => {
+				if let Some(ref mut s) = self.runtime_api_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::AvailabilityStore(msg) => {
+				if let Some(ref mut s) = self.availability_store_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::NetworkBridge(msg) => {
+				if let Some(ref mut s) = self.network_bridge_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
 			}
 		}
 	}
@@ -678,54 +877,30 @@ fn spawn<S: Spawn, M: Send + 'static>(
 	})
 }
 
-mod utils {
-	use std::any::{Any, TypeId};
-	use std::collections::HashMap;
-
-	/// A map allowing you to store and retrieve a single instance of a type.
-	///
-	/// It is the same as https://github.com/malobre/static_type_map,
-	/// but implemented here as it is trivial enough.
-	#[derive(Default, Debug)]
-	pub struct TypeMap(pub HashMap<TypeId, Box<dyn Any>>);
-
-	impl TypeMap {
-		pub fn get<T>(&self) -> Option<&T>
-		where
-			T: Any,
-		{
-			self.0
-				.get(&TypeId::of::<T>())
-				.and_then(|any| any.downcast_ref())
-		}
-
-		pub fn get_mut<T>(&self) -> Option<&mut T>
-		where
-			T: Any,
-		{
-			self.0
-				.get(&TypeId::of::<T>())
-				.and_then(|any| any.downcast_mut())
-		}
-
-		pub fn insert<T>(&mut self, t: T)
-		where
-			T: Any,
-		{
-			let old_value = self.0
-				.insert(TypeId::of::<T>(), Box::new(t));
-			const OOPS: &str = "overseer was initialized with two subsystems handling the same type of message";
-			assert!(old_value.is_none(), OOPS);
-		}
-	}
-}
-
 #[cfg(test)]
 mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
 	use polkadot_primitives::parachain::{BlockData, PoVBlock};
 	use super::*;
+
+	struct DummySubsystem<C>(std::marker::PhantomData<C>);
+
+	impl<C> Default for DummySubsystem<C> {
+		fn default() -> Self {
+			Self(std::marker::PhantomData)
+		}
+	} 
+
+	impl<M: Send, C> Subsystem<C> for DummySubsystem<M>
+		where C: SubsystemContext<Message=M>
+	{
+		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
+			SpawnedSubsystem(Box::pin(async move {
+				// Do nothing and exit.
+			}))
+		}
+	}
 
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
@@ -821,6 +996,14 @@ mod tests {
 				vec![],
 				TestSubsystem1(s1_tx),
 				TestSubsystem2(s2_tx),
+				DummySubsystem::<CandidateSelectionMessage>::default(),
+				DummySubsystem::<StatementDistributionMessage>::default(),
+				DummySubsystem::<AvailabilityDistributionMessage>::default(),
+				DummySubsystem::<BitfieldDistributionMessage>::default(),
+				DummySubsystem::<ProvisionerMessage>::default(),
+				DummySubsystem::<RuntimeApiMessage>::default(),
+				DummySubsystem::<AvailabilityStoreMessage>::default(),
+				DummySubsystem::<NetworkBridgeMessage>::default(),
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -871,6 +1054,14 @@ mod tests {
 				vec![],
 				TestSubsystem1(s1_tx),
 				TestSubsystem4,
+				DummySubsystem::<CandidateSelectionMessage>::default(),
+				DummySubsystem::<StatementDistributionMessage>::default(),
+				DummySubsystem::<AvailabilityDistributionMessage>::default(),
+				DummySubsystem::<BitfieldDistributionMessage>::default(),
+				DummySubsystem::<ProvisionerMessage>::default(),
+				DummySubsystem::<RuntimeApiMessage>::default(),
+				DummySubsystem::<AvailabilityStoreMessage>::default(),
+				DummySubsystem::<NetworkBridgeMessage>::default(),
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -969,6 +1160,14 @@ mod tests {
 				vec![first_block],
 				TestSubsystem5(tx_5),
 				TestSubsystem6(tx_6),
+				DummySubsystem::<CandidateSelectionMessage>::default(),
+				DummySubsystem::<StatementDistributionMessage>::default(),
+				DummySubsystem::<AvailabilityDistributionMessage>::default(),
+				DummySubsystem::<BitfieldDistributionMessage>::default(),
+				DummySubsystem::<ProvisionerMessage>::default(),
+				DummySubsystem::<RuntimeApiMessage>::default(),
+				DummySubsystem::<AvailabilityStoreMessage>::default(),
+				DummySubsystem::<NetworkBridgeMessage>::default(),
 				spawner,
 			).unwrap();
 
@@ -1054,6 +1253,14 @@ mod tests {
 				vec![first_block, second_block],
 				TestSubsystem5(tx_5),
 				TestSubsystem6(tx_6),
+				DummySubsystem::<CandidateSelectionMessage>::default(),
+				DummySubsystem::<StatementDistributionMessage>::default(),
+				DummySubsystem::<AvailabilityDistributionMessage>::default(),
+				DummySubsystem::<BitfieldDistributionMessage>::default(),
+				DummySubsystem::<ProvisionerMessage>::default(),
+				DummySubsystem::<RuntimeApiMessage>::default(),
+				DummySubsystem::<AvailabilityStoreMessage>::default(),
+				DummySubsystem::<NetworkBridgeMessage>::default(),
 				spawner,
 			).unwrap();
 
