@@ -41,6 +41,8 @@ pub trait Trait: system::Trait {
 	type PaymentOrigin: EnsureOrigin<Self::Origin>;
 	/// The statement that must be signed to participate in the purchase process.
 	type Statement: Get<&'static [u8]>;
+	/// The purchase limit for low contributing users.
+	type PurchaseLimit: Get<BalanceOf<Self>>;
 }
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -50,6 +52,8 @@ type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::Ac
 pub enum AccountValidity {
 	/// Account is not valid.
 	Invalid,
+	/// Account has initiated the account creation process.
+	Initiated,
 	/// Account is pending validation.
 	Pending,
 	/// Account is valid with a low contribution amount.
@@ -70,6 +74,7 @@ impl AccountValidity {
 	fn is_valid(&self) -> bool {
 		match self {
 			Self::Invalid => false,
+			Self::Initiated => false,
 			Self::Pending => false,
 			Self::ValidLow => true,
 			Self::ValidHigh => true,
@@ -80,8 +85,9 @@ impl AccountValidity {
 	fn max_amount<T: Trait>(&self) -> BalanceOf<T> {
 		match self {
 			Self::Invalid => Zero::zero(),
+			Self::Initiated => Zero::zero(),
 			Self::Pending => Zero::zero(),
-			Self::ValidLow => 100_000.into(),
+			Self::ValidLow => T::PurchaseLimit::get(),
 			Self::ValidHigh => BalanceOf::<T>::max_value(),
 			Self::Completed => Zero::zero(),
 		}
@@ -165,7 +171,7 @@ decl_module! {
 
 			// Create a new pending account.
 			let status = AccountStatus {
-				validity: AccountValidity::Pending,
+				validity: AccountValidity::Initiated,
 				signature,
 				free_balance: Zero::zero(),
 				locked_balance: Zero::zero(),
@@ -405,6 +411,7 @@ mod tests {
 	parameter_types! {
 		pub const VestingTime: u64 = 100;
 		pub Statement: &'static [u8] = b"Hello, World!";
+		pub const PurchaseLimit: u64 = 100;
 	}
 
 	impl Trait for Test {
@@ -415,6 +422,7 @@ mod tests {
 		type ValidityOrigin = system::EnsureRoot<AccountId>;
 		type PaymentOrigin = system::EnsureRoot<AccountId>;
 		type Statement = Statement;
+		type PurchaseLimit = PurchaseLimit;
 	}
 
 	type System = system::Module<Test>;
