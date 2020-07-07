@@ -678,6 +678,48 @@ fn spawn<S: Spawn, M: Send + 'static>(
 	})
 }
 
+mod utils {
+	use std::any::{Any, TypeId};
+	use std::collections::HashMap;
+
+	/// A map allowing you to store and retrieve a single instance of a type.
+	///
+	/// It is the same as https://github.com/malobre/static_type_map,
+	/// but implemented here as it is trivial enough.
+	#[derive(Default, Debug)]
+	pub struct TypeMap(pub HashMap<TypeId, Box<dyn Any>>);
+
+	impl TypeMap {
+		pub fn get<T>(&self) -> Option<&T>
+		where
+			T: Any,
+		{
+			self.0
+				.get(&TypeId::of::<T>())
+				.and_then(|any| any.downcast_ref())
+		}
+
+		pub fn get_mut<T>(&self) -> Option<&mut T>
+		where
+			T: Any,
+		{
+			self.0
+				.get(&TypeId::of::<T>())
+				.and_then(|any| any.downcast_mut())
+		}
+
+		pub fn insert<T>(&mut self, t: T)
+		where
+			T: Any,
+		{
+			let old_value = self.0
+				.insert(TypeId::of::<T>(), Box::new(t));
+			const OOPS: &str = "overseer was initialized with two subsystems handling the same type of message";
+			assert!(old_value.is_none(), OOPS);
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
