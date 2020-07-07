@@ -43,6 +43,7 @@ members = [
 	"service",
 	"validation",
 
+	"node/availability/bitfield-distribution",
 	"node/core/proposer",
 	"node/network/bridge",
 	"node/network/pov-distribution",

@@ -4311,6 +4311,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-availability-bitfield-distribution"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.5",
+ "log 0.4.8",
+ "polkadot-network-bridge",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+]
+
+[[package]]
 name = "polkadot-availability-store"
 version = "0.8.14"
 dependencies = [
