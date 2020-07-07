@@ -414,13 +414,18 @@ mod tests {
 		pub const PurchaseLimit: u64 = 100;
 	}
 
+	ord_parameter_types! {
+		pub const ValidityOrigin: AccountId = AccountId32::from([0u8; 32]);
+		pub const PaymentOrigin: AccountId = AccountId32::from([1u8; 32]);
+	}
+
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type VestingTime = VestingTime;
-		type ValidityOrigin = system::EnsureRoot<AccountId>;
-		type PaymentOrigin = system::EnsureRoot<AccountId>;
+		type ValidityOrigin = system::EnsureSignedBy<ValidityOrigin, AccountId>;
+		type PaymentOrigin = system::EnsureSignedBy<PaymentOrigin, AccountId>;
 		type Statement = Statement;
 		type PurchaseLimit = PurchaseLimit;
 	}
@@ -461,22 +466,84 @@ mod tests {
 		get_account_id_from_seed::<sr25519::Public>("Bob")
 	}
 
+	fn alice_signature() -> [u8; 64] {
+		// Signing the "Hello, World!" with Alice using PolkadotJS, removing `0x` prefix
+		hex_literal::hex!("66b14944807202317fbc26001dd883726a9a756eab804e8d15f1a38bcde4a1591abd720ebe22df3cf1e7bd3a640727691b7fe697c23256760ec166b78c07b886")
+	}
+
+	fn bob_signature() -> [u8; 64] {
+		// Signing the "Hello, World!" with Bob using PolkadotJS, removing `0x` prefix
+		hex_literal::hex!("aced3b06fb3b7862c38ace0ba36fad20012dd0246b92760813b5fe9cee97c973f15db6b74fceeaae0012c3f708ee13a3dd3446403243be01d1d01ddf3b54448a")
+	}
+
 	#[test]
 	fn signature_verification_works() {
 		new_test_ext().execute_with(|| {
 			let alice = alice();
-			// Signing the "Hello, World!" with Alice using PolkadotJS, removing `0x` prefix
-			let alice_signature = hex_literal::hex!("66b14944807202317fbc26001dd883726a9a756eab804e8d15f1a38bcde4a1591abd720ebe22df3cf1e7bd3a640727691b7fe697c23256760ec166b78c07b886");
+			let alice_signature = alice_signature();
 			assert_ok!(Purchase::verify_signature(&alice, &alice_signature));
 
 			let bob = bob();
-			// Signing the "Hello, World!" with Bob using PolkadotJS, removing `0x` prefix
-			let bob_signature = hex_literal::hex!("aced3b06fb3b7862c38ace0ba36fad20012dd0246b92760813b5fe9cee97c973f15db6b74fceeaae0012c3f708ee13a3dd3446403243be01d1d01ddf3b54448a");
+			let bob_signature = bob_signature();
 			assert_ok!(Purchase::verify_signature(&bob, &bob_signature));
 
 			// Mixing and matching fails
 			assert_noop!(Purchase::verify_signature(&alice, &bob_signature), Error::<Test>::InvalidSignature);
 			assert_noop!(Purchase::verify_signature(&bob, &alice_signature), Error::<Test>::InvalidSignature);
+		});
+	}
+
+	#[test]
+	fn account_creation_works() {
+		new_test_ext().execute_with(|| {
+			let validity_origin = ValidityOrigin::get();
+
+			assert!(!Accounts::<Test>::contains_key(alice()));
+			assert_ok!(Purchase::create_account(Origin::signed(validity_origin), alice(), alice_signature().to_vec()));
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::Initiated,
+					free_balance: Zero::zero(),
+					locked_balance: Zero::zero(),
+					signature: alice_signature().to_vec(),
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn account_creation_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			let validity_origin = ValidityOrigin::get();
+
+			// Wrong Origin
+			assert_noop!(
+				Purchase::create_account(Origin::signed(alice()), alice(), alice_signature().to_vec()),
+				BadOrigin
+			);
+
+			// Wrong Account/Signature
+			assert_noop!(
+				Purchase::create_account(Origin::signed(validity_origin.clone()), alice(), bob_signature().to_vec()),
+				Error::<Test>::InvalidSignature
+			);
+
+			// Active Account
+			Balances::make_free_balance_be(&alice(), 100);
+			assert_noop!(
+				Purchase::create_account(Origin::signed(validity_origin.clone()), alice(), alice_signature().to_vec()),
+				Error::<Test>::InvalidAccount
+			);
+
+			// Duplicate Purchasing Account
+			assert_ok!(
+				Purchase::create_account(Origin::signed(validity_origin.clone()), bob(), bob_signature().to_vec())
+			);
+			assert_noop!(
+				Purchase::create_account(Origin::signed(validity_origin), bob(), bob_signature().to_vec()),
+				Error::<Test>::InvalidAccount
+			);
 		});
 	}
 }
