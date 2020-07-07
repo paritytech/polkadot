@@ -24,15 +24,16 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use sc_network::{ObservedRole, ReputationChange, PeerId};
 use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
-	SignedAvailabilityBitfield, SignedAvailabilityBitfields, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
+	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
+
+pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -193,7 +194,7 @@ pub enum ProvisionableData {
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
 /// There, it is used to construct the InclusionInherent.
-pub type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
+pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 
 /// Message to the Provisioner.
 ///
@@ -234,4 +235,6 @@ pub enum AllMessages {
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
 	AvailabilityStore(AvailabilityStoreMessage),
+	/// Message for the network bridge subsystem.
+	NetworkBridge(NetworkBridgeMessage),
 }
