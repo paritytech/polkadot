@@ -197,7 +197,7 @@ pub enum ProvisionableData {
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
 /// There, it is used to construct the InclusionInherent.
-pub type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
+pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 
 /// Message to the Provisioner.
 ///
