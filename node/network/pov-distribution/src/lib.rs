@@ -1385,4 +1385,73 @@ mod tests {
 	}
 
 	// TODO [now] awaiting peer sending us something is no longer awaiting.
+	#[test]
+	fn peer_completing_request_no_longer_awaiting() {
+		let hash_a: Hash = [0; 32].into();
+
+		let peer_a = PeerId::random();
+
+		let (pov_send, pov_recv) = oneshot::channel();
+
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let mut b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				// pov is being fetched.
+				b.fetching.insert(pov_hash, vec![pov_send]);
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// peer A is registered as awaiting.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![pov_hash])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			assert_eq!(&*pov_recv.await.unwrap(), &pov);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, BENEFIT_FRESH_POV);
+				}
+			);
+
+			// We received the PoV from peer A, so we do not consider it awaited by peer A anymore.
+			assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
+		});
+	}
 }
