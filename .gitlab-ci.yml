@@ -108,8 +108,6 @@ publish-draft-release:
 test-deterministic-wasm:           &test-linux
   stage:                           test
   <<:                              *docker-env
-  variables:
-    <<:                            *default-vars
   except:
     variables:
       - $DEPLOY_TAG
