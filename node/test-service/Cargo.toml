@@ -11,14 +11,14 @@ tempfile = "3.1.0"
 rand = "0.7.3"
 hex = "0.4"
 futures01 = { package = "futures", version = "0.1.29" }
-av_store = { package = "polkadot-availability-store", path = "../availability-store" }
-consensus = { package = "polkadot-validation", path = "../validation" }
-polkadot-primitives = { path = "../primitives" }
-polkadot-test-runtime = { path = "../runtime/test-runtime" }
-polkadot-network = { path = "../network" }
-polkadot-rpc = { path = "../rpc" }
-polkadot-service = { path = "../service" }
-polkadot-runtime-common = { path = "../runtime/common" }
+av_store = { package = "polkadot-availability-store", path = "../../availability-store" }
+consensus = { package = "polkadot-validation", path = "../../validation" }
+polkadot-primitives = { path = "../../primitives" }
+polkadot-test-runtime = { path = "../../runtime/test-runtime" }
+polkadot-network = { path = "../../network" }
+polkadot-rpc = { path = "../../rpc" }
+polkadot-service = { path = "../../service" }
+polkadot-runtime-common = { path = "../../runtime/common" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -30,7 +30,6 @@ members = [
 	"erasure-coding",
 	"network",
 	"network/test",
-	"polkadot-test-service",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
@@ -52,6 +51,7 @@ members = [
 	"node/service",
 	"node/subsystem",
 	"node/test-helpers/subsystem",
+	"node/test-service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
