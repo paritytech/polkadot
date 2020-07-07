@@ -22,40 +22,51 @@ use futures::{
     Future,
 };
 use node_primitives::{ProtocolId, SignedFullStatement, View};
-use polkadot_network_bridge::NetworkBridgeMessage;
 use polkadot_node_subsystem::messages::*;
 use polkadot_node_subsystem::{
     FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
-use polkadot_primitives::parachain::ValidatorId;
+use polkadot_primitives::parachain::{SigningContext, ValidatorId};
 use polkadot_primitives::Hash;
 use sc_network::ReputationChange;
 use std::{
     collections::{HashMap, HashSet},
     pin::Pin,
 };
+use polkadot_network::protocol::Message;
+use codec::{Encode, Decode, Codec};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
     ReputationChange::new(-10000, "Bitfield signature invalid");
+const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
+    ReputationChange::new(-1337, "Missing peer session key");
 const COST_MULTIPLE_BITFIELDS_FROM_PEER: ReputationChange =
     ReputationChange::new(-10000, "Received more than once bitfield from peer");
 const COST_NOT_INTERESTED: ReputationChange =
     ReputationChange::new(-100, "Not intersted in that parent hash");
 
+
 #[derive(Default, Clone)]
 struct Tracker {
     // track all active peers and their views
     // to determine what is relevant to them
-    peer_views: HashMap<PeerId, View>,
+	peer_views: HashMap<PeerId, View>,
+
+	// keys used for verifying signatures of that peer
+	peer_session_keys: HashMap<PeerId, ValidatorId>,
 
     // set of active heads the overseer told us to work on
-    active_jobs: HashMap<Hash, AbortHandle>,
+    active_jobs: HashMap<Hash, (AbortHandle, Box<dyn Future<Output=()>>)>,
 
     // set of validators which already sent a message
     validator_bitset_received: HashSet<ValidatorId>,
 
     // our current view
-    view: View,
+	view: View,
+
+	// signing context
+	signing_context: SigningContext<Hash>,
+
 }
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
@@ -67,9 +78,10 @@ pub struct BitfieldDistribution;
 impl BitfieldDistribution {
     const PROTOCOL_ID: ProtocolId = *b"bitd";
 
-    async fn run(
-        mut ctx: impl SubsystemContext<Message = BitfieldDistributionMessage>,
-    ) -> SubsystemResult<()> {
+    async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
+    where
+        Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    {
         // startup: register the network protocol with the bridge.
         ctx.send_message(AllMessages::NetworkBridge(
             NetworkBridgeMessage::RegisterEventProducer(Self::PROTOCOL_ID, handle_network_msg),
@@ -85,58 +97,93 @@ impl BitfieldDistribution {
                         unreachable!("BitfieldDistributionMessage does not exist; qed")
                     }
                     FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-                        let (validators, signing_context) = {
-                            let (validators_tx, validators_rx) = oneshot::channel();
-                            let (signing_tx, signing_rx) = oneshot::channel();
-
-                            let query_validators =
-                                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-                                    relay_parent,
-                                    RuntimeApiRequest::Validators(validators_tx),
-                                ));
-
-                            let query_signing_context =
-                                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-                                    relay_parent,
-                                    RuntimeApiRequest::SigningContext(signing_tx),
-                                ));
-
-                            ctx.send_messages(
-                                std::iter::once(query_validators)
-                                    .chain(std::iter::once(query_signing_context)),
-                            )
-                            .await?;
-
-                            (validators_rx.await?, signing_rx.await?)
-                        };
+                        let (validators, signing_context) = query_basics(ctx.clone(), relay_parent).await?;
 
                         let (future, abort_handle) =
-                            abortable(process_incoming(ctx.clone(), relay_parent.clone()));
+                            abortable(process_incoming_all_incoming( ctx.clone(), relay_parent.clone()));
+
+						let spawn = ctx.spawn(Box::pin(future))?;
+                        let future = Box::new();
                         tracker
                             .active_jobs
-                            .insert(relay_parent.clone(), abort_handle);
+                            .insert(relay_parent.clone(), (abort_handle, future));
                     }
                     FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-                        // could work, but see above
-                        tracker.active_jobs.remove(&relay_parent);
+                        if let Some((future, abort_handle)) = tracker.active_jobs.take(&relay_parent) {
+							let _ = abort_handle.abort();
+						}
                     }
                     FromOverseer::Signal(OverseerSignal::Conclude) => {
-						// @todo add a timeout here?
-                        return futures::future::join_all(tracker.active_jobs.into_iter()).await
+                        // @todo add a timeout here?
+                        return futures::future::join_all(
+                            tracker
+                                .active_jobs
+                                .drain()
+                                .map(|(_relay_parent, (cancellation, future))| future)
+                        )
+                        .await;
                     }
                 }
             }
-            tracker.active_jobs.retain(|_, future| future.poll().is_pending());
+            tracker
+                .active_jobs
+                .retain(|_, future| future.poll().is_pending());
         }
     }
 }
 
-/// Handle an incoming message
-async fn process_incoming(
-    mut ctx: impl SubsystemContext<Message = BitfieldDistributionMessage>,
-    tracker: &mut Tracker,
-    message: BitfieldDistributionMessage,
-) -> SubsystemResult<()> {
+
+/// query the validator set
+async fn query_basics<Context>(mut ctx: Context, relay_parent: Hash) -> SubsystemResult<(Vec<Hash>, SigningContext)>
+where
+    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone, {
+		let (validators_tx, validators_rx) = oneshot::channel();
+		let (signing_tx, signing_rx) = oneshot::channel();
+
+		let query_validators =
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Validators(validators_tx),
+			));
+
+		let query_signing =
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SigningContext(signing_tx),
+			));
+
+		ctx.send_messages(
+			std::iter::once(query_validators)
+				.chain(std::iter::once(query_signing)),
+		)
+		.await?;
+
+		Ok((validators_rx.await?, signing_rx.await?))
+}
+
+
+async fn process_incoming_all_incoming<Context>(mut ctx: Context, relay_parent: Hash) -> SubsystemResult<()>
+where
+Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+{
+	loop {
+		// @todo shall these be spawned? scheduling
+		// @todo consume messages via a channel?
+		// @todo obtain all input args
+		process_incoming(&mut ctx, relay_parent, peerid, message).await?;
+	}
+}
+
+/// Handle an incoming message from a peer
+async fn process_incoming<Context>(
+    mut ctx: Context,
+	tracker: &mut Tracker,
+	peerid: PeerId,
+	message: BitfieldDistributionMessage,
+) -> SubsystemResult<()>
+where
+    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+{
     match message {
         /// Distribute a bitfield via gossip to other validators.
         BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability) => {
@@ -152,8 +199,19 @@ async fn process_incoming(
                     .await;
             }
 
-            // @todo check signature, where to get the SingingContext<Hash> from?
-            if signed_availability.check_signature(signing_ctx, validator_id)? {
+			let signing_ctx = &tracker.signing_context.as_ref().unwrap();
+
+			let session_key = tracker.peer_session_keys.get(peerid);
+			if session_key.is_none() {
+				return ctx
+                    .send_message(AllMessages::NetworkBridge(
+                        NetworkBridgeMessage::ReportPeer(peerid, COST_MISSING_PEER_SESSION_KEY),
+                    ))
+                    .await;
+			}
+			let session_key = session_key.expect("Just proved it is not `None`; qed");
+
+            if signed_availability.check_signature(&signing_ctx, session_key)? {
                 return ctx
                     .send_message(AllMessages::NetworkBridge(
                         NetworkBridgeMessage::ReportPeer(peerid, COST_SIGNATURE_INVALID),
@@ -174,7 +232,7 @@ async fn process_incoming(
                         BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
                     ),
                 )))
-                .await?;
+				.await?;
             }
         }
         BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
@@ -185,11 +243,17 @@ async fn process_incoming(
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
-async fn handle_network_msg(
-    mut ctx: impl SubsystemContext<Message = BitfieldDistributionMessage>,
+async fn handle_network_msg<Context>(
+    mut ctx: Context,
     tracker: &mut Tracker,
-    bridge_message: NetworkBridgeMessage,
-) -> SubsystemResult<()> {
+    bridge_message: NetworkBridgeEvent,
+) -> SubsystemResult<()>
+where
+    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+{
+	let peer_views = &mut tracker.peer_views;
+	let active_jobs = &mut tracker.active_jobs;
+	let ego = &((*tracker).peer_views);
     match bridge_message {
         NetworkBridgeEvent::PeerConnected(peerid, _role) => {
             // insert if none already present
@@ -197,16 +261,18 @@ async fn handle_network_msg(
         }
         NetworkBridgeEvent::PeerDisconnected(peerid) => {
             // get rid of superfluous data
-            tracker.peer_views.remove(peerid);
+            tracker.peer_views.remove(&peerid);
         }
         NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-            tracker.peer_views.entry(peerid).and_modify(|val| *val = view);
+            tracker
+                .peer_views
+                .entry(peerid)
+                .and_modify(|val| *val = view);
         }
         NetworkBridgeEvent::OurViewChange(view) => {
-            let old_view = std::mem::replace(&mut tracker.view, view);
-            tracker
-                .active_jobs
-                .retain(|head, _| tracker.view.contains(head));
+			let old_view = std::mem::replace(&mut tracker.view, view);
+            active_jobs
+                .retain(|head, _| ego.contains(head));
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.active_jobs.contains_key(&new) {
@@ -216,13 +282,28 @@ async fn handle_network_msg(
                 }
             }
         }
+        NetworkBridgeEvent::PeerMessage(remote, bytes) => {
+            // @todo what would we receive here?
+			match Message::decode(&mut bytes.as_ref()) {
+				Ok(message) => {
+					match message {
+						// a new session key
+						Message::ValidatorId(session_key) => {
+							tracker.peer_session_keys.insert(remote.clone(), session_key);
+						}
+						_ => {}
+					}
+				},
+				Err(_) => unimplemented!("Invalid format shall be punished I guess"),
+			}
+        }
     }
     Ok(())
 }
 
 impl<C> Subsystem<C> for BitfieldDistribution
 where
-    C: SubsystemContext<Message = BitfieldDistributionMessage>,
+    C: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
     fn start(self, ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem(Box::pin(async move {
