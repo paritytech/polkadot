@@ -66,6 +66,7 @@ use statement_table::{
 #[derive(Debug, derive_more::From)]
 enum Error {
 	NotInValidatorSet,
+	CandidateNotFound,
 	LocalValidationDataMissing,
 	JobNotFound(Hash),
 	InvalidSignature,
@@ -393,25 +394,28 @@ impl CandidateBackingJob {
 	/// Kick off validation work and distribute the result as a signed statement.
 	async fn kick_off_validation_work(
 		&mut self,
-		candidate: AbridgedCandidateReceipt,
-	) -> Result<(), Error> {
-		let pov = self.request_pov_from_distribution(candidate.to_descriptor()).await?;
-		let v = self.request_candidate_validation(candidate.clone(), pov).await?;
+		summary: TableSummary,
+	) -> Result<ValidationResult, Error> {
+		let candidate = self.table.get_candidate(&summary.candidate).ok_or(Error::CandidateNotFound)?;
+		let candidate = candidate.clone();
+		let descriptor = candidate.to_descriptor();
+		let candidate_hash = candidate.hash();
+		let pov = self.request_pov_from_distribution(descriptor).await?;
+		let v = self.request_candidate_validation(candidate, pov).await?;
 
 		let statement = match v {
 			ValidationResult::Valid => {
-				let candidate_hash = candidate.hash();
 				self.issued_validity.insert(candidate_hash);
 				Statement::Valid(candidate_hash)
 			}
-			ValidationResult::Invalid => Statement::Invalid(candidate.hash()),
+			ValidationResult::Invalid => Statement::Invalid(candidate_hash),
 		};
 
 		if let Some(signed_statement) = self.sign_statement(statement) {
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
-		Ok(())
+		Ok(v)
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
@@ -420,9 +424,9 @@ impl CandidateBackingJob {
 		statement: SignedFullStatement,
 	) -> Result<(), Error> {
 		if let Some(summary) = self.import_statement(&statement).await? {
-			if let Statement::Seconded(candidate) = statement.into_payload() {
+			if let Statement::Seconded(_) = statement.payload() {
 				if summary.group_id == self.assignment {
-					self.kick_off_validation_work(candidate).await?;
+					self.kick_off_validation_work(summary).await?;
 				}
 			}
 		}
