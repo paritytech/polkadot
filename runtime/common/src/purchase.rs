@@ -476,6 +476,10 @@ mod tests {
 		hex_literal::hex!("aced3b06fb3b7862c38ace0ba36fad20012dd0246b92760813b5fe9cee97c973f15db6b74fceeaae0012c3f708ee13a3dd3446403243be01d1d01ddf3b54448a")
 	}
 
+	fn validity_origin() -> AccountId {
+		ValidityOrigin::get()
+	}
+
 	#[test]
 	fn signature_verification_works() {
 		new_test_ext().execute_with(|| {
@@ -496,10 +500,8 @@ mod tests {
 	#[test]
 	fn account_creation_works() {
 		new_test_ext().execute_with(|| {
-			let validity_origin = ValidityOrigin::get();
-
 			assert!(!Accounts::<Test>::contains_key(alice()));
-			assert_ok!(Purchase::create_account(Origin::signed(validity_origin), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
 				AccountStatus {
@@ -515,35 +517,87 @@ mod tests {
 	#[test]
 	fn account_creation_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
-			let validity_origin = ValidityOrigin::get();
-
 			// Wrong Origin
 			assert_noop!(
 				Purchase::create_account(Origin::signed(alice()), alice(), alice_signature().to_vec()),
-				BadOrigin
+				BadOrigin,
 			);
 
 			// Wrong Account/Signature
 			assert_noop!(
-				Purchase::create_account(Origin::signed(validity_origin.clone()), alice(), bob_signature().to_vec()),
-				Error::<Test>::InvalidSignature
+				Purchase::create_account(Origin::signed(validity_origin()), alice(), bob_signature().to_vec()),
+				Error::<Test>::InvalidSignature,
 			);
 
 			// Active Account
 			Balances::make_free_balance_be(&alice(), 100);
 			assert_noop!(
-				Purchase::create_account(Origin::signed(validity_origin.clone()), alice(), alice_signature().to_vec()),
-				Error::<Test>::InvalidAccount
+				Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()),
+				Error::<Test>::ExistingAccount,
 			);
 
 			// Duplicate Purchasing Account
 			assert_ok!(
-				Purchase::create_account(Origin::signed(validity_origin.clone()), bob(), bob_signature().to_vec())
+				Purchase::create_account(Origin::signed(validity_origin()), bob(), bob_signature().to_vec())
 			);
 			assert_noop!(
-				Purchase::create_account(Origin::signed(validity_origin), bob(), bob_signature().to_vec()),
-				Error::<Test>::InvalidAccount
+				Purchase::create_account(Origin::signed(validity_origin()), bob(), bob_signature().to_vec()),
+				Error::<Test>::ExistingAccount,
 			);
+		});
+	}
+
+	#[test]
+	fn update_validity_status_works() {
+		new_test_ext().execute_with(|| {
+			// Alice account is created.
+			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			// She submits KYC, and we update the status to `Pending`.
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::Pending,
+			));
+			// KYC comes back negative, so we mark the account invalid.
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::Invalid,
+			));
+			// She fixes it, we mark her account valid.
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidLow,
+			));
+		});
+	}
+
+	#[test]
+	fn update_validity_status_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Inactive Account
+			assert_noop!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::Pending,
+			), Error::<Test>::InvalidAccount);
+			// Already Completed
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec(),
+			));
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::Completed,
+			));
+			assert_noop!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::Pending,
+			), Error::<Test>::AlreadyCompleted);
 		});
 	}
 }
