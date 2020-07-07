@@ -446,7 +446,7 @@ async fn handle_network_update(
 
 				// introduce things from the new view.
 				for relay_parent in view.0.iter() {
-					if let Entry::Vacant(mut entry) = peer_state.awaited.entry(*relay_parent) {
+					if let Entry::Vacant(entry) = peer_state.awaited.entry(*relay_parent) {
 						entry.insert(HashSet::new());
 
 						// Notify the peer about everything we're awaiting at the new relay-parent.
@@ -801,8 +801,106 @@ mod tests {
 		});
 	}
 
-	// TODO [now] peer is rewarded for sending PoV first
+	#[test]
+	fn peer_complete_fetch_and_is_rewarded() {
+		let hash_a: Hash = [0; 32].into();
 
-	// TODO [now] peer is rewarded for sending PoV second
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
 
+		let (pov_send, pov_recv) = oneshot::channel();
+
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let mut b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				// pov is being fetched.
+				b.fetching.insert(pov_hash, vec![pov_send]);
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// peers A and B are functionally the same.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s.insert(
+					peer_b.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			// Peer A answers our request before peer B.
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			assert_eq!(&*pov_recv.await.unwrap(), &pov);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, BENEFIT_FRESH_POV);
+				}
+			);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, BENEFIT_LATE_POV);
+				}
+			);
+		});
+	}
+
+	// TODO [now] peer is punished for sending bad PoV.
+
+	// TODO [now] peer is punished for sending unexpected PoV for something in our view.
+
+	// TODO [now] peer is punished for sending unexpected PoV for something not in our view.
+
+	// TODO [now] peer is punished for awaiting too much stuff.
+
+	// TODO [now] one peer completing our fetch leads to us fulfilling another peer's awaited.
 }
