@@ -736,14 +736,7 @@ impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
 pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
 
 /// A set of signed availability bitfields. Should be sorted by validator index, ascending.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, Default)]
-pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
-
-impl From<Vec<SignedAvailabilityBitfield>> for SignedAvailabilityBitfields {
-	fn from(fields: Vec<SignedAvailabilityBitfield>) -> SignedAvailabilityBitfields {
-		SignedAvailabilityBitfields(fields)
-	}
-}
+pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
 
 /// A backed (or backable, depending on context) candidate.
 // TODO: yes, this is roughly the same as AttestedCandidate.
