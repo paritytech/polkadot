@@ -45,7 +45,8 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 	)
 }
 
-fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
+/// Polkadot local testnet genesis config (multivalidator Alice + Bob)
+pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),

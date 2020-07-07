@@ -4941,6 +4941,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-test-runtime",
+ "polkadot-test-service",
  "sc-block-builder",
  "sc-client-api",
  "sc-consensus",

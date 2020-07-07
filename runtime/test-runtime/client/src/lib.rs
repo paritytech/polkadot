@@ -24,10 +24,14 @@ use std::convert::TryFrom;
 pub use substrate_test_client::*;
 pub use polkadot_test_runtime as runtime;
 
-use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
+use sp_core::{ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
-use polkadot_test_runtime::genesismap::GenesisConfig;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
+use polkadot_test_runtime::GenesisConfig;
+use polkadot_test_service::polkadot_local_testnet_genesis;
+use sp_runtime::{
+	traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor},
+	BuildStorage,
+};
 use sc_consensus::LongestChain;
 use sc_client_api::light::{RemoteCallRequest, RemoteBodyRequest};
 use sc_service::client::{
@@ -90,6 +94,9 @@ pub struct GenesisParameters {
 
 impl GenesisParameters {
 	fn genesis_config(&self) -> GenesisConfig {
+		polkadot_local_testnet_genesis()
+		// TODO: pass parameters somehow
+		/*
 		GenesisConfig::new(
 			self.changes_trie_config.clone(),
 			vec![
@@ -100,6 +107,7 @@ impl GenesisParameters {
 			1000,
 			self.extra_storage.clone(),
 		)
+		*/
 	}
 }
 
@@ -113,7 +121,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
 		use codec::Encode;
 
-		let mut storage = self.genesis_config().genesis_map();
+		let mut storage = self.genesis_config().build_storage().unwrap();
 
 		let child_roots = storage.children_default.iter().map(|(sk, child_content)| {
 			let state_root = <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
