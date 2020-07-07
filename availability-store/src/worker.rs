@@ -531,7 +531,7 @@ impl Worker {
 	}
 }
 
-/// Implementor of the [`BlockImport`] trait.
+/// Implementer of the [`BlockImport`] trait.
 ///
 /// Used to embed `availability-store` logic into the block imporing pipeline.
 ///
