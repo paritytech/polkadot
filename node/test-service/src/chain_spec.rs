@@ -36,7 +36,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		|| polkadot_local_testnet_genesis(None, None),
+		|| polkadot_local_testnet_genesis(None, None, None),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -48,16 +48,16 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 /// Polkadot local testnet genesis config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_genesis(
 	changes_trie_config: Option<ChangesTrieConfiguration>,
+	endowed_accounts: Option<Vec<AccountId>>,
 	endowment: Option<u128>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
-			get_authority_keys_from_seed("Charlie"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
+		endowed_accounts,
 		changes_trie_config,
 		endowment,
 	)
