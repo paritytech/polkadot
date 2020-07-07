@@ -894,11 +894,196 @@ mod tests {
 		});
 	}
 
-	// TODO [now] peer is punished for sending bad PoV.
+	#[test]
+	fn peer_punished_for_sending_bad_pov() {
+		let hash_a: Hash = [0; 32].into();
 
-	// TODO [now] peer is punished for sending unexpected PoV for something in our view.
+		let peer_a = PeerId::random();
 
-	// TODO [now] peer is punished for sending unexpected PoV for something not in our view.
+		let (pov_send, _) = oneshot::channel();
+
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let bad_pov = make_pov(vec![6, 6, 6]);
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let mut b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				// pov is being fetched.
+				b.fetching.insert(pov_hash, vec![pov_send]);
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::SendPoV(hash_a, pov_hash, bad_pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			// didn't complete our sender.
+			assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].len(), 1);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_UNEXPECTED_POV);
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn peer_punished_for_sending_unexpected_pov() {
+		let hash_a: Hash = [0; 32].into();
+
+		let peer_a = PeerId::random();
+
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_UNEXPECTED_POV);
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn peer_punished_for_sending_pov_out_of_our_view() {
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::SendPoV(hash_b, pov_hash, pov.clone()).encode(),
+				),
+			).await.unwrap();
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_UNEXPECTED_POV);
+				}
+			);
+		});
+	}
 
 	// TODO [now] peer is punished for awaiting too much stuff.
 
