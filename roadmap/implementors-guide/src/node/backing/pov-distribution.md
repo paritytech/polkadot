@@ -115,6 +115,7 @@ Here is the logic of the state machine:
 	- If Peer is unknown, ignore.
 	- Ensure there is an entry under `relay_parent` for each `relay_parent` in `view` within the `peer.awaited` map, creating blank `awaited` lists as necessary.
 	- Remove all entries under `peer.awaited` that are not within `view`.
+	- For all hashes in `view` but were not within the old, send the peer all the keys in our `fetching` map under the block-based state for that hash - i.e. notify the peer of everything we are awaiting at that hash.
 - On `OurViewChange(view)`
 	- Update `our_view` to `view`
 
