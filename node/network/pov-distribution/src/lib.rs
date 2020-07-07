@@ -532,7 +532,6 @@ mod tests {
 
 	#[test]
 	fn distributes_to_those_awaiting_and_completes_local() {
-		// TODO [now] sharing PoV shares it with all peers who have awaited.
 		let hash_a: Hash = [0; 32].into();
 		let hash_b: Hash = [1; 32].into();
 
@@ -619,7 +618,81 @@ mod tests {
 		});
 	}
 
-	// TODO [now] requesting PoV tells only peers with same view we are awaiting.
+	#[test]
+	fn we_inform_peers_with_same_view_we_are_awaiting() {
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+
+		let (pov_send, _) = oneshot::channel();
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// peer A has hash_a in its view.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				// peer B doesn't have hash_a in its view.
+				s.insert(
+					peer_b.clone(),
+					make_peer_state(vec![(hash_b, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov_hash;
+
+		executor::block_on(async move {
+			handle_fetch(
+				&mut state,
+				&mut ctx,
+				hash_a,
+				descriptor,
+				pov_send,
+			).await.unwrap();
+
+			assert_eq!(state.relay_parent_state[&hash_a].fetching[&pov_hash].len(), 1);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+				) => {
+					assert_eq!(peers, vec![peer_a.clone()]);
+					assert_eq!(protocol, PROTOCOL_V1);
+					assert_eq!(
+						message,
+						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
+					);
+				}
+			)
+		});
+	}
 
 	// TODO [now] peer view change leads to telling peer what we're awaiting.
 
