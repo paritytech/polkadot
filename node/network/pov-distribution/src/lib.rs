@@ -1164,9 +1164,136 @@ mod tests {
 		});
 	}
 
-	// TODO [now] peer reported for awaiting something outside of their view.
+	#[test]
+	fn peer_reported_for_awaiting_outside_their_view() {
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
 
-	// TODO [now] peer reported for awaiting something outside of our view.
+		let peer_a = PeerId::random();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				s.insert(hash_a, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				});
+
+				s.insert(hash_b, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				});
+
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// Peer has only hash A in its view.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a, hash_b]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			let pov_hash = make_pov(vec![1, 2, 3]).hash();
+
+			// Hash B is in our view but not the peer's
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
+				),
+			).await.unwrap();
+
+			assert!(state.peer_state[&peer_a].awaited.get(&hash_b).is_none());
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_AWAITED_NOT_IN_VIEW);
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn peer_reported_for_awaiting_outside_our_view() {
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				s.insert(hash_a, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				});
+
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// Peer has hashes A and B in their view.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![]), (hash_b, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			let pov_hash = make_pov(vec![1, 2, 3]).hash();
+
+			// Hash B is in peer's view but not ours.
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
+				),
+			).await.unwrap();
+
+			// Illegal `awaited` is ignored.
+			assert!(state.peer_state[&peer_a].awaited[&hash_b].is_empty());
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_AWAITED_NOT_IN_VIEW);
+				}
+			);
+		});
+	}
 
 	// TODO [now] one peer completing our fetch leads to us fulfilling another peer's awaited.
 }
