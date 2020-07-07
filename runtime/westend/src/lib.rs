@@ -58,6 +58,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
+use system::EnsureRoot;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -81,7 +82,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 33,
+	spec_version: 34,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -141,8 +142,10 @@ impl system::Trait for Runtime {
 impl scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
+	type PalletsOrigin = OriginCaller;
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
+	type ScheduleOrigin = EnsureRoot<AccountId>;
 }
 
 parameter_types! {
@@ -156,6 +159,21 @@ impl babe::Trait for Runtime {
 
 	// session module is the trigger
 	type EpochChangeTrigger = babe::ExternalTrigger;
+
+	type KeyOwnerProofSystem = Historical;
+
+	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		babe::AuthorityId,
+	)>>::Proof;
+
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		babe::AuthorityId,
+	)>>::IdentificationTuple;
+
+	type HandleEquivocation =
+		babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -288,7 +306,7 @@ impl staking::Trait for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = system::EnsureRoot<AccountId>;
+	type SlashCancelOrigin = EnsureRoot<AccountId>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -674,7 +692,7 @@ construct_runtime! {
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
-		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp)},
+		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
 
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
@@ -912,6 +930,29 @@ sp_api::impl_runtime_apis! {
 		fn current_epoch_start() -> babe_primitives::SlotNumber {
 			Babe::current_epoch_start()
 		}
+
+		fn generate_key_ownership_proof(
+			_slot_number: babe_primitives::SlotNumber,
+			authority_id: babe_primitives::AuthorityId,
+		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
+			use codec::Encode;
+
+			Historical::prove((babe_primitives::KEY_TYPE, authority_id))
+				.map(|p| p.encode())
+				.map(babe_primitives::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: babe_primitives::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: babe_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			Babe::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
 	}
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
@@ -991,17 +1032,17 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
 
-			add_benchmark!(params, batches, b"balances", Balances);
-			add_benchmark!(params, batches, b"identity", Identity);
-			add_benchmark!(params, batches, b"im-online", ImOnline);
-			add_benchmark!(params, batches, b"offences", OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, b"scheduler", Scheduler);
-			add_benchmark!(params, batches, b"session", SessionBench::<Runtime>);
-			add_benchmark!(params, batches, b"staking", Staking);
-			add_benchmark!(params, batches, b"system", SystemBench::<Runtime>);
-			add_benchmark!(params, batches, b"timestamp", Timestamp);
-			add_benchmark!(params, batches, b"utility", Utility);
-			add_benchmark!(params, batches, b"vesting", Vesting);
+			add_benchmark!(params, batches, balances,Balances);
+			add_benchmark!(params, batches, identity,Identity);
+			add_benchmark!(params, batches, im_online,ImOnline);
+			add_benchmark!(params, batches, offences,OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, scheduler, Scheduler);
+			add_benchmark!(params, batches, session, SessionBench::<Runtime>);
+			add_benchmark!(params, batches, staking, Staking);
+			add_benchmark!(params, batches, system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, timestamp, Timestamp);
+			add_benchmark!(params, batches, utility, Utility);
+			add_benchmark!(params, batches, vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

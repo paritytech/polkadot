@@ -38,6 +38,12 @@ At initialization, this subsystem has no outputs. Block authors can send a `Prov
 
 Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorshipData` for each relay parent they are interested in receiving provisionable data for.
 
+## Block Production
+
+When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting generally means that there are never two distinct parachain candidates included for the same parachain.
+
+One might ask: given `ProvisionerMessage::RequestInherentData`, what's the point of `ProvisionerMessage::RequestBlockAuthorshipData`? The answer is that the block authorship data includes more information than is present in the inherent data; disputes, for example.
+
 ## Functionality
 
 The subsystem should maintain a set of handles to Block Authorship Provisioning Jobs that are currently live.
