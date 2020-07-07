@@ -18,7 +18,7 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError};
-use sp_runtime::traits::{Bounded, Saturating, Zero};
+use sp_runtime::traits::{Bounded, Saturating, Zero, CheckedAdd};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
@@ -90,8 +90,8 @@ impl AccountValidity {
 #[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct AccountStatus<Balance> {
 	validity: AccountValidity,
-	balance: Balance,
-	locked: bool,
+	free_balance: Balance,
+	locked_balance: Balance,
 	statement_kind: StatementKind,
 	signature: Vec<u8>,
 }
@@ -132,8 +132,8 @@ decl_event!(
 		ValidityUpdated(AccountId, AccountValidity),
 		/// Someone's account validity statement was removed
 		ValidityRemoved(AccountId),
-		/// Someone's purchase balance was updated
-		BalanceUpdated(AccountId, Balance, bool),
+		/// Someone's purchase balance was updated. (Free, Locked)
+		BalanceUpdated(AccountId, Balance, Balance),
 	}
 );
 
@@ -149,6 +149,8 @@ decl_error! {
 		AlreadyCompleted,
 		/// Balance provided for the account is not valid.
 		InvalidBalance,
+		/// An overflow occurred when doing calculations.
+		Overflow,
 	}
 }
 
@@ -191,8 +193,8 @@ decl_module! {
 				validity: AccountValidity::Pending,
 				statement_kind,
 				signature,
-				balance: Zero::zero(),
-				locked: false,
+				free_balance: Zero::zero(),
+				locked_balance: Zero::zero(),
 			};
 			Accounts::<T>::insert(&who, status);
 			Self::deposit_event(RawEvent::AccountCreated(who));
@@ -227,19 +229,20 @@ decl_module! {
 		#[weight = 0]
 		fn update_balance(origin,
 				who: T::AccountId,
-				balance: BalanceOf<T>,
-				locked: bool,
+				free_balance: BalanceOf<T>,
+				locked_balance: BalanceOf<T>,
 		) {
 			T::ValidityOrigin::ensure_origin(origin)?;
 
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				let max_amount = status.validity.max_amount::<T>();
-				ensure!(balance <= max_amount, Error::<T>::InvalidBalance);
-				status.balance = balance;
-				status.locked = locked;
+				let total_balance = free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
+				ensure!(total_balance <= max_amount, Error::<T>::InvalidBalance);
+				status.free_balance = free_balance;
+				status.locked_balance = locked_balance;
 				Ok(())
 			})?;
-			Self::deposit_event(RawEvent::BalanceUpdated(who, balance, locked));
+			Self::deposit_event(RawEvent::BalanceUpdated(who, free_balance, locked_balance));
 		}
 
 		/// Pay the user and complete the purchase process.
@@ -258,14 +261,15 @@ decl_module! {
 				// Account has a valid status (not Invalid, Pending, or Completed)...
 				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
 				// The balance we are going to transfer them matches their validity status
-				ensure!(status.balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
+				let total_balance = status.free_balance.checked_add(&status.locked_balance).ok_or(Error::<T>::Overflow)?;
+				ensure!(total_balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
 
 				// Transfer funds from the payment account into the purchasing user.
 				// TODO: This is totally safe? No chance of reentrancy?
 				let payment_account = PaymentAccount::<T>::get();
-				T::Currency::transfer(&payment_account, &who, status.balance, ExistenceRequirement::AllowDeath)?;
+				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
-				if status.locked {
+				if !status.locked_balance.is_zero() {
 					// Account did not exist before this point, thus it should have no existing vesting schedule.
 					// So this function should never fail, however if it does, not much we can do about it at
 					// this point.
@@ -274,9 +278,9 @@ decl_module! {
 						// Apply vesting schedule to this user
 						&who,
 						// For this much amount
-						status.balance,
+						status.locked_balance,
 						// Unlocking the full amount after one block
-						status.balance,
+						status.locked_balance,
 						// When everything unlocks
 						unlock_block
 					);
