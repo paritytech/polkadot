@@ -34,6 +34,7 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{CandidateValidationMessage, CandidateBackingMessage},
 };
+use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
@@ -362,6 +363,7 @@ macro_rules! new_full {
 			.collect();
 
 		let (overseer, handler) = real_overseer(leaves, spawner)?;
+		let handler_clone = handler.clone();
 
 		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
@@ -388,11 +390,10 @@ macro_rules! new_full {
 			let can_author_with =
 				consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-			// TODO: custom proposer (https://github.com/paritytech/polkadot/issues/1248)
-			let proposer = sc_basic_authorship::ProposerFactory::new(
+			let proposer = ProposerFactory::new(
 				client.clone(),
 				transaction_pool,
-				None,
+				handler_clone,
 			);
 
 			let babe_config = babe::BabeParams {

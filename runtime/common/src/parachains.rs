@@ -1605,7 +1605,7 @@ pub enum DoubleVoteValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
 	type AccountId = T::AccountId;
