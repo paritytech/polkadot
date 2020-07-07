@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Module to process public crowdsale of DOTs.
+//! Module to process purchase of DOTs.
 
 use codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError};
@@ -54,7 +54,7 @@ pub enum AccountValidity {
 	ValidLow,
 	/// Account is valid with a high contribution amount.
 	ValidHigh,
-	/// Account has completed the crowdsale process.
+	/// Account has completed the purchase process.
 	Completed,
 }
 
@@ -86,7 +86,7 @@ impl AccountValidity {
 	}
 }
 
-/// All information about an account regarding the crowdsale.
+/// All information about an account regarding the purchase of DOTs.
 #[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct AccountStatus<Balance> {
 	validity: AccountValidity,
@@ -132,7 +132,7 @@ decl_event!(
 		ValidityUpdated(AccountId, AccountValidity),
 		/// Someone's account validity statement was removed
 		ValidityRemoved(AccountId),
-		/// Someone's crowdsale balance was updated
+		/// Someone's purchase balance was updated
 		BalanceUpdated(AccountId, Balance, bool),
 	}
 );
@@ -141,11 +141,11 @@ decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// Account is not currently valid to use.
 		InvalidAccount,
-		/// Account used in the crowdsale already exists.
+		/// Account used in the purchase already exists.
 		ExistingAccount,
 		/// Provided signature is invalid
 		InvalidSignature,
-		/// Account has already completed the crowdsale process.
+		/// Account has already completed the purchase process.
 		AlreadyCompleted,
 		/// Balance provided for the account is not valid.
 		InvalidBalance,
@@ -153,10 +153,10 @@ decl_error! {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as Crowdsale {
-		// A map of all participants in the crowdsale.
+	trait Store for Module<T: Trait> as Purchase {
+		// A map of all participants in the DOT purchase process.
 		Accounts: map hasher(blake2_128_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
-		// The account that will be used to payout participants of the crowdsale.
+		// The account that will be used to payout participants of the DOT purchase process.
 		PaymentAccount: T::AccountId;
 	}
 }
@@ -242,7 +242,7 @@ decl_module! {
 			Self::deposit_event(RawEvent::BalanceUpdated(who, balance, locked));
 		}
 
-		/// Pay the user and complete the crowdsale process.
+		/// Pay the user and complete the purchase process.
 		///
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
@@ -260,7 +260,7 @@ decl_module! {
 				// The balance we are going to transfer them matches their validity status
 				ensure!(status.balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
 
-				// Transfer funds from the payment account into the crowdsale user.
+				// Transfer funds from the payment account into the purchasing user.
 				// TODO: This is totally safe? No chance of reentrancy?
 				let payment_account = PaymentAccount::<T>::get();
 				T::Currency::transfer(&payment_account, &who, status.balance, ExistenceRequirement::AllowDeath)?;
@@ -282,7 +282,7 @@ decl_module! {
 					);
 				}
 
-				// Setting the user account to `Completed` ends the crowdsale process for this user.
+				// Setting the user account to `Completed` ends the purchase process for this user.
 				status.validity = AccountValidity::Completed;
 				Ok(())
 			})?;
@@ -290,7 +290,7 @@ decl_module! {
 
 		/* Admin Operations */
 
-		/// Set the account that will be used to payout users in the crowdsale.
+		/// Set the account that will be used to payout users in the DOT purchase process.
 		///
 		/// Origin must match the `PaymentOrigin`
 		#[weight = 0]
@@ -357,7 +357,7 @@ mod tests {
 
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
-			crowdsale::Crowdsale,
+			purchase::Purchase,
 		}
 	}
 
@@ -440,7 +440,7 @@ mod tests {
 	type System = system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Vesting = vesting::Module<Test>;
-	type Crowdsale = Module<Test>;
+	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
