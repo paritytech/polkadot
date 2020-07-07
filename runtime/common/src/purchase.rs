@@ -480,37 +480,37 @@ mod tests {
 			let regular_statement = StatementKind::Regular;
 			// Signing "Regular" with Alice using PolkadotJS, removing `0x` prefix
 			let alice_regular_signature = hex_literal::hex!("76c9616b262d01b2fc64aad212a364bbb0c0a6744968ba189dde93496acc6d54b2a5b7af93ff57c114dd5641ae0510e4c78d74d60f432c9737bcb37369190d88");
-			assert_ok!(Crowdsale::verify_signature(&alice, regular_statement, &alice_regular_signature));
+			assert_ok!(Purchase::verify_signature(&alice, regular_statement, &alice_regular_signature));
 
 			let bob = bob();
 			let high_statement = StatementKind::High;
 			// Signing "High" with Bob using PolkadotJS, removing `0x` prefix
 			let bob_high_signature = hex_literal::hex!("fe00fd50ae126753d56cec06b1acb3fef65b9009707d28d700c76161eab7f550bf28f090953f2fcdf8422f9b1fad7869395d2704363a73147efaec98339f2f8d");
-			assert_ok!(Crowdsale::verify_signature(&bob, high_statement, &bob_high_signature));
+			assert_ok!(Purchase::verify_signature(&bob, high_statement, &bob_high_signature));
 
 			// Mixing and matching fails
 			assert_noop!(
-				Crowdsale::verify_signature(&alice, high_statement, &bob_high_signature),
+				Purchase::verify_signature(&alice, high_statement, &bob_high_signature),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdsale::verify_signature(&alice, high_statement, &alice_regular_signature),
+				Purchase::verify_signature(&alice, high_statement, &alice_regular_signature),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdsale::verify_signature(&alice, regular_statement, &bob_high_signature),
+				Purchase::verify_signature(&alice, regular_statement, &bob_high_signature),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdsale::verify_signature(&bob, high_statement, &alice_regular_signature),
+				Purchase::verify_signature(&bob, high_statement, &alice_regular_signature),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdsale::verify_signature(&bob, regular_statement, &bob_high_signature),
+				Purchase::verify_signature(&bob, regular_statement, &bob_high_signature),
 				Error::<Test>::InvalidSignature
 			);
 			assert_noop!(
-				Crowdsale::verify_signature(&bob, regular_statement, &alice_regular_signature),
+				Purchase::verify_signature(&bob, regular_statement, &alice_regular_signature),
 				Error::<Test>::InvalidSignature
 			);
 		});
