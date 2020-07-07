@@ -510,3 +510,121 @@ async fn run(
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use futures::executor::{self, ThreadPool};
+	use polkadot_primitives::parachain::BlockData;
+	use assert_matches::assert_matches;
+
+	fn make_pov(data: Vec<u8>) -> PoV {
+		PoV { block_data: BlockData(data) }
+	}
+
+	fn make_peer_state(awaited: Vec<(Hash, Vec<Hash>)>)
+		-> PeerState
+	{
+		PeerState {
+			awaited: awaited.into_iter().map(|(rp, h)| (rp, h.into_iter().collect())).collect()
+		}
+	}
+
+	#[test]
+	fn distributes_to_those_awaiting_and_completes_local() {
+		// TODO [now] sharing PoV shares it with all peers who have awaited.
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+		let peer_c = PeerId::random();
+
+		let (pov_send, pov_recv) = oneshot::channel();
+		let pov = make_pov(vec![1, 2, 3]);
+		let pov_hash = pov.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let mut b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				b.fetching.insert(pov_hash, vec![pov_send]);
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// peer A has hash_a in its view and is awaiting the PoV.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_a, vec![pov_hash])]),
+				);
+
+				// peer B has hash_a in its view but is not awaiting.
+				s.insert(
+					peer_b.clone(),
+					make_peer_state(vec![(hash_a, vec![])]),
+				);
+
+				// peer C doesn't have hash_a in its view but is awaiting the PoV under hash_b.
+				s.insert(
+					peer_c.clone(),
+					make_peer_state(vec![(hash_b, vec![pov_hash])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a, hash_b]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov_hash;
+
+		executor::block_on(async move {
+			handle_distribute(
+				&mut state,
+				&mut ctx,
+				hash_a,
+				descriptor,
+				Arc::new(pov.clone()),
+			).await.unwrap();
+
+			assert!(!state.peer_state[&peer_a].awaited[&hash_a].contains(&pov_hash));
+			assert!(state.peer_state[&peer_c].awaited[&hash_b].contains(&pov_hash));
+
+			// our local sender also completed
+			assert_eq!(&*pov_recv.await.unwrap(), &pov);
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+				) => {
+					assert_eq!(peers, vec![peer_a.clone()]);
+					assert_eq!(protocol, PROTOCOL_V1);
+					assert_eq!(
+						message,
+						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+					);
+				}
+			)
+		});
+	}
+
+	// TODO [now] requesting PoV tells only peers with same view we are awaiting.
+
+	// TODO [now] peer view change leads to telling peer what we're awaiting.
+
+	// TODO [now] peer is rewarded for sending PoV first
+
+	// TODO [now] peer is rewarded for sending PoV second
+
+}
