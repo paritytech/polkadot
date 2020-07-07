@@ -30,9 +30,16 @@ use kv_log_macro as log;
 use polkadot_primitives::parachain::{BlockData, PoVBlock};
 use polkadot_overseer::Overseer;
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, DummySubsystem, 
+	SpawnedSubsystem, FromOverseer,
+};
 use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateValidationMessage
+	CandidateValidationMessage, CandidateBackingMessage,
+	CandidateSelectionMessage, StatementDistributionMessage,
+	AvailabilityDistributionMessage, BitfieldDistributionMessage,
+	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage, 
+	NetworkBridgeMessage, AllMessages,
 };
 
 struct Subsystem1;
@@ -131,6 +138,14 @@ fn main() {
 			vec![],
 			Subsystem2,
 			Subsystem1,
+			DummySubsystem::<CandidateSelectionMessage>::default(),
+			DummySubsystem::<StatementDistributionMessage>::default(),
+			DummySubsystem::<AvailabilityDistributionMessage>::default(),
+			DummySubsystem::<BitfieldDistributionMessage>::default(),
+			DummySubsystem::<ProvisionerMessage>::default(),
+			DummySubsystem::<RuntimeApiMessage>::default(),
+			DummySubsystem::<AvailabilityStoreMessage>::default(),
+			DummySubsystem::<NetworkBridgeMessage>::default(),
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

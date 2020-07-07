@@ -451,6 +451,7 @@ where
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     ValidationSubsystem,
+	///     DummySubsystem::<CandidateBackingMessage>::default(),
 	///     DummySubsystem::<CandidateSelectionMessage>::default(),
 	///     DummySubsystem::<StatementDistributionMessage>::default(),
 	///     DummySubsystem::<AvailabilityDistributionMessage>::default(),
@@ -874,6 +875,7 @@ mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
 	use polkadot_primitives::parachain::{BlockData, PoVBlock};
+	use polkadot_subsystem::DummySubsystem;
 	use super::*;
 
 

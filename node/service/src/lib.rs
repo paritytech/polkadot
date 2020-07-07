@@ -30,9 +30,13 @@ use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
 use polkadot_overseer::{self as overseer, BlockInfo, Overseer, OverseerHandler};
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem,
-	messages::{CandidateValidationMessage, CandidateBackingMessage},
+use polkadot_subsystem::DummySubsystem;
+use polkadot_subsystem::messages::{
+	CandidateValidationMessage, CandidateBackingMessage,
+	CandidateSelectionMessage, StatementDistributionMessage,
+	AvailabilityDistributionMessage, BitfieldDistributionMessage,
+	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage, 
+	NetworkBridgeMessage,
 };
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
@@ -270,38 +274,24 @@ macro_rules! new_full_start {
 	}}
 }
 
-struct CandidateValidationSubsystem;
-
-impl<C> Subsystem<C> for CandidateValidationSubsystem
-	where C: SubsystemContext<Message = CandidateValidationMessage>
-{
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
-			while let Ok(_) = ctx.recv().await {}
-		}))
-	}
-}
-
-struct CandidateBackingSubsystem;
-
-impl<C> Subsystem<C> for CandidateBackingSubsystem
-	where C: SubsystemContext<Message = CandidateBackingMessage>
-{
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
-			while let Ok(_) = ctx.recv().await {}
-		}))
-	}
-}
-
 fn real_overseer<S: futures::task::Spawn>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	let validation = CandidateValidationSubsystem;
-	let candidate_backing = CandidateBackingSubsystem;
-	Overseer::new(leaves, validation, candidate_backing, s)
-		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
+	Overseer::new(
+		leaves, 
+		DummySubsystem::<CandidateValidationMessage>::default(),
+		DummySubsystem::<CandidateBackingMessage>::default(),
+		DummySubsystem::<CandidateSelectionMessage>::default(),
+		DummySubsystem::<StatementDistributionMessage>::default(),
+		DummySubsystem::<AvailabilityDistributionMessage>::default(),
+		DummySubsystem::<BitfieldDistributionMessage>::default(),
+		DummySubsystem::<ProvisionerMessage>::default(),
+		DummySubsystem::<RuntimeApiMessage>::default(),
+		DummySubsystem::<AvailabilityStoreMessage>::default(),
+		DummySubsystem::<NetworkBridgeMessage>::default(),
+		s,
+	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
 /// Builds a new service for a full client.
