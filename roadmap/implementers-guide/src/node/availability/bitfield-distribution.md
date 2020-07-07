@@ -12,7 +12,7 @@ Output:
 - `NetworkBridge::RegisterEventProducer(ProtocolId)`
 - `NetworkBridge::SendMessage([PeerId], ProtocolId, Bytes)`
 - `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)`
-- `BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)`
+- `DistributeBitfield::Bitfield(relay_parent, SignedAvailabilityBitfield)`
 
 ## Functionality
 
