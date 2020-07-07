@@ -236,6 +236,7 @@ decl_module! {
 				let max_amount = status.validity.max_amount::<T>();
 				ensure!(balance <= max_amount, Error::<T>::InvalidBalance);
 				status.balance = balance;
+				status.locked = locked;
 				Ok(())
 			})?;
 			Self::deposit_event(RawEvent::BalanceUpdated(who, balance, locked));
@@ -255,7 +256,7 @@ decl_module! {
 
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				// Account has a valid status (not Invalid, Pending, or Completed)...
-				ensure!(status.validity.is_valid(), Error::<T>::InvalidBalance);
+				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
 				// The balance we are going to transfer them matches their validity status
 				ensure!(status.balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
 
@@ -336,10 +337,14 @@ fn account_to_bytes<AccountId>(account: &AccountId) -> Result<[u8; 32], Dispatch
 mod tests {
 	use super::*;
 
-	use sp_core::H256;
+	use sp_core::{H256, Pair, Public, crypto::AccountId32};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
-	use sp_runtime::{Perbill, traits::{BlakeTwo256, IdentityLookup, Identity}, testing::Header};
+	use sp_runtime::{
+		Perbill, MultiSignature,
+		traits::{BlakeTwo256, IdentityLookup, Identity, Verify, IdentifyAccount},
+		testing::Header
+	};
 	use frame_support::{
 		impl_outer_origin, impl_outer_dispatch, assert_ok, assert_noop, parameter_types,
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
@@ -355,6 +360,9 @@ mod tests {
 			crowdsale::Crowdsale,
 		}
 	}
+
+	type AccountId = AccountId32;
+
 	// For testing the module, we construct most of a mock runtime. This means
 	// first constructing a configuration type (`Test`) which `impl`s each of the
 	// configuration traits of modules we want to use.
@@ -374,8 +382,8 @@ mod tests {
 		type BlockNumber = u64;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
-		type AccountId = u64;
-		type Lookup = IdentityLookup<u64>;
+		type AccountId = AccountId;
+		type Lookup = IdentityLookup<AccountId>;
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
@@ -416,11 +424,6 @@ mod tests {
 		type MinVestedTransfer = MinVestedTransfer;
 	}
 
-	ord_parameter_types! {
-		pub const Six: u64 = 6;
-		pub const Seven: u64 = 7;
-	}
-
 	parameter_types! {
 		pub const VestingTime: u64 = 100;
 	}
@@ -430,8 +433,8 @@ mod tests {
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
 		type VestingTime = VestingTime;
-		type ValidityOrigin = system::EnsureSignedBy<Six, u64>;
-		type PaymentOrigin = system::EnsureSignedBy<Seven, u64>;
+		type ValidityOrigin = system::EnsureRoot<AccountId>;
+		type PaymentOrigin = system::EnsureRoot<AccountId>;
 	}
 
 	type System = system::Module<Test>;
@@ -446,31 +449,70 @@ mod tests {
 		t.into()
 	}
 
-	// #[test]
-	// fn set_account_validity_works() {
-	// 	new_test_ext().execute_with(|| {
-	// 		// User initially has no validity statement, by default, they are `Invalid`.
-	// 		assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::Invalid);
-	// 		// Origin must be the `ValidityOrigin`
-	// 		assert_noop!(Crowdsale::set_account_validity(Origin::signed(1), 42, AccountValidity::ValidLow), BadOrigin);
-	// 		assert_ok!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::ValidLow));
-	// 		// Account is updated
-	// 		assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::ValidLow);
-	// 		// We update validity statement
-	// 		assert_ok!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::Invalid));
-	// 		assert_eq!(ValidityStatements::<Test>::get(42), AccountValidity::Invalid);
-	// 	});
-	// }
+	type AccountPublic = <MultiSignature as Verify>::Signer;
 
-	// #[test]
-	// fn set_account_validity_handles_basic_errors() {
-	// 	new_test_ext().execute_with(|| {
-	// 		// Create an "existing account"
-	// 		Balances::make_free_balance_be(&42, 500);
-	// 		// Origin must be the `ValidityOrigin`
-	// 		assert_noop!(Crowdsale::set_account_validity(Origin::signed(1), 42, AccountValidity::ValidLow), BadOrigin);
-	// 		// Account must be dead
-	// 		assert_noop!(Crowdsale::set_account_validity(Origin::signed(6), 42, AccountValidity::ValidLow), Error::<Test>::ExistingAccount);
-	// 	});
-	// }
+	/// Helper function to generate a crypto pair from seed
+	fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
+		TPublic::Pair::from_string(&format!("//{}", seed), None)
+			.expect("static values are valid; qed")
+			.public()
+	}
+
+	/// Helper function to generate an account ID from seed
+	fn get_account_id_from_seed<TPublic: Public>(seed: &str) -> AccountId where
+		AccountPublic: From<<TPublic::Pair as Pair>::Public>
+	{
+		AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
+	}
+
+	fn alice() -> AccountId {
+		get_account_id_from_seed::<sr25519::Public>("Alice")
+	}
+
+	fn bob() -> AccountId {
+		get_account_id_from_seed::<sr25519::Public>("Bob")
+	}
+
+	#[test]
+	fn signature_verification_works() {
+		new_test_ext().execute_with(|| {
+			let alice = alice();
+			let regular_statement = StatementKind::Regular;
+			// Signing "Regular" with Alice using PolkadotJS, removing `0x` prefix
+			let alice_regular_signature = hex_literal::hex!("76c9616b262d01b2fc64aad212a364bbb0c0a6744968ba189dde93496acc6d54b2a5b7af93ff57c114dd5641ae0510e4c78d74d60f432c9737bcb37369190d88");
+			assert_ok!(Crowdsale::verify_signature(&alice, regular_statement, &alice_regular_signature));
+
+			let bob = bob();
+			let high_statement = StatementKind::High;
+			// Signing "High" with Bob using PolkadotJS, removing `0x` prefix
+			let bob_high_signature = hex_literal::hex!("fe00fd50ae126753d56cec06b1acb3fef65b9009707d28d700c76161eab7f550bf28f090953f2fcdf8422f9b1fad7869395d2704363a73147efaec98339f2f8d");
+			assert_ok!(Crowdsale::verify_signature(&bob, high_statement, &bob_high_signature));
+
+			// Mixing and matching fails
+			assert_noop!(
+				Crowdsale::verify_signature(&alice, high_statement, &bob_high_signature),
+				Error::<Test>::InvalidSignature
+			);
+			assert_noop!(
+				Crowdsale::verify_signature(&alice, high_statement, &alice_regular_signature),
+				Error::<Test>::InvalidSignature
+			);
+			assert_noop!(
+				Crowdsale::verify_signature(&alice, regular_statement, &bob_high_signature),
+				Error::<Test>::InvalidSignature
+			);
+			assert_noop!(
+				Crowdsale::verify_signature(&bob, high_statement, &alice_regular_signature),
+				Error::<Test>::InvalidSignature
+			);
+			assert_noop!(
+				Crowdsale::verify_signature(&bob, regular_statement, &bob_high_signature),
+				Error::<Test>::InvalidSignature
+			);
+			assert_noop!(
+				Crowdsale::verify_signature(&bob, regular_statement, &alice_regular_signature),
+				Error::<Test>::InvalidSignature
+			);
+		});
+	}
 }
