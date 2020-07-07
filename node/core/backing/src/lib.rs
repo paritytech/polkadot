@@ -20,7 +20,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
-use std::iter::FromIterator;
 use std::pin::Pin;
 use std::time::Duration;
 
@@ -394,7 +393,6 @@ impl CandidateBackingJob {
 	/// Kick off validation work and distribute the result as a signed statement.
 	async fn kick_off_validation_work(
 		&mut self,
-		summary: TableSummary,
 		candidate: AbridgedCandidateReceipt,
 	) -> Result<(), Error> {
 		let pov = self.request_pov_from_distribution(candidate.to_descriptor()).await?;
@@ -424,7 +422,7 @@ impl CandidateBackingJob {
 		if let Some(summary) = self.import_statement(&statement).await? {
 			if let Statement::Seconded(candidate) = statement.into_payload() {
 				if summary.group_id == self.assignment {
-					self.kick_off_validation_work(summary, candidate).await?;
+					self.kick_off_validation_work(candidate).await?;
 				}
 			}
 		}
