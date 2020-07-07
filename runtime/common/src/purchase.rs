@@ -112,8 +112,6 @@ decl_event!(
 		AccountCreated(AccountId),
 		/// Someone's account validity was updated
 		ValidityUpdated(AccountId, AccountValidity),
-		/// Someone's account validity statement was removed
-		ValidityRemoved(AccountId),
 		/// Someone's purchase balance was updated. (Free, Locked)
 		BalanceUpdated(AccountId, Balance, Balance),
 	}
@@ -217,6 +215,7 @@ decl_module! {
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				let max_amount = status.validity.max_amount::<T>();
 				let total_balance = free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
+				// TODO: Maybe remove this check, and trust the origin to be adding the right values.
 				ensure!(total_balance <= max_amount, Error::<T>::InvalidBalance);
 				status.free_balance = free_balance;
 				status.locked_balance = locked_balance;
@@ -242,6 +241,7 @@ decl_module! {
 				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
 				// The balance we are going to transfer them matches their validity status
 				let total_balance = status.free_balance.checked_add(&status.locked_balance).ok_or(Error::<T>::Overflow)?;
+				// TODO: Possibly remove this check and trust the origin to check this before they payout.
 				ensure!(total_balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
 
 				// Transfer funds from the payment account into the purchasing user.
