@@ -21,7 +21,7 @@ use polkadot_primitives::{parachain::ValidatorId, AccountId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
 use polkadot_test_runtime::constants::currency::DOTS;
 use sc_chain_spec::{ChainSpec, ChainType};
-use sp_core::sr25519;
+use sp_core::{sr25519, ChangesTrieConfiguration};
 use sp_runtime::Perbill;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
@@ -36,7 +36,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		polkadot_local_testnet_genesis,
+		|| polkadot_local_testnet_genesis(None, None),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -46,14 +46,20 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 }
 
 /// Polkadot local testnet genesis config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
+pub fn polkadot_local_testnet_genesis(
+	changes_trie_config: Option<ChangesTrieConfiguration>,
+	endowment: Option<u128>,
+) -> polkadot_test_runtime::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
+			get_authority_keys_from_seed("Charlie"),
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
+		changes_trie_config,
+		endowment,
 	)
 }
 
@@ -92,6 +98,8 @@ fn polkadot_testnet_genesis(
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ValidatorId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
+	changes_trie_config: Option<ChangesTrieConfiguration>,
+	endowment: Option<u128>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	use polkadot_test_runtime as polkadot;
 
@@ -103,13 +111,13 @@ fn polkadot_testnet_genesis(
 	polkadot::GenesisConfig {
 		system: Some(polkadot::SystemConfig {
 			code: polkadot::WASM_BINARY.to_vec(),
-			changes_trie_config: Default::default(),
+			changes_trie_config: Some(changes_trie_config.unwrap_or_default()),
 		}),
 		indices: Some(polkadot::IndicesConfig { indices: vec![] }),
 		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
-				.map(|k| (k.clone(), ENDOWMENT))
+				.map(|k| (k.clone(), endowment.unwrap_or(ENDOWMENT)))
 				.collect(),
 		}),
 		session: Some(polkadot::SessionConfig {

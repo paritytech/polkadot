@@ -94,20 +94,13 @@ pub struct GenesisParameters {
 
 impl GenesisParameters {
 	fn genesis_config(&self) -> GenesisConfig {
-		polkadot_local_testnet_genesis()
-		// TODO: pass parameters somehow
-		/*
-		GenesisConfig::new(
+		let config = polkadot_local_testnet_genesis(
 			self.changes_trie_config.clone(),
-			vec![
-				sr25519::Public::from(Sr25519Keyring::Alice).into(),
-				sr25519::Public::from(Sr25519Keyring::Bob).into(),
-				sr25519::Public::from(Sr25519Keyring::Charlie).into(),
-			],
-			1000,
-			self.extra_storage.clone(),
-		)
-		*/
+			Some(1000),
+		);
+		config.assimilate_storage(&mut self.extra_storage.clone()).expect("Adding `system::GensisConfig` to the genesis");
+
+		config
 	}
 }
 
