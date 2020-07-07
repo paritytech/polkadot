@@ -39,6 +39,8 @@ pub trait Trait: system::Trait {
 	type ValidityOrigin: EnsureOrigin<Self::Origin>;
 	/// The origin allowed to make final payments.
 	type PaymentOrigin: EnsureOrigin<Self::Origin>;
+	/// The statement that must be signed to participate in the purchase process.
+	type Statement: Get<&'static [u8]>;
 }
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -92,33 +94,7 @@ pub struct AccountStatus<Balance> {
 	validity: AccountValidity,
 	free_balance: Balance,
 	locked_balance: Balance,
-	statement_kind: StatementKind,
 	signature: Vec<u8>,
-}
-
-/// The kind of a statement an account needs to make for a claim to be valid.
-#[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
-pub enum StatementKind {
-	/// Statement required to be made by the regular sale participants.
-	Regular,
-	/// Statement required to be made by high value sale participants.
-	High,
-}
-
-impl StatementKind {
-	/// Convert this to the (English) statement it represents.
-	fn to_text(self) -> &'static [u8] {
-		match self {
-			StatementKind::Regular => &b"Regular"[..],
-			StatementKind::High => &b"High"[..],
-		}
-	}
-}
-
-impl Default for StatementKind {
-	fn default() -> Self {
-		StatementKind::Regular
-	}
 }
 
 decl_event!(
@@ -178,7 +154,6 @@ decl_module! {
 		#[weight = 0]
 		fn create_account(origin,
 			who: T::AccountId,
-			statement_kind: StatementKind,
 			signature: Vec<u8>
 		) {
 			T::ValidityOrigin::ensure_origin(origin)?;
@@ -186,12 +161,11 @@ decl_module! {
 			ensure!(!Accounts::<T>::contains_key(&who), Error::<T>::ExistingAccount);
 
 			// Verify the signature provided is valid for the statement.
-			Self::verify_signature(&who, statement_kind, &signature)?;
+			Self::verify_signature(&who, &signature)?;
 
 			// Create a new pending account.
 			let status = AccountStatus {
 				validity: AccountValidity::Pending,
-				statement_kind,
 				signature,
 				free_balance: Zero::zero(),
 				locked_balance: Zero::zero(),
@@ -307,7 +281,7 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-	fn verify_signature(who: &T::AccountId, statement_kind: StatementKind, signature: &[u8]) -> Result<(), DispatchError> {
+	fn verify_signature(who: &T::AccountId, signature: &[u8]) -> Result<(), DispatchError> {
 		// sr25519 always expects a 64 byte signature.
 		ensure!(signature.len() == 64, Error::<T>::InvalidSignature);
 		let signature = sr25519::Signature::from_slice(signature);
@@ -316,7 +290,7 @@ impl<T: Trait> Module<T> {
 		let account_bytes: [u8; 32] = account_to_bytes(who)?;
 		let public_key = sr25519::Public::from_raw(account_bytes);
 
-		let message = statement_kind.to_text();
+		let message = T::Statement::get();
 
 		// Check if everything is good or not.
 		match sr25519::verify_batch(vec![message], vec![&signature], vec![&public_key]) {
@@ -430,6 +404,7 @@ mod tests {
 
 	parameter_types! {
 		pub const VestingTime: u64 = 100;
+		pub Statement: &'static [u8] = b"Hello, World!";
 	}
 
 	impl Trait for Test {
@@ -439,6 +414,7 @@ mod tests {
 		type VestingTime = VestingTime;
 		type ValidityOrigin = system::EnsureRoot<AccountId>;
 		type PaymentOrigin = system::EnsureRoot<AccountId>;
+		type Statement = Statement;
 	}
 
 	type System = system::Module<Test>;
@@ -481,42 +457,18 @@ mod tests {
 	fn signature_verification_works() {
 		new_test_ext().execute_with(|| {
 			let alice = alice();
-			let regular_statement = StatementKind::Regular;
-			// Signing "Regular" with Alice using PolkadotJS, removing `0x` prefix
-			let alice_regular_signature = hex_literal::hex!("76c9616b262d01b2fc64aad212a364bbb0c0a6744968ba189dde93496acc6d54b2a5b7af93ff57c114dd5641ae0510e4c78d74d60f432c9737bcb37369190d88");
-			assert_ok!(Purchase::verify_signature(&alice, regular_statement, &alice_regular_signature));
+			// Signing the "Hello, World!" with Alice using PolkadotJS, removing `0x` prefix
+			let alice_signature = hex_literal::hex!("66b14944807202317fbc26001dd883726a9a756eab804e8d15f1a38bcde4a1591abd720ebe22df3cf1e7bd3a640727691b7fe697c23256760ec166b78c07b886");
+			assert_ok!(Purchase::verify_signature(&alice, &alice_signature));
 
 			let bob = bob();
-			let high_statement = StatementKind::High;
-			// Signing "High" with Bob using PolkadotJS, removing `0x` prefix
-			let bob_high_signature = hex_literal::hex!("fe00fd50ae126753d56cec06b1acb3fef65b9009707d28d700c76161eab7f550bf28f090953f2fcdf8422f9b1fad7869395d2704363a73147efaec98339f2f8d");
-			assert_ok!(Purchase::verify_signature(&bob, high_statement, &bob_high_signature));
+			// Signing the "Hello, World!" with Bob using PolkadotJS, removing `0x` prefix
+			let bob_signature = hex_literal::hex!("aced3b06fb3b7862c38ace0ba36fad20012dd0246b92760813b5fe9cee97c973f15db6b74fceeaae0012c3f708ee13a3dd3446403243be01d1d01ddf3b54448a");
+			assert_ok!(Purchase::verify_signature(&bob, &bob_signature));
 
 			// Mixing and matching fails
-			assert_noop!(
-				Purchase::verify_signature(&alice, high_statement, &bob_high_signature),
-				Error::<Test>::InvalidSignature
-			);
-			assert_noop!(
-				Purchase::verify_signature(&alice, high_statement, &alice_regular_signature),
-				Error::<Test>::InvalidSignature
-			);
-			assert_noop!(
-				Purchase::verify_signature(&alice, regular_statement, &bob_high_signature),
-				Error::<Test>::InvalidSignature
-			);
-			assert_noop!(
-				Purchase::verify_signature(&bob, high_statement, &alice_regular_signature),
-				Error::<Test>::InvalidSignature
-			);
-			assert_noop!(
-				Purchase::verify_signature(&bob, regular_statement, &bob_high_signature),
-				Error::<Test>::InvalidSignature
-			);
-			assert_noop!(
-				Purchase::verify_signature(&bob, regular_statement, &alice_regular_signature),
-				Error::<Test>::InvalidSignature
-			);
+			assert_noop!(Purchase::verify_signature(&alice, &bob_signature), Error::<Test>::InvalidSignature);
+			assert_noop!(Purchase::verify_signature(&bob, &alice_signature), Error::<Test>::InvalidSignature);
 		});
 	}
 }
