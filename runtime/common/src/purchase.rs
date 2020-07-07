@@ -564,12 +564,30 @@ mod tests {
 				alice(),
 				AccountValidity::Invalid,
 			));
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::Invalid,
+					free_balance: Zero::zero(),
+					locked_balance: Zero::zero(),
+					signature: alice_signature().to_vec(),
+				}
+			);
 			// She fixes it, we mark her account valid.
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidLow,
 			));
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::ValidLow,
+					free_balance: Zero::zero(),
+					locked_balance: Zero::zero(),
+					signature: alice_signature().to_vec(),
+				}
+			);
 		});
 	}
 
@@ -598,6 +616,79 @@ mod tests {
 				alice(),
 				AccountValidity::Pending,
 			), Error::<Test>::AlreadyCompleted);
+		});
+	}
+
+	#[test]
+	fn update_balance_works() {
+		new_test_ext().execute_with(|| {
+			// Alice account is created
+			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			// And approved for basic contribution
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidLow,
+			));
+			// We set a balance on the user based on the payment they made. 50 locked, 50 free.
+			assert_ok!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				50,
+				50,
+			));
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::ValidLow,
+					free_balance: 50,
+					locked_balance: 50,
+					signature: alice_signature().to_vec(),
+				}
+			);
+			// We can update the balance based on new information.
+			assert_ok!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				25,
+				50,
+			));
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::ValidLow,
+					free_balance: 25,
+					locked_balance: 50,
+					signature: alice_signature().to_vec(),
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn update_balance_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Inactive Account
+			assert_noop!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				50,
+				50,
+			), Error::<Test>::InvalidBalance);
+
+			// Value too high
+			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidLow,
+			));
+			assert_noop!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				51,
+				50,
+			), Error::<Test>::InvalidBalance);
 		});
 	}
 }
