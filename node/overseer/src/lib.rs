@@ -425,8 +425,8 @@ where
 	/// # use futures_timer::Delay;
 	/// # use polkadot_overseer::Overseer;
 	/// # use polkadot_subsystem::{
-	/// #     Subsystem, SpawnedSubsystem, SubsystemContext,
-	/// #     messages::{CandidateValidationMessage, CandidateBackingMessage},
+	/// #     Subsystem, DummySubsystem, SpawnedSubsystem, SubsystemContext,
+	/// #     messages::*,
 	/// # };
 	///
 	/// struct ValidationSubsystem;
@@ -446,28 +446,19 @@ where
 	///     }
 	/// }
 	///
-	/// struct CandidateBackingSubsystem;
-	/// impl<C> Subsystem<C> for CandidateBackingSubsystem
-	/// 	where C: SubsystemContext<Message=CandidateBackingMessage>
-	/// {
-	///     fn start(
-	///         self,
-	///         mut ctx: C,
-	///     ) -> SpawnedSubsystem {
-	///         SpawnedSubsystem(Box::pin(async move {
-	///             loop {
-	///                 Delay::new(Duration::from_secs(1)).await;
-	///             }
-	///         }))
-	///     }
-	/// }
-	///
 	/// # fn main() { executor::block_on(async move {
 	/// let spawner = executor::ThreadPool::new().unwrap();
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     ValidationSubsystem,
-	///     CandidateBackingSubsystem,
+	///     DummySubsystem::<CandidateSelectionMessage>::default(),
+	///     DummySubsystem::<StatementDistributionMessage>::default(),
+	///     DummySubsystem::<AvailabilityDistributionMessage>::default(),
+	///     DummySubsystem::<BitfieldDistributionMessage>::default(),
+	///     DummySubsystem::<ProvisionerMessage>::default(),
+	///     DummySubsystem::<RuntimeApiMessage>::default(),
+	///     DummySubsystem::<AvailabilityStoreMessage>::default(),
+	///     DummySubsystem::<NetworkBridgeMessage>::default(),
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -877,6 +868,7 @@ fn spawn<S: Spawn, M: Send + 'static>(
 	})
 }
 
+
 #[cfg(test)]
 mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
@@ -884,23 +876,6 @@ mod tests {
 	use polkadot_primitives::parachain::{BlockData, PoVBlock};
 	use super::*;
 
-	struct DummySubsystem<C>(std::marker::PhantomData<C>);
-
-	impl<C> Default for DummySubsystem<C> {
-		fn default() -> Self {
-			Self(std::marker::PhantomData)
-		}
-	} 
-
-	impl<M: Send, C> Subsystem<C> for DummySubsystem<M>
-		where C: SubsystemContext<Message=M>
-	{
-		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
-			SpawnedSubsystem(Box::pin(async move {
-				// Do nothing and exit.
-			}))
-		}
-	}
 
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
