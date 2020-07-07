@@ -6,7 +6,12 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
+futures-timer = "3.0.2"
 log = "0.4.8"
+streamunordered = "0.5.1"
+parity-scale-codec = "1.3.0"
+node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

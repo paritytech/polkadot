@@ -16,34 +16,43 @@
 
 //! The bitfield distribution subsystem spreading @todo .
 
-use bridge::NetworkBridgeMessage;
-use futures::{channel::oneshot, Future};
-use node_primitives::{ProtocolId, SignedFullStatement, View};
-use polkadot_node_subsystem::{
-    messages::{AllMessages, BitfieldDistributionMessage},
-    OverseerSignal, SubsystemResult,
+use futures::{
+    channel::oneshot,
+    future::{abortable, AbortHandle, Abortable},
+    Future,
 };
-use polkadot_node_subsystem::{FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext};
+use node_primitives::{ProtocolId, SignedFullStatement, View};
+use polkadot_network_bridge::NetworkBridgeMessage;
+use polkadot_node_subsystem::messages::*;
+use polkadot_node_subsystem::{
+    FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+};
+use polkadot_primitives::parachain::ValidatorId;
 use polkadot_primitives::Hash;
-use std::{collections::HashMap, pin::Pin};
+use sc_network::ReputationChange;
+use std::{
+    collections::{HashMap, HashSet},
+    pin::Pin,
+};
 
-const COST_SIGNATURE_INVALID: Rep = Rep::new(-10000, "Bitfield signature invalid");
-const COST_MULTIPLE_BITFIELDS_FROM_PEER: Rep =
-    Rep::new(-10000, "Received more than once bitfield from peer");
-const COST_NOT_INTERESTED: Rep =
-	Rep::new(-100, "Not intersted in that parent hash");
+const COST_SIGNATURE_INVALID: ReputationChange =
+    ReputationChange::new(-10000, "Bitfield signature invalid");
+const COST_MULTIPLE_BITFIELDS_FROM_PEER: ReputationChange =
+    ReputationChange::new(-10000, "Received more than once bitfield from peer");
+const COST_NOT_INTERESTED: ReputationChange =
+    ReputationChange::new(-100, "Not intersted in that parent hash");
 
 #[derive(Default, Clone)]
 struct Tracker {
     // track all active peers and their views
     // to determine what is relevant to them
-	peer_views: HashMap<PeerId, View>,
+    peer_views: HashMap<PeerId, View>,
 
-	// set of active heads the overseer told us to work on
-	active_heads: HashSet<Hash>,
+    // set of active heads the overseer told us to work on
+    active_jobs: HashMap<Hash, AbortHandle>,
 
-	// set of validators which already sent a message
-	validator_bitset_received: HashSet<ValidatorId>,
+    // set of validators which already sent a message
+    validator_bitset_received: HashSet<ValidatorId>,
 
     // our current view
     view: View,
@@ -59,7 +68,7 @@ impl BitfieldDistribution {
     const PROTOCOL_ID: ProtocolId = *b"bitd";
 
     async fn run(
-        mut ctx: impl SubsystemContext<Message = BitfieldSigningMessage>,
+        mut ctx: impl SubsystemContext<Message = BitfieldDistributionMessage>,
     ) -> SubsystemResult<()> {
         // startup: register the network protocol with the bridge.
         ctx.send_message(AllMessages::NetworkBridge(
@@ -67,7 +76,7 @@ impl BitfieldDistribution {
         ))
         .await?;
 
-        let mut data = Tracker::default();
+        let mut tracker = Tracker::default();
         loop {
             {
                 let message = ctx.recv().await?;
@@ -76,38 +85,49 @@ impl BitfieldDistribution {
                         unreachable!("BitfieldDistributionMessage does not exist; qed")
                     }
                     FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-						let (validators, session_index) = {
-							let (validators_tx, validators_rx) = oneshot::channel();
-							let (signing_tx, signing_rx) = oneshot::channel();
+                        let (validators, signing_context) = {
+                            let (validators_tx, validators_rx) = oneshot::channel();
+                            let (signing_tx, signing_rx) = oneshot::channel();
 
-							let query_validators = AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Validators(validators_tx)),
-							);
+                            let query_validators =
+                                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+                                    relay_parent,
+                                    RuntimeApiRequest::Validators(validators_tx),
+                                ));
 
-							let query_signing_context = AllMessages::RuntimeApi(
-								RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::SigningContext(signing_tx)),
-							);
+                            let query_signing_context =
+                                AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+                                    relay_parent,
+                                    RuntimeApiRequest::SigningContext(signing_tx),
+                                ));
 
-							ctx.send_messages(
-								std::iter::once(query_validators).chain(std::iter::once(query_signing_context))
-							).await?;
+                            ctx.send_messages(
+                                std::iter::once(query_validators)
+                                    .chain(std::iter::once(query_signing_context)),
+                            )
+                            .await?;
 
-							(validators_rx.await?, signing_rx.await?)
-						};
+                            (validators_rx.await?, signing_rx.await?)
+                        };
 
-						// @todo store validators and session_index
-                        process_incoming(ctx, &mut data, relay_parent).await?;
+                        let (future, abort_handle) =
+                            abortable(process_incoming(ctx.clone(), relay_parent.clone()));
+                        tracker
+                            .active_jobs
+                            .insert(relay_parent.clone(), abort_handle);
                     }
                     FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
                         // could work, but see above
-                        tracker.active_heads.remove(&relay_parent);
+                        tracker.active_jobs.remove(&relay_parent);
                     }
-                    FromOverseer::Signal(OverseerSignal::Conclude) => break,
+                    FromOverseer::Signal(OverseerSignal::Conclude) => {
+						// @todo add a timeout here?
+                        return futures::future::join_all(tracker.active_jobs.into_iter()).await
+                    }
                 }
             }
-            active_jobs.retain(|_, future| future.poll().is_pending());
+            tracker.active_jobs.retain(|_, future| future.poll().is_pending());
         }
-        Ok(())
     }
 }
 
@@ -123,8 +143,8 @@ async fn process_incoming(
             // @todo should we only distribute availability messages to peer if they are relevant to us
             // or is the only discriminator if the peer cares about it?
             if !tracker.view.contains(hash) {
-				// we don't care about this one
-				// @todo should this be a penality?
+                // we don't care about this one
+                // @todo should this be a penality?
                 return ctx
                     .send_message(AllMessages::NetworkBridge(
                         NetworkBridgeMessage::ReportPeer(peerid, COST_NOT_INTERESTED),
@@ -150,10 +170,9 @@ async fn process_incoming(
             {
                 // @todo shall we assure these complete or just let them be?
                 ctx.spawn(Box::new(ctx.send_message(
-                    AllMessages::BitfieldDistribution(DistributeBitfield::Bitfield(
-                        hash,
-                        signed_availability,
-                    )),
+                    AllMessages::BitfieldDistribution(
+                        BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
+                    ),
                 )))
                 .await?;
             }
@@ -169,28 +188,28 @@ async fn process_incoming(
 async fn handle_network_msg(
     mut ctx: impl SubsystemContext<Message = BitfieldDistributionMessage>,
     tracker: &mut Tracker,
-    bridge_event: NetworkBridgeMessage,
+    bridge_message: NetworkBridgeMessage,
 ) -> SubsystemResult<()> {
     match bridge_message {
-        NetworkBridgeMessage::PeerConnected(peerid, _role) => {
+        NetworkBridgeEvent::PeerConnected(peerid, _role) => {
             // insert if none already present
             tracker.peer_views.entry(peerid).or_insert(View::default());
         }
-        NetworkBridgeMessage::PeerDisconnected(peerid) => {
+        NetworkBridgeEvent::PeerDisconnected(peerid) => {
             // get rid of superfluous data
             tracker.peer_views.remove(peerid);
         }
-        NetworkBridgeMessage::PeerViewChange(peerid, view) => {
-            tracker.peer_views.entry(peerid).modify(|val| *val = view);
+        NetworkBridgeEvent::PeerViewChange(peerid, view) => {
+            tracker.peer_views.entry(peerid).and_modify(|val| *val = view);
         }
         NetworkBridgeEvent::OurViewChange(view) => {
-            let old_view = std::mem::replace(tracker.view, view);
+            let old_view = std::mem::replace(&mut tracker.view, view);
             tracker
-                .active_heads
+                .active_jobs
                 .retain(|head, _| tracker.view.contains(head));
 
             for new in tracker.view.difference(&old_view) {
-                if !tracker.active_heads.contains_key(&new) {
+                if !tracker.active_jobs.contains_key(&new) {
                     log::warn!("Active head running that's not active anymore, go catch it")
                     //@todo rephrase
                     //@todo should we get rid of that right here

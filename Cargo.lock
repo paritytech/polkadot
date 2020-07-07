@@ -4315,10 +4315,15 @@ name = "polkadot-availability-bitfield-distribution"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
+ "futures-timer 3.0.2",
  "log 0.4.8",
+ "parity-scale-codec",
  "polkadot-network-bridge",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
+ "sc-network",
+ "streamunordered",
 ]
 
 [[package]]
