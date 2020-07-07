@@ -28,7 +28,7 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CandidateDescriptor, SignedAvailabilityBitfields,
+	CandidateDescriptor,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
