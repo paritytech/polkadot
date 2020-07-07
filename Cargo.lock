@@ -4426,6 +4426,7 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.8",
+ "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",

@@ -61,6 +61,7 @@ impl Subsystem1 {
 				CandidateValidationMessage::Validate(
 					Default::default(),
 					Default::default(),
+					Default::default(),
 					PoVBlock {
 						block_data: BlockData(Vec::new()),
 					},

@@ -79,7 +79,7 @@ pub enum MisbehaviorReport {
 	/// These validator nodes disagree on this candidate's validity, please figure it out
 	///
 	/// Most likely, the list of statments all agree except for the final one. That's not
-	/// guarjnteed, though; if somehow we become aware of lots of
+	/// guaranteed, though; if somehow we become aware of lots of
 	/// statements disagreeing about the validity of a candidate before taking action,
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///

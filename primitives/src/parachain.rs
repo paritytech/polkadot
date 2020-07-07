@@ -600,8 +600,19 @@ impl AbridgedCandidateReceipt {
 			pov_block_hash: *pov_block_hash,
 		}
 	}
-}
 
+		
+	/// Clone the relevant portions of the `AbridgedCandidateReceipt` to form a `CandidateDescriptor`.
+	pub fn to_descriptor(&self) -> CandidateDescriptor {
+		CandidateDescriptor {
+			parachain_index: self.parachain_index,
+			relay_parent: self.relay_parent,
+			collator: self.collator.clone(),
+			signature: self.signature.clone(),
+			pov_block_hash: self.pov_block_hash.clone(),
+		}
+	}
+}
 
 impl PartialOrd for AbridgedCandidateReceipt {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
