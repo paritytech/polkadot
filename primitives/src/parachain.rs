@@ -595,7 +595,7 @@ pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Hash)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
@@ -607,6 +607,18 @@ pub enum CompactStatement {
 	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
+}
+
+impl CompactStatement {
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &Hash {
+		match *self {
+			CompactStatement::Candidate(ref h)
+				| CompactStatement::Valid(ref h)
+				| CompactStatement::Invalid(ref h)
+				=> h
+		}
+	}
 }
 
 /// A signed compact statement, suitable to be sent to the chain.

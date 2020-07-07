@@ -24,7 +24,6 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use sc_network::{ObservedRole, ReputationChange, PeerId};
 use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
@@ -33,6 +32,8 @@ use polkadot_primitives::parachain::{
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
+
+pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -234,4 +235,6 @@ pub enum AllMessages {
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
 	AvailabilityStore(AvailabilityStoreMessage),
+	/// Message for the network bridge subsystem.
+	NetworkBridge(NetworkBridgeMessage),
 }

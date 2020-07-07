@@ -561,10 +561,10 @@ impl<T: Trait> ActiveParas for Module<T> {
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+	<T as system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create a new `LimitParathreadCommits` struct.
 	pub fn new() -> Self {
@@ -573,7 +573,7 @@ impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
 }
 
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
@@ -590,7 +590,7 @@ pub enum ValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;

@@ -539,10 +539,10 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+	<T as system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -556,7 +556,7 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -565,7 +565,7 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
