@@ -1,15 +1,14 @@
 [Batch: Availability and Validity]
-owner = "gavofyork"
+owner = "rphmeier"
 whitelist = []
 matrix_room_id = "!wQXGIDhhJQSVXKqPwi:matrix.parity.io"
 
 [Batch: Codebase Restructure]
-owner = "gavofyork"
+owner = "rphmeier"
 whitelist = []
 matrix_room_id = "!wQXGIDhhJQSVXKqPwi:matrix.parity.io"
 
 [Cumulus]
-owner = "gavofyork"
+owner = "bkchr"
 whitelist = []
 matrix_room_id = "!wQXGIDhhJQSVXKqPwi:matrix.parity.io"
-
