@@ -190,7 +190,7 @@ impl<T: Trait> Module<T> {
 				session_index,
 			};
 
-			for signed_bitfield in &signed_bitfields.0 {
+			for signed_bitfield in &signed_bitfields {
 				ensure!(
 					signed_bitfield.payload().0.len() == n_bits,
 					Error::<T>::WrongBitfieldSize,
@@ -220,7 +220,7 @@ impl<T: Trait> Module<T> {
 		}
 
 		let now = <system::Module<T>>::block_number();
-		for signed_bitfield in signed_bitfields.0 {
+		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
@@ -754,7 +754,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed]),
+					vec![signed],
 					&core_lookup,
 				).is_err());
 			}
@@ -770,7 +770,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed.clone(), signed]),
+					vec![signed.clone(), signed],
 					&core_lookup,
 				).is_err());
 			}
@@ -793,7 +793,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed_1, signed_0]),
+					vec![signed_1, signed_0],
 					&core_lookup,
 				).is_err());
 			}
@@ -810,7 +810,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed]),
+					vec![signed],
 					&core_lookup,
 				).is_err());
 			}
@@ -826,7 +826,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed]),
+					vec![signed],
 					&core_lookup,
 				).is_ok());
 			}
@@ -854,7 +854,7 @@ mod tests {
 				);
 
 				assert!(Inclusion::process_bitfields(
-					SignedAvailabilityBitfields(vec![signed]),
+					vec![signed],
 					&core_lookup,
 				).is_ok());
 			}
@@ -958,7 +958,7 @@ mod tests {
 			}).collect();
 
 			assert!(Inclusion::process_bitfields(
-				SignedAvailabilityBitfields(signed_bitfields),
+				signed_bitfields,
 				&core_lookup,
 			).is_ok());
 
