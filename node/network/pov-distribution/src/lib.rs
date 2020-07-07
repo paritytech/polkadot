@@ -131,7 +131,7 @@ async fn handle_signal(
 /// Notify peers that we are awaiting a given PoV hash.
 ///
 /// This only notifies peers who have the relay parent in their view.
-async fn notify_we_are_awaiting(
+async fn notify_all_we_are_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
 	relay_parent: Hash,
@@ -152,6 +152,31 @@ async fn notify_we_are_awaiting(
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 		peers_to_send,
+		PROTOCOL_V1,
+		payload,
+	))).await
+}
+
+/// Notify one peer about everything we're awaiting at a given relay-parent.
+async fn notify_one_we_are_awaiting_many(
+	peer: &PeerId,
+	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	relay_parent_state: &HashMap<Hash, BlockBasedState>,
+	relay_parent: Hash,
+) -> SubsystemResult<()> {
+	let awaiting_hashes = relay_parent_state.get(&relay_parent).into_iter().flat_map(|s| {
+		// Send the peer everything we are fetching at this relay-parent
+		s.fetching.iter()
+			.filter(|(_, senders)| !senders.is_empty()) // that has not been completed already.
+			.map(|(pov_hash, _)| *pov_hash)
+	}).collect::<Vec<_>>();
+
+	if awaiting_hashes.is_empty() { return Ok(()) }
+
+	let payload = WireMessage::Awaiting(relay_parent, awaiting_hashes).encode();
+
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+		vec![peer.clone()],
 		PROTOCOL_V1,
 		payload,
 	))).await
@@ -227,7 +252,7 @@ async fn handle_fetch(
 	}
 
 	// Issue an `Awaiting` message to all peers with this in their view.
-	notify_we_are_awaiting(
+	notify_all_we_are_awaiting(
 		&mut state.peer_state,
 		ctx,
 		relay_parent,
@@ -421,7 +446,17 @@ async fn handle_network_update(
 
 				// introduce things from the new view.
 				for relay_parent in view.0.iter() {
-					peer_state.awaited.entry(*relay_parent).or_default();
+					if let Entry::Vacant(mut entry) = peer_state.awaited.entry(*relay_parent) {
+						entry.insert(HashSet::new());
+
+						// Notify the peer about everything we're awaiting at the new relay-parent.
+						notify_one_we_are_awaiting_many(
+							&peer_id,
+							ctx,
+							&state.relay_parent_state,
+							*relay_parent,
+						).await?;
+					}
 				}
 			}
 
@@ -694,7 +729,77 @@ mod tests {
 		});
 	}
 
-	// TODO [now] peer view change leads to telling peer what we're awaiting.
+	#[test]
+	fn peer_view_change_leads_to_us_informing() {
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+
+		let (pov_a_send, _) = oneshot::channel();
+
+		let pov_a = make_pov(vec![1, 2, 3]);
+		let pov_a_hash = pov_a.hash();
+
+		let pov_b = make_pov(vec![4, 5, 6]);
+		let pov_b_hash = pov_b.hash();
+
+		let mut state = State {
+			relay_parent_state: {
+				let mut s = HashMap::new();
+				let mut b = BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: 10,
+				};
+
+				// pov_a is still being fetched, whereas the fetch of pov_b has already
+				// completed, as implied by the empty vector.
+				b.fetching.insert(pov_a_hash, vec![pov_a_send]);
+				b.fetching.insert(pov_b_hash, vec![]);
+
+				s.insert(hash_a, b);
+				s
+			},
+			peer_state: {
+				let mut s = HashMap::new();
+
+				// peer A doesn't yet have hash_a in its view.
+				s.insert(
+					peer_a.clone(),
+					make_peer_state(vec![(hash_b, vec![])]),
+				);
+
+				s
+			},
+			our_view: View(vec![hash_a]),
+		};
+
+		let pool = ThreadPool::new().unwrap();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+
+		executor::block_on(async move {
+			handle_network_update(
+				&mut state,
+				&mut ctx,
+				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(vec![hash_a, hash_b])),
+			).await.unwrap();
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+				) => {
+					assert_eq!(peers, vec![peer_a.clone()]);
+					assert_eq!(protocol, PROTOCOL_V1);
+					assert_eq!(
+						message,
+						WireMessage::Awaiting(hash_a, vec![pov_a_hash]).encode(),
+					);
+				}
+			)
+		});
+	}
 
 	// TODO [now] peer is rewarded for sending PoV first
 
