@@ -94,7 +94,7 @@ struct CandidateBackingJob {
 	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
-	/// We issued `Valid` statements on about these candidates.
+	/// We issued `Valid` or `Invalid` statements on about these candidates.
 	issued_validity: HashSet<Hash>,
 	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
 	seconded: Option<Hash>,
@@ -400,11 +400,14 @@ impl CandidateBackingJob {
 
 		let statement = match v.0 {
 			ValidationResult::Valid => {
-				self.issued_validity.insert(candidate_hash);
 				Statement::Valid(candidate_hash)
 			}
-			ValidationResult::Invalid => Statement::Invalid(candidate_hash),
+			ValidationResult::Invalid => {
+				Statement::Invalid(candidate_hash)
+			}
 		};
+
+		self.issued_validity.insert(candidate_hash);
 
 		if let Some(signed_statement) = self.sign_statement(statement) {
 			self.distribute_signed_statement(signed_statement).await?;
@@ -1565,6 +1568,153 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::StopWork(test_state.relay_parent))
 			).await;
+		});
+	}
+
+	// Test that if we have already issued a statement (in this case `Invalid`) about a
+	// candidate we will not be issuing a `Seconded` statement on it.
+	#[test]
+	fn backing_multiple_statements_work() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov_block = PoVBlock {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_block_hash = pov_block.hash();
+
+			let candidate = AbridgedCandidateReceipt {
+				parachain_index: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_block_hash,
+				..Default::default()
+			};
+
+			let candidate_hash = candidate.hash();
+
+			let signed_a = SignedFullStatement::sign(
+				Statement::Seconded(candidate.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
+
+			// Send in a `Statement` with a candidate.
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_a.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// Subsystem requests PoV and requests validation.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::PoVDistribution(
+					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(pov_block.clone()).unwrap();
+				}
+			);
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			// Tell subsystem that this candidate is invalid.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::Validate(
+						relay_parent,
+						candidate_recvd,
+						head_data,
+						pov,
+						tx,
+					)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					assert_eq!(candidate_recvd, candidate);
+					assert_eq!(head_data, *expected_head_data);
+					assert_eq!(pov, pov_block);
+					tx.send(Ok((
+						ValidationResult::Invalid,
+						test_state.global_validation_schedule,
+						test_state.local_validation_data,
+					))).unwrap();
+				}
+			);
+
+			// The invalid message is shared.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::Share(
+						relay_parent,
+						signed_statement,
+					)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					signed_statement.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[0],
+					).unwrap();
+					assert_eq!(*signed_statement.payload(), Statement::Invalid(candidate_hash));
+				}
+			);
+
+			// Ask subsystem to `Second` a candidate that already has a statement issued about.
+			// This should emit no actions from subsystem.
+			let second = CandidateBackingMessage::Second(
+				test_state.relay_parent,
+				candidate.clone(),
+				pov_block.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
+
+			let pov_to_second = PoVBlock {
+				block_data: BlockData(vec![3, 2, 1]),
+			};
+
+			let pov_block_hash = pov_to_second.hash();
+
+			let candidate_to_second = AbridgedCandidateReceipt {
+				parachain_index: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_block_hash,
+				..Default::default()
+			};
+
+			let second = CandidateBackingMessage::Second(
+				test_state.relay_parent,
+				candidate_to_second.clone(),
+				pov_to_second.clone(),
+			);
+
+			// In order to trigger _some_ actions from subsystem ask it to second another
+			// candidate. The only reason to do so is to make sure that no actions were
+			// triggered on the prev step.
+			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::Validate(
+						relay_parent,
+						_,
+						_,
+						pov,
+						_,
+					)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					assert_eq!(pov, pov_to_second);
+				}
+			);
 		});
 	}
 }
