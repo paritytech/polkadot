@@ -52,6 +52,7 @@ members = [
 	"node/service",
 	"node/core/backing",
 	"node/subsystem",
+	"node/subsystem-util",
 	"node/test-helpers/subsystem",
 	"node/test-service",
 

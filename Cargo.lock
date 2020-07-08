@@ -4555,6 +4555,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-subsystem-util"
+version = "0.1.0"
+dependencies = [
+ "futures 0.3.5",
+ "polkadot-primitives",
+]
+
+[[package]]
 name = "polkadot-overseer"
 version = "0.1.0"
 dependencies = [
