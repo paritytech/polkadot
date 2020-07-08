@@ -34,6 +34,7 @@ use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{CandidateValidationMessage, CandidateBackingMessage},
 };
+use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
@@ -167,7 +168,10 @@ macro_rules! new_full_start {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|builder| {
-				let pool_api = sc_transaction_pool::FullChainApi::new(builder.client().clone());
+				let pool_api = sc_transaction_pool::FullChainApi::new(
+					builder.client().clone(),
+					builder.prometheus_registry(),
+				);
 				let pool = sc_transaction_pool::BasicPool::new(
 					builder.config().transaction_pool.clone(),
 					std::sync::Arc::new(pool_api),
@@ -196,7 +200,7 @@ macro_rules! new_full_start {
 					grandpa::block_import_with_authority_set_hard_forks(
 						client.clone(),
 						&(client.clone() as Arc<_>),
-						select_chain,
+						select_chain.clone(),
 						grandpa_hard_forks,
 					)?;
 
@@ -214,6 +218,7 @@ macro_rules! new_full_start {
 					Some(Box::new(justification_import)),
 					None,
 					client,
+					select_chain,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
 					registry,
@@ -361,6 +366,7 @@ macro_rules! new_full {
 			.collect();
 
 		let (overseer, handler) = real_overseer(leaves, spawner)?;
+		let handler_clone = handler.clone();
 
 		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 			use futures::{pin_mut, select, FutureExt};
@@ -387,11 +393,10 @@ macro_rules! new_full {
 			let can_author_with =
 				consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
-			// TODO: custom proposer (https://github.com/paritytech/polkadot/issues/1248)
-			let proposer = sc_basic_authorship::ProposerFactory::new(
+			let proposer = ProposerFactory::new(
 				client.clone(),
 				transaction_pool,
-				None,
+				handler_clone,
 			);
 
 			let babe_config = babe::BabeParams {
@@ -517,14 +522,18 @@ macro_rules! new_light {
 				client,
 				backend,
 				fetcher,
-				_select_chain,
+				mut select_chain,
 				_,
 				spawn_task_handle,
 				registry,
 			| {
+				let select_chain = select_chain.take()
+					.ok_or_else(|| service::Error::SelectChainRequired)?;
+
 				let fetch_checker = fetcher
 					.map(|fetcher| fetcher.checker().clone())
 					.ok_or_else(|| "Trying to start light import queue without active fetch checker")?;
+
 				let grandpa_block_import = grandpa::light_block_import(
 					client.clone(), backend, &(client.clone() as Arc<_>), Arc::new(fetch_checker)
 				)?;
@@ -546,6 +555,7 @@ macro_rules! new_light {
 					None,
 					Some(Box::new(finality_proof_import)),
 					client,
+					select_chain,
 					inherent_data_providers.clone(),
 					spawn_task_handle,
 					registry,

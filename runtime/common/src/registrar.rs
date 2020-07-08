@@ -254,7 +254,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -561,10 +561,10 @@ impl<T: Trait> ActiveParas for Module<T> {
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+	<T as system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create a new `LimitParathreadCommits` struct.
 	pub fn new() -> Self {
@@ -573,7 +573,7 @@ impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
 }
 
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
@@ -590,7 +590,7 @@ pub enum ValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;
@@ -747,6 +747,7 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	impl<C> system::offchain::SendTransactionTypes<C> for Test where
@@ -766,6 +767,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types!{
@@ -814,6 +816,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -848,12 +851,14 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
+		type WeightInfo = ();
 	}
 
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
+		type WeightInfo = ();
 	}
 
 	impl session::historical::Trait for Test {

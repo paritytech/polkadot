@@ -87,6 +87,7 @@ impl system::Trait for Test {
 	type AccountData = balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
 }
 
 impl crate::initializer::Trait for Test {
