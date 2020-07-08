@@ -73,7 +73,7 @@ decl_error! {
 
 decl_module! {
 	/// The initializer module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
