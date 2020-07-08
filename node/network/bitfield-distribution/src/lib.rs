@@ -92,15 +92,16 @@ impl BitfieldDistribution {
             {
                 let message = ctx.recv().await?;
                 match message {
-                    FromOverseer::Communication { msg: _ } => {
-                        unreachable!("Overseer should not send us BitfieldDistributionMessages");
+                    FromOverseer::Communication { msg } => {
+                        let peerid = PeerId::default();
+                        process_incoming(ctx.clone(), &mut tracker, peerid, msg).await?;
                     }
                     FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
                         let (validators, signing_context) =
                             query_basics(ctx.clone(), relay_parent).await?;
 
                         let (future, abort_handle) =
-                            abortable(processor_per_relay_parent(ctx.clone(), relay_parent.clone(), ));
+                            abortable(processor_per_relay_parent(ctx.clone(), relay_parent.clone()));
 
                         let future = ctx.spawn(Box::pin(future))?;
                         let future = Box::pin(future);
@@ -157,20 +158,21 @@ async fn process_incoming<Context>(
     mut ctx: Context,
     tracker: &mut Tracker,
     peerid: PeerId,
-    message: Vec<u8>,
+    // message: Vec<u8>,
+    message: BitfieldDistributionMessage,
 ) -> SubsystemResult<()>
 where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
-    let message = if let Ok(message) = BitfieldDistributionMessage::decode(message) {
-        message
-    } else {
-        return ctx
-            .send_message(AllMessages::NetworkBridge(
-                NetworkBridgeMessage::ReportPeer(peerid, COST_MESSAGE_NOT_DECODABLE),
-            ))
-            .await;
-    };
+    // let message = if let Ok(message) = BitfieldDistributionMessage::decode(message) {
+    //     message
+    // } else {
+    //     return ctx
+    //         .send_message(AllMessages::NetworkBridge(
+    //             NetworkBridgeMessage::ReportPeer(peerid, COST_MESSAGE_NOT_DECODABLE),
+    //         ))
+    //         .await;
+    // };
     match message {
         /// Distribute a bitfield via gossip to other validators.
         BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability) => {
@@ -246,7 +248,7 @@ where
         }
         NetworkBridgeEvent::OurViewChange(view) => {
             let old_view = std::mem::replace(&mut tracker.view, view);
-            active_jobs.retain(|head, _| ego.get(head).is_some());
+            active_jobs.retain(|head, _| ego.0.get(head).is_some());
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.active_jobs.contains_key(&new) {
