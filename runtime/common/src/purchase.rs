@@ -328,7 +328,7 @@ fn account_to_bytes<AccountId>(account: &AccountId) -> Result<[u8; 32], Dispatch
 mod tests {
 	use super::*;
 
-	use sp_core::{H256, Pair, Public, crypto::AccountId32};
+	use sp_core::{H256, Pair, Public, crypto::AccountId32, ed25519};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{
@@ -421,7 +421,7 @@ mod tests {
 
 	parameter_types! {
 		pub const VestingTime: u64 = 100;
-		pub Statement: &'static [u8] = b"Hello, World!";
+		pub Statement: &'static [u8] = b"Hello, World";
 		pub const PurchaseLimit: u64 = 100;
 	}
 
@@ -473,18 +473,27 @@ mod tests {
 		get_account_id_from_seed::<sr25519::Public>("Alice")
 	}
 
+	fn alice_ed25519() -> AccountId {
+		get_account_id_from_seed::<ed25519::Public>("Alice")
+	}
+
 	fn bob() -> AccountId {
 		get_account_id_from_seed::<sr25519::Public>("Bob")
 	}
 
 	fn alice_signature() -> [u8; 64] {
-		// Signing the "Hello, World!" with Alice using PolkadotJS, removing `0x` prefix
-		hex_literal::hex!("66b14944807202317fbc26001dd883726a9a756eab804e8d15f1a38bcde4a1591abd720ebe22df3cf1e7bd3a640727691b7fe697c23256760ec166b78c07b886")
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		hex_literal::hex!("20e0faffdf4dfe939f2faa560f73b1d01cde8472e2b690b7b40606a374244c3a2e9eb9c8107c10b605138374003af8819bd4387d7c24a66ee9253c2e688ab881")
 	}
 
 	fn bob_signature() -> [u8; 64] {
-		// Signing the "Hello, World!" with Bob using PolkadotJS, removing `0x` prefix
-		hex_literal::hex!("aced3b06fb3b7862c38ace0ba36fad20012dd0246b92760813b5fe9cee97c973f15db6b74fceeaae0012c3f708ee13a3dd3446403243be01d1d01ddf3b54448a")
+		// echo -n "Hello, World" | subkey -s sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Bob"
+		hex_literal::hex!("d6d460187ecf530f3ec2d6e3ac91b9d083c8fbd8f1112d92a82e4d84df552d18d338e6da8944eba6e84afaacf8a9850f54e7b53a84530d649be2e0119c7ce889")
+	}
+
+	fn alice_signature_ed25519() -> [u8; 64] {
+		// echo -n "Hello, World" | subkey -e sign "bottom drive obey lake curtain smoke basket hold race lonely fit walk//Alice"
+		hex_literal::hex!("ee3f5a6cbfc12a8f00c18b811dc921b550ddf272354cda4b9a57b1d06213fcd8509f5af18425d39a279d13622f14806c3e978e2163981f2ec1c06e9628460b0e")
 	}
 
 	fn validity_origin() -> AccountId {
@@ -498,17 +507,13 @@ mod tests {
 	#[test]
 	fn signature_verification_works() {
 		new_test_ext().execute_with(|| {
-			let alice = alice();
-			let alice_signature = alice_signature();
-			assert_ok!(Purchase::verify_signature(&alice, &alice_signature));
-
-			let bob = bob();
-			let bob_signature = bob_signature();
-			assert_ok!(Purchase::verify_signature(&bob, &bob_signature));
+			assert_ok!(Purchase::verify_signature(&alice(), &alice_signature()));
+			assert_ok!(Purchase::verify_signature(&alice_ed25519(), &alice_signature_ed25519()));
+			assert_ok!(Purchase::verify_signature(&bob(), &bob_signature()));
 
 			// Mixing and matching fails
-			assert_noop!(Purchase::verify_signature(&alice, &bob_signature), Error::<Test>::InvalidSignature);
-			assert_noop!(Purchase::verify_signature(&bob, &alice_signature), Error::<Test>::InvalidSignature);
+			assert_noop!(Purchase::verify_signature(&alice(), &bob_signature()), Error::<Test>::InvalidSignature);
+			assert_noop!(Purchase::verify_signature(&bob(), &alice_signature()), Error::<Test>::InvalidSignature);
 		});
 	}
 
