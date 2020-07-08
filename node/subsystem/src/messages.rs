@@ -24,7 +24,6 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use sc_network::{ObservedRole, ReputationChange, PeerId};
 use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
@@ -33,6 +32,8 @@ use polkadot_primitives::parachain::{
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
+
+pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -190,6 +191,11 @@ pub enum ProvisionableData {
 	Dispute(Hash, Signature),
 }
 
+/// This data needs to make its way from the provisioner into the InherentData.
+///
+/// There, it is used to construct the InclusionInherent.
+pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
+
 /// Message to the Provisioner.
 ///
 /// In all cases, the Hash is that of the relay parent.
@@ -198,6 +204,12 @@ pub enum ProvisionerMessage {
 	/// This message allows potential block authors to be kept updated with all new authorship data
 	/// as it becomes available.
 	RequestBlockAuthorshipData(Hash, mpsc::Sender<ProvisionableData>),
+	/// This message allows external subsystems to request the set of bitfields and backed candidates
+	/// associated with a particular potential block hash.
+	///
+	/// This is expected to be used by a proposer, to inject that information into the InherentData
+	/// where it can be assembled into the InclusionInherent.
+	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(ProvisionableData),
 }
@@ -223,4 +235,6 @@ pub enum AllMessages {
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
 	AvailabilityStore(AvailabilityStoreMessage),
+	/// Message for the network bridge subsystem.
+	NetworkBridge(NetworkBridgeMessage),
 }

@@ -29,7 +29,7 @@ use polkadot_primitives::{Hash,
 };
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
-#[derive(Debug, Clone, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
 	/// A statement that a validator seconds a candidate.
 	#[codec(index = "1")]
@@ -42,16 +42,19 @@ pub enum Statement {
 	Invalid(Hash),
 }
 
+impl Statement {
+	pub fn to_compact(&self) -> CompactStatement {
+		match *self {
+			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
+			Statement::Valid(hash) => CompactStatement::Valid(hash),
+			Statement::Invalid(hash) => CompactStatement::Invalid(hash),
+		}
+	}
+}
+
 impl EncodeAs<CompactStatement> for Statement {
 	fn encode_as(&self) -> Vec<u8> {
-		let statement = match *self {
-			Statement::Seconded(ref c) => {
-				polkadot_primitives::parachain::CompactStatement::Candidate(c.hash())
-			}
-			Statement::Valid(hash) => polkadot_primitives::parachain::CompactStatement::Valid(hash),
-			Statement::Invalid(hash) => polkadot_primitives::parachain::CompactStatement::Invalid(hash),
-		};
-		statement.encode()
+		self.to_compact().encode()
 	}
 }
 
@@ -87,5 +90,22 @@ pub type ProtocolId = [u8; 4];
 /// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
 ///
 /// Up to `N` (5?) chain heads.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct View(pub Vec<Hash>);
+
+impl View {
+	/// Returns an iterator of the hashes present in `Self` but not in `other`.
+	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.0.iter().filter(move |h| !other.contains(h))
+	}
+
+	/// An iterator containing hashes present in both `Self` and in `other`.
+	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
+		self.0.iter().filter(move |h| other.contains(h))
+	}
+
+	/// Whether the view contains a given hash.
+	pub fn contains(&self, hash: &Hash) -> bool {
+		self.0.contains(hash)
+	}
+}

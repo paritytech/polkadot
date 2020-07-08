@@ -575,7 +575,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -1605,7 +1605,7 @@ pub enum DoubleVoteValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
 	type AccountId = T::AccountId;
@@ -1834,6 +1834,20 @@ mod tests {
 
 		// session module is the trigger
 		type EpochChangeTrigger = babe::ExternalTrigger;
+
+		type KeyOwnerProofSystem = ();
+
+		type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+			KeyTypeId,
+			babe::AuthorityId,
+		)>>::Proof;
+
+		type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+			KeyTypeId,
+			babe::AuthorityId,
+		)>>::IdentificationTuple;
+
+		type HandleEquivocation = ();
 	}
 
 	parameter_types! {
