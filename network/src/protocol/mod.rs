@@ -395,28 +395,6 @@ struct ConsensusNetworkingInstance {
 	_drop_signal: exit_future::Signal,
 }
 
-/// A utility future that resolves when the receiving end of a channel has hung up.
-///
-/// This is an `.await`-friendly interface around `poll_canceled`.
-// TODO: remove in favor of https://github.com/rust-lang/futures-rs/pull/2092/
-// once published.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[derive(Debug)]
-pub struct AwaitCanceled<'a, T> {
-	inner: &'a mut oneshot::Sender<T>,
-}
-
-impl<T> Future for AwaitCanceled<'_, T> {
-	type Output = ();
-
-	fn poll(
-		mut self: Pin<&mut Self>,
-		cx: &mut futures::task::Context<'_>,
-	) -> futures::task::Poll<()> {
-		self.inner.poll_canceled(cx)
-	}
-}
-
 /// Protocol configuration.
 #[derive(Default)]
 pub struct Config {
@@ -933,7 +911,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 				let get_msg = fetch_pov_from_gossip(&candidate, &self.gossip_handle);
 
 				let _ = self.executor.spawn(async move {
-					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
+					let res = future::select(get_msg, sender.cancellation()).await;
 					if let Either::Left((pov_block, _)) = res {
 						let _ = sender.send(pov_block);
 					}
@@ -964,7 +942,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 					));
 
 				let _ = self.executor.spawn(async move {
-					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
+					let res = future::select(get_msg, sender.cancellation()).await;
 					if let Either::Left((chunk, _)) = res {
 						let _ = sender.send(chunk);
 					}
