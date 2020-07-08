@@ -286,10 +286,26 @@ enum StatementDistributionMessage {
 Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
 
 ```rust
+
+/// Result of the validation of the candidate.
+enum ValidationResult {
+	/// Candidate is valid.
+	Valid,
+	/// Candidate is invalid.
+	Invalid,
+}
+
 enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
-	/// error is encountered. A bad candidate will return `Ok(false)`, while a good one will
-	/// return `Ok(true)`.
-	Validate(ValidationCode, CandidateReceipt, PoV, ResponseChannel<Result<bool>>),
+	/// error is encountered.
+	/// In case no internal error was encontered it returns a tuple containing the result of
+	/// validation and `GlobalValidationSchedule` and `LocalValidationData` structures that
+	/// may be used by the caller to make the candidate available.
+	/// A bad candidate will return `Ok((ValidationResult::Invalid, _, _)`, while a good one will
+	/// return `Ok((ValidationResult::Valid, _, _))`.
+	Validate(
+		Hash, CandidateReceipt, HeadData, PoV, ResponseChannel<
+			Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData)>
+		>),
 }
 ```
