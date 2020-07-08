@@ -272,7 +272,7 @@ where
         NetworkBridgeEvent::OurViewChange(view) => {
 			let old_view = std::mem::replace(&mut tracker.view, view);
             active_jobs
-                .retain(|head, _| ego.contains(head));
+                .retain(|head, _| ego.get(head).is_some());
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.active_jobs.contains_key(&new) {
@@ -289,7 +289,7 @@ where
 					match message {
 						// a new session key
 						Message::ValidatorId(session_key) => {
-							tracker.peer_session_keys.insert(remote.clone(), session_key);
+							let _ = tracker.peer_session_keys.insert(remote.clone(), session_key);
 						}
 						_ => {}
 					}
