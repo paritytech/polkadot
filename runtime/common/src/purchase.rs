@@ -326,7 +326,7 @@ mod tests {
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are required.
 	use sp_runtime::{
 		Perbill, MultiSignature,
-		traits::{BlakeTwo256, IdentityLookup, Identity, Verify, IdentifyAccount},
+		traits::{BlakeTwo256, IdentityLookup, Identity, Verify, IdentifyAccount, Dispatchable},
 		testing::Header
 	};
 	use frame_support::{
@@ -342,6 +342,7 @@ mod tests {
 	impl_outer_dispatch! {
 		pub enum Call for Test where origin: Origin {
 			purchase::Purchase,
+			vesting::Vesting,
 		}
 	}
 
@@ -480,6 +481,10 @@ mod tests {
 		ValidityOrigin::get()
 	}
 
+	fn payment_origin() -> AccountId {
+		PaymentOrigin::get()
+	}
+
 	#[test]
 	fn signature_verification_works() {
 		new_test_ext().execute_with(|| {
@@ -501,7 +506,11 @@ mod tests {
 	fn account_creation_works() {
 		new_test_ext().execute_with(|| {
 			assert!(!Accounts::<Test>::contains_key(alice()));
-			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec(),
+			));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
 				AccountStatus {
@@ -551,7 +560,11 @@ mod tests {
 	fn update_validity_status_works() {
 		new_test_ext().execute_with(|| {
 			// Alice account is created.
-			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec(),
+			));
 			// She submits KYC, and we update the status to `Pending`.
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
@@ -594,6 +607,12 @@ mod tests {
 	#[test]
 	fn update_validity_status_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
+			// Wrong Origin
+			assert_noop!(Purchase::update_validity_status(
+				Origin::signed(alice()),
+				alice(),
+				AccountValidity::Pending,
+			), BadOrigin);
 			// Inactive Account
 			assert_noop!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
@@ -623,7 +642,11 @@ mod tests {
 	fn update_balance_works() {
 		new_test_ext().execute_with(|| {
 			// Alice account is created
-			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec())
+			);
 			// And approved for basic contribution
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
@@ -668,6 +691,13 @@ mod tests {
 	#[test]
 	fn update_balance_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
+			// Wrong Origin
+			assert_noop!(Purchase::update_balance(
+				Origin::signed(alice()),
+				alice(),
+				50,
+				50,
+			), BadOrigin);
 			// Inactive Account
 			assert_noop!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
@@ -675,9 +705,12 @@ mod tests {
 				50,
 				50,
 			), Error::<Test>::InvalidBalance);
-
 			// Value too high
-			assert_ok!(Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()));
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec())
+			);
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
 				alice(),
@@ -689,6 +722,66 @@ mod tests {
 				51,
 				50,
 			), Error::<Test>::InvalidBalance);
+		});
+	}
+
+	#[test]
+	fn payout_works() {
+		new_test_ext().execute_with(|| {
+			// Alice account is created
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec())
+			);
+			// And approved for basic contribution
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidLow,
+			));
+			// We set a balance on the user based on the payment they made. 50 locked, 50 free.
+			assert_ok!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				50,
+				50,
+			));
+			// After the sale is done, and we are ready to distribution funds, we set a payment account.
+			// In this case, the payment origin selects itself.
+			assert_ok!(Purchase::set_payout_account(
+				Origin::signed(payment_origin()),
+				payment_origin(),
+			));
+			// Let's give it some funds.
+			Balances::make_free_balance_be(&payment_origin(), 100_000);
+			// Now we call payout for alice.
+			assert_ok!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				alice(),
+			));
+			// Payment is made.
+			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_origin()), 99_900);
+			assert_eq!(<Test as Trait>::Currency::free_balance(&alice()), 100);
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
+			// Status is completed.
+			assert_eq!(
+				Accounts::<Test>::get(alice()),
+				AccountStatus {
+					validity: AccountValidity::Completed,
+					free_balance: 50,
+					locked_balance: 50,
+					signature: alice_signature().to_vec(),
+				}
+			);
+			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
+			System::set_block_number(100);
+			let vest_call = Call::Vesting(vesting::Call::<Test>::vest());
+			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
+			System::set_block_number(101);
+			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), None);
 		});
 	}
 }
