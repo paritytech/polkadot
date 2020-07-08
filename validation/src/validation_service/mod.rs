@@ -26,13 +26,12 @@
 //!
 //! These attestation sessions are kept live until they are periodically garbage-collected.
 
-use std::{time::{Duration, Instant}, sync::Arc, pin::Pin};
-use std::collections::HashMap;
+use std::{time::{Duration, Instant}, sync::Arc, pin::Pin, collections::HashMap};
 
 use crate::pipeline::FullOutput;
 use sc_client_api::{BlockchainEvents, BlockBackend};
 use consensus::SelectChain;
-use futures::{prelude::*, task::{Spawn, SpawnExt}};
+use futures::prelude::*;
 use polkadot_primitives::{Block, Hash, BlockId};
 use polkadot_primitives::parachain::{
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
@@ -42,16 +41,14 @@ use keystore::KeyStorePtr;
 use sp_api::{ProvideRuntimeApi, ApiExt};
 use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
+use primitives::traits::SpawnNamed;
 
 use ansi_term::Colour;
-use log::{warn, error, info, debug, trace};
+use log::{warn, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
 use crate::pipeline::ValidationPool;
-
-/// A handle to spawn background tasks onto.
-pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 // Remote processes may request for a validation instance to be cloned or instantiated.
 // They send a oneshot channel.
@@ -148,7 +145,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	N::BuildTableRouter: Send + Unpin + 'static,
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
-	SP: Spawn + Send + 'static,
+	SP: SpawnNamed + Send + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
@@ -337,7 +334,7 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 	N::TableRouter: Send + 'static + Sync,
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
-	SP: Spawn + Send + 'static,
+	SP: SpawnNamed + Send + 'static,
 	CF: CollationFetch + Clone + Send + Sync + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
@@ -453,19 +450,16 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			let collation_fetch = self.collation_fetch.clone();
 			let router = router.clone();
 
-			let res = self.spawner.spawn(
+			self.spawner.spawn(
+				"polkadot-parachain-validation-work",
 				launch_work(
 					move || collation_fetch.collation_fetch(id, parent_hash, client, max_block_data_size, n_validators),
 					availability_store,
 					router,
 					n_validators,
 					index,
-				),
+				).boxed(),
 			);
-
-			if let Err(e) = res {
-				error!(target: "validation", "Failed to launch work: {:?}", e);
-			}
 		}
 
 		let tracker = ValidationInstanceHandle {
@@ -549,7 +543,7 @@ async fn launch_work<CFF, E>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{executor::{ThreadPool, self}, future::ready, channel::mpsc};
+	use futures::{executor, future::ready, channel::mpsc};
 	use availability_store::ErasureNetworking;
 	use polkadot_primitives::parachain::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
@@ -559,6 +553,7 @@ mod tests {
 	use runtime_primitives::traits::Block as BlockT;
 	use std::pin::Pin;
 	use sp_keyring::sr25519::Keyring;
+	use primitives::testing::SpawnBlockingExecutor;
 
 	/// Events fired while running mock implementations to follow execution.
 	enum Events {
@@ -719,7 +714,7 @@ mod tests {
 
 	#[test]
 	fn launch_work_is_executed_properly() {
-		let executor = ThreadPool::new().unwrap();
+		let executor = SpawnBlockingExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Bob` key is in the keystore, so this mocked node will be a parachain validator.
@@ -759,7 +754,7 @@ mod tests {
 
 	#[test]
 	fn router_is_built_on_relay_chain_validator() {
-		let executor = ThreadPool::new().unwrap();
+		let executor = SpawnBlockingExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Alice` key is in the keystore, so this mocked node will be a relay-chain validator.

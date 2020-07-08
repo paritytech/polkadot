@@ -50,7 +50,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::pin::Pin;
 
-use futures::{future, Future, Stream, FutureExt, StreamExt, task::Spawn};
+use futures::{future, Future, Stream, FutureExt, StreamExt};
 use log::warn;
 use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
@@ -82,6 +82,7 @@ use polkadot_service_new::{
 	Error as ServiceError, FullNodeHandles, PolkadotClient,
 };
 use sc_service::SpawnTaskHandle;
+use sp_core::traits::SpawnNamed;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -133,7 +134,7 @@ pub trait BuildParachainContext {
 			Client::Api: RuntimeApiCollection<Extrinsic>,
 			<Client::Api as ApiExt<Block>>::StateBackend: StateBackend<HashFor<Block>>,
 			Extrinsic: codec::Codec + Send + Sync + 'static,
-			SP: Spawn + Clone + Send + Sync + 'static;
+			SP: SpawnNamed + Clone + Send + Sync + 'static;
 }
 
 /// Parachain context needed for collation.
@@ -233,7 +234,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
 		Extrinsic: service::Codec + Send + Sync + 'static,
-		SP: Spawn + Clone + Send + Sync + 'static,
+		SP: SpawnNamed + Clone + Send + Sync + 'static,
 {
 	Err("Collator is not functional with the new service yet".into())
 }
