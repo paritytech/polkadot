@@ -162,7 +162,7 @@ async fn process_incoming<Context>(
 where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
-    let message = if let Ok(message) = decode(message) {
+    let message = if let Ok(message) = BitfieldDistributionMessage::decode(message) {
         message
     } else {
         return ctx
