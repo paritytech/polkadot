@@ -114,6 +114,10 @@ decl_event!(
 		ValidityUpdated(AccountId, AccountValidity),
 		/// Someone's purchase balance was updated. (Free, Locked)
 		BalanceUpdated(AccountId, Balance, Balance),
+		/// A payout was made to a purchaser.
+		PaymentComplete(AccountId, Balance, Balance),
+		/// A new payment account was set.
+		PaymentAccountSet(AccountId),
 	}
 );
 
@@ -268,6 +272,7 @@ decl_module! {
 
 				// Setting the user account to `Completed` ends the purchase process for this user.
 				status.validity = AccountValidity::Completed;
+				Self::deposit_event(RawEvent::PaymentComplete(who.clone(), status.free_balance, status.locked_balance));
 				Ok(())
 			})?;
 		}
@@ -281,7 +286,8 @@ decl_module! {
 		fn set_payout_account(origin, who: T::AccountId) {
 			T::PaymentOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
-			PaymentAccount::<T>::set(who);
+			PaymentAccount::<T>::set(who.clone());
+			Self::deposit_event(RawEvent::PaymentAccountSet(who));
 		}
 	}
 }
@@ -728,24 +734,41 @@ mod tests {
 	#[test]
 	fn payout_works() {
 		new_test_ext().execute_with(|| {
-			// Alice account is created
+			// Alice and Bob accounts are created
 			assert_ok!(Purchase::create_account(
 				Origin::signed(validity_origin()),
 				alice(),
 				alice_signature().to_vec())
 			);
-			// And approved for basic contribution
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				bob(),
+				bob_signature().to_vec())
+			);
+			// Alice is approved for basic contribution
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
 				alice(),
 				AccountValidity::ValidLow,
 			));
-			// We set a balance on the user based on the payment they made. 50 locked, 50 free.
+			// Bob is approved for high contribution
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				bob(),
+				AccountValidity::ValidHigh,
+			));
+			// We set a balance on the users based on the payment they made. 50 locked, 50 free.
 			assert_ok!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
 				50,
 				50,
+			));
+			assert_ok!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				bob(),
+				100,
+				150,
 			));
 			// After the sale is done, and we are ready to distribution funds, we set a payment account.
 			// In this case, the payment origin selects itself.
@@ -755,15 +778,21 @@ mod tests {
 			));
 			// Let's give it some funds.
 			Balances::make_free_balance_be(&payment_origin(), 100_000);
-			// Now we call payout for alice.
+			// Now we call payout for Alice and Bob.
 			assert_ok!(Purchase::payout(
 				Origin::signed(payment_origin()),
 				alice(),
 			));
+			assert_ok!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				bob(),
+			));
 			// Payment is made.
-			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_origin()), 99_900);
+			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_origin()), 99_650);
 			assert_eq!(<Test as Trait>::Currency::free_balance(&alice()), 100);
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
+			assert_eq!(<Test as Trait>::Currency::free_balance(&bob()), 250);
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(150));
 			// Status is completed.
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
@@ -774,14 +803,99 @@ mod tests {
 					signature: alice_signature().to_vec(),
 				}
 			);
+			assert_eq!(
+				Accounts::<Test>::get(bob()),
+				AccountStatus {
+					validity: AccountValidity::Completed,
+					free_balance: 100,
+					locked_balance: 150,
+					signature: bob_signature().to_vec(),
+				}
+			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
 			let vest_call = Call::Vesting(vesting::Call::<Test>::vest());
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
+			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(150));
 			System::set_block_number(101);
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
+			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), None);
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), None);
+		});
+	}
+
+	#[test]
+	fn set_payout_account_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Wrong Origin
+			assert_noop!(Purchase::set_payout_account(
+				Origin::signed(alice()),
+				payment_origin(),
+			), BadOrigin);
+		});
+	}
+
+	#[test]
+	fn payout_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			// Wrong Origin
+			assert_noop!(Purchase::payout(
+				Origin::signed(alice()),
+				alice(),
+			), BadOrigin);
+			// Existing Account
+			Balances::make_free_balance_be(&bob(), 100);
+			assert_noop!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				bob(),
+			), Error::<Test>::ExistingAccount);
+			// Invalid Account (never created)
+			Balances::make_free_balance_be(&bob(), 100);
+			assert_noop!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				alice(),
+			), Error::<Test>::InvalidAccount);
+
+			// Invalid Account (created, but not valid)
+			assert_ok!(Purchase::create_account(
+				Origin::signed(validity_origin()),
+				alice(),
+				alice_signature().to_vec())
+			);
+			assert_noop!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				alice(),
+			), Error::<Test>::InvalidAccount);
+
+			// Invalid Balance Amount (made up scenario where user changes from High to Low)
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidHigh,
+			));
+			assert_ok!(Purchase::update_balance(
+				Origin::signed(validity_origin()),
+				alice(),
+				100,
+				100,
+			));
+			assert_ok!(Purchase::update_validity_status(
+				Origin::signed(validity_origin()),
+				alice(),
+				AccountValidity::ValidLow,
+			));
+			assert_ok!(Purchase::set_payout_account(
+				Origin::signed(payment_origin()),
+				payment_origin(),
+			));
+			Balances::make_free_balance_be(&payment_origin(), 100_000);
+			assert_noop!(Purchase::payout(
+				Origin::signed(payment_origin()),
+				alice(),
+			), Error::<Test>::InvalidBalance);
 		});
 	}
 }
