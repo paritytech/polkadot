@@ -134,18 +134,21 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
+		let all_subsystems = AllSubsystems {
+			candidate_validation: Subsystem2,
+			candidate_backing: Subsystem1,
+			candidate_selection: DummySubsystem,
+			statement_distribution: DummySubsystem,
+			availability_distribution: DummySubsystem,
+			bitfield_distribution: DummySubsystem,
+			provisioner: DummySubsystem,
+			runtime_api: DummySubsystem,
+			availability_store: DummySubsystem,
+			network_bridge: DummySubsystem,
+		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
-			Subsystem2,
-			Subsystem1,
-			DummySubsystem::<CandidateSelectionMessage>::default(),
-			DummySubsystem::<StatementDistributionMessage>::default(),
-			DummySubsystem::<AvailabilityDistributionMessage>::default(),
-			DummySubsystem::<BitfieldDistributionMessage>::default(),
-			DummySubsystem::<ProvisionerMessage>::default(),
-			DummySubsystem::<RuntimeApiMessage>::default(),
-			DummySubsystem::<AvailabilityStoreMessage>::default(),
-			DummySubsystem::<NetworkBridgeMessage>::default(),
+			all_subsystems,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

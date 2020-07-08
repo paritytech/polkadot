@@ -79,7 +79,7 @@ use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldDistributionMessage,
-	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage, 
+	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage,
 	NetworkBridgeMessage, AllMessages,
 };
 pub use polkadot_subsystem::{
@@ -375,21 +375,57 @@ pub struct Overseer<S: Spawn> {
 	active_leaves: HashSet<(Hash, BlockNumber)>,
 }
 
+/// This struct is passed as an argument to create a new instance of an [`Overseer`].
+///
+/// As any entity that satisfies the interface may act as a [`Subsystem`] this allows
+/// mocking in the test code:
+///
+/// Each [`Subsystem`] is supposed to implement some interface that is generic over
+/// message type that is specific to this [`Subsystem`]. At the moment not all
+/// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
+///
+/// [`Subsystem`]: trait.Subsystem.html
+/// [`DummySubsystem`]: struct.DummySubsystem.html
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>
+where
+	CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+	CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
+	CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
+	SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
+	AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+	BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
+	P:  Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+	RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
+	AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
+	NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+{
+	/// A candidate validation subsystem.
+	pub candidate_validation: CV,
+	/// A candidate backing subsystem.
+	pub candidate_backing: CB,
+	/// A candidate selection subsystem.
+	pub candidate_selection: CS,
+	/// A statement distribution subsystem.
+	pub statement_distribution: SD,
+	/// An availability distribution subsystem.
+	pub availability_distribution: AD,
+	/// A bitfield distribution subsystem.
+	pub bitfield_distribution: BD,
+	/// A provisioner subsystem.
+	pub provisioner: P,
+	/// A runtime API subsystem.
+	pub runtime_api: RA,
+	/// An availability store subsystem.
+	pub availability_store: AS,
+	/// A network bridge subsystem.
+	pub network_bridge: NB,
+}
+
 impl<S> Overseer<S>
 where
 	S: Spawn,
 {
 	/// Create a new intance of the `Overseer` with a fixed set of [`Subsystem`]s.
-	///
-	/// Each [`Subsystem`] is passed to this function as an explicit parameter
-	/// and is supposed to implement some interface that is generic over message type
-	/// that is specific to this [`Subsystem`]. At the moment there are only two
-	/// subsystems:
-	///   * Validation
-	///   * CandidateBacking
-	///
-	/// As any entity that satisfies the interface may act as a [`Subsystem`] this allows
-	/// mocking in the test code:
 	///
 	/// ```text
 	///                  +------------------------------------+
@@ -417,8 +453,8 @@ where
 	/// # Example
 	///
 	/// The [`Subsystems`] may be any type as long as they implement an expected interface.
-	/// Here, we create two mock subsystems and start the `Overseer` with them. For the sake
-	/// of simplicity the termination of the example is done with a timeout.
+	/// Here, we create a mock validation subsystem and a few dummy ones and start the `Overseer` with them.
+	/// For the sake of simplicity the termination of the example is done with a timeout.
 	/// ```
 	/// # use std::time::Duration;
 	/// # use futures::{executor, pin_mut, select, FutureExt};
@@ -448,18 +484,21 @@ where
 	///
 	/// # fn main() { executor::block_on(async move {
 	/// let spawner = executor::ThreadPool::new().unwrap();
+	/// let all_subsystems = AllSubsystems {
+	///     candidate_validation: ValidationSubsystem,
+	///     candidate_backing: DummySubsystem,
+	///     candidate_selection: DummySubsystem,
+	///     statement_distribution: DummySubsystem,
+	///     availability_distribution: DummySubsystem,
+	///     bitfield_distribution: DummySubsystem,
+	///     provisioner: DummySubsystem,
+	///     runtime_api: DummySubsystem,
+	///     availability_store: DummySubsystem,
+	///     network_bridge: DummySubsystem,
+	/// };
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
-	///     ValidationSubsystem,
-	///     DummySubsystem::<CandidateBackingMessage>::default(),
-	///     DummySubsystem::<CandidateSelectionMessage>::default(),
-	///     DummySubsystem::<StatementDistributionMessage>::default(),
-	///     DummySubsystem::<AvailabilityDistributionMessage>::default(),
-	///     DummySubsystem::<BitfieldDistributionMessage>::default(),
-	///     DummySubsystem::<ProvisionerMessage>::default(),
-	///     DummySubsystem::<RuntimeApiMessage>::default(),
-	///     DummySubsystem::<AvailabilityStoreMessage>::default(),
-	///     DummySubsystem::<NetworkBridgeMessage>::default(),
+	///     all_subsystems,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -476,20 +515,23 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new(
+	pub fn new<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		candidate_validation: impl Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
-		candidate_backing: impl Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
-		candidate_selection: impl Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-		statement_distribution: impl Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
-		availability_distribution: impl Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
-		bitfield_distribution: impl Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-		provisioner: impl Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
-		runtime_api: impl Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
-		availability_store: impl Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
-		network_bridge: impl Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>,
 		mut s: S,
-	) -> SubsystemResult<(Self, OverseerHandler)> {
+	) -> SubsystemResult<(Self, OverseerHandler)>
+	where
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
+		P:  Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+	{
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
 		let handler = OverseerHandler {
@@ -503,70 +545,70 @@ where
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			candidate_validation,
+			all_subsystems.candidate_validation,
 		)?;
 
 		let candidate_backing_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			candidate_backing,
+			all_subsystems.candidate_backing,
 		)?;
 
 		let candidate_selection_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			candidate_selection,
+			all_subsystems.candidate_selection,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			statement_distribution,
+			all_subsystems.statement_distribution,
 		)?;
 
 		let availability_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			availability_distribution,
+			all_subsystems.availability_distribution,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			bitfield_distribution,
+			all_subsystems.bitfield_distribution,
 		)?;
 
 		let provisioner_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			provisioner,
+			all_subsystems.provisioner,
 		)?;
 
 		let runtime_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			runtime_api,
+			all_subsystems.runtime_api,
 		)?;
 
 		let availability_store_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			availability_store,
+			all_subsystems.availability_store,
 		)?;
 
 		let network_bridge_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
-			network_bridge,
+			all_subsystems.network_bridge,
 		)?;
 
 		let active_leaves = HashSet::new();
@@ -969,18 +1011,21 @@ mod tests {
 			let (s1_tx, mut s1_rx) = mpsc::channel(64);
 			let (s2_tx, mut s2_rx) = mpsc::channel(64);
 
+			let all_subsystems = AllSubsystems {
+				candidate_validation: TestSubsystem1(s1_tx),
+				candidate_backing: TestSubsystem2(s2_tx),
+				candidate_selection: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
-				TestSubsystem1(s1_tx),
-				TestSubsystem2(s2_tx),
-				DummySubsystem::<CandidateSelectionMessage>::default(),
-				DummySubsystem::<StatementDistributionMessage>::default(),
-				DummySubsystem::<AvailabilityDistributionMessage>::default(),
-				DummySubsystem::<BitfieldDistributionMessage>::default(),
-				DummySubsystem::<ProvisionerMessage>::default(),
-				DummySubsystem::<RuntimeApiMessage>::default(),
-				DummySubsystem::<AvailabilityStoreMessage>::default(),
-				DummySubsystem::<NetworkBridgeMessage>::default(),
+				all_subsystems,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1027,18 +1072,21 @@ mod tests {
 
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
+			let all_subsystems = AllSubsystems {
+				candidate_validation: TestSubsystem1(s1_tx),
+				candidate_backing: TestSubsystem4,
+				candidate_selection: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+			};
 			let (overseer, _handle) = Overseer::new(
 				vec![],
-				TestSubsystem1(s1_tx),
-				TestSubsystem4,
-				DummySubsystem::<CandidateSelectionMessage>::default(),
-				DummySubsystem::<StatementDistributionMessage>::default(),
-				DummySubsystem::<AvailabilityDistributionMessage>::default(),
-				DummySubsystem::<BitfieldDistributionMessage>::default(),
-				DummySubsystem::<ProvisionerMessage>::default(),
-				DummySubsystem::<RuntimeApiMessage>::default(),
-				DummySubsystem::<AvailabilityStoreMessage>::default(),
-				DummySubsystem::<NetworkBridgeMessage>::default(),
+				all_subsystems,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1132,19 +1180,21 @@ mod tests {
 
 			let (tx_5, mut rx_5) = mpsc::channel(64);
 			let (tx_6, mut rx_6) = mpsc::channel(64);
-
+			let all_subsystems = AllSubsystems {
+				candidate_validation: TestSubsystem5(tx_5),
+				candidate_backing: TestSubsystem6(tx_6),
+				candidate_selection: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
-				TestSubsystem5(tx_5),
-				TestSubsystem6(tx_6),
-				DummySubsystem::<CandidateSelectionMessage>::default(),
-				DummySubsystem::<StatementDistributionMessage>::default(),
-				DummySubsystem::<AvailabilityDistributionMessage>::default(),
-				DummySubsystem::<BitfieldDistributionMessage>::default(),
-				DummySubsystem::<ProvisionerMessage>::default(),
-				DummySubsystem::<RuntimeApiMessage>::default(),
-				DummySubsystem::<AvailabilityStoreMessage>::default(),
-				DummySubsystem::<NetworkBridgeMessage>::default(),
+				all_subsystems,
 				spawner,
 			).unwrap();
 
@@ -1225,19 +1275,22 @@ mod tests {
 			let (tx_5, mut rx_5) = mpsc::channel(64);
 			let (tx_6, mut rx_6) = mpsc::channel(64);
 
+			let all_subsystems = AllSubsystems {
+				candidate_validation: TestSubsystem5(tx_5),
+				candidate_backing: TestSubsystem6(tx_6),
+				candidate_selection: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+			};
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
-				TestSubsystem5(tx_5),
-				TestSubsystem6(tx_6),
-				DummySubsystem::<CandidateSelectionMessage>::default(),
-				DummySubsystem::<StatementDistributionMessage>::default(),
-				DummySubsystem::<AvailabilityDistributionMessage>::default(),
-				DummySubsystem::<BitfieldDistributionMessage>::default(),
-				DummySubsystem::<ProvisionerMessage>::default(),
-				DummySubsystem::<RuntimeApiMessage>::default(),
-				DummySubsystem::<AvailabilityStoreMessage>::default(),
-				DummySubsystem::<NetworkBridgeMessage>::default(),
+				all_subsystems,
 				spawner,
 			).unwrap();
 

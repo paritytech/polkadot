@@ -29,7 +29,7 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
-use polkadot_overseer::{self as overseer, BlockInfo, Overseer, OverseerHandler};
+use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, OverseerHandler};
 use polkadot_subsystem::DummySubsystem;
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
@@ -278,18 +278,21 @@ fn real_overseer<S: futures::task::Spawn>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
+	let all_subsystems = AllSubsystems {
+		candidate_validation: DummySubsystem,
+		candidate_backing: DummySubsystem,
+		candidate_selection: DummySubsystem,
+		statement_distribution: DummySubsystem,
+		availability_distribution: DummySubsystem,
+		bitfield_distribution: DummySubsystem,
+		provisioner: DummySubsystem,
+		runtime_api: DummySubsystem,
+		availability_store: DummySubsystem,
+		network_bridge: DummySubsystem,
+	};
 	Overseer::new(
 		leaves, 
-		DummySubsystem::<CandidateValidationMessage>::default(),
-		DummySubsystem::<CandidateBackingMessage>::default(),
-		DummySubsystem::<CandidateSelectionMessage>::default(),
-		DummySubsystem::<StatementDistributionMessage>::default(),
-		DummySubsystem::<AvailabilityDistributionMessage>::default(),
-		DummySubsystem::<BitfieldDistributionMessage>::default(),
-		DummySubsystem::<ProvisionerMessage>::default(),
-		DummySubsystem::<RuntimeApiMessage>::default(),
-		DummySubsystem::<AvailabilityStoreMessage>::default(),
-		DummySubsystem::<NetworkBridgeMessage>::default(),
+		all_subsystems,
 		s,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }

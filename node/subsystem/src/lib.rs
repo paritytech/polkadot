@@ -151,17 +151,9 @@ pub trait Subsystem<C: SubsystemContext> {
 
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
-pub struct DummySubsystem<C>(core::marker::PhantomData<C>);
+pub struct DummySubsystem;
 
-impl<C> Default for DummySubsystem<C> {
-	fn default() -> Self {
-		Self(core::marker::PhantomData)
-	}
-} 
-
-impl<M: Send, C> Subsystem<C> for DummySubsystem<M>
-	where C: SubsystemContext<Message=M>
-{
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
 			loop {
