@@ -45,6 +45,7 @@ members = [
 
 	"node/core/proposer",
 	"node/network/bridge",
+	"node/network/pov-distribution",
 	"node/network/statement-distribution",
 	"node/overseer",
 	"node/primitives",

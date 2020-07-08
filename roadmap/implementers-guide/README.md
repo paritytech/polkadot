@@ -4,6 +4,6 @@ The implementers' guide is compiled from several source files with [mdBook](http
 
 ```sh
 cargo install mdbook mdbook-linkcheck mdbook-graphviz
-mdbook serve roadmap/implementors-guide
+mdbook serve roadmap/implementers-guide
 open http://localhost:3000
 ```

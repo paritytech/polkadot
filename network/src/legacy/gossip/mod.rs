@@ -295,7 +295,7 @@ pub(crate) fn pov_block_topic(parent_hash: Hash) -> Hash {
 pub fn register_validator<C: ChainContext + 'static>(
 	service: Arc<NetworkService<Block, Hash>>,
 	chain: C,
-	executor: &impl futures::task::Spawn,
+	executor: &impl sp_core::traits::SpawnNamed,
 ) -> RegisteredMessageValidator
 {
 	let s = service.clone();
@@ -331,12 +331,7 @@ pub fn register_validator<C: ChainContext + 'static>(
 		let fut = futures::future::poll_fn(move |cx| {
 			gossip_engine.lock().poll_unpin(cx)
 		});
-		let spawn_res = executor.spawn_obj(futures::task::FutureObj::from(Box::new(fut)));
-
-		// Note: we consider the chances of an error to spawn a background task almost null.
-		if spawn_res.is_err() {
-			log::error!(target: "polkadot-gossip", "Failed to spawn background task");
-		}
+		executor.spawn("polkadot-legacy-gossip-engine", fut.boxed());
 	}
 
 	RegisteredMessageValidator {
