@@ -617,6 +617,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
@@ -627,6 +628,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -667,6 +669,7 @@ mod tests {
 		type TipReportDepositBase = TipReportDepositBase;
 		type TipReportDepositPerByte = TipReportDepositPerByte;
 		type ModuleId = TreasuryModuleId;
+		type WeightInfo = ();
 	}
 
 	thread_local! {

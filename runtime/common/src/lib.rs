@@ -141,6 +141,7 @@ mod multiplier_tests {
 		type AccountData = ();
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
 	}
 
 	type System = system::Module<Runtime>;
