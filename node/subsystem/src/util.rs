@@ -27,13 +27,16 @@ use futures::{
 	prelude::*,
 	task::SpawnError,
 };
+use keystore::KeyStorePtr;
+use parity_scale_codec::Encode;
 use polkadot_primitives::{
 	parachain::{
-		GlobalValidationSchedule, HeadData, Id as ParaId, LocalValidationData, SigningContext,
-		ValidatorId,
+		EncodeAs, GlobalValidationSchedule, HeadData, Id as ParaId, LocalValidationData, Signed,
+		SigningContext, ValidatorId, ValidatorIndex, ValidatorPair,
 	},
 	Hash,
 };
+use sp_core::Pair;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -79,6 +82,8 @@ pub enum Error {
 	#[from]
 	Spawn(SpawnError),
 	SenderConversion(String),
+	/// The local node is not a validator.
+	NotAValidator,
 }
 
 /// Request some data from the `RuntimeApi`.
@@ -183,4 +188,88 @@ where
 	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::HeadData(id, tx)).await
+}
+
+/// From the given set of validators, find the first key we can sign with, if any.
+pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
+	let keystore = keystore.read();
+	validators
+		.iter()
+		.find_map(|v| keystore.key_pair::<ValidatorPair>(&v).ok())
+}
+
+/// Local validator information
+///
+/// It can be created if the local node is a validator in the context of a particular
+/// relay chain block.
+pub struct Validator {
+	signing_context: SigningContext,
+	key: ValidatorPair,
+	index: ValidatorIndex,
+}
+
+impl Validator {
+	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
+	pub async fn new<SenderMessage>(
+		parent: Hash,
+		keystore: KeyStorePtr,
+		mut sender: mpsc::Sender<SenderMessage>,
+	) -> Result<Self, Error>
+	where
+		SenderMessage: TryFrom<AllMessages>,
+		<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	{
+		// Note: request_validators and request_signing_context do not and cannot run concurrently: they both
+		// have a mutable handle to the same sender.
+		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
+		let (validators, signing_context) = futures::try_join!(
+			request_validators(parent, &mut sender).await?,
+			request_signing_context(parent, &mut sender).await?,
+		)?;
+
+		let key = signing_key(&validators[..], &keystore).ok_or(Error::NotAValidator)?;
+		let index = validators
+			.iter()
+			.enumerate()
+			.find(|(_, k)| k == &&key.public())
+			.map(|(idx, _)| idx as ValidatorIndex)
+			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
+
+		Ok(Validator {
+			signing_context,
+			key,
+			index,
+		})
+	}
+
+	/// Get this validator's id.
+	pub fn id(&self) -> ValidatorId {
+		self.key.public()
+	}
+
+	/// Get this validator's local index.
+	pub fn index(&self) -> ValidatorIndex {
+		self.index
+	}
+
+	/// Get the current signing context.
+	pub fn signing_context(&self) -> &SigningContext {
+		&self.signing_context
+	}
+
+	/// Sign a payload with this validator
+	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+		&self,
+		payload: Payload,
+	) -> Signed<Payload, RealPayload> {
+		Signed::sign(payload, &self.signing_context, self.index, &self.key)
+	}
+
+	/// Validate the payload with this validator
+	pub fn check_payload<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+		&self,
+		signed: Signed<Payload, RealPayload>,
+	) -> Result<(), ()> {
+		signed.check_signature(&self.signing_context, &self.id())
+	}
 }
