@@ -36,6 +36,7 @@ use polkadot_primitives::{
 };
 use std::{
 	collections::HashMap,
+	convert::{TryFrom, TryInto},
 	ops::{Deref, DerefMut},
 };
 
@@ -77,34 +78,42 @@ pub enum Error {
 	Mpsc(mpsc::SendError),
 	#[from]
 	Spawn(SpawnError),
+	SenderConversion(String),
 }
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response>(
+pub async fn request_from_runtime<RequestBuilder, Response, SenderMessage>(
 	parent: Hash,
-	sender: &mut mpsc::Sender<AllMessages>,
+	sender: &mut mpsc::Sender<SenderMessage>,
 	request_builder: RequestBuilder,
 ) -> Result<oneshot::Receiver<Response>, Error>
 where
 	RequestBuilder: FnOnce(oneshot::Sender<Response>) -> RuntimeApiRequest,
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	let (tx, rx) = oneshot::channel();
 
 	sender
-		.send(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			parent,
-			request_builder(tx),
-		)))
+		.send(
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+				.try_into()
+				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+		)
 		.await?;
 
 	Ok(rx)
 }
 
 /// Request a `GlobalValidationSchedule` from `RuntimeApi`.
-pub async fn request_global_validation_schedule(
+pub async fn request_global_validation_schedule<SenderMessage>(
 	parent: Hash,
-	s: &mut mpsc::Sender<AllMessages>,
-) -> Result<oneshot::Receiver<GlobalValidationSchedule>, Error> {
+	s: &mut mpsc::Sender<SenderMessage>,
+) -> Result<oneshot::Receiver<GlobalValidationSchedule>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| {
 		RuntimeApiRequest::GlobalValidationSchedule(tx)
 	})
@@ -112,11 +121,15 @@ pub async fn request_global_validation_schedule(
 }
 
 /// Request a `LocalValidationData` from `RuntimeApi`.
-pub async fn request_local_validation_data(
+pub async fn request_local_validation_data<SenderMessage>(
 	parent: Hash,
 	para_id: ParaId,
-	s: &mut mpsc::Sender<AllMessages>,
-) -> Result<oneshot::Receiver<Option<LocalValidationData>>, Error> {
+	s: &mut mpsc::Sender<SenderMessage>,
+) -> Result<oneshot::Receiver<Option<LocalValidationData>>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| {
 		RuntimeApiRequest::LocalValidationData(para_id, tx)
 	})
@@ -124,34 +137,50 @@ pub async fn request_local_validation_data(
 }
 
 /// Request a validator set from the `RuntimeApi`.
-pub async fn request_validators(
+pub async fn request_validators<SenderMessage>(
 	parent: Hash,
-	s: &mut mpsc::Sender<AllMessages>,
-) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error> {
+	s: &mut mpsc::Sender<SenderMessage>,
+) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::Validators(tx)).await
 }
 
 /// Request the scheduler roster from `RuntimeApi`.
-pub async fn request_validator_groups(
+pub async fn request_validator_groups<SenderMessage>(
 	parent: Hash,
-	s: &mut mpsc::Sender<AllMessages>,
-) -> Result<oneshot::Receiver<SchedulerRoster>, Error> {
+	s: &mut mpsc::Sender<SenderMessage>,
+) -> Result<oneshot::Receiver<SchedulerRoster>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::ValidatorGroups(tx)).await
 }
 
 /// Request a `SigningContext` from the `RuntimeApi`.
-pub async fn request_signing_context(
+pub async fn request_signing_context<SenderMessage>(
 	parent: Hash,
-	s: &mut mpsc::Sender<AllMessages>,
-) -> Result<oneshot::Receiver<SigningContext>, Error> {
+	s: &mut mpsc::Sender<SenderMessage>,
+) -> Result<oneshot::Receiver<SigningContext>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::SigningContext(tx)).await
 }
 
 /// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-pub async fn request_head_data(
+pub async fn request_head_data<SenderMessage>(
 	parent: Hash,
-	s: &mut mpsc::Sender<AllMessages>,
+	s: &mut mpsc::Sender<SenderMessage>,
 	id: ParaId,
-) -> Result<oneshot::Receiver<HeadData>, Error> {
+) -> Result<oneshot::Receiver<HeadData>, Error>
+where
+	SenderMessage: TryFrom<AllMessages>,
+	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::HeadData(id, tx)).await
 }
