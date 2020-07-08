@@ -6874,7 +6874,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "2.0.0-rc4"
-source = "git+https://github.com/paritytech/substrate#06dedb0eb77abb7f64832b5c675ee4c00e40d730"
+source = "git+https://github.com/paritytech/substrate?branch=IncomingTransactionsLogging#a33393e8ff0151433328fbcd6d1c63d4eb478762"
 dependencies = [
  "derive_more 0.99.9",
  "futures 0.3.5",
