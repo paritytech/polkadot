@@ -32,6 +32,7 @@ use async_trait::async_trait;
 use crate::messages::AllMessages;
 
 pub mod messages;
+pub mod util;
 
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]

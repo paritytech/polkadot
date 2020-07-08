@@ -1,11 +1,31 @@
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! Utility module for subsystems
+//!
+//! Many subsystems have common interests such as canceling a bunch of spawned jobs,
+//! or determining what their validator ID is. These common interests are factored into
+//! this module.
+
+use crate::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, SchedulerRoster};
 use futures::{
 	channel::{mpsc, oneshot},
 	future::AbortHandle,
 	prelude::*,
 	task::SpawnError,
-};
-use polkadot_node_subsystem::messages::{
-	AllMessages, RuntimeApiMessage, RuntimeApiRequest, SchedulerRoster,
 };
 use polkadot_primitives::{
 	parachain::{
@@ -85,7 +105,10 @@ pub async fn request_global_validation_schedule(
 	parent: Hash,
 	s: &mut mpsc::Sender<AllMessages>,
 ) -> Result<oneshot::Receiver<GlobalValidationSchedule>, Error> {
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::GlobalValidationSchedule(tx)).await
+	request_from_runtime(parent, s, |tx| {
+		RuntimeApiRequest::GlobalValidationSchedule(tx)
+	})
+	.await
 }
 
 /// Request a `LocalValidationData` from `RuntimeApi`.
@@ -94,7 +117,10 @@ pub async fn request_local_validation_data(
 	para_id: ParaId,
 	s: &mut mpsc::Sender<AllMessages>,
 ) -> Result<oneshot::Receiver<Option<LocalValidationData>>, Error> {
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::LocalValidationData(para_id, tx)).await
+	request_from_runtime(parent, s, |tx| {
+		RuntimeApiRequest::LocalValidationData(para_id, tx)
+	})
+	.await
 }
 
 /// Request a validator set from the `RuntimeApi`.
