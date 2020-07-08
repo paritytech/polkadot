@@ -17,13 +17,14 @@
 //! Module to process purchase of DOTs.
 
 use codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError};
-use sp_runtime::traits::{Bounded, Saturating, Zero, CheckedAdd};
+use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError, AnySignature};
+use sp_runtime::traits::{Bounded, Saturating, Zero, CheckedAdd, Verify};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
 };
 use sp_core::sr25519;
+use sp_std::prelude::*;
 
 /// Configuration trait.
 pub trait Trait: system::Trait {
@@ -148,7 +149,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		/// Deposit one of this module's events by using the default implementation.
@@ -296,7 +297,7 @@ impl<T: Trait> Module<T> {
 	fn verify_signature(who: &T::AccountId, signature: &[u8]) -> Result<(), DispatchError> {
 		// sr25519 always expects a 64 byte signature.
 		ensure!(signature.len() == 64, Error::<T>::InvalidSignature);
-		let signature = sr25519::Signature::from_slice(signature);
+		let signature: AnySignature = sr25519::Signature::from_slice(signature).into();
 
 		// In Polkadot, the AccountId is always the same as the 32 byte public key.
 		let account_bytes: [u8; 32] = account_to_bytes(who)?;
@@ -305,7 +306,7 @@ impl<T: Trait> Module<T> {
 		let message = T::Statement::get();
 
 		// Check if everything is good or not.
-		match sr25519::verify_batch(vec![message], vec![&signature], vec![&public_key]) {
+		match signature.verify(message, &public_key) {
 			true => Ok(()),
 			false => Err(Error::<T>::InvalidSignature)?,
 		}
@@ -318,7 +319,7 @@ fn account_to_bytes<AccountId>(account: &AccountId) -> Result<[u8; 32], Dispatch
 {
 	let account_vec = account.encode();
 	ensure!(account_vec.len() == 32, "AccountId must be 32 bytes.");
-	let mut bytes = [0; 32];
+	let mut bytes = [0u8; 32];
 	bytes.copy_from_slice(&account_vec);
 	Ok(bytes)
 }
@@ -390,6 +391,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	parameter_types! {
@@ -402,6 +404,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -413,6 +416,7 @@ mod tests {
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {

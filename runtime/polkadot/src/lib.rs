@@ -25,7 +25,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight,
+	MaximumExtrinsicWeight, purchase,
 };
 
 use sp_std::prelude::*;
@@ -137,7 +137,7 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Purchase(_) =>
 				true,
 		}
 	}
@@ -940,6 +940,24 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	}
 }
 
+parameter_types! {
+	pub const VestingTime: BlockNumber = 30 * DAYS;
+	pub PurchaseStatement: &'static [u8] = b"I herby agree to the agreement outlined for purchasing DOTs. TODO UPDATE";
+	pub PurchaseLimit: Balance = 1_000 * DOTS;
+}
+
+impl purchase::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type VestingSchedule = Vesting;
+	type VestingTime = VestingTime;
+	// TODO: Update these origins.
+	type ValidityOrigin = system::EnsureRoot<AccountId>;
+	type PaymentOrigin = system::EnsureRoot<AccountId>;
+	type Statement = PurchaseStatement;
+	type PurchaseLimit = PurchaseLimit;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1005,6 +1023,9 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// DOT Purchase module. Late addition.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
