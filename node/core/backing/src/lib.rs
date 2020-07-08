@@ -598,8 +598,11 @@ async fn run_job(
 	rx_to: mpsc::Receiver<ToJob>,
 	mut tx_from: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
-	let validators = request_validators(parent, &mut tx_from).await?;
-	let roster = request_validator_groups(parent, &mut tx_from).await?;
+	let (validators, roster) = futures::try_join!(
+		request_validators(parent, &mut tx_from).await?,
+		request_validator_groups(parent, &mut tx_from).await?,
+	)?;
+
 	let key = signing_key(&validators[..], &keystore).ok_or(Error::NotInValidatorSet)?;
 	let mut groups = HashMap::new();
 
@@ -624,11 +627,19 @@ async fn run_job(
 		}
 	}
 
-	let head_data = request_head_data(parent, &mut tx_from, assignment).await?;
-	let signing_context = request_signing_context(parent, &mut tx_from).await?;
+	let (
+		head_data,
+		signing_context,
+		local_validation_data,
+		global_validation_schedule,
+	) = futures::try_join!(
+		request_head_data(parent, &mut tx_from, assignment).await?,
+		request_signing_context(parent, &mut tx_from).await?,
+		request_local_validation_data(parent, assignment, &mut tx_from).await?,
+		request_global_validation_schedule(parent, &mut tx_from).await?,
+	)?;
 
-	let local_validation_data = request_local_validation_data(parent, assignment, &mut tx_from).await?;
-	let global_validation_schedule = request_global_validation_schedule(parent, &mut tx_from).await?;
+	let local_validation_data = local_validation_data.ok_or(Error::LocalValidationDataMissing)?;
 
 	let table_context = TableContext {
 		signing_context,
@@ -659,7 +670,7 @@ async fn run_job(
 async fn request_global_validation_schedule(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<GlobalValidationSchedule, Error> {
+) -> Result<oneshot::Receiver<GlobalValidationSchedule>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -668,16 +679,15 @@ async fn request_global_validation_schedule(
 			)
 	)).await?;
 
-	Ok(rx.await?)
+	Ok(rx)
 }
-
 
 /// Request a `LocalValidationData` from `RuntimeApi`.
 async fn request_local_validation_data(
 	parent: Hash,
 	para_id: ParaId,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<LocalValidationData, Error> {
+) -> Result<oneshot::Receiver<Option<LocalValidationData>>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -686,14 +696,14 @@ async fn request_local_validation_data(
 			)
 	)).await?;
 
-	Ok(rx.await?.ok_or(Error::LocalValidationDataMissing)?)
+	Ok(rx)
 }
 
 /// Request a validator set from the `RuntimeApi`.
 async fn request_validators(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<Vec<ValidatorId>, Error> {
+) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -702,14 +712,14 @@ async fn request_validators(
 		)
 	)).await?;
 
-	Ok(rx.await?)
+	Ok(rx)
 }
 
 /// Request the scheduler roster from `RuntimeApi`.
 async fn request_validator_groups(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<SchedulerRoster, Error> {
+) -> Result<oneshot::Receiver<SchedulerRoster>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -718,14 +728,14 @@ async fn request_validator_groups(
 		)
 	)).await?;
 
-	Ok(rx.await?)
+	Ok(rx)
 }
 
 /// Request a `SigningContext` from the `RuntimeApi`.
 async fn request_signing_context(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<SigningContext, Error> {
+) -> Result<oneshot::Receiver<SigningContext>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -734,7 +744,7 @@ async fn request_signing_context(
 		)
 	)).await?;
 
-	Ok(rx.await?)
+	Ok(rx)
 }
 
 /// Request `HeadData` for some `ParaId` from `RuntimeApi`.
@@ -742,7 +752,7 @@ async fn request_head_data(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
 	id: ParaId,
-) -> Result<HeadData, Error> {
+) -> Result<oneshot::Receiver<HeadData>, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
@@ -751,7 +761,7 @@ async fn request_head_data(
 		)
 	)).await?;
 
-	Ok(rx.await?)
+	Ok(rx)
 }
 
 impl<S: Spawn> Jobs<S> {
