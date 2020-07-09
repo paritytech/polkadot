@@ -2,7 +2,14 @@
   "name": "Rococo",
   "id": "rococo_v1",
   "chainType": "Live",
-  "bootNodes": [],
+  "bootNodes": [
+    "/ip4/34.90.82.240/tcp/30333/p2p/b7d1bd20bc282e12f47c190fc84e46672cb0bac6f04675fd7df33dc364e85545",
+    "/ip4/34.90.82.240/tcp/30334/ws/p2p/b7d1bd20bc282e12f47c190fc84e46672cb0bac6f04675fd7df33dc364e85545",
+    "/ip4/35.204.218.175/tcp/30333/p2p/712955d674189f6999dfd44161f2cec05f7b37d0ac966f8daf004ddd8763d5e7",
+    "/ip4/35.204.218.175/tcp/30334/ws/p2p/712955d674189f6999dfd44161f2cec05f7b37d0ac966f8daf004ddd8763d5e7",
+    "/ip4/34.91.11.220/tcp/30333/p2p/98203ba562ec977ff4f83e327c67200c7b7fb5d0d8f5578d065b26c67578a0e4",
+    "/ip4/34.91.11.220/tcp/30334/ws/p2p/98203ba562ec977ff4f83e327c67200c7b7fb5d0d8f5578d065b26c67578a0e4"
+  ],
   "telemetryEndpoints": [
     [
       "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
