@@ -86,7 +86,7 @@ pub enum CandidateValidationMessage {
 	/// If there is no state available which can provide this data, an error is returned.
 	ValidateFromChainState(
 		CandidateDescriptor,
-		PoV,
+		Arc<PoV>,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -97,7 +97,7 @@ pub enum CandidateValidationMessage {
 		OmittedValidationData,
 		ValidationCode,
 		CandidateDescriptor,
-		PoV,
+		Arc<PoV>,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
