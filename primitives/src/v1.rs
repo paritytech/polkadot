@@ -49,13 +49,13 @@ pub use polkadot_parachain::primitives::{
 // Export some basic parachain primitives from v0.
 pub use crate::parachain::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
-	ValidatorPair, ValidatorSignature, SigningContext, Signed, ValidityAttestation,
+	ValidatorSignature, SigningContext, Signed, ValidityAttestation,
 	CompactStatement, SignedStatement, ErasureChunk, EncodeAs,
 };
 
 // More exports for std.
 #[cfg(feature = "std")]
-pub use crate::parachain::CollatorPair;
+pub use crate::parachain::{ValidatorPair, CollatorPair};
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
