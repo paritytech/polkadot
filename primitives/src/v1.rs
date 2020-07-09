@@ -47,15 +47,18 @@ pub use polkadot_parachain::primitives::{
 };
 
 // Export some basic parachain primitives from v0.
-pub use crate::parachain::{
+pub use crate::v0::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
 	ValidatorSignature, SigningContext, Signed, ValidityAttestation,
 	CompactStatement, SignedStatement, ErasureChunk, EncodeAs,
 };
 
-// More exports for std.
+// More exports from v0 for std.
 #[cfg(feature = "std")]
-pub use crate::parachain::{ValidatorPair, CollatorPair};
+pub use crate::v0::{ValidatorPair, CollatorPair};
+
+/// Unique identifier for the Inclusion Inherent
+pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(

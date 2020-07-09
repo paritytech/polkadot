@@ -23,8 +23,7 @@
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
 pub use polkadot_core_primitives::*;
 
-pub mod inclusion_inherent;
-pub mod parachain;
+pub mod v0;
 pub mod v1;
 
 pub use parity_scale_codec::Compact;
