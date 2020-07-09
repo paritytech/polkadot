@@ -35,7 +35,6 @@ use futures::{
 use futures_timer::Delay;
 use streamunordered::{StreamUnordered, StreamYield};
 
-use primitives::Pair;
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
@@ -45,7 +44,6 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
-	ValidationOutputs,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -57,6 +55,7 @@ use polkadot_subsystem::{
 		request_signing_context,
 		request_validator_groups,
 		request_validators,
+		Validator,
 	},
 };
 use polkadot_subsystem::messages::{
@@ -77,7 +76,6 @@ use statement_table::{
 
 #[derive(Debug, derive_more::From)]
 enum Error {
-	NotInValidatorSet,
 	CandidateNotFound,
 	JobNotFound(Hash),
 	InvalidSignature,
@@ -123,7 +121,7 @@ const fn group_quorum(n_validators: usize) -> usize {
 #[derive(Default)]
 struct TableContext {
 	signing_context: SigningContext,
-	key: Option<ValidatorPair>,
+	validator: Option<Validator>,
 	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
 	validators: Vec<ValidatorId>,
 }
@@ -149,22 +147,6 @@ impl TableContextTrait for TableContext {
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
 		self.groups.get(group).map_or(usize::max_value(), |g| group_quorum(g.len()))
-	}
-}
-
-impl TableContext {
-	fn local_id(&self) -> Option<ValidatorId> {
-		self.key.as_ref().map(|k| k.public())
-	}
-
-	fn local_index(&self) -> Option<ValidatorIndex> {
-		self.local_id().and_then(|id|
-			self.validators
-				.iter()
-				.enumerate()
-				.find(|(_, k)| k == &&id)
-				.map(|(i, _)| i as ValidatorIndex)
-		)
 	}
 }
 
@@ -234,16 +216,6 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 		signature: s.signature().clone(),
 		sender: s.validator_index(),
 	}
-}
-
-// finds the first key we are capable of signing with out of the given set of validators,
-// if any.
-fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
-	let keystore = keystore.read();
-	validators.iter()
-		.find_map(|v| {
-			keystore.key_pair::<ValidatorPair>(&v).ok()
-		})
 }
 
 impl CandidateBackingJob {
@@ -540,18 +512,7 @@ impl CandidateBackingJob {
 	}
 
 	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		let local_index = self.table_context.local_index()?;
-
-		let signing_key = self.table_context.key.as_ref()?;
-
-		let signed_statement = SignedFullStatement::sign(
-			statement,
-			&self.table_context.signing_context,
-			local_index,
-			signing_key,
-		);
-
-		Some(signed_statement)
+		Some(self.table_context.validator.as_ref()?.sign(statement))
 	}
 
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
@@ -697,11 +658,10 @@ impl JobHandle {
 		let stop_timer = Delay::new(Duration::from_secs(1));
 
 		match future::select(stop_timer, self.finished).await {
-			Either::Left((_, _)) => {
-			},
+			Either::Left((_, _)) => {}
 			Either::Right((_, _)) => {
 				self.abort_handle.abort();
-			},
+			}
 		}
 	}
 
@@ -722,12 +682,14 @@ async fn run_job(
 	rx_to: mpsc::Receiver<ToJob>,
 	mut tx_from: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
-	let (validators, roster) = futures::try_join!(
+	let (validators, roster, signing_context) = futures::try_join!(
 		request_validators(parent, &mut tx_from).await?,
 		request_validator_groups(parent, &mut tx_from).await?,
+		request_signing_context(parent, &mut tx_from).await?,
 	)?;
 
-	let key = signing_key(&validators[..], &keystore).ok_or(Error::NotInValidatorSet)?;
+	let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
+
 	let mut groups = HashMap::new();
 
 	for assignment in roster.scheduled {
@@ -741,7 +703,7 @@ async fn run_job(
 
 	let mut assignment = Default::default();
 
-	if let Some(idx) = validators.iter().position(|k| *k == key.public()) {
+	if let Some(idx) = validators.iter().position(|k| *k == validator.id()) {
 		let idx = idx as u32;
 		for (para_id, group) in groups.iter() {
 			if group.contains(&idx) {
@@ -751,13 +713,11 @@ async fn run_job(
 		}
 	}
 
-	let signing_context = request_signing_context(parent, &mut tx_from).await?.await?;
-
 	let table_context = TableContext {
-		signing_context,
-		key: Some(key),
 		groups,
 		validators,
+		signing_context: validator.signing_context(),
+		validator: Some(validator),
 	};
 
 	let job = CandidateBackingJob {
@@ -1523,7 +1483,6 @@ mod tests {
 					).unwrap();
 				}
 			);
-
 		});
 	}
 
