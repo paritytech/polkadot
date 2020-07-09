@@ -117,7 +117,7 @@ impl BitfieldDistribution {
 
                             let _ = tracker.per_job.insert(relay_parent, JobData {
                                 validator_bitset_received: HashSet::new(),
-                                signing_context: HashMap::new(),
+                                signing_context,
                                 validator_set: Vec::new(),
                             });
 
@@ -126,7 +126,7 @@ impl BitfieldDistribution {
                         //     abortable(future);
 
                         let future = ctx.spawn(Box::pin(
-                            future.then(|_| {futures::future::ok(())})
+                            future.map(|_| { () })
                         ));
                         // active_jobs
                         //     .insert(relay_parent.clone(), abort_handle);
@@ -216,21 +216,18 @@ where
 
             // @todo verify sequential execution is ok or if spawning tasks is better
             // Send peers messages which are interesting to them
-            let _ = futures::future::join_all(
-                tracker.peer_views.iter()
-                    .filter(|(_peerid, view)| view.contains(&hash))
-                    .map(|(peerid, view) | {
-                        // @todo shall we assure these complete or just let them be?
-                        ctx.spawn(Box::pin(ctx.send_message(
-                            AllMessages::BitfieldDistribution(
-                                BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
-                            )
-                        ).then(|_| {futures::future::ok(())})))
-                    })
-                ).await;
+            for (peerid, view) in tracker.peer_views.iter()
+                .filter(|(_peerid, view)| view.contains(&hash))
+            {
+                    // @todo shall we assure these complete or just let them be?
+                    let _ = ctx.send_message(
+                        AllMessages::BitfieldDistribution(
+                            BitfieldDistributionMessage::DistributeBitfield(hash.clone(), signed_availability.clone()),
+                    )).await;
+            }
         }
         BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
-            handle_network_msg(ctx, &mut tracker, event).await?;
+            handle_network_msg(ctx, tracker, event).await?;
         }
     }
     Ok(())
@@ -264,8 +261,8 @@ where
                 .and_modify(|val| *val = view);
         }
         NetworkBridgeEvent::OurViewChange(view) => {
-            let old_view = std::mem::replace(&mut tracker.view, view);
-            tracker.per_job.retain(|hash, _job_data| ego.0.get(hash).is_some());
+            let old_view = std::mem::replace(&mut (tracker.view), view);
+            tracker.per_job.retain(|hash, _job_data| ego.0.contains(hash));
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.per_job.contains_key(&new) {
