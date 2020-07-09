@@ -448,3 +448,20 @@ impl CoreAssignment {
 		}
 	}
 }
+
+/// Validation data omitted from most candidate descriptor structs, as it can be derived from the
+/// relay-parent.
+pub struct OmittedValidationData {
+	/// The global validation schedule.
+	pub global_validation: GlobalValidationSchedule,
+	/// The local validation data.
+	pub local_validation: LocalValidationData,
+}
+
+/// This is the data we keep available for each candidate included in the relay chain.
+pub struct AvailableData {
+	/// The Proof-of-Validation of the candidate.
+	pub pov: PoV,
+	/// The omitted validation data.
+	pub omitted_validation: OmittedValidationData,
+}
