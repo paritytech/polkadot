@@ -803,6 +803,8 @@ where
 			self.broadcast_signal(OverseerSignal::StopWork(hash)).await?
 		}
 
+		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash)).await?;
+
 		Ok(())
 	}
 

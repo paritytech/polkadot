@@ -45,6 +45,8 @@ pub enum OverseerSignal {
 	StartWork(Hash),
 	/// `Subsystem` should stop working on block-based work specified by the relay-chain block hash.
 	StopWork(Hash),
+	/// `Subsystem` is informed of a finalized block by its block hash.
+	BlockFinalized(Hash),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }

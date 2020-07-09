@@ -29,7 +29,7 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, CommittedCandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData,
+	ValidatorSignature, OmittedValidationData, AvailableData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -235,8 +235,8 @@ impl BitfieldSigningMessage {
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
-	/// Query a `PoV` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
+	/// Query a `AvailableData` from the AV store.
+	QueryPoV(Hash, oneshot::Sender<Option<AvailableData>>),
 
 	/// Query whether a `PoV` exists within the AV Store.
 	///
@@ -246,10 +246,14 @@ pub enum AvailabilityStoreMessage {
 	QueryPoVAvailable(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
+	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Store an `ErasureChunk` in the AV store.
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+
+	/// Store a `AvailableData` in the AV store.
+	/// If `ValidatorIndex` is present store corresponding chunk also.
+	StorePoV(Hash, Option<ValidatorIndex>, u32, AvailableData),
 }
 
 impl AvailabilityStoreMessage {

@@ -865,6 +865,9 @@ async fn run(
 			FromOverseer::Signal(OverseerSignal::StopWork(_relay_parent)) => {
 				// do nothing - we will handle this when our view changes.
 			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(_block_hash)) => {
+				// do nothing
+			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
 			FromOverseer::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) =>

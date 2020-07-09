@@ -229,6 +229,8 @@ fn action_from_overseer_message(
 			NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				=> Action::SendMessage(peers, protocol, message),
 		},
+		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
+			=> unimplemented!(),
 		Err(e) => {
 			log::warn!("Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
