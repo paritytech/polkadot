@@ -250,17 +250,21 @@ mod tests {
 
 		let mut push_blocks = {
 			let mut client = client.clone();
+			let mut base = 0;
+
 			move |n| {
-				for _ in 0..n {
+				for i in 0..n {
 					let mut builder = client.new_block(Default::default()).unwrap();
 
-					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![]) {
+					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![], base + i) {
 						builder.push(extrinsic).unwrap()
 					}
 
 					let block = builder.build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
+
+				base += n;
 			}
 		};
 

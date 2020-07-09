@@ -17,7 +17,7 @@
 //! Polkadot service. Specialized wrapper over substrate service.
 
 pub mod chain_spec;
-mod grandpa_support;
+pub mod grandpa_support;
 mod client;
 
 use std::sync::Arc;
@@ -136,27 +136,20 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 }
 
-// If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
-	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
-	}
-
-	Ok(())
-}
-
 /// Starts a `ServiceBuilder` for a full service.
 ///
 /// Use this macro if you don't actually need the full service, but just the builder in order to
 /// be able to perform chain operations.
+#[macro_export]
 macro_rules! new_full_start {
-	($config:expr, $runtime:ty, $executor:ty) => {{
-		set_prometheus_registry(&mut $config)?;
-
-		let mut import_setup = None;
-		let mut rpc_setup = None;
-		let inherent_data_providers = inherents::InherentDataProviders::new();
-		let builder = service::ServiceBuilder::new_full::<
+	(prometheus_setup $config:expr) => {{
+		// If we're using prometheus, use a registry with a prefix of `polkadot`.
+		if let Some(PrometheusConfig { registry, .. }) = $config.prometheus_config.as_mut() {
+			*registry = Registry::new_custom(Some("polkadot".into()), None)?;
+		}
+	}};
+	(start_builder $config:expr, $runtime:ty, $executor:ty $(,)?) => {{
+		service::ServiceBuilder::new_full::<
 			Block, $runtime, $executor
 		>($config)?
 			.with_select_chain(|_, backend| {
@@ -174,56 +167,58 @@ macro_rules! new_full_start {
 				);
 				Ok(pool)
 			})?
-			.with_import_queue(|
-				config,
+	}};
+	(import_queue_setup
+		$builder:expr, $inherent_data_providers:expr, $import_setup:expr, $grandpa_hard_forks:expr, $(,)?
+	) => {{
+		$builder.with_import_queue(|
+			_config,
+			client,
+			mut select_chain,
+			_,
+			spawn_task_handle,
+			registry,
+		| {
+			let select_chain = select_chain.take()
+				.ok_or_else(|| service::Error::SelectChainRequired)?;
+
+			let (grandpa_block_import, grandpa_link) =
+				grandpa::block_import_with_authority_set_hard_forks(
+					client.clone(),
+					&(client.clone() as Arc<_>),
+					select_chain.clone(),
+					$grandpa_hard_forks,
+				)?;
+
+			let justification_import = grandpa_block_import.clone();
+
+			let (block_import, babe_link) = babe::block_import(
+				babe::Config::get_or_compute(&*client)?,
+				grandpa_block_import,
+				client.clone(),
+			)?;
+
+			let import_queue = babe::import_queue(
+				babe_link.clone(),
+				block_import.clone(),
+				Some(Box::new(justification_import)),
+				None,
 				client,
-				mut select_chain,
-				_,
+				select_chain,
+				$inherent_data_providers.clone(),
 				spawn_task_handle,
 				registry,
-			| {
-				let select_chain = select_chain.take()
-					.ok_or_else(|| service::Error::SelectChainRequired)?;
+			)?;
 
-				let grandpa_hard_forks = if config.chain_spec.is_kusama() {
-					grandpa_support::kusama_hard_forks()
-				} else {
-					Vec::new()
-				};
+			$import_setup = Some((block_import, grandpa_link, babe_link));
+			Ok(import_queue)
+		})?
+	}};
+	(finish_builder_setup $builder:expr, $inherent_data_providers:expr, $import_setup:expr) => {{
+		let mut rpc_setup = None;
 
-				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import_with_authority_set_hard_forks(
-						client.clone(),
-						&(client.clone() as Arc<_>),
-						select_chain.clone(),
-						grandpa_hard_forks,
-					)?;
-
-				let justification_import = grandpa_block_import.clone();
-
-				let (block_import, babe_link) = babe::block_import(
-					babe::Config::get_or_compute(&*client)?,
-					grandpa_block_import,
-					client.clone(),
-				)?;
-
-				let import_queue = babe::import_queue(
-					babe_link.clone(),
-					block_import.clone(),
-					Some(Box::new(justification_import)),
-					None,
-					client,
-					select_chain,
-					inherent_data_providers.clone(),
-					spawn_task_handle,
-					registry,
-				)?;
-
-				import_setup = Some((block_import, grandpa_link, babe_link));
-				Ok(import_queue)
-			})?
-			.with_rpc_extensions_builder(|builder| {
-				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
+		let builder = $builder.with_rpc_extensions_builder(|builder| {
+				let grandpa_link = $import_setup.as_ref().map(|s| &s.1)
 					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
 
 				let shared_authority_set = grandpa_link.shared_authority_set().clone();
@@ -231,7 +226,7 @@ macro_rules! new_full_start {
 
 				rpc_setup = Some((shared_voter_state.clone()));
 
-				let babe_link = import_setup.as_ref().map(|s| &s.2)
+				let babe_link = $import_setup.as_ref().map(|s| &s.2)
 					.expect("BabeLink is present for full services or set up faile; qed.");
 
 				let babe_config = babe_link.config().clone();
@@ -264,22 +259,47 @@ macro_rules! new_full_start {
 				})
 			})?;
 
-		(builder, import_setup, inherent_data_providers, rpc_setup)
-	}}
+		(builder, $import_setup, $inherent_data_providers, rpc_setup)
+	}};
+	($config:expr, $runtime:ty, $executor:ty $(,)?) => {{
+		let inherent_data_providers = inherents::InherentDataProviders::new();
+		let mut import_setup = None;
+		new_full_start!(prometheus_setup $config);
+		let grandpa_hard_forks = if $config.chain_spec.is_kusama() {
+			$crate::grandpa_support::kusama_hard_forks()
+		} else {
+			Vec::new()
+		};
+		let builder = new_full_start!(start_builder $config, $runtime, $executor);
+		let builder = new_full_start!(import_queue_setup
+			builder, inherent_data_providers, import_setup, grandpa_hard_forks,
+		);
+		new_full_start!(finish_builder_setup builder, inherent_data_providers, import_setup)
+	}};
+	(test $config:expr, $runtime:ty, $executor:ty $(,)?) => {{
+		let inherent_data_providers = inherents::InherentDataProviders::new();
+		let mut import_setup = None;
+		let grandpa_hard_forks = Vec::new();
+		let builder = new_full_start!(start_builder $config, $runtime, $executor);
+		let builder = new_full_start!(import_queue_setup
+			builder, inherent_data_providers, import_setup, grandpa_hard_forks,
+		);
+		new_full_start!(finish_builder_setup builder, inherent_data_providers, import_setup)
+	}};
 }
 
 /// Builds a new service for a full client.
 #[macro_export]
 macro_rules! new_full {
 	(
+		with_full_start
 		$config:expr,
 		$collating_for:expr,
 		$max_block_data_size:expr,
 		$authority_discovery_enabled:expr,
 		$slot_duration:expr,
 		$grandpa_pause:expr,
-		$runtime:ty,
-		$dispatch:ty,
+		$new_full_start:expr $(,)?
 	) => {{
 		use sc_network::Event;
 		use sc_client_api::ExecutorProvider;
@@ -290,22 +310,21 @@ macro_rules! new_full {
 		let role = $config.role.clone();
 		let is_authority = role.is_authority() && !is_collator;
 		let force_authoring = $config.force_authoring;
-		let max_block_data_size = $max_block_data_size;
 		let db_path = match $config.database.path() {
 			Some(path) => std::path::PathBuf::from(path),
 			None => return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into()),
 		};
+		let max_block_data_size = $max_block_data_size;
 		let disable_grandpa = $config.disable_grandpa;
 		let name = $config.network.node_name.clone();
 		let authority_discovery_enabled = $authority_discovery_enabled;
 		let slot_duration = $slot_duration;
 
-		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
-			new_full_start!($config, $runtime, $dispatch);
+		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) = $new_full_start;
 
 		let ServiceComponents {
 			client, network, select_chain, keystore, transaction_pool, prometheus_registry,
-			task_manager, telemetry_on_connect_sinks, ..
+			task_manager, telemetry_on_connect_sinks, rpc_handlers, ..
 		} = builder
 			.with_finality_proof_provider(|client, backend| {
 				let provider = client as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
@@ -510,7 +529,7 @@ macro_rules! new_full {
 					);
 
 					grandpa::VotingRulesBuilder::default()
-						.add(grandpa_support::PauseAfterBlockFor(block, delay))
+						.add($crate::grandpa_support::PauseAfterBlockFor(block, delay))
 						.build()
 				},
 				None =>
@@ -542,15 +561,58 @@ macro_rules! new_full {
 		}
 
 		handles.polkadot_network = Some(polkadot_network_service);
-		(task_manager, client, handles)
-	}}
+		(task_manager, client, handles, network, rpc_handlers)
+	}};
+	(
+		$config:expr,
+		$collating_for:expr,
+		$max_block_data_size:expr,
+		$authority_discovery_enabled:expr,
+		$slot_duration:expr,
+		$grandpa_pause:expr,
+		$runtime:ty,
+		$dispatch:ty,
+	) => {{
+		new_full!(with_full_start
+			$config,
+			$collating_for,
+			$max_block_data_size,
+			$authority_discovery_enabled,
+			$slot_duration,
+			$grandpa_pause,
+			new_full_start!($config, $runtime, $dispatch),
+		)
+	}};
+	(
+		test
+		$config:expr,
+		$collating_for:expr,
+		$max_block_data_size:expr,
+		$authority_discovery_enabled:expr,
+		$slot_duration:expr,
+		$runtime:ty,
+		$dispatch:ty,
+	) => {{
+		new_full!(with_full_start
+			$config,
+			$collating_for,
+			$max_block_data_size,
+			$authority_discovery_enabled,
+			$slot_duration,
+			None,
+			new_full_start!(test $config, $runtime, $dispatch),
+		)
+	}};
 }
 
 /// Builds a new service for a light client.
 #[macro_export]
 macro_rules! new_light {
 	($config:expr, $runtime:ty, $dispatch:ty) => {{
-		crate::set_prometheus_registry(&mut $config)?;
+		// If we're using prometheus, use a registry with a prefix of `polkadot`.
+		if let Some(PrometheusConfig { registry, .. }) = $config.prometheus_config.as_mut() {
+			*registry = Registry::new_custom(Some("polkadot".into()), None)?;
+		}
 		let inherent_data_providers = inherents::InherentDataProviders::new();
 
 		ServiceBuilder::new_light::<Block, $runtime, $dispatch>($config)?
@@ -646,7 +708,7 @@ macro_rules! new_light {
 /// Builds a new object suitable for chain operations.
 pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 	(
-		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
+		Arc<service::TFullClient<Block, Runtime, Dispatch>>,
 		Arc<TFullBackend<Block>>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
@@ -685,7 +747,7 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -719,7 +781,7 @@ pub fn kusama_new_full(
 		FullNodeHandles
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -753,7 +815,7 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles) = new_full!(
+	let (service, client, handles, _, _) = new_full!(
 		config,
 		collating_for,
 		max_block_data_size,

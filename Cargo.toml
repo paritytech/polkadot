@@ -52,6 +52,7 @@ members = [
 	"node/service",
 	"node/subsystem",
 	"node/test-helpers/subsystem",
+	"node/test-service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
