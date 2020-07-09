@@ -95,7 +95,7 @@ struct CandidateBackingJob {
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
-	issued_validity: HashSet<Hash>,
+	issued_statements: HashSet<Hash>,
 	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
 	seconded: Option<Hash>,
 	/// We have already reported misbehaviors for these validators.
@@ -243,7 +243,7 @@ impl CandidateBackingJob {
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
 				self.make_pov_available(pov, valid.1, valid.2).await?;
-				self.issued_validity.insert(candidate.hash());
+				self.issued_statements.insert(candidate.hash());
 				Statement::Seconded(candidate)
 			}
 			ValidationResult::Invalid => {
@@ -303,6 +303,8 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
+	/// 
+	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
 		let mut reports = Vec::new();
 
@@ -351,6 +353,11 @@ impl CandidateBackingJob {
 	async fn process_msg(&mut self, msg: CandidateBackingMessage) -> Result<(), Error> {
 		match msg {
 			CandidateBackingMessage::Second(_, candidate, pov) => {
+				// Sanity check that candidate is from our assignment.
+				if candidate.parachain_index != self.assignment {
+					return Ok(());
+				}
+
 				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
@@ -359,7 +366,7 @@ impl CandidateBackingJob {
 					None => {
 						let candidate_hash = candidate.hash();
 
-						if !self.issued_validity.contains(&candidate_hash) {
+						if !self.issued_statements.contains(&candidate_hash) {
 							if let Ok(ValidationResult::Valid) = self.validate_and_second(
 								candidate,
 								pov,
@@ -407,7 +414,7 @@ impl CandidateBackingJob {
 			}
 		};
 
-		self.issued_validity.insert(candidate_hash);
+		self.issued_statements.insert(candidate_hash);
 
 		if let Some(signed_statement) = self.sign_statement(statement) {
 			self.distribute_signed_statement(signed_statement).await?;
@@ -648,7 +655,7 @@ async fn run_job(
 		tx_from,
 		head_data,
 		assignment,
-		issued_validity: HashSet::new(),
+		issued_statements: HashSet::new(),
 		seconded: None,
 		reported_misbehavior_for: HashSet::new(),
 		table: Table::default(),
