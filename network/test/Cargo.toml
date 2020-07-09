@@ -10,14 +10,14 @@ log = "0.4.8"
 parking_lot = "0.10.0"
 futures = "0.3.1"
 rand = "0.7.2"
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "ashley-txpool" }
-sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "master" }
+sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
