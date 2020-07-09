@@ -21,3 +21,34 @@ Often referred to as PoV, this is a type-safe wrapper around bytes (`Vec<u8>`) w
 ```rust
 struct PoV(Vec<u8>);
 ```
+
+## Omitted Validation Data
+
+Validation data that is often omitted from types describing candidates as it can be derived from the relay-parent of the candidate. However, with the expectation of state pruning, these are best kept available elsewhere as well.
+
+This contains the [`GlobalValidationSchedule`](candidate.md#globalvalidationschedule) and [`LocalValidationData`](candidate.md#localvalidationdata)
+
+```rust
+struct OmittedValidationData {
+    /// The global validation schedule.
+    pub global_validation: GlobalValidationSchedule,
+    /// The local validation data.
+    pub local_validation: LocalValidationData,
+}
+```
+
+
+## Available Data
+
+This is the data we want to keep available for each [candidate](candidate.md) included in the relay chain.
+
+```rust
+struct AvailableData {
+	/// The Proof-of-Validation of the candidate.
+	pub pov: PoV,
+	/// The omitted validation data.
+	pub omitted_validation: OmittedValidationData,
+}
+```
+
+> TODO: With XCMP, we also need to keep available the outgoing messages as a result of para-validation.

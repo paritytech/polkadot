@@ -1,6 +1,7 @@
 # Candidate Types
 
 Para candidates are some of the most common types, both within the runtime and on the Node-side.
+Candidates are the fundamental datatype for advancing parachains and parathreads, encapsulating the collator's signature, the context of the parablock, the commitments to the output, and a commitment to the data which proves it valid.
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
