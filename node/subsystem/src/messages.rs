@@ -28,8 +28,8 @@ use polkadot_primitives::v1::{
 	BlockNumber, Hash,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor, GlobalValidationSchedule,
-	LocalValidationData, ValidatorSignature,
+	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
+	ValidatorSignature, OmittedValidationData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -69,22 +69,36 @@ pub enum CandidateBackingMessage {
 #[derive(Debug)]
 pub struct ValidationFailed;
 
-/// Messages received by the Validation subsystem
+/// Messages received by the Validation subsystem.
+///
+/// ## Validation Requests
+///
+/// Validation requests made to the subsystem should return an error only on internal error.
+/// Otherwise, they should return either `Ok(ValidationResult::Valid(_))`
+/// or `Ok(ValidationResult::Invalid)`.
 #[derive(Debug)]
 pub enum CandidateValidationMessage {
-	/// Validate a candidate, sending a side-channel response of valid or invalid.
+	/// Validate a candidate with provided parameters using relay-chain state.
 	///
-	/// Provide the relay-parent in whose context this should be validated, the full candidate receipt,
-	/// and the PoV.
-	Validate(
-		Hash,
-		CandidateReceipt,
-		HeadData,
+	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
+	/// from the runtime API of the chain, based on the `relay_parent`
+	/// of the `CandidateDescriptor`.
+	/// If there is no state available which can provide this data, an error is returned.
+	ValidateFromChainState(
+		CandidateDescriptor,
 		PoV,
-		oneshot::Sender<Result<
-			(ValidationResult, GlobalValidationSchedule, LocalValidationData),
-			ValidationFailed,
-		>>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
+	/// Validate a candidate with provided, exhaustive parameters for validation.
+	///
+	/// Explicitly provide the `OmittedValidationData` and `ValidationCode` so this can do full
+	/// validation without needing to access the state of the relay-chain.
+	ValidateFromExhaustive(
+		OmittedValidationData,
+		ValidationCode,
+		CandidateDescriptor,
+		PoV,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
 
