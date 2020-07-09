@@ -26,8 +26,7 @@
 
 use codec::{Encode, Decode};
 use reed_solomon::galois_16::{self, ReedSolomon};
-use primitives::{Hash as H256, BlakeTwo256, HashT};
-use primitives::parachain::AvailableData;
+use primitives::v0::{Hash as H256, BlakeTwo256, HashT, AvailableData};
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
 
@@ -343,7 +342,7 @@ impl<'a, I: Iterator<Item=&'a [u8]>> codec::Input for ShardInput<'a, I> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::parachain::{BlockData, PoVBlock};
+	use primitives::v0::{BlockData, PoVBlock};
 
 	#[test]
 	fn field_order_is_right_size() {

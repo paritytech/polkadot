@@ -19,11 +19,8 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 use codec::{Encode, Decode};
 use polkadot_erasure_coding as erasure;
-use polkadot_primitives::{
-	Hash,
-	parachain::{
-		ErasureChunk, AvailableData, AbridgedCandidateReceipt,
-	},
+use polkadot_primitives::v0::{
+	Hash, ErasureChunk, AvailableData, AbridgedCandidateReceipt,
 };
 use parking_lot::Mutex;
 
@@ -390,7 +387,7 @@ impl Store {
 mod tests {
 	use super::*;
 	use polkadot_erasure_coding::{self as erasure};
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		Id as ParaId, BlockData, AvailableData, PoVBlock, OmittedValidationData,
 	};
 

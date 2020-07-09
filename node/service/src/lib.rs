@@ -48,8 +48,7 @@ pub use sc_consensus::LongestChain;
 pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_primitives::v1::{CollatorId, Id as ParaId};
-pub use polkadot_primitives::{Block, BlockId};
+pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Id as ParaId};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]

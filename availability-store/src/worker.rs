@@ -33,8 +33,8 @@ use consensus_common::{
 	import_queue::CacheKeyId,
 };
 use sp_core::traits::SpawnNamed;
-use polkadot_primitives::{Block, BlockId, Hash};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
+	Block, BlockId, Hash,
 	ParachainHost, ValidatorId, AbridgedCandidateReceipt, AvailableData,
 	ValidatorPair, ErasureChunk,
 };

@@ -22,8 +22,8 @@ use std::sync::Arc;
 
 use availability_store::{Store as AvailabilityStore};
 use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
+	Block, Hash,
 	Id as ParaId, AbridgedCandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, SigningContext,
 };
@@ -539,7 +539,7 @@ impl SharedTable {
 	/// Get a set of candidates that can be proposed.
 	pub fn proposed_set(&self) -> Vec<AttestedCandidate> {
 		use table::generic::{ValidityAttestation as GAttestation};
-		use polkadot_primitives::parachain::ValidityAttestation;
+		use polkadot_primitives::v0::ValidityAttestation;
 
 		// we transform the types of the attestations gathered from the table
 		// into the type expected by the runtime. This may do signature
@@ -615,7 +615,7 @@ impl SharedTable {
 mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		BlockData, ErasureChunk, AvailableData,
 	};
 	use polkadot_erasure_coding::{self as erasure};

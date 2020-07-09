@@ -30,12 +30,10 @@ use futures::task::{Context, Poll};
 use futures::stream::{FuturesUnordered, StreamFuture};
 use log::{debug, trace};
 
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	Hash, Block,
-	parachain::{
-		PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
-		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
-	},
+	PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
+	ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,

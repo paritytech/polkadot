@@ -323,7 +323,7 @@ pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 }
 
 /// Extrinsics that must be included in each block.
-pub fn needed_extrinsics(heads: Vec<polkadot_primitives::parachain::AttestedCandidate>) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
+pub fn needed_extrinsics(heads: Vec<polkadot_primitives::v0::AttestedCandidate>) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
 	use polkadot_runtime_common::parachains;
 
 	vec![

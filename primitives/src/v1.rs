@@ -25,11 +25,10 @@ use bitvec::vec::BitVec;
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::{bytes, crypto::Pair};
+use primitives::{bytes};
 use primitives::RuntimeDebug;
-use runtime_primitives::traits::{AppVerify, Block as BlockT};
+use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
-use application_crypto::KeyTypeId;
 
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
@@ -58,7 +57,7 @@ pub use crate::v0::{
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
 /// Unique identifier for the Inclusion Inherent
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
 /// Get a collator signature payload on a relay-parent, block-data combo.
 pub fn collator_signature_payload<H: AsRef<[u8]>>(

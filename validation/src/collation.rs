@@ -21,11 +21,9 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	BlakeTwo256, Block, Hash, HashT,
-	parachain::{
-		CollatorId, ParachainHost, Id as ParaId, Collation, ErasureChunk, CollationInfo,
-	},
+	CollatorId, ParachainHost, Id as ParaId, Collation, ErasureChunk, CollationInfo,
 };
 use polkadot_erasure_coding as erasure;
 use sp_api::ProvideRuntimeApi;

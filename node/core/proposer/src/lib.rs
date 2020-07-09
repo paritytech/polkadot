@@ -2,9 +2,8 @@ use futures::prelude::*;
 use futures::select;
 use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::{
-	inclusion_inherent,
-	v1::{Block, Hash, Header},
+use polkadot_primitives::v1::{
+	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use sp_api::{ApiExt, ProvideRuntimeApi};
@@ -185,7 +184,7 @@ where
 			};
 
 			inherent_data.put_data(
-				inclusion_inherent::INHERENT_IDENTIFIER,
+				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&provisioner_data,
 			)?;
 

@@ -18,10 +18,10 @@ pub mod generic;
 
 pub use generic::Table;
 
-use primitives::parachain::{
+use primitives::v0::{
+	Hash,
 	Id, AbridgedCandidateReceipt, CompactStatement as PrimitiveStatement, ValidatorSignature, ValidatorIndex,
 };
-use primitives::Hash;
 
 /// Statements about candidates on the network.
 pub type Statement = generic::Statement<AbridgedCandidateReceipt, Hash>;

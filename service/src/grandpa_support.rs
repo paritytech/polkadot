@@ -16,7 +16,7 @@
 
 //! Polkadot-specific GRANDPA integration utilities.
 
-use polkadot_primitives::Hash;
+use polkadot_primitives::v0::Hash;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 /// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
@@ -98,7 +98,7 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 /// #1500988).
 pub(crate) fn kusama_hard_forks() -> Vec<(
 	grandpa_primitives::SetId,
-	(Hash, polkadot_primitives::BlockNumber),
+	(Hash, polkadot_primitives::v0::BlockNumber),
 	grandpa_primitives::AuthorityList,
 )> {
 	use sp_core::crypto::Ss58Codec;

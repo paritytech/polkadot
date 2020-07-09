@@ -17,8 +17,8 @@ use super::*;
 use crate::legacy::gossip::GossipPoVBlock;
 use parking_lot::Mutex;
 
-use polkadot_primitives::Block;
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
+	Block,
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
 	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
@@ -198,7 +198,7 @@ sp_api::mock_impl_runtime_apis! {
 				parent_hash: Default::default(),
 			}
 		}
-		fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::DownwardMessage> {
+		fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::v0::DownwardMessage> {
 			Vec::new()
 		}
 	}
