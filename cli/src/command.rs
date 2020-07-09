@@ -19,7 +19,7 @@ use log::info;
 use service::{IdentifyVariant, self};
 #[cfg(feature = "service-rewr")]
 use service_new::{IdentifyVariant, self as service};
-use sc_cli::{CliConfiguration, SubstrateCli, Result, RuntimeVersion, Role};
+use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
 
 fn get_exec_name() -> Option<String> {
@@ -198,7 +198,7 @@ pub fn run() -> Result<()> {
 			}
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			sc_cli::init_logger("", cli.run.base.log_rotation_opt()?)?;
+			sc_cli::init_logger("", None)?;
 
 			if cfg!(feature = "browser") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
