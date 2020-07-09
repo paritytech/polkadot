@@ -20,7 +20,6 @@ use sp_std::prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
-#[cfg(feature = "std")]
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
