@@ -485,7 +485,8 @@ impl CandidateBackingJob {
 			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
 		)).await?;
 
-		Ok(rx.await?)
+		let pov = rx.await?;
+		Ok((*pov).clone())
 	}
 
 	async fn request_candidate_validation(
@@ -907,6 +908,7 @@ mod tests {
 	use super::*;
 	use futures::{Future, executor::{self, ThreadPool}};
 	use std::collections::HashMap;
+	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::parachain::{
 		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
@@ -1232,7 +1234,7 @@ mod tests {
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(pov_block.clone()).unwrap();
+					tx.send(Arc::new(pov_block.clone())).unwrap();
 				}
 			);
 
@@ -1351,7 +1353,7 @@ mod tests {
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(pov_block.clone()).unwrap();
+					tx.send(Arc::new(pov_block.clone())).unwrap();
 				}
 			);
 
@@ -1625,7 +1627,7 @@ mod tests {
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) => {
 					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(pov_block.clone()).unwrap();
+					tx.send(Arc::new(pov_block.clone())).unwrap();
 				}
 			);
 

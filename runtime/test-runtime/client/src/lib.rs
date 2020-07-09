@@ -20,13 +20,18 @@
 
 use std::sync::Arc;
 use std::collections::BTreeMap;
+use std::convert::TryFrom;
 pub use substrate_test_client::*;
 pub use polkadot_test_runtime as runtime;
 
-use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
+use sp_core::{ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
-use polkadot_test_runtime::genesismap::GenesisConfig;
-use sp_runtime::traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor};
+use polkadot_test_runtime::GenesisConfig;
+use polkadot_test_service::polkadot_local_testnet_genesis;
+use sp_runtime::{
+	traits::{Block as BlockT, Header as HeaderT, Hash as HashT, HashFor},
+	BuildStorage,
+};
 use sc_consensus::LongestChain;
 use sc_client_api::light::{RemoteCallRequest, RemoteBodyRequest};
 use sc_service::client::{
@@ -89,16 +94,10 @@ pub struct GenesisParameters {
 
 impl GenesisParameters {
 	fn genesis_config(&self) -> GenesisConfig {
-		GenesisConfig::new(
-			self.changes_trie_config.clone(),
-			vec![
-				sr25519::Public::from(Sr25519Keyring::Alice).into(),
-				sr25519::Public::from(Sr25519Keyring::Bob).into(),
-				sr25519::Public::from(Sr25519Keyring::Charlie).into(),
-			],
-			1000,
-			self.extra_storage.clone(),
-		)
+		let config = polkadot_local_testnet_genesis(self.changes_trie_config.clone());
+		config.assimilate_storage(&mut self.extra_storage.clone()).expect("Adding `system::GensisConfig` to the genesis");
+
+		config
 	}
 }
 
@@ -112,7 +111,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
 		use codec::Encode;
 
-		let mut storage = self.genesis_config().genesis_map();
+		let mut storage = self.genesis_config().build_storage().unwrap();
 
 		let child_roots = storage.children_default.iter().map(|(sk, child_content)| {
 			let state_root = <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
@@ -323,8 +322,18 @@ pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 }
 
 /// Extrinsics that must be included in each block.
-pub fn needed_extrinsics(heads: Vec<polkadot_primitives::parachain::AttestedCandidate>) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
+///
+/// The index of the block must be provided to calculate a valid timestamp for the block. The value starts at 0 and
+/// should be incremented by one for every block produced.
+pub fn needed_extrinsics(
+	heads: Vec<polkadot_primitives::parachain::AttestedCandidate>,
+	i: u64,
+) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
 	use polkadot_runtime_common::parachains;
+
+	let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
+		.expect("now always later than unix epoch; qed")
+		.as_millis() + (i * polkadot_test_runtime::constants::time::SLOT_DURATION / 2) as u128;
 
 	vec![
 		polkadot_test_runtime::UncheckedExtrinsic {
@@ -332,11 +341,9 @@ pub fn needed_extrinsics(heads: Vec<polkadot_primitives::parachain::AttestedCand
 			signature: None,
 		},
 		polkadot_test_runtime::UncheckedExtrinsic {
-			function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set({
-				std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
-					.expect("now always later than unix epoch; qed")
-					.as_millis() as u64
-			})),
+			function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set(
+				u64::try_from(timestamp).expect("unexpected big timestamp"),
+			)),
 			signature: None,
 		}
 	]

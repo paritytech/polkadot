@@ -172,11 +172,10 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ```rust
 enum PoVDistributionMessage {
-	/// Note a statement by a validator on a relay-parent. `Seconded` statements must always
-	/// have been passed in before `Valid` or `Invalid` statements.
-	ValidatorStatement(Hash, SignedFullStatement),
 	/// Fetch a PoV from the network.
-	/// (relay_parent, PoV-hash, Response channel).
+	///
+	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
+	/// relay-parent hash.
 	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
 	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor

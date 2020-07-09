@@ -476,43 +476,6 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
-/// A unique descriptor of the candidate receipt.
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct CandidateDescriptor<H = Hash> {
-	/// The ID of the parachain this is a candidate for.
-	pub parachain_index: Id,
-	/// The hash of the relay-chain block this should be executed in
-	/// the context of.
-	pub relay_parent: H,
-	/// The collator's relay-chain account ID
-	pub collator: CollatorId,
-	/// Signature on blake2-256 of the block data by collator.
-	pub signature: CollatorSignature,
-	/// Hash of the PoVBlock.
-	pub pov_block_hash: H,
-}
-
-impl<H> From<AbridgedCandidateReceipt<H>> for CandidateDescriptor<H> {
-	fn from(a: AbridgedCandidateReceipt<H>) -> Self {
-		let AbridgedCandidateReceipt {
-			parachain_index,
-			relay_parent,
-			collator,
-			signature,
-			pov_block_hash,
-			..
-		} = a;
-
-		Self {
-			parachain_index,
-			relay_parent,
-			collator,
-			signature,
-			pov_block_hash,
-		}
-	}
-}
-
 /// A candidate-receipt with commitments directly included.
 pub struct CommitedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidae.
@@ -601,15 +564,14 @@ impl AbridgedCandidateReceipt {
 		}
 	}
 
-		
 	/// Clone the relevant portions of the `AbridgedCandidateReceipt` to form a `CandidateDescriptor`.
 	pub fn to_descriptor(&self) -> CandidateDescriptor {
 		CandidateDescriptor {
-			parachain_index: self.parachain_index,
+			para_id: self.parachain_index,
 			relay_parent: self.relay_parent,
 			collator: self.collator.clone(),
 			signature: self.signature.clone(),
-			pov_block_hash: self.pov_block_hash.clone(),
+			pov_hash: self.pov_block_hash.clone(),
 		}
 	}
 }
@@ -627,6 +589,26 @@ impl Ord for AbridgedCandidateReceipt {
 		self.parachain_index.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
 	}
+}
+
+/// A unique descriptor of the candidate receipt, in a lightweight format.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateDescriptor<H = Hash> {
+	/// The ID of the para this is a candidate for.
+	pub para_id: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	// NOTE: the fact that the hash includes this value means that code depends
+	// on this for deduplication. Removing this field is likely to break things.
+	pub relay_parent: H,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The para ID, the relay parent, and the pov_hash.
+	pub signature: CollatorSignature,
+	/// The hash of the pov-block.
+	pub pov_hash: H,
 }
 
 /// A collation sent by a collator.
