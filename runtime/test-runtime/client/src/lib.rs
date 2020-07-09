@@ -94,10 +94,7 @@ pub struct GenesisParameters {
 
 impl GenesisParameters {
 	fn genesis_config(&self) -> GenesisConfig {
-		let config = polkadot_local_testnet_genesis(
-			self.changes_trie_config.clone(),
-			Some(1000),
-		);
+		let config = polkadot_local_testnet_genesis(self.changes_trie_config.clone());
 		config.assimilate_storage(&mut self.extra_storage.clone()).expect("Adding `system::GensisConfig` to the genesis");
 
 		config

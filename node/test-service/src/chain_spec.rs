@@ -36,7 +36,7 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		|| polkadot_local_testnet_genesis(None, None),
+		|| polkadot_local_testnet_genesis(None),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -48,7 +48,6 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 /// Polkadot local testnet genesis config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_genesis(
 	changes_trie_config: Option<ChangesTrieConfiguration>,
-	endowment: Option<u128>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
@@ -59,7 +58,6 @@ pub fn polkadot_local_testnet_genesis(
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
 		changes_trie_config,
-		endowment,
 	)
 }
 
@@ -99,7 +97,6 @@ fn polkadot_testnet_genesis(
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 	changes_trie_config: Option<ChangesTrieConfiguration>,
-	endowment: Option<u128>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	use polkadot_test_runtime as polkadot;
 
@@ -111,13 +108,13 @@ fn polkadot_testnet_genesis(
 	polkadot::GenesisConfig {
 		system: Some(polkadot::SystemConfig {
 			code: polkadot::WASM_BINARY.to_vec(),
-			changes_trie_config: Some(changes_trie_config.unwrap_or_default()),
+			changes_trie_config,
 		}),
 		indices: Some(polkadot::IndicesConfig { indices: vec![] }),
 		balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
-				.map(|k| (k.clone(), endowment.unwrap_or(ENDOWMENT)))
+				.map(|k| (k.clone(), ENDOWMENT))
 				.collect(),
 		}),
 		session: Some(polkadot::SessionConfig {
