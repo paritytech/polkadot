@@ -5017,7 +5017,6 @@ dependencies = [
 name = "polkadot-test-service"
 version = "0.8.2"
 dependencies = [
- "async-std",
  "frame-benchmarking",
  "frame-system",
  "futures 0.1.29",
@@ -5060,6 +5059,7 @@ dependencies = [
  "sp-state-machine",
  "substrate-test-client",
  "tempfile",
+ "tokio 0.2.21",
 ]
 
 [[package]]
@@ -8470,11 +8470,13 @@ dependencies = [
  "libc",
  "memchr",
  "mio",
+ "mio-named-pipes",
  "mio-uds",
  "num_cpus",
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
+ "tokio-macros",
  "winapi 0.3.8",
 ]
 
@@ -8551,6 +8553,17 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.29",
  "log 0.4.8",
+]
+
+[[package]]
+name = "tokio-macros"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
+dependencies = [
+ "proc-macro2 1.0.18",
+ "quote 1.0.7",
+ "syn 1.0.31",
 ]
 
 [[package]]
