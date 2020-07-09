@@ -127,7 +127,7 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 /// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_availability_chunks_v0(n_validators: usize, data: &v0::AvailableData)
+pub fn obtain_chunks_v0(n_validators: usize, data: &v0::AvailableData)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	obtain_chunks(n_validators, data)
@@ -136,7 +136,7 @@ pub fn obtain_availability_chunks_v0(n_validators: usize, data: &v0::AvailableDa
 /// Obtain erasure-coded chunks for v1 `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_availability_chunks_v1(n_validators: usize, data: &v1::AvailableData)
+pub fn obtain_chunks_v1(n_validators: usize, data: &v1::AvailableData)
 	-> Result<Vec<Vec<u8>>, Error>
 {
 	obtain_chunks(n_validators, data)
