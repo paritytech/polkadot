@@ -1,1 +1,1 @@
-Stub - This folder will hold networking subsystem implementations, each with their own crate.
+This folder holds all networking subsystem implementations, each with their own crate.
