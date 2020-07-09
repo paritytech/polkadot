@@ -246,12 +246,12 @@ pub enum PoVDistributionMessage {
 	///
 	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
 	/// relay-parent hash.
-    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoVBlock>>),
-    /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
-    /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-    DistributePoV(Hash, CandidateDescriptor, Arc<PoVBlock>),
-    /// An update from the network bridge.
-    NetworkBridgeUpdate(NetworkBridgeEvent),
+	FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoVBlock>>),
+	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
+	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
+	DistributePoV(Hash, CandidateDescriptor, Arc<PoVBlock>),
+	/// An update from the network bridge.
+	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
 /// A message type tying together all message types that are used across Subsystems.

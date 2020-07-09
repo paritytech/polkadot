@@ -28,11 +28,14 @@ use futures_timer::Delay;
 use kv_log_macro as log;
 
 use polkadot_primitives::parachain::{BlockData, PoVBlock};
-use polkadot_overseer::Overseer;
+use polkadot_overseer::{Overseer, AllSubsystems};
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, DummySubsystem, 
+	SpawnedSubsystem, FromOverseer,
+};
 use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateValidationMessage
+	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
 
 struct Subsystem1;
@@ -128,10 +131,22 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
+		let all_subsystems = AllSubsystems {
+			candidate_validation: Subsystem2,
+			candidate_backing: Subsystem1,
+			candidate_selection: DummySubsystem,
+			statement_distribution: DummySubsystem,
+			availability_distribution: DummySubsystem,
+			bitfield_distribution: DummySubsystem,
+			provisioner: DummySubsystem,
+			pov_distribution: DummySubsystem,
+			runtime_api: DummySubsystem,
+			availability_store: DummySubsystem,
+			network_bridge: DummySubsystem,
+		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
-			Subsystem2,
-			Subsystem1,
+			all_subsystems,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();
