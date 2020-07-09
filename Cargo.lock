@@ -5767,7 +5767,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "serde_json",
- "smallvec 1.4.0",
+ "smallvec 1.4.1",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
