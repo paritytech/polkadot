@@ -24,11 +24,11 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_primitives::{BlockNumber, Hash, Signature};
-use polkadot_primitives::parachain::{
-	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
+use polkadot_primitives::v1::{
+	BlockNumber, Hash,
+	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CandidateDescriptor,
+	CandidateDescriptor, ValidatorSignature,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
@@ -47,7 +47,7 @@ pub struct NewBackedCandidate(pub BackedCandidate);
 pub enum CandidateSelectionMessage {
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	/// The hash is the relay parent.
-	Invalid(Hash, AbridgedCandidateReceipt),
+	Invalid(Hash, CandidateReceipt),
 }
 
 /// Messages received by the Candidate Backing subsystem.
@@ -58,7 +58,7 @@ pub enum CandidateBackingMessage {
 	RegisterBackingWatcher(Hash, mpsc::Sender<NewBackedCandidate>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
-	Second(Hash, AbridgedCandidateReceipt),
+	Second(Hash, CandidateReceipt),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
@@ -77,8 +77,8 @@ pub enum CandidateValidationMessage {
 	/// and the PoV.
 	Validate(
 		Hash,
-		AbridgedCandidateReceipt,
-		PoVBlock,
+		CandidateReceipt,
+		PoV,
 		oneshot::Sender<Result<(), ValidationFailed>>,
 	),
 }
@@ -141,8 +141,8 @@ pub enum BitfieldDistributionMessage {
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
-	/// Query a `PoVBlock` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoVBlock>>),
+	/// Query a `PoV` from the AV store.
+	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
 
 	/// Query an `ErasureChunk` from the AV store.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
@@ -191,7 +191,7 @@ pub enum ProvisionableData {
 	/// Misbehavior reports are self-contained proofs of validator misbehavior.
 	MisbehaviorReport(Hash, MisbehaviorReport),
 	/// Disputes trigger a broad dispute resolution process.
-	Dispute(Hash, Signature),
+	Dispute(Hash, ValidatorSignature),
 }
 
 /// This data needs to make its way from the provisioner into the InherentData.
@@ -224,10 +224,10 @@ pub enum PoVDistributionMessage {
 	///
 	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
 	/// relay-parent hash.
-    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoVBlock>>),
+    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoV>>),
     /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
     /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
-    DistributePoV(Hash, CandidateDescriptor, Arc<PoVBlock>),
+    DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
     /// An update from the network bridge.
     NetworkBridgeUpdate(NetworkBridgeEvent),
 }
