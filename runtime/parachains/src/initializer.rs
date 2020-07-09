@@ -27,6 +27,8 @@ use primitives::{
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
+use sp_runtime::traits::One;
+use codec::{Encode, Decode};
 use crate::{configuration::{self, HostConfiguration}, paras, scheduler, inclusion};
 
 /// Information about a session change that has just occurred.
@@ -44,6 +46,14 @@ pub struct SessionChangeNotification<BlockNumber> {
 	pub random_seed: [u8; 32],
 	/// New session index.
 	pub session_index: sp_staking::SessionIndex,
+}
+
+#[derive(Encode, Decode)]
+struct BufferedSessionChange<N> {
+	apply_at: N,
+	validators: Vec<ValidatorId>,
+	queued: Vec<ValidatorId>,
+	session_index: sp_staking::SessionIndex,
 }
 
 pub trait Trait:
@@ -64,6 +74,14 @@ decl_storage! {
 		/// them writes to the trie and one does not. This confusion makes `Option<()>` more suitable for
 		/// the semantics of this variable.
 		HasInitialized: Option<()>;
+		/// Buffered session changes along with the block number at which they should be applied.
+		///
+		/// Typically this will be empty or one element long, with the single element having a block
+		/// number of the next block.
+		///
+		/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
+		/// upgrade boundaries or if governance intervenes.
+		BufferedSessionChanges: Vec<BufferedSessionChange<T::BlockNumber>>;
 	}
 }
 
@@ -77,6 +95,21 @@ decl_module! {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
+			// Apply buffered session changes before initializing modules, so they
+			// can be initialized with respect to the current validator set.
+			<BufferedSessionChanges<T>>::mutate(|v| {
+				let drain_up_to = v.iter().take_while(|b| b.apply_at <= now).count();
+
+				// apply only the last session as all others lasted less than a block (weirdly).
+				if let Some(buffered) = v.drain(..drain_up_to).last() {
+					Self::apply_new_session(
+						buffered.session_index,
+						buffered.validators,
+						buffered.queued,
+					);
+				}
+			});
+
 			// The other modules are initialized in this order:
 			// - Configuration
 			// - Paras
@@ -106,27 +139,11 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
-	/// Should be called when a new session occurs. Forwards the session notification to all
-	/// wrapped modules. If `queued` is `None`, the `validators` are considered queued.
-	///
-	/// Panics if the modules have already been initialized.
-	fn on_new_session<'a, I: 'a>(
-		_changed: bool,
+	fn apply_new_session(
 		session_index: sp_staking::SessionIndex,
-		validators: I,
-		queued: Option<I>,
-	)
-		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
-	{
-		assert!(HasInitialized::get().is_none());
-
-		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
-		let queued: Vec<_> = if let Some(queued) = queued {
-			queued.map(|(_, v)| v).collect()
-		} else {
-			validators.clone()
-		};
-
+		validators: Vec<ValidatorId>,
+		queued: Vec<ValidatorId>,
+	) {
 		let prev_config = <configuration::Module<T>>::config();
 
 		let random_seed = {
@@ -156,6 +173,31 @@ impl<T: Trait> Module<T> {
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
 	}
+
+	/// Should be called when a new session occurs. Buffers the session notification to be applied
+	/// at the next block. If `queued` is `None`, the `validators` are considered queued.
+	fn on_new_session<'a, I: 'a>(
+		_changed: bool,
+		session_index: sp_staking::SessionIndex,
+		validators: I,
+		queued: Option<I>,
+	)
+		where I: Iterator<Item=(&'a T::AccountId, ValidatorId)>
+	{
+		let validators: Vec<_> = validators.map(|(_, v)| v).collect();
+		let queued: Vec<_> = if let Some(queued) = queued {
+			queued.map(|(_, v)| v).collect()
+		} else {
+			validators.clone()
+		};
+
+		<BufferedSessionChanges<T>>::mutate(|v| v.push(BufferedSessionChange {
+			apply_at: <system::Module<T>>::block_number() + One::one(),
+			validators,
+			queued,
+			session_index,
+		}));
+	}
 }
 
 impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
@@ -184,21 +226,47 @@ impl<T: session::Trait + Trait> session::OneSessionHandler<T::AccountId> for Mod
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::mock::{new_test_ext, Initializer};
+	use crate::mock::{new_test_ext, Initializer, Test, System};
 
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
 	#[test]
-	#[should_panic]
-	fn panics_if_session_changes_after_on_initialize() {
+	fn session_change_before_initialize_is_still_buffered_after() {
 		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
 			Initializer::on_new_session(
 				false,
 				1,
 				Vec::new().into_iter(),
 				Some(Vec::new().into_iter()),
 			);
+
+			let now = System::block_number();
+			Initializer::on_initialize(now);
+
+			let v = <BufferedSessionChanges<Test>>::get();
+			assert_eq!(v.len(), 1);
+
+			let apply_at = now + 1;
+			assert_eq!(v[0].apply_at, apply_at);
+		});
+	}
+
+	#[test]
+	fn session_change_applied_on_initialize() {
+		new_test_ext(Default::default()).execute_with(|| {
+			Initializer::on_initialize(1);
+
+			let now = System::block_number();
+			Initializer::on_new_session(
+				false,
+				1,
+				Vec::new().into_iter(),
+				Some(Vec::new().into_iter()),
+			);
+
+			Initializer::on_initialize(now + 1);
+
+			assert!(<BufferedSessionChanges<Test>>::get().is_empty());
 		});
 	}
 
