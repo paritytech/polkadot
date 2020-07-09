@@ -171,6 +171,100 @@ pub struct DutyRoster {
 	pub validator_duty: Vec<Chain>,
 }
 
+/// The unique (during session) index of a core.
+#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct CoreIndex(pub u32);
+
+impl From<u32> for CoreIndex {
+	fn from(i: u32) -> CoreIndex {
+		CoreIndex(i)
+	}
+}
+
+/// The unique (during session) index of a validator group.
+#[derive(Encode, Decode, Default, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
+pub struct GroupIndex(pub u32);
+
+impl From<u32> for GroupIndex {
+	fn from(i: u32) -> GroupIndex {
+		GroupIndex(i)
+	}
+}
+
+/// A claim on authoring the next block for a given parathread.
+#[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ParathreadClaim(pub Id, pub CollatorId);
+
+/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
+#[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ParathreadEntry {
+	/// The claim.
+	pub claim: ParathreadClaim,
+	/// Number of retries.
+	pub retries: u32,
+}
+
+/// What is occupying a specific availability core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CoreOccupied {
+	/// A parathread.
+	Parathread(ParathreadEntry),
+	/// A parachain.
+	Parachain,
+}
+
+/// The assignment type.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum AssignmentKind {
+	/// A parachain.
+	Parachain,
+	/// A parathread.
+	Parathread(CollatorId, u32),
+}
+
+/// How a free core is scheduled to be assigned.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct CoreAssignment {
+	/// The core that is assigned.
+	pub core: CoreIndex,
+	/// The unique ID of the para that is assigned to the core.
+	pub para_id: Id,
+	/// The kind of the assignment.
+	pub kind: AssignmentKind,
+	/// The index of the validator group assigned to the core.
+	pub group_idx: GroupIndex,
+}
+
+impl CoreAssignment {
+	/// Get the ID of a collator who is required to collate this block.
+	pub fn required_collator(&self) -> Option<&CollatorId> {
+		match self.kind {
+			AssignmentKind::Parachain => None,
+			AssignmentKind::Parathread(ref id, _) => Some(id),
+		}
+	}
+
+	/// Get the `CoreOccupied` from this.
+	pub fn to_core_occupied(&self) -> CoreOccupied {
+		match self.kind {
+			AssignmentKind::Parachain => CoreOccupied::Parachain,
+			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
+				ParathreadEntry {
+					claim: ParathreadClaim(self.para_id, collator.clone()),
+					retries,
+				}
+			),
+		}
+	}
+}
+
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate.
 ///
@@ -382,6 +476,15 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
+/// A candidate-receipt with commitments directly included.
+pub struct CommitedCandidateReceipt<H = Hash> {
+	/// The descriptor of the candidae.
+	pub descriptor: CandidateDescriptor,
+
+	/// The commitments of the candidate receipt.
+	pub commitments: CandidateCommitments<H>
+}
+
 impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
@@ -472,7 +575,6 @@ impl AbridgedCandidateReceipt {
 		}
 	}
 }
-
 
 impl PartialOrd for AbridgedCandidateReceipt {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -921,6 +1023,27 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		let mut out = payload.encode_as();
 		out.extend(context.encode());
 		out
+	}
+
+	/// Used to create a `Signed` from already existing parts.
+	#[cfg(feature = "std")]
+	pub fn new<H: Encode>(
+		payload: Payload,
+		validator_index: ValidatorIndex,
+		signature: ValidatorSignature,
+		context: &SigningContext<H>,
+		key: &ValidatorId,
+	) -> Option<Self> {
+		let s = Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		};
+
+		s.check_signature(context, key).ok()?;
+
+		Some(s)
 	}
 
 	/// Sign this payload with the given context and key, storing the validator index.

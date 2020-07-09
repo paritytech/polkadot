@@ -38,7 +38,10 @@
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
 use primitives::{
-	parachain::{Id as ParaId, CollatorId, ValidatorIndex},
+	parachain::{
+		Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
+		GroupIndex, ParathreadClaim, ParathreadEntry,
+	},
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -51,41 +54,6 @@ use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
 
 use crate::{configuration, paras, initializer::SessionChangeNotification};
-
-/// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(test, derive(Debug))]
-pub struct CoreIndex(u32);
-
-impl From<u32> for CoreIndex {
-	fn from(i: u32) -> CoreIndex {
-		CoreIndex(i)
-	}
-}
-
-/// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct GroupIndex(u32);
-
-impl From<u32> for GroupIndex {
-	fn from(i: u32) -> GroupIndex {
-		GroupIndex(i)
-	}
-}
-
-/// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct ParathreadClaim(pub ParaId, pub CollatorId);
-
-/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct ParathreadEntry {
-	claim: ParathreadClaim,
-	retries: u32,
-}
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, Default)]
@@ -122,58 +90,6 @@ impl ParathreadClaimQueue {
 	fn take_next_on_core(&mut self, core_offset: u32) -> Option<ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| self.queue.remove(i).claim)
-	}
-}
-
-/// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub(crate) enum CoreOccupied {
-	Parathread(ParathreadEntry),
-	Parachain,
-}
-
-/// The assignment type.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub enum AssignmentKind {
-	Parachain,
-	Parathread(CollatorId, u32),
-}
-
-/// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct CoreAssignment {
-	/// The core that is assigned.
-	pub core: CoreIndex,
-	/// The unique ID of the para that is assigned to the core.
-	pub para_id: ParaId,
-	/// The kind of the assignment.
-	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
-}
-
-impl CoreAssignment {
-	/// Get the ID of a collator who is required to collate this block.
-	pub(crate) fn required_collator(&self) -> Option<&CollatorId> {
-		match self.kind {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(ref id, _) => Some(id),
-		}
-	}
-
-	fn to_core_occupied(&self) -> CoreOccupied {
-		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
-				ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator.clone()),
-					retries,
-				}
-			),
-		}
 	}
 }
 
@@ -670,7 +586,7 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
-	use primitives::{BlockNumber, parachain::ValidatorId};
+	use primitives::{BlockNumber, parachain::{CollatorId, ValidatorId}};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 

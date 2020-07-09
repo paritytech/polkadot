@@ -23,9 +23,16 @@
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{Hash,
 	parachain::{
-		AbridgedCandidateReceipt, CandidateReceipt, CompactStatement,
-		EncodeAs, Signed,
+		AbridgedCandidateReceipt, CompactStatement,
+		EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	}
+};
+use polkadot_statement_table::{
+	generic::{
+		ValidityDoubleVote as TableValidityDoubleVote,
+		MultipleCandidates as TableMultipleCandidates,
+	},
+	Misbehavior as TableMisbehavior,
 };
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
@@ -77,11 +84,128 @@ pub enum MisbehaviorReport {
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
 	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
+	CandidateValidityDisagreement(AbridgedCandidateReceipt, Vec<SignedFullStatement>),
 	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
+	SelfContradiction(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
-	DoubleVote(CandidateReceipt, SignedFullStatement, SignedFullStatement),
+	DoubleVote(SignedFullStatement, SignedFullStatement),
+}
+
+/// A utility struct used to convert `TableMisbehavior` to `MisbehaviorReport`s.
+pub struct FromTableMisbehavior {
+	/// Index of the validator.
+	pub id: ValidatorIndex,
+	/// The misbehavior reported by the table.
+	pub report: TableMisbehavior,
+	/// Signing context.
+	pub signing_context: SigningContext,
+	/// Misbehaving validator's public key.
+	pub key: ValidatorId,
+}
+
+/// Result of the validation of the candidate.
+#[derive(Debug)]
+pub enum ValidationResult {
+	/// Candidate is valid.
+	Valid,
+	/// Candidate is invalid.
+	Invalid,
+}
+
+impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
+	type Error = ();
+
+	fn try_from(f: FromTableMisbehavior) -> Result<Self, Self::Error> {
+		match f.report {
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::IssuedAndValidity((c, s1), (d, s2))
+			) => {
+				let receipt = c.clone();
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(c),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Valid(d),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+			}
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
+			) => {
+				let receipt = c.clone();
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(c),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Invalid(d),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+			}
+			TableMisbehavior::ValidityDoubleVote(
+				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
+			) => {
+				let signed_1 = SignedFullStatement::new(
+					Statement::Valid(c.hash()),
+					f.id,
+					s1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+				let signed_2 = SignedFullStatement::new(
+					Statement::Invalid(c.hash()),
+					f.id,
+					s2,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
+			}
+			TableMisbehavior::MultipleCandidates(
+				TableMultipleCandidates {
+					first,
+					second,
+				}
+			) => {
+				let signed_1 = SignedFullStatement::new(
+					Statement::Seconded(first.0),
+					f.id,
+					first.1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				let signed_2 = SignedFullStatement::new(
+					Statement::Seconded(second.0),
+					f.id,
+					second.1,
+					&f.signing_context,
+					&f.key,
+				).ok_or(())?;
+
+				Ok(MisbehaviorReport::DoubleVote(signed_1, signed_2))
+			}
+			_ => Err(()),
+		}
+	}
 }
 
 /// A unique identifier for a network protocol.

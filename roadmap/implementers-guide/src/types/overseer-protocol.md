@@ -86,9 +86,9 @@ enum BitfieldSigningMessage { }
 
 ```rust
 enum CandidateBackingMessage {
-  /// Registers a stream listener for updates to the set of backable candidates that could be backed
-  /// in a child of the given relay-parent, referenced by its hash.
-  RegisterBackingWatcher(Hash, TODO),
+  /// Requests a set of backable candidates that could be backed in a child of the given
+  /// relay-parent, referenced by its hash.
+  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
   Second(Hash, CandidateReceipt, PoV),
@@ -230,9 +230,24 @@ The Runtime API subsystem is responsible for providing an interface to the state
 Other subsystems query this data by sending these messages.
 
 ```rust
+/// The information on validator groups, core assignments,
+/// upcoming paras and availability cores.
+struct SchedulerRoster {
+	/// Validator-to-groups assignments.
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// All scheduled paras.
+	scheduled: Vec<CoreAssignment>,
+	/// Upcoming paras (chains and threads).
+	upcoming: Vec<ParaId>,
+	/// Occupied cores.
+	availability_cores: Vec<Option<CoreOccupied>>,
+}
+
 enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(ResponseChannel<Vec<ValidatorId>>),
+	/// Get the assignments of validators to cores, upcoming parachains.
+	SchedulerRoster(ResponseChannel<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(ResponseChannel<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and
@@ -270,10 +285,26 @@ enum StatementDistributionMessage {
 Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
 
 ```rust
+
+/// Result of the validation of the candidate.
+enum ValidationResult {
+	/// Candidate is valid.
+	Valid,
+	/// Candidate is invalid.
+	Invalid,
+}
+
 enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
-	/// error is encountered. A bad candidate will return `Ok(false)`, while a good one will
-	/// return `Ok(true)`.
-	Validate(ValidationCode, CandidateReceipt, PoV, ResponseChannel<Result<bool>>),
+	/// error is encountered.
+	/// In case no internal error was encontered it returns a tuple containing the result of
+	/// validation and `GlobalValidationSchedule` and `LocalValidationData` structures that
+	/// may be used by the caller to make the candidate available.
+	/// A bad candidate will return `Ok((ValidationResult::Invalid, _, _)`, while a good one will
+	/// return `Ok((ValidationResult::Valid, _, _))`.
+	Validate(
+		Hash, CandidateReceipt, HeadData, PoV, ResponseChannel<
+			Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData)>
+		>),
 }
 ```

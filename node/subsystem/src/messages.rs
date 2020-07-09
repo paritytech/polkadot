@@ -28,10 +28,11 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CandidateDescriptor,
+	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor, GlobalValidationSchedule,
+	LocalValidationData,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
+	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
 
 use std::sync::Arc;
@@ -53,12 +54,12 @@ pub enum CandidateSelectionMessage {
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
-	/// Registers a stream listener for updates to the set of backable candidates that could be backed
-	/// in a child of the given relay-parent, referenced by its hash.
-	RegisterBackingWatcher(Hash, mpsc::Sender<NewBackedCandidate>),
+	/// Requests a set of backable candidates that could be backed in a child of the given
+	/// relay-parent, referenced by its hash.
+	GetBackedCandidates(Hash, oneshot::Sender<Vec<NewBackedCandidate>>),
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
-	Second(Hash, AbridgedCandidateReceipt),
+	Second(Hash, AbridgedCandidateReceipt, PoVBlock),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
@@ -78,8 +79,12 @@ pub enum CandidateValidationMessage {
 	Validate(
 		Hash,
 		AbridgedCandidateReceipt,
+		HeadData,
 		PoVBlock,
-		oneshot::Sender<Result<(), ValidationFailed>>,
+		oneshot::Sender<Result<
+			(ValidationResult, GlobalValidationSchedule, LocalValidationData),
+			ValidationFailed,
+		>>,
 	),
 }
 
@@ -151,17 +156,34 @@ pub enum AvailabilityStoreMessage {
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
 }
 
+/// The information on scheduler assignments that some somesystems may be querying.
+#[derive(Debug, Clone)]
+pub struct SchedulerRoster {
+	/// Validator-to-groups assignments.
+	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// All scheduled paras.
+	pub scheduled: Vec<CoreAssignment>,
+	/// Upcoming paras (chains and threads).
+	pub upcoming: Vec<ParaId>,
+	/// Occupied cores.
+	pub availability_cores: Vec<Option<CoreOccupied>>,
+}
+
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(oneshot::Sender<Vec<ValidatorId>>),
+	/// Get the assignments of validators to cores.
+	ValidatorGroups(oneshot::Sender<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(oneshot::Sender<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and
 	/// an optional block number representing an intermediate parablock executed in the context of
 	/// that block.
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
+	/// Get head data for a specific para.
+	HeadData(ParaId, oneshot::Sender<HeadData>),
 }
 
 /// A message to the Runtime API subsystem.
