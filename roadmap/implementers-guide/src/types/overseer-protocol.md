@@ -282,29 +282,28 @@ enum StatementDistributionMessage {
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message. It returns [`ValidationOutputs`](candidate.md#validationoutputs) for successful validation.
 
 ```rust
 
 /// Result of the validation of the candidate.
 enum ValidationResult {
-	/// Candidate is valid.
-	Valid,
+	/// Candidate is valid, and here are the outputs. In practice, this should be a shared type
+	/// so that validation caching can be done.
+	Valid(ValidationOutputs),
 	/// Candidate is invalid.
 	Invalid,
 }
 
 enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
-	/// error is encountered.
+	/// error is encountered. The first hash is the relay-parent whose
+	///
 	/// In case no internal error was encontered it returns a tuple containing the result of
 	/// validation and `GlobalValidationSchedule` and `LocalValidationData` structures that
 	/// may be used by the caller to make the candidate available.
-	/// A bad candidate will return `Ok((ValidationResult::Invalid, _, _)`, while a good one will
-	/// return `Ok((ValidationResult::Valid, _, _))`.
-	Validate(
-		Hash, CandidateReceipt, HeadData, PoV, ResponseChannel<
-			Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData)>
-		>),
+	/// A bad candidate will return `Ok((ValidationResult::Invalid)`, while a good one will
+	/// return `Ok((ValidationResult::Valid(_)))`.
+	Validate(Hash, CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
 }
 ```

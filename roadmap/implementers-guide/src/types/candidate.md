@@ -180,3 +180,24 @@ struct SigningContext {
 	session_index: SessionIndex,
 }
 ```
+
+## Validation Outputs
+
+This struct encapsulates the outputs of candidate validation.
+
+```rust
+struct ValidationOutputs {
+	/// The head-data produced by validation.
+	head_data: HeadData,
+	/// The global validation schedule.
+	global_validation_schedule: GlobalValidationSchedule,
+	/// The local validation data.
+	local_validation_data: LocalValidationData,
+	/// Upwards messages to the relay chain.
+	upwards_messages: Vec<UpwardsMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	new_validation_code: Option<ValidationCode>,
+}
+```
