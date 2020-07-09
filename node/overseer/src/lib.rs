@@ -389,20 +389,7 @@ pub struct Overseer<S: Spawn> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>
-where
-	CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
-	CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
-	CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-	SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
-	AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
-	BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-	P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
-	PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
-	RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
-	AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
-	NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
-{
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
