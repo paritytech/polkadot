@@ -26,7 +26,7 @@ use bitvec::vec::BitVec;
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::{bytes, crypto::Pair};
+use primitives::crypto::Pair;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
@@ -404,7 +404,6 @@ impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// the relay-chain block in which context it should be executed, which implies
 	/// any blockchain state that must be referenced.
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
 	}
 }
@@ -587,7 +586,6 @@ impl PoVBlock {
 	/// Compute hash of block data.
 	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(&self)
 	}
 }

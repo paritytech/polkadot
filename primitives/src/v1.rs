@@ -17,15 +17,10 @@
 //! V1 Primitives.
 
 use sp_std::prelude::*;
-use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
 #[cfg(feature = "std")]
-use serde::{Serialize, Deserialize};
-
-#[cfg(feature = "std")]
-use primitives::{bytes};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
