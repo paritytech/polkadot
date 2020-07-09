@@ -295,15 +295,28 @@ enum ValidationResult {
 	Invalid,
 }
 
+/// Messages issued to the candidate validation subsystem.
+///
+/// ## Validation Requests
+///
+/// Validation requests made to the subsystem should return an error only on internal error.
+/// Otherwise, they should return either `Ok(ValidationResult::Valid(_))` or `Ok(ValidationResult::Invalid)`.
 enum CandidateValidationMessage {
-	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
-	/// error is encountered. The first hash is the relay-parent whose
-	///
-	/// In case no internal error was encontered it returns a tuple containing the result of
-	/// validation and `GlobalValidationSchedule` and `LocalValidationData` structures that
-	/// may be used by the caller to make the candidate available.
-	/// A bad candidate will return `Ok((ValidationResult::Invalid)`, while a good one will
-	/// return `Ok((ValidationResult::Valid(_)))`.
-	Validate(Hash, CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
+	/// Validate a candidate with provided parameters. This will implicitly attempt to gather the
+	/// `OmittedValidationData` and `ValidationCode` from the runtime API of the chain,
+	/// based on the `relay_parent` of the `CandidateDescriptor`.
+	/// If there is no state available which can provide this data, an error is returned.
+	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
+
+	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
+	/// and `ValidationCode` so this can do full validation without needing to access the state of
+	/// the relay-chain.
+	ValidateFromFull(
+		OmittedValidationData,
+		ValidationCode,
+		CandidateDescriptor,
+		PoV,
+		ResponseChannel<Result<ValidationResult>>,
+	),
 }
 ```
