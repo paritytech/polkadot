@@ -56,7 +56,7 @@ use sp_runtime::{codec::Encode, generic};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
 use std::time::Duration;
-use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt};
+use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -245,11 +245,7 @@ where
 		&self,
 		function: polkadot_test_runtime::Call,
 		caller: Sr25519Keyring,
-	) -> (
-		Option<String>,
-		RpcSession,
-		futures01::sync::mpsc::Receiver<String>,
-	) {
+	) -> Result<RpcTransactionOutput, RpcTransactionError> {
 		let current_block_hash = self.client.info().best_hash;
 		let current_block = self.client.info().best_number.saturated_into();
 		let genesis_block = self.client.hash(0).unwrap().unwrap();

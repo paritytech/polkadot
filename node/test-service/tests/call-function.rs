@@ -44,7 +44,7 @@ fn call_function_actually_work() {
 			Default::default(),
 			1,
 		));
-		let (res, _mem, _rx) = alice.call_function(function, Bob).await;
+		let (res, _mem, _rx) = alice.call_function(function, Bob).await.unwrap();
 
 		let res = res.expect("return value expected");
 		let json = serde_json::from_str::<serde_json::Value>(res.as_str()).expect("valid JSON");
