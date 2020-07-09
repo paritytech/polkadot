@@ -49,9 +49,7 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
 	util::{
 		self,
-		request_global_validation_schedule,
 		request_head_data,
-		request_local_validation_data,
 		request_signing_context,
 		request_validator_groups,
 		request_validators,
@@ -918,6 +916,17 @@ mod tests {
 		CandidateCommitments, LocalValidationData, GlobalValidationSchedule, HeadData,
 	};
 	use assert_matches::assert_matches;
+	use futures::{
+		executor::{self, ThreadPool},
+		Future,
+	};
+	use polkadot_primitives::parachain::{
+		AssignmentKind, BlockData, CollatorId, CoreAssignment, CoreIndex, GroupIndex,
+		ValidatorPair, ValidityAttestation,
+	};
+	use polkadot_subsystem::messages::{RuntimeApiRequest, SchedulerRoster};
+	use sp_keyring::Sr25519Keyring;
+	use std::collections::HashMap;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
@@ -1540,6 +1549,7 @@ mod tests {
 				AllMessages::CandidateValidation(
 					CandidateValidationMessage::ValidateFromChainState(
 						c,
+						head_data,
 						pov,
 						tx,
 					)
@@ -1570,6 +1580,7 @@ mod tests {
 				AllMessages::CandidateValidation(
 					CandidateValidationMessage::ValidateFromChainState(
 						c,
+						head_data,
 						pov,
 						tx,
 					)
