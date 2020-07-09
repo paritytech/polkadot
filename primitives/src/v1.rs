@@ -183,6 +183,21 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	}
 }
 
+impl PartialOrd for CommittedCandidateReceipt {
+	fn partial_cmp(&self, other: &Self) -> Option<sp_std::cmp::Ordering> {
+		Some(self.cmp(other))
+	}
+}
+
+impl Ord for CommittedCandidateReceipt {
+	fn cmp(&self, other: &Self) -> sp_std::cmp::Ordering {
+		// TODO: compare signatures or something more sane
+		// https://github.com/paritytech/polkadot/issues/222
+		self.descriptor().para_id.cmp(&other.descriptor().para_id)
+			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
+	}
+}
+
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
