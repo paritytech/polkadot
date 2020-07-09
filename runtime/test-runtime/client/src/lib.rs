@@ -24,7 +24,7 @@ use std::convert::TryFrom;
 pub use substrate_test_client::*;
 pub use polkadot_test_runtime as runtime;
 
-use sp_core::{sr25519, ChangesTrieConfiguration, map, twox_128};
+use sp_core::{ChangesTrieConfiguration, map, twox_128};
 use sp_core::storage::{ChildInfo, Storage, StorageChild};
 use polkadot_test_runtime::GenesisConfig;
 use polkadot_test_service::polkadot_local_testnet_genesis;
@@ -94,27 +94,13 @@ pub struct GenesisParameters {
 
 impl GenesisParameters {
 	fn genesis_config(&self) -> GenesisConfig {
-		polkadot_local_testnet_genesis(
+		let config = polkadot_local_testnet_genesis(
 			self.changes_trie_config.clone(),
-			Some(vec![
-				sr25519::Public::from(Sr25519Keyring::Alice).into(),
-				sr25519::Public::from(Sr25519Keyring::Bob).into(),
-				sr25519::Public::from(Sr25519Keyring::Charlie).into(),
-			]),
-			Some(1000 * polkadot_test_runtime::constants::currency::DOLLARS),
-		)
-	}
+			Some(1000),
+		);
+		config.assimilate_storage(&mut self.extra_storage.clone()).expect("Adding `system::GensisConfig` to the genesis");
 
-	fn genesis_map(&self) -> Storage {
-		// Assimilate the system genesis config.
-		let mut storage = Storage {
-			top: BTreeMap::new(),
-			children_default: self.extra_storage.children_default.clone(),
-		};
-		let config = self.genesis_config();
-		config.assimilate_storage(&mut storage).expect("Adding `system::GenesisConfig` to the genesis");
-
-		storage
+		config
 	}
 }
 
@@ -128,7 +114,7 @@ impl substrate_test_client::GenesisInit for GenesisParameters {
 	fn genesis_storage(&self) -> Storage {
 		use codec::Encode;
 
-		let mut storage = self.genesis_map();
+		let mut storage = self.genesis_config().build_storage().unwrap();
 
 		let child_roots = storage.children_default.iter().map(|(sk, child_content)| {
 			let state_root = <<<runtime::Block as BlockT>::Header as HeaderT>::Hashing as HashT>::trie_root(
