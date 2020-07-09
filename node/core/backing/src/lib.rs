@@ -21,6 +21,7 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bitvec::vec::BitVec;
@@ -38,12 +39,13 @@ use primitives::Pair;
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
-	ValidatorIndex, HeadData, SigningContext, PoV, OmittedValidationData,
-	CandidateDescriptor, LocalValidationData, GlobalValidationSchedule, AvailableData,
-	ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
+	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
+	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
+	CandidateCommitments,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
+	ValidationOutputs,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -91,8 +93,6 @@ struct CandidateBackingJob {
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 
-	/// `HeadData`s of the parachains that this validator is assigned to.
-	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -134,7 +134,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.iter().position(|&a| a == authority).is_some())
+		self.groups.get(group).map_or(false, |g| g.iter().position(|a| a == authority).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -236,44 +236,61 @@ impl CandidateBackingJob {
 
 	async fn issue_candidate_invalid_message(
 		&mut self,
-		candidate: CommittedCandidateReceipt,
+		candidate: CandidateReceipt,
 	) -> Result<(), Error> {
 		self.tx_from.send(FromJob::CandidateSelection(
-			CandidateSelectionMessage::Invalid(self.parent, candidate.to_plain())
+			CandidateSelectionMessage::Invalid(self.parent, candidate)
 		)).await?;
 
 		Ok(())
 	}
 
 	/// Validate the candidate that is requested to be `Second`ed and distribute validation result.
+	///
+	/// Returns `Ok(true)` if we issued a `Seconded` statement about this candidate.
 	async fn validate_and_second(
 		&mut self,
-		candidate: CandidateReceipt,
+		candidate: &CandidateReceipt,
 		pov: PoV,
-	) -> Result<ValidationResult, Error> {
-		let valid = self.request_candidate_validation(candidate.clone(), pov.clone()).await?;
-		let statement = match valid.0 {
-			ValidationResult::Valid => {
+	) -> Result<bool, Error> {
+		let valid = self.request_candidate_validation(
+			candidate.descriptor().clone(),
+			Arc::new(pov.clone()),
+		).await?;
+
+		let candidate_hash = candidate.hash();
+
+		let (was_valid, statement) = match valid {
+			ValidationResult::Valid(outputs) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
-				self.make_pov_available(pov, valid.1, valid.2).await?;
-				self.issued_statements.insert(candidate.hash());
-				Statement::Seconded(candidate)
+				let commitments = self.make_pov_available(pov, outputs).await?;
+
+				let candidate = CommittedCandidateReceipt {
+					descriptor: candidate.descriptor.clone(),
+					commitments,
+				};
+				(true, Some(Statement::Seconded(candidate)))
 			}
 			ValidationResult::Invalid => {
-				let candidate_hash = candidate.hash();
-				self.issue_candidate_invalid_message(candidate).await?;
-				Statement::Invalid(candidate_hash)
+				// no need to issue a statement about this if we aren't seconding it.
+				//
+				// there's an infinite amount of garbage out there. no need to acknowledge
+				// all of it.
+				self.issue_candidate_invalid_message(candidate.clone()).await?;
+				(false, None)
 			}
 		};
 
-		if let Some(signed_statement) = self.sign_statement(statement) {
+		self.issued_statements.insert(candidate_hash);
+
+		if let Some(signed_statement) = statement.and_then(|s| self.sign_statement(s)) {
 			self.import_statement(&signed_statement).await?;
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
-		Ok(valid.0)
+		Ok(was_valid)
 	}
 
 	fn get_backed(&self) -> Vec<NewBackedCandidate> {
@@ -382,8 +399,8 @@ impl CandidateBackingJob {
 						let candidate_hash = candidate.hash();
 
 						if !self.issued_statements.contains(&candidate_hash) {
-							if let Ok(ValidationResult::Valid) = self.validate_and_second(
-								candidate,
+							if let Ok(true) = self.validate_and_second(
+								&candidate,
 								pov,
 							).await {
 								self.seconded = Some(candidate_hash);
@@ -412,17 +429,32 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-	) -> Result<ValidationResult, Error> {
-		let candidate = self.table.get_candidate(&summary.candidate).ok_or(Error::CandidateNotFound)?;
-		let candidate = candidate.clone();
-		let descriptor = candidate.to_descriptor();
-		let candidate_hash = candidate.hash();
-		let pov = self.request_pov_from_distribution(descriptor).await?;
-		let v = self.request_candidate_validation(candidate, pov).await?;
+	) -> Result<(), Error> {
+		let candidate_hash = summary.candidate.clone();
 
-		let statement = match v.0 {
-			ValidationResult::Valid => {
-				Statement::Valid(candidate_hash)
+		if self.issued_statements.contains(&candidate_hash) {
+			return Ok(())
+		}
+
+		// We clone the commitments here because there are borrowck
+		// errors relating to this being a struct and methods borrowing the entirety of self
+		// and not just those things that the function uses.
+		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?;
+		let expected_commitments = candidate.commitments.clone();
+
+		let descriptor = candidate.descriptor().clone();
+		let pov = self.request_pov_from_distribution(descriptor.clone()).await?;
+		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
+
+		let statement = match v {
+			ValidationResult::Valid(outputs) => {
+				// If validation produces a new set of commitments, we vote the candidate as invalid.
+				let commitments = self.make_pov_available((&*pov).clone(), outputs).await?;
+				if commitments != expected_commitments {
+					Statement::Invalid(candidate_hash)
+				} else {
+					Statement::Valid(candidate_hash)
+				}
 			}
 			ValidationResult::Invalid => {
 				Statement::Invalid(candidate_hash)
@@ -435,7 +467,7 @@ impl CandidateBackingJob {
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
-		Ok(v.0)
+		Ok(())
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
@@ -493,29 +525,26 @@ impl CandidateBackingJob {
 	async fn request_pov_from_distribution(
 		&mut self,
 		descriptor: CandidateDescriptor,
-	) -> Result<PoV, Error> {
+	) -> Result<Arc<PoV>, Error> {
 		let (tx, rx) = oneshot::channel();
 
 		self.tx_from.send(FromJob::PoVDistribution(
 			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
 		)).await?;
 
-		let pov = rx.await?;
-		Ok((*pov).clone())
+		Ok(rx.await?)
 	}
 
 	async fn request_candidate_validation(
 		&mut self,
-		candidate: CommittedCandidateReceipt,
-		pov: PoV,
-	) -> Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData), Error> {
+		candidate: CandidateDescriptor,
+		pov: Arc<PoV>,
+	) -> Result<ValidationResult, Error> {
 		let (tx, rx) = oneshot::channel();
 
 		self.tx_from.send(FromJob::CandidateValidation(
-				CandidateValidationMessage::Validate(
-					self.parent,
+				CandidateValidationMessage::ValidateFromChainState(
 					candidate,
-					self.head_data.clone(),
 					pov,
 					tx,
 				)
@@ -541,12 +570,11 @@ impl CandidateBackingJob {
 	async fn make_pov_available(
 		&mut self,
 		pov: PoV,
-		global_validation: GlobalValidationSchedule,
-		local_validation: LocalValidationData,
-	) -> Result<(), Error> {
+		outputs: ValidationOutputs,
+	) -> Result<CandidateCommitments, Error> {
 		let omitted_validation = OmittedValidationData {
-			global_validation,
-			local_validation,
+			global_validation: outputs.global_validation_schedule,
+			local_validation: outputs.local_validation_data,
 		};
 
 		let available_data = AvailableData {
@@ -560,10 +588,11 @@ impl CandidateBackingJob {
 		)?;
 
 		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
 
-		for (index, (chunk, proof)) in chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate() {
+		for (index, (proof, chunk)) in branches.enumerate() {
 			let chunk = ErasureChunk {
-				chunk: chunk.clone(),
+				chunk: chunk.to_vec(),
 				index: index as u32,
 				proof,
 			};
@@ -571,7 +600,13 @@ impl CandidateBackingJob {
 			self.store_chunk(index as ValidatorIndex, chunk).await?;
 		}
 
-		Ok(())
+		Ok(CandidateCommitments {
+			fees: outputs.fees,
+			upward_messages: outputs.upward_messages,
+			erasure_root,
+			new_validation_code: outputs.new_validation_code,
+			head_data: outputs.head_data,
+		})
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
@@ -650,13 +685,7 @@ async fn run_job(
 		}
 	}
 
-	let (
-		head_data,
-		signing_context,
-	) = futures::try_join!(
-		request_head_data(parent, &mut tx_from, assignment).await?,
-		request_signing_context(parent, &mut tx_from).await?,
-	)?;
+	let signing_context = request_signing_context(parent, &mut tx_from).await?.await?;
 
 	let table_context = TableContext {
 		signing_context,
@@ -669,7 +698,6 @@ async fn run_job(
 		parent,
 		rx_to,
 		tx_from,
-		head_data,
 		assignment,
 		issued_statements: HashSet::new(),
 		seconded: None,
@@ -723,23 +751,6 @@ async fn request_signing_context(
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
 			parent,
 			RuntimeApiRequest::SigningContext(tx),
-		)
-	)).await?;
-
-	Ok(rx)
-}
-
-/// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-async fn request_head_data(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-	id: ParaId,
-) -> Result<oneshot::Receiver<HeadData>, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-			parent,
-			RuntimeApiRequest::HeadData(id, tx),
 		)
 	)).await?;
 
@@ -927,7 +938,7 @@ mod tests {
 	use sp_keyring::Sr25519Keyring;
 	use polkadot_primitives::v1::{
 		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
-		CandidateCommitments,
+		CandidateCommitments, LocalValidationData, GlobalValidationSchedule, HeadData,
 	};
 	use assert_matches::assert_matches;
 
