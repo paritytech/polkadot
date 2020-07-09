@@ -163,7 +163,10 @@ macro_rules! new_full_start {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|builder| {
-				let pool_api = sc_transaction_pool::FullChainApi::new(builder.client().clone());
+				let pool_api = sc_transaction_pool::FullChainApi::new(
+					builder.client().clone(),
+					builder.prometheus_registry(),
+				);
 				let pool = sc_transaction_pool::BasicPool::new(
 					builder.config().transaction_pool.clone(),
 					std::sync::Arc::new(pool_api),

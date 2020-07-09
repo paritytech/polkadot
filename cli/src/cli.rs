@@ -84,11 +84,9 @@ pub struct RunCmd {
 #[allow(missing_docs)]
 #[derive(Debug, StructOpt)]
 pub struct Cli {
-	#[allow(missing_docs)]
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
-	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub run: RunCmd,
 }
