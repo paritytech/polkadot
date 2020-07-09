@@ -70,7 +70,7 @@ impl TableContextTrait for TableContext {
 		candidate.parachain_index
 	}
 
-	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
 		let key = match self.validators.get(authority as usize) {
 			Some(val) => val,
 			None => return false,
@@ -99,7 +99,7 @@ impl TableContext {
 		)
 	}
 
-	fn sign_statement(&self, statement: table_v0::Statement) -> Option<table::SignedStatement> {
+	fn sign_statement(&self, statement: table_v0::Statement) -> Option<table_v0::SignedStatement> {
 		self.local_index().and_then(move |sender|
 			self.key.as_ref()
 				.map(|key| crate::sign_table_statement(
@@ -169,7 +169,7 @@ impl SharedTableInner {
 		self.update_trackers(&summary.candidate, context);
 
 		let local_index = context.local_index()?;
-		let para_member = context.is_member_of(local_index, &summary.group_id);
+		let para_member = context.is_member_of(&local_index, &summary.group_id);
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.

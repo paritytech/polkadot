@@ -141,7 +141,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
@@ -162,7 +162,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
@@ -182,7 +182,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(c.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::MultipleCandidates(
 				TableMultipleCandidates {
