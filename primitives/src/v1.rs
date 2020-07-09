@@ -50,7 +50,7 @@ pub use polkadot_parachain::primitives::{
 pub use crate::parachain::{
 	CollatorId, CollatorSignature, PARACHAIN_KEY_TYPE_ID, ValidatorId, ValidatorIndex,
 	ValidatorPair, ValidatorSignature, SigningContext, Signed, ValidityAttestation,
-	CompactStatement, SignedStatement.
+	CompactStatement, SignedStatement,
 };
 
 // More exports for std.
