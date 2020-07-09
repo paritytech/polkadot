@@ -12,16 +12,16 @@ parity-scale-codec = "1.3.0"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
 tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
 wasm-timer = "0.2.4"
