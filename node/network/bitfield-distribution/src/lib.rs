@@ -20,7 +20,7 @@ use codec::{Codec, Decode, Encode};
 use futures::{
     channel::oneshot,
     future::{abortable, AbortHandle, Abortable},
-    Future,
+    Future, FutureExt,
 };
 use node_primitives::{ProtocolId, SignedFullStatement, View};
 use polkadot_network::protocol::Message;
@@ -53,18 +53,31 @@ struct Tracker {
     // to determine what is relevant to them
     peer_views: HashMap<PeerId, View>,
 
-    // keys used for verifying signatures of that peer
-    peer_session_keys: HashMap<PeerId, ValidatorId>,
-
-    // set of validators which already sent a message
-    validator_bitset_received: HashSet<ValidatorId>,
-
     // our current view
     view: View,
 
-    // signing context
-    signing_context: SigningContext<Hash>,
+    // signing context for a particular relay_parent
+    jobs: HashMap<Hash, JobData>,
+
+    // set of validators for a particular relay_parent
+    per_job: HashMap<Hash, JobData>,
 }
+
+
+/// Data for each relay parent
+#[derive(Debug, Clone, Default)]
+struct JobData {
+    // set of validators which already sent a message
+    validator_bitset_received: HashSet<ValidatorId>,
+
+    // signing context for a particular relay_parent
+    signing_context: SigningContext<Hash>,
+
+    // set of validators for a particular relay_parent
+    validator_set: Vec<ValidatorId>,
+}
+
+
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
     AllMessages::BitfieldDistribution(BitfieldDistributionMessage::NetworkBridgeUpdate(n))
@@ -85,50 +98,59 @@ impl BitfieldDistribution {
         ))
         .await?;
 
-        // set of active heads the overseer told us to work on
-        let mut active_jobs = HashMap::<Hash, (AbortHandle, Box<dyn Future<Output = ()>>)>::new();
-
+        // set of active heads the overseer told us to work on with the connected
+        // tasks abort handles
+        // @todo do we need Box<dyn Future<Output = ()>>) for anything?
+        let mut active_jobs = HashMap::<Hash, AbortHandle>::new();
+        let mut tracker = Tracker::default();
         loop {
             {
                 let message = ctx.recv().await?;
                 match message {
                     FromOverseer::Communication { msg } => {
-                        let peerid = PeerId::default();
+                        let peerid = PeerId::random(); // @todo
                         process_incoming(ctx.clone(), &mut tracker, peerid, msg).await?;
                     }
                     FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
                         let (validators, signing_context) =
                             query_basics(ctx.clone(), relay_parent).await?;
 
-                        let (future, abort_handle) =
-                            abortable(processor_per_relay_parent(ctx.clone(), relay_parent.clone()));
+                            let _ = tracker.per_job.insert(relay_parent, JobData {
+                                validator_bitset_received: HashSet::new(),
+                                signing_context: HashMap::new(),
+                                validator_set: Vec::new(),
+                            });
 
-                        let future = ctx.spawn(Box::pin(future))?;
-                        let future = Box::pin(future);
-                        active_jobs
-                            .insert(relay_parent.clone(), (abort_handle, future));
+                        let future = processor_per_relay_parent(ctx.clone(), relay_parent.clone());
+                        // let (future, abort_handle) =
+                        //     abortable(future);
+
+                        let future = ctx.spawn(Box::pin(
+                            future.then(|_| {futures::future::ok(())})
+                        ));
+                        // active_jobs
+                        //     .insert(relay_parent.clone(), abort_handle);
                     }
                     FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-                        if let Some((_future, abort_handle)) =
-                            active_jobs.take(&relay_parent)
+                        if let Some(abort_handle) =
+                            active_jobs.remove(&relay_parent)
                         {
                             let _ = abort_handle.abort();
                         }
                     }
                     FromOverseer::Signal(OverseerSignal::Conclude) => {
-                        // @todo add a timeout here?
-                        return futures::future::join_all(
-                            active_jobs
-                                .drain()
-                                .map(|(_relay_parent, (cancellation, future))| future),
-                        )
-                        .await;
+                        // @todo cannot store the future
+                        // return futures::future::join_all(
+                        //     active_jobs
+                        //         .drain()
+                        //         .map(|(_relay_parent, (cancellation, future))| future),
+                        // )
+                        // .await;
                     }
                 }
             }
-            tracker
-                .active_jobs
-                .retain(|_, future| future.poll().is_pending());
+            // active_jobs
+            //     .retain(|_, future| future.poll().is_pending());
         }
     }
 }
@@ -138,8 +160,9 @@ impl BitfieldDistribution {
 async fn processor_per_relay_parent<Context>(mut ctx: Context, relay_parent: Hash) -> SubsystemResult<()> {
     let mut tracker = Tracker::default();
     loop {
-        todo!("consume relay parents")
+        // todo!("consume relay parents")
     }
+    Ok(())
 }
 
 /// modify the reputiation, good or bad
@@ -158,59 +181,53 @@ async fn process_incoming<Context>(
     mut ctx: Context,
     tracker: &mut Tracker,
     peerid: PeerId,
-    // message: Vec<u8>,
     message: BitfieldDistributionMessage,
 ) -> SubsystemResult<()>
 where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
-    // let message = if let Ok(message) = BitfieldDistributionMessage::decode(message) {
-    //     message
-    // } else {
-    //     return ctx
-    //         .send_message(AllMessages::NetworkBridge(
-    //             NetworkBridgeMessage::ReportPeer(peerid, COST_MESSAGE_NOT_DECODABLE),
-    //         ))
-    //         .await;
-    // };
+    let peer_view = tracker.peer_views.get(&peerid).expect("TODO");
     match message {
-        /// Distribute a bitfield via gossip to other validators.
+        // Distribute a bitfield via gossip to other validators.
         BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability) => {
+            let job_data = if let Some(job_data) = tracker.per_job.get(&hash) {
+                job_data
+            } else {
+                return modify_reputiation(ctx, peerid, COST_NOT_INTERESTED).await;
+            };
+
             // @todo should we only distribute availability messages to peer if they are relevant to us
             // or is the only discriminator if the peer cares about it?
-            if !tracker.view.contains(hash) {
+            if !peer_view.contains(&hash) {
                 // we don't care about this, the other side should have known better
                 return modify_reputiation(ctx, peerid, COST_NOT_INTERESTED).await;
             }
 
-            let signing_ctx = &tracker.signing_context.as_ref().unwrap();
-
-            let session_key = tracker.peer_session_keys.get(peerid);
-            if session_key.is_none() {
-                return modify_reputiation(ctx.clone(), peerid, COST_MISSING_PEER_SESSION_KEY)
+            let validator_set = &job_data.validator_set;
+            if validator_set.len() == 0 {
+                return modify_reputiation(ctx.clone(), peerid, COST_MISSING_PEER_SESSION_KEY).await
             }
-            let session_key = session_key.expect("Just proved it is not `None`; qed");
 
-            if signed_availability.check_signature(&signing_ctx, session_key)? {
+            // check all validators that could have signed this message
+            if let Some(_) = validator_set.iter().find(|validator| { signed_availability.check_signature(&job_data.signing_context, validator).is_ok() }) {
                 return modify_reputiation(ctx.clone(), peerid, COST_SIGNATURE_INVALID)
-                    .await;
+                    .await
             }
 
             // @todo verify sequential execution is ok or if spawning tasks is better
             // Send peers messages which are interesting to them
-            for (peerid, view) in tracker
-                .peer_views
-                .iter()
-                .filter(|(_peerid, view)| view.contains(hash))
-            {
-                // @todo shall we assure these complete or just let them be?
-                ctx.spawn(Box::new(ctx.send_message(
-                    AllMessages::BitfieldDistribution(
-                        BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
-                    ),
-                )))
-                .await?;
-            }
+            let _ = futures::future::join_all(
+                tracker.peer_views.iter()
+                    .filter(|(_peerid, view)| view.contains(&hash))
+                    .map(|(peerid, view) | {
+                        // @todo shall we assure these complete or just let them be?
+                        ctx.spawn(Box::pin(ctx.send_message(
+                            AllMessages::BitfieldDistribution(
+                                BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
+                            )
+                        ).then(|_| {futures::future::ok(())})))
+                    })
+                ).await;
         }
         BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
             handle_network_msg(ctx, &mut tracker, event).await?;
@@ -229,7 +246,7 @@ where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
     let peer_views = &mut tracker.peer_views;
-    let active_jobs = &mut tracker.active_jobs;
+    let per_job = &mut tracker.per_job;
     let ego = &((*tracker).view);
     match bridge_message {
         NetworkBridgeEvent::PeerConnected(peerid, _role) => {
@@ -248,10 +265,10 @@ where
         }
         NetworkBridgeEvent::OurViewChange(view) => {
             let old_view = std::mem::replace(&mut tracker.view, view);
-            active_jobs.retain(|head, _| ego.0.get(head).is_some());
+            tracker.per_job.retain(|hash, _job_data| ego.0.get(hash).is_some());
 
             for new in tracker.view.difference(&old_view) {
-                if !tracker.active_jobs.contains_key(&new) {
+                if !tracker.per_job.contains_key(&new) {
                     log::warn!("Active head running that's not active anymore, go catch it")
                     //@todo rephrase
                     //@todo should we get rid of that right here
@@ -259,15 +276,17 @@ where
             }
         }
         NetworkBridgeEvent::PeerMessage(remote, bytes) => {
+            log::info!("Got a peer message from {:?}", &remote);
             // @todo what would we receive here?
             match Message::decode(&mut bytes.as_ref()) {
                 Ok(message) => {
                     match message {
                         // a new session key
                         Message::ValidatorId(session_key) => {
-                            let _ = tracker
-                                .peer_session_keys
-                                .insert(remote.clone(), session_key);
+                            // @todo update all Validator ids I guess?
+                            // let _ = tracker
+                            //     .per_job.
+                            //     .insert(remote.clone(), session_key);
                         }
                         _ => {}
                     }
@@ -302,12 +321,12 @@ where
     let (signing_tx, signing_rx) = oneshot::channel();
 
     let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-        relay_parent,
+        relay_parent.clone(),
         RuntimeApiRequest::Validators(validators_tx),
     ));
 
     let query_signing = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-        relay_parent,
+        relay_parent.clone(),
         RuntimeApiRequest::SigningContext(signing_tx),
     ));
 
