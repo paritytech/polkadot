@@ -451,6 +451,8 @@ impl CoreAssignment {
 
 /// Validation data omitted from most candidate descriptor structs, as it can be derived from the
 /// relay-parent.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OmittedValidationData {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationSchedule,
@@ -459,6 +461,8 @@ pub struct OmittedValidationData {
 }
 
 /// This is the data we keep available for each candidate included in the relay chain.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: PoV,
