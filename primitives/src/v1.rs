@@ -170,7 +170,7 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	pub fn to_plain(&self) -> CandidateReceipt<H> {
 		CandidateReceipt {
 			descriptor: self.descriptor.clone(),
-			commitments_hash: BlakeTwo256::hash_of(&self.commitments),
+			commitments_hash: self.commitments.hash(),
 		}
 	}
 
@@ -252,6 +252,13 @@ pub struct CandidateCommitments {
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
+}
+
+impl CandidateCommitments {
+	/// Compute the blake2-256 hash of the commitments.
+	pub fn hash(&self) -> Hash {
+		BlakeTwo256::hash_of(self)
+	}
 }
 
 /// A Proof-of-Validity
