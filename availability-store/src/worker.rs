@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::thread;
 
 use log::{error, info, trace, warn};
-use sp_blockchain::{Result as ClientResult};
+use sp_blockchain::Result as ClientResult;
 use sp_runtime::traits::{Header as HeaderT, Block as BlockT, HashFor, BlakeTwo256};
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use client::{
@@ -32,12 +32,13 @@ use consensus_common::{
 	ImportResult,
 	import_queue::CacheKeyId,
 };
+use sp_core::traits::SpawnNamed;
 use polkadot_primitives::{Block, BlockId, Hash};
 use polkadot_primitives::parachain::{
 	ParachainHost, ValidatorId, AbridgedCandidateReceipt, AvailableData,
 	ValidatorPair, ErasureChunk,
 };
-use futures::{prelude::*, future::select, channel::{mpsc, oneshot}, task::{Spawn, SpawnExt}};
+use futures::{prelude::*, future::select, channel::{mpsc, oneshot}};
 use futures::future::AbortHandle;
 use keystore::KeyStorePtr;
 
@@ -641,7 +642,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 	pub(crate) fn new(
 		client: Arc<P>,
 		block_import: I,
-		spawner: impl Spawn,
+		spawner: impl SpawnNamed,
 		keystore: KeyStorePtr,
 		to_worker: mpsc::UnboundedSender<WorkerMsg>,
 	) -> Self
@@ -662,9 +663,7 @@ impl<I, P> AvailabilityBlockImport<I, P> {
 			to_worker.clone(),
 		));
 
-		if let Err(_) = spawner.spawn(prune_available.map(drop)) {
-			error!(target: LOG_TARGET, "Failed to spawn availability pruning task");
-		}
+		spawner.spawn("polkadot-prune-availibility", prune_available.map(drop).boxed());
 
 		AvailabilityBlockImport {
 			client,

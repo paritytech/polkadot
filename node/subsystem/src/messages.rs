@@ -28,10 +28,13 @@ use polkadot_primitives::{BlockNumber, Hash, Signature};
 use polkadot_primitives::parachain::{
 	AbridgedCandidateReceipt, PoVBlock, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
+	CandidateDescriptor,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId,
 };
+
+use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
@@ -214,6 +217,21 @@ pub enum ProvisionerMessage {
 	ProvisionableData(ProvisionableData),
 }
 
+/// Message to the PoV Distribution Subsystem.
+#[derive(Debug)]
+pub enum PoVDistributionMessage {
+	/// Fetch a PoV from the network.
+	///
+	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
+	/// relay-parent hash.
+    FetchPoV(Hash, CandidateDescriptor, oneshot::Sender<Arc<PoVBlock>>),
+    /// Distribute a PoV for the given relay-parent and CandidateDescriptor.
+    /// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
+    DistributePoV(Hash, CandidateDescriptor, Arc<PoVBlock>),
+    /// An update from the network bridge.
+    NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
@@ -231,6 +249,8 @@ pub enum AllMessages {
 	BitfieldDistribution(BitfieldDistributionMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
+	/// Message for the PoV Distribution subsystem.
+	PoVDistribution(PoVDistributionMessage),
 	/// Message for the Runtime API subsystem.
 	RuntimeApi(RuntimeApiMessage),
 	/// Message for the availability store subsystem.
