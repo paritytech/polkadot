@@ -19,8 +19,7 @@
 //! This is a gossip implementation of code that is responsible for distributing PoVs
 //! among validators.
 
-use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{PoVBlock as PoV, CandidateDescriptor};
+use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
 use polkadot_subsystem::{
 	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
 };
@@ -550,7 +549,7 @@ async fn run(
 mod tests {
 	use super::*;
 	use futures::executor::{self, ThreadPool};
-	use polkadot_primitives::parachain::BlockData;
+	use polkadot_primitives::v1::BlockData;
 	use assert_matches::assert_matches;
 
 	fn make_pov(data: Vec<u8>) -> PoV {

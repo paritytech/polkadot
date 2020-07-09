@@ -251,6 +251,14 @@ pub struct PoV {
 	pub block_data: BlockData,
 }
 
+impl PoV {
+	/// Get the blake2-256 hash of the PoV.
+	#[cfg(feature = "std")]
+	pub fn hash(&self) -> Hash {
+		BlakeTwo256::hash_of(self)
+	}
+}
+
 /// A bitfield concerning availability of backed candidates.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
