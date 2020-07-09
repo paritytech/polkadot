@@ -25,6 +25,7 @@ pub use polkadot_core_primitives::*;
 
 pub mod inclusion_inherent;
 pub mod parachain;
+pub mod v1;
 
 pub use parity_scale_codec::Compact;
 
