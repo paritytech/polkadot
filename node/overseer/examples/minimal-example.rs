@@ -27,7 +27,7 @@ use futures::{
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use polkadot_primitives::parachain::{BlockData, PoVBlock};
+use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::Overseer;
 
 use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
@@ -61,7 +61,7 @@ impl Subsystem1 {
 				CandidateValidationMessage::Validate(
 					Default::default(),
 					Default::default(),
-					PoVBlock {
+					PoV {
 						block_data: BlockData(Vec::new()),
 					},
 					tx,
