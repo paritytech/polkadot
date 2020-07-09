@@ -9,7 +9,7 @@ A bitfield [signed](backing.md#signed-wrapper) by a particular validator about t
 
 
 ```rust
-pub type SignedAvailabilityBitfield = Signed<Bitvec>;
+type SignedAvailabilityBitfield = Signed<Bitvec>;
 
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
 ```
@@ -31,9 +31,9 @@ This contains the [`GlobalValidationSchedule`](candidate.md#globalvalidationsche
 ```rust
 struct OmittedValidationData {
     /// The global validation schedule.
-    pub global_validation: GlobalValidationSchedule,
+    global_validation: GlobalValidationSchedule,
     /// The local validation data.
-    pub local_validation: LocalValidationData,
+    local_validation: LocalValidationData,
 }
 ```
 
@@ -44,11 +44,27 @@ This is the data we want to keep available for each [candidate](candidate.md) in
 
 ```rust
 struct AvailableData {
-	/// The Proof-of-Validation of the candidate.
-	pub pov: PoV,
-	/// The omitted validation data.
-	pub omitted_validation: OmittedValidationData,
+    /// The Proof-of-Validation of the candidate.
+    pov: PoV,
+    /// The omitted validation data.
+    omitted_validation: OmittedValidationData,
 }
 ```
 
 > TODO: With XCMP, we also need to keep available the outgoing messages as a result of para-validation.
+
+## Erasure Chunk
+
+The [`AvailableData`](#availabledata) is split up into an erasure-coding as part of the availability process. Each validator gets a chunk. This describes one of those chunks, along with its proof against a merkle root hash, which should be apparent from context, and is the `erasure_root` field of a [`CandidateDescriptor`](candidate.md#candidatedescriptor).
+
+
+```rust
+struct ErasureChunk {
+    /// The erasure-encoded chunk of data belonging to the candidate block.
+    chunk: Vec<u8>,
+    /// The index of this erasure-encoded chunk of data.
+    index: u32,
+    /// Proof for this chunk's branch in the Merkle tree.
+    proof: Vec<Vec<u8>>,
+}
+```
