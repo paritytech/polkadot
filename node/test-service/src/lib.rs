@@ -46,7 +46,7 @@ use sc_network::{
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
 	error::Error as ServiceError,
-	RpcHandlers, RpcSession, TaskExecutor, TaskManager,
+	RpcHandlers, TaskExecutor, TaskManager,
 };
 use service::{BasePath, Configuration, Role, TFullBackend};
 use sp_arithmetic::traits::SaturatedConversion;
