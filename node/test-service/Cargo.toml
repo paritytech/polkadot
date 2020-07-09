@@ -51,7 +51,6 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-#async-std = "1.5"
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0"
-tokio = { version = "0.2", features = ["full"] }
+tokio = { version = "0.2", features = ["macros"] }

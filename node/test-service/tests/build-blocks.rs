@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//use async_std::task::{block_on, sleep};
-use tokio::{runtime::Runtime, time::delay_for as sleep};
+use tokio::{time::delay_for as sleep, task::spawn};
 use futures::{future, pin_mut, select, FutureExt as _};
 use polkadot_test_service::*;
 use service::TaskExecutor;
@@ -24,12 +23,10 @@ use std::time::Duration;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
-#[test]
-fn ensure_test_service_build_blocks() {
-	let mut r = Runtime::new().unwrap();
-	let handle = r.handle().clone();
+#[tokio::test]
+async fn ensure_test_service_build_blocks() {
 	let task_executor: TaskExecutor = (move |fut, _| {
-		handle.spawn(fut);
+		spawn(fut);
 	})
 	.into();
 	let mut alice = run_test_node(
@@ -44,11 +41,11 @@ fn ensure_test_service_build_blocks() {
 		|| {},
 		vec![alice.addr.clone()],
 	);
-	let t1 = r.block_on(async { sleep(Duration::from_secs(
+	let t1 = sleep(Duration::from_secs(
 		INTEGRATION_TEST_ALLOWED_TIME
 			.and_then(|x| x.parse().ok())
 			.unwrap_or(600),
-	)) })
+	))
 	.fuse();
 	let t2 = async {
 		{
@@ -70,14 +67,12 @@ fn ensure_test_service_build_blocks() {
 	}
 	.fuse();
 
-	r.block_on(async {
-		pin_mut!(t1, t2);
+	pin_mut!(t1, t2);
 
-		select! {
-			_ = t1 => {
-				panic!("the test took too long, maybe no blocks have been produced");
-			},
-			_ = t2 => {},
-		}
-	});
+	select! {
+		_ = t1 => {
+			panic!("the test took too long, maybe no blocks have been produced");
+		},
+		_ = t2 => {},
+	}
 }

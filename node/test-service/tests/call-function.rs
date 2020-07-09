@@ -14,8 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//use async_std::task::{block_on, sleep};
-use tokio::{runtime::Runtime, time::delay_for as sleep};
+use tokio::{time::delay_for as sleep, task::spawn};
 use futures::{pin_mut, select, FutureExt as _};
 use polkadot_test_service::*;
 use sp_keyring::Sr25519Keyring::{Alice, Bob};
@@ -23,24 +22,22 @@ use std::time::Duration;
 
 static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TEST_ALLOWED_TIME");
 
-#[test]
-fn call_function_actually_work() {
-	let mut r = Runtime::new().unwrap();
-	let handle = r.handle().clone();
+#[tokio::test]
+async fn call_function_actually_work() {
 	let mut alice = run_test_node(
 		(move |fut, _| {
-			handle.spawn(fut);
+			spawn(fut);
 		})
 		.into(),
 		Alice,
 		|| {},
 		Vec::new(),
 	);
-	let t1 = r.block_on(async { sleep(Duration::from_secs(
+	let t1 = sleep(Duration::from_secs(
 		INTEGRATION_TEST_ALLOWED_TIME
 			.and_then(|x| x.parse().ok())
 			.unwrap_or(600),
-	)) })
+	))
 	.fuse();
 	let t2 = async {
 		let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer(
@@ -65,14 +62,12 @@ fn call_function_actually_work() {
 	}
 	.fuse();
 
-	r.block_on(async move {
-		pin_mut!(t1, t2);
+	pin_mut!(t1, t2);
 
-		select! {
-			_ = t1 => {
-				panic!("the test took too long, maybe no blocks have been produced");
-			},
-			_ = t2 => {},
-		}
-	});
+	select! {
+		_ = t1 => {
+			panic!("the test took too long, maybe no blocks have been produced");
+		},
+		_ = t2 => {},
+	}
 }
