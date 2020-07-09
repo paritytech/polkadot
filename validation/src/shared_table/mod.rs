@@ -21,11 +21,12 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
 use availability_store::{Store as AvailabilityStore};
-use table::{self, Table, Context as TableContextTrait};
+use table::{v0 as table_v0, Table, Context as TableContextTrait};
 use polkadot_primitives::v0::{
 	Block, Hash,
 	Id as ParaId, AbridgedCandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, SigningContext,
+	ValidatorSignature,
 };
 
 use parking_lot::Mutex;
@@ -44,7 +45,7 @@ use crate::Error;
 
 mod includable;
 
-pub use table::{SignedStatement, Statement};
+pub use table_v0::{SignedStatement, Statement};
 pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
@@ -54,7 +55,21 @@ struct TableContext {
 	validators: Vec<ValidatorId>,
 }
 
-impl table::Context for TableContext {
+impl TableContextTrait for TableContext {
+	type AuthorityId = ValidatorIndex;
+	type Digest = Hash;
+	type GroupId = ParaId;
+	type Signature = ValidatorSignature;
+	type Candidate = AbridgedCandidateReceipt;
+
+	fn candidate_digest(candidate: &AbridgedCandidateReceipt) -> Hash {
+		candidate.hash()
+	}
+
+	fn candidate_group(candidate: &AbridgedCandidateReceipt) -> ParaId {
+		candidate.parachain_index
+	}
+
 	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
 		let key = match self.validators.get(authority as usize) {
 			Some(val) => val,
@@ -84,7 +99,7 @@ impl TableContext {
 		)
 	}
 
-	fn sign_statement(&self, statement: table::Statement) -> Option<table::SignedStatement> {
+	fn sign_statement(&self, statement: table_v0::Statement) -> Option<table::SignedStatement> {
 		self.local_index().and_then(move |sender|
 			self.key.as_ref()
 				.map(|key| crate::sign_table_statement(
@@ -93,7 +108,7 @@ impl TableContext {
 						&self.signing_context,
 					).into()
 				)
-				.map(move |signature| table::SignedStatement { statement, signature, sender })
+				.map(move |signature| table_v0::SignedStatement { statement, signature, sender })
 		)
 	}
 }
@@ -145,7 +160,7 @@ impl SharedTableInner {
 		&mut self,
 		context: &TableContext,
 		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
-		statement: table::SignedStatement,
+		statement: table_v0::SignedStatement,
 		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
 		Fetch,
@@ -216,7 +231,7 @@ impl SharedTableInner {
 /// Produced after validating a candidate.
 pub struct Validated {
 	/// A statement about the validity of the candidate.
-	statement: table::Statement,
+	statement: table_v0::Statement,
 	/// The result of validation.
 	result: Validation,
 }
@@ -461,7 +476,7 @@ impl SharedTable {
 	pub fn import_remote_statement<Fetch>(
 		&self,
 		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
-		statement: table::SignedStatement,
+		statement: table_v0::SignedStatement,
 	) -> Option<ParachainWork<
 		Fetch,
 	>> {
@@ -487,7 +502,7 @@ impl SharedTable {
 		iterable: I,
 	) -> U
 		where
-			I: IntoIterator<Item=table::SignedStatement>,
+			I: IntoIterator<Item=table_v0::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<ParachainWork<
 				Fetch,
 			>>>,
@@ -583,7 +598,7 @@ impl SharedTable {
 	}
 
 	/// Get all witnessed misbehavior.
-	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table::Misbehavior> {
+	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table_v0::Misbehavior> {
 		self.inner.lock().table.get_misbehavior().clone()
 	}
 
@@ -706,7 +721,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,
@@ -763,7 +778,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,
@@ -947,7 +962,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,

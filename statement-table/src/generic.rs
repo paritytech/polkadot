@@ -28,7 +28,7 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::hash::Hash;
 use std::fmt::Debug;
 
-use primitives::parachain::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
+use primitives::v1::{ValidityAttestation as PrimitiveValidityAttestation, ValidatorSignature};
 
 use codec::{Encode, Decode};
 

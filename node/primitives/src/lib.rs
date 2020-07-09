@@ -30,7 +30,7 @@ use polkadot_statement_table::{
 		ValidityDoubleVote as TableValidityDoubleVote,
 		MultipleCandidates as TableMultipleCandidates,
 	},
-	Misbehavior as TableMisbehavior,
+	v1::Misbehavior as TableMisbehavior,
 };
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
