@@ -875,7 +875,7 @@ mod tests {
 			omitted_validation: Default::default(),
 		};
 
-		let chunks = erasure::obtain_chunks(n_validators, &available_data).unwrap();
+		let chunks = erasure::obtain_chunks_v0(n_validators, &available_data).unwrap();
 
 		store.note_validator_index_and_n_validators(
 			&relay_parent,

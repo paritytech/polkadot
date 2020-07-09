@@ -38,9 +38,9 @@ use primitives::Pair;
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
-	ValidatorIndex, HeadData, SigningContext, PoVBlock, OmittedValidationData,
+	ValidatorIndex, HeadData, SigningContext, PoV, OmittedValidationData,
 	CandidateDescriptor, LocalValidationData, GlobalValidationSchedule, AvailableData,
-	ErasureChunk,
+	ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
@@ -56,8 +56,12 @@ use polkadot_subsystem::messages::{
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
-	Table, Context as TableContextTrait, Statement as TableStatement,
-	SignedStatement as TableSignedStatement, Summary as TableSummary,
+	Context as TableContextTrait,
+	Table,
+	v1::{
+		Statement as TableStatement,
+		SignedStatement as TableSignedStatement, Summary as TableSummary,
+	},
 };
 
 #[derive(Debug, derive_more::From)]
@@ -115,7 +119,21 @@ struct TableContext {
 }
 
 impl TableContextTrait for TableContext {
-	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
+	type AuthorityId = ValidatorIndex;
+	type Digest = Hash;
+	type GroupId = ParaId;
+	type Signature = ValidatorSignature;
+	type Candidate = CommittedCandidateReceipt;
+
+	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> Hash {
+		candidate.hash()
+	}
+
+	fn candidate_group(candidate: &CommittedCandidateReceipt) -> ParaId {
+		candidate.descriptor().para_id
+	}
+
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
 		self.groups.get(group).map_or(false, |g| g.iter().position(|&a| a == authority).is_some())
 	}
 
@@ -221,7 +239,7 @@ impl CandidateBackingJob {
 		candidate: CommittedCandidateReceipt,
 	) -> Result<(), Error> {
 		self.tx_from.send(FromJob::CandidateSelection(
-			CandidateSelectionMessage::Invalid(self.parent, candidate)
+			CandidateSelectionMessage::Invalid(self.parent, candidate.to_plain())
 		)).await?;
 
 		Ok(())
@@ -230,8 +248,8 @@ impl CandidateBackingJob {
 	/// Validate the candidate that is requested to be `Second`ed and distribute validation result.
 	async fn validate_and_second(
 		&mut self,
-		candidate: CommittedCandidateReceipt,
-		pov: PoVBlock,
+		candidate: CandidateReceipt,
+		pov: PoV,
 	) -> Result<ValidationResult, Error> {
 		let valid = self.request_candidate_validation(candidate.clone(), pov.clone()).await?;
 		let statement = match valid.0 {
@@ -475,7 +493,7 @@ impl CandidateBackingJob {
 	async fn request_pov_from_distribution(
 		&mut self,
 		descriptor: CandidateDescriptor,
-	) -> Result<PoVBlock, Error> {
+	) -> Result<PoV, Error> {
 		let (tx, rx) = oneshot::channel();
 
 		self.tx_from.send(FromJob::PoVDistribution(
@@ -489,7 +507,7 @@ impl CandidateBackingJob {
 	async fn request_candidate_validation(
 		&mut self,
 		candidate: CommittedCandidateReceipt,
-		pov: PoVBlock,
+		pov: PoV,
 	) -> Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData), Error> {
 		let (tx, rx) = oneshot::channel();
 
@@ -522,7 +540,7 @@ impl CandidateBackingJob {
 
 	async fn make_pov_available(
 		&mut self,
-		pov_block: PoVBlock,
+		pov: PoV,
 		global_validation: GlobalValidationSchedule,
 		local_validation: LocalValidationData,
 	) -> Result<(), Error> {
@@ -532,11 +550,11 @@ impl CandidateBackingJob {
 		};
 
 		let available_data = AvailableData {
-			pov_block,
+			pov,
 			omitted_validation,
 		};
 
-		let chunks = erasure_coding::obtain_chunks(
+		let chunks = erasure_coding::obtain_chunks_v1(
 			self.table_context.validators.len(),
 			&available_data,
 		)?;
@@ -907,8 +925,9 @@ mod tests {
 	use std::collections::HashMap;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v1::{
 		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
+		CandidateCommitments,
 	};
 	use assert_matches::assert_matches;
 
@@ -1053,7 +1072,6 @@ mod tests {
 		head_data: HeadData,
 		pov_hash: Hash,
 		relay_parent: Hash,
-		new_validation_code: Option<ValidationCode>,
 	}
 
 	impl TestCandidateBuilder {
@@ -1135,11 +1153,11 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 			let candidate = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
@@ -1150,7 +1168,7 @@ mod tests {
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
 				candidate.clone(),
-				pov_block.clone(),
+				pov.clone(),
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
@@ -1168,7 +1186,7 @@ mod tests {
 						tx,
 					)
 				) if parent_hash == test_state.relay_parent &&
-					pov == pov_block && c == candidate => {
+					pov == pov && c == candidate => {
 					assert_eq!(head_data, *expected_head_data);
 					tx.send(Ok((
 						ValidationResult::Valid,
@@ -1217,11 +1235,11 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
 
-			let pov_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 
 			let candidate_a = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
@@ -1251,14 +1269,14 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
 			// Sending a `Statement::Seconded` for our assignment will start
-			// validation process. The first thing requested is PoVBlock from the
+			// validation process. The first thing requested is PoV from the
 			// `PoVDistribution`.
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
 
@@ -1278,7 +1296,7 @@ mod tests {
 					)
 				) if relay_parent == test_state.relay_parent && candidate == candidate_a => {
 					assert_eq!(head_data, *expected_head_data);
-					assert_eq!(pov, pov_block);
+					assert_eq!(pov, pov);
 					tx.send(Ok((
 						ValidationResult::Valid,
 						test_state.global_validation_schedule,
@@ -1333,11 +1351,11 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
 
-			let pov_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 			let candidate_a = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
@@ -1377,7 +1395,7 @@ mod tests {
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
 
@@ -1394,7 +1412,7 @@ mod tests {
 						tx,
 					)
 				) if relay_parent == test_state.relay_parent && candidate == candidate_a => {
-					assert_eq!(pov, pov_block);
+					assert_eq!(pov, pov);
 					assert_eq!(head_data, *expected_head_data);
 					tx.send(Ok((
 						ValidationResult::Valid,
@@ -1464,11 +1482,11 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block_a = PoVBlock {
+			let pov_block_a = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_block_b = PoVBlock {
+			let pov_block_b = PoV {
 				block_data: BlockData(vec![45, 46, 47]),
 			};
 
@@ -1614,11 +1632,11 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 
 			let candidate = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
@@ -1651,7 +1669,7 @@ mod tests {
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) => {
 					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
 
@@ -1672,7 +1690,7 @@ mod tests {
 					assert_eq!(relay_parent, test_state.relay_parent);
 					assert_eq!(candidate_recvd, candidate);
 					assert_eq!(head_data, *expected_head_data);
-					assert_eq!(pov, pov_block);
+					assert_eq!(pov, pov);
 					tx.send(Ok((
 						ValidationResult::Invalid,
 						test_state.global_validation_schedule,
@@ -1704,12 +1722,12 @@ mod tests {
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
 				candidate.clone(),
-				pov_block.clone(),
+				pov.clone(),
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let pov_to_second = PoVBlock {
+			let pov_to_second = PoV {
 				block_data: BlockData(vec![3, 2, 1]),
 			};
 

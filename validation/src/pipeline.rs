@@ -125,7 +125,7 @@ impl<'a> ValidatedCandidate<'a> {
 			omitted_validation,
 		};
 
-		let erasure_chunks = erasure::obtain_chunks(
+		let erasure_chunks = erasure::obtain_chunks_v0(
 			n_validators,
 			&available_data,
 		)?;
