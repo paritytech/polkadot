@@ -7,21 +7,21 @@ edition = "2018"
 [dependencies]
 jsonrpc-core = "14.0.3"
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"}
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"}
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"}
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"}
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "ashley-txpool"  }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"}
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master"  }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-txpool" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
