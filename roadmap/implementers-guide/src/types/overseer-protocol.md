@@ -311,7 +311,7 @@ enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
 	/// and `ValidationCode` so this can do full validation without needing to access the state of
 	/// the relay-chain.
-	ValidateFromFull(
+	ValidateFromExhaustive(
 		OmittedValidationData,
 		ValidationCode,
 		CandidateDescriptor,
