@@ -339,3 +339,97 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 
 	Ok(signed)
 }
+
+/// The unique (during session) index of a core.
+#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Debug))]
+pub struct CoreIndex(pub u32);
+
+impl From<u32> for CoreIndex {
+	fn from(i: u32) -> CoreIndex {
+		CoreIndex(i)
+	}
+}
+
+/// The unique (during session) index of a validator group.
+#[derive(Encode, Decode, Default, Clone, Copy)]
+#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
+pub struct GroupIndex(pub u32);
+
+impl From<u32> for GroupIndex {
+	fn from(i: u32) -> GroupIndex {
+		GroupIndex(i)
+	}
+}
+
+/// A claim on authoring the next block for a given parathread.
+#[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ParathreadClaim(pub Id, pub CollatorId);
+
+/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
+#[derive(Clone, Encode, Decode, Default)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ParathreadEntry {
+	/// The claim.
+	pub claim: ParathreadClaim,
+	/// Number of retries.
+	pub retries: u32,
+}
+
+/// What is occupying a specific availability core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CoreOccupied {
+	/// A parathread.
+	Parathread(ParathreadEntry),
+	/// A parachain.
+	Parachain,
+}
+
+/// The assignment type.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum AssignmentKind {
+	/// A parachain.
+	Parachain,
+	/// A parathread.
+	Parathread(CollatorId, u32),
+}
+
+/// How a free core is scheduled to be assigned.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct CoreAssignment {
+	/// The core that is assigned.
+	pub core: CoreIndex,
+	/// The unique ID of the para that is assigned to the core.
+	pub para_id: Id,
+	/// The kind of the assignment.
+	pub kind: AssignmentKind,
+	/// The index of the validator group assigned to the core.
+	pub group_idx: GroupIndex,
+}
+
+impl CoreAssignment {
+	/// Get the ID of a collator who is required to collate this block.
+	pub fn required_collator(&self) -> Option<&CollatorId> {
+		match self.kind {
+			AssignmentKind::Parachain => None,
+			AssignmentKind::Parathread(ref id, _) => Some(id),
+		}
+	}
+
+	/// Get the `CoreOccupied` from this.
+	pub fn to_core_occupied(&self) -> CoreOccupied {
+		match self.kind {
+			AssignmentKind::Parachain => CoreOccupied::Parachain,
+			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
+				ParathreadEntry {
+					claim: ParathreadClaim(self.para_id, collator.clone()),
+					retries,
+				}
+			),
+		}
+	}
+}

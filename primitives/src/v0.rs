@@ -384,6 +384,15 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
+/// A candidate-receipt with commitments directly included.
+pub struct CommitedCandidateReceipt<H = Hash> {
+	/// The descriptor of the candidae.
+	pub descriptor: CandidateDescriptor,
+
+	/// The commitments of the candidate receipt.
+	pub commitments: CandidateCommitments<H>
+}
+
 impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
@@ -473,7 +482,6 @@ impl AbridgedCandidateReceipt {
 		}
 	}
 }
-
 
 impl PartialOrd for AbridgedCandidateReceipt {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -830,6 +838,27 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		let mut out = payload.encode_as();
 		out.extend(context.encode());
 		out
+	}
+
+	/// Used to create a `Signed` from already existing parts.
+	#[cfg(feature = "std")]
+	pub fn new<H: Encode>(
+		payload: Payload,
+		validator_index: ValidatorIndex,
+		signature: ValidatorSignature,
+		context: &SigningContext<H>,
+		key: &ValidatorId,
+	) -> Option<Self> {
+		let s = Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		};
+
+		s.check_signature(context, key).ok()?;
+
+		Some(s)
 	}
 
 	/// Sign this payload with the given context and key, storing the validator index.

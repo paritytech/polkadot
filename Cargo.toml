@@ -50,6 +50,7 @@ members = [
 	"node/overseer",
 	"node/primitives",
 	"node/service",
+	"node/core/backing",
 	"node/subsystem",
 	"node/test-helpers/subsystem",
 	"node/test-service",
