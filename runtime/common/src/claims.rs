@@ -194,7 +194,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
@@ -690,6 +690,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	parameter_types! {
@@ -704,6 +705,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	impl vesting::Trait for Test {
@@ -711,6 +713,7 @@ mod tests {
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
+		type WeightInfo = ();
 	}
 
 	parameter_types!{

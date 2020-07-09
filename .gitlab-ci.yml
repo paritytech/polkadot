@@ -195,7 +195,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:latest
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementors-guide
+    - mdbook build roadmap/implementers-guide
 
 .publish-build:                    &publish-build
   stage:                           publish

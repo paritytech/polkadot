@@ -130,7 +130,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachain-attestations module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		/// Provide candidate receipts for parachains, in ascending order by id.

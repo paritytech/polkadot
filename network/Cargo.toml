@@ -19,7 +19,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-futures = "0.3.4"
+futures = "0.3.5"
 log = "0.4.8"
 exit-future = "0.2.0"
 futures-timer = "2.0"
