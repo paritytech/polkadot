@@ -289,6 +289,7 @@ fn real_overseer<S: futures::task::Spawn>(
 		availability_distribution: DummySubsystem,
 		bitfield_distribution: DummySubsystem,
 		provisioner: DummySubsystem,
+		pov_distribution: DummySubsystem,
 		runtime_api: DummySubsystem,
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,

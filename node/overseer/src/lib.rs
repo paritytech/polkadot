@@ -79,8 +79,8 @@ use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldDistributionMessage,
-	ProvisionerMessage, RuntimeApiMessage, AvailabilityStoreMessage,
-	NetworkBridgeMessage, AllMessages,
+	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
+	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
@@ -344,6 +344,9 @@ pub struct Overseer<S: Spawn> {
 	/// A provisioner subsystem.
 	provisioner_subsystem: OverseenSubsystem<ProvisionerMessage>,
 
+	/// A PoV distribution subsystem.
+	pov_distribution_subsystem: OverseenSubsystem<PoVDistributionMessage>,
+
 	/// A runtime API subsystem.
 	runtime_api_subsystem: OverseenSubsystem<RuntimeApiMessage>,
 
@@ -386,7 +389,7 @@ pub struct Overseer<S: Spawn> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>
 where
 	CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
 	CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
@@ -394,7 +397,8 @@ where
 	SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 	AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
 	BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-	P:  Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+	P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+	PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
 	RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
 	AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
 	NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
@@ -413,6 +417,8 @@ where
 	pub bitfield_distribution: BD,
 	/// A provisioner subsystem.
 	pub provisioner: P,
+	/// A PoV distribution subsystem.
+	pub pov_distribution: PoVD,
 	/// A runtime API subsystem.
 	pub runtime_api: RA,
 	/// An availability store subsystem.
@@ -492,6 +498,7 @@ where
 	///     availability_distribution: DummySubsystem,
 	///     bitfield_distribution: DummySubsystem,
 	///     provisioner: DummySubsystem,
+	///     pov_distribution: DummySubsystem,
 	///     runtime_api: DummySubsystem,
 	///     availability_store: DummySubsystem,
 	///     network_bridge: DummySubsystem,
@@ -515,9 +522,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>(
+	pub fn new<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BD, P, RA, AS, NB>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -527,7 +534,8 @@ where
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
 		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-		P:  Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
 		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
 		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
 		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
@@ -590,6 +598,13 @@ where
 			all_subsystems.provisioner,
 		)?;
 
+		let pov_distribution_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.pov_distribution,
+		)?;
+
 		let runtime_api_subsystem = spawn(
 			&mut s,
 			&mut running_subsystems,
@@ -626,6 +641,7 @@ where
 			availability_distribution_subsystem,
 			bitfield_distribution_subsystem,
 			provisioner_subsystem,
+			pov_distribution_subsystem,
 			runtime_api_subsystem,
 			availability_store_subsystem,
 			network_bridge_subsystem,
@@ -667,6 +683,10 @@ where
 		}
 
 		if let Some(ref mut s) = self.provisioner_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.pov_distribution_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -811,6 +831,10 @@ where
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
 
+		if let Some(ref mut s) = self.pov_distribution_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
 		if let Some(ref mut s) = self.runtime_api_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
@@ -860,6 +884,11 @@ where
 			}
 			AllMessages::Provisioner(msg) => {
 				if let Some(ref mut s) = self.provisioner_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::PoVDistribution(msg) => {
+				if let Some(ref mut s) = self.pov_distribution_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
@@ -1019,6 +1048,7 @@ mod tests {
 				availability_distribution: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
@@ -1080,6 +1110,7 @@ mod tests {
 				availability_distribution: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
@@ -1188,6 +1219,7 @@ mod tests {
 				availability_distribution: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
@@ -1283,6 +1315,7 @@ mod tests {
 				availability_distribution: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
