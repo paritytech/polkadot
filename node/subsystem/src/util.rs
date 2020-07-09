@@ -227,7 +227,18 @@ impl Validator {
 			request_signing_context(parent, &mut sender).await?,
 		)?;
 
-		let key = signing_key(&validators[..], &keystore).ok_or(Error::NotAValidator)?;
+		Self::construct(&validators, signing_context, keystore)
+	}
+
+	/// Construct a validator instance without performing runtime fetches.
+	///
+	/// This can be useful if external code also needs the same data.
+	pub fn construct(
+		validators: &[ValidatorId],
+		signing_context: SigningContext,
+		keystore: KeyStorePtr,
+	) -> Result<Self, Error> {
+		let key = signing_key(validators, &keystore).ok_or(Error::NotAValidator)?;
 		let index = validators
 			.iter()
 			.enumerate()
