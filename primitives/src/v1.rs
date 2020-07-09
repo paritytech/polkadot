@@ -61,7 +61,7 @@ pub use crate::parachain::CollatorPair;
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
-	pov_hash: &H,
+	pov_hash: &Hash,
 ) -> [u8; 68] {
 	// 32-byte hash length is protected in a test below.
 	let mut payload = [0u8; 68];
@@ -76,7 +76,7 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 fn check_collator_signature<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
-	pov_hash: &H,
+	pov_hash: &Hash,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
@@ -105,7 +105,7 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub pov_hash: Hash,
 }
 
-impl CandidateDescriptor {
+impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 	/// Check the signature of the collator within this descriptor.
 	pub fn check_collator_signature(&self) -> Result<(), ()> {
 		check_collator_signature(
@@ -277,6 +277,13 @@ pub struct BackedCandidate<H = Hash> {
 	pub validity_votes: Vec<ValidityAttestation>,
 	/// The indices of the validators within the group, expressed as a bitfield.
 	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
+}
+
+impl<H> BackedCandidate<H> {
+	/// Get a reference to the descriptor of the para.
+	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
+		&self.candidate.descriptor
+	}
 }
 
 /// Verify the backing of the given candidate.

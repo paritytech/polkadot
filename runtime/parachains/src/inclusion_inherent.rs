@@ -24,7 +24,7 @@
 use sp_std::prelude::*;
 use primitives::{
 	inclusion_inherent,
-	parachain::{BackedCandidate, SignedAvailabilityBitfields},
+	v1::{BackedCandidate, SignedAvailabilityBitfields},
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
