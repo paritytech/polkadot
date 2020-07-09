@@ -501,7 +501,7 @@ mod tests {
 	use primitives::v1::{BlockNumber, Hash};
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments, SignedStatement,
+		CandidateCommitments, SignedStatement, CandidateDescriptor, HeadData, ValidationCode,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -551,16 +551,16 @@ mod tests {
 		collator: Sr25519Keyring,
 		candidate: &mut CommittedCandidateReceipt,
 	) {
-		candidate.collator = collator.public().into();
+		candidate.descriptor.collator = collator.public().into();
 
 		let payload = primitives::v1::collator_signature_payload(
-			&candidate.relay_parent,
-			&candidate.para_id,
-			&candidate.pov_block_hash,
+			&candidate.descriptor.relay_parent,
+			&candidate.descriptor.para_id,
+			&candidate.descriptor.pov_hash,
 		);
 
-		candidate.signature = collator.sign(&payload[..]).into();
-		assert!(candidate.check_collator_signature().is_ok());
+		candidate.descriptor.signature = collator.sign(&payload[..]).into();
+		assert!(candidate.descriptor().check_collator_signature().is_ok());
 	}
 
 	fn back_candidate(
@@ -676,6 +676,33 @@ mod tests {
 			validator_index,
 			&key.pair().into(),
 		)
+	}
+
+	#[derive(Default)]
+	struct TestCandidateBuilder {
+		para_id: ParaId,
+		head_data: HeadData,
+		pov_hash: Hash,
+		relay_parent: Hash,
+		new_validation_code: Option<ValidationCode>,
+	}
+
+	impl TestCandidateBuilder {
+		fn build(self) -> CommittedCandidateReceipt {
+			CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: self.para_id,
+					pov_hash: self.pov_hash,
+					relay_parent: self.relay_parent,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					head_data: self.head_data,
+					new_validation_code: self.new_validation_code,
+					..Default::default()
+				},
+			}
+		}
 	}
 
 	#[test]
@@ -899,11 +926,11 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				receipt: CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				receipt: TestCandidateBuilder {
+					para_id: chain_a,
 					head_data: vec![1, 2, 3, 4].into(),
 					..Default::default()
-				},
+				}.build(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
@@ -911,11 +938,11 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				receipt: CommittedCandidateReceipt {
-					parachain_index: chain_b,
+				receipt: TestCandidateBuilder {
+					para_id: chain_b,
 					head_data: vec![5, 6, 7, 8].into(),
 					..Default::default()
-				},
+				}.build(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
@@ -1047,12 +1074,12 @@ mod tests {
 
 			// unscheduled candidate.
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
 					&mut candidate,
@@ -1075,18 +1102,18 @@ mod tests {
 
 			// candidates out of order.
 			{
-				let mut candidate_a = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate_a = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
-				let mut candidate_b = CommittedCandidateReceipt {
-					parachain_index: chain_b,
+				}.build();
+				let mut candidate_b = TestCandidateBuilder {
+					para_id: chain_b,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([2; 32]),
+					pov_hash: Hash::from([2; 32]),
 					..Default::default()
-				};
+				}.build();
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
@@ -1123,12 +1150,12 @@ mod tests {
 
 			// candidate not backed.
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
 					&mut candidate,
@@ -1154,12 +1181,12 @@ mod tests {
 				let wrong_parent_hash = Hash::from([222; 32]);
 				assert!(System::parent_hash() != wrong_parent_hash);
 
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
 					&mut candidate,
@@ -1182,12 +1209,12 @@ mod tests {
 
 			// candidate has wrong collator.
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: thread_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 
 				assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
 				collator_sign_candidate(
@@ -1216,12 +1243,12 @@ mod tests {
 
 			// candidate not well-signed by collator.
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: thread_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: thread_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 
 				assert_eq!(CollatorId::from(Sr25519Keyring::Two.public()), thread_collator);
 				collator_sign_candidate(
@@ -1229,7 +1256,8 @@ mod tests {
 					&mut candidate,
 				);
 
-				candidate.pov_block_hash = Hash::from([2; 32]);
+				// change the candidate after signing.
+				candidate.descriptor.pov_hash = Hash::from([2; 32]);
 
 				let backed = back_candidate(
 					candidate,
@@ -1248,12 +1276,12 @@ mod tests {
 
 			// para occupied - reject.
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
+					pov_hash: Hash::from([1; 32]),
 					..Default::default()
-				};
+				}.build();
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
@@ -1287,16 +1315,13 @@ mod tests {
 
 			// interfering code upgrade - reject
 			{
-				let mut candidate = CommittedCandidateReceipt {
-					parachain_index: chain_a,
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
 					relay_parent: System::parent_hash(),
-					pov_block_hash: Hash::from([1; 32]),
-					commitments: CandidateCommitments {
-						new_validation_code: Some(vec![5, 6, 7, 8].into()),
-						..Default::default()
-					},
+					pov_hash: Hash::from([1; 32]),
+					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					..Default::default()
-				};
+				}.build();
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
@@ -1385,34 +1410,34 @@ mod tests {
 				group_idx: GroupIndex::from(2),
 			};
 
-			let mut candidate_a = CommittedCandidateReceipt {
-				parachain_index: chain_a,
+			let mut candidate_a = TestCandidateBuilder {
+				para_id: chain_a,
 				relay_parent: System::parent_hash(),
-				pov_block_hash: Hash::from([1; 32]),
+				pov_hash: Hash::from([1; 32]),
 				..Default::default()
-			};
+			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
 				&mut candidate_a,
 			);
 
-			let mut candidate_b = CommittedCandidateReceipt {
-				parachain_index: chain_b,
+			let mut candidate_b = TestCandidateBuilder {
+				para_id: chain_b,
 				relay_parent: System::parent_hash(),
-				pov_block_hash: Hash::from([2; 32]),
+				pov_hash: Hash::from([2; 32]),
 				..Default::default()
-			};
+			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
 				&mut candidate_b,
 			);
 
-			let mut candidate_c = CommittedCandidateReceipt {
-				parachain_index: thread_a,
+			let mut candidate_c = TestCandidateBuilder {
+				para_id: thread_a,
 				relay_parent: System::parent_hash(),
-				pov_block_hash: Hash::from([3; 32]),
+				pov_hash: Hash::from([3; 32]),
 				..Default::default()
-			};
+			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::Two,
 				&mut candidate_c,
