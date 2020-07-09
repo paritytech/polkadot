@@ -21,7 +21,6 @@ use sp_std::prelude::*;
 use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -33,6 +32,10 @@ use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
 use polkadot_core_primitives::DownwardMessage;
+
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
+pub use polkadot_core_primitives::*;
+pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
@@ -893,6 +896,55 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		self.payload
 	}
 }
+
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The Ethereum signature is invalid.
+	InvalidEthereumSignature = 0,
+	/// The signer has no claim.
+	SignerHasNoClaim = 1,
+	/// No permission to execute the call.
+	NoPermission = 2,
+	/// An invalid statement was made for a claim.
+	InvalidStatement = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
+	}
+}
+
+/// App-specific crypto used for reporting equivocation/misbehavior in BABE,
+/// GRANDPA and Parachains, described in the white paper as the fisherman role.
+/// Any rewards for misbehavior reporting will be paid out to this account.
+pub mod fisherman {
+	use super::{Signature, Verify};
+	use primitives::crypto::KeyTypeId;
+
+	/// Key type for the reporting module. Used for reporting BABE, GRANDPA
+	/// and Parachain equivocations.
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"fish");
+
+	mod app {
+		use application_crypto::{app_crypto, sr25519};
+		app_crypto!(sr25519, super::KEY_TYPE);
+	}
+
+	/// Identity of the equivocation/misbehavior reporter.
+	pub type FishermanId = app::Public;
+
+	/// An `AppCrypto` type to allow submitting signed transactions using the fisherman
+	/// application key as signer.
+	pub struct FishermanAppCrypto;
+	impl frame_system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAppCrypto {
+		type RuntimeAppPublic = FishermanId;
+		type GenericSignature = primitives::sr25519::Signature;
+		type GenericPublic = primitives::sr25519::Public;
+	}
+}
+
 
 #[cfg(test)]
 mod tests {
