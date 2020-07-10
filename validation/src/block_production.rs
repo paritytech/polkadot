@@ -28,8 +28,8 @@ use std::{
 use sp_blockchain::HeaderBackend;
 use block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use consensus::{Proposal, RecordProof};
-use polkadot_primitives::{Block, Header};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{Block, Header};
+use polkadot_primitives::v0::{
 	ParachainHost, NEW_HEADS_IDENTIFIER,
 };
 use runtime_primitives::traits::{DigestFor, HashFor};

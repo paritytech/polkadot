@@ -22,9 +22,8 @@
 //! this module.
 
 use sp_std::prelude::*;
-use primitives::{
-	inclusion_inherent,
-	parachain::{BackedCandidate, SignedAvailabilityBitfields},
+use primitives::v1::{
+	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER,
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
@@ -62,7 +61,7 @@ decl_error! {
 
 decl_module! {
 	/// The inclusion inherent module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn on_initialize() -> Weight {
@@ -127,7 +126,7 @@ decl_module! {
 impl<T: Trait> ProvideInherent for Module<T> {
 	type Call = Call<T>;
 	type Error = MakeFatalError<()>;
-	const INHERENT_IDENTIFIER: InherentIdentifier = inclusion_inherent::INHERENT_IDENTIFIER;
+	const INHERENT_IDENTIFIER: InherentIdentifier = INCLUSION_INHERENT_IDENTIFIER;
 
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)

@@ -79,7 +79,7 @@ use sp_runtime::{ModuleId,
 use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
-use primitives::parachain::{Id as ParaId, HeadData};
+use primitives::v0::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -244,7 +244,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		const ModuleId: ModuleId = T::ModuleId::get();
@@ -568,7 +568,7 @@ mod tests {
 	};
 	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
-	use primitives::parachain::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
+	use primitives::v0::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
@@ -617,6 +617,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
@@ -627,6 +628,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -667,6 +669,7 @@ mod tests {
 		type TipReportDepositBase = TipReportDepositBase;
 		type TipReportDepositPerByte = TipReportDepositPerByte;
 		type ModuleId = TreasuryModuleId;
+		type WeightInfo = ();
 	}
 
 	thread_local! {

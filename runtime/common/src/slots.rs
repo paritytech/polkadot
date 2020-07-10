@@ -28,7 +28,7 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
-use primitives::parachain::{
+use primitives::v0::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
 };
 use system::{ensure_signed, ensure_root};
@@ -262,7 +262,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -890,8 +890,7 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use balances;
-	use primitives::{BlockNumber, Header};
-	use primitives::parachain::{Id as ParaId, Info as ParaInfo, Scheduling};
+	use primitives::v0::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -933,6 +932,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	parameter_types! {
@@ -945,6 +945,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	thread_local! {

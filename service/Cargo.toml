@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-service"
-version = "0.8.13"
+version = "0.8.14"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -31,6 +31,7 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
