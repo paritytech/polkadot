@@ -499,9 +499,9 @@ where
 				}
 			}
 			Ok(Signal(Conclude)) => {
-				// breaking the loop ends fn run, which drops `jobs`, which immediately drops all ongoing work
-				//
-				// REVIEW: is this the behavior we want?
+				// Breaking the loop ends fn run, which drops `jobs`, which immediately drops all ongoing work.
+				// We can afford to wait a little while to shut them all down properly before doing that.
+				future::join_all(jobs.running.drain().map(|(_, handle)| handle.stop())).await;
 				return true;
 			}
 			Ok(Communication { msg }) => {
