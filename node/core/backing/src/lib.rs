@@ -176,12 +176,9 @@ impl util::ToJobTrait for ToJob {
 	const STOP: Self = ToJob::Stop;
 
 	fn hash(&self) -> Option<Hash> {
-		use CandidateBackingMessage::{RegisterBackingWatcher, Second, Statement};
 		match self {
-			Self::CandidateBacking(RegisterBackingWatcher(hash, _)) => Some(*hash),
-			Self::CandidateBacking(Second(hash, _, _)) => Some(*hash),
-			Self::CandidateBacking(Statement(hash, _)) => Some(*hash),
-			_ => None,
+			Self::CandidateBacking(cb) => cb.hash(),
+			Self::Stop => None,
 		}
 	}
 }

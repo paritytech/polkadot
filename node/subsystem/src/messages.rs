@@ -51,6 +51,14 @@ pub enum CandidateSelectionMessage {
 	Invalid(Hash, CandidateReceipt),
 }
 
+impl CandidateSelectionMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::Invalid(hash, _) => Some(*hash),
+		}
+	}
+}
+
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -63,6 +71,17 @@ pub enum CandidateBackingMessage {
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
+}
+
+
+impl CandidateBackingMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::RegisterBackingWatcher(hash, _) => Some(*hash),
+			Self::Second(hash, _, _) => Some(*hash),
+			Self::Statement(hash, _) => Some(*hash),
+		}
+	}
 }
 
 /// Blanket error for validation failing.
@@ -102,6 +121,14 @@ pub enum CandidateValidationMessage {
 	),
 }
 
+impl CandidateValidationMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::Validate(hash, _, _, _, _) => Some(*hash),
+		}
+	}
+}
+
 /// Events from network.
 #[derive(Debug, Clone)]
 pub enum NetworkBridgeEvent {
@@ -134,6 +161,16 @@ pub enum NetworkBridgeMessage {
 	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
 }
 
+impl NetworkBridgeMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::RegisterEventProducer(_, _) => None,
+			Self::ReportPeer(_, _) => None,
+			Self::SendMessage(_, _, _) => None,
+		}
+	}
+}
+
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
@@ -147,6 +184,16 @@ pub enum AvailabilityDistributionMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
+impl AvailabilityDistributionMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::DistributeChunk(hash, _) => Some(*hash),
+			Self::FetchChunk(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
+}
+
 /// Bitfield distribution message.
 #[derive(Debug)]
 pub enum BitfieldDistributionMessage {
@@ -155,6 +202,15 @@ pub enum BitfieldDistributionMessage {
 
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
+impl BitfieldDistributionMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::DistributeBitfield(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
 }
 
 /// Availability store subsystem message.
@@ -168,6 +224,16 @@ pub enum AvailabilityStoreMessage {
 
 	/// Store an `ErasureChunk` in the AV store.
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+}
+
+impl AvailabilityStoreMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::QueryPoV(hash, _) => Some(*hash),
+			Self::QueryChunk(hash, _, _) => Some(*hash),
+			Self::StoreChunk(hash, _, _) => Some(*hash),
+		}
+	}
 }
 
 /// The information on scheduler assignments that some somesystems may be querying.
@@ -207,6 +273,14 @@ pub enum RuntimeApiMessage {
 	Request(Hash, RuntimeApiRequest),
 }
 
+impl RuntimeApiMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::Request(hash, _) => Some(*hash),
+		}
+	}
+}
+
 /// Statement distribution message.
 #[derive(Debug)]
 pub enum StatementDistributionMessage {
@@ -215,6 +289,15 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
+impl StatementDistributionMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::Share(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -253,6 +336,16 @@ pub enum ProvisionerMessage {
 	ProvisionableData(ProvisionableData),
 }
 
+impl ProvisionerMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
+			Self::RequestInherentData(hash, _) => Some(*hash),
+			Self::ProvisionableData(_) => None,
+		}
+	}
+}
+
 /// Message to the PoV Distribution Subsystem.
 #[derive(Debug)]
 pub enum PoVDistributionMessage {
@@ -266,6 +359,16 @@ pub enum PoVDistributionMessage {
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
+impl PoVDistributionMessage {
+	pub fn hash(&self) -> Option<Hash> {
+		match self {
+			Self::FetchPoV(hash, _, _) => Some(*hash),
+			Self::DistributePoV(hash, _, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
 }
 
 /// A message type tying together all message types that are used across Subsystems.

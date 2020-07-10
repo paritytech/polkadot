@@ -345,6 +345,20 @@ pub trait JobTrait {
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
+
+	/// Handle a message which can't be dispatched to a particular job
+	///
+	/// By default, this is implemented with a NOP function. However, if
+	/// ToJob occasionally has messages which do not correspond to a particular
+	/// parent relay hash, then this function will be spawned as a one-off
+	/// task to handle those messages.
+	// TODO: the API here is likely not precisely what we want; figure it out more
+	// once we're implementing a subsystem which actually needs this feature.
+	// In particular, we're quite likely to want this to return a future instead of
+	// interrupting the active thread for the duration of the handler.
+	fn handle_unhashed_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
+		Ok(())
+	}
 }
 
 pub struct Jobs<Spawner, Job: JobTrait> {
@@ -465,7 +479,7 @@ where
 	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
 	Job: JobTrait,
 	Job::RunArgs: Clone,
-	Job::ToJob: TryFrom<AllMessages> + Sync + Debug,
+	Job::ToJob: TryFrom<AllMessages> + Sync,
 {
 	/// Creates a new `Subsystem`.
 	pub fn new(spawner: Spawner, run_args: Job::RunArgs) -> Self {
@@ -520,7 +534,9 @@ where
 				}
 			}
 			Ok(Signal(Conclude)) => {
-				// breaking the loop ends fn run, which drops `jobs`, which drops all ongoing work
+				// breaking the loop ends fn run, which drops `jobs`, which immediately drops all ongoing work
+				//
+				// REVIEW: is this the behavior we want?
 				return true;
 			}
 			Ok(Communication { msg }) => {
@@ -534,7 +550,12 @@ where
 								return true;
 							}
 						}
-						None => log::warn!("message appropriate to send to job, but no parent hash available to dispatch it: {:?}", to_job),
+						None => {
+							if let Err(err) = Job::handle_unhashed_msg(to_job) {
+								log::error!("Failed to handle unhashed message: {:?}", err);
+								return true;
+							}
+						}
 					}
 				}
 			}
