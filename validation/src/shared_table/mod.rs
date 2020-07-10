@@ -71,7 +71,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		let key = match self.validators.get(authority as usize) {
+		let key = match self.validators.get(*authority as usize) {
 			Some(val) => val,
 			None => return false,
 		};
