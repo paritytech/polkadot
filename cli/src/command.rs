@@ -198,7 +198,7 @@ pub fn run() -> Result<()> {
 			}
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
-			sc_cli::init_logger("", None)?;
+			sc_cli::init_logger("");
 
 			if cfg!(feature = "browser") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
