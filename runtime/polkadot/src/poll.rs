@@ -17,18 +17,10 @@
 //! # Simple polling module
 
 use frame_support::{
-	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure,
-	traits::{
-		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
-	},
+	decl_module, decl_storage, decl_event, decl_error, ensure, traits::{Currency, Get},
 };
 use system::{self as frame_system, ensure_signed};
-use sp_runtime::{ModuleId,
-	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
-};
-use codec::{Encode, Decode};
-use sp_std::vec::Vec;
-use primitives::v0::{Id as ParaId, HeadData};
+use sp_runtime::traits::Saturating;
 
 pub type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
