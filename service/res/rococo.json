@@ -20,12 +20,7 @@
     "/ip4/34.91.174.12/tcp/30333/p2p/12D3KooWJjwoqM3BbamMdSNevCQfy1LtDf6P58BTFwGo2H9MPHuK",
     "/ip4/34.91.174.12/tcp/30334/ws/p2p/12D3KooWJjwoqM3BbamMdSNevCQfy1LtDf6P58BTFwGo2H9MPHuK"
   ],
-  "telemetryEndpoints": [
-    [
-      "/dns/telemetry.polkadot.io/tcp/443/x-parity-wss/%2Fsubmit%2F",
-      0
-    ]
-  ],
+  "telemetryEndpoints": [],
   "protocolId": "roc",
   "properties": null,
   "forkBlocks": null,
