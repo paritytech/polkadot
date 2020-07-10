@@ -235,7 +235,7 @@ impl Validator {
 	}
 }
 
-/// ToJob is expected to be an enum declaring messages which can be sent to a particular job.
+/// ToJob is expected to be an enum declaring the set of messages of interest to a particular job.
 ///
 /// Normally, this will be some subset of `Allmessages`, and a `Stop` variant.
 pub trait ToJobTrait: TryFrom<AllMessages> {
