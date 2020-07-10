@@ -15,6 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! # Simple polling module
+//!
+//! Note: This implementation assumes that all accounts are locked, and thus that no account balance
+//! may ever reduce.
 
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, ensure, traits::{Currency, Get},
@@ -74,7 +77,7 @@ decl_module! {
 		/// The End config param.
 		const End: T::BlockNumber = T::End::get();
 
-		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
+		/// Cast a vote on the poll.
 		#[weight = 100_000_000]
 		fn vote(origin, approvals: Approvals) {
 			let who = ensure_signed(origin)?;
