@@ -1222,6 +1222,7 @@ mod tests {
 				relay_parent: test_state.relay_parent,
 				pov_hash,
 				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
 			}.build();
 
@@ -1308,6 +1309,7 @@ mod tests {
 				relay_parent: test_state.relay_parent,
 				pov_hash,
 				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
 			}.build();
 
@@ -1568,10 +1570,13 @@ mod tests {
 			let pov_hash_a = pov_block_a.hash();
 			let pov_hash_b = pov_block_b.hash();
 
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
 			let candidate_a = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash: pov_hash_a,
+				erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
 				..Default::default()
 			}.build();
 
@@ -1581,6 +1586,8 @@ mod tests {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash: pov_hash_b,
+				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
+				head_data: expected_head_data.clone(),
 				..Default::default()
 			}.build();
 
@@ -1603,41 +1610,20 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate_a.descriptor() => {
-					tx.send(Ok(
-						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
-							local_validation_data: test_state.local_validation_data,
-							head_data: expected_head_data.clone(),
-							upward_messages: Vec::new(),
-							fees: Default::default(),
-							new_validation_code: None,
-						}),
-					)).unwrap();
+					tx.send(Ok(ValidationResult::Invalid)).unwrap();
 				}
 			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent_hash, candidate)
-				) if parent_hash == test_state.relay_parent && candidate == candidate_a
-			);
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(
-						relay_parent,
-						statement,
-					)
-				) if relay_parent == test_state.relay_parent => {
-					assert_eq!(*statement.payload(), Statement::Invalid(candidate_a_hash));
-				}
+					CandidateSelectionMessage::Invalid(parent_hash, c)
+				) if parent_hash == test_state.relay_parent && c == candidate_a.to_plain()
 			);
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate_b.clone(),
+				candidate_b.to_plain(),
 				pov_block_b.clone(),
 			);
 
@@ -1719,6 +1705,7 @@ mod tests {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
 			}.build();
 
@@ -1788,7 +1775,7 @@ mod tests {
 			// This should emit no actions from subsystem.
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate.clone(),
+				candidate.to_plain(),
 				pov.clone(),
 			);
 
@@ -1804,12 +1791,13 @@ mod tests {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov_to_second.clone()),
 				..Default::default()
 			}.build();
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate_to_second.clone(),
+				candidate_to_second.to_plain(),
 				pov_to_second.clone(),
 			);
 
@@ -1827,7 +1815,7 @@ mod tests {
 						tx,
 					)
 				) => {
-					assert_eq!(pov, pov_to_second);
+					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
 		});
