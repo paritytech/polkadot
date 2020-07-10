@@ -19,11 +19,8 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 use codec::{Encode, Decode};
 use polkadot_erasure_coding as erasure;
-use polkadot_primitives::{
-	Hash,
-	parachain::{
-		ErasureChunk, AvailableData, AbridgedCandidateReceipt,
-	},
+use polkadot_primitives::v0::{
+	Hash, ErasureChunk, AvailableData, AbridgedCandidateReceipt,
 };
 use parking_lot::Mutex;
 
@@ -273,7 +270,7 @@ impl Store {
 			// If there are no block data in the store at this point,
 			// check that they can be reconstructed now and add them to store if they can.
 			if self.execution_data(&candidate_hash).is_none() {
-				if let Ok(available_data) = erasure::reconstruct(
+				if let Ok(available_data) = erasure::reconstruct_v0(
 					n_validators as usize,
 					v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize)),
 				)
@@ -390,7 +387,7 @@ impl Store {
 mod tests {
 	use super::*;
 	use polkadot_erasure_coding::{self as erasure};
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		Id as ParaId, BlockData, AvailableData, PoVBlock, OmittedValidationData,
 	};
 
@@ -489,7 +486,7 @@ mod tests {
 		let available_data = available_data(&[42; 8]);
 		let n_validators = 5;
 
-		let erasure_chunks = erasure::obtain_chunks(
+		let erasure_chunks = erasure::obtain_chunks_v0(
 			n_validators,
 			&available_data,
 		).unwrap();

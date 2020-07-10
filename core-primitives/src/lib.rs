@@ -94,3 +94,8 @@ pub enum DownwardMessage<AccountId = crate::AccountId> {
 	/// XCMP message for the Parachain.
 	XCMPMessage(sp_std::vec::Vec<u8>),
 }
+
+/// V1 primitives.
+pub mod v1 {
+	pub use super::*;
+}

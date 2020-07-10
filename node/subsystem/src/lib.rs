@@ -26,7 +26,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::Hash;
+use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 
 use crate::messages::AllMessages;
@@ -147,4 +147,22 @@ pub trait SubsystemContext: Send + 'static {
 pub trait Subsystem<C: SubsystemContext> {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
+}
+
+/// A dummy subsystem that implements [`Subsystem`] for all
+/// types of messages. Used for tests or as a placeholder.
+pub struct DummySubsystem;
+
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+	fn start(self, mut ctx: C) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
+			loop {
+				match ctx.recv().await {
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Err(_) => return,
+					_ => continue,
+				}
+			}
+		}))
+	}
 }

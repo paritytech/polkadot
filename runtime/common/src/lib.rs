@@ -27,7 +27,7 @@ pub mod slots;
 pub mod crowdfund;
 pub mod impls;
 
-use primitives::BlockNumber;
+use primitives::v0::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
 use frame_support::{
 	parameter_types, traits::{Currency},
@@ -141,6 +141,7 @@ mod multiplier_tests {
 		type AccountData = ();
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
 	}
 
 	type System = system::Module<Runtime>;
