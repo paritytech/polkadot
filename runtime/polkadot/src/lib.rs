@@ -139,7 +139,7 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_)  =>
 				true,
 		}
 	}
@@ -942,6 +942,16 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	}
 }
 
+parameter_types! {
+	pub const PollEnd: u32 = 100_000;
+}
+
+impl poll::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type End = PollEnd;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1007,6 +1017,9 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Poll module.
+		Poll: poll::{Module, Call, Storage, Event<T>},
 	}
 }
 
