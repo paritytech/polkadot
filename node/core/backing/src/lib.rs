@@ -30,13 +30,14 @@ use futures::{
 
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
-	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
+	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
 	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
+	ValidationOutputs, ValidationResult,
 };
 use polkadot_subsystem::{
 	messages::{
@@ -46,18 +47,11 @@ use polkadot_subsystem::{
 	},
 	util::{
 		self,
-		request_head_data,
 		request_signing_context,
 		request_validator_groups,
 		request_validators,
 		Validator,
 	},
-};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
-	RuntimeApiMessage, CandidateValidationMessage, ValidationFailed,
-	StatementDistributionMessage, NewBackedCandidate, ProvisionerMessage, ProvisionableData,
-	PoVDistributionMessage, AvailabilityStoreMessage,
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
@@ -95,9 +89,6 @@ pub struct CandidateBackingJob {
 	rx_to: mpsc::Receiver<ToJob>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
-
-	/// `HeadData`s of the parachains that this validator is assigned to.
-	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -106,7 +97,6 @@ pub struct CandidateBackingJob {
 	seconded: Option<Hash>,
 	/// We have already reported misbehaviors for these validators.
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
-
 	table: Table<TableContext>,
 	table_context: TableContext,
 }
@@ -148,7 +138,7 @@ impl TableContextTrait for TableContext {
 }
 
 /// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
-enum ToJob {
+pub enum ToJob {
 	/// A `CandidateBackingMessage`.
 	CandidateBacking(CandidateBackingMessage),
 	/// Stop working.
@@ -709,8 +699,6 @@ impl util::JobTrait for CandidateBackingJob {
 				}
 			}
 
-			let head_data = request_head_data(parent, &mut tx_from, assignment).await?.await?;
-
 			let table_context = TableContext {
 				groups,
 				validators,
@@ -722,9 +710,8 @@ impl util::JobTrait for CandidateBackingJob {
 				parent,
 				rx_to,
 				tx_from,
-				head_data,
 				assignment,
-				issued_validity: HashSet::new(),
+				issued_statements: HashSet::new(),
 				seconded: None,
 				reported_misbehavior_for: HashSet::new(),
 				table: Table::default(),
@@ -750,7 +737,7 @@ mod tests {
 		future, Future,
 	};
 	use polkadot_primitives::v1::{
-		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex, 
+		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
 		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
 		ValidatorPair, ValidityAttestation,
 	};
@@ -1382,7 +1369,6 @@ mod tests {
 				AllMessages::CandidateValidation(
 					CandidateValidationMessage::ValidateFromChainState(
 						c,
-						head_data,
 						pov,
 						tx,
 					)
@@ -1406,14 +1392,11 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
-
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
 					CandidateValidationMessage::ValidateFromChainState(
 						c,
-						head_data,
 						pov,
 						tx,
 					)

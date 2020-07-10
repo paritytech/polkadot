@@ -34,12 +34,9 @@ use futures::{
 use futures_timer::Delay;
 use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
-use polkadot_primitives::{
-	parachain::{
-		EncodeAs, GlobalValidationSchedule, HeadData, Id as ParaId, LocalValidationData, Signed,
-		SigningContext, ValidatorId, ValidatorIndex, ValidatorPair,
-	},
-	Hash,
+use polkadot_primitives::v1::{
+	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext,
+	ValidatorId, ValidatorIndex, ValidatorPair,
 };
 use sp_core::Pair;
 use std::{
@@ -92,37 +89,6 @@ where
 		.await?;
 
 	Ok(rx)
-}
-
-/// Request a `GlobalValidationSchedule` from `RuntimeApi`.
-pub async fn request_global_validation_schedule<SenderMessage>(
-	parent: Hash,
-	s: &mut mpsc::Sender<SenderMessage>,
-) -> Result<oneshot::Receiver<GlobalValidationSchedule>, Error>
-where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| {
-		RuntimeApiRequest::GlobalValidationSchedule(tx)
-	})
-	.await
-}
-
-/// Request a `LocalValidationData` from `RuntimeApi`.
-pub async fn request_local_validation_data<SenderMessage>(
-	parent: Hash,
-	para_id: ParaId,
-	s: &mut mpsc::Sender<SenderMessage>,
-) -> Result<oneshot::Receiver<Option<LocalValidationData>>, Error>
-where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| {
-		RuntimeApiRequest::LocalValidationData(para_id, tx)
-	})
-	.await
 }
 
 /// Request a validator set from the `RuntimeApi`.

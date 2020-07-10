@@ -77,7 +77,7 @@ pub enum CandidateBackingMessage {
 impl CandidateBackingMessage {
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
-			Self::RegisterBackingWatcher(hash, _) => Some(*hash),
+			Self::GetBackedCandidates(hash, _) => Some(*hash),
 			Self::Second(hash, _, _) => Some(*hash),
 			Self::Statement(hash, _) => Some(*hash),
 		}
@@ -124,7 +124,8 @@ pub enum CandidateValidationMessage {
 impl CandidateValidationMessage {
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
-			Self::Validate(hash, _, _, _, _) => Some(*hash),
+			Self::ValidateFromChainState(CandidateDescriptor{ relay_parent, ..}, _, _) => Some(*relay_parent),
+			Self::ValidateFromExhaustive(_, _, CandidateDescriptor{ relay_parent, ..}, _, _) => Some(*relay_parent),
 		}
 	}
 }
