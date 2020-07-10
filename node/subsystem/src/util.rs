@@ -270,8 +270,8 @@ impl Validator {
 ///
 /// Normally, this will be some subset of `Allmessages`, and a `Stop` variant.
 pub trait ToJobTrait: TryFrom<AllMessages> {
-	/// Produce the `Stop` variant of the ToJob enum.
-	fn stop() -> Self;
+	/// The `Stop` variant of the ToJob enum.
+	const STOP: Self;
 }
 
 /// A JobHandle manages a particular job for a subsystem.
@@ -300,7 +300,7 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 	/// If it hasn't shut itself down after `JOB_GRACEFUL_STOP_DURATION`, abort it.
 	pub async fn stop(mut self) {
 		// we don't actually care if the message couldn't be sent
-		let _ = self.to_job.send(ToJob::stop()).await;
+		let _ = self.to_job.send(ToJob::STOP).await;
 		let stop_timer = Delay::new(JOB_GRACEFUL_STOP_DURATION);
 
 		match future::select(stop_timer, self.finished).await {
@@ -323,11 +323,14 @@ pub trait JobTrait {
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
 	/// Job runtime error.
-	type Error: std::error::Error;
+	type Error: std::fmt::Debug;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
+
+	/// Name of the job, i.e. `CandidateBackingJob`
+	const NAME: &'static str;
 
 	/// Run a job for the parent block indicated
 	fn run(
@@ -336,9 +339,6 @@ pub trait JobTrait {
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output=Result<(), Self::Error>> + Send>>;
-
-	/// Name of the job, i.e. `CandidateBackingJob`
-	fn name() -> &'static str;
 }
 
 pub struct Jobs<Spawner, Job: JobTrait> {
@@ -369,7 +369,7 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 			if let Err(e) = Job::run(parent_hash, run_args, to_job_rx, from_job_tx).await {
 				log::error!(
 					"{}({}) finished with an error {:?}",
-					Job::name(),
+					Job::NAME,
 					parent_hash,
 					e,
 				);
@@ -429,6 +429,8 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 	}
 }
 
+// Note that on drop, we don't have the chance to gracefully spin down each of the remaining handles;
+// we just abort them all. Still better than letting them dangle.
 impl<Spawner, Job: JobTrait> Drop for Jobs<Spawner, Job> {
 	fn drop(&mut self) {
 		for job_handle in self.running.values() {

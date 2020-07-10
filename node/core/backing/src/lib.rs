@@ -22,14 +22,13 @@ use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use bitvec::vec::BitVec;
 use log;
 use futures::{
-	select, FutureExt, SinkExt, StreamExt,
+	select, Future, FutureExt, SinkExt, StreamExt,
 	channel::{oneshot, mpsc},
-	future::{self, Either},
+	future,
 	task::{Spawn, SpawnError, SpawnExt},
 };
 use futures_timer::Delay;
@@ -99,6 +98,9 @@ struct CandidateBackingJob {
 	rx_to: mpsc::Receiver<ToJob>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
+
+	/// `HeadData`s of the parachains that this validator is assigned to.
+	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -156,6 +158,21 @@ enum ToJob {
 	CandidateBacking(CandidateBackingMessage),
 	/// Stop working.
 	Stop,
+}
+
+impl TryFrom<AllMessages> for ToJob {
+	type Error = ();
+
+	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
+		match msg {
+			AllMessages::CandidateBacking(msg) => Ok(ToJob::CandidateBacking(msg)),
+			_ => Err(()),
+		}
+	}
+}
+
+impl util::ToJobTrait for ToJob {
+	const STOP: Self = ToJob::Stop;
 }
 
 /// A message type that is sent from `CandidateBackingJob` to `CandidateBackingSubsystem`.
@@ -643,166 +660,85 @@ impl CandidateBackingJob {
 	}
 }
 
-struct JobHandle {
-	abort_handle: future::AbortHandle,
-	to_job: mpsc::Sender<ToJob>,
-	finished: oneshot::Receiver<()>,
-	su_handle: usize,
-}
+type JobHandle = util::JobHandle<ToJob>;
 
-impl JobHandle {
-	async fn stop(mut self) {
-		let _ = self.to_job.send(ToJob::Stop).await;
-		let stop_timer = Delay::new(Duration::from_secs(1));
+struct Job;
 
-		match future::select(stop_timer, self.finished).await {
-			Either::Left((_, _)) => {}
-			Either::Right((_, _)) => {
-				self.abort_handle.abort();
+impl util::JobTrait for Job {
+	type ToJob = ToJob;
+	type FromJob = FromJob;
+	type Error = Error;
+	type RunArgs = KeyStorePtr;
+
+	const NAME: &'static str = "CandidateBackingJob";
+
+	fn run(
+		parent: Hash,
+		keystore: KeyStorePtr,
+		rx_to: mpsc::Receiver<Self::ToJob>,
+		tx_from: mpsc::Sender<Self::FromJob>,
+	) -> Pin<Box<dyn Future<Output=Result<(), Self::Error>> + Send>> {
+		async move {
+			let (validators, roster, signing_context) = futures::try_join!(
+				request_validators(parent, &mut tx_from).await?,
+				request_validator_groups(parent, &mut tx_from).await?,
+				request_signing_context(parent, &mut tx_from).await?,
+			)?;
+
+			let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
+
+			let mut groups = HashMap::new();
+
+			for assignment in roster.scheduled {
+				if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
+					groups.insert(
+						assignment.para_id,
+						g.clone(),
+					);
+				}
 			}
-		}
-	}
 
-	async fn send_msg(&mut self, msg: ToJob) -> Result<(), Error> {
-		Ok(self.to_job.send(msg).await?)
-	}
-}
+			let mut assignment = Default::default();
 
-struct Jobs<S> {
-	spawner: S,
-	running: HashMap<Hash, JobHandle>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJob>>,
-}
-
-async fn run_job(
-	parent: Hash,
-	keystore: KeyStorePtr,
-	rx_to: mpsc::Receiver<ToJob>,
-	mut tx_from: mpsc::Sender<FromJob>,
-) -> Result<(), Error> {
-	let (validators, roster, signing_context) = futures::try_join!(
-		request_validators(parent, &mut tx_from).await?,
-		request_validator_groups(parent, &mut tx_from).await?,
-		request_signing_context(parent, &mut tx_from).await?,
-	)?;
-
-	let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
-
-	let mut groups = HashMap::new();
-
-	for assignment in roster.scheduled {
-		if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
-			groups.insert(
-				assignment.para_id,
-				g.clone(),
-			);
-		}
-	}
-
-	let mut assignment = Default::default();
-
-	if let Some(idx) = validators.iter().position(|k| *k == validator.id()) {
-		let idx = idx as u32;
-		for (para_id, group) in groups.iter() {
-			if group.contains(&idx) {
-				assignment = *para_id;
-				break;
-			}
-		}
-	}
-
-	let table_context = TableContext {
-		groups,
-		validators,
-		signing_context: validator.signing_context(),
-		validator: Some(validator),
-	};
-
-	let job = CandidateBackingJob {
-		parent,
-		rx_to,
-		tx_from,
-		assignment,
-		issued_statements: HashSet::new(),
-		seconded: None,
-		reported_misbehavior_for: HashSet::new(),
-		table: Table::default(),
-		table_context,
-	};
-
-	job.run().await
-}
-
-impl<S: Spawn> Jobs<S> {
-	fn new(spawner: S) -> Self {
-		Self {
-			spawner,
-			running: HashMap::default(),
-			outgoing_msgs: StreamUnordered::new(),
-		}
-	}
-
-	fn spawn_job(&mut self, parent_hash: Hash, keystore: KeyStorePtr) -> Result<(), Error> {
-		let (to_job_tx, to_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
-		let (from_job_tx, from_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
-
-		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = run_job(parent_hash, keystore, to_job_rx, from_job_tx).await {
-				log::error!(
-					"CandidateBackingJob({}) finished with an error {:?}",
-					parent_hash,
-					e,
-				);
+			if let Some(idx) = validators.iter().position(|k| *k == validator.id()) {
+				let idx = idx as u32;
+				for (para_id, group) in groups.iter() {
+					if group.contains(&idx) {
+						assignment = *para_id;
+						break;
+					}
+				}
 			}
 		});
 
-		let (finished_tx, finished) = oneshot::channel();
+			let head_data = request_head_data(parent, &mut tx_from, assignment).await?.await?;
 
-		let future = async move {
-			let _ = future.await;
-			let _ = finished_tx.send(());
-		};
-		self.spawner.spawn(future)?;
+			let table_context = TableContext {
+				groups,
+				validators,
+				signing_context: validator.signing_context().clone(),
+				validator: Some(validator),
+			};
 
-		let su_handle = self.outgoing_msgs.push(from_job_rx);
+			let job = CandidateBackingJob {
+				parent,
+				rx_to,
+				tx_from,
+				head_data,
+				assignment,
+				issued_validity: HashSet::new(),
+				seconded: None,
+				reported_misbehavior_for: HashSet::new(),
+				table: Table::default(),
+				table_context,
+			};
 
-		let handle = JobHandle {
-			abort_handle,
-			to_job: to_job_tx,
-			finished,
-			su_handle,
-		};
-
-		self.running.insert(parent_hash, handle);
-
-		Ok(())
-	}
-
-	async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
-		match self.running.remove(&parent_hash) {
-			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.su_handle);
-				handle.stop().await;
-				Ok(())
-			}
-			None => Err(Error::JobNotFound(parent_hash))
-		}
-	}
-
-	async fn send_msg(&mut self, parent_hash: Hash, msg: ToJob) -> Result<(), Error> {
-		if let Some(job) = self.running.get_mut(&parent_hash) {
-			job.send_msg(msg).await?;
-		}
-		Ok(())
-	}
-
-	async fn next(&mut self) -> Option<FromJob> {
-		self.outgoing_msgs.next().await.and_then(|(e, _)| match e {
-			StreamYield::Item(e) => Some(e),
-			_ => None,
-		})
+			job.run().await
+		}.boxed()
 	}
 }
+
+type Jobs<Spawner> = util::Jobs<Spawner, Job>;
 
 /// An implementation of the Candidate Backing subsystem.
 pub struct CandidateBackingSubsystem<S, Context> {
