@@ -203,13 +203,33 @@ mod tests {
 	#[test]
 	fn totaling_works() {
 		new_test_ext().execute_with(|| {
-			Poll::vote(Origin::signed(1), [true, false, false, false]);
-			Poll::vote(Origin::signed(2), [false, true, false, false]);
-			Poll::vote(Origin::signed(3), [false, false, true, false]);
-			Poll::vote(Origin::signed(4), [false, false, false, true]);
-			assert_eq!(Totals::<Test>::get(), [10, 20, 30, 40]);
-			Poll::vote(Origin::signed(4), [true, true, false, true]);
-			assert_eq!(Totals::<Test>::get(), [50, 60, 30, 40]);
+			assert_ok!(Poll::vote(Origin::signed(1), [true, true, false, false]));
+			assert_ok!(Poll::vote(Origin::signed(2), [false, true, true, false]));
+			assert_ok!(Poll::vote(Origin::signed(3), [false, false, true, true]));
+			assert_ok!(Poll::vote(Origin::signed(4), [true, false, false, true]));
+			assert_eq!(Totals::<Test>::get(), [50, 30, 50, 70]);
+		});
+	}
+
+	#[test]
+	fn revoting_works() {
+		new_test_ext().execute_with(|| {
+			assert_ok!(Poll::vote(Origin::signed(1), [true, false, false, false]));
+			assert_eq!(Totals::<Test>::get(), [10, 0, 0, 0]);
+			assert_ok!(Poll::vote(Origin::signed(1), [false, true, false, false]));
+			assert_eq!(Totals::<Test>::get(), [0, 10, 0, 0]);
+			assert_ok!(Poll::vote(Origin::signed(1), [false, false, true, true]));
+			assert_eq!(Totals::<Test>::get(), [0, 0, 10, 10]);
+		});
+	}
+
+	#[test]
+	fn vote_end_works() {
+		new_test_ext().execute_with(|| {
+			assert_ok!(Poll::vote(Origin::signed(1), [true, false, false, false]));
+			assert_eq!(Totals::<Test>::get(), [10, 0, 0, 0]);
+			system::Module::<Test>::set_block_number(1);
+			assert_noop!(Poll::vote(Origin::signed(1), [false, true, false, false]), Error::<Test>::TooLate);
 		});
 	}
 }
