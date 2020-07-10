@@ -21,18 +21,20 @@ use sp_std::prelude::*;
 use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::{bytes, crypto::Pair};
+use primitives::crypto::Pair;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
-use polkadot_core_primitives::DownwardMessage;
+
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
+pub use polkadot_core_primitives::*;
+pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
@@ -169,100 +171,6 @@ pub enum Chain {
 pub struct DutyRoster {
 	/// Lookup from validator index to chain on which that validator has a duty to validate.
 	pub validator_duty: Vec<Chain>,
-}
-
-/// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct CoreIndex(pub u32);
-
-impl From<u32> for CoreIndex {
-	fn from(i: u32) -> CoreIndex {
-		CoreIndex(i)
-	}
-}
-
-/// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(feature = "std", derive(Eq, Hash, PartialEq, Debug))]
-pub struct GroupIndex(pub u32);
-
-impl From<u32> for GroupIndex {
-	fn from(i: u32) -> GroupIndex {
-		GroupIndex(i)
-	}
-}
-
-/// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct ParathreadClaim(pub Id, pub CollatorId);
-
-/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct ParathreadEntry {
-	/// The claim.
-	pub claim: ParathreadClaim,
-	/// Number of retries.
-	pub retries: u32,
-}
-
-/// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum CoreOccupied {
-	/// A parathread.
-	Parathread(ParathreadEntry),
-	/// A parachain.
-	Parachain,
-}
-
-/// The assignment type.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum AssignmentKind {
-	/// A parachain.
-	Parachain,
-	/// A parathread.
-	Parathread(CollatorId, u32),
-}
-
-/// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct CoreAssignment {
-	/// The core that is assigned.
-	pub core: CoreIndex,
-	/// The unique ID of the para that is assigned to the core.
-	pub para_id: Id,
-	/// The kind of the assignment.
-	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
-}
-
-impl CoreAssignment {
-	/// Get the ID of a collator who is required to collate this block.
-	pub fn required_collator(&self) -> Option<&CollatorId> {
-		match self.kind {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(ref id, _) => Some(id),
-		}
-	}
-
-	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(&self) -> CoreOccupied {
-		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
-				ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator.clone()),
-					retries,
-				}
-			),
-		}
-	}
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -505,7 +413,6 @@ impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// the relay-chain block in which context it should be executed, which implies
 	/// any blockchain state that must be referenced.
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
 	}
 }
@@ -687,7 +594,6 @@ impl PoVBlock {
 	/// Compute hash of block data.
 	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(&self)
 	}
 }
@@ -715,16 +621,6 @@ pub struct ErasureChunk {
 	/// Proof for this chunk's branch in the Merkle tree.
 	pub proof: Vec<Vec<u8>>,
 }
-
-/// Parachain header raw bytes wrapper type.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Activity bit field.
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
@@ -852,87 +748,6 @@ impl FeeSchedule {
 		let n_bytes = n_bytes as Balance;
 		self.base.saturating_add(n_bytes.saturating_mul(self.per_byte))
 	}
-}
-
-/// A bitfield concerning availability of backed candidates.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
-
-impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
-		AvailabilityBitfield(inner)
-	}
-}
-
-/// A bitfield signed by a particular validator about the availability of pending candidates.
-pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
-
-/// A set of signed availability bitfields. Should be sorted by validator index, ascending.
-pub type SignedAvailabilityBitfields = Vec<SignedAvailabilityBitfield>;
-
-/// A backed (or backable, depending on context) candidate.
-// TODO: yes, this is roughly the same as AttestedCandidate.
-// After https://github.com/paritytech/polkadot/issues/1250
-// they should be unified to this type.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct BackedCandidate<H = Hash> {
-	/// The candidate referred to.
-	pub candidate: AbridgedCandidateReceipt<H>,
-	/// The validity votes themselves, expressed as signatures.
-	pub validity_votes: Vec<ValidityAttestation>,
-	/// The indices of the validators within the group, expressed as a bitfield.
-	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
-}
-
-/// Verify the backing of the given candidate.
-///
-/// Provide a lookup from the index of a validator within the group assigned to this para,
-/// as opposed to the index of the validator within the overall validator set, as well as
-/// the number of validators in the group.
-///
-/// Also provide the signing context.
-///
-/// Returns either an error, indicating that one of the signatures was invalid or that the index
-/// was out-of-bounds, or the number of signatures checked.
-pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
-	backed: &BackedCandidate<H>,
-	signing_context: &SigningContext<H>,
-	group_len: usize,
-	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
-) -> Result<usize, ()> {
-	if backed.validator_indices.len() != group_len {
-		return Err(())
-	}
-
-	if backed.validity_votes.len() > group_len {
-		return Err(())
-	}
-
-	// this is known, even in runtime, to be blake2-256.
-	let hash: Hash = backed.candidate.hash();
-
-	let mut signed = 0;
-	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
-		.filter(|(_, signed)| **signed)
-		.zip(backed.validity_votes.iter())
-	{
-		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
-		let payload = attestation.signed_payload(hash.clone(), signing_context);
-		let sig = attestation.signature();
-
-		if sig.verify(&payload[..], &validator_id) {
-			signed += 1;
-		} else {
-			return Err(())
-		}
-	}
-
-	if signed != backed.validity_votes.len() {
-		return Err(())
-	}
-
-	Ok(signed)
 }
 
 sp_api::decl_runtime_apis! {
@@ -1097,6 +912,55 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		self.payload
 	}
 }
+
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The Ethereum signature is invalid.
+	InvalidEthereumSignature = 0,
+	/// The signer has no claim.
+	SignerHasNoClaim = 1,
+	/// No permission to execute the call.
+	NoPermission = 2,
+	/// An invalid statement was made for a claim.
+	InvalidStatement = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
+	}
+}
+
+/// App-specific crypto used for reporting equivocation/misbehavior in BABE,
+/// GRANDPA and Parachains, described in the white paper as the fisherman role.
+/// Any rewards for misbehavior reporting will be paid out to this account.
+pub mod fisherman {
+	use super::{Signature, Verify};
+	use primitives::crypto::KeyTypeId;
+
+	/// Key type for the reporting module. Used for reporting BABE, GRANDPA
+	/// and Parachain equivocations.
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"fish");
+
+	mod app {
+		use application_crypto::{app_crypto, sr25519};
+		app_crypto!(sr25519, super::KEY_TYPE);
+	}
+
+	/// Identity of the equivocation/misbehavior reporter.
+	pub type FishermanId = app::Public;
+
+	/// An `AppCrypto` type to allow submitting signed transactions using the fisherman
+	/// application key as signer.
+	pub struct FishermanAppCrypto;
+	impl frame_system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAppCrypto {
+		type RuntimeAppPublic = FishermanId;
+		type GenericSignature = primitives::sr25519::Signature;
+		type GenericPublic = primitives::sr25519::Public;
+	}
+}
+
 
 #[cfg(test)]
 mod tests {

@@ -37,11 +37,9 @@
 
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
-use primitives::{
-	parachain::{
-		Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
-		GroupIndex, ParathreadClaim, ParathreadEntry,
-	},
+use primitives::v1::{
+	Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
+	GroupIndex, ParathreadClaim, ParathreadEntry,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -586,7 +584,7 @@ impl<T: Trait> Module<T> {
 mod tests {
 	use super::*;
 
-	use primitives::{BlockNumber, parachain::{CollatorId, ValidatorId}};
+	use primitives::v1::{BlockNumber, ValidatorId, CollatorId};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 

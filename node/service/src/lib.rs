@@ -22,7 +22,7 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Nonce, Balance};
+use polkadot_primitives::v1::{AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
@@ -45,8 +45,7 @@ pub use sc_consensus::LongestChain;
 pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use polkadot_primitives::{Block, BlockId};
+pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Id as ParaId};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
@@ -84,7 +83,6 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
@@ -104,7 +102,6 @@ where
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
@@ -578,7 +575,7 @@ macro_rules! new_light {
 /// Builds a new object suitable for chain operations.
 pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 	(
-		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
+		Arc<service::TFullClient<Block, Runtime, Dispatch>>,
 		Arc<TFullBackend<Block>>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
@@ -601,7 +598,7 @@ where
 #[cfg(feature = "full-node")]
 pub fn polkadot_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
@@ -633,7 +630,7 @@ pub fn polkadot_new_full(
 #[cfg(feature = "full-node")]
 pub fn kusama_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
@@ -665,7 +662,7 @@ pub fn kusama_new_full(
 #[cfg(feature = "full-node")]
 pub fn westend_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
 	_authority_discovery_enabled: bool,
 	_slot_duration: u64,

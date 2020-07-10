@@ -27,11 +27,11 @@ use futures::{
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use polkadot_primitives::parachain::{BlockData, PoVBlock};
+use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::{Overseer, AllSubsystems};
 
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, DummySubsystem, 
+	Subsystem, SubsystemContext, DummySubsystem,
 	SpawnedSubsystem, FromOverseer,
 };
 use polkadot_subsystem::messages::{
@@ -61,13 +61,11 @@ impl Subsystem1 {
 			let (tx, _) = oneshot::channel();
 
 			ctx.send_message(AllMessages::CandidateValidation(
-				CandidateValidationMessage::Validate(
+				CandidateValidationMessage::ValidateFromChainState(
 					Default::default(),
-					Default::default(),
-					Default::default(),
-					PoVBlock {
+					PoV {
 						block_data: BlockData(Vec::new()),
-					},
+					}.into(),
 					tx,
 				)
 			)).await.unwrap();

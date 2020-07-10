@@ -1,6 +1,7 @@
 # Candidate Types
 
 Para candidates are some of the most common types, both within the runtime and on the Node-side.
+Candidates are the fundamental datatype for advancing parachains and parathreads, encapsulating the collator's signature, the context of the parablock, the commitments to the output, and a commitment to the data which proves it valid.
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
@@ -177,5 +178,26 @@ struct SigningContext {
 	parent_hash: Hash,
 	/// The session index this signature is in the context of.
 	session_index: SessionIndex,
+}
+```
+
+## Validation Outputs
+
+This struct encapsulates the outputs of candidate validation.
+
+```rust
+struct ValidationOutputs {
+	/// The head-data produced by validation.
+	head_data: HeadData,
+	/// The global validation schedule.
+	global_validation_schedule: GlobalValidationSchedule,
+	/// The local validation data.
+	local_validation_data: LocalValidationData,
+	/// Upwards messages to the relay chain.
+	upwards_messages: Vec<UpwardsMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	new_validation_code: Option<ValidationCode>,
 }
 ```

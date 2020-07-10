@@ -20,7 +20,7 @@
 
 use std::sync::Arc;
 
-use polkadot_primitives::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
+use polkadot_primitives::v0::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};

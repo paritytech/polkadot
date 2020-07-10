@@ -21,6 +21,7 @@
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
+use std::sync::Arc;
 use std::time::Duration;
 
 use bitvec::vec::BitVec;
@@ -36,17 +37,15 @@ use streamunordered::{StreamUnordered, StreamYield};
 
 use primitives::Pair;
 use keystore::KeyStorePtr;
-use polkadot_primitives::{
-	Hash,
-	parachain::{
-		AbridgedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
-		ValidatorIndex, HeadData, SigningContext, PoVBlock, OmittedValidationData,
-		CandidateDescriptor, LocalValidationData, GlobalValidationSchedule, AvailableData,
-		ErasureChunk,
-	},
+use polkadot_primitives::v1::{
+	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
+	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
+	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
+	CandidateCommitments,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
+	ValidationOutputs,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -59,8 +58,12 @@ use polkadot_subsystem::messages::{
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
-	Table, Context as TableContextTrait, Statement as TableStatement,
-	SignedStatement as TableSignedStatement, Summary as TableSummary, 
+	Context as TableContextTrait,
+	Table,
+	v1::{
+		Statement as TableStatement,
+		SignedStatement as TableSignedStatement, Summary as TableSummary,
+	},
 };
 
 #[derive(Debug, derive_more::From)]
@@ -90,8 +93,6 @@ struct CandidateBackingJob {
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
 
-	/// `HeadData`s of the parachains that this validator is assigned to.
-	head_data: HeadData,
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -118,8 +119,22 @@ struct TableContext {
 }
 
 impl TableContextTrait for TableContext {
-	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.iter().position(|&a| a == authority).is_some())
+	type AuthorityId = ValidatorIndex;
+	type Digest = Hash;
+	type GroupId = ParaId;
+	type Signature = ValidatorSignature;
+	type Candidate = CommittedCandidateReceipt;
+
+	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> Hash {
+		candidate.hash()
+	}
+
+	fn candidate_group(candidate: &CommittedCandidateReceipt) -> ParaId {
+		candidate.descriptor().para_id
+	}
+
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
+		self.groups.get(group).map_or(false, |g| g.iter().position(|a| a == authority).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -221,7 +236,7 @@ impl CandidateBackingJob {
 
 	async fn issue_candidate_invalid_message(
 		&mut self,
-		candidate: AbridgedCandidateReceipt,
+		candidate: CandidateReceipt,
 	) -> Result<(), Error> {
 		self.tx_from.send(FromJob::CandidateSelection(
 			CandidateSelectionMessage::Invalid(self.parent, candidate)
@@ -231,34 +246,69 @@ impl CandidateBackingJob {
 	}
 
 	/// Validate the candidate that is requested to be `Second`ed and distribute validation result.
+	///
+	/// Returns `Ok(true)` if we issued a `Seconded` statement about this candidate.
 	async fn validate_and_second(
 		&mut self,
-		candidate: AbridgedCandidateReceipt,
-		pov: PoVBlock,
-	) -> Result<ValidationResult, Error> {
-		let valid = self.request_candidate_validation(candidate.clone(), pov.clone()).await?;
-		let statement = match valid.0 {
-			ValidationResult::Valid => {
+		candidate: &CandidateReceipt,
+		pov: PoV,
+	) -> Result<bool, Error> {
+		let valid = self.request_candidate_validation(
+			candidate.descriptor().clone(),
+			Arc::new(pov.clone()),
+		).await?;
+
+		let candidate_hash = candidate.hash();
+
+		let statement = match valid {
+			ValidationResult::Valid(outputs) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
-				self.make_pov_available(pov, valid.1, valid.2).await?;
-				self.issued_statements.insert(candidate.hash());
-				Statement::Seconded(candidate)
+				//
+				// If the commitments hash produced by validation is not the same as given by
+				// the collator, do not make available and report the collator.
+				let commitments_check = self.make_pov_available(
+					pov,
+					outputs,
+					|commitments| if commitments.hash() == candidate.commitments_hash {
+						Ok(CommittedCandidateReceipt {
+							descriptor: candidate.descriptor().clone(),
+							commitments,
+						})
+					} else {
+						Err(())
+					},
+				).await?;
+
+				match commitments_check {
+					Ok(candidate) => {
+						self.issued_statements.insert(candidate_hash);
+						Some(Statement::Seconded(candidate))
+					}
+					Err(()) => {
+						self.issue_candidate_invalid_message(candidate.clone()).await?;
+						None
+					}
+				}
 			}
 			ValidationResult::Invalid => {
-				let candidate_hash = candidate.hash();
-				self.issue_candidate_invalid_message(candidate).await?;
-				Statement::Invalid(candidate_hash)
+				// no need to issue a statement about this if we aren't seconding it.
+				//
+				// there's an infinite amount of garbage out there. no need to acknowledge
+				// all of it.
+				self.issue_candidate_invalid_message(candidate.clone()).await?;
+				None
 			}
 		};
 
-		if let Some(signed_statement) = self.sign_statement(statement) {
+		let issued_statement = statement.is_some();
+		if let Some(signed_statement) = statement.and_then(|s| self.sign_statement(s)) {
 			self.import_statement(&signed_statement).await?;
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
-		Ok(valid.0)
+		Ok(issued_statement)
 	}
 
 	fn get_backed(&self) -> Vec<NewBackedCandidate> {
@@ -303,7 +353,7 @@ impl CandidateBackingJob {
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	/// 
+	///
 	/// TODO: Report multiple misbehaviors (https://github.com/paritytech/polkadot/issues/1387)
 	async fn issue_new_misbehaviors(&mut self) -> Result<(), Error> {
 		let mut reports = Vec::new();
@@ -354,7 +404,7 @@ impl CandidateBackingJob {
 		match msg {
 			CandidateBackingMessage::Second(_, candidate, pov) => {
 				// Sanity check that candidate is from our assignment.
-				if candidate.parachain_index != self.assignment {
+				if candidate.descriptor().para_id != self.assignment {
 					return Ok(());
 				}
 
@@ -367,8 +417,8 @@ impl CandidateBackingJob {
 						let candidate_hash = candidate.hash();
 
 						if !self.issued_statements.contains(&candidate_hash) {
-							if let Ok(ValidationResult::Valid) = self.validate_and_second(
-								candidate,
+							if let Ok(true) = self.validate_and_second(
+								&candidate,
 								pov,
 							).await {
 								self.seconded = Some(candidate_hash);
@@ -397,17 +447,40 @@ impl CandidateBackingJob {
 	async fn kick_off_validation_work(
 		&mut self,
 		summary: TableSummary,
-	) -> Result<ValidationResult, Error> {
-		let candidate = self.table.get_candidate(&summary.candidate).ok_or(Error::CandidateNotFound)?;
-		let candidate = candidate.clone();
-		let descriptor = candidate.to_descriptor();
-		let candidate_hash = candidate.hash();
-		let pov = self.request_pov_from_distribution(descriptor).await?;
-		let v = self.request_candidate_validation(candidate, pov).await?;
+	) -> Result<(), Error> {
+		let candidate_hash = summary.candidate.clone();
 
-		let statement = match v.0 {
-			ValidationResult::Valid => {
-				Statement::Valid(candidate_hash)
+		if self.issued_statements.contains(&candidate_hash) {
+			return Ok(())
+		}
+
+		// We clone the commitments here because there are borrowck
+		// errors relating to this being a struct and methods borrowing the entirety of self
+		// and not just those things that the function uses.
+		let candidate = self.table.get_candidate(&candidate_hash).ok_or(Error::CandidateNotFound)?;
+		let expected_commitments = candidate.commitments.clone();
+
+		let descriptor = candidate.descriptor().clone();
+		let pov = self.request_pov_from_distribution(descriptor.clone()).await?;
+		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
+
+		let statement = match v {
+			ValidationResult::Valid(outputs) => {
+				// If validation produces a new set of commitments, we vote the candidate as invalid.
+				let commitments_check = self.make_pov_available(
+					(&*pov).clone(),
+					outputs,
+					|commitments| if commitments == expected_commitments {
+						Ok(())
+					} else {
+						Err(())
+					}
+				).await?;
+
+				match commitments_check {
+					Ok(()) => Statement::Valid(candidate_hash),
+					Err(()) => Statement::Invalid(candidate_hash),
+				}
 			}
 			ValidationResult::Invalid => {
 				Statement::Invalid(candidate_hash)
@@ -420,7 +493,7 @@ impl CandidateBackingJob {
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
-		Ok(v.0)
+		Ok(())
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
@@ -478,29 +551,26 @@ impl CandidateBackingJob {
 	async fn request_pov_from_distribution(
 		&mut self,
 		descriptor: CandidateDescriptor,
-	) -> Result<PoVBlock, Error> {
+	) -> Result<Arc<PoV>, Error> {
 		let (tx, rx) = oneshot::channel();
 
 		self.tx_from.send(FromJob::PoVDistribution(
 			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
 		)).await?;
 
-		let pov = rx.await?;
-		Ok((*pov).clone())
+		Ok(rx.await?)
 	}
 
 	async fn request_candidate_validation(
 		&mut self,
-		candidate: AbridgedCandidateReceipt,
-		pov: PoVBlock,
-	) -> Result<(ValidationResult, GlobalValidationSchedule, LocalValidationData), Error> {
+		candidate: CandidateDescriptor,
+		pov: Arc<PoV>,
+	) -> Result<ValidationResult, Error> {
 		let (tx, rx) = oneshot::channel();
 
 		self.tx_from.send(FromJob::CandidateValidation(
-				CandidateValidationMessage::Validate(
-					self.parent,
+				CandidateValidationMessage::ValidateFromChainState(
 					candidate,
-					self.head_data.clone(),
 					pov,
 					tx,
 				)
@@ -523,32 +593,51 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	async fn make_pov_available(
+	// Compute the erasure-coding and make it available.
+	//
+	// This calls an inspection function before making the PoV available for any last checks
+	// that need to be done. If the inspection function returns an error, this function returns
+	// early without making the PoV available.
+	async fn make_pov_available<T, E>(
 		&mut self,
-		pov_block: PoVBlock,
-		global_validation: GlobalValidationSchedule,
-		local_validation: LocalValidationData,
-	) -> Result<(), Error> {
+		pov: PoV,
+		outputs: ValidationOutputs,
+		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
+	) -> Result<Result<T, E>, Error> {
 		let omitted_validation = OmittedValidationData {
-			global_validation,
-			local_validation,
+			global_validation: outputs.global_validation_schedule,
+			local_validation: outputs.local_validation_data,
 		};
 
 		let available_data = AvailableData {
-			pov_block,
+			pov,
 			omitted_validation,
 		};
 
-		let chunks = erasure_coding::obtain_chunks(
+		let chunks = erasure_coding::obtain_chunks_v1(
 			self.table_context.validators.len(),
 			&available_data,
 		)?;
 
 		let branches = erasure_coding::branches(chunks.as_ref());
+		let erasure_root = branches.root();
 
-		for (index, (chunk, proof)) in chunks.iter().zip(branches.map(|(proof, _)| proof)).enumerate() {
+		let commitments = CandidateCommitments {
+			fees: outputs.fees,
+			upward_messages: outputs.upward_messages,
+			erasure_root,
+			new_validation_code: outputs.new_validation_code,
+			head_data: outputs.head_data,
+		};
+
+		let res = match with_commitments(commitments) {
+			Ok(x) => x,
+			Err(e) => return Ok(Err(e)),
+		};
+
+		for (index, (proof, chunk)) in branches.enumerate() {
 			let chunk = ErasureChunk {
-				chunk: chunk.clone(),
+				chunk: chunk.to_vec(),
 				index: index as u32,
 				proof,
 			};
@@ -556,7 +645,7 @@ impl CandidateBackingJob {
 			self.store_chunk(index as ValidatorIndex, chunk).await?;
 		}
 
-		Ok(())
+		Ok(Ok(res))
 	}
 
 	async fn distribute_signed_statement(&mut self, s: SignedFullStatement) -> Result<(), Error> {
@@ -635,13 +724,7 @@ async fn run_job(
 		}
 	}
 
-	let (
-		head_data,
-		signing_context,
-	) = futures::try_join!(
-		request_head_data(parent, &mut tx_from, assignment).await?,
-		request_signing_context(parent, &mut tx_from).await?,
-	)?;
+	let signing_context = request_signing_context(parent, &mut tx_from).await?.await?;
 
 	let table_context = TableContext {
 		signing_context,
@@ -654,7 +737,6 @@ async fn run_job(
 		parent,
 		rx_to,
 		tx_from,
-		head_data,
 		assignment,
 		issued_statements: HashSet::new(),
 		seconded: None,
@@ -708,23 +790,6 @@ async fn request_signing_context(
 	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
 			parent,
 			RuntimeApiRequest::SigningContext(tx),
-		)
-	)).await?;
-
-	Ok(rx)
-}
-
-/// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-async fn request_head_data(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-	id: ParaId,
-) -> Result<oneshot::Receiver<HeadData>, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-			parent,
-			RuntimeApiRequest::HeadData(id, tx),
 		)
 	)).await?;
 
@@ -910,8 +975,9 @@ mod tests {
 	use std::collections::HashMap;
 	use std::sync::Arc;
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v1::{
 		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
+		CandidateCommitments, LocalValidationData, GlobalValidationSchedule, HeadData,
 	};
 	use assert_matches::assert_matches;
 
@@ -1006,6 +1072,7 @@ mod tests {
 				parent_head: HeadData(vec![7, 8, 9]),
 				balance: Default::default(),
 				code_upgrade_allowed: None,
+				validation_code_hash: Default::default(),
 			};
 
 			let global_validation_schedule = GlobalValidationSchedule {
@@ -1050,6 +1117,48 @@ mod tests {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
+	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
+		let omitted_validation = OmittedValidationData {
+			global_validation: test.global_validation_schedule.clone(),
+			local_validation: test.local_validation_data.clone(),
+		};
+
+		let available_data = AvailableData {
+			omitted_validation,
+			pov,
+		};
+
+		let chunks = erasure_coding::obtain_chunks_v1(test.validators.len(), &available_data).unwrap();
+		erasure_coding::branches(&chunks).root()
+	}
+
+	#[derive(Default)]
+	struct TestCandidateBuilder {
+		para_id: ParaId,
+		head_data: HeadData,
+		pov_hash: Hash,
+		relay_parent: Hash,
+		erasure_root: Hash,
+	}
+
+	impl TestCandidateBuilder {
+		fn build(self) -> CommittedCandidateReceipt {
+			CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: self.para_id,
+					pov_hash: self.pov_hash,
+					relay_parent: self.relay_parent,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					head_data: self.head_data,
+					erasure_root: self.erasure_root,
+					..Default::default()
+				},
+			}
+		}
+	}
+
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
 		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
@@ -1080,16 +1189,6 @@ mod tests {
 			}
 		);
 
-		// Check that subsystem job issues a request for the head data.
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::HeadData(id, tx))
-			) if parent == test_state.relay_parent => {
-				tx.send(test_state.head_data.get(&id).unwrap().clone()).unwrap();
-			}
-		);
-
 		// Check that subsystem job issues a request for the signing context.
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1108,49 +1207,53 @@ mod tests {
 		let test_state = TestState::default();
 		test_harness(test_state.keystore.clone(), |test_harness| async move {
 			let TestHarness { mut virtual_overseer } = test_harness;
-			
+
 			test_startup(&mut virtual_overseer, &test_state).await;
-	
-			let pov_block = PoVBlock {
+
+			let pov = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_block_hash = pov_block.hash();
-			let candidate = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let pov_hash = pov.hash();
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
-			};
+			}.build();
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate.clone(),
-				pov_block.clone(),
+				candidate.to_plain(),
+				pov.clone(),
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						parent_hash,
+					CandidateValidationMessage::ValidateFromChainState(
 						c,
-						head_data,
 						pov,
 						tx,
 					)
-				) if parent_hash == test_state.relay_parent &&
-					pov == pov_block && c == candidate => {
-					assert_eq!(head_data, *expected_head_data);
-					tx.send(Ok((
-						ValidationResult::Valid,
-						test_state.global_validation_schedule,
-						test_state.local_validation_data,
-					))).unwrap();
+				) if pov == pov && &c == candidate.descriptor() => {
+					tx.send(Ok(
+						ValidationResult::Valid(ValidationOutputs {
+							global_validation_schedule: test_state.global_validation_schedule,
+							local_validation_data: test_state.local_validation_data,
+							head_data: expected_head_data.clone(),
+							upward_messages: Vec::new(),
+							fees: Default::default(),
+							new_validation_code: None,
+						}),
+					)).unwrap();
 				}
 			);
 
@@ -1193,18 +1296,22 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
 
-			let pov_block_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 
-			let candidate_a = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
-			};
+			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
 
@@ -1227,39 +1334,38 @@ mod tests {
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
 			// Sending a `Statement::Seconded` for our assignment will start
-			// validation process. The first thing requested is PoVBlock from the
+			// validation process. The first thing requested is PoV from the
 			// `PoVDistribution`.
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
-
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			// The next step is the actual request to Validation subsystem
 			// to validate the `Seconded` candidate.
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						relay_parent,
-						candidate,
-						head_data,
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
 						pov,
 						tx,
 					)
-				) if relay_parent == test_state.relay_parent && candidate == candidate_a => {
-					assert_eq!(head_data, *expected_head_data);
-					assert_eq!(pov, pov_block);
-					tx.send(Ok((
-						ValidationResult::Valid,
-						test_state.global_validation_schedule,
-						test_state.local_validation_data,
-					))).unwrap();
+				) if pov == pov && &c == candidate_a.descriptor() => {
+					tx.send(Ok(
+						ValidationResult::Valid(ValidationOutputs {
+							global_validation_schedule: test_state.global_validation_schedule,
+							local_validation_data: test_state.local_validation_data,
+							head_data: expected_head_data.clone(),
+							upward_messages: Vec::new(),
+							fees: Default::default(),
+							new_validation_code: None,
+						}),
+					)).unwrap();
 				}
 			);
 
@@ -1309,17 +1415,22 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
 
-			let pov_block_hash = pov_block.hash();
-			let candidate_a = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let pov_hash = pov.hash();
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				head_data: expected_head_data.clone(),
 				..Default::default()
-			};
+			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
 
@@ -1353,32 +1464,40 @@ mod tests {
 				AllMessages::PoVDistribution(
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) if relay_parent == test_state.relay_parent => {
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
-
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						relay_parent,
-						candidate,
-						head_data,
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
 						pov,
 						tx,
 					)
-				) if relay_parent == test_state.relay_parent && candidate == candidate_a => {
-					assert_eq!(pov, pov_block);
-					assert_eq!(head_data, *expected_head_data);
-					tx.send(Ok((
-						ValidationResult::Valid,
-						test_state.global_validation_schedule,
-						test_state.local_validation_data,
-					))).unwrap();
+				) if pov == pov && &c == candidate_a.descriptor() => {
+					tx.send(Ok(
+						ValidationResult::Valid(ValidationOutputs {
+							global_validation_schedule: test_state.global_validation_schedule,
+							local_validation_data: test_state.local_validation_data,
+							head_data: expected_head_data.clone(),
+							upward_messages: Vec::new(),
+							fees: Default::default(),
+							new_validation_code: None,
+						}),
+					)).unwrap();
 				}
 			);
+
+			for _ in 0..test_state.validators.len() {
+				assert_matches!(
+					virtual_overseer.recv().await,
+					AllMessages::AvailabilityStore(
+						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
+					) if parent_hash == test_state.relay_parent
+				);
+			}
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1440,86 +1559,68 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block_a = PoVBlock {
+			let pov_block_a = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_block_b = PoVBlock {
+			let pov_block_b = PoV {
 				block_data: BlockData(vec![45, 46, 47]),
 			};
 
-			let pov_block_hash_a = pov_block_a.hash();
-			let pov_block_hash_b = pov_block_b.hash();
+			let pov_hash_a = pov_block_a.hash();
+			let pov_hash_b = pov_block_b.hash();
 
-			let candidate_a = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash: pov_block_hash_a,
+				pov_hash: pov_hash_a,
+				erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
 				..Default::default()
-			};
+			}.build();
 
-			let candidate_a_hash = candidate_a.hash();
-
-			let candidate_b = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let candidate_b = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash: pov_block_hash_b,
+				pov_hash: pov_hash_b,
+				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
+				head_data: expected_head_data.clone(),
 				..Default::default()
-			};
+			}.build();
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate_a.clone(),
+				candidate_a.to_plain(),
 				pov_block_a.clone(),
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						parent_hash,
+					CandidateValidationMessage::ValidateFromChainState(
 						c,
-						head_data,
 						pov,
 						tx,
 					)
-				) if parent_hash == test_state.relay_parent &&
-					pov == pov_block_a && c == candidate_a => {
-					assert_eq!(head_data, *expected_head_data);
-					tx.send(Ok((
-						ValidationResult::Invalid,
-						test_state.global_validation_schedule.clone(),
-						test_state.local_validation_data.clone(),
-					))).unwrap();
+				) if pov == pov && &c == candidate_a.descriptor() => {
+					tx.send(Ok(ValidationResult::Invalid)).unwrap();
 				}
 			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateSelection(
-					CandidateSelectionMessage::Invalid(parent_hash, candidate)
-				) if parent_hash == test_state.relay_parent && candidate == candidate_a
-			);
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::Share(
-						relay_parent,
-						statement,
-					)
-				) if relay_parent == test_state.relay_parent => {
-					assert_eq!(*statement.payload(), Statement::Invalid(candidate_a_hash));
-				}
+					CandidateSelectionMessage::Invalid(parent_hash, c)
+				) if parent_hash == test_state.relay_parent && c == candidate_a.to_plain()
 			);
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate_b.clone(),
+				candidate_b.to_plain(),
 				pov_block_b.clone(),
 			);
 
@@ -1530,21 +1631,22 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						parent_hash,
+					CandidateValidationMessage::ValidateFromChainState(
 						c,
-						head_data,
 						pov,
 						tx,
 					)
-				) if parent_hash == test_state.relay_parent &&
-					pov == pov_block_b && c == candidate_b => {
-					assert_eq!(head_data, *expected_head_data);
-					tx.send(Ok((
-						ValidationResult::Valid,
-						test_state.global_validation_schedule,
-						test_state.local_validation_data,
-					))).unwrap();
+				) if pov == pov && &c == candidate_b.descriptor() => {
+					tx.send(Ok(
+						ValidationResult::Valid(ValidationOutputs {
+							global_validation_schedule: test_state.global_validation_schedule,
+							local_validation_data: test_state.local_validation_data,
+							head_data: expected_head_data.clone(),
+							upward_messages: Vec::new(),
+							fees: Default::default(),
+							new_validation_code: None,
+						}),
+					)).unwrap();
 				}
 			);
 
@@ -1590,18 +1692,19 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let pov_block = PoVBlock {
+			let pov = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
 			};
 
-			let pov_block_hash = pov_block.hash();
+			let pov_hash = pov.hash();
 
-			let candidate = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
 				..Default::default()
-			};
+			}.build();
 
 			let candidate_hash = candidate.hash();
 
@@ -1627,33 +1730,22 @@ mod tests {
 					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
 				) => {
 					assert_eq!(relay_parent, test_state.relay_parent);
-					tx.send(Arc::new(pov_block.clone())).unwrap();
+					tx.send(Arc::new(pov.clone())).unwrap();
 				}
 			);
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			// Tell subsystem that this candidate is invalid.
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						relay_parent,
-						candidate_recvd,
-						head_data,
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
 						pov,
 						tx,
 					)
-				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					assert_eq!(candidate_recvd, candidate);
-					assert_eq!(head_data, *expected_head_data);
-					assert_eq!(pov, pov_block);
-					tx.send(Ok((
-						ValidationResult::Invalid,
-						test_state.global_validation_schedule,
-						test_state.local_validation_data,
-					))).unwrap();
+				) if pov == pov && &c == candidate.descriptor() => {
+					tx.send(Ok(ValidationResult::Invalid)).unwrap();
 				}
 			);
 
@@ -1679,28 +1771,29 @@ mod tests {
 			// This should emit no actions from subsystem.
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate.clone(),
-				pov_block.clone(),
+				candidate.to_plain(),
+				pov.clone(),
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let pov_to_second = PoVBlock {
+			let pov_to_second = PoV {
 				block_data: BlockData(vec![3, 2, 1]),
 			};
 
-			let pov_block_hash = pov_to_second.hash();
+			let pov_hash = pov_to_second.hash();
 
-			let candidate_to_second = AbridgedCandidateReceipt {
-				parachain_index: test_state.chain_ids[0],
+			let candidate_to_second = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
-				pov_block_hash,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov_to_second.clone()),
 				..Default::default()
-			};
+			}.build();
 
 			let second = CandidateBackingMessage::Second(
 				test_state.relay_parent,
-				candidate_to_second.clone(),
+				candidate_to_second.to_plain(),
 				pov_to_second.clone(),
 			);
 
@@ -1712,16 +1805,13 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
-					CandidateValidationMessage::Validate(
-						relay_parent,
-						_,
+					CandidateValidationMessage::ValidateFromChainState(
 						_,
 						pov,
 						_,
 					)
 				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					assert_eq!(pov, pov_to_second);
+					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
 		});

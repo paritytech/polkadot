@@ -21,26 +21,31 @@
 //! there.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::{Hash,
-	parachain::{
-		AbridgedCandidateReceipt, CompactStatement,
-		EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	}
+use polkadot_primitives::v1::{
+	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
+	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
+	UpwardMessage, Balance, ValidationCode, GlobalValidationSchedule, LocalValidationData,
+	HeadData,
 };
 use polkadot_statement_table::{
 	generic::{
 		ValidityDoubleVote as TableValidityDoubleVote,
 		MultipleCandidates as TableMultipleCandidates,
 	},
-	Misbehavior as TableMisbehavior,
+	v1::Misbehavior as TableMisbehavior,
 };
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
+///
+/// This is the committed candidate receipt instead of the bare candidate receipt. As such,
+/// it gives access to the commitments to validators who have not executed the candidate. This
+/// is necessary to allow a block-producing validator to include candidates from outside of the para
+/// it is assigned to.
 #[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub enum Statement {
 	/// A statement that a validator seconds a candidate.
 	#[codec(index = "1")]
-	Seconded(AbridgedCandidateReceipt),
+	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
 	#[codec(index = "2")]
 	Valid(Hash),
@@ -50,6 +55,8 @@ pub enum Statement {
 }
 
 impl Statement {
+	/// Transform this statement into its compact version, which references only the hash
+	/// of the candidate.
 	pub fn to_compact(&self) -> CompactStatement {
 		match *self {
 			Statement::Seconded(ref c) => CompactStatement::Candidate(c.hash()),
@@ -84,9 +91,9 @@ pub enum MisbehaviorReport {
 	/// this message should be dispatched with all of them, in arbitrary order.
 	///
 	/// This variant is also used when our own validity checks disagree with others'.
-	CandidateValidityDisagreement(AbridgedCandidateReceipt, Vec<SignedFullStatement>),
+	CandidateValidityDisagreement(CandidateReceipt, Vec<SignedFullStatement>),
 	/// I've noticed a peer contradicting itself about a particular candidate
-	SelfContradiction(AbridgedCandidateReceipt, SignedFullStatement, SignedFullStatement),
+	SelfContradiction(CandidateReceipt, SignedFullStatement, SignedFullStatement),
 	/// This peer has seconded more than one parachain candidate for this relay parent head
 	DoubleVote(SignedFullStatement, SignedFullStatement),
 }
@@ -103,11 +110,28 @@ pub struct FromTableMisbehavior {
 	pub key: ValidatorId,
 }
 
+/// Outputs of validating a candidate.
+#[derive(Debug)]
+pub struct ValidationOutputs {
+	/// The head-data produced by validation.
+	pub head_data: HeadData,
+	/// The global validation schedule.
+	pub global_validation_schedule: GlobalValidationSchedule,
+	/// The local validation data.
+	pub local_validation_data: LocalValidationData,
+	/// Upward messages to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	pub fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	pub new_validation_code: Option<ValidationCode>,
+}
+
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid.
-	Valid,
+	/// Candidate is valid. The validation process yields these outputs.
+	Valid(ValidationOutputs),
 	/// Candidate is invalid.
 	Invalid,
 }
@@ -136,7 +160,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::IssuedAndInvalidity((c, s1), (d, s2))
@@ -157,7 +181,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(receipt, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(receipt.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::ValidityDoubleVote(
 				TableValidityDoubleVote::ValidityAndInvalidity(c, s1, s2)
@@ -177,7 +201,7 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 					&f.key,
 				).ok_or(())?;
 
-				Ok(MisbehaviorReport::SelfContradiction(c, signed_1, signed_2))
+				Ok(MisbehaviorReport::SelfContradiction(c.to_plain(), signed_1, signed_2))
 			}
 			TableMisbehavior::MultipleCandidates(
 				TableMultipleCandidates {

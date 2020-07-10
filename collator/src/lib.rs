@@ -55,12 +55,11 @@ use log::warn;
 use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
 use sp_core::Pair;
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	BlockId, Hash, Block, DownwardMessage,
-	parachain::{
-		self, BlockData, DutyRoster, HeadData, Id as ParaId,
-		PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
-	}
+	BlockData, DutyRoster, HeadData, Id as ParaId,
+	PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
+	Collation, CollationInfo, collator_signature_payload,
 };
 use polkadot_cli::{
 	ProvideRuntimeApi, ParachainHost, IdentifyVariant,
@@ -69,7 +68,7 @@ use polkadot_cli::{
 pub use polkadot_cli::service::Configuration;
 pub use polkadot_cli::Cli;
 pub use polkadot_validation::SignedStatement;
-pub use polkadot_primitives::parachain::CollatorId;
+pub use polkadot_primitives::v0::CollatorId;
 pub use sc_network::PeerId;
 pub use service::RuntimeApiCollection;
 pub use sc_cli::SubstrateCli;
@@ -164,7 +163,7 @@ pub async fn collate<P>(
 	downward_messages: Vec<DownwardMessage>,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
-) -> Option<parachain::Collation>
+) -> Option<Collation>
 	where
 		P: ParachainContext,
 		P::ProduceCandidate: Send,
@@ -181,13 +180,13 @@ pub async fn collate<P>(
 	};
 
 	let pov_block_hash = pov_block.hash();
-	let signature = key.sign(&parachain::collator_signature_payload(
+	let signature = key.sign(&collator_signature_payload(
 		&relay_parent,
 		&local_id,
 		&pov_block_hash,
 	));
 
-	let info = parachain::CollationInfo {
+	let info = CollationInfo {
 		parachain_index: local_id,
 		relay_parent,
 		collator: key.public(),
@@ -196,7 +195,7 @@ pub async fn collate<P>(
 		pov_block_hash,
 	};
 
-	let collation = parachain::Collation {
+	let collation = Collation {
 		info,
 		pov: pov_block,
 	};
@@ -456,7 +455,7 @@ where
 
 #[cfg(not(feature = "service-rewr"))]
 fn compute_targets(para_id: ParaId, session_keys: &[ValidatorId], roster: DutyRoster) -> HashSet<ValidatorId> {
-	use polkadot_primitives::parachain::Chain;
+	use polkadot_primitives::v0::Chain;
 
 	roster.validator_duty.iter().enumerate()
 		.filter(|&(_, c)| c == &Chain::Parachain(para_id))

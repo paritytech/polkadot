@@ -26,7 +26,7 @@ use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::Hash;
+use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 
 use crate::messages::AllMessages;

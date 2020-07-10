@@ -72,7 +72,7 @@ use futures::{
 use futures_timer::Delay;
 use streamunordered::{StreamYield, StreamUnordered};
 
-use polkadot_primitives::{Block, BlockNumber, Hash};
+use polkadot_primitives::v1::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 use polkadot_subsystem::messages::{
@@ -932,7 +932,7 @@ fn spawn<S: Spawn, M: Send + 'static>(
 mod tests {
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
-	use polkadot_primitives::parachain::{BlockData, PoVBlock};
+	use polkadot_primitives::v1::{BlockData, PoV};
 	use polkadot_subsystem::DummySubsystem;
 	use super::*;
 
@@ -977,13 +977,11 @@ mod tests {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(
 							AllMessages::CandidateValidation(
-								CandidateValidationMessage::Validate(
+								CandidateValidationMessage::ValidateFromChainState(
 									Default::default(),
-									Default::default(),
-									Default::default(),
-									PoVBlock {
+									PoV {
 										block_data: BlockData(Vec::new()),
-									},
+									}.into(),
 									tx,
 								)
 							)

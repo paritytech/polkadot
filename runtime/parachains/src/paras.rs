@@ -26,8 +26,8 @@
 use sp_std::prelude::*;
 use sp_std::marker::PhantomData;
 use sp_runtime::traits::One;
-use primitives::{
-	parachain::{Id as ParaId, ValidationCode, HeadData},
+use primitives::v1::{
+	Id as ParaId, ValidationCode, HeadData,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -541,7 +541,7 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::BlockNumber;
+	use primitives::v1::BlockNumber;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
 	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
