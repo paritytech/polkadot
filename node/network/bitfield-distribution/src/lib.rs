@@ -21,7 +21,10 @@ use futures::{
     channel::oneshot,
     future::{abortable, AbortHandle, Abortable},
     Future, FutureExt,
+    stream::FuturesUnordered,
 };
+use futures::stream::StreamExt;
+
 use node_primitives::{ProtocolId, SignedFullStatement, View};
 use polkadot_network::protocol::Message;
 use polkadot_node_subsystem::messages::*;
@@ -101,35 +104,41 @@ impl BitfieldDistribution {
         // set of active heads the overseer told us to work on with the connected
         // tasks abort handles
         // @todo do we need Box<dyn Future<Output = ()>>) for anything?
+        // let mut active_jobs = HashMap::<Hash, (AbortHandle, Pin<Box<dyn Future<Output = ()>>>)>::new();
         let mut active_jobs = HashMap::<Hash, AbortHandle>::new();
         let mut tracker = Tracker::default();
         loop {
             {
-                let message = ctx.recv().await?;
+                let message = {
+                     let mut ctx = ctx.clone();
+                     ctx.recv().await?
+                };
                 match message {
                     FromOverseer::Communication { msg } => {
                         let peerid = PeerId::random(); // @todo
                         process_incoming(ctx.clone(), &mut tracker, peerid, msg).await?;
                     }
                     FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-                        let (validators, signing_context) =
+                        let (validator_set, signing_context) =
                             query_basics(ctx.clone(), relay_parent).await?;
 
                             let _ = tracker.per_job.insert(relay_parent, JobData {
                                 validator_bitset_received: HashSet::new(),
                                 signing_context,
-                                validator_set: Vec::new(),
+                                validator_set: validator_set,
                             });
 
                         let future = processor_per_relay_parent(ctx.clone(), relay_parent.clone());
-                        // let (future, abort_handle) =
-                        //     abortable(future);
+                        let (future, abort_handle) = abortable(future);
 
-                        let future = ctx.spawn(Box::pin(
-                            future.map(|_| { () })
-                        ));
-                        // active_jobs
-                        //     .insert(relay_parent.clone(), abort_handle);
+
+                        let _future =
+                            ctx.spawn(Box::pin(
+                                future.map(|_| { () })
+                            ));
+
+                        active_jobs
+                             .insert(relay_parent.clone(), abort_handle);
                     }
                     FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
                         if let Some(abort_handle) =
@@ -140,12 +149,16 @@ impl BitfieldDistribution {
                     }
                     FromOverseer::Signal(OverseerSignal::Conclude) => {
                         // @todo cannot store the future
-                        // return futures::future::join_all(
+                        // let _ = futures::future::join_all(
                         //     active_jobs
                         //         .drain()
                         //         .map(|(_relay_parent, (cancellation, future))| future),
                         // )
                         // .await;
+                        for (_relay_parent, abort_handle) in active_jobs.drain() {
+                            let _ = abort_handle.abort();
+                        }
+                        return Ok(())
                     }
                 }
             }
@@ -215,16 +228,25 @@ where
             }
 
             // @todo verify sequential execution is ok or if spawning tasks is better
-            // Send peers messages which are interesting to them
-            for (peerid, view) in tracker.peer_views.iter()
+            // pass on the
+
+            let future = move || {
+                tracker.peer_views.clone().into_iter()
                 .filter(|(_peerid, view)| view.contains(&hash))
-            {
-                    // @todo shall we assure these complete or just let them be?
-                    let _ = ctx.send_message(
-                        AllMessages::BitfieldDistribution(
-                            BitfieldDistributionMessage::DistributeBitfield(hash.clone(), signed_availability.clone()),
-                    )).await;
-            }
+            .map(|(peerid, view)| {
+                let mut ctx = ctx.clone();
+                let hash = hash.clone();
+                let signed_availability = signed_availability.clone();
+                async move {
+                    ctx.send_message(
+                            AllMessages::BitfieldDistribution(
+                                BitfieldDistributionMessage::DistributeBitfield(hash, signed_availability),
+                        )).await
+                }
+                })
+                .collect::<FuturesUnordered<_>>().into_future()
+            };
+            future().await;
         }
         BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
             handle_network_msg(ctx, tracker, event).await?;
@@ -307,7 +329,7 @@ where
     }
 }
 
-/// query the validator set
+/// query the validator set and signing context
 async fn query_basics<Context>(
     mut ctx: Context,
     relay_parent: Hash,
