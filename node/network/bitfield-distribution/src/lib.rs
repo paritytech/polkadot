@@ -261,8 +261,9 @@ where
                 .and_modify(|val| *val = view);
         }
         NetworkBridgeEvent::OurViewChange(view) => {
+            let ego = ego.clone();
             let old_view = std::mem::replace(&mut (tracker.view), view);
-            tracker.per_job.retain(|hash, _job_data| ego.0.contains(hash));
+            tracker.per_job.retain(move |hash, _job_data| ego.0.contains(hash));
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.per_job.contains_key(&new) {
@@ -297,7 +298,7 @@ where
 
 impl<C> Subsystem<C> for BitfieldDistribution
 where
-    C: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    C: SubsystemContext<Message = BitfieldDistributionMessage> + Clone + Sync,
 {
     fn start(self, ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem(Box::pin(async move {
@@ -310,7 +311,7 @@ where
 async fn query_basics<Context>(
     mut ctx: Context,
     relay_parent: Hash,
-) -> SubsystemResult<(Vec<Hash>, SigningContext)>
+) -> SubsystemResult<(Vec<ValidatorId>, SigningContext)>
 where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
