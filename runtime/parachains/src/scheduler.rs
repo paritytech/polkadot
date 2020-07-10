@@ -38,7 +38,7 @@
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
 use primitives::v1::{
-	Id as ParaId, CollatorId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
+	Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
 	GroupIndex, ParathreadClaim, ParathreadEntry,
 };
 use frame_support::{
