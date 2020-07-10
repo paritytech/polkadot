@@ -20,7 +20,7 @@ set -e # fail on any error
 . "$(dirname "${0}")/lib.sh"
 
 SUBSTRATE_REPO="https://github.com/paritytech/substrate"
-SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=polkadot-master"
+SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
 
 # figure out the latest release tag
