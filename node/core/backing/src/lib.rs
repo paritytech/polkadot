@@ -1580,8 +1580,6 @@ mod tests {
 				..Default::default()
 			}.build();
 
-			let candidate_a_hash = candidate_a.hash();
-
 			let candidate_b = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
@@ -1599,7 +1597,6 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1737,7 +1734,6 @@ mod tests {
 				}
 			);
 
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			// Tell subsystem that this candidate is invalid.
 			assert_matches!(
@@ -1810,9 +1806,9 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::CandidateValidation(
 					CandidateValidationMessage::ValidateFromChainState(
-						c,
+						_,
 						pov,
-						tx,
+						_,
 					)
 				) => {
 					assert_eq!(&*pov, &pov_to_second);
