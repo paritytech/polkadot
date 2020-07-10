@@ -442,10 +442,9 @@ impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
 where
 	Spawner: Spawn + Clone + Send,
 	Context: SubsystemContext,
-	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
 	Job: JobTrait,
 	Job::RunArgs: Clone,
-	Job::ToJob: TryFrom<AllMessages> + Sync,
+	Job::ToJob: TryFrom<AllMessages> + TryFrom<<Context as SubsystemContext>::Message> + Sync,
 {
 	/// Creates a new `Subsystem`.
 	pub fn new(spawner: Spawner, run_args: Job::RunArgs) -> Self {
@@ -506,9 +505,7 @@ where
 				return true;
 			}
 			Ok(Communication { msg }) => {
-				// I don't know the syntax to add this type hint within an if let statement
-				let maybe_to_job: Result<Job::ToJob, _> = msg.try_into();
-				if let Ok(to_job) = maybe_to_job {
+				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
 					match to_job.hash() {
 						Some(hash) => {
 							if let Err(err) = jobs.send_msg(hash, to_job).await {
