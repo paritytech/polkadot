@@ -123,11 +123,17 @@ then
 
 fi
 
-
-# Introduce runtime/polkadot/src/lib.rs once Polkadot mainnet is live.
-# for VERSIONS_FILE in runtime/kusama/src/lib.rs
+# Iterate over each runtime defined at the start of the script
 for RUNTIME in "${runtimes[@]}"
 do
+
+	# Check if there were changes to this specific runtime (or common).
+	# If not, we can skip to the next runtime
+	if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
+		| grep -E -q -e "^runtime/common|^runtime/${RUNTIME}"; then
+		continue
+	fi
+
 	# check for spec_version updates: if the spec versions changed, then there is
 	# consensus-critical logic that has changed. the runtime wasm blobs must be
 	# rebuilt.
