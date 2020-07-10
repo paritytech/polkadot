@@ -242,8 +242,8 @@ pub trait ToJobTrait: TryFrom<AllMessages> {
 	/// The `Stop` variant of the ToJob enum.
 	const STOP: Self;
 
-	/// If the message variant contains a hash, return it here
-	fn hash(&self) -> Option<Hash>;
+	/// If the message variant contains its relay parent, return it here
+	fn relay_parent(&self) -> Option<Hash>;
 }
 
 /// A JobHandle manages a particular job for a subsystem.
@@ -506,7 +506,7 @@ where
 			}
 			Ok(Communication { msg }) => {
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
-					match to_job.hash() {
+					match to_job.relay_parent() {
 						Some(hash) => {
 							if let Err(err) = jobs.send_msg(hash, to_job).await {
 								log::error!("Failed to send a message to a job: {:?}", err);

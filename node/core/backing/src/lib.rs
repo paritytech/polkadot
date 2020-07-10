@@ -165,9 +165,9 @@ impl From<CandidateBackingMessage> for ToJob {
 impl util::ToJobTrait for ToJob {
 	const STOP: Self = ToJob::Stop;
 
-	fn hash(&self) -> Option<Hash> {
+	fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::CandidateBacking(cb) => cb.hash(),
+			Self::CandidateBacking(cb) => cb.relay_parent(),
 			Self::Stop => None,
 		}
 	}
