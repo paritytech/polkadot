@@ -23,9 +23,10 @@
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
-use primitives::{
+use primitives::v0::{
+	self as parachain,
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
+	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use runtime_common::{
 	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
@@ -147,6 +148,7 @@ impl system::Trait for Runtime {
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
 }
 
 impl scheduler::Trait for Runtime {
@@ -156,6 +158,7 @@ impl scheduler::Trait for Runtime {
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -195,6 +198,7 @@ impl indices::Trait for Runtime {
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
 	type Event = Event;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -215,6 +219,7 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -236,6 +241,7 @@ impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -279,6 +285,7 @@ impl session::Trait for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type WeightInfo = ();
 }
 
 impl session::historical::Trait for Runtime {
@@ -345,6 +352,7 @@ impl staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -393,6 +401,7 @@ impl democracy::Trait for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -407,6 +416,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -436,6 +446,7 @@ impl elections_phragmen::Trait for Runtime {
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
 	type ModuleId = ElectionsPhragmenModuleId;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -450,6 +461,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
+	type WeightInfo = ();
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
@@ -498,6 +510,7 @@ impl treasury::Trait for Runtime {
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
 	type ModuleId = TreasuryModuleId;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -509,6 +522,7 @@ impl offences::Trait for Runtime {
 	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
+	type WeightInfo = ();
 }
 
 impl authority_discovery::Trait for Runtime {}
@@ -528,6 +542,7 @@ impl im_online::Trait for Runtime {
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
+	type WeightInfo = ();
 }
 
 impl grandpa::Trait for Runtime {
@@ -546,7 +561,7 @@ impl grandpa::Trait for Runtime {
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
 		Self::KeyOwnerIdentification,
-		primitives::fisherman::FishermanAppCrypto,
+		primitives::v0::fisherman::FishermanAppCrypto,
 		Runtime,
 		Offences,
 	>;
@@ -582,7 +597,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::fisherman::FishermanAppCrypto;
+	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -725,11 +740,13 @@ impl identity::Trait for Runtime {
 	type MaxRegistrars = MaxRegistrars;
 	type RegistrarOrigin = MoreThanHalfCouncil;
 	type ForceOrigin = MoreThanHalfCouncil;
+	type WeightInfo = ();
 }
 
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -747,6 +764,7 @@ impl multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -803,6 +821,7 @@ impl vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -904,6 +923,7 @@ impl proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
+	type WeightInfo = ();
 }
 
 pub struct CustomOnRuntimeUpgrade;
@@ -920,7 +940,7 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::Block,
+		NodeBlock = primitives::v0::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -928,7 +948,7 @@ construct_runtime! {
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
-		Babe: babe::{Module, Call, Storage, Config, Inherent(Timestamp), ValidateUnsigned},
+		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
 
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
@@ -1128,7 +1148,7 @@ sp_api::impl_runtime_apis! {
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
 			Parachains::downward_messages(id)
 		}
 	}
@@ -1287,23 +1307,23 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
 			// Polkadot
-			add_benchmark!(params, batches, b"claims", Claims);
+			add_benchmark!(params, batches, claims, Claims);
 			// Substrate
-			add_benchmark!(params, batches, b"balances", Balances);
-			add_benchmark!(params, batches, b"collective", Council);
-			add_benchmark!(params, batches, b"democracy", Democracy);
-			add_benchmark!(params, batches, b"elections-phragmen", ElectionsPhragmen);
-			add_benchmark!(params, batches, b"identity", Identity);
-			add_benchmark!(params, batches, b"im-online", ImOnline);
-			add_benchmark!(params, batches, b"offences", OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, b"scheduler", Scheduler);
-			add_benchmark!(params, batches, b"session", SessionBench::<Runtime>);
-			add_benchmark!(params, batches, b"staking", Staking);
-			add_benchmark!(params, batches, b"system", SystemBench::<Runtime>);
-			add_benchmark!(params, batches, b"timestamp", Timestamp);
-			add_benchmark!(params, batches, b"treasury", Treasury);
-			add_benchmark!(params, batches, b"utility", Utility);
-			add_benchmark!(params, batches, b"vesting", Vesting);
+			add_benchmark!(params, batches, balances, Balances);
+			add_benchmark!(params, batches, collective, Council);
+			add_benchmark!(params, batches, democracy, Democracy);
+			add_benchmark!(params, batches, elections_phragmen, ElectionsPhragmen);
+			add_benchmark!(params, batches, identity, Identity);
+			add_benchmark!(params, batches, im_online, ImOnline);
+			add_benchmark!(params, batches, offences, OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, scheduler, Scheduler);
+			add_benchmark!(params, batches, session, SessionBench::<Runtime>);
+			add_benchmark!(params, batches, staking, Staking);
+			add_benchmark!(params, batches, system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, timestamp, Timestamp);
+			add_benchmark!(params, batches, treasury, Treasury);
+			add_benchmark!(params, batches, utility, Utility);
+			add_benchmark!(params, batches, vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

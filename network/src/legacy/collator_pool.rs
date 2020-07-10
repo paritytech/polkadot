@@ -17,8 +17,7 @@
 //! Bridge between the network and consensus service for getting collations to it.
 
 use codec::{Encode, Decode};
-use polkadot_primitives::Hash;
-use polkadot_primitives::parachain::{CollatorId, Id as ParaId, Collation};
+use polkadot_primitives::v0::{Hash, CollatorId, Id as ParaId, Collation};
 use sc_network::PeerId;
 use futures::channel::oneshot;
 
@@ -236,7 +235,7 @@ impl CollatorPool {
 mod tests {
 	use super::*;
 	use sp_core::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::{CollationInfo, BlockData, PoVBlock};
+	use polkadot_primitives::v0::{CollationInfo, BlockData, PoVBlock};
 	use futures::executor::block_on;
 
 	fn make_pov(block_data: Vec<u8>) -> PoVBlock {

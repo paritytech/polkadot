@@ -37,16 +37,13 @@ use frame_support::{
 	dispatch::IsSubType,
 	weights::{DispatchClass, Weight},
 };
-use primitives::{
-	Balance,
-	BlockNumber,
-	parachain::{
-		Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
-		UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
-		CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
-		LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
-		ValidatorSignature, SigningContext, HeadData, ValidationCode,
-	},
+use primitives::v0::{
+	Balance, BlockNumber,
+	Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
+	UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
+	CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
+	LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
+	ValidatorSignature, SigningContext, HeadData, ValidationCode,
 	Remark, DownwardMessage
 };
 use frame_support::{
@@ -329,7 +326,7 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 	>;
 
 	/// A type that converts the opaque hash type to exact one.
-	type BlockHashConversion: Convert<Self::Hash, primitives::Hash>;
+	type BlockHashConversion: Convert<Self::Hash, primitives::v0::Hash>;
 }
 
 /// Origin for the parachains module.
@@ -575,7 +572,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -1605,7 +1602,7 @@ pub enum DoubleVoteValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
 	type AccountId = T::AccountId;
@@ -1681,13 +1678,10 @@ mod tests {
 		},
 		testing::TestXt,
 	};
-	use primitives::{
-		parachain::{
-			CandidateReceipt, ValidityAttestation, ValidatorId, Info as ParaInfo,
-			Scheduling, CandidateCommitments,
-		},
-		BlockNumber,
-		Header,
+	use primitives::v0::{
+		CandidateReceipt, ValidityAttestation, ValidatorId, Info as ParaInfo,
+		Scheduling, CandidateCommitments,
+		BlockNumber, Header,
 	};
 	use keyring::Sr25519Keyring;
 	use frame_support::{
@@ -1760,6 +1754,7 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
 	}
 
 	impl<C> system::offchain::SendTransactionTypes<C> for Test where
@@ -1799,6 +1794,7 @@ mod tests {
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+		type WeightInfo = ();
 	}
 
 	impl session::historical::Trait for Test {
@@ -1813,10 +1809,11 @@ mod tests {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
+		type WeightInfo = ();
 	}
 
 	mod time {
-		use primitives::{Moment, BlockNumber};
+		use primitives::v0::{Moment, BlockNumber};
 		pub const MILLISECS_PER_BLOCK: Moment = 6000;
 		pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 1 * HOURS;
 		// These time units are defined in number of blocks.
@@ -1860,6 +1857,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	pallet_staking_reward_curve::build! {
@@ -1915,6 +1913,7 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
+		type WeightInfo = ();
 	}
 
 	impl attestations::Trait for Test {
@@ -1962,6 +1961,7 @@ mod tests {
 		type IdentificationTuple = session::historical::IdentificationTuple<Self>;
 		type OnOffenceHandler = Staking;
 		type WeightSoftLimit = OffencesWeightSoftLimit;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -2240,7 +2240,7 @@ mod tests {
 			println!("session index {}", i);
 			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
-			Timestamp::set_timestamp(System::block_number() as primitives::Moment * 6000);
+			Timestamp::set_timestamp(System::block_number() as primitives::v0::Moment * 6000);
 
 			// In order to be able to use `System::parent_hash()` in the tests
 			// we need to first get it via `System::finalize` and then set it

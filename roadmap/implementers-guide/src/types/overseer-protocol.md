@@ -86,11 +86,12 @@ enum BitfieldSigningMessage { }
 
 ```rust
 enum CandidateBackingMessage {
-  /// Registers a stream listener for updates to the set of backable candidates that could be backed
-  /// in a child of the given relay-parent, referenced by its hash.
-  RegisterBackingWatcher(Hash, TODO),
+  /// Requests a set of backable candidates that could be backed in a child of the given
+  /// relay-parent, referenced by its hash.
+  GetBackedCandidates(Hash, ResponseChannel<Vec<NewBackedCandidate>>),
   /// Note that the Candidate Backing subsystem should second the given candidate in the context of the
   /// given relay-parent (ref. by hash). This candidate must be validated using the provided PoV.
+  /// The PoV is expected to match the `pov_hash` in the descriptor.
   Second(Hash, CandidateReceipt, PoV),
   /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
   /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
@@ -172,11 +173,10 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ```rust
 enum PoVDistributionMessage {
-	/// Note a statement by a validator on a relay-parent. `Seconded` statements must always
-	/// have been passed in before `Valid` or `Invalid` statements.
-	ValidatorStatement(Hash, SignedFullStatement),
 	/// Fetch a PoV from the network.
-	/// (relay_parent, PoV-hash, Response channel).
+	///
+	/// This `CandidateDescriptor` should correspond to a candidate seconded under the provided
+	/// relay-parent hash.
 	FetchPoV(Hash, CandidateDescriptor, ResponseChannel<PoV>),
 	/// Distribute a PoV for the given relay-parent and CandidateDescriptor.
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
@@ -231,9 +231,24 @@ The Runtime API subsystem is responsible for providing an interface to the state
 Other subsystems query this data by sending these messages.
 
 ```rust
+/// The information on validator groups, core assignments,
+/// upcoming paras and availability cores.
+struct SchedulerRoster {
+	/// Validator-to-groups assignments.
+	validator_groups: Vec<Vec<ValidatorIndex>>,
+	/// All scheduled paras.
+	scheduled: Vec<CoreAssignment>,
+	/// Upcoming paras (chains and threads).
+	upcoming: Vec<ParaId>,
+	/// Occupied cores.
+	availability_cores: Vec<Option<CoreOccupied>>,
+}
+
 enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(ResponseChannel<Vec<ValidatorId>>),
+	/// Get the assignments of validators to cores, upcoming parachains.
+	SchedulerRoster(ResponseChannel<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
 	SigningContext(ResponseChannel<SigningContext>),
 	/// Get the validation code for a specific para, assuming execution under given block number, and
@@ -268,13 +283,41 @@ enum StatementDistributionMessage {
 
 ## Validation Request Type
 
-Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message
+Various modules request that the [Candidate Validation subsystem](../node/utility/candidate-validation.md) validate a block with this message. It returns [`ValidationOutputs`](candidate.md#validationoutputs) for successful validation.
 
 ```rust
+
+/// Result of the validation of the candidate.
+enum ValidationResult {
+	/// Candidate is valid, and here are the outputs. In practice, this should be a shared type
+	/// so that validation caching can be done.
+	Valid(ValidationOutputs),
+	/// Candidate is invalid.
+	Invalid,
+}
+
+/// Messages issued to the candidate validation subsystem.
+///
+/// ## Validation Requests
+///
+/// Validation requests made to the subsystem should return an error only on internal error.
+/// Otherwise, they should return either `Ok(ValidationResult::Valid(_))` or `Ok(ValidationResult::Invalid)`.
 enum CandidateValidationMessage {
-	/// Validate a candidate with provided parameters. Returns `Err` if an only if an internal
-	/// error is encountered. A bad candidate will return `Ok(false)`, while a good one will
-	/// return `Ok(true)`.
-	Validate(ValidationCode, CandidateReceipt, PoV, ResponseChannel<Result<bool>>),
+	/// Validate a candidate with provided parameters. This will implicitly attempt to gather the
+	/// `OmittedValidationData` and `ValidationCode` from the runtime API of the chain,
+	/// based on the `relay_parent` of the `CandidateDescriptor`.
+	/// If there is no state available which can provide this data, an error is returned.
+	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
+
+	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
+	/// and `ValidationCode` so this can do full validation without needing to access the state of
+	/// the relay-chain.
+	ValidateFromExhaustive(
+		OmittedValidationData,
+		ValidationCode,
+		CandidateDescriptor,
+		PoV,
+		ResponseChannel<Result<ValidationResult>>,
+	),
 }
 ```

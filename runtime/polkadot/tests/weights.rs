@@ -29,7 +29,7 @@ use frame_support::{
 use keyring::AccountKeyring;
 use polkadot_runtime::constants::currency::*;
 use polkadot_runtime::{self, Runtime};
-use primitives::AccountId;
+use primitives::v0::AccountId;
 use runtime_common::MaximumBlockWeight;
 
 use democracy::Call as DemocracyCall;

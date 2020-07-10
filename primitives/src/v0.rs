@@ -21,18 +21,20 @@ use sp_std::prelude::*;
 use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-use super::{Hash, Balance, BlockNumber};
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::{bytes, crypto::Pair};
+use primitives::crypto::Pair;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::KeyTypeId;
-use polkadot_core_primitives::DownwardMessage;
+
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
+pub use polkadot_core_primitives::*;
+pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
@@ -382,6 +384,15 @@ pub struct AbridgedCandidateReceipt<H = Hash> {
 	pub commitments: CandidateCommitments<H>,
 }
 
+/// A candidate-receipt with commitments directly included.
+pub struct CommitedCandidateReceipt<H = Hash> {
+	/// The descriptor of the candidae.
+	pub descriptor: CandidateDescriptor,
+
+	/// The commitments of the candidate receipt.
+	pub commitments: CandidateCommitments<H>
+}
+
 impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// Check integrity vs. provided block data.
 	pub fn check_signature(&self) -> Result<(), ()> {
@@ -402,7 +413,6 @@ impl<H: AsRef<[u8]> + Encode> AbridgedCandidateReceipt<H> {
 	/// the relay-chain block in which context it should be executed, which implies
 	/// any blockchain state that must be referenced.
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(self)
 	}
 }
@@ -460,8 +470,18 @@ impl AbridgedCandidateReceipt {
 			pov_block_hash: *pov_block_hash,
 		}
 	}
-}
 
+	/// Clone the relevant portions of the `AbridgedCandidateReceipt` to form a `CandidateDescriptor`.
+	pub fn to_descriptor(&self) -> CandidateDescriptor {
+		CandidateDescriptor {
+			para_id: self.parachain_index,
+			relay_parent: self.relay_parent,
+			collator: self.collator.clone(),
+			signature: self.signature.clone(),
+			pov_hash: self.pov_block_hash.clone(),
+		}
+	}
+}
 
 impl PartialOrd for AbridgedCandidateReceipt {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -476,6 +496,26 @@ impl Ord for AbridgedCandidateReceipt {
 		self.parachain_index.cmp(&other.parachain_index)
 			.then_with(|| self.head_data.cmp(&other.head_data))
 	}
+}
+
+/// A unique descriptor of the candidate receipt, in a lightweight format.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct CandidateDescriptor<H = Hash> {
+	/// The ID of the para this is a candidate for.
+	pub para_id: Id,
+	/// The hash of the relay-chain block this should be executed in
+	/// the context of.
+	// NOTE: the fact that the hash includes this value means that code depends
+	// on this for deduplication. Removing this field is likely to break things.
+	pub relay_parent: H,
+	/// The collator's relay-chain account ID
+	pub collator: CollatorId,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The para ID, the relay parent, and the pov_hash.
+	pub signature: CollatorSignature,
+	/// The hash of the pov-block.
+	pub pov_hash: H,
 }
 
 /// A collation sent by a collator.
@@ -554,7 +594,6 @@ impl PoVBlock {
 	/// Compute hash of block data.
 	#[cfg(feature = "std")]
 	pub fn hash(&self) -> Hash {
-		use runtime_primitives::traits::{BlakeTwo256, Hash};
 		BlakeTwo256::hash_of(&self)
 	}
 }
@@ -583,19 +622,9 @@ pub struct ErasureChunk {
 	pub proof: Vec<Vec<u8>>,
 }
 
-/// Parachain header raw bytes wrapper type.
-#[derive(PartialEq, Eq)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Header(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-/// Activity bit field.
-#[derive(PartialEq, Eq, Clone, Default, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
-pub struct Activity(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, Hash)]
 #[cfg_attr(feature = "std", derive(Debug))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
@@ -607,6 +636,18 @@ pub enum CompactStatement {
 	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
 	Invalid(Hash),
+}
+
+impl CompactStatement {
+	/// Get the underlying candidate hash this references.
+	pub fn candidate_hash(&self) -> &Hash {
+		match *self {
+			CompactStatement::Candidate(ref h)
+				| CompactStatement::Valid(ref h)
+				| CompactStatement::Invalid(ref h)
+				=> h
+		}
+	}
 }
 
 /// A signed compact statement, suitable to be sent to the chain.
@@ -709,94 +750,6 @@ impl FeeSchedule {
 	}
 }
 
-/// A bitfield concerning availability of backed candidates.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
-
-impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
-	fn from(inner: BitVec<bitvec::order::Lsb0, u8>) -> Self {
-		AvailabilityBitfield(inner)
-	}
-}
-
-/// A bitfield signed by a particular validator about the availability of pending candidates.
-pub type SignedAvailabilityBitfield = Signed<AvailabilityBitfield>;
-
-/// A set of signed availability bitfields. Should be sorted by validator index, ascending.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, Default)]
-pub struct SignedAvailabilityBitfields(pub Vec<SignedAvailabilityBitfield>);
-
-impl From<Vec<SignedAvailabilityBitfield>> for SignedAvailabilityBitfields {
-	fn from(fields: Vec<SignedAvailabilityBitfield>) -> SignedAvailabilityBitfields {
-		SignedAvailabilityBitfields(fields)
-	}
-}
-
-/// A backed (or backable, depending on context) candidate.
-// TODO: yes, this is roughly the same as AttestedCandidate.
-// After https://github.com/paritytech/polkadot/issues/1250
-// they should be unified to this type.
-#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-pub struct BackedCandidate<H = Hash> {
-	/// The candidate referred to.
-	pub candidate: AbridgedCandidateReceipt<H>,
-	/// The validity votes themselves, expressed as signatures.
-	pub validity_votes: Vec<ValidityAttestation>,
-	/// The indices of the validators within the group, expressed as a bitfield.
-	pub validator_indices: BitVec<bitvec::order::Lsb0, u8>,
-}
-
-/// Verify the backing of the given candidate.
-///
-/// Provide a lookup from the index of a validator within the group assigned to this para,
-/// as opposed to the index of the validator within the overall validator set, as well as
-/// the number of validators in the group.
-///
-/// Also provide the signing context.
-///
-/// Returns either an error, indicating that one of the signatures was invalid or that the index
-/// was out-of-bounds, or the number of signatures checked.
-pub fn check_candidate_backing<H: AsRef<[u8]> + Encode>(
-	backed: &BackedCandidate<H>,
-	signing_context: &SigningContext<H>,
-	group_len: usize,
-	validator_lookup: impl Fn(usize) -> Option<ValidatorId>,
-) -> Result<usize, ()> {
-	if backed.validator_indices.len() != group_len {
-		return Err(())
-	}
-
-	if backed.validity_votes.len() > group_len {
-		return Err(())
-	}
-
-	// this is known, even in runtime, to be blake2-256.
-	let hash: Hash = backed.candidate.hash();
-
-	let mut signed = 0;
-	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
-		.filter(|(_, signed)| **signed)
-		.zip(backed.validity_votes.iter())
-	{
-		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
-		let payload = attestation.signed_payload(hash.clone(), signing_context);
-		let sig = attestation.signature();
-
-		if sig.verify(&payload[..], &validator_id) {
-			signed += 1;
-		} else {
-			return Err(())
-		}
-	}
-
-	if signed != backed.validity_votes.len() {
-		return Err(())
-	}
-
-	Ok(signed)
-}
-
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	#[api_version(3)]
@@ -887,6 +840,27 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		out
 	}
 
+	/// Used to create a `Signed` from already existing parts.
+	#[cfg(feature = "std")]
+	pub fn new<H: Encode>(
+		payload: Payload,
+		validator_index: ValidatorIndex,
+		signature: ValidatorSignature,
+		context: &SigningContext<H>,
+		key: &ValidatorId,
+	) -> Option<Self> {
+		let s = Self {
+			payload,
+			validator_index,
+			signature,
+			real_payload: std::marker::PhantomData,
+		};
+
+		s.check_signature(context, key).ok()?;
+
+		Some(s)
+	}
+
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
 	pub fn sign<H: Encode>(
@@ -938,6 +912,55 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		self.payload
 	}
 }
+
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The Ethereum signature is invalid.
+	InvalidEthereumSignature = 0,
+	/// The signer has no claim.
+	SignerHasNoClaim = 1,
+	/// No permission to execute the call.
+	NoPermission = 2,
+	/// An invalid statement was made for a claim.
+	InvalidStatement = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
+	}
+}
+
+/// App-specific crypto used for reporting equivocation/misbehavior in BABE,
+/// GRANDPA and Parachains, described in the white paper as the fisherman role.
+/// Any rewards for misbehavior reporting will be paid out to this account.
+pub mod fisherman {
+	use super::{Signature, Verify};
+	use primitives::crypto::KeyTypeId;
+
+	/// Key type for the reporting module. Used for reporting BABE, GRANDPA
+	/// and Parachain equivocations.
+	pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"fish");
+
+	mod app {
+		use application_crypto::{app_crypto, sr25519};
+		app_crypto!(sr25519, super::KEY_TYPE);
+	}
+
+	/// Identity of the equivocation/misbehavior reporter.
+	pub type FishermanId = app::Public;
+
+	/// An `AppCrypto` type to allow submitting signed transactions using the fisherman
+	/// application key as signer.
+	pub struct FishermanAppCrypto;
+	impl frame_system::offchain::AppCrypto<<Signature as Verify>::Signer, Signature> for FishermanAppCrypto {
+		type RuntimeAppPublic = FishermanId;
+		type GenericSignature = primitives::sr25519::Signature;
+		type GenericPublic = primitives::sr25519::Public;
+	}
+}
+
 
 #[cfg(test)]
 mod tests {

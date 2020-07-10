@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
 use node_primitives::{ProtocolId, View};
-use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::v1::{Block, Hash};
 
 use std::collections::btree_map::{BTreeMap, Entry as BEntry};
 use std::collections::hash_map::{HashMap, Entry as HEntry};

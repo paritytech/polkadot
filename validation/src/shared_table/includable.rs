@@ -18,7 +18,7 @@
 
 use std::collections::HashMap;
 use futures::channel::oneshot;
-use polkadot_primitives::Hash;
+use polkadot_primitives::v0::Hash;
 
 /// Track includability of a set of candidates,
 pub(super) fn track<I: IntoIterator<Item=(Hash, bool)>>(candidates: I)
