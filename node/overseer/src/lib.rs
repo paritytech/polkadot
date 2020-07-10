@@ -977,13 +977,11 @@ mod tests {
 						let (tx, _) = oneshot::channel();
 						ctx.send_message(
 							AllMessages::CandidateValidation(
-								CandidateValidationMessage::Validate(
-									Default::default(),
-									Default::default(),
+								CandidateValidationMessage::ValidateFromChainState(
 									Default::default(),
 									PoV {
 										block_data: BlockData(Vec::new()),
-									},
+									}.into(),
 									tx,
 								)
 							)
