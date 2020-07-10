@@ -227,10 +227,17 @@ impl Validator {
 	}
 
 	/// Validate the payload with this validator
+	///
+	/// Validation can only succeed if `signed.validator_index() == self.index()`.
+	/// Normally, this will always be the case for a properly operating program,
+	/// but it's double-checked here anyway.
 	pub fn check_payload<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
 		signed: Signed<Payload, RealPayload>,
 	) -> Result<(), ()> {
+		if signed.validator_index() != self.index {
+			return Err(());
+		}
 		signed.check_signature(&self.signing_context, &self.id())
 	}
 }
