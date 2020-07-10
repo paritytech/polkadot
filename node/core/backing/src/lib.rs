@@ -16,23 +16,17 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
-#![recursion_limit="256"]
-
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use log;
 use futures::{
-	select, Future, FutureExt, SinkExt, StreamExt,
-	channel::{oneshot, mpsc},
-	future,
-	task::{Spawn, SpawnError, SpawnExt},
+	channel::{mpsc, oneshot},
+	task::SpawnError,
+	Future, FutureExt, SinkExt, StreamExt,
 };
-use futures_timer::Delay;
-use streamunordered::{StreamUnordered, StreamYield};
 
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
@@ -45,7 +39,11 @@ use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
+	messages::{
+		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
+		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
+		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
+	},
 	util::{
 		self,
 		request_head_data,
@@ -56,8 +54,8 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateSelectionMessage, SchedulerRoster,
-	RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
+	AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
+	RuntimeApiMessage, CandidateValidationMessage, ValidationFailed,
 	StatementDistributionMessage, NewBackedCandidate, ProvisionerMessage, ProvisionableData,
 	PoVDistributionMessage, AvailabilityStoreMessage,
 };
@@ -72,9 +70,8 @@ use statement_table::{
 };
 
 #[derive(Debug, derive_more::From)]
-enum Error {
+pub enum Error {
 	CandidateNotFound,
-	JobNotFound(Hash),
 	InvalidSignature,
 	#[from]
 	Erasure(erasure_coding::Error),
@@ -91,7 +88,7 @@ enum Error {
 }
 
 /// Holds all data needed for candidate backing job operation.
-struct CandidateBackingJob {
+pub struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// Inbound message channel receiving part.
@@ -150,8 +147,6 @@ impl TableContextTrait for TableContext {
 	}
 }
 
-const CHANNEL_CAPACITY: usize = 64;
-
 /// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
 enum ToJob {
 	/// A `CandidateBackingMessage`.
@@ -171,12 +166,28 @@ impl TryFrom<AllMessages> for ToJob {
 	}
 }
 
+impl From<CandidateBackingMessage> for ToJob {
+	fn from(msg: CandidateBackingMessage) -> Self {
+		Self::CandidateBacking(msg)
+	}
+}
+
 impl util::ToJobTrait for ToJob {
 	const STOP: Self = ToJob::Stop;
+
+	fn hash(&self) -> Option<Hash> {
+		use CandidateBackingMessage::{RegisterBackingWatcher, Second, Statement};
+		match self {
+			Self::CandidateBacking(RegisterBackingWatcher(hash, _)) => Some(*hash),
+			Self::CandidateBacking(Second(hash, _, _)) => Some(*hash),
+			Self::CandidateBacking(Statement(hash, _)) => Some(*hash),
+			_ => None,
+		}
+	}
 }
 
 /// A message type that is sent from `CandidateBackingJob` to `CandidateBackingSubsystem`.
-enum FromJob {
+pub enum FromJob {
 	AvailabilityStore(AvailabilityStoreMessage),
 	RuntimeApiMessage(RuntimeApiMessage),
 	CandidateValidation(CandidateValidationMessage),
@@ -235,7 +246,7 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 
 impl CandidateBackingJob {
 	/// Run asynchronously.
-	async fn run(mut self) -> Result<(), Error> {
+	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.rx_to.next().await {
 			match msg {
 				ToJob::CandidateBacking(msg) => {
@@ -342,9 +353,7 @@ impl CandidateBackingJob {
 				None => continue,
 			};
 
-			let mut validator_indices = BitVec::with_capacity(
-				group.len()
-			);
+			let mut validator_indices = BitVec::with_capacity(group.len());
 
 			validator_indices.resize(group.len(), false);
 
@@ -385,7 +394,7 @@ impl CandidateBackingJob {
 
 				if let Ok(report) = MisbehaviorReport::try_from(f) {
 					let message = ProvisionerMessage::ProvisionableData(
-						ProvisionableData::MisbehaviorReport(self.parent, report)
+						ProvisionableData::MisbehaviorReport(self.parent, report),
 					);
 
 					reports.push(message);
@@ -660,11 +669,7 @@ impl CandidateBackingJob {
 	}
 }
 
-type JobHandle = util::JobHandle<ToJob>;
-
-struct Job;
-
-impl util::JobTrait for Job {
+impl util::JobTrait for CandidateBackingJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
@@ -676,8 +681,8 @@ impl util::JobTrait for Job {
 		parent: Hash,
 		keystore: KeyStorePtr,
 		rx_to: mpsc::Receiver<Self::ToJob>,
-		tx_from: mpsc::Sender<Self::FromJob>,
-	) -> Pin<Box<dyn Future<Output=Result<(), Self::Error>> + Send>> {
+		mut tx_from: mpsc::Sender<Self::FromJob>,
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
 			let (validators, roster, signing_context) = futures::try_join!(
 				request_validators(parent, &mut tx_from).await?,
@@ -691,10 +696,7 @@ impl util::JobTrait for Job {
 
 			for assignment in roster.scheduled {
 				if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
-					groups.insert(
-						assignment.para_id,
-						g.clone(),
-					);
+					groups.insert(assignment.para_id, g.clone());
 				}
 			}
 
@@ -709,7 +711,6 @@ impl util::JobTrait for Job {
 					}
 				}
 			}
-		});
 
 			let head_data = request_head_data(parent, &mut tx_from, assignment).await?.await?;
 
@@ -733,134 +734,33 @@ impl util::JobTrait for Job {
 				table_context,
 			};
 
-			job.run().await
-		}.boxed()
+			job.run_loop().await
+		}
+		.boxed()
 	}
 }
-
-type Jobs<Spawner> = util::Jobs<Spawner, Job>;
 
 /// An implementation of the Candidate Backing subsystem.
-pub struct CandidateBackingSubsystem<S, Context> {
-	spawner: S,
-	keystore: KeyStorePtr,
-	_context: std::marker::PhantomData<Context>,
-}
-
-impl<S, Context> CandidateBackingSubsystem<S, Context>
-	where
-		S: Spawn + Clone,
-		Context: SubsystemContext<Message=CandidateBackingMessage>,
-{
-	/// Creates a new `CandidateBackingSubsystem`.
-	pub fn new(keystore: KeyStorePtr, spawner: S) -> Self {
-		Self {
-			spawner,
-			keystore,
-			_context: std::marker::PhantomData,
-		}
-	}
-
-	async fn run(
-		mut ctx: Context,
-		keystore: KeyStorePtr,
-		spawner: S,
-	) {
-		let mut jobs = Jobs::new(spawner.clone());
-
-		loop {
-			select! {
-				incoming = ctx.recv().fuse() => {
-					match incoming {
-						Ok(msg) => match msg {
-							FromOverseer::Signal(OverseerSignal::StartWork(hash)) => {
-								if let Err(e) = jobs.spawn_job(hash, keystore.clone()) {
-									log::error!("Failed to spawn a job: {:?}", e);
-									break;
-								}
-							}
-							FromOverseer::Signal(OverseerSignal::StopWork(hash)) => {
-								if let Err(e) = jobs.stop_job(hash).await {
-									log::error!("Failed to spawn a job: {:?}", e);
-									break;
-								}
-							}
-							FromOverseer::Communication { msg } => {
-								match msg {
-									CandidateBackingMessage::Second(hash, _, _) |
-									CandidateBackingMessage::Statement(hash, _) |
-									CandidateBackingMessage::GetBackedCandidates(hash, _) => {
-										let res = jobs.send_msg(
-											hash.clone(),
-											ToJob::CandidateBacking(msg),
-										).await;
-
-										if let Err(e) = res {
-											log::error!(
-												"Failed to send a message to a job: {:?}",
-												e,
-											);
-
-											break;
-										}
-									}
-									_ => (),
-								}
-							}
-							_ => (),
-						},
-						Err(_) => break,
-					}
-				}
-				outgoing = jobs.next().fuse() => {
-					match outgoing {
-						Some(msg) => {
-							let _ = ctx.send_message(msg.into()).await;
-						}
-						None => break,
-					}
-				}
-				complete => break,
-			}
-		}
-	}
-}
-
-impl<S, Context> Subsystem<Context> for CandidateBackingSubsystem<S, Context>
-	where
-		S: Spawn + Send + Clone + 'static,
-		Context: SubsystemContext<Message=CandidateBackingMessage>,
-{
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let keystore = self.keystore.clone();
-		let spawner = self.spawner.clone();
-
-		SpawnedSubsystem(Box::pin(async move {
-			Self::run(ctx, keystore, spawner).await;
-		}))
-	}
-}
+pub type CandidateBackingSubsystem<Spawner, Context> =
+	util::JobManager<Spawner, Context, CandidateBackingJob>;
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{Future, executor::{self, ThreadPool}};
-	use std::collections::HashMap;
-	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::v1::{
-		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
-		CandidateCommitments, LocalValidationData, GlobalValidationSchedule, HeadData,
-	};
 	use assert_matches::assert_matches;
 	use futures::{
 		executor::{self, ThreadPool},
-		Future,
+		future, Future,
 	};
-	use polkadot_primitives::parachain::{
-		AssignmentKind, BlockData, CollatorId, CoreAssignment, CoreIndex, GroupIndex,
+	use polkadot_primitives::v1::{
+		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex, 
+		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
 		ValidatorPair, ValidityAttestation,
 	};
-	use polkadot_subsystem::messages::{RuntimeApiRequest, SchedulerRoster};
+	use polkadot_subsystem::{
+		messages::{RuntimeApiRequest, SchedulerRoster},
+		FromOverseer, OverseerSignal,
+	};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::HashMap;
 

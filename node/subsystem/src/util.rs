@@ -20,11 +20,15 @@
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
 
-use crate::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, SchedulerRoster};
+use crate::{
+	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, SchedulerRoster},
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+};
 use futures::{
 	channel::{mpsc, oneshot},
-	future::{AbortHandle, Either},
+	future::Either,
 	prelude::*,
+	select,
 	task::{Spawn, SpawnError, SpawnExt},
 };
 use futures_timer::Delay;
@@ -41,7 +45,6 @@ use sp_core::Pair;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
-	ops::{Deref, DerefMut},
 	pin::Pin,
 	time::Duration,
 };
@@ -272,6 +275,9 @@ impl Validator {
 pub trait ToJobTrait: TryFrom<AllMessages> {
 	/// The `Stop` variant of the ToJob enum.
 	const STOP: Self;
+
+	/// If the message variant contains a hash, return it here
+	fn hash(&self) -> Option<Hash>;
 }
 
 /// A JobHandle manages a particular job for a subsystem.
@@ -338,7 +344,7 @@ pub trait JobTrait {
 		run_args: Self::RunArgs,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		tx_from: mpsc::Sender<Self::FromJob>,
-	) -> Pin<Box<dyn Future<Output=Result<(), Self::Error>> + Send>>;
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 }
 
 pub struct Jobs<Spawner, Job: JobTrait> {
@@ -407,7 +413,7 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 				handle.stop().await;
 				Ok(())
 			}
-			None => Err(Error::JobNotFound(parent_hash))
+			None => Err(Error::JobNotFound(parent_hash)),
 		}
 	}
 
@@ -436,5 +442,138 @@ impl<Spawner, Job: JobTrait> Drop for Jobs<Spawner, Job> {
 		for job_handle in self.running.values() {
 			job_handle.abort_handle.abort();
 		}
+	}
+}
+
+/// A basic implementation of a subsystem.
+///
+/// This struct is responsible for handling message traffic between
+/// this subsystem and the overseer. It spawns and kills jobs on the
+/// appropriate Overseer messages, and dispatches standard traffic to
+/// the appropriate job the rest of the time.
+pub struct JobManager<Spawner, Context, Job: JobTrait> {
+	spawner: Spawner,
+	run_args: Job::RunArgs,
+	context: std::marker::PhantomData<Context>,
+	job: std::marker::PhantomData<Job>,
+}
+
+impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
+where
+	Spawner: Spawn + Clone + Send,
+	Context: SubsystemContext,
+	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
+	Job: JobTrait,
+	Job::RunArgs: Clone,
+	Job::ToJob: TryFrom<AllMessages> + Sync + Debug,
+{
+	/// Creates a new `Subsystem`.
+	pub fn new(spawner: Spawner, run_args: Job::RunArgs) -> Self {
+		Self {
+			spawner,
+			run_args,
+			context: std::marker::PhantomData,
+			job: std::marker::PhantomData,
+		}
+	}
+
+	/// Run this subsystem
+	///
+	/// Conceptually, this is very simple: it just loops forever.
+	///
+	/// - On incoming overseer messages, it starts or stops jobs as appropriate.
+	/// - On other incoming messages, if they can be converted into Job::ToJob and
+	///   include a hash, then they're forwarded to the appropriate individual job.
+	/// - On outgoing messages from the jobs, it forwards them to the overseer.
+	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner) {
+		let mut jobs = Jobs::new(spawner.clone());
+
+		loop {
+			select! {
+				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args).await { break },
+				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx).await { break },
+				complete => break,
+			}
+		}
+	}
+
+	// handle an incoming message. return true if we should break afterwards.
+	async fn handle_incoming(
+		incoming: SubsystemResult<FromOverseer<Context::Message>>,
+		jobs: &mut Jobs<Spawner, Job>,
+		run_args: &Job::RunArgs,
+	) -> bool {
+		use crate::FromOverseer::{Communication, Signal};
+		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
+
+		match incoming {
+			Ok(Signal(StartWork(hash))) => {
+				if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+					log::error!("Failed to spawn a job: {:?}", e);
+					return true;
+				}
+			}
+			Ok(Signal(StopWork(hash))) => {
+				if let Err(e) = jobs.stop_job(hash).await {
+					log::error!("Failed to stop a job: {:?}", e);
+					return true;
+				}
+			}
+			Ok(Signal(Conclude)) => {
+				// breaking the loop ends fn run, which drops `jobs`, which drops all ongoing work
+				return true;
+			}
+			Ok(Communication { msg }) => {
+				// I don't know the syntax to add this type hint within an if let statement
+				let maybe_to_job: Result<Job::ToJob, _> = msg.try_into();
+				if let Ok(to_job) = maybe_to_job {
+					match to_job.hash() {
+						Some(hash) => {
+							if let Err(err) = jobs.send_msg(hash, to_job).await {
+								log::error!("Failed to send a message to a job: {:?}", err);
+								return true;
+							}
+						}
+						None => log::warn!("message appropriate to send to job, but no parent hash available to dispatch it: {:?}", to_job),
+					}
+				}
+			}
+			Err(err) => {
+				log::error!("error receiving message from subsystem context: {:?}", err);
+				return true;
+			}
+		}
+		false
+	}
+
+	// handle an outgoing message. return true if we should break afterwards.
+	async fn handle_outgoing(outgoing: Option<Job::FromJob>, ctx: &mut Context) -> bool {
+		match outgoing {
+			Some(msg) => {
+				// discard errors when sending the message upstream
+				let _ = ctx.send_message(msg.into()).await;
+			}
+			None => return true,
+		}
+		false
+	}
+}
+
+impl<Spawner, Context, Job> Subsystem<Context> for JobManager<Spawner, Context, Job>
+where
+	Spawner: Spawn + Send + Clone + 'static,
+	Context: SubsystemContext,
+	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
+	Job: JobTrait + Send,
+	Job::RunArgs: Clone + Sync,
+	Job::ToJob: TryFrom<AllMessages> + Sync,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let spawner = self.spawner.clone();
+		let run_args = self.run_args.clone();
+
+		SpawnedSubsystem(Box::pin(async move {
+			Self::run(ctx, run_args, spawner).await;
+		}))
 	}
 }
