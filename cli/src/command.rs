@@ -66,6 +66,7 @@ impl SubstrateCli for Cli {
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),
 			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()),
 			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			path if self.run.force_kusama => {
 				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)

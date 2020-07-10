@@ -1048,6 +1048,68 @@ pub fn westend_testnet_genesis(
 	}
 }
 
+/// Helper function to create rococo GenesisConfig for testing
+pub fn rococo_testnet_genesis(
+	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+) -> rococo_runtime::GenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
+
+	const ENDOWMENT: u128 = 1_000_000 * DOTS;
+	const STASH: u128 = 100 * DOTS;
+
+	rococo_runtime::GenesisConfig {
+		system: Some(rococo_runtime::SystemConfig {
+			code: rococo_runtime::WASM_BINARY.to_vec(),
+			changes_trie_config: Default::default(),
+		}),
+		indices: Some(rococo_runtime::IndicesConfig {
+			indices: vec![],
+		}),
+		balances: Some(rococo_runtime::BalancesConfig {
+			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
+		}),
+		session: Some(rococo_runtime::SessionConfig {
+			keys: initial_authorities.iter().map(|x| (
+				x.0.clone(),
+				x.0.clone(),
+				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
+			)).collect::<Vec<_>>(),
+		}),
+		staking: Some(rococo_runtime::StakingConfig {
+			minimum_validator_count: 1,
+			validator_count: 2,
+			stakers: initial_authorities.iter()
+				.map(|x| (x.0.clone(), x.1.clone(), STASH, rococo_runtime::StakerStatus::Validator))
+				.collect(),
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			force_era: Forcing::NotForcing,
+			slash_reward_fraction: Perbill::from_percent(10),
+			.. Default::default()
+		}),
+		babe: Some(Default::default()),
+		grandpa: Some(Default::default()),
+		im_online: Some(Default::default()),
+		authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
+			keys: vec![],
+		}),
+		parachains: Some(rococo_runtime::ParachainsConfig {
+			authorities: vec![],
+		}),
+		registrar: Some(rococo_runtime::RegistrarConfig{
+			parachains: vec![],
+			_phdata: Default::default(),
+		}),
+		vesting: Some(rococo_runtime::VestingConfig {
+			vesting: vec![],
+		}),
+		sudo: Some(rococo_runtime::SudoConfig {
+			key: root_key,
+		}),
+	}
+}
+
 fn polkadot_development_config_genesis() -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
@@ -1186,6 +1248,17 @@ fn westend_local_testnet_genesis() -> westend::GenesisConfig {
 	)
 }
 
+fn rococo_local_testnet_genesis() -> rococo_runtime::GenesisConfig {
+	rococo_testnet_genesis(
+		vec![
+			get_authority_keys_from_seed("Alice"),
+			get_authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+	)
+}
+
 /// Westend local testnet config (multivalidator Alice + Bob)
 pub fn westend_local_testnet_config() -> WestendChainSpec {
 	WestendChainSpec::from_genesis(
@@ -1193,6 +1266,21 @@ pub fn westend_local_testnet_config() -> WestendChainSpec {
 		"westend_local_testnet",
 		ChainType::Local,
 		westend_local_testnet_genesis,
+		vec![],
+		None,
+		Some(DEFAULT_PROTOCOL_ID),
+		None,
+		Default::default(),
+	)
+}
+
+/// Rococo local testnet config (multivalidator Alice + Bob)
+pub fn rococo_local_testnet_config() -> RococoChainSpec {
+	RococoChainSpec::from_genesis(
+		"Rococo Local Testnet",
+		"rococo_local_testnet",
+		ChainType::Local,
+		rococo_local_testnet_genesis,
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
