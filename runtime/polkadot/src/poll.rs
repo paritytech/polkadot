@@ -71,6 +71,9 @@ decl_module! {
 
 		fn deposit_event() = default;
 
+		/// The End config param.
+		const End: T::BlockNumber = T::End::get();
+
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
 		#[weight = 100_000_000]
 		fn vote(origin, approvals: Approvals) {
