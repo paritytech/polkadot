@@ -52,6 +52,7 @@ pub enum CandidateSelectionMessage {
 }
 
 impl CandidateSelectionMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::Invalid(hash, _) => Some(*hash),
@@ -75,6 +76,7 @@ pub enum CandidateBackingMessage {
 
 
 impl CandidateBackingMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::GetBackedCandidates(hash, _) => Some(*hash),
@@ -122,6 +124,7 @@ pub enum CandidateValidationMessage {
 }
 
 impl CandidateValidationMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(CandidateDescriptor{ relay_parent, ..}, _, _) => Some(*relay_parent),
@@ -163,6 +166,7 @@ pub enum NetworkBridgeMessage {
 }
 
 impl NetworkBridgeMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::RegisterEventProducer(_, _) => None,
@@ -186,6 +190,7 @@ pub enum AvailabilityDistributionMessage {
 }
 
 impl AvailabilityDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeChunk(hash, _) => Some(*hash),
@@ -206,6 +211,7 @@ pub enum BitfieldDistributionMessage {
 }
 
 impl BitfieldDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
@@ -228,6 +234,7 @@ pub enum AvailabilityStoreMessage {
 }
 
 impl AvailabilityStoreMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::QueryPoV(hash, _) => Some(*hash),
@@ -275,6 +282,7 @@ pub enum RuntimeApiMessage {
 }
 
 impl RuntimeApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::Request(hash, _) => Some(*hash),
@@ -293,6 +301,7 @@ pub enum StatementDistributionMessage {
 }
 
 impl StatementDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
@@ -338,6 +347,7 @@ pub enum ProvisionerMessage {
 }
 
 impl ProvisionerMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
@@ -363,6 +373,7 @@ pub enum PoVDistributionMessage {
 }
 
 impl PoVDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
 	pub fn hash(&self) -> Option<Hash> {
 		match self {
 			Self::FetchPoV(hash, _, _) => Some(*hash),
