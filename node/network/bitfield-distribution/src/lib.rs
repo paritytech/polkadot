@@ -227,9 +227,7 @@ where
                     .await
             }
 
-            // @todo verify sequential execution is ok or if spawning tasks is better
-            // pass on the
-
+            // concurrently pass on the bitfield distribution to all peers
             let future = move || {
                 tracker.peer_views.clone().into_iter()
                 .filter(|(_peerid, view)| view.contains(&hash))
