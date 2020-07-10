@@ -26,9 +26,8 @@ use futures::future::Future;
 use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
 use log::info;
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use polkadot_primitives::{
-	parachain::{self, CollatorId},
-	Block, BlockId, Hash,
+use polkadot_primitives::v0::{
+	Block, BlockId, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_service::{
@@ -68,7 +67,7 @@ native_executor_instance!(
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
 	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
@@ -287,7 +286,7 @@ where
 		let extrinsic = polkadot_test_runtime::UncheckedExtrinsic::new_signed(
 			function.clone(),
 			polkadot_test_runtime::Address::Id(caller.public().into()),
-			polkadot_primitives::Signature::Sr25519(signature.clone()),
+			polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
 			extra.clone(),
 		);
 
