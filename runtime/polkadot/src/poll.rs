@@ -36,11 +36,8 @@ pub trait Trait: system::Trait {
 	type End: Get<Self::BlockNumber>;
 }
 
-/// The number of options.
-pub const OPTIONS: usize = 4;
-
 /// The options someone has approved.
-pub type Approvals = [bool; OPTIONS];
+pub type Approvals = [bool; 4];
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Poll {
@@ -48,7 +45,7 @@ decl_storage! {
 		pub VoteOf: map hasher(twox_64_concat) T::AccountId => (Approvals, BalanceOf<T>);
 
 		/// The total balances voting for each option.
-		pub Totals: [BalanceOf<T>; OPTIONS];
+		pub Totals: [BalanceOf<T>; 4];
 	}
 }
 
@@ -72,8 +69,6 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
-		const Options: u32 = OPTIONS as u32;
-
 		fn deposit_event() = default;
 
 		/// Create a new crowdfunding campaign for a parachain slot deposit for the current auction.
@@ -84,16 +79,16 @@ decl_module! {
 			let balance = T::Currency::total_balance(&who);
 			Totals::<T>::mutate(|ref mut totals| {
 				VoteOf::<T>::mutate(&who, |(ref mut who_approvals, ref mut who_balance)| {
-					for i in 0..OPTIONS {
+					for i in 0..approvals.len() {
 						if who_approvals[i] {
 							totals[i] = totals[i].saturating_sub(*who_balance);
 						}
-						*who_approvals = approvals;
-						*who_balance = balance;
-						if who_approvals[i] {
-							totals[i] = totals[i].saturating_add(*who_balance);
+						if approvals[i] {
+							totals[i] = totals[i].saturating_add(balance);
 						}
 					}
+					*who_approvals = approvals;
+					*who_balance = balance;
 				});
 			});
 			Self::deposit_event(RawEvent::Voted(who, balance, approvals));
@@ -105,7 +100,6 @@ decl_module! {
 mod tests {
 	use super::*;
 
-	use sp_runtime::traits::BadOrigin;
 	use frame_support::{
 		assert_ok, assert_noop, impl_outer_origin, parameter_types, weights::Weight,
 		ord_parameter_types,
@@ -119,7 +113,7 @@ mod tests {
 	};
 
 	impl_outer_origin! {
-		pub enum Origin for Test  where system = frame_system {}
+		pub enum Origin for Test where system = frame_system {}
 	}
 
 	// For testing the pallet, we construct most of a mock runtime. This means
@@ -155,45 +149,45 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = pallet_balances::AccountData<u64>;
+		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
+		type SystemWeightInfo = ();
 	}
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
-	impl pallet_balances::Trait for Test {
+	impl balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 	parameter_types! {
-		pub const End: u64 = 10;
+		pub const End: u64 = 1;
 	}
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type End = End;
 	}
-	type System = frame_system::Module<Test>;
-	type Balances = pallet_balances::Module<Test>;
+	type System = system::Module<Test>;
+	type Balances = balances::Module<Test>;
 	type Poll = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
-		pallet_balances::GenesisConfig::<Test> {
+		balances::GenesisConfig::<Test> {
 			balances: vec![
 				(1, 10),
-				(2, 10),
-				(3, 10),
-				(10, 100),
-				(20, 100),
-				(30, 100),
+				(2, 20),
+				(3, 30),
+				(4, 40),
 			],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
@@ -203,6 +197,19 @@ mod tests {
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
 			assert_eq!(System::block_number(), 0);
+		});
+	}
+
+	#[test]
+	fn totaling_works() {
+		new_test_ext().execute_with(|| {
+			Poll::vote(Origin::signed(1), [true, false, false, false]);
+			Poll::vote(Origin::signed(2), [false, true, false, false]);
+			Poll::vote(Origin::signed(3), [false, false, true, false]);
+			Poll::vote(Origin::signed(4), [false, false, false, true]);
+			assert_eq!(Totals::<Test>::get(), [10, 20, 30, 40]);
+			Poll::vote(Origin::signed(4), [true, true, false, true]);
+			assert_eq!(Totals::<Test>::get(), [50, 60, 30, 40]);
 		});
 	}
 }
