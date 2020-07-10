@@ -22,22 +22,18 @@ use frame_support::{
 		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
 	},
 };
-use system::ensure_signed;
+use system::{self as frame_system, ensure_signed};
 use sp_runtime::{ModuleId,
 	traits::{AccountIdConversion, Hash, Saturating, Zero, CheckedAdd}
 };
-use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
 use primitives::v0::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
-<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
-#[allow(dead_code)]
-pub type NegativeImbalanceOf<T> =
-<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
 
-pub trait Trait: slots::Trait {
+pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
@@ -45,7 +41,7 @@ pub trait Trait: slots::Trait {
 	type Currency: Currency<Self::AccountId>;
 
 	/// The block number only before which voting is possible.
-	type End: Get<T::BlockNumber>;
+	type End: Get<Self::BlockNumber>;
 }
 
 /// The number of options.
@@ -57,10 +53,10 @@ pub type Approvals = [bool; OPTIONS];
 decl_storage! {
 	trait Store for Module<T: Trait> as Poll {
 		/// Votes, so far.
-		pub VoteOf map hasher(twox_64_concat) T::AccountId => (Approvals, BalanceOf<T>);
+		pub VoteOf: map hasher(twox_64_concat) T::AccountId => (Approvals, BalanceOf<T>);
 
 		/// The total balances voting for each option.
-		pub Totals: [BalanceOf<T>, OPTIONS];
+		pub Totals: [BalanceOf<T>; OPTIONS];
 	}
 }
 
@@ -81,7 +77,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		const Options: u32 = OPTIONS as u32;
@@ -94,19 +90,20 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			ensure!(system::Module::<T>::block_number() < T::End::get(), Error::<T>::TooLate);
 			let balance = T::Currency::total_balance(&who);
-			Totals::mutate(|ref mut totals| {
+			Totals::<T>::mutate(|ref mut totals| {
 				VoteOf::<T>::mutate(&who, |(ref mut who_approvals, ref mut who_balance)| {
 					for i in 0..OPTIONS {
 						if who_approvals[i] {
-							totals[i] -= who_balance;
+							totals[i] = totals[i].saturating_sub(*who_balance);
 						}
+						*who_approvals = approvals;
 						*who_balance = balance;
-						if approvals[i] {
-							totals[i] -= who_balance;
+						if who_approvals[i] {
+							totals[i] = totals[i].saturating_add(*who_balance);
 						}
 					}
 				});
-			})
+			});
 			Self::deposit_event(RawEvent::Voted(who, balance, approvals));
 		}
 	}
