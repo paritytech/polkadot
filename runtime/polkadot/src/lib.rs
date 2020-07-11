@@ -115,12 +115,7 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..))
-				| Call::Democracy(democracy::Call::vote(..))
-				| Call::Democracy(democracy::Call::remove_vote(..))
-				| Call::Democracy(democracy::Call::delegate(..))
-				| Call::Democracy(democracy::Call::undelegate(..))
-				=> true,
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
@@ -894,6 +889,7 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+					| Call::Poll(..)
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
