@@ -106,15 +106,9 @@ decl_module! {
 mod tests {
 	use super::*;
 
-	use frame_support::{
-		assert_ok, assert_noop, impl_outer_origin, parameter_types, weights::Weight,
-		ord_parameter_types,
-	};
+	use frame_support::{assert_ok, assert_noop, impl_outer_origin, parameter_types, weights::Weight};
 	use sp_core::H256;
-	use frame_system::{EnsureSignedBy, EnsureOneOf, EnsureRoot};
-	use sp_runtime::{
-		Perbill, testing::Header, traits::{BlakeTwo256, IdentityLookup},
-	};
+	use sp_runtime::{Perbill, testing::Header, traits::{BlakeTwo256, IdentityLookup}};
 
 	impl_outer_origin! {
 		pub enum Origin for Test where system = frame_system {}
