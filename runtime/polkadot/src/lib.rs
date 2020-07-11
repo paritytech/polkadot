@@ -942,7 +942,6 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 
 parameter_types! {
 	pub const VestingTime: BlockNumber = 30 * DAYS;
-	pub PurchaseLimit: Balance = 1_000 * DOTS;
 	pub const MaxStatementLength: usize = 1_000;
 }
 
@@ -953,7 +952,6 @@ impl purchase::Trait for Runtime {
 	// TODO: Update these origins.
 	type ValidityOrigin = system::EnsureRoot<AccountId>;
 	type ConfigurationOrigin = system::EnsureRoot<AccountId>;
-	type PurchaseLimit = PurchaseLimit;
 	type MaxStatementLength = MaxStatementLength;
 }
 

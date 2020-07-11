@@ -40,8 +40,6 @@ pub trait Trait: system::Trait {
 	/// The origin allowed to make configurations to the pallet.
 	type ConfigurationOrigin: EnsureOrigin<Self::Origin>;
 	/// The purchase limit for low contributing users.
-	type PurchaseLimit: Get<BalanceOf<Self>>;
-	/// The purchase limit for low contributing users.
 	type MaxStatementLength: Get<usize>;
 }
 
@@ -448,7 +446,6 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const PurchaseLimit: u64 = 100;
 		pub const MaxStatementLength: usize =  1_000;
 	}
 
@@ -464,7 +461,6 @@ mod tests {
 		type VestingSchedule = Vesting;
 		type ValidityOrigin = system::EnsureSignedBy<ValidityOrigin, AccountId>;
 		type ConfigurationOrigin = system::EnsureSignedBy<ConfigurationOrigin, AccountId>;
-		type PurchaseLimit = PurchaseLimit;
 		type MaxStatementLength = MaxStatementLength;
 	}
 
