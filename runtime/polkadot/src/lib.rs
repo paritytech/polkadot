@@ -942,20 +942,19 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 
 parameter_types! {
 	pub const VestingTime: BlockNumber = 30 * DAYS;
-	pub PurchaseStatement: &'static [u8] = b"I herby agree to the agreement outlined for purchasing DOTs. TODO UPDATE";
 	pub PurchaseLimit: Balance = 1_000 * DOTS;
+	pub const MaxStatementLength: usize = 1_000;
 }
 
 impl purchase::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type VestingSchedule = Vesting;
-	type VestingTime = VestingTime;
 	// TODO: Update these origins.
 	type ValidityOrigin = system::EnsureRoot<AccountId>;
-	type PaymentOrigin = system::EnsureRoot<AccountId>;
-	type Statement = PurchaseStatement;
+	type ConfigurationOrigin = system::EnsureRoot<AccountId>;
 	type PurchaseLimit = PurchaseLimit;
+	type MaxStatementLength = MaxStatementLength;
 }
 
 construct_runtime! {

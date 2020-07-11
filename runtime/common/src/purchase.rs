@@ -18,11 +18,12 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError, AnySignature};
-use sp_runtime::traits::{Bounded, Saturating, Zero, CheckedAdd, Verify};
+use sp_runtime::traits::{Bounded, Zero, CheckedAdd, Verify};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
 };
+use system::ensure_signed;
 use sp_core::sr25519;
 use sp_std::prelude::*;
 
@@ -34,16 +35,14 @@ pub trait Trait: system::Trait {
 	type Currency: Currency<Self::AccountId>;
 	/// Vesting Pallet
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber, Currency=Self::Currency>;
-	/// The number of blocks that the "locked" dots will be locked for.
-	type VestingTime: Get<Self::BlockNumber>;
 	/// The origin allowed to set account status.
 	type ValidityOrigin: EnsureOrigin<Self::Origin>;
-	/// The origin allowed to make final payments.
-	type PaymentOrigin: EnsureOrigin<Self::Origin>;
-	/// The statement that must be signed to participate in the purchase process.
-	type Statement: Get<&'static [u8]>;
+	/// The origin allowed to make configurations to the pallet.
+	type ConfigurationOrigin: EnsureOrigin<Self::Origin>;
 	/// The purchase limit for low contributing users.
 	type PurchaseLimit: Get<BalanceOf<Self>>;
+	/// The purchase limit for low contributing users.
+	type MaxStatementLength: Get<usize>;
 }
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -98,9 +97,14 @@ impl AccountValidity {
 /// All information about an account regarding the purchase of DOTs.
 #[derive(Encode, Decode, Default, Clone, Eq, PartialEq, RuntimeDebug)]
 pub struct AccountStatus<Balance> {
+	/// The current validity status of the user. Will denote if the user has passed KYC,
+	/// how much they are able to purchase, and when their purchase process has completed.
 	validity: AccountValidity,
+	/// The amount of free DOTs they have purchased.
 	free_balance: Balance,
+	/// The amount of locked DOTs they have purchased.
 	locked_balance: Balance,
+	/// Their sr25519/ed25519 signature verifying they have signed our required statement.
 	signature: Vec<u8>,
 }
 
@@ -108,6 +112,7 @@ decl_event!(
 	pub enum Event<T> where
 		AccountId = <T as system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
+		BlockNumber = <T as system::Trait>::BlockNumber,
 	{
 		/// A new account was created
 		AccountCreated(AccountId),
@@ -119,6 +124,10 @@ decl_event!(
 		PaymentComplete(AccountId, Balance, Balance),
 		/// A new payment account was set.
 		PaymentAccountSet(AccountId),
+		/// A new statement was set.
+		StatementUpdated,
+		/// A new statement was set.
+		UnlockBlockUpdated(BlockNumber),
 	}
 );
 
@@ -136,6 +145,10 @@ decl_error! {
 		InvalidBalance,
 		/// An overflow occurred when doing calculations.
 		Overflow,
+		/// The statement is too long to be stored on chain.
+		InvalidStatement,
+		/// The unlock block is in the past!
+		InvalidUnlockBlock,
 	}
 }
 
@@ -145,6 +158,10 @@ decl_storage! {
 		Accounts: map hasher(blake2_128_concat) T::AccountId => AccountStatus<BalanceOf<T>>;
 		// The account that will be used to payout participants of the DOT purchase process.
 		PaymentAccount: T::AccountId;
+		// The statement purchasers will need to sign to participate.
+		Statement: Vec<u8>;
+		// The block where all locked dots will unlock.
+		UnlockBlock: T::BlockNumber;
 	}
 }
 
@@ -211,9 +228,9 @@ decl_module! {
 		/// Origin must match the `ValidityOrigin`.
 		#[weight = 0]
 		fn update_balance(origin,
-				who: T::AccountId,
-				free_balance: BalanceOf<T>,
-				locked_balance: BalanceOf<T>,
+			who: T::AccountId,
+			free_balance: BalanceOf<T>,
+			locked_balance: BalanceOf<T>,
 		) {
 			T::ValidityOrigin::ensure_origin(origin)?;
 
@@ -233,10 +250,12 @@ decl_module! {
 		///
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
-		/// Origin must match the `PaymentOrigin`.
+		/// Origin must match the configured `PaymentAccount`.
 		#[weight = 0]
 		fn payout(origin, who: T::AccountId) {
-			T::PaymentOrigin::ensure_origin(origin)?;
+			// Payments must be made directly by the `PaymentAccount`.
+			let payment_account = ensure_signed(origin)?;
+			ensure!(payment_account == PaymentAccount::<T>::get(), DispatchError::BadOrigin);
 
 			// Account should not be active.
 			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
@@ -251,14 +270,13 @@ decl_module! {
 
 				// Transfer funds from the payment account into the purchasing user.
 				// TODO: This is totally safe? No chance of reentrancy?
-				let payment_account = PaymentAccount::<T>::get();
 				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
 				if !status.locked_balance.is_zero() {
 					// Account did not exist before this point, thus it should have no existing vesting schedule.
 					// So this function should never fail, however if it does, not much we can do about it at
 					// this point.
-					let unlock_block = system::Module::<T>::block_number().saturating_add(T::VestingTime::get());
+					let unlock_block = UnlockBlock::<T>::get();
 					let _ = T::VestingSchedule::add_vesting_schedule(
 						// Apply vesting schedule to this user
 						&who,
@@ -282,13 +300,37 @@ decl_module! {
 
 		/// Set the account that will be used to payout users in the DOT purchase process.
 		///
-		/// Origin must match the `PaymentOrigin`
+		/// Origin must match the `ConfigurationOrigin`
 		#[weight = 0]
-		fn set_payout_account(origin, who: T::AccountId) {
-			T::PaymentOrigin::ensure_origin(origin)?;
+		fn set_payment_account(origin, who: T::AccountId) {
+			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
 			PaymentAccount::<T>::set(who.clone());
 			Self::deposit_event(RawEvent::PaymentAccountSet(who));
+		}
+
+		/// Set the statement that must be signed for a user to participate on the DOT sale.
+		///
+		/// Origin must match the `ConfigurationOrigin`
+		#[weight = 0]
+		fn set_statement(origin, statement: Vec<u8>) {
+			T::ConfigurationOrigin::ensure_origin(origin)?;
+			ensure!(statement.len() < T::MaxStatementLength::get(), Error::<T>::InvalidStatement);
+			// Possibly this is worse than having the caller account be the payment account?
+			Statement::set(statement);
+			Self::deposit_event(RawEvent::StatementUpdated);
+		}
+
+		/// Set the block where locked DOTs will become unlocked.
+		///
+		/// Origin must match the `ConfigurationOrigin`
+		#[weight = 0]
+		fn set_unlock_block(origin, unlock_block: T::BlockNumber) {
+			T::ConfigurationOrigin::ensure_origin(origin)?;
+			ensure!(unlock_block > system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
+			// Possibly this is worse than having the caller account be the payment account?
+			UnlockBlock::<T>::set(unlock_block);
+			Self::deposit_event(RawEvent::UnlockBlockUpdated(unlock_block));
 		}
 	}
 }
@@ -303,10 +345,10 @@ impl<T: Trait> Module<T> {
 		let account_bytes: [u8; 32] = account_to_bytes(who)?;
 		let public_key = sr25519::Public::from_raw(account_bytes);
 
-		let message = T::Statement::get();
+		let message = Statement::get();
 
 		// Check if everything is good or not.
-		match signature.verify(message, &public_key) {
+		match signature.verify(message.as_slice(), &public_key) {
 			true => Ok(()),
 			false => Err(Error::<T>::InvalidSignature)?,
 		}
@@ -420,25 +462,24 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub const VestingTime: u64 = 100;
-		pub Statement: &'static [u8] = b"Hello, World";
 		pub const PurchaseLimit: u64 = 100;
+		pub const MaxStatementLength: usize =  1_000;
 	}
 
 	ord_parameter_types! {
 		pub const ValidityOrigin: AccountId = AccountId32::from([0u8; 32]);
 		pub const PaymentOrigin: AccountId = AccountId32::from([1u8; 32]);
+		pub const ConfigurationOrigin: AccountId = AccountId32::from([2u8; 32]);
 	}
 
 	impl Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
-		type VestingTime = VestingTime;
 		type ValidityOrigin = system::EnsureSignedBy<ValidityOrigin, AccountId>;
-		type PaymentOrigin = system::EnsureSignedBy<PaymentOrigin, AccountId>;
-		type Statement = Statement;
+		type ConfigurationOrigin = system::EnsureSignedBy<ConfigurationOrigin, AccountId>;
 		type PurchaseLimit = PurchaseLimit;
+		type MaxStatementLength = MaxStatementLength;
 	}
 
 	type System = system::Module<Test>;
@@ -447,10 +488,21 @@ mod tests {
 	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
-	// our desired mockup.
+	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
-		t.into()
+		let mut ext = sp_io::TestExternalities::new(t);
+		ext.execute_with(|| setup());
+		ext
+	}
+
+	fn setup() {
+		let statement = b"Hello, World".to_vec();
+		let unlock_block = 100;
+		Purchase::set_statement(Origin::signed(configuration_origin()), statement).unwrap();
+		Purchase::set_unlock_block(Origin::signed(configuration_origin()), unlock_block).unwrap();
+		Purchase::set_payment_account(Origin::signed(configuration_origin()), payment_account()).unwrap();
+		Balances::make_free_balance_be(&payment_account(), 100_000);
 	}
 
 	type AccountPublic = <MultiSignature as Verify>::Signer;
@@ -500,8 +552,70 @@ mod tests {
 		ValidityOrigin::get()
 	}
 
-	fn payment_origin() -> AccountId {
-		PaymentOrigin::get()
+	fn configuration_origin() -> AccountId {
+		ConfigurationOrigin::get()
+	}
+
+	fn payment_account() -> AccountId {
+		[42u8; 32].into()
+	}
+
+	#[test]
+	fn set_statement_works_and_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			let statement = b"Test Set Statement".to_vec();
+			// Invalid origin
+			assert_noop!(
+				Purchase::set_statement(Origin::signed(alice()), statement.clone()),
+				BadOrigin,
+			);
+			// Too Long
+			let long_statement = [0u8; 10_000].to_vec();
+			assert_noop!(
+				Purchase::set_statement(Origin::signed(configuration_origin()), long_statement),
+				Error::<Test>::InvalidStatement,
+			);
+			// Just right...
+			assert_ok!(Purchase::set_statement(Origin::signed(configuration_origin()), statement.clone()));
+			assert_eq!(Statement::get(), statement);
+		});
+	}
+
+	#[test]
+	fn set_unlock_block_works_and_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			let unlock_block = 69;
+			// Invalid origin
+			assert_noop!(
+				Purchase::set_unlock_block(Origin::signed(alice()), unlock_block),
+				BadOrigin,
+			);
+			// Block Number in Past
+			let bad_unlock_block = 50;
+			System::set_block_number(bad_unlock_block);
+			assert_noop!(
+				Purchase::set_unlock_block(Origin::signed(configuration_origin()), bad_unlock_block),
+				Error::<Test>::InvalidUnlockBlock,
+			);
+			// Just right...
+			assert_ok!(Purchase::set_unlock_block(Origin::signed(configuration_origin()), unlock_block));
+			assert_eq!(UnlockBlock::<Test>::get(), unlock_block);
+		});
+	}
+
+	#[test]
+	fn set_payment_account_works_and_handles_basic_errors() {
+		new_test_ext().execute_with(|| {
+			let payment_account: AccountId = [69u8; 32].into();
+			// Invalid Origin
+			assert_noop!(
+				Purchase::set_payment_account(Origin::signed(alice()), payment_account.clone()),
+				BadOrigin,
+			);
+			// Just right...
+			assert_ok!(Purchase::set_payment_account(Origin::signed(configuration_origin()), payment_account.clone()));
+			assert_eq!(PaymentAccount::<Test>::get(), payment_account);
+		});
 	}
 
 	#[test]
@@ -779,25 +893,17 @@ mod tests {
 				100,
 				150,
 			));
-			// After the sale is done, and we are ready to distribution funds, we set a payment account.
-			// In this case, the payment origin selects itself.
-			assert_ok!(Purchase::set_payout_account(
-				Origin::signed(payment_origin()),
-				payment_origin(),
-			));
-			// Let's give it some funds.
-			Balances::make_free_balance_be(&payment_origin(), 100_000);
 			// Now we call payout for Alice and Bob.
 			assert_ok!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				alice(),
 			));
 			assert_ok!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				bob(),
 			));
 			// Payment is made.
-			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_origin()), 99_650);
+			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_account()), 99_650);
 			assert_eq!(<Test as Trait>::Currency::free_balance(&alice()), 100);
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
 			assert_eq!(<Test as Trait>::Currency::free_balance(&bob()), 250);
@@ -837,17 +943,6 @@ mod tests {
 	}
 
 	#[test]
-	fn set_payout_account_handles_basic_errors() {
-		new_test_ext().execute_with(|| {
-			// Wrong Origin
-			assert_noop!(Purchase::set_payout_account(
-				Origin::signed(alice()),
-				payment_origin(),
-			), BadOrigin);
-		});
-	}
-
-	#[test]
 	fn payout_handles_basic_errors() {
 		new_test_ext().execute_with(|| {
 			// Wrong Origin
@@ -858,13 +953,13 @@ mod tests {
 			// Existing Account
 			Balances::make_free_balance_be(&bob(), 100);
 			assert_noop!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				bob(),
 			), Error::<Test>::ExistingAccount);
 			// Invalid Account (never created)
 			Balances::make_free_balance_be(&bob(), 100);
 			assert_noop!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				alice(),
 			), Error::<Test>::InvalidAccount);
 
@@ -875,7 +970,7 @@ mod tests {
 				alice_signature().to_vec())
 			);
 			assert_noop!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				alice(),
 			), Error::<Test>::InvalidAccount);
 
@@ -896,13 +991,8 @@ mod tests {
 				alice(),
 				AccountValidity::ValidLow,
 			));
-			assert_ok!(Purchase::set_payout_account(
-				Origin::signed(payment_origin()),
-				payment_origin(),
-			));
-			Balances::make_free_balance_be(&payment_origin(), 100_000);
 			assert_noop!(Purchase::payout(
-				Origin::signed(payment_origin()),
+				Origin::signed(payment_account()),
 				alice(),
 			), Error::<Test>::InvalidBalance);
 		});
