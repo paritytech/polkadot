@@ -18,7 +18,7 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError, AnySignature};
-use sp_runtime::traits::{Bounded, Zero, CheckedAdd, Verify};
+use sp_runtime::traits::{Zero, CheckedAdd, Verify};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
@@ -81,17 +81,6 @@ impl AccountValidity {
 			Self::Completed => false,
 		}
 	}
-
-	fn max_amount<T: Trait>(&self) -> BalanceOf<T> {
-		match self {
-			Self::Invalid => Zero::zero(),
-			Self::Initiated => Zero::zero(),
-			Self::Pending => Zero::zero(),
-			Self::ValidLow => T::PurchaseLimit::get(),
-			Self::ValidHigh => BalanceOf::<T>::max_value(),
-			Self::Completed => Zero::zero(),
-		}
-	}
 }
 
 /// All information about an account regarding the purchase of DOTs.
@@ -141,8 +130,6 @@ decl_error! {
 		InvalidSignature,
 		/// Account has already completed the purchase process.
 		AlreadyCompleted,
-		/// Balance provided for the account is not valid.
-		InvalidBalance,
 		/// An overflow occurred when doing calculations.
 		Overflow,
 		/// The statement is too long to be stored on chain.
@@ -235,10 +222,9 @@ decl_module! {
 			T::ValidityOrigin::ensure_origin(origin)?;
 
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
-				let max_amount = status.validity.max_amount::<T>();
-				let total_balance = free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
-				// TODO: Maybe remove this check, and trust the origin to be adding the right values.
-				ensure!(total_balance <= max_amount, Error::<T>::InvalidBalance);
+				// Account has a valid status (not Invalid, Pending, or Completed)...
+				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
+				free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
 				status.free_balance = free_balance;
 				status.locked_balance = locked_balance;
 				Ok(())
@@ -263,13 +249,12 @@ decl_module! {
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				// Account has a valid status (not Invalid, Pending, or Completed)...
 				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
-				// The balance we are going to transfer them matches their validity status
-				let total_balance = status.free_balance.checked_add(&status.locked_balance).ok_or(Error::<T>::Overflow)?;
-				// TODO: Possibly remove this check and trust the origin to check this before they payout.
-				ensure!(total_balance <= status.validity.max_amount::<T>(), Error::<T>::InvalidBalance);
 
 				// Transfer funds from the payment account into the purchasing user.
 				// TODO: This is totally safe? No chance of reentrancy?
+				let total_balance = status.free_balance
+					.checked_add(&status.locked_balance)
+					.ok_or(Error::<T>::Overflow)?;
 				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
 				if !status.locked_balance.is_zero() {
@@ -296,7 +281,7 @@ decl_module! {
 			})?;
 		}
 
-		/* Admin Operations */
+		/* Configuration Operations */
 
 		/// Set the account that will be used to payout users in the DOT purchase process.
 		///
@@ -383,6 +368,7 @@ mod tests {
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
 	use frame_support::traits::Currency;
+	use balances::Error as BalancesError;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -833,24 +819,14 @@ mod tests {
 				alice(),
 				50,
 				50,
-			), Error::<Test>::InvalidBalance);
-			// Value too high
-			assert_ok!(Purchase::create_account(
-				Origin::signed(validity_origin()),
-				alice(),
-				alice_signature().to_vec())
-			);
-			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
-				alice(),
-				AccountValidity::ValidLow,
-			));
+			), Error::<Test>::InvalidAccount);
+			// Overflow
 			assert_noop!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
-				51,
-				50,
-			), Error::<Test>::InvalidBalance);
+				u64::max_value(),
+				u64::max_value(),
+			), Error::<Test>::InvalidAccount);
 		});
 	}
 
@@ -957,12 +933,10 @@ mod tests {
 				bob(),
 			), Error::<Test>::ExistingAccount);
 			// Invalid Account (never created)
-			Balances::make_free_balance_be(&bob(), 100);
 			assert_noop!(Purchase::payout(
 				Origin::signed(payment_account()),
 				alice(),
 			), Error::<Test>::InvalidAccount);
-
 			// Invalid Account (created, but not valid)
 			assert_ok!(Purchase::create_account(
 				Origin::signed(validity_origin()),
@@ -973,8 +947,7 @@ mod tests {
 				Origin::signed(payment_account()),
 				alice(),
 			), Error::<Test>::InvalidAccount);
-
-			// Invalid Balance Amount (made up scenario where user changes from High to Low)
+			// Not enough funds in payment account
 			assert_ok!(Purchase::update_validity_status(
 				Origin::signed(validity_origin()),
 				alice(),
@@ -983,18 +956,13 @@ mod tests {
 			assert_ok!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				alice(),
-				100,
-				100,
-			));
-			assert_ok!(Purchase::update_validity_status(
-				Origin::signed(validity_origin()),
-				alice(),
-				AccountValidity::ValidLow,
+				100_000,
+				100_000,
 			));
 			assert_noop!(Purchase::payout(
 				Origin::signed(payment_account()),
 				alice(),
-			), Error::<Test>::InvalidBalance);
+			), BalancesError::<Test, _>::InsufficientBalance);
 		});
 	}
 }
