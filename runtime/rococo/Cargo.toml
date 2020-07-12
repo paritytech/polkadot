@@ -23,7 +23,6 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -128,7 +127,6 @@ std = [
 	"proxy/std",
 	"recovery/std",
 	"sp-runtime/std",
-	"sp-staking/std",
 	"scheduler/std",
 	"session/std",
 	"society/std",

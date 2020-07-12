@@ -28,7 +28,7 @@ use primitives::{
 };
 use runtime_common::{
 	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
@@ -48,7 +48,6 @@ use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
 use version::NativeVersion;
 use sp_core::OpaqueMetadata;
-use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
@@ -234,7 +233,7 @@ impl authorship::Trait for Runtime {
 	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = (Staking, ImOnline);
+	type EventHandler = ImOnline;
 }
 
 parameter_types! {
@@ -259,10 +258,10 @@ parameter_types! {
 impl session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
-	type ValidatorIdOf = staking::StashOf<Self>;
+	type ValidatorIdOf = ();
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
+	type SessionManager = ();
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -270,8 +269,8 @@ impl session::Trait for Runtime {
 }
 
 impl session::historical::Trait for Runtime {
-	type FullIdentification = staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = staking::ExposureOf<Runtime>;
+	type FullIdentification = ();
+	type FullIdentificationOf = ();
 }
 
 pallet_staking_reward_curve::build! {
@@ -286,8 +285,6 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
-	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: staking::EraIndex = 28;
 	// 28 eras in which slashes can be cancelled (7 days).
@@ -298,31 +295,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-}
-
-impl staking::Trait for Runtime {
-	type Currency = Balances;
-	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type RewardRemainder = ();
-	type Event = Event;
-	type Slash = ();
-	type Reward = ();
-	type SessionsPerEra = SessionsPerEra;
-	type BondingDuration = BondingDuration;
-	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = EnsureRoot<AccountId>;
-	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -344,7 +316,7 @@ parameter_types! {
 impl offences::Trait for Runtime {
 	type Event = Event;
 	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
-	type OnOffenceHandler = Staking;
+	type OnOffenceHandler = ();
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 	type WeightInfo = ();
 }
@@ -409,7 +381,7 @@ parameter_types! {
 impl attestations::Trait for Runtime {
 	type AttestationPeriod = AttestationPeriod;
 	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
-	type RewardAttestation = Staking;
+	type RewardAttestation = ();
 }
 
 parameter_types! {
@@ -613,7 +585,6 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	NonTransfer,
-	Staking,
 	SudoBalances,
 	IdentityJudgement,
 }
@@ -632,7 +603,6 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
-				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
 				Call::FinalityTracker(..) |
@@ -658,9 +628,6 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting Sudo pallet
 				Call::Proxy(..) |
 				Call::Multisig(..)
-			),
-			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
@@ -715,7 +682,6 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
