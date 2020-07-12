@@ -529,18 +529,6 @@ fn rococo_staging_testnet_config_genesis() -> rococo_runtime::GenesisConfig {
 				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(rococo_runtime::StakingConfig {
-			validator_count: 50,
-			minimum_validator_count: 8,
-			stakers: initial_authorities
-				.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, rococo_runtime::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::ForceNone,
-			slash_reward_fraction: Perbill::from_percent(10),
-			.. Default::default()
-		}),
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		im_online: Some(Default::default()),
@@ -1057,7 +1045,6 @@ pub fn rococo_testnet_genesis(
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
 
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
-	const STASH: u128 = 100 * DOTS;
 
 	rococo_runtime::GenesisConfig {
 		system: Some(rococo_runtime::SystemConfig {
@@ -1076,17 +1063,6 @@ pub fn rococo_testnet_genesis(
 				x.0.clone(),
 				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
-		}),
-		staking: Some(rococo_runtime::StakingConfig {
-			minimum_validator_count: 1,
-			validator_count: 2,
-			stakers: initial_authorities.iter()
-				.map(|x| (x.0.clone(), x.1.clone(), STASH, rococo_runtime::StakerStatus::Validator))
-				.collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			force_era: Forcing::NotForcing,
-			slash_reward_fraction: Perbill::from_percent(10),
-			.. Default::default()
 		}),
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
