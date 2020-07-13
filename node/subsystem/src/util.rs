@@ -319,7 +319,7 @@ pub trait JobTrait {
 		tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 
-	/// Handle a message which can't be dispatched to a particular job
+	/// Handle a message which has no relay parent, and therefore can't be dispatched to a particular job
 	///
 	/// By default, this is implemented with a NOP function. However, if
 	/// ToJob occasionally has messages which do not correspond to a particular
@@ -329,7 +329,7 @@ pub trait JobTrait {
 	// once we're implementing a subsystem which actually needs this feature.
 	// In particular, we're quite likely to want this to return a future instead of
 	// interrupting the active thread for the duration of the handler.
-	fn handle_unhashed_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
+	fn handle_orphan_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
 		Ok(())
 	}
 }
@@ -521,7 +521,7 @@ where
 							}
 						}
 						None => {
-							if let Err(err) = Job::handle_unhashed_msg(to_job) {
+							if let Err(err) = Job::handle_orphan_msg(to_job) {
 								log::error!("Failed to handle unhashed message: {:?}", err);
 								return true;
 							}
