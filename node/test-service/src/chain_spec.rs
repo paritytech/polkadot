@@ -107,7 +107,7 @@ fn polkadot_testnet_genesis(
 
 	polkadot::GenesisConfig {
 		system: Some(polkadot::SystemConfig {
-			code: polkadot::WASM_BINARY.to_vec(),
+			code: polkadot::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
 			changes_trie_config,
 		}),
 		indices: Some(polkadot::IndicesConfig { indices: vec![] }),
