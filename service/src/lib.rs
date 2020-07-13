@@ -598,7 +598,7 @@ macro_rules! new_full {
 			$config,
 			$collating_for,
 			$max_block_data_size,
-			authority_discovery_disabled,
+			$authority_discovery_disabled,
 			$slot_duration,
 			None,
 			new_full_start!(test $config, $runtime, $dispatch),
