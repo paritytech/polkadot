@@ -38,16 +38,26 @@ No initialization routine runs for this module.
 
 ## Routines
 
-* `ensure_downward_messages_fits(recipient: ParaId, n: u32)`. This function is used before performing
-relay chain operations that results in downward messages sent to a given `recipient`.
+There are two routines intended for use by the relay chain extrinsics: `ensure_downward_messages_fits`
+and `queue_downward_messages`. The former function is used before performing relay chain operations
+that results in downward messages sent to a given `recipient` to check if sending those messages will
+exceed the limits on the number of messages that the relay chain can send to a single recipient para.
+The latter routine is intended to perform the send of the downward messages.
+
+Note that the HRMP message can only be sent by para candidates.
+
+* `ensure_downward_messages_fits(recipient: ParaId, n: u32)`.
   1. Checks that the sum of the number `RelayChainDownwardMessages` for `recipient` and `n` is less
   than or equal to `config.max_relay_chain_downward_messages`.
 * `queue_downward_messages(recipient: ParaId, Vec<DownwardMessage>)`.
   1. Checks that there is enough capacity in the receipient's downward queue using `ensure_downward_messages_fits`.
   1. For each downward message `DM`:
     1. Checks that `DM` is not of type `HorizontalMessage`.
-	1. Appends `DM` into the `DownwardMessageQueues` corresponding to `recipient`.
+    1. Appends `DM` into the `DownwardMessageQueues` corresponding to `recipient`.
   1. Increments `RelayChainDownwardMessages` for the `recipient` according to the number of messages sent.
+
+The following routines are intended for use during the course of inclusion or enactment of para candidates.
+
 * `ensure_processed_downward_messages(recipient: ParaId, processed_downward_messages: u32)`:
   1. Checks that `processed_downward_messages` is at least 1,
   1. Checks that `DownwardMessageQueues` for `recipient` is at least `processed_downward_messages` long.
@@ -65,7 +75,7 @@ relay chain operations that results in downward messages sent to a given `recipi
       `(msg_count, total_byte_size)`.
           1. Decrements `msg_count` by 1.
           1. Decrements `total_byte_size` according to the payload size of `DM`.
-	1. Otherwise, decrements `RelayChainDownwardMessages` for the `recipient`.
+    1. Otherwise, decrements `RelayChainDownwardMessages` for the `recipient`.
 * `queue_horizontal_messages(sender: ParaId, Vec<HorizontalMessage>)`:
   1. For each horizontal message `HM`, with recipient `R`:
     1. Using the payload from `HM` and the `sender` creates a downward message `DM`.
@@ -74,7 +84,6 @@ relay chain operations that results in downward messages sent to a given `recipi
       `(msg_count, total_byte_size)`.
         1. Increment `msg_count` by 1.
         1. Increment `total_byte_size` according to the payload size of `DM`.
-  1. Updates the usage mapping (P, R) according to the sent horizontal messages.
 * `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
 
