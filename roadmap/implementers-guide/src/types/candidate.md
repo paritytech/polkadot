@@ -197,6 +197,8 @@ struct ValidationOutputs {
 	global_validation_schedule: GlobalValidationSchedule,
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<HorizontalMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
 	/// Fees paid to the validators of the relay-chain.
