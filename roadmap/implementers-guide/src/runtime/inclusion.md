@@ -68,6 +68,9 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. Transform each [`CommittedCandidateReceipt`](../types/candidate.md#committed-candidate-receipt) into the corresponding [`CandidateReceipt`](../types/candidate.md#candidate-receipt), setting the commitments aside.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. check that the upward messages, when combined with the existing queue size, are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
+  1. call `Router::ensure_processed_downward_messages(para, processed_downward_messages)` to check rules of processing the downward message queue.
+  1. check that the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
+  1. using `Router::ensure_horizontal_messages_fit(sender, horizontal_messages)` ensure that the sender para doesn't overfill any downward queue.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. create a corresponding entry in the `PendingAvailabilityCommitments` with the commitments.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
@@ -75,6 +78,8 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
   1. call `Router::queue_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
+  1. call `Router::drain_downward_messages` with the para id of the candidate and `processed_downward_messages` taken from the commitment,
+  1. call `Router::queue_horizontal_messages` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
 * `collect_pending`:
 

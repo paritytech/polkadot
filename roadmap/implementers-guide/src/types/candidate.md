@@ -157,6 +157,8 @@ The execution and validation of parachain or parathread candidates produces a nu
 struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	fees: Balance,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<HorizontalMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
@@ -165,6 +167,8 @@ struct CandidateCommitments {
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
+	/// The number of processed downward messages by the para.
+	processed_downward_messages: u32,
 }
 ```
 
