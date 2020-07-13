@@ -43,12 +43,13 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
-		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage, ValidationFailed,
+		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 	},
 	util::{
 		self,
-		JobTrait,
-		JobTraitExt,
+		request_signing_context,
+		request_validator_groups,
+		request_validators,
 		Validator,
 	},
 };
@@ -193,6 +194,23 @@ impl From<FromJob> for AllMessages {
 			FromJob::StatementDistribution(msg) => AllMessages::StatementDistribution(msg),
 			FromJob::PoVDistribution(msg) => AllMessages::PoVDistribution(msg),
 			FromJob::Provisioner(msg) => AllMessages::Provisioner(msg),
+		}
+	}
+}
+
+impl TryFrom<AllMessages> for FromJob {
+	type Error = &'static str;
+
+	fn try_from(f: AllMessages) -> Result<Self, Self::Error> {
+		match f {
+			AllMessages::AvailabilityStore(msg) => Ok(FromJob::AvailabilityStore(msg)),
+			AllMessages::RuntimeApi(msg) => Ok(FromJob::RuntimeApiMessage(msg)),
+			AllMessages::CandidateValidation(msg) => Ok(FromJob::CandidateValidation(msg)),
+			AllMessages::CandidateSelection(msg) => Ok(FromJob::CandidateSelection(msg)),
+			AllMessages::StatementDistribution(msg) => Ok(FromJob::StatementDistribution(msg)),
+			AllMessages::PoVDistribution(msg) => Ok(FromJob::PoVDistribution(msg)),
+			AllMessages::Provisioner(msg) => Ok(FromJob::Provisioner(msg)),
+			_ => Err("can't convert this AllMessages variant to FromJob"),
 		}
 	}
 }
@@ -529,6 +547,38 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	async fn request_pov_from_distribution(
+		&mut self,
+		descriptor: CandidateDescriptor,
+	) -> Result<Arc<PoV>, Error> {
+		let (tx, rx) = oneshot::channel();
+
+		self.tx_from.send(FromJob::PoVDistribution(
+			PoVDistributionMessage::FetchPoV(self.parent, descriptor, tx)
+		)).await?;
+
+		Ok(rx.await?)
+	}
+
+	async fn request_candidate_validation(
+		&mut self,
+		candidate: CandidateDescriptor,
+		pov: Arc<PoV>,
+	) -> Result<ValidationResult, Error> {
+		let (tx, rx) = oneshot::channel();
+
+		self.tx_from.send(FromJob::CandidateValidation(
+				CandidateValidationMessage::ValidateFromChainState(
+					candidate,
+					pov,
+					tx,
+				)
+			)
+		).await?;
+
+		Ok(rx.await??)
+	}
+
 	async fn store_chunk(
 		&mut self,
 		id: ValidatorIndex,
@@ -606,7 +656,7 @@ impl CandidateBackingJob {
 	}
 }
 
-impl JobTrait for CandidateBackingJob {
+impl util::JobTrait for CandidateBackingJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
@@ -622,9 +672,9 @@ impl JobTrait for CandidateBackingJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
 			let (validators, roster, signing_context) = futures::try_join!(
-				self.request_validators().await?,
-				self.request_validator_groups().await?,
-				self.request_signing_context().await?,
+				request_validators(parent, &mut tx_from).await?,
+				request_validator_groups(parent, &mut tx_from).await?,
+				request_signing_context(parent, &mut tx_from).await?,
 			)?;
 
 			let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
@@ -671,16 +721,6 @@ impl JobTrait for CandidateBackingJob {
 			job.run_loop().await
 		}
 		.boxed()
-	}
-}
-
-impl JobTraitExt for CandidateBackingJob {
-	fn sender(&self) -> mpsc::Sender<Self::FromJob> {
-		self.tx_from.clone()
-	}
-
-	fn relay_parent(&self) -> Hash {
-		self.parent
 	}
 }
 
