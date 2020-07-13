@@ -939,7 +939,7 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 }
 
 parameter_types! {
-	pub const PollEnd: BlockNumber = 100_000;
+	pub const PollEnd: BlockNumber = 888_888;
 }
 
 impl poll::Trait for Runtime {
