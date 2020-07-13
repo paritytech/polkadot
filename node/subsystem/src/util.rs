@@ -54,14 +54,19 @@ pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
+/// Utility errors
 #[derive(Debug, derive_more::From)]
 pub enum Error {
+	/// Attempted to send or receive on a oneshot channel which had been canceled
 	#[from]
 	Oneshot(oneshot::Canceled),
+	/// Attempted to send on a MPSC channel which has been canceled
 	#[from]
 	Mpsc(mpsc::SendError),
+	/// Attempted to spawn a new task, and failed
 	#[from]
 	Spawn(SpawnError),
+	/// Attempted to convert from an AllMessages to a FromJob, and failed.
 	SenderConversion(String),
 	/// The local node is not a validator.
 	NotAValidator,
@@ -336,6 +341,13 @@ pub trait JobTrait: Unpin {
 	}
 }
 
+/// Jobs manager for a subsystem
+///
+/// - Spawns new jobs for a given relay-parent on demand.
+/// - Closes old jobs for a given relay-parent on demand.
+/// - Dispatches messages to the appropriate job for a given relay-parent.
+/// - When dropped, aborts all remaining jobs.
+/// - implements `Stream<Item=Job::FromJob>`, collecting all messages from subordinate jobs.
 pub struct Jobs<Spawner, Job: JobTrait> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<Job::ToJob>>,

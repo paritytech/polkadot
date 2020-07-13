@@ -20,6 +20,8 @@
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 
+#![warn(missing_docs)]
+
 use std::pin::Pin;
 
 use futures::prelude::*;
@@ -57,6 +59,7 @@ pub enum FromOverseer<M> {
 
 	/// Some other `Subsystem`'s message.
 	Communication {
+		/// Contained message
 		msg: M,
 	},
 }
