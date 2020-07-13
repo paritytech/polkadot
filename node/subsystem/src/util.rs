@@ -35,6 +35,7 @@ use futures::{
 use futures_timer::Delay;
 use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
+use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
 	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext,
 	ValidatorId, ValidatorIndex, ValidatorPair,
@@ -348,9 +349,11 @@ pub trait JobTrait: Unpin {
 /// - Dispatches messages to the appropriate job for a given relay-parent.
 /// - When dropped, aborts all remaining jobs.
 /// - implements `Stream<Item=Job::FromJob>`, collecting all messages from subordinate jobs.
+#[pin_project(PinnedDrop)]
 pub struct Jobs<Spawner, Job: JobTrait> {
 	spawner: Spawner,
 	running: HashMap<Hash, JobHandle<Job::ToJob>>,
+	#[pin]
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<Job::FromJob>>,
 	job: std::marker::PhantomData<Job>,
 }
@@ -426,47 +429,15 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 		}
 		Ok(())
 	}
-
-	/// Get the pin projection for the `outgoing_msgs` field
-	///
-	/// From the [pin docs]:
-	///
-	/// > It is actually up to the author of the data structure to decide whether the pinned
-	/// > projection for a particular field turns `Pin<&mut Struct>` into `Pin<&mut Field>`
-	/// > or `&mut Field`. There are some constraints, though, and the most important constraint
-	/// > is _consistency_: every field can be _either_ projected to a pinned reference, _or_
-	/// > have pinning removed as part of the projection. If both are done for the same field,
-	/// > that will likely be unsound!
-	///
-	/// In this case, pinning is structural.
-	///
-	/// ## Considerations
-	///
-	/// 1. The struct must only be `Unpin` if all the structural fields are `Unpin`: ✔
-	/// 2. The destructor of the struct must not move structural fields out of its argument: ✔
-	/// 3. Uphold the `Drop` guarantee: once the struct is pinned, the memory which contains
-	///    the content is not overwritten or deallocated without calling the content's destructors.
-	///    I.e. you may not free or reuse the storage without calling `drop`. ✔
-	/// 4. You must not offer any other operations (i.e. `take`) which could lead to data being
-	///    moved out of the structural fields when your type is pinned: ✔
-	///
-	/// [pin docs]: https://doc.rust-lang.org/std/pin/index.html#projections-and-structural-pinning
-	fn pin_get_outgoing_msgs(self: Pin<&mut Self>) -> Pin<&mut StreamUnordered<mpsc::Receiver<Job::FromJob>>> {
-		// This is ok because `self.outgoing_msgs` is pinned when `self` is.
-		unsafe { self.map_unchecked_mut(|s| &mut s.outgoing_msgs) }
-	}
 }
 
 // Note that on drop, we don't have the chance to gracefully spin down each of the remaining handles;
 // we just abort them all. Still better than letting them dangle.
-impl<Spawner, Job: JobTrait> Drop for Jobs<Spawner, Job> {
-	fn drop(&mut self) {
-		// `new_unchecked` is ok because we know this value is never used again after being dropped
-		inner_drop(unsafe { Pin::new_unchecked(self) });
-		fn inner_drop<Spawner, Job: JobTrait>(slf: Pin<&mut Jobs<Spawner, Job>>) {
-			for job_handle in slf.running.values() {
-				job_handle.abort_handle.abort();
-			}
+#[pinned_drop]
+impl<Spawner, Job: JobTrait> PinnedDrop for Jobs<Spawner, Job> {
+	fn drop(self: Pin<&mut Self>) {
+		for job_handle in self.running.values() {
+			job_handle.abort_handle.abort();
 		}
 	}
 }
@@ -479,7 +450,9 @@ where
 	type Item = Job::FromJob;
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Option<Self::Item>> {
-		self.pin_get_outgoing_msgs()
+		// pin-project the outgoing messages
+		self.project()
+			.outgoing_msgs
 			.poll_next(cx)
 			.map(|opt| opt.and_then(|(stream_yield, _)| match stream_yield {
 				StreamYield::Item(msg) => Some(msg),

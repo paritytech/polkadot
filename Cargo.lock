@@ -4549,6 +4549,7 @@ dependencies = [
  "futures-timer 3.0.2",
  "log 0.4.8",
  "parity-scale-codec",
+ "pin-project",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",
