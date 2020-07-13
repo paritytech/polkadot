@@ -76,15 +76,15 @@ pub enum Error {
 }
 
 /// Request some data from the `RuntimeApi`.
-pub async fn request_from_runtime<RequestBuilder, Response, SenderMessage>(
+pub async fn request_from_runtime<RequestBuilder, Response, FromJob>(
 	parent: Hash,
-	sender: &mut mpsc::Sender<SenderMessage>,
+	sender: &mut mpsc::Sender<FromJob>,
 	request_builder: RequestBuilder,
 ) -> Result<oneshot::Receiver<Response>, Error>
 where
 	RequestBuilder: FnOnce(oneshot::Sender<Response>) -> RuntimeApiRequest,
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	let (tx, rx) = oneshot::channel();
 
@@ -100,50 +100,50 @@ where
 }
 
 /// Request a validator set from the `RuntimeApi`.
-pub async fn request_validators<SenderMessage>(
+pub async fn request_validators<FromJob>(
 	parent: Hash,
-	s: &mut mpsc::Sender<SenderMessage>,
+	s: &mut mpsc::Sender<FromJob>,
 ) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error>
 where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::Validators(tx)).await
 }
 
 /// Request the scheduler roster from `RuntimeApi`.
-pub async fn request_validator_groups<SenderMessage>(
+pub async fn request_validator_groups<FromJob>(
 	parent: Hash,
-	s: &mut mpsc::Sender<SenderMessage>,
+	s: &mut mpsc::Sender<FromJob>,
 ) -> Result<oneshot::Receiver<SchedulerRoster>, Error>
 where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::ValidatorGroups(tx)).await
 }
 
 /// Request a `SigningContext` from the `RuntimeApi`.
-pub async fn request_signing_context<SenderMessage>(
+pub async fn request_signing_context<FromJob>(
 	parent: Hash,
-	s: &mut mpsc::Sender<SenderMessage>,
+	s: &mut mpsc::Sender<FromJob>,
 ) -> Result<oneshot::Receiver<SigningContext>, Error>
 where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::SigningContext(tx)).await
 }
 
 /// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-pub async fn request_head_data<SenderMessage>(
+pub async fn request_head_data<FromJob>(
 	parent: Hash,
-	s: &mut mpsc::Sender<SenderMessage>,
+	s: &mut mpsc::Sender<FromJob>,
 	id: ParaId,
 ) -> Result<oneshot::Receiver<HeadData>, Error>
 where
-	SenderMessage: TryFrom<AllMessages>,
-	<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::HeadData(id, tx)).await
 }
@@ -168,14 +168,14 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new<SenderMessage>(
+	pub async fn new<FromJob>(
 		parent: Hash,
 		keystore: KeyStorePtr,
-		mut sender: mpsc::Sender<SenderMessage>,
+		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
-		SenderMessage: TryFrom<AllMessages>,
-		<SenderMessage as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+		FromJob: TryFrom<AllMessages>,
+		<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 	{
 		// Note: request_validators and request_signing_context do not and cannot run concurrently: they both
 		// have a mutable handle to the same sender.
