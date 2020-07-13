@@ -69,7 +69,7 @@ pub fn polkadot_test_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	slot_duration: u64,
 ) -> Result<
 	(
@@ -85,7 +85,7 @@ pub fn polkadot_test_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		slot_duration,
 		polkadot_test_runtime::RuntimeApi,
 		PolkadotTestExecutor,
@@ -204,9 +204,9 @@ pub fn run_test_node(
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_enabled = false;
+	let authority_discovery_disabled = true;
 	let (task_manager, client, handles, network, rpc_handlers) =
-		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)
+		polkadot_test_new_full(config, None, None, authority_discovery_disabled, 6000)
 			.expect("could not create Polkadot test service");
 
 	let peer_id = network.local_peer_id().clone();
