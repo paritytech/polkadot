@@ -131,8 +131,7 @@ Storage layout:
 ValidatorGroups: Vec<Vec<ValidatorIndex>>;
 /// A queue of upcoming claims and which core they should be mapped onto.
 ParathreadQueue: ParathreadQueue;
-/// One entry for each availability core. Entries are `None` if the core is not currently occupied. Can be
-/// temporarily `Some` if scheduled but not occupied.
+/// One entry for each availability core. Entries are `None` if the core is not currently occupied.
 /// The i'th parachain belongs to the i'th core, with the remaining cores all being
 /// parathread-multiplexers.
 AvailabilityCores: Vec<Option<CoreOccupied>>;
