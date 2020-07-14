@@ -66,8 +66,8 @@ and `ensure_horizontal_messages_fit` routines are called. When a candidate is en
 `drain_downward_messages`, `queue_horizontal_messages` and `queue_upward_messages` are called.
 
 * `ensure_processed_downward_messages(recipient: ParaId, processed_downward_messages: u32)`:
-  1. Checks that `processed_downward_messages` is at least 1,
   1. Checks that `DownwardMessageQueues` for `recipient` is at least `processed_downward_messages` long.
+  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `recipient` is not empty.
 * `ensure_horizontal_messages_fit(sender, Vec<HorizontalMessage>)`:
   1. For each horizontal message `HM`, with recipient `R`:
     1. Fetches the current usage level for the pair `(sender, R)`. The usage level is defined by
