@@ -572,3 +572,47 @@ pub enum OccupiedCoreAssumption {
 	#[codec(index = "2")]
     Free,
 }
+
+sp_api::decl_runtime_apis! {
+	/// The API for querying the state of parachains on-chain.
+	pub trait ParachainHost {
+		/// Get the current validators.
+		fn validators() -> Vec<ValidatorId>;
+
+		/// Returns the validator groups and rotation info localized based on the block whose state
+		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
+		/// the number of the block.
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
+
+		/// Yields information on all availability cores. Cores are either free or occupied. Free
+		/// cores can have paras assigned to them.
+		fn availability_cores() -> Vec<CoreState>;
+
+		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
+		/// relay-parent equal to the block in which context this is invoked in.
+		fn global_validation_schedule() -> GlobalValidationSchedule;
+
+		/// Yields the LocalValidationData for the given ParaId along with an assumption that
+		/// should be used if the para currently occupies a core.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		fn local_validation_data(para: Id, assumption: OccupiedCoreAssumption)
+			-> Option<LocalValidationData>;
+
+		/// Returns the session index expected at a child of the block.
+		///
+		/// This can be used to instantiate a `SigningContext`.
+		fn session_index_for_child() -> sp_staking::SessionIndex;
+
+		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		fn validation_code(para: Id, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>;
+
+		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
+		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
+		fn candidate_pending_availability(para: Id) -> Option<CommittedCandidateReceipt>;
+	}
+}
