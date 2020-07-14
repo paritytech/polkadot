@@ -93,12 +93,12 @@ then
 	SUBSTRATE_CLONE_DIR="$(mktemp -t -d substrate-XXXXXX)"
 	trap 'rm -rf "${SUBSTRATE_CLONE_DIR}"' INT QUIT TERM ABRT EXIT
 
-	git clone --branch polkadot-master --depth 100 --no-tags \
+	git clone --depth="${GIT_DEPTH:-100}" --no-tags \
 		"${SUBSTRATE_REPO}" "${SUBSTRATE_CLONE_DIR}"
 
 	# check if there are changes to the spec|impl versions
 	git -C "${SUBSTRATE_CLONE_DIR}" diff \
-		"${SUBSTRATE_PREV_REF}..${SUBSTRATE_NEW_REF} ${SUBSTRATE_VERSIONS_FILE}" \
+		"${SUBSTRATE_PREV_REF}..${SUBSTRATE_NEW_REF}" "${SUBSTRATE_VERSIONS_FILE}" \
 		| grep -E '^[\+\-][[:space:]]+(spec|impl)_version: +([0-9]+),$' || exit 0
 
 	boldcat <<-EOT
