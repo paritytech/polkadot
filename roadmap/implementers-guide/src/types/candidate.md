@@ -205,5 +205,7 @@ struct ValidationOutputs {
 	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
+	/// The number of processed downward messages by the para.
+	processed_downward_messages: u32,
 }
 ```
