@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
+
+# Check for any changes in any runtime directories (e.g., ^runtime/polkadot) as
+# well as directories common to all runtimes (e.g., ^runtime/common). If there
+# are no changes, check if the Substrate git SHA in Cargo.lock has been
+# changed. If so, pull the repo and verify if {spec,impl}_versions have been
+# altered since the previous Substrate version used. Also, if any of the
+# Substrate changes between the previous and current version referenced by
+# Cargo.lock were labelled with 'D2-breaksapi', label this PR the same.
 #
-#
-# check for any changes in the ^runtime/ tree. if there are no changes check
-# if the substrate reference in the Cargo.lock has been changed. If so pull
-# the repo and verify if the {spec,impl}_version s have been altered since the
-# last reference. If there were changes the script will continue to check if
-# the spec_version resp impl_version of polkadot have been altered as well.
-# this will also be checked if there were changes to the runtime source files.
-#
-# If there are any changes found, it will mark the PR breaksapi and
-# "auto-fail" the PR if there isn't a change in the
-# runtime/{polkadot,kusama}/src/lib.rs file
-# that alters the version since the last release tag.
+# If there were changes to any runtimes or common dirs, we iterate over each
+# runtime (defined in the $runtimes() array), and check if {spec,impl}_version
+# have been changed since the last release. Also, if there have been changes to
+# the runtime since the last commit to master, label the PR with 'D2-breaksapi'
 
 set -e # fail on any error
 
@@ -38,12 +38,17 @@ runtimes=(
 	"polkadot"
 	"westend"
 )
+
+common_dirs=(
+	"common"
+)
+
 # Helper function to join elements in an array with a multi-char delimiter
 # https://stackoverflow.com/questions/1527049/how-can-i-join-elements-of-an-array-in-bash
 function join_by { local d=$1; shift; echo -n "$1"; shift; printf "%s" "${@/#/$d}"; }
 
-# Construct a regex to search for any changes to runtimes/$runtimes[@] (and common)
-runtime_regex="^runtime/common|^runtime/$(join_by '|^runtime/' "${runtimes[@]}")"
+# Construct a regex to search for any changes to runtime or common directories
+runtime_regex="^runtime/$(join_by '|^runtime/' "${runtimes[@]}" "${common_dirs[@]}")"
 
 boldprint "check if the wasm sources changed since ${LATEST_TAG}"
 if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
@@ -127,10 +132,11 @@ fi
 for RUNTIME in "${runtimes[@]}"
 do
 
-	# Check if there were changes to this specific runtime (or common).
+	# Check if there were changes to this specific runtime or common directories.
 	# If not, we can skip to the next runtime
+	regex="^runtime/$(join_by '|^runtime/' "$RUNTIME" "${common_dirs[@]}")"
 	if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
-		| grep -E -q -e "^runtime/common|^runtime/${RUNTIME}"; then
+		| grep -E -q -e "$regex"; then
 		continue
 	fi
 
@@ -153,7 +159,7 @@ do
 	then
 
 		if git diff --name-only "origin/master...${CI_COMMIT_SHA}" \
-			| grep -q -e "^runtime/$RUNTIME" -e '^runtime/common'
+			| grep -E -q -e "$regex"
 		then
 			# add label breaksapi only if this pr altered the runtime sources
 			github_label "D2-breaksapi"
