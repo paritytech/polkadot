@@ -19,6 +19,10 @@ So it is clear that Runtime APIs are a versatile and powerful tool to leverage t
   * Deriving a value from storage based on arguments
   * Submitting misbehavior reports
 
+More broadly, we have the goal of using Runtime APIs to write Node-side code that fulfills the requirements set by the Runtime. In particular, the constraints set forth by the [Scheduler](../runtime/scheduler.md) and [Inclusion](../runtime/inclusion.md) modules. These modules are responsible for advancing paras with a two-phase protocol where validators are first chosen to validate and back a candidate and then required to ensure availability of referenced data. In the second phase, validators are meant to attest to those para-candidates that they have their availability chunk for. As the Node-side code needs to generate the inputs into these two phases, the runtime API needs to transmit information from the runtime that is aware of the Availability Cores model instantiated by the Scheduler and Inclusion modules.
+
+Node-side code is also responsible for detecting and reporting misbehavior performed by other validators, and the set of Runtime APIs needs to provide methods for observing live disputes and submitting reports as transactions.
+
 The next sections will contain information on specific runtime APIs.
 
 ## Validators
