@@ -337,7 +337,7 @@ pub trait JobTrait: Unpin {
 	// once we're implementing a subsystem which actually needs this feature.
 	// In particular, we're quite likely to want this to return a future instead of
 	// interrupting the active thread for the duration of the handler.
-	fn handle_orphan_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
+	fn handle_unanchored_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
 		Ok(())
 	}
 }
@@ -564,7 +564,7 @@ where
 							}
 						}
 						None => {
-							if let Err(err) = Job::handle_orphan_msg(to_job) {
+							if let Err(err) = Job::handle_unanchored_msg(to_job) {
 								log::error!("Failed to handle unhashed message: {:?}", err);
 								return true;
 							}
