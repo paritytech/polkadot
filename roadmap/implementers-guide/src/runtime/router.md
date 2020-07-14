@@ -38,7 +38,7 @@ No initialization routine runs for this module.
 
 ## Routines
 
-There are two routines intended for use by the relay chain extrinsics: `ensure_downward_messages_fits`
+There are two routines intended for use by the relay chain extrinsics: `ensure_downward_messages_fit`
 and `queue_downward_messages`. The former function is used before performing relay chain operations
 that results in downward messages sent to a given `recipient` to check if sending those messages will
 exceed the limits on the number of messages that the relay chain can send to a single recipient para.
@@ -46,11 +46,11 @@ The latter routine is intended to perform the send of the downward messages.
 
 Note that the HRMP message can only be sent by para candidates.
 
-* `ensure_downward_messages_fits(recipient: ParaId, n: u32)`.
+* `ensure_downward_messages_fit(recipient: ParaId, n: u32)`.
   1. Checks that the sum of the number `RelayChainDownwardMessages` for `recipient` and `n` is less
   than or equal to `config.max_relay_chain_downward_messages`.
 * `queue_downward_messages(recipient: ParaId, Vec<DownwardMessage>)`.
-  1. Checks that there is enough capacity in the receipient's downward queue using `ensure_downward_messages_fits`.
+  1. Checks that there is enough capacity in the receipient's downward queue using `ensure_downward_messages_fit`.
   1. For each downward message `DM`:
     1. Checks that `DM` is not of type `HorizontalMessage`.
     1. Appends `DM` into the `DownwardMessageQueues` corresponding to `recipient`.
