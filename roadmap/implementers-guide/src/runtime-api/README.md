@@ -160,7 +160,7 @@ fn session_index_for_child() -> SessionIndex;
 Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 
 ```rust
-fn validation_code(ParaId, OccupiedCoreAssumption) -> ValidationCode;
+fn validation_code(ParaId, OccupiedCoreAssumption) -> Option<ValidationCode>;
 ```
 
 ## Candidate Pending Availability
