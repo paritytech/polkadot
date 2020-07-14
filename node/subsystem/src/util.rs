@@ -323,8 +323,8 @@ pub trait JobTrait: Unpin {
 	fn run(
 		parent: Hash,
 		run_args: Self::RunArgs,
-		rx_to: mpsc::Receiver<Self::ToJob>,
-		tx_from: mpsc::Sender<Self::FromJob>,
+		receiver: mpsc::Receiver<Self::ToJob>,
+		sender: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
 
 	/// Handle a message which has no relay parent, and therefore can't be dispatched to a particular job
@@ -612,5 +612,185 @@ where
 		SpawnedSubsystem(Box::pin(async move {
 			Self::run(ctx, run_args, spawner).await;
 		}))
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use assert_matches::assert_matches;
+	use crate::messages::{AllMessages, CandidateSelectionMessage};
+	use futures::{
+		executor::{self, ThreadPool},
+		stream::{self, StreamExt},
+	};
+	use polkadot_subsystem_test_helpers::make_subsystem_context;
+	use std::collections::HashMap;
+
+	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
+	// you can leave the subsystem itself to the job manager.
+
+	// for purposes of demonstration, we're going to whip up a fake subsystem.
+	// this will 'select' candidates which are pre-loaded in the job
+
+	// job structs are constructed within JobTrait::run
+	// most will want to retain the sender and receiver, as well as whatever other data they like
+	struct FakeCandidateSelectionJob {
+		receiver: mpsc::Receiver<ToJob>,
+	}
+
+	// ToJob implementations require the following properties:
+	//
+	// - have a Stop variant (to impl ToJobTrait)
+	// - impl ToJobTrait
+	// - impl TryFrom<AllMessages>
+	//
+	// Mostly, they are just a type-safe subset of AllMessages that this job is prepared to receive
+	enum ToJob {
+		CandidateSelection(CandidateSelectionMessage),
+		Stop,
+	}
+
+	impl ToJobTrait for ToJob {
+		const STOP: Self = ToJob::Stop;
+
+		fn relay_parent(&self) -> Option<Hash> {
+			match self {
+				Self::CandidateSelection(csm) => csm.relay_parent(),
+				Self::Stop => None,
+			}
+		}
+	}
+
+	impl TryFrom<AllMessages> for ToJob {
+		type Error = ();
+
+		fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
+			match msg {
+				AllMessages::CandidateSelection(csm) => Ok(ToJob::CandidateSelection(csm)),
+				_ => Err(())
+			}
+		}
+	}
+
+	// FromJob must be infallibly convertable into AllMessages.
+	//
+	// It exists to be a type-safe subset of AllMessages that this job is specified to send.
+	//
+	// Note: the Clone impl here is not generally required; it's just ueful for this test context because
+	// we include it in the RunArgs
+	#[derive(Clone)]
+	enum FromJob {
+		Test(String),
+	}
+
+	impl From<FromJob> for AllMessages {
+		fn from(from_job: FromJob) -> AllMessages {
+			match from_job {
+				FromJob::Test(s) => AllMessages::Test(s),
+			}
+		}
+	}
+
+	// Error will mostly be a wrapper to make the try operator more convenient;
+	// deriving From implementations for most variants is recommended.
+	// It must implement Debug for logging.
+	#[derive(Debug, derive_more::From)]
+	enum Error {
+		#[from]
+		Sending(mpsc::SendError)
+	}
+
+	impl JobTrait for FakeCandidateSelectionJob {
+		type ToJob = ToJob;
+		type FromJob = FromJob;
+		type Error = Error;
+		// RunArgs can be anything that a particular job needs supplied from its external context
+		// in order to create the Job. In this case, they're a hashmap of parents to the mock outputs
+		// expected from that job.
+		//
+		// Note that it's not recommended to use something as heavy as a hashmap in production: the
+		// RunArgs get cloned so that each job gets its own owned copy. If you need that, wrap it in
+		// an Arc. Within a testing context, that efficiency is less important.
+		type RunArgs = HashMap<Hash, Vec<FromJob>>;
+
+		const NAME: &'static str = "FakeCandidateSelectionJob";
+
+		/// Run a job for the parent block indicated
+		//
+		// this function is in charge of creating and executing the job's main loop
+		fn run(
+			parent: Hash,
+			mut run_args: Self::RunArgs,
+			receiver: mpsc::Receiver<ToJob>,
+			mut sender: mpsc::Sender<FromJob>,
+		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+			async move {
+				let job = FakeCandidateSelectionJob {
+					receiver,
+				};
+
+				// most jobs will have a request-response cycle at the heart of their run loop.
+				// however, in this case, we never receive valid messages, so we may as well
+				// just send all of our (mock) output messages now
+				let mock_output = run_args.remove(&parent).unwrap_or_default();
+				let mut stream = stream::iter(mock_output.into_iter().map(Ok));
+				sender.send_all(&mut stream).await?;
+
+				// it isn't necessary to break run_loop into its own function,
+				// but it's convenient to separate the concerns in this way
+				job.run_loop().await
+			}.boxed()
+		}
+	}
+
+	impl FakeCandidateSelectionJob {
+		async fn run_loop(mut self) -> Result<(), Error> {
+			while let Some(msg) = self.receiver.next().await {
+				match msg {
+					ToJob::CandidateSelection(_csm) => {
+						unimplemented!("we'd report the collator to the peer set manager here, but that's not implemented yet");
+					}
+					ToJob::Stop => break,
+				}
+			}
+
+			Ok(())
+		}
+	}
+
+	// with the job defined, it's straightforward to get a subsystem implementation.
+	type FakeCandidateSelectionSubsystem<Spawner, Context> = JobManager<Spawner, Context, FakeCandidateSelectionJob>;
+
+	// this type lets us pretend to be the overseer
+	type OverseerHandle = polkadot_subsystem_test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
+
+	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle) -> T) {
+		let pool = ThreadPool::new().unwrap();
+		let (context, overseer_handle) = make_subsystem_context(pool.clone());
+
+		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, pool);
+		let test_future = test(overseer_handle);
+
+		futures::pin_mut!(test_future);
+		futures::pin_mut!(subsystem);
+
+		executor::block_on(future::select(test_future, subsystem));
+	}
+
+	#[test]
+	fn starting_job_works() {
+		let relay_parent: Hash = [0; 32].into();
+		let mut run_args = HashMap::new();
+		let test_message = format!("greetings from {}", relay_parent);
+		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message)]);
+
+		test_harness(run_args, |overseer_handle| async move {
+			assert_matches!(
+				overseer_handle.recv().await,
+				AllMessages::Test(msg) if msg == test_message
+			);
+		});
 	}
 }
