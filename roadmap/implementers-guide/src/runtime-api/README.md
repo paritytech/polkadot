@@ -146,3 +146,32 @@ enum OccupiedCoreAssumption {
 /// and the para already occupies a core.
 fn local_validation_data(ParaId, OccupiedCoreAssumption) -> Option<LocalValidationData>;
 ```
+
+## Session Index
+
+Get the session index that is expected at the child of a block.
+
+In the [`Initializer`](../runtime/initializer.md) module, session changes are buffered by one block. The session index of the child of any block is always predictable by that block's state.
+
+This session index can be used to derive a [`SigningContext`](../types/candidate.md#signing-context).
+
+```rust
+/// Returns the session index expected at a child of the block.
+fn session_index_for_child() -> SessionIndex;
+```
+
+## Validation Code
+
+Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
+
+```rust
+fn validation_code(ParaId, OccupiedCoreAssumption) -> ValidationCode;
+```
+
+## Candidate Pending Availability
+
+Get the receipt of a candidate pending availability. This returns `Some` for any paras assigned to occupied cores in `availability_cores` and `None` otherwise.
+
+```rust
+fn candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>;
+```
