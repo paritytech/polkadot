@@ -4488,8 +4488,6 @@ dependencies = [
  "bitvec",
  "derive_more 0.99.9",
  "futures 0.3.5",
- "futures-timer 3.0.2",
- "log 0.4.8",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -4502,7 +4500,6 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-keyring",
- "streamunordered",
 ]
 
 [[package]]
@@ -4547,11 +4544,19 @@ name = "polkadot-node-subsystem"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "derive_more 0.99.9",
  "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "pin-project",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "sc-keystore",
  "sc-network",
+ "sp-core",
+ "streamunordered",
 ]
 
 [[package]]
