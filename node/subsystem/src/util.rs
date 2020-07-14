@@ -537,7 +537,21 @@ where
 			Ok(Signal(Conclude)) => {
 				// Breaking the loop ends fn run, which drops `jobs`, which immediately drops all ongoing work.
 				// We can afford to wait a little while to shut them all down properly before doing that.
-				future::join_all(jobs.running.drain().map(|(_, handle)| handle.stop())).await;
+				//
+				// Forwarding the stream to a drain means we wait until all of the items in the stream
+				// have completed. Contrast with `into_future`, which turns it into a future of `(head, rest_stream)`.
+				use futures::stream::StreamExt;
+				use futures::stream::FuturesUnordered;
+
+				let unordered = jobs.running
+					.drain()
+					.map(|(_, handle)| handle.stop())
+					.collect::<FuturesUnordered<_>>();
+				// now wait for all the futures to complete; collect a vector of their results
+				// this is strictly less efficient than draining them into oblivion, but this compiles, and that doesn't
+				// https://github.com/paritytech/polkadot/pull/1376#pullrequestreview-446488645
+				let _ = async move { unordered.collect::<Vec<_>>() }.await;
+
 				return true;
 			}
 			Ok(Communication { msg }) => {
