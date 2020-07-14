@@ -73,6 +73,8 @@ struct OccupiedCore {
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	next_up_on_available: Option<ScheduledCore>,
+	/// The relay-chain block number this began occupying the core at.
+	occupied_since: BlockNumber,
 	/// The relay-chain block this will time-out at, if any.
 	time_out_at: BlockNumber,
 	/// If this core is freed by being timed-out, this is the assignment that is next up on this
