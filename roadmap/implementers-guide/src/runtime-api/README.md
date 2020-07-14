@@ -59,10 +59,10 @@ fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
 
 ## Availability Cores
 
-Yields information on all availability cores. Cores are either free or occupied. Free cores can have paras assigned to them. Occupied cores don't, but
+Yields information on all availability cores. Cores are either free or occupied. Free cores can have paras assigned to them. Occupied cores don't, but they can become available part-way through a block due to bitfields and then have something scheduled on them. To allow optimistic validation of candidates, the occupied cores are accompanied by information on what is upcoming. This information can be leveraged when validators perceive that there is a high likelihood of a core becoming available based on bitfields seen, and then optimistically validate something that would become scheduled based on that, although there is no guarantee on what the block producer will actually include in the block.
 
 ```rust
-fn availability_cores() -> AvailabilityCores;
+fn availability_cores() -> Vec<CoreState>;
 ```
 
 This is all the information that a validator needs about scheduling for the current block. It includes all information on [Scheduler](../runtime/scheduler.md) core-assignments and [Inclusion](../runtime/inclusion.md) state of blocks occupying availability cores. It includes data necessary to determine not only which paras are assigned now, but which cores are likely to become freed after processing bitfields, and exactly which bitfields would be necessary to make them so.
@@ -96,9 +96,9 @@ struct ScheduledCore {
 }
 
 enum CoreState {
-	/// The core is currently occupied by the given `ParaId`.
+	/// The core is currently occupied.
 	Occupied(OccupiedCore),
-	/// The core is currently free, with the given `ParaId` scheduled and given the opportunity
+	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
 	/// If a particular Collator is required to author this block, that is also present in this
@@ -107,14 +107,6 @@ enum CoreState {
 	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
 	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
 	Free,
-}
-```
-
-```rust
-struct AvailabilityCores {
-	/// All cores, along with their state. There should be as many items in this vector as there
-	/// are cores in the system.
-	cores: Vec<CoreState>,
 }
 ```
 
