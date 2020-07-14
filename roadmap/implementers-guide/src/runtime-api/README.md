@@ -132,7 +132,7 @@ enum OccupiedCoreAssumption {
 	/// The candidate occupying the core timed out and freed the core without advancing the para.
 	TimedOut,
 	/// The core was not occupied to begin with.
-	Freed,
+	Free,
 }
 
 /// Returns the local validation data for the given para and occupied core assumption.
