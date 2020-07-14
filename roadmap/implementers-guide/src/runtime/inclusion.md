@@ -68,9 +68,9 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. Transform each [`CommittedCandidateReceipt`](../types/candidate.md#committed-candidate-receipt) into the corresponding [`CandidateReceipt`](../types/candidate.md#candidate-receipt), setting the commitments aside.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. check that the upward messages, when combined with the existing queue size, are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
-  1. call `Router::ensure_processed_downward_messages(para, processed_downward_messages)` to check rules of processing the downward message queue.
-  1. check that the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
-  1. using `Router::ensure_horizontal_messages_fit(sender, horizontal_messages)` ensure that the sender para doesn't overfill any downward queue.
+  1. call `Router::ensure_processed_downward_messages(para, commitments.processed_downward_messages)` for each candidate to check rules of processing the downward message queue.
+  1. check that in the commitments of each candidate the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
+  1. using `Router::ensure_horizontal_messages_fit(sender, commitments.horizontal_messages)` ensure that the each candidate's para doesn't overfill any downward queue.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. create a corresponding entry in the `PendingAvailabilityCommitments` with the commitments.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
