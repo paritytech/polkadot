@@ -1,8 +1,9 @@
 # Router Module
 
-The Router module is responsible for storing and dispatching Upward and Downward messages from and to parachains respectively. It is intended to later handle the XCMP logic as well.
+The Router module is responsible for all messaging mechanisms supported between paras and the relay chain, specifically: UMP, DMP, HRMP and later XCMP.
 
-For each enacted block the `queue_upward_messages` entry-point is called.
+For checking the validity of message passing within a candidate the `ensure_processed_downward_messages` and `ensure_horizontal_messages_fit` routines are called.
+When a candidate is enacted the `drain_downward_messages`, `queue_horizontal_messages` and `queue_upward_messages` are called.
 
 ## Storage
 
