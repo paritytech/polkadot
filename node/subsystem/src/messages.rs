@@ -127,8 +127,8 @@ impl CandidateValidationMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::ValidateFromChainState(CandidateDescriptor{ relay_parent, ..}, _, _) => Some(*relay_parent),
-			Self::ValidateFromExhaustive(_, _, CandidateDescriptor{ relay_parent, ..}, _, _) => Some(*relay_parent),
+			Self::ValidateFromChainState(_, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
 		}
 	}
 }
