@@ -57,6 +57,6 @@ enum DownwardMessage {
 	TransferInto(AccountId, Balance, Remark),
 	/// This downward message is a result of a horizontal message represented as opaque bytes sent
 	/// by the specified sender.
-	HorizontalMessage(AccountId, Vec<u8>),
+	HorizontalMessage(ParaId, Vec<u8>),
 }
 ```
