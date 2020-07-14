@@ -58,5 +58,9 @@ enum DownwardMessage {
 	/// This downward message is a result of a horizontal message represented as opaque bytes sent
 	/// by the specified sender.
 	HorizontalMessage(ParaId, Vec<u8>),
+	/// An opaque message which interpretation is up to the recipient para. This variant ought
+	/// to be used as a basis for special protocols between the relay chain and, typically system,
+	/// paras.
+	ParachainSpecific(Vec<u8>),
 }
 ```
