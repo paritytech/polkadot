@@ -2,9 +2,6 @@
 
 The Router module is responsible for all messaging mechanisms supported between paras and the relay chain, specifically: UMP, DMP, HRMP and later XCMP.
 
-For checking the validity of message passing within a candidate the `ensure_processed_downward_messages` and `ensure_horizontal_messages_fit` routines are called.
-When a candidate is enacted the `drain_downward_messages`, `queue_horizontal_messages` and `queue_upward_messages` are called.
-
 ## Storage
 
 Storage layout:
@@ -39,25 +36,34 @@ No initialization routine runs for this module.
 
 ## Routines
 
-There are two routines intended for use by the relay chain extrinsics: `ensure_downward_messages_fit`
-and `queue_downward_messages`. The former function is used before performing relay chain operations
-that results in downward messages sent to a given `recipient` to check if sending those messages will
-exceed the limits on the number of messages that the relay chain can send to a single recipient para.
-The latter routine is intended to perform the send of the downward messages.
+There are situations when actions that took place within the relay chain could lead to a downward message
+sent to a para. For example, if an entry-point to transfer some funds to a para was called.
 
-Note that the HRMP message can only be sent by para candidates.
+For these cases, there are two routines, `has_dmq_capacity_for_relay_chain` and `send_downward_messages`,
+intended for use by the relay chain.
 
-* `ensure_downward_messages_fit(recipient: ParaId, n: u32)`.
+`send_downward_messages` is used for enqueuing one or more downward messages for a certain recipient. Since downward
+message queues can hold only so many messages per one sender (and the relay chain is not an exception),
+`send_downward_messages` can fail refusing enqueuing a message that would have exceeded the limit. In those cases
+`has_dmq_capacity_for_relay_chain` can be used for checking in advance if there is enough space for a given
+number of messages.
+
+Note that an HRMP message can only be sent by para candidates.
+
+* `has_dmq_capacity_for_relay_chain(recipient: ParaId, n: u32)`.
   1. Checks that the sum of the number `RelayChainDownwardMessages` for `recipient` and `n` is less
   than or equal to `config.max_relay_chain_downward_messages`.
-* `queue_downward_messages(recipient: ParaId, Vec<DownwardMessage>)`.
-  1. Checks that there is enough capacity in the receipient's downward queue using `ensure_downward_messages_fit`.
+* `send_downward_messages(recipient: ParaId, Vec<DownwardMessage>)`.
+  1. Checks that there is enough capacity in the receipient's downward queue using `has_dmq_capacity_for_relay_chain`.
   1. For each downward message `DM`:
     1. Checks that `DM` is not of type `HorizontalMessage`.
     1. Appends `DM` into the `DownwardMessageQueues` corresponding to `recipient`.
   1. Increments `RelayChainDownwardMessages` for the `recipient` according to the number of messages sent.
 
 The following routines are intended for use during the course of inclusion or enactment of para candidates.
+For checking the validity of message passing within a candidate the `ensure_processed_downward_messages`
+and `ensure_horizontal_messages_fit` routines are called. When a candidate is enacted the
+`drain_downward_messages`, `queue_horizontal_messages` and `queue_upward_messages` are called.
 
 * `ensure_processed_downward_messages(recipient: ParaId, processed_downward_messages: u32)`:
   1. Checks that `processed_downward_messages` is at least 1,
