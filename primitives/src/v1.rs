@@ -476,3 +476,99 @@ pub struct AvailableData {
 	/// The omitted validation data.
 	pub omitted_validation: OmittedValidationData,
 }
+
+/// A helper data-type for tracking validator-group rotations.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct GroupRotationInfo {
+	/// The block number where the session started.
+	pub session_start_block: BlockNumber,
+	/// How often groups rotate. 0 means never.
+	pub group_rotation_frequency: BlockNumber,
+	/// The current block number.
+	pub now: BlockNumber,
+}
+
+impl GroupRotationInfo {
+	/// Returns the index of the group needed to validate the core at the given index, assuming
+	/// the given number of cores.
+	///
+	/// `core_index` should be less than `cores`.
+	pub fn group_for_core(&self, core_index: usize, cores: usize) -> usize {
+		if self.group_rotation_frequency == 0 { return core_index }
+		if cores == 0 { return 0 }
+
+		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
+		let rotations = blocks_since_start / self.group_rotation_frequency;
+
+		(core_index + rotations as usize) % cores
+	}
+}
+
+/// Information about a core which is currently occupied.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct OccupiedCore {
+	/// The ID of the para occupying the core.
+	pub para: Id,
+	/// If this core is freed by availability, this is the assignment that is next up on this
+	/// core, if any. None if there is nothing queued for this core.
+	pub next_up_on_available: Option<ScheduledCore>,
+	/// The relay-chain block number this began occupying the core at.
+	pub occupied_since: BlockNumber,
+	/// The relay-chain block this will time-out at, if any.
+	pub time_out_at: BlockNumber,
+	/// If this core is freed by being timed-out, this is the assignment that is next up on this
+	/// core. None if there is nothing queued for this core or there is no possibility of timing
+	/// out.
+	pub next_up_on_time_out: Option<ScheduledCore>,
+	/// A bitfield with 1 bit for each validator in the set. `1` bits mean that the corresponding
+	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
+	/// this will be available.
+	pub availability: BitVec<bitvec::order::Lsb0, u8>,
+}
+
+/// Information about a core which is currently occupied.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ScheduledCore {
+	/// The ID of a para scheduled.
+	pub para: Id,
+	/// The collator required to author the block, if any.
+	pub collator: Option<CollatorId>,
+}
+
+/// The state of a particular availability core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CoreState {
+	/// The core is currently occupied.
+	#[codec(index = "0")]
+	Occupied(OccupiedCore),
+	/// The core is currently free, with a para scheduled and given the opportunity
+	/// to occupy.
+	///
+	/// If a particular Collator is required to author this block, that is also present in this
+	/// variant.
+	#[codec(index = "1")]
+	Scheduled(ScheduledCore),
+	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
+	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	#[codec(index = "2")]
+	Free,
+}
+
+/// An assumption being made about the state of an occupied core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum OccupiedCoreAssumption {
+    /// The candidate occupying the core was made available and included to free the core.
+	#[codec(index = "0")]
+    Included,
+    /// The candidate occupying the core timed out and freed the core without advancing the para.
+	#[codec(index = "1")]
+    TimedOut,
+    /// The core was not occupied to begin with.
+	#[codec(index = "2")]
+    Free,
+}
