@@ -11,3 +11,14 @@ The architecture of the node-side behavior aims to embody the Rust principles of
 Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
 
 We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
+
+## Assumptions
+
+The Node-side code comes with a set of assumptions that we build upon. These assumptions encompass most of the basic blockchain functionality that we build upon.
+
+We assume these things about the underlying node environment:
+  * The underlying **consensus** algorithm, whether it is BABE or SASSAFRAS is implemented.
+  * There is a **chain synchronization** protocol which will search for and download the longest available chains at all times.
+  * The **state** of all blocks at the head of the chain is available. There may be **state pruning** such that state of all finalized blocks more than `k` (~5) blocks behind the head of the chain may not be available.
+  * There is an underlying **networking** framework which provides **peer Ddscovery** services.
+  * There is a **transaction pool** and a **transaction propagation** mechanism which maintains a set of current transactions and distributes to connected peers.
