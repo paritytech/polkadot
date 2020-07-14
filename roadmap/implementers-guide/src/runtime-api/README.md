@@ -46,8 +46,9 @@ struct GroupRotationInfo {
 }
 
 impl GroupRotationInfo {
-	/// Returns the index of the group needed to validate the core at the given index.
-	fn group_for_core(usize) -> usize;
+	/// Returns the index of the group needed to validate the core at the given index,
+	/// assuming the given amount of cores/groups.
+	fn group_for_core(core_index: usize, cores: usize) -> usize;
 }
 
 /// Returns the validator groups and rotation info localized based on the block whose state
