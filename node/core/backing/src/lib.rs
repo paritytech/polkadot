@@ -24,7 +24,7 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
-	task::SpawnError,
+	task::{Spawn, SpawnError},
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
@@ -40,6 +40,7 @@ use polkadot_node_primitives::{
 	ValidationOutputs, ValidationResult,
 };
 use polkadot_subsystem::{
+	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
@@ -64,7 +65,7 @@ use statement_table::{
 };
 
 #[derive(Debug, derive_more::From)]
-pub enum Error {
+enum Error {
 	CandidateNotFound,
 	InvalidSignature,
 	#[from]
@@ -82,7 +83,7 @@ pub enum Error {
 }
 
 /// Holds all data needed for candidate backing job operation.
-pub struct CandidateBackingJob {
+struct CandidateBackingJob {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
 	/// Inbound message channel receiving part.
@@ -174,7 +175,7 @@ impl util::ToJobTrait for ToJob {
 }
 
 /// A message type that is sent from `CandidateBackingJob` to `CandidateBackingSubsystem`.
-pub enum FromJob {
+enum FromJob {
 	AvailabilityStore(AvailabilityStoreMessage),
 	RuntimeApiMessage(RuntimeApiMessage),
 	CandidateValidation(CandidateValidationMessage),
@@ -724,9 +725,45 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
+/// Manager type for the CandidateBackingSubsystem
+type Manager<Spawner, Context> = util::JobManager<Spawner, Context, CandidateBackingJob>;
+
 /// An implementation of the Candidate Backing subsystem.
-pub type CandidateBackingSubsystem<Spawner, Context> =
-	util::JobManager<Spawner, Context, CandidateBackingJob>;
+pub struct CandidateBackingSubsystem<Spawner, Context> {
+	manager: Manager<Spawner, Context>,
+}
+
+impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
+where
+	Spawner: Clone + Spawn + Send + Unpin,
+	Context: SubsystemContext,
+	ToJob: From<<Context as SubsystemContext>::Message>,
+{
+	/// Creates a new `CandidateBackingSubsystem`.
+	pub fn new(spawner: Spawner, keystore: KeyStorePtr) -> Self {
+		CandidateBackingSubsystem {
+			manager: util::JobManager::new(spawner, keystore)
+		}
+	}
+
+	/// Run this subsystem
+	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
+		<Manager<Spawner, Context>>::run(ctx, keystore, spawner).await
+	}
+}
+
+impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
+where
+	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Context: SubsystemContext,
+	<Context as SubsystemContext>::Message: Into<ToJob>,
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		self.manager.start(ctx)
+	}
+}
+
+
 
 #[cfg(test)]
 mod tests {
