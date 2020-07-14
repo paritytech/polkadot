@@ -540,17 +540,20 @@ where
 				//
 				// Forwarding the stream to a drain means we wait until all of the items in the stream
 				// have completed. Contrast with `into_future`, which turns it into a future of `(head, rest_stream)`.
+				use futures::sink::drain;
 				use futures::stream::StreamExt;
 				use futures::stream::FuturesUnordered;
 
-				let unordered = jobs.running
+				if let Err(e) = jobs.running
 					.drain()
 					.map(|(_, handle)| handle.stop())
-					.collect::<FuturesUnordered<_>>();
-				// now wait for all the futures to complete; collect a vector of their results
-				// this is strictly less efficient than draining them into oblivion, but this compiles, and that doesn't
-				// https://github.com/paritytech/polkadot/pull/1376#pullrequestreview-446488645
-				let _ = async move { unordered.collect::<Vec<_>>() }.await;
+					.collect::<FuturesUnordered<_>>()
+					.map(Ok)
+					.forward(drain())
+					.await
+				{
+					log::error!("failed to stop all jobs on conclude signal: {:?}", e);
+				}
 
 				return true;
 			}
