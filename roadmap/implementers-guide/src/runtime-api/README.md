@@ -56,12 +56,12 @@ impl GroupRotationInfo {
 fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
 ```
 
-## ScheduledParas
+## Availability Cores
 
-Yields information on the scheduling of paras.
+Yields information on all availability cores. Cores are either free or occupied. Free cores can have paras assigned to them. Occupied cores don't, but
 
 ```rust
-fn scheduled_paras() -> ScheduledParas;
+fn availability_cores() -> AvailabilityCores;
 ```
 
 This is all the information that a validator needs about scheduling for the current block. It includes all information on [Scheduler](../runtime/scheduler.md) core-assignments and [Inclusion](../runtime/inclusion.md) state of blocks occupying availability cores. It includes data necessary to determine not only which paras are assigned now, but which cores are likely to become freed after processing bitfields, and exactly which bitfields would be necessary to make them so.
@@ -100,12 +100,15 @@ enum CoreState {
 	///
 	/// If a particular Collator is required to author this block, that is also present in this
 	/// variant.
-	Scheduled(ScheduledCore)
+	Scheduled(ScheduledCore),
+	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
+	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	Free,
 }
 ```
 
 ```rust
-struct ScheduledParas {
+struct AvailabilityCores {
 	/// All cores, along with their state. There should be as many items in this vector as there
 	/// are cores in the system.
 	cores: Vec<CoreState>,
