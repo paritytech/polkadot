@@ -63,12 +63,32 @@ It is also important to take note of the fact that the relay-chain is extended b
 
 ```dot process
 digraph {
-	rca [label = "Relay Block A" shape=rectangle]
-	rcb [label = "Relay Block B" shape=rectangle]
-	rcc [label = "Relay Block C" shape=rectangle]
+	rca [label = "Relay Block A" shape=box]
+	rcb [label = "Relay Block B" shape=box]
+	rcc [label = "Relay Block C" shape=box]
 
-	vg1 [label =<<b>Validator Group 1</b><br/><br/><font point-size="10">(Validator 4)<br/>(Validator 1) (Validator 2)<br/>(Validator 5)</font>>]
-	vg2 [label =<<b>Validator Group 2</b><br/><br/><font point-size="10">(Validator 7)<br/>(Validator 3) (Validator 6)</font>>]
+	vg1 [label =<
+		<b>Validator Group 1</b>
+		<br/>
+		<br/>
+		<font point-size="10">
+			(Validator 4)
+			<br/>
+			(Validator 1) (Validator 2)
+			<br/>
+			(Validator 5)
+		</font>
+	>]
+	vg2 [label =<
+		<b>Validator Group 2</b>
+		<br/>
+		<br/>
+		<font point-size="10">
+			(Validator 7)
+			<br/>
+			(Validator 3) (Validator 6)
+		</font>
+	>]
 
 	rcb -> rca
 	rcc -> rcb
@@ -82,14 +102,37 @@ In this example, group 1 has received block C while the others have not due to n
 
 ```dot process
 digraph {
-	rca [label = "Relay Block A" shape=rectangle]
-	rcb [label = "Relay Block B" shape=rectangle]
-	rcc [label = "Relay Block C" shape=rectangle]
-	rcc_prime [label = "Relay Block C'" shape=rectangle]
+	rca [label = "Relay Block A" shape=box]
+	rcb [label = "Relay Block B" shape=box]
+	rcc [label = "Relay Block C" shape=box]
+	rcc_prime [label = "Relay Block C'" shape=box]
 
-	vg1 [label =<<b>Validator Group 1</b><br/><br/><font point-size="10">(Validator 4) (Validator 1)</font>>]
-	vg2 [label =<<b>Validator Group 2</b><br/><br/><font point-size="10">(Validator 7) (Validator 6)</font>>]
-	vg3 [label =<<b>Validator Group 3</b><br/><br/><font point-size="10">(Validator 2) (Validator 3)<br/>(Validator 5)</font>>]
+	vg1 [label =<
+		<b>Validator Group 1</b>
+		<br/>
+		<br/>
+		<font point-size="10">
+			(Validator 4) (Validator 1)
+		</font>
+	>]
+	vg2 [label =<
+		<b>Validator Group 2</b>
+		<br/>
+		<br/>
+		<font point-size="10">
+			(Validator 7) (Validator 6)
+		</font>
+	>]
+	vg3 [label =<
+		<b>Validator Group 3</b>
+		<br/>
+		<br/>
+		<font point-size="10">
+			(Validator 2) (Validator 3)
+			<br/>
+			(Validator 5)
+		</font>
+	>]
 
 	rcb -> rca
 	rcc -> rcb
