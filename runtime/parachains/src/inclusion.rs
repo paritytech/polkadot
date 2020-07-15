@@ -24,7 +24,7 @@ use sp_std::prelude::*;
 use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
-	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment,
+	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, CommittedCandidateReceipt,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
@@ -173,9 +173,7 @@ impl<T: Trait> Module<T> {
 
 		let mut assigned_paras_record: Vec<_> = (0..n_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-			.map(|core_para| core_para.map(|p| { 
-				(p, PendingAvailability::<T>::get(&p), PendingAvailabilityCommitments::get(&p))
-			}))
+			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
 			.collect();
 
 		// do sanity checks on the bitfields:
@@ -186,7 +184,7 @@ impl<T: Trait> Module<T> {
 		{
 			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record.iter()
 				.map(|p| p.as_ref()
-					.map_or(false, |(_id, pending_availability, _)| pending_availability.is_some())
+					.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
 				)
 				.collect();
 
@@ -234,7 +232,7 @@ impl<T: Trait> Module<T> {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let (_, pending_availability, _) = assigned_paras_record[bit_idx]
+				let (_, pending_availability) = assigned_paras_record[bit_idx]
 					.as_mut()
 					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
 
@@ -262,24 +260,26 @@ impl<T: Trait> Module<T> {
 		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(n_bits);
-		for (para_id, pending_availability, commitments) in assigned_paras_record.into_iter()
+		for (para_id, pending_availability) in assigned_paras_record.into_iter()
 			.filter_map(|x| x)
-			.filter_map(|(id, p, c)| p.and_then(|p| c.map(|c| (id, p, c))))
+			.filter_map(|(id, p)| p.map(|p| (id, p)))
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
 				<PendingAvailabilityCommitments>::remove(&para_id);
 
+				let receipt = CommittedCandidateReceipt {
+					descriptor: pending_availability.descriptor,
+					commitments,
+				};
 				Self::enact_candidate(
 					pending_availability.relay_parent_number,
-					pending_availability.descriptor,
-					commitments,
+					receipt,
 				);
 
 				freed_cores.push(pending_availability.core);
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
-				<PendingAvailabilityCommitments>::insert(&para_id, &commitments);
 			}
 		}
 
@@ -455,23 +455,23 @@ impl<T: Trait> Module<T> {
 
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
-		descriptor: CandidateDescriptor<T::Hash>,
-		commitments: CandidateCommitments,
+		receipt: CommittedCandidateReceipt<T::Hash>,
 	) -> Weight {
+		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
 
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
 			weight += <paras::Module<T>>::schedule_code_upgrade(
-				descriptor.para_id,
+				receipt.descriptor.para_id,
 				new_code,
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
 
 		weight + <paras::Module<T>>::note_new_head(
-			descriptor.para_id,
+			receipt.descriptor.para_id,
 			commitments.head_data,
 			relay_parent_number,
 		)
@@ -517,7 +517,7 @@ mod tests {
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, HeadData, ValidationCode,
-		AssignmentKind, CommittedCandidateReceipt,
+		AssignmentKind,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -564,18 +564,18 @@ mod tests {
 
 	fn collator_sign_candidate(
 		collator: Sr25519Keyring,
-		descriptor: &mut CandidateDescriptor,
+		candidate: &mut CommittedCandidateReceipt,
 	) {
-		descriptor.collator = collator.public().into();
+		candidate.descriptor.collator = collator.public().into();
 
 		let payload = primitives::v1::collator_signature_payload(
-			&descriptor.relay_parent,
-			&descriptor.para_id,
-			&descriptor.pov_hash,
+			&candidate.descriptor.relay_parent,
+			&candidate.descriptor.para_id,
+			&candidate.descriptor.pov_hash,
 		);
 
-		descriptor.signature = collator.sign(&payload[..]).into();
-		assert!(descriptor.check_collator_signature().is_ok());
+		candidate.descriptor.signature = collator.sign(&payload[..]).into();
+		assert!(candidate.descriptor().check_collator_signature().is_ok());
 	}
 
 	fn back_candidate(
@@ -1114,7 +1114,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
@@ -1149,12 +1149,12 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate_a.descriptor,
+					&mut candidate_a,
 				);
 
 				collator_sign_candidate(
 					Sr25519Keyring::Two,
-					&mut candidate_b.descriptor,
+					&mut candidate_b,
 				);
 
 				let backed_a = back_candidate(
@@ -1190,7 +1190,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
@@ -1221,7 +1221,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
@@ -1251,7 +1251,7 @@ mod tests {
 				assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
@@ -1285,7 +1285,7 @@ mod tests {
 				assert_eq!(CollatorId::from(Sr25519Keyring::Two.public()), thread_collator);
 				collator_sign_candidate(
 					Sr25519Keyring::Two,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				// change the candidate after signing.
@@ -1317,7 +1317,7 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
@@ -1328,15 +1328,15 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				let CommittedCandidateReceipt { descriptor, commitments }  = TestCandidateBuilder::default().build();
+				let candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					descriptor,
+					descriptor: candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
 					backed_in_number: 4,
 				});
-				<PendingAvailabilityCommitments>::insert(&chain_a, commitments);
+				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
 				assert!(Inclusion::process_candidates(
 					vec![backed],
@@ -1359,7 +1359,7 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate.descriptor,
+					&mut candidate,
 				);
 
 				let backed = back_candidate(
