@@ -923,6 +923,42 @@ mod tests {
 					vec![signed],
 					&core_lookup,
 				).is_ok());
+
+				<PendingAvailability<Test>>::remove(chain_a);
+				PendingAvailabilityCommitments::remove(chain_a);
+			}
+
+			// bitfield signed with pending bit signed, but no commitments.
+			{
+				let mut bare_bitfield = default_bitfield();
+
+				assert_eq!(core_lookup(CoreIndex::from(0)), Some(chain_a));
+
+				let default_candidate = TestCandidateBuilder::default().build();
+				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					descriptor: default_candidate.descriptor,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: 0,
+					backed_in_number: 0,
+				});
+
+				*bare_bitfield.0.get_mut(0).unwrap() = true;
+				let signed = sign_bitfield(
+					&validators[0],
+					0,
+					bare_bitfield,
+					&signing_context,
+				);
+
+				// no core is freed
+				assert_eq!(
+					Inclusion::process_bitfields(
+						vec![signed],
+						&core_lookup,
+					),
+					Ok(vec![]),
+				);
 			}
 		});
 	}
