@@ -50,6 +50,8 @@ pub use crate::v0::{
 #[cfg(feature = "std")]
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
+pub use sp_staking::SessionIndex;
+
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 
@@ -603,7 +605,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		fn session_index_for_child() -> sp_staking::SessionIndex;
+		fn session_index_for_child() -> SessionIndex;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///

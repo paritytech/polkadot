@@ -4887,6 +4887,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
+ "sp-version",
 ]
 
 [[package]]
