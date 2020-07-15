@@ -16,7 +16,7 @@ We introduce a hierarchy of state machines consisting of an overseer supervising
 
 The Node-side code comes with a set of assumptions that we build upon. These assumptions encompass most of the fundamental blockchain functionality.
 
-We assume these things about the underlying node environment:
+We assume the following constraints regarding provided basic functionality:
   * The underlying **consensus** algorithm, whether it is BABE or SASSAFRAS is implemented.
   * There is a **chain synchronization** protocol which will search for and download the longest available chains at all times.
   * The **state** of all blocks at the head of the chain is available. There may be **state pruning** such that state of all finalized blocks more than `k` (~5) blocks behind the head of the chain may not be available.
