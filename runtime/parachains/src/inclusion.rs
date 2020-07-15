@@ -369,7 +369,7 @@ impl<T: Trait> Module<T> {
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
 
-					if candidate.descriptor().para_id == assignment.para_id {
+					if para_id == assignment.para_id {
 						if let Some(required_collator) = assignment.required_collator() {
 							ensure!(
 								required_collator == &candidate.descriptor().collator,
@@ -378,8 +378,8 @@ impl<T: Trait> Module<T> {
 						}
 
 						ensure!(
-							<PendingAvailability<T>>::get(&assignment.para_id).is_none() &&
-							<PendingAvailabilityCommitments>::get(&assignment.para_id).is_none(),
+							<PendingAvailability<T>>::get(&para_id).is_none() &&
+							<PendingAvailabilityCommitments>::get(&para_id).is_none(),
 							Error::<T>::CandidateScheduledBeforeParaFree,
 						);
 
