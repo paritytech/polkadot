@@ -1085,7 +1085,7 @@ mod tests {
 
 			let chain_a_assignment = CoreAssignment {
 				core: CoreIndex::from(0),
-				para_id: chain_b,
+				para_id: chain_a,
 				kind: AssignmentKind::Parachain,
 				group_idx: GroupIndex::from(0),
 			};
@@ -1099,14 +1099,14 @@ mod tests {
 
 			let thread_a_assignment = CoreAssignment {
 				core: CoreIndex::from(2),
-				para_id: chain_b,
+				para_id: thread_a,
 				kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
 				group_idx: GroupIndex::from(2),
 			};
 
 			// unscheduled candidate.
 			{
-				let mut candidate  = TestCandidateBuilder {
+				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
