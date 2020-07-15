@@ -56,16 +56,7 @@ pub mod runtime_api_impl_v1 {
 		GroupRotationInfo<T::BlockNumber>,
 	) {
 		let groups = <scheduler::Module<T>>::validator_groups();
-		let session_start_block = <scheduler::Module<T>>::session_start_block();
-		let now = <system::Module<T>>::block_number();
-		let group_rotation_frequency = <configuration::Module<T>>::config()
-			.parachain_rotation_frequency;
-
-		let rotation_info = GroupRotationInfo {
-			session_start_block,
-			now,
-			group_rotation_frequency,
-		};
+		let rotation_info = <scheduler::Module<T>>::group_rotation_info();
 
 		(groups, rotation_info)
 	}
