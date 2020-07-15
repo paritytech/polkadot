@@ -14,7 +14,7 @@ We introduce a hierarchy of state machines consisting of an overseer supervising
 
 ## Assumptions
 
-The Node-side code comes with a set of assumptions that we build upon. These assumptions encompass most of the basic blockchain functionality that we build upon.
+The Node-side code comes with a set of assumptions that we build upon. These assumptions encompass most of the fundamental blockchain functionality.
 
 We assume these things about the underlying node environment:
   * The underlying **consensus** algorithm, whether it is BABE or SASSAFRAS is implemented.
