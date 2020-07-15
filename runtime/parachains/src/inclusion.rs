@@ -22,7 +22,7 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	ValidatorId, CommittedCandidateReceipt, ValidatorIndex, Id as ParaId,
+	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment,
 };
@@ -58,8 +58,8 @@ pub struct AvailabilityBitfieldRecord<N> {
 pub struct CandidatePendingAvailability<H, N> {
 	/// The availability core this is assigned to.
 	core: CoreIndex,
-	/// The candidate receipt itself.
-	receipt: CommittedCandidateReceipt<H>,
+	/// The candidate descriptor.
+	descriptor: CandidateDescriptor<H>,
 	/// The received availability votes. One bit per validator.
 	availability_votes: BitVec<BitOrderLsb0, u8>,
 	/// The block number of the relay-parent of the receipt.
@@ -79,6 +79,10 @@ decl_storage! {
 		/// Candidates pending availability by `ParaId`.
 		PendingAvailability: map hasher(twox_64_concat) ParaId
 			=> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>;
+
+		/// The commitments of candidates pending availability, by ParaId.
+		PendingAvailabilityCommitments: map hasher(twox_64_concat) ParaId
+			=> Option<CandidateCommitments>;
 
 		/// The current validators, by their parachain session keys.
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
@@ -146,6 +150,7 @@ impl<T: Trait> Module<T> {
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
 		// and require consumption.
+		for _ in <PendingAvailabilityCommitments>::drain() { }
 		for _ in <PendingAvailability<T>>::drain() { }
 		for _ in <AvailabilityBitfields<T>>::drain() { }
 
@@ -168,7 +173,9 @@ impl<T: Trait> Module<T> {
 
 		let mut assigned_paras_record: Vec<_> = (0..n_bits)
 			.map(|bit_index| core_lookup(CoreIndex::from(bit_index as u32)))
-			.map(|core_para| core_para.map(|p| (p, PendingAvailability::<T>::get(&p))))
+			.map(|core_para| core_para.map(|p| { 
+				(p, PendingAvailability::<T>::get(&p), PendingAvailabilityCommitments::get(&p))
+			}))
 			.collect();
 
 		// do sanity checks on the bitfields:
@@ -179,7 +186,7 @@ impl<T: Trait> Module<T> {
 		{
 			let occupied_bitmask: BitVec<BitOrderLsb0, u8> = assigned_paras_record.iter()
 				.map(|p| p.as_ref()
-					.map_or(false, |(_id, pending_availability)| pending_availability.is_some())
+					.map_or(false, |(_id, pending_availability, _)| pending_availability.is_some())
 				)
 				.collect();
 
@@ -227,14 +234,14 @@ impl<T: Trait> Module<T> {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
 			{
-				let record = assigned_paras_record[bit_idx]
+				let (_, pending_availability, _) = assigned_paras_record[bit_idx]
 					.as_mut()
 					.expect("validator bitfields checked not to contain bits corresponding to unoccupied cores; qed");
 
 				// defensive check - this is constructed by loading the availability bitfield record,
 				// which is always `Some` if the core is occupied - that's why we're here.
 				let val_idx = signed_bitfield.validator_index() as usize;
-				if let Some(mut bit) = record.1.as_mut()
+				if let Some(mut bit) = pending_availability.as_mut()
 					.and_then(|r| r.availability_votes.get_mut(val_idx))
 				{
 					*bit = true;
@@ -255,20 +262,24 @@ impl<T: Trait> Module<T> {
 		let threshold = availability_threshold(validators.len());
 
 		let mut freed_cores = Vec::with_capacity(n_bits);
-		for (para_id, pending_availability) in assigned_paras_record.into_iter()
+		for (para_id, pending_availability, commitments) in assigned_paras_record.into_iter()
 			.filter_map(|x| x)
-			.filter_map(|(id, p)| p.map(|p| (id, p)))
+			.filter_map(|(id, p, c)| p.and_then(|p| c.map(|c| (id, p, c))))
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
+				<PendingAvailabilityCommitments>::remove(&para_id);
+
 				Self::enact_candidate(
 					pending_availability.relay_parent_number,
-					pending_availability.receipt,
+					pending_availability.descriptor,
+					commitments,
 				);
 
 				freed_cores.push(pending_availability.core);
 			} else {
 				<PendingAvailability<T>>::insert(&para_id, &pending_availability);
+				<PendingAvailabilityCommitments>::insert(&para_id, &commitments);
 			}
 		}
 
@@ -367,7 +378,8 @@ impl<T: Trait> Module<T> {
 						}
 
 						ensure!(
-							<PendingAvailability<T>>::get(&assignment.para_id).is_none(),
+							<PendingAvailability<T>>::get(&assignment.para_id).is_none() &&
+							<PendingAvailabilityCommitments>::get(&assignment.para_id).is_none(),
 							Error::<T>::CandidateScheduledBeforeParaFree,
 						);
 
@@ -427,13 +439,15 @@ impl<T: Trait> Module<T> {
 			// initialize all availability votes to 0.
 			let availability_votes: BitVec<BitOrderLsb0, u8>
 				= bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+			let (descriptor, commitments) = (candidate.candidate.descriptor, candidate.candidate.commitments);
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
-				receipt: candidate.candidate,
+				descriptor,
 				availability_votes,
 				relay_parent_number,
 				backed_in_number: now,
 			});
+			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
 		}
 
 		Ok(core_indices)
@@ -441,23 +455,23 @@ impl<T: Trait> Module<T> {
 
 	fn enact_candidate(
 		relay_parent_number: T::BlockNumber,
-		receipt: CommittedCandidateReceipt<T::Hash>,
+		descriptor: CandidateDescriptor<T::Hash>,
+		commitments: CandidateCommitments,
 	) -> Weight {
-		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
 
 		// initial weight is config read.
 		let mut weight = T::DbWeight::get().reads_writes(1, 0);
 		if let Some(new_code) = commitments.new_validation_code {
 			weight += <paras::Module<T>>::schedule_code_upgrade(
-				receipt.descriptor.para_id,
+				descriptor.para_id,
 				new_code,
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
 
 		weight + <paras::Module<T>>::note_new_head(
-			receipt.descriptor.para_id,
+			descriptor.para_id,
 			commitments.head_data,
 			relay_parent_number,
 		)
@@ -482,6 +496,7 @@ impl<T: Trait> Module<T> {
 
 		for para_id in cleaned_up_ids {
 			<PendingAvailability<T>>::remove(&para_id);
+			<PendingAvailabilityCommitments>::remove(&para_id);
 		}
 
 		cleaned_up_cores
@@ -688,20 +703,20 @@ mod tests {
 	}
 
 	impl TestCandidateBuilder {
-		fn build(self) -> CommittedCandidateReceipt {
-			CommittedCandidateReceipt {
-				descriptor: CandidateDescriptor {
+		fn build(self) -> (CandidateDescriptor, CandidateCommitments) {
+			(
+				CandidateDescriptor {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
 					..Default::default()
 				},
-				commitments: CandidateCommitments {
+				CandidateCommitments {
 					head_data: self.head_data,
 					new_validation_code: self.new_validation_code,
 					..Default::default()
 				},
-			}
+			)
 		}
 	}
 
@@ -715,29 +730,35 @@ mod tests {
 		new_test_ext(genesis_config(paras)).execute_with(|| {
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				receipt: Default::default(),
+				descriptor: Default::default(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
+			PendingAvailabilityCommitments::insert(chain_a, Default::default());
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				receipt: Default::default(),
+				descriptor: Default::default(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
+			PendingAvailabilityCommitments::insert(chain_b, Default::default());
 
 			run_to_block(5, |_| None);
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_some());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_some());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_some());
 
 			Inclusion::collect_pending(|core, _since| core == CoreIndex::from(0));
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_none());
 		});
 	}
 
@@ -870,11 +891,12 @@ mod tests {
 
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					receipt: Default::default(),
+					descriptor: Default::default(),
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
 					backed_in_number: 0,
 				});
+				PendingAvailabilityCommitments::insert(chain_a, Default::default());
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
 				let signed = sign_bitfield(
@@ -924,29 +946,35 @@ mod tests {
 				_ => panic!("Core out of bounds for 2 parachains and 1 parathread core."),
 			};
 
+			let (descriptor, commitments) = TestCandidateBuilder {
+				para_id: chain_a,
+				head_data: vec![1, 2, 3, 4].into(),
+				..Default::default()
+			}.build();
+
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				receipt: TestCandidateBuilder {
-					para_id: chain_a,
-					head_data: vec![1, 2, 3, 4].into(),
-					..Default::default()
-				}.build(),
+				descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
+			PendingAvailabilityCommitments::insert(chain_a, commitments);
+
+			let (descriptor, commitments) = TestCandidateBuilder {
+				para_id: chain_b,
+				head_data: vec![5, 6, 7, 8].into(),
+				..Default::default()
+			}.build();
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				receipt: TestCandidateBuilder {
-					para_id: chain_b,
-					head_data: vec![5, 6, 7, 8].into(),
-					..Default::default()
-				}.build(),
+				descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
+			PendingAvailabilityCommitments::insert(chain_b, commitments);
 
 			// this bitfield signals that a and b are available.
 			let a_and_b_available = {
@@ -996,6 +1024,8 @@ mod tests {
 			// chain A had 4 signing off, which is >= threshold.
 			// chain B has 3 signing off, which is < threshold.
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_some());
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&chain_b).unwrap().availability_votes,
 				{
@@ -1296,13 +1326,15 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
+				let (descriptor, commitments) = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					receipt: Default::default(),
+					descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 3,
 					backed_in_number: 4,
 				});
+				<PendingAvailabilityCommitments>::insert(&chain_a, commitments);
 
 				assert!(Inclusion::process_candidates(
 					vec![backed],
@@ -1483,33 +1515,45 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					receipt: candidate_a,
+					descriptor: candidate_a.0,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 				})
+			);
+			assert_eq!(
+				<PendingAvailabilityCommitments>::get(&chain_a),
+				Some(candidate_a.1),
 			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&chain_b),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(1),
-					receipt: candidate_b,
+					descriptor: candidate_b.0,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 				})
+			);
+			assert_eq!(
+				<PendingAvailabilityCommitments>::get(&chain_b),
+				Some(candidate_b.1),
 			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&thread_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(2),
-					receipt: candidate_c,
+					descriptor: candidate_c.0,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 				})
+			);
+			assert_eq!(
+				<PendingAvailabilityCommitments>::get(&chain_c),
+				Some(candidate_c.1),
 			);
 		});
 	}
@@ -1568,21 +1612,24 @@ mod tests {
 				},
 			);
 
+			let (descriptor, commitments) = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				receipt: Default::default(),
+				descriptor: descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
 				backed_in_number: 6,
 			});
+			<PendingAvailabilityCommitments>::insert(&chain_a, commitments.clone());
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				receipt: Default::default(),
+				descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,
 				backed_in_number: 7,
 			});
+			<PendingAvailabilityCommitments>::insert(&chain_b, commitments);
 
 			run_to_block(11, |_| None);
 
@@ -1595,6 +1642,8 @@ mod tests {
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_some());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_some());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_some());
 
 			run_to_block(12, |n| match n {
 				12 => Some(SessionChangeNotification {
@@ -1617,10 +1666,12 @@ mod tests {
 
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_none());
 
 			assert!(<AvailabilityBitfields<Test>>::iter().collect::<Vec<_>>().is_empty());
 			assert!(<PendingAvailability<Test>>::iter().collect::<Vec<_>>().is_empty());
-
+			assert!(<PendingAvailabilityCommitments>::iter().collect::<Vec<_>>().is_empty());
 		});
 	}
 }
