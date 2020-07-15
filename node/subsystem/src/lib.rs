@@ -20,18 +20,21 @@
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 
+#![warn(missing_docs)]
+
 use std::pin::Pin;
 
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use futures::future::BoxFuture;
 
-use polkadot_primitives::Hash;
+use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 
 use crate::messages::AllMessages;
 
 pub mod messages;
+pub mod util;
 
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
@@ -56,6 +59,7 @@ pub enum FromOverseer<M> {
 
 	/// Some other `Subsystem`'s message.
 	Communication {
+		/// Contained message
 		msg: M,
 	},
 }
@@ -147,4 +151,22 @@ pub trait SubsystemContext: Send + 'static {
 pub trait Subsystem<C: SubsystemContext> {
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
+}
+
+/// A dummy subsystem that implements [`Subsystem`] for all
+/// types of messages. Used for tests or as a placeholder.
+pub struct DummySubsystem;
+
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+	fn start(self, mut ctx: C) -> SpawnedSubsystem {
+		SpawnedSubsystem(Box::pin(async move {
+			loop {
+				match ctx.recv().await {
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Err(_) => return,
+					_ => continue,
+				}
+			}
+		}))
+	}
 }

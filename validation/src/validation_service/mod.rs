@@ -32,8 +32,8 @@ use crate::pipeline::FullOutput;
 use sc_client_api::{BlockchainEvents, BlockBackend};
 use consensus::SelectChain;
 use futures::prelude::*;
-use polkadot_primitives::{Block, Hash, BlockId};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
+	Block, Hash, BlockId,
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
 	CollationInfo, SigningContext,
 };
@@ -545,7 +545,7 @@ mod tests {
 	use super::*;
 	use futures::{executor, future::ready, channel::mpsc};
 	use availability_store::ErasureNetworking;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
 		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
 		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext, ValidationCode,
@@ -706,7 +706,7 @@ mod tests {
 			fn signing_context() -> SigningContext {
 				Default::default()
 			}
-			fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::DownwardMessage> {
+			fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::v0::DownwardMessage> {
 				Vec::new()
 			}
 		}

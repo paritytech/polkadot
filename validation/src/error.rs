@@ -16,7 +16,7 @@
 
 //! Errors that can occur during the validation process.
 
-use polkadot_primitives::{parachain::ValidatorId, Hash};
+use polkadot_primitives::v0::{ValidatorId, Hash};
 
 /// Error type for validation
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -77,7 +77,7 @@ pub enum Error {
 	CommitmentsMismatch,
 	/// The parachain for which validation work is being done is not active.
 	#[display(fmt = "Parachain {:?} is not active", _0)]
-	InactiveParachain(polkadot_primitives::parachain::Id),
+	InactiveParachain(polkadot_primitives::v0::Id),
 	/// Block data is too big
 	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
 	BlockDataTooBig { size: u64, max_size: u64 },

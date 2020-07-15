@@ -2,9 +2,7 @@ use futures::prelude::*;
 use futures::select;
 use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::{
-	inclusion_inherent,
-	parachain::ParachainHost,
+use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
@@ -53,7 +51,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -104,7 +102,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -155,7 +153,7 @@ where
 		+ Send
 		+ Sync,
 	Client::Api:
-		ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+		BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend:
 		'static + sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>>,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
@@ -186,7 +184,7 @@ where
 			};
 
 			inherent_data.put_data(
-				inclusion_inherent::INHERENT_IDENTIFIER,
+				polkadot_primitives::v1::INCLUSION_INHERENT_IDENTIFIER,
 				&provisioner_data,
 			)?;
 

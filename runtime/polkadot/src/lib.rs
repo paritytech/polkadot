@@ -31,9 +31,10 @@ use runtime_common::{
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
-use primitives::{
+use primitives::v0::{
+	self as parachain,
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
+	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
@@ -78,6 +79,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+pub mod poll;
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
@@ -91,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 14,
+	spec_version: 15,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -113,12 +115,7 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..))
-				| Call::Democracy(democracy::Call::vote(..))
-				| Call::Democracy(democracy::Call::remove_vote(..))
-				| Call::Democracy(democracy::Call::delegate(..))
-				| Call::Democracy(democracy::Call::undelegate(..))
-				=> true,
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
 			// Governance stuff
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
@@ -137,7 +134,8 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Purchase(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
+			Call::Purchase(_) =>
 				true,
 		}
 	}
@@ -629,7 +627,7 @@ impl grandpa::Trait for Runtime {
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
 		Self::KeyOwnerIdentification,
-		primitives::fisherman::FishermanAppCrypto,
+		primitives::v0::fisherman::FishermanAppCrypto,
 		Runtime,
 		Offences,
 	>;
@@ -666,7 +664,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::fisherman::FishermanAppCrypto;
+	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -892,6 +890,7 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+					| Call::Poll(..)
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
@@ -941,6 +940,16 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 }
 
 parameter_types! {
+	pub const PollEnd: BlockNumber = 888_888;
+}
+
+impl poll::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type End = PollEnd;
+}
+
+parameter_types! {
 	pub const VestingTime: BlockNumber = 30 * DAYS;
 	pub const MaxStatementLength: usize = 1_000;
 }
@@ -958,7 +967,7 @@ impl purchase::Trait for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::Block,
+		NodeBlock = primitives::v0::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1020,6 +1029,9 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Poll module.
+		Poll: poll::{Module, Call, Storage, Event<T>},
 
 		// DOT Purchase module. Late addition.
 		Purchase: purchase::{Module, Call, Storage, Event<T>},
@@ -1165,7 +1177,7 @@ sp_api::impl_runtime_apis! {
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
 			Parachains::downward_messages(id)
 		}
 	}

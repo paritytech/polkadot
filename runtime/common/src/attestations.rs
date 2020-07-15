@@ -28,7 +28,7 @@ use frame_support::{
 	weights::DispatchClass,
 };
 
-use primitives::{Hash, parachain::{AttestedCandidate, AbridgedCandidateReceipt, Id as ParaId}};
+use primitives::v0::{Hash, AttestedCandidate, AbridgedCandidateReceipt, Id as ParaId};
 use sp_runtime::RuntimeDebug;
 use sp_staking::SessionIndex;
 

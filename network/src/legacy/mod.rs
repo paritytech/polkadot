@@ -25,7 +25,7 @@ pub mod gossip;
 
 use codec::Decode;
 use futures::prelude::*;
-use polkadot_primitives::Hash;
+use polkadot_primitives::v0::Hash;
 use sc_network::PeerId;
 use sc_network_gossip::TopicNotification;
 use log::debug;

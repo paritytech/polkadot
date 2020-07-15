@@ -35,7 +35,7 @@ use sp_runtime::{
 		TransactionSource, TransactionValidityError,
 	},
 };
-use primitives::ValidityError;
+use primitives::v0::ValidityError;
 
 type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
