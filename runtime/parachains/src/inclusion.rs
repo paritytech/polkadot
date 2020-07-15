@@ -84,7 +84,7 @@ decl_storage! {
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
 
 		/// The current session index.
-		CurrentSessionIndex: SessionIndex;
+		CurrentSessionIndex get(fn session_index): SessionIndex;
 	}
 }
 

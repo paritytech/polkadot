@@ -107,7 +107,7 @@ decl_storage! {
 		///
 		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
 		/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
-		ValidatorGroups: Vec<Vec<ValidatorIndex>>;
+		ValidatorGroups get(fn validator_groups): Vec<Vec<ValidatorIndex>>;
 
 		/// A queue of upcoming claims and which core they should be mapped onto.
 		///
@@ -120,14 +120,14 @@ decl_storage! {
 		/// parathread-multiplexers.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
-		AvailabilityCores: Vec<Option<CoreOccupied>>;
+		AvailabilityCores get(fn availability_cores): Vec<Option<CoreOccupied>>;
 		/// An index used to ensure that only one claim on a parathread exists in the queue or is
 		/// currently being handled by an occupied core.
 		///
 		/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
-		SessionStartBlock: T::BlockNumber;
+		SessionStartBlock get(fn session_start_block): T::BlockNumber;
 		/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
