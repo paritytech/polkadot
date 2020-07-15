@@ -68,6 +68,18 @@ pub struct CandidatePendingAvailability<H, N> {
 	backed_in_number: N,
 }
 
+impl<H, N> CandidatePendingAvailability<H, N> {
+	/// Get the availability votes on the candidate.
+	pub(crate) fn availability_votes(&self) -> &BitVec<BitOrderLsb0, u8> {
+		&self.availability_votes
+	}
+
+	/// Get the relay-chain block number this was backed in.
+	pub(crate) fn backed_in_number(&self) -> &N {
+		&self.backed_in_number
+	}
+}
+
 pub trait Trait: system::Trait + paras::Trait + configuration::Trait { }
 
 decl_storage! {
@@ -485,6 +497,36 @@ impl<T: Trait> Module<T> {
 		}
 
 		cleaned_up_cores
+	}
+
+	/// Forcibly enact the candidate with the given ID as though it had been deemed available
+	/// by bitfields.
+	///
+	/// Is a no-op if there is no candidate pending availability for this para-id.
+	/// This should generally not be used but it is useful during execution of Runtime APIs,
+	/// where the changes to the state are expected to be discarded directly after.
+	pub(crate) fn force_enact(para: ParaId) {
+		if let Some(pending) = <PendingAvailability<T>>::take(&para) {
+			Self::enact_candidate(
+				pending.relay_parent_number,
+				pending.receipt,
+			);
+		}
+	}
+
+	/// Returns the CommittedCandidateReceipt pending availability for the para provided, if any.
+	pub(crate) fn candidate_pending_availability(para: ParaId)
+		-> Option<CommittedCandidateReceipt<T::Hash>>
+	{
+		<PendingAvailability<T>>::get(&para).map(|p| p.receipt)
+	}
+
+	/// Returns the metadata around the candidate pending availability for the
+	/// para provided, if any.
+	pub(crate) fn pending_availability(para: ParaId)
+		-> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>
+	{
+		<PendingAvailability<T>>::get(&para)
 	}
 }
 
