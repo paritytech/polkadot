@@ -20,5 +20,5 @@ We assume these things about the underlying node environment:
   * The underlying **consensus** algorithm, whether it is BABE or SASSAFRAS is implemented.
   * There is a **chain synchronization** protocol which will search for and download the longest available chains at all times.
   * The **state** of all blocks at the head of the chain is available. There may be **state pruning** such that state of all finalized blocks more than `k` (~5) blocks behind the head of the chain may not be available.
-  * There is an underlying **networking** framework which provides **peer Ddscovery** services.
+  * There is an underlying **networking** framework which provides **peer Discovery** services.
   * There is a **transaction pool** and a **transaction propagation** mechanism which maintains a set of current transactions and distributes to connected peers.
