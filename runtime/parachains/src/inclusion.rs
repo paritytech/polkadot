@@ -517,7 +517,7 @@ mod tests {
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, HeadData, ValidationCode,
-		AssignmentKind,
+		AssignmentKind, CommittedCandidateReceipt,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -564,18 +564,18 @@ mod tests {
 
 	fn collator_sign_candidate(
 		collator: Sr25519Keyring,
-		candidate: &mut CommittedCandidateReceipt,
+		descriptor: &mut CandidateDescriptor,
 	) {
-		candidate.descriptor.collator = collator.public().into();
+		descriptor.collator = collator.public().into();
 
 		let payload = primitives::v1::collator_signature_payload(
-			&candidate.descriptor.relay_parent,
-			&candidate.descriptor.para_id,
-			&candidate.descriptor.pov_hash,
+			&descriptor.relay_parent,
+			&descriptor.para_id,
+			&descriptor.pov_hash,
 		);
 
-		candidate.descriptor.signature = collator.sign(&payload[..]).into();
-		assert!(candidate.descriptor().check_collator_signature().is_ok());
+		descriptor.signature = collator.sign(&payload[..]).into();
+		assert!(descriptor.check_collator_signature().is_ok());
 	}
 
 	fn back_candidate(
@@ -703,20 +703,20 @@ mod tests {
 	}
 
 	impl TestCandidateBuilder {
-		fn build(self) -> (CandidateDescriptor, CandidateCommitments) {
-			(
-				CandidateDescriptor {
+		fn build(self) -> CommittedCandidateReceipt {
+			CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
 					..Default::default()
 				},
-				CandidateCommitments {
+				commitments: CandidateCommitments {
 					head_data: self.head_data,
 					new_validation_code: self.new_validation_code,
 					..Default::default()
 				},
-			)
+			}
 		}
 	}
 
@@ -728,23 +728,24 @@ mod tests {
 
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		new_test_ext(genesis_config(paras)).execute_with(|| {
+			let default_candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				descriptor: Default::default(),
+				descriptor: default_candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
-			PendingAvailabilityCommitments::insert(chain_a, Default::default());
+			PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments.clone());
 
-			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
+			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				descriptor: Default::default(),
+				descriptor: default_candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
-			PendingAvailabilityCommitments::insert(chain_b, Default::default());
+			PendingAvailabilityCommitments::insert(chain_b, default_candidate.commitments);
 
 			run_to_block(5, |_| None);
 
@@ -758,7 +759,7 @@ mod tests {
 			assert!(<PendingAvailability<Test>>::get(&chain_a).is_none());
 			assert!(<PendingAvailability<Test>>::get(&chain_b).is_some());
 			assert!(<PendingAvailabilityCommitments>::get(&chain_a).is_none());
-			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_none());
+			assert!(<PendingAvailabilityCommitments>::get(&chain_b).is_some());
 		});
 	}
 
@@ -889,14 +890,15 @@ mod tests {
 
 				assert_eq!(core_lookup(CoreIndex::from(0)), Some(chain_a));
 
+				let default_candidate = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					descriptor: Default::default(),
+					descriptor: default_candidate.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: 0,
 					backed_in_number: 0,
 				});
-				PendingAvailabilityCommitments::insert(chain_a, Default::default());
+				PendingAvailabilityCommitments::insert(chain_a, default_candidate.commitments);
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
 				let signed = sign_bitfield(
@@ -946,7 +948,7 @@ mod tests {
 				_ => panic!("Core out of bounds for 2 parachains and 1 parathread core."),
 			};
 
-			let (descriptor, commitments) = TestCandidateBuilder {
+			let candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
 				head_data: vec![1, 2, 3, 4].into(),
 				..Default::default()
@@ -954,14 +956,14 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				descriptor,
+				descriptor: candidate_a.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
-			PendingAvailabilityCommitments::insert(chain_a, commitments);
+			PendingAvailabilityCommitments::insert(chain_a, candidate_a.commitments);
 
-			let (descriptor, commitments) = TestCandidateBuilder {
+			let candidate_b = TestCandidateBuilder {
 				para_id: chain_b,
 				head_data: vec![5, 6, 7, 8].into(),
 				..Default::default()
@@ -969,12 +971,12 @@ mod tests {
 
 			<PendingAvailability<Test>>::insert(chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				descriptor,
+				descriptor: candidate_b.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 0,
 				backed_in_number: 0,
 			});
-			PendingAvailabilityCommitments::insert(chain_b, commitments);
+			PendingAvailabilityCommitments::insert(chain_b, candidate_b.commitments);
 
 			// this bitfield signals that a and b are available.
 			let a_and_b_available = {
@@ -1104,7 +1106,7 @@ mod tests {
 
 			// unscheduled candidate.
 			{
-				let mut candidate = TestCandidateBuilder {
+				let mut candidate  = TestCandidateBuilder {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
@@ -1112,7 +1114,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1147,12 +1149,12 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate_a,
+					&mut candidate_a.descriptor,
 				);
 
 				collator_sign_candidate(
 					Sr25519Keyring::Two,
-					&mut candidate_b,
+					&mut candidate_b.descriptor,
 				);
 
 				let backed_a = back_candidate(
@@ -1188,7 +1190,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1219,7 +1221,7 @@ mod tests {
 				}.build();
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1249,7 +1251,7 @@ mod tests {
 				assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1283,7 +1285,7 @@ mod tests {
 				assert_eq!(CollatorId::from(Sr25519Keyring::Two.public()), thread_collator);
 				collator_sign_candidate(
 					Sr25519Keyring::Two,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				// change the candidate after signing.
@@ -1315,7 +1317,7 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1326,7 +1328,7 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				let (descriptor, commitments) = TestCandidateBuilder::default().build();
+				let CommittedCandidateReceipt { descriptor, commitments }  = TestCandidateBuilder::default().build();
 				<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 					core: CoreIndex::from(0),
 					descriptor,
@@ -1357,7 +1359,7 @@ mod tests {
 
 				collator_sign_candidate(
 					Sr25519Keyring::One,
-					&mut candidate,
+					&mut candidate.descriptor,
 				);
 
 				let backed = back_candidate(
@@ -1450,7 +1452,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
-				&mut candidate_a,
+				&mut candidate_a.descriptor,
 			);
 
 			let mut candidate_b = TestCandidateBuilder {
@@ -1461,7 +1463,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
-				&mut candidate_b,
+				&mut candidate_b.descriptor,
 			);
 
 			let mut candidate_c = TestCandidateBuilder {
@@ -1472,7 +1474,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::Two,
-				&mut candidate_c,
+				&mut candidate_c.descriptor,
 			);
 
 			let backed_a = back_candidate(
@@ -1515,7 +1517,7 @@ mod tests {
 				<PendingAvailability<Test>>::get(&chain_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(0),
-					descriptor: candidate_a.0,
+					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
@@ -1523,14 +1525,14 @@ mod tests {
 			);
 			assert_eq!(
 				<PendingAvailabilityCommitments>::get(&chain_a),
-				Some(candidate_a.1),
+				Some(candidate_a.commitments),
 			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&chain_b),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(1),
-					descriptor: candidate_b.0,
+					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
@@ -1538,22 +1540,22 @@ mod tests {
 			);
 			assert_eq!(
 				<PendingAvailabilityCommitments>::get(&chain_b),
-				Some(candidate_b.1),
+				Some(candidate_b.commitments),
 			);
 
 			assert_eq!(
 				<PendingAvailability<Test>>::get(&thread_a),
 				Some(CandidatePendingAvailability {
 					core: CoreIndex::from(2),
-					descriptor: candidate_c.0,
+					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
 					relay_parent_number: System::block_number() - 1,
 					backed_in_number: System::block_number(),
 				})
 			);
 			assert_eq!(
-				<PendingAvailabilityCommitments>::get(&chain_c),
-				Some(candidate_c.1),
+				<PendingAvailabilityCommitments>::get(&thread_a),
+				Some(candidate_c.commitments),
 			);
 		});
 	}
@@ -1612,24 +1614,24 @@ mod tests {
 				},
 			);
 
-			let (descriptor, commitments) = TestCandidateBuilder::default().build();
+			let candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(&chain_a, CandidatePendingAvailability {
 				core: CoreIndex::from(0),
-				descriptor: descriptor.clone(),
+				descriptor: candidate.descriptor.clone(),
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 5,
 				backed_in_number: 6,
 			});
-			<PendingAvailabilityCommitments>::insert(&chain_a, commitments.clone());
+			<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments.clone());
 
 			<PendingAvailability<Test>>::insert(&chain_b, CandidatePendingAvailability {
 				core: CoreIndex::from(1),
-				descriptor,
+				descriptor: candidate.descriptor,
 				availability_votes: default_availability_votes(),
 				relay_parent_number: 6,
 				backed_in_number: 7,
 			});
-			<PendingAvailabilityCommitments>::insert(&chain_b, commitments);
+			<PendingAvailabilityCommitments>::insert(&chain_b, candidate.commitments);
 
 			run_to_block(11, |_| None);
 
