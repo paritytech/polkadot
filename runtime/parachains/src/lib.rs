@@ -40,9 +40,9 @@ pub mod runtime_api_impl_v1 {
 	use primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
 		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied,
+		CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	};
-	use sp_runtime::traits::One;
+	use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT};
 	use crate::{initializer, inclusion, scheduler, configuration, paras};
 
 	/// Implementation for the `validators` function of the runtime API.
@@ -65,35 +65,74 @@ pub mod runtime_api_impl_v1 {
 	pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumber>> {
 		let cores = <scheduler::Module<T>>::availability_cores();
 		let parachains = <paras::Module<T>>::parachains();
+		let config = <configuration::Module<T>>::config();
+
+		let rotation_info = <scheduler::Module<T>>::group_rotation_info();
+
+		let time_out_at = |backed_in_number, availability_period| {
+			let time_out_at = backed_in_number + availability_period;
+			let current_window = rotation_info.last_rotation_at() + availability_period;
+			let next_rotation = rotation_info.next_rotation_at();
+
+			// If we are within `period` blocks of rotation, timeouts are being checked
+			// actively. We could even time out this block.
+			if time_out_at < current_window {
+				time_out_at
+			} else if time_out_at <= next_rotation {
+				// Otherwise, it will time out at the sooner of the next rotation
+				next_rotation
+			} else {
+				// or the scheduled time-out. This is by definition within `period` blocks
+				// of `next_rotation` and is thus a valid timeout block.
+				time_out_at
+			}
+		};
 
 		let mut core_states: Vec<_> = cores.into_iter().enumerate().map(|(i, core)| match core {
 			Some(occupied) => {
-				// TODO [now]: flesh out
 				CoreState::Occupied(match occupied {
 					CoreOccupied::Parachain => {
 						let para = parachains[i];
-						let next_up = ScheduledCore {
-							para,
-							collator: None,
-						};
+						let pending_availability = <inclusion::Module<T>>
+							::pending_availability(para)
+							.expect("Occupied core always has pending availability; qed");
 
 						OccupiedCore {
 							para,
-							next_up_on_available: Some(next_up.clone()),
-							occupied_since: unimplemented!(),
-							time_out_at: unimplemented!(),
-							next_up_on_time_out: Some(next_up.clone()),
-							availability: unimplemented!(),
+							next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
+								CoreIndex(i as u32)
+							),
+							occupied_since: pending_availability.backed_in_number().clone(),
+							time_out_at: time_out_at(
+								pending_availability.backed_in_number().clone(),
+								config.chain_availability_period,
+							),
+							next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
+								CoreIndex(i as u32)
+							),
+							availability: pending_availability.availability_votes().clone(),
 						}
 					}
 					CoreOccupied::Parathread(p) => {
+						let para = p.claim.0;
+						let pending_availability = <inclusion::Module<T>>
+							::pending_availability(para)
+							.expect("Occupied core always has pending availability; qed");
+
 						OccupiedCore {
-							para: p.claim.0,
-							next_up_on_available: unimplemented!(),
-							occupied_since: unimplemented!(),
-							time_out_at: unimplemented!(),
-							next_up_on_time_out: unimplemented!(),
-							availability: unimplemented!(),
+							para,
+							next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
+								CoreIndex(i as u32)
+							),
+							occupied_since: pending_availability.backed_in_number().clone(),
+							time_out_at: time_out_at(
+								pending_availability.backed_in_number().clone(),
+								config.thread_availability_period,
+							),
+							next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
+								CoreIndex(i as u32)
+							),
+							availability: pending_availability.availability_votes().clone(),
 						}
 					}
 				})
@@ -128,19 +167,31 @@ pub mod runtime_api_impl_v1 {
 		para: ParaId,
 		assumption: OccupiedCoreAssumption,
 	) -> Option<LocalValidationData<T::BlockNumber>> {
+		let construct = || {
+			Some(LocalValidationData {
+				parent_head: <paras::Module<T>>::para_head(&para)?,
+				balance: 0,
+				validation_code_hash: BlakeTwo256::hash_of(
+					&<paras::Module<T>>::current_code(&para)?
+				),
+				code_upgrade_allowed: unimplemented!(), // TODO [now] add function in `paras` for this.
+			})
+		};
+
 		match assumption {
 			OccupiedCoreAssumption::Included => {
-				// TODO [now]: enact candidate from inclusion module. then construct based on
-				// paras module.
-				unimplemented!()
+				<inclusion::Module<T>>::force_enact(para);
+				construct()
 			}
 			OccupiedCoreAssumption::TimedOut => {
-				// TODO [now]: can just construct based on what is in paras module.
-				unimplemented!()
+				construct()
 			}
 			OccupiedCoreAssumption::Free => {
-				// TODO [now]: check that the para has no candidate pending availability.
-				unimplemented!()
+				if <inclusion::Module<T>>::pending_availability(para).is_some() {
+					None
+				} else {
+					construct()
+				}
 			}
 		}
 	}
@@ -162,19 +213,24 @@ pub mod runtime_api_impl_v1 {
 		para: ParaId,
 		assumption: OccupiedCoreAssumption,
 	) -> Option<ValidationCode> {
+		let fetch = || {
+			<paras::Module<T>>::current_code(&para)
+		};
+
 		match assumption {
 			OccupiedCoreAssumption::Included => {
-				// TODO [now]: enact candidate from inclusion module. then construct based on
-				// paras module.
-				unimplemented!()
+				<inclusion::Module<T>>::force_enact(para);
+				fetch()
 			}
 			OccupiedCoreAssumption::TimedOut => {
-				// TODO [now]: can just construct based on what is in paras module.
-				unimplemented!()
+				fetch()
 			}
 			OccupiedCoreAssumption::Free => {
-				// TODO [now]: check that the para has no candidate pending availability.
-				unimplemented!()
+				if <inclusion::Module<T>>::pending_availability(para).is_some() {
+					None
+				} else {
+					fetch()
+				}
 			}
 		}
 	}
@@ -183,7 +239,6 @@ pub mod runtime_api_impl_v1 {
 	pub fn candidate_pending_availability<T: initializer::Trait>(para: ParaId)
 		-> Option<CommittedCandidateReceipt<T::Hash>>
 	{
-		// TODO [now] draw out from inclusion module.
-		unimplemented!()
+		<inclusion::Module<T>>::candidate_pending_availability(para)
 	}
 }

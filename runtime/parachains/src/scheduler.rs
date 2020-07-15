@@ -647,8 +647,6 @@ impl<T: Trait> Module<T> {
 					collator: Some(entry.claim.1.clone()),
 				})
 				.or_else(|| {
-					let queue = ParathreadQueue::get();
-
 					// Or, if none, the claim currently occupying the core,
 					// as it would be put back on the queue after timing out.
 					let cores = AvailabilityCores::get();
