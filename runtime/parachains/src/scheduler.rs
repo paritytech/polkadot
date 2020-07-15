@@ -39,7 +39,7 @@ use sp_std::prelude::*;
 use sp_std::convert::TryInto;
 use primitives::v1::{
 	Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
-	GroupIndex, ParathreadClaim, ParathreadEntry,
+	GroupIndex, ParathreadClaim, ParathreadEntry, GroupRotationInfo, ScheduledCore,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -84,10 +84,16 @@ impl ParathreadClaimQueue {
 		})
 	}
 
-	// Take next queued entry with given core offset, if any.
+	/// Take next queued entry with given core offset, if any.
 	fn take_next_on_core(&mut self, core_offset: u32) -> Option<ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| self.queue.remove(i).claim)
+	}
+
+	/// Get the next queued entry with given core offset, if any.
+	fn get_next_on_core(&self, core_offset: u32) -> Option<&ParathreadEntry> {
+		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
+		pos.map(|i| &self.queue[i].claim)
 	}
 }
 
@@ -576,6 +582,89 @@ impl<T: Trait> Module<T> {
 					}
 				}
 			}))
+		}
+	}
+
+	/// Returns a helper for determining group rotation.
+	pub(crate) fn group_rotation_info() -> GroupRotationInfo<T::BlockNumber> {
+		let session_start_block = Self::session_start_block();
+		let now = <system::Module<T>>::block_number();
+		let group_rotation_frequency = <configuration::Module<T>>::config()
+			.parachain_rotation_frequency;
+
+		GroupRotationInfo {
+			session_start_block,
+			now,
+			group_rotation_frequency,
+		}
+	}
+
+	/// Return the next thing that will be scheduled on this core assuming it is currently
+	/// occupied and the candidate occupying it became available.
+	///
+	/// For parachains, this is always the ID of the parachain and no specified collator.
+	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// core, and is None if there isn't one.
+	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
+		let parachains = <paras::Module<T>>::parachains();
+		if (core.0 as usize) < parachains.len() {
+			Some(ScheduledCore {
+				para: parachains[core.0 as usize],
+				collator: None,
+			})
+		} else {
+			let queue = ParathreadQueue::get();
+			let core_offset = (core.0 as usize - parachains.len()) as u32;
+			queue.get_next_on_core(core_offset).map(|entry| ScheduledCore {
+				para: entry.claim.0,
+				collator: Some(entry.claim.1.clone()),
+			})
+		}
+	}
+
+	/// Return the next thing that will be scheduled on this core assuming it is currently
+	/// occupied and the candidate occupying it became available.
+	///
+	/// For parachains, this is always the ID of the parachain and no specified collator.
+	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// core, or if there isn't one, the claim that is currently occupying the core, as long
+	/// as the claim's retries would not exceed the limit. Otherwise None.
+	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
+		let parachains = <paras::Module<T>>::parachains();
+		if (core.0 as usize) < parachains.len() {
+			Some(ScheduledCore {
+				para: parachains[core.0 as usize],
+				collator: None,
+			})
+		} else {
+			let queue = ParathreadQueue::get();
+
+			// This is the next scheduled para on this core.
+			let core_offset = (core.0 as usize - parachains.len()) as u32;
+			queue.get_next_on_core(core_offset)
+				.map(|entry| ScheduledCore {
+					para: entry.claim.0,
+					collator: Some(entry.claim.1.clone()),
+				})
+				.or_else(|| {
+					let queue = ParathreadQueue::get();
+
+					// Or, if none, the claim currently occupying the core,
+					// as it would be put back on the queue after timing out.
+					let cores = AvailabilityCores::get();
+					let config = <configuration::Module<T>>::config();
+					cores.get(core.0 as usize).and_then(|c| c.as_ref()).and_then(|o| {
+						match o {
+							CoreOccupied::Parathread(entry) => {
+								Some(ScheduledCore {
+									para: entry.claim.0,
+									collator: Some(entry.claim.1.clone()),
+								})
+							}
+							CoreOccupied::Parachain => None, // defensive; not possible.
+						}
+					})
+				})
 		}
 	}
 }
