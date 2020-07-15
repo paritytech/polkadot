@@ -30,6 +30,7 @@ use frame_support::{
 	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
 	weights::Weight,
 	traits::Get,
+	debug,
 };
 use codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -266,7 +267,17 @@ impl<T: Trait> Module<T> {
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
-				<PendingAvailabilityCommitments>::remove(&para_id);
+				let commitments = match <PendingAvailabilityCommitments>::take(&para_id) {
+					Some(commitments) => commitments,
+					None => {
+						debug::warn!(r#"
+						Inclusion::process_bitfields:
+							PendingAvailability and PendingAvailabilityCommitments
+							are out of sync, did someone messed up with the storage?
+						"#);
+						continue;
+					}
+				};
 
 				let receipt = CommittedCandidateReceipt {
 					descriptor: pending_availability.descriptor,
@@ -1345,6 +1356,41 @@ mod tests {
 				).is_err());
 
 				<PendingAvailability<Test>>::remove(&chain_a);
+				<PendingAvailabilityCommitments>::remove(&chain_a);
+			}
+
+			// messed up commitments storage - do not panic - reject.
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::from([1; 32]),
+					..Default::default()
+				}.build();
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				// this is not supposed to happen
+				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments.clone());
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert!(Inclusion::process_candidates(
+					vec![backed],
+					vec![chain_a_assignment.clone()],
+					&group_validators,
+				).is_err());
+
+				<PendingAvailabilityCommitments>::remove(&chain_a);
 			}
 
 			// interfering code upgrade - reject
@@ -1452,7 +1498,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
-				&mut candidate_a.descriptor,
+				&mut candidate_a,
 			);
 
 			let mut candidate_b = TestCandidateBuilder {
@@ -1463,7 +1509,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::One,
-				&mut candidate_b.descriptor,
+				&mut candidate_b,
 			);
 
 			let mut candidate_c = TestCandidateBuilder {
@@ -1474,7 +1520,7 @@ mod tests {
 			}.build();
 			collator_sign_candidate(
 				Sr25519Keyring::Two,
-				&mut candidate_c.descriptor,
+				&mut candidate_c,
 			);
 
 			let backed_a = back_candidate(
