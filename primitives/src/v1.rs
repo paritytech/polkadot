@@ -141,13 +141,13 @@ impl<H> CandidateReceipt<H> {
 /// All data pertaining to the execution of a para candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct FullCandidateReceipt<H = Hash> {
+pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 }
 
 /// A candidate-receipt with commitments directly included.
@@ -204,7 +204,7 @@ impl Ord for CommittedCandidateReceipt {
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct LocalValidationData {
+pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
@@ -222,7 +222,7 @@ pub struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
-	pub code_upgrade_allowed: Option<BlockNumber>,
+	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -231,13 +231,13 @@ pub struct LocalValidationData {
 /// These are global parameters that apply to all candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule {
+pub struct GlobalValidationSchedule<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: BlockNumber,
+	pub block_number: N,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -482,13 +482,13 @@ pub struct AvailableData {
 /// A helper data-type for tracking validator-group rotations.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct GroupRotationInfo {
+pub struct GroupRotationInfo<N = BlockNumber> {
 	/// The block number where the session started.
-	pub session_start_block: BlockNumber,
+	pub session_start_block: N,
 	/// How often groups rotate. 0 means never.
-	pub group_rotation_frequency: BlockNumber,
+	pub group_rotation_frequency: N,
 	/// The current block number.
-	pub now: BlockNumber,
+	pub now: N,
 }
 
 impl GroupRotationInfo {
@@ -510,16 +510,16 @@ impl GroupRotationInfo {
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct OccupiedCore {
+pub struct OccupiedCore<N = BlockNumber> {
 	/// The ID of the para occupying the core.
 	pub para: Id,
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
 	/// The relay-chain block number this began occupying the core at.
-	pub occupied_since: BlockNumber,
+	pub occupied_since: N,
 	/// The relay-chain block this will time-out at, if any.
-	pub time_out_at: BlockNumber,
+	pub time_out_at: N,
 	/// If this core is freed by being timed-out, this is the assignment that is next up on this
 	/// core. None if there is nothing queued for this core or there is no possibility of timing
 	/// out.
@@ -543,10 +543,10 @@ pub struct ScheduledCore {
 /// The state of a particular availability core.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum CoreState {
+pub enum CoreState<N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = "0")]
-	Occupied(OccupiedCore),
+	Occupied(OccupiedCore<N>),
 	/// The core is currently free, with a para scheduled and given the opportunity
 	/// to occupy.
 	///
@@ -577,22 +577,22 @@ pub enum OccupiedCoreAssumption {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost {
+	pub trait ParachainHost<H: Decode, N: Decode> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
 		/// Returns the validator groups and rotation info localized based on the block whose state
 		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 		/// the number of the block.
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
-		fn availability_cores() -> Vec<CoreState>;
+		fn availability_cores() -> Vec<CoreState<N>>;
 
 		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
 		/// relay-parent equal to the block in which context this is invoked in.
-		fn global_validation_schedule() -> GlobalValidationSchedule;
+		fn global_validation_schedule() -> GlobalValidationSchedule<N>;
 
 		/// Yields the LocalValidationData for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.
@@ -600,7 +600,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
 		fn local_validation_data(para: Id, assumption: OccupiedCoreAssumption)
-			-> Option<LocalValidationData>;
+			-> Option<LocalValidationData<N>>;
 
 		/// Returns the session index expected at a child of the block.
 		///
@@ -615,6 +615,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		fn candidate_pending_availability(para: Id) -> Option<CommittedCandidateReceipt>;
+		fn candidate_pending_availability(para: Id) -> Option<CommittedCandidateReceipt<H>>;
 	}
 }
