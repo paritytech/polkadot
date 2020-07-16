@@ -273,7 +273,7 @@ impl<T: Trait> Module<T> {
 						debug::warn!(r#"
 						Inclusion::process_bitfields:
 							PendingAvailability and PendingAvailabilityCommitments
-							are out of sync, did someone messed up with the storage?
+							are out of sync, did someone mess with the storage?
 						"#);
 						continue;
 					}
