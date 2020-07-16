@@ -18,5 +18,5 @@
 //!
 //! This provides a clean, ownerless wrapper around the parachain-related runtime APIs. This crate
 //! can also be used to cache responses from heavy runtime APIs.
-
-// TODO [now]: wrap a client that implements `ProvideRuntimeApi` for our Runtime API trait.
+//!
+//! TODO: https://github.com/paritytech/polkadot/issues/1419 implement this.
