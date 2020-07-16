@@ -617,16 +617,31 @@ where
 
 #[cfg(test)]
 mod tests {
-	use super::*;
-
 	use assert_matches::assert_matches;
-	use crate::messages::{AllMessages, CandidateSelectionMessage};
-	use futures::{
-		executor::{self, ThreadPool},
-		stream::{self, StreamExt},
+	use crate::{
+		messages::{AllMessages, CandidateSelectionMessage},
+		util::{
+			JobManager,
+			JobTrait,
+			ToJobTrait,
+		},
 	};
+	use futures::{
+		channel::mpsc,
+		executor::{self, ThreadPool},
+		future,
+		Future,
+		FutureExt,
+		stream::{self, StreamExt},
+		SinkExt,
+	};
+	use polkadot_primitives::v1::Hash;
 	use polkadot_subsystem_test_helpers::make_subsystem_context;
-	use std::collections::HashMap;
+	use std::{
+		collections::HashMap,
+		convert::TryFrom,
+		pin::Pin,
+	};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
 	// you can leave the subsystem itself to the job manager.
