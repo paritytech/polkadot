@@ -59,14 +59,17 @@ Messages to and from the availability store.
 
 ```rust
 enum AvailabilityStoreMessage {
-	/// Query the PoV of a candidate by hash.
-	QueryPoV(Hash, ResponseChannel<PoV>),
+	/// Query the AvailableData of a candidate by hash.
+	QueryPoV(Hash, ResponseChannel<Option<AvailableData>>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<AvailabilityChunkAndProof>),
+	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
 	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof),
+	/// Store a whole AvailableData of a candidate by hash. Return the result of the storage
+	/// operation to the caller.
+	StorePoV(Hash, Option<ValidatorIndex>, AvailableData, ResponseChannel<Result<(), Error>>),
 }
 ```
 
