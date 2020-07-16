@@ -39,7 +39,7 @@ use primitives::v0::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
-		transaction_validity::{
+	transaction_validity::{
 		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
@@ -117,9 +117,9 @@ impl Filter<Call> for BaseFilter {
 		match call {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
-			// Governance stuff
+			// Governance stuff, minus council elections.
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
-			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
+			Call::TechnicalMembership(_) | Call::Treasury(_) |
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
@@ -128,6 +128,7 @@ impl Filter<Call> for BaseFilter {
 				false,
 
 			// These modules are all allowed to be called by transactions:
+			Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
@@ -213,7 +214,7 @@ impl babe::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+	babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -486,8 +487,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	/// Weekly council elections initially, later monthly.
-	pub const TermDuration: BlockNumber = 7 * DAYS;
+	/// Daily council elections initially, later weekly and monthly.
+	pub const TermDuration: BlockNumber = 1 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
@@ -615,7 +616,7 @@ impl grandpa::Trait for Runtime {
 	type Call = Call;
 
 	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+	<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
