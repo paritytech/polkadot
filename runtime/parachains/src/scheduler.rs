@@ -650,7 +650,6 @@ impl<T: Trait> Module<T> {
 					// Or, if none, the claim currently occupying the core,
 					// as it would be put back on the queue after timing out.
 					let cores = AvailabilityCores::get();
-					let config = <configuration::Module<T>>::config();
 					cores.get(core.0 as usize).and_then(|c| c.as_ref()).and_then(|o| {
 						match o {
 							CoreOccupied::Parathread(entry) => {

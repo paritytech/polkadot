@@ -41,8 +41,10 @@ pub mod runtime_api_impl_v1 {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
 		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
+		GroupIndex,
 	};
-	use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT};
+	use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
+	use frame_support::debug;
 	use crate::{initializer, inclusion, scheduler, configuration, paras};
 
 	/// Implementation for the `validators` function of the runtime API.
@@ -88,6 +90,18 @@ pub mod runtime_api_impl_v1 {
 			}
 		};
 
+		let group_responsible_for = |backed_in_number, core_index| {
+			match <scheduler::Module<T>>::group_assigned_to_core(core_index, backed_in_number) {
+				Some(g) => g,
+				None =>  {
+					debug::warn!("Could not determine the group responsible for core extracted \
+						from list of cores for some prior block in same session");
+
+					GroupIndex(0)
+				}
+			}
+		};
+
 		let mut core_states: Vec<_> = cores.into_iter().enumerate().map(|(i, core)| match core {
 			Some(occupied) => {
 				CoreState::Occupied(match occupied {
@@ -97,20 +111,25 @@ pub mod runtime_api_impl_v1 {
 							::pending_availability(para)
 							.expect("Occupied core always has pending availability; qed");
 
+						let backed_in_number = pending_availability.backed_in_number().clone();
 						OccupiedCore {
 							para,
 							next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 								CoreIndex(i as u32)
 							),
-							occupied_since: pending_availability.backed_in_number().clone(),
+							occupied_since: backed_in_number,
 							time_out_at: time_out_at(
-								pending_availability.backed_in_number().clone(),
+								backed_in_number,
 								config.chain_availability_period,
 							),
 							next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
 								CoreIndex(i as u32)
 							),
 							availability: pending_availability.availability_votes().clone(),
+							group_responsible: group_responsible_for(
+								backed_in_number,
+								pending_availability.core_occupied(),
+							),
 						}
 					}
 					CoreOccupied::Parathread(p) => {
@@ -119,20 +138,25 @@ pub mod runtime_api_impl_v1 {
 							::pending_availability(para)
 							.expect("Occupied core always has pending availability; qed");
 
+						let backed_in_number = pending_availability.backed_in_number().clone();
 						OccupiedCore {
 							para,
 							next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 								CoreIndex(i as u32)
 							),
-							occupied_since: pending_availability.backed_in_number().clone(),
+							occupied_since: backed_in_number,
 							time_out_at: time_out_at(
-								pending_availability.backed_in_number().clone(),
+								backed_in_number,
 								config.thread_availability_period,
 							),
 							next_up_on_time_out: <scheduler::Module<T>>::next_up_on_time_out(
 								CoreIndex(i as u32)
 							),
 							availability: pending_availability.availability_votes().clone(),
+							group_responsible: group_responsible_for(
+								backed_in_number,
+								pending_availability.core_occupied(),
+							),
 						}
 					}
 				})
@@ -168,13 +192,29 @@ pub mod runtime_api_impl_v1 {
 		assumption: OccupiedCoreAssumption,
 	) -> Option<LocalValidationData<T::BlockNumber>> {
 		let construct = || {
+			let relay_parent_number = <system::Module<T>>::block_number() - One::one();
+
+			let config = <configuration::Module<T>>::config();
+			let freq = config.validation_upgrade_frequency;
+			let delay = config.validation_upgrade_delay;
+
+			let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para, true)?;
+			let can_upgrade_code = last_code_upgrade <= relay_parent_number
+				&& relay_parent_number.saturating_sub(last_code_upgrade) >= freq;
+
+			let code_upgrade_allowed = if can_upgrade_code {
+				Some(relay_parent_number + delay)
+			} else {
+				None
+			};
+
 			Some(LocalValidationData {
 				parent_head: <paras::Module<T>>::para_head(&para)?,
 				balance: 0,
 				validation_code_hash: BlakeTwo256::hash_of(
 					&<paras::Module<T>>::current_code(&para)?
 				),
-				code_upgrade_allowed: unimplemented!(), // TODO [now] add function in `paras` for this.
+				code_upgrade_allowed,
 			})
 		};
 

@@ -78,6 +78,11 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	pub(crate) fn backed_in_number(&self) -> &N {
 		&self.backed_in_number
 	}
+
+	/// Get the core index.
+	pub(crate) fn core_occupied(&self)-> CoreIndex {
+		self.core.clone()
+	}
 }
 
 pub trait Trait: system::Trait + paras::Trait + configuration::Trait { }

@@ -498,15 +498,15 @@ impl GroupRotationInfo {
 	///
 	/// `core_index` should be less than `cores`, which in turn should be less than u32::max().
 	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
-		if self.group_rotation_frequency == 0 { return core_index }
-		if cores == 0 { return 0 }
+		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
+		if cores == 0 { return GroupIndex(0) }
 
-		let cores = sp_std::cmp::max(cores, u32::max_value());
+		let cores = sp_std::cmp::max(cores, u32::max_value() as usize);
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 
 		let idx = (core_index.0 as usize + rotations as usize) % cores;
-		GroupIndex(idx)
+		GroupIndex(idx as u32)
 	}
 }
 
