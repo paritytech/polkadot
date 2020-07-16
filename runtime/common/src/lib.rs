@@ -28,10 +28,11 @@ pub mod crowdfund;
 pub mod impls;
 
 use primitives::v0::BlockNumber;
-use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
+use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
+use system::weights;
 use frame_support::{
 	parameter_types, traits::{Currency},
-	weights::{Weight, constants::WEIGHT_PER_SECOND},
+	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
 };
 use transaction_payment::{TargetedFeeAdjustment, Multiplier};
 use static_assertions::const_assert;
@@ -53,19 +54,16 @@ pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::T
 
 /// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 10%`.
-const AVERAGE_ON_INITIALIZE_WEIGHT: Perbill = Perbill::from_percent(10);
+const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
+/// We allow `Normal` extrinsics to fill up the block up to 75%, the rest can be used
+/// by  Operational  extrinsics.
+const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
+/// We allow for 2 seconds of compute with a 6 second average block time.
+const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
 // Common constants used in all runtimes.
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 2400;
-	/// Block time that can be used by weights.
-	pub const MaximumBlockWeight: Weight = 2 * WEIGHT_PER_SECOND;
-	/// Portion of the block available to normal class of dispatches.
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
-	/// Maximum weight that a _single_ extrinsic can take.
-	pub MaximumExtrinsicWeight: Weight = AvailableBlockRatio::get()
-		.saturating_sub(AVERAGE_ON_INITIALIZE_WEIGHT) * MaximumBlockWeight::get();
-	/// Maximum length of block. 5MB.
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 	/// The portion of the `AvailableBlockRatio` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
@@ -77,9 +75,26 @@ parameter_types! {
 	/// that combined with `AdjustmentVariable`, we can recover from the minimum.
 	/// See `multiplier_can_grow_from_zero`.
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
+	/// Maximum length of block. Up to 5MB.
+	pub BlockLength: weights::BlockLength =
+		weights::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	/// Block weights base values and limits.
+	pub BlockWeights: weights::BlockWeights = weights::BlockWeights::builder()
+		.base_block(BlockExecutionWeight::get())
+		.base_extrinsic(ExtrinsicBaseWeight::get(), weights::ExtrinsicDispatchClass::All)
+		.max_for_class(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT, DispatchClass::Normal)
+		.max_for_class(MAXIMUM_BLOCK_WEIGHT, DispatchClass::Operational)
+		// Operational transactions have an extra reserved space, so that they
+		// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+		.reserved(
+			MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
+			DispatchClass::Operational
+		)
+		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
+		.build_or_panic();
 }
 
-const_assert!(AvailableBlockRatio::get().deconstruct() >= AVERAGE_ON_INITIALIZE_WEIGHT.deconstruct());
+const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
 /// Parameterized slow adjusting fee updated based on
 /// https://w3f-research.readthedocs.io/en/latest/polkadot/Token%20Economics.html#-2.-slow-adjusting-mechanism
@@ -110,14 +125,18 @@ mod multiplier_tests {
 
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
-		pub const ExtrinsicBaseWeight: u64 = 100;
-		pub const MaximumBlockWeight: Weight = 1024;
-		pub const MaximumBlockLength: u32 = 2 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
+		pub BlockLength: system::weights::BlockLength =
+			system::weights::BlockLength::max(2 * 1024);
+		pub BlockWeights: system::weights::BlockWeights =
+			system::weights::BlockWeights::simple_max(1024);
 	}
 
 	impl system::Trait for Runtime {
 		type BaseCallFilter = ();
+		type BlockWeights = BlockWeights;
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Index = u64;
 		type BlockNumber = u64;
@@ -129,13 +148,6 @@ mod multiplier_tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = ();
