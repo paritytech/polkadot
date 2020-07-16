@@ -109,6 +109,8 @@ struct OccupiedCore {
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
 	availability: Bitfield,
+	/// The group assigned to distribute availability pieces of this candidate.
+	group_responsible: GroupIndex,
 }
 
 struct ScheduledCore {
