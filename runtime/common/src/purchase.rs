@@ -17,7 +17,7 @@
 //! Module to process purchase of DOTs.
 
 use codec::{Encode, Decode};
-use sp_runtime::{RuntimeDebug, DispatchResult, DispatchError, AnySignature};
+use sp_runtime::{Permill, RuntimeDebug, DispatchResult, DispatchError, AnySignature};
 use sp_runtime::traits::{Zero, CheckedAdd, Verify};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
@@ -93,6 +93,8 @@ pub struct AccountStatus<Balance> {
 	locked_balance: Balance,
 	/// Their sr25519/ed25519 signature verifying they have signed our required statement.
 	signature: Vec<u8>,
+	/// The percentage of VAT the purchaser is responsible for. This is already factored into account balance.
+	vat: Permill,
 }
 
 decl_event!(
@@ -182,6 +184,7 @@ decl_module! {
 				signature,
 				free_balance: Zero::zero(),
 				locked_balance: Zero::zero(),
+				vat: Permill::zero(),
 			};
 			Accounts::<T>::insert(&who, status);
 			Self::deposit_event(RawEvent::AccountCreated(who));
@@ -218,6 +221,7 @@ decl_module! {
 			who: T::AccountId,
 			free_balance: BalanceOf<T>,
 			locked_balance: BalanceOf<T>,
+			vat: Permill,
 		) {
 			T::ValidityOrigin::ensure_origin(origin)?;
 
@@ -227,6 +231,7 @@ decl_module! {
 				free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
 				status.free_balance = free_balance;
 				status.locked_balance = locked_balance;
+				status.vat = vat;
 				Ok(())
 			})?;
 			Self::deposit_event(RawEvent::BalanceUpdated(who, free_balance, locked_balance));
@@ -634,6 +639,7 @@ mod tests {
 					free_balance: Zero::zero(),
 					locked_balance: Zero::zero(),
 					signature: alice_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 		});
@@ -700,6 +706,7 @@ mod tests {
 					free_balance: Zero::zero(),
 					locked_balance: Zero::zero(),
 					signature: alice_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 			// She fixes it, we mark her account valid.
@@ -715,6 +722,7 @@ mod tests {
 					free_balance: Zero::zero(),
 					locked_balance: Zero::zero(),
 					signature: alice_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 		});
@@ -775,6 +783,7 @@ mod tests {
 				alice(),
 				50,
 				50,
+				Permill::from_rational_approximation(77u32, 1000u32),
 			));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
@@ -783,6 +792,7 @@ mod tests {
 					free_balance: 50,
 					locked_balance: 50,
 					signature: alice_signature().to_vec(),
+					vat: Permill::from_parts(77000),
 				}
 			);
 			// We can update the balance based on new information.
@@ -791,6 +801,7 @@ mod tests {
 				alice(),
 				25,
 				50,
+				Permill::zero(),
 			));
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
@@ -799,6 +810,7 @@ mod tests {
 					free_balance: 25,
 					locked_balance: 50,
 					signature: alice_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 		});
@@ -813,6 +825,7 @@ mod tests {
 				alice(),
 				50,
 				50,
+				Permill::zero(),
 			), BadOrigin);
 			// Inactive Account
 			assert_noop!(Purchase::update_balance(
@@ -820,6 +833,7 @@ mod tests {
 				alice(),
 				50,
 				50,
+				Permill::zero(),
 			), Error::<Test>::InvalidAccount);
 			// Overflow
 			assert_noop!(Purchase::update_balance(
@@ -827,6 +841,7 @@ mod tests {
 				alice(),
 				u64::max_value(),
 				u64::max_value(),
+				Permill::zero(),
 			), Error::<Test>::InvalidAccount);
 		});
 	}
@@ -863,12 +878,14 @@ mod tests {
 				alice(),
 				50,
 				50,
+				Permill::zero(),
 			));
 			assert_ok!(Purchase::update_balance(
 				Origin::signed(validity_origin()),
 				bob(),
 				100,
 				150,
+				Permill::zero(),
 			));
 			// Now we call payout for Alice and Bob.
 			assert_ok!(Purchase::payout(
@@ -893,6 +910,7 @@ mod tests {
 					free_balance: 50,
 					locked_balance: 50,
 					signature: alice_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 			assert_eq!(
@@ -902,6 +920,7 @@ mod tests {
 					free_balance: 100,
 					locked_balance: 150,
 					signature: bob_signature().to_vec(),
+					vat: Permill::zero(),
 				}
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
@@ -959,6 +978,7 @@ mod tests {
 				alice(),
 				100_000,
 				100_000,
+				Permill::zero(),
 			));
 			assert_noop!(Purchase::payout(
 				Origin::signed(payment_account()),
