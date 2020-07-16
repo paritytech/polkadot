@@ -1526,4 +1526,301 @@ mod tests {
 			assert!(Scheduler::availability_timeout_predicate().is_none());
 		});
 	}
+
+	#[test]
+	fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
+		let mut config = default_config();
+		config.parathread_cores = 1;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
+			let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
+
+			Scheduler::add_parathread_claim(thread_claim_a.clone());
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
+					_ => panic!("with no chains, only core should be a thread core"),
+				}
+
+				assert!(Scheduler::next_up_on_available(CoreIndex(0)).is_none());
+
+				Scheduler::add_parathread_claim(thread_claim_b);
+
+				let queue = ParathreadQueue::get();
+				assert_eq!(
+					queue.get_next_on_core(0).unwrap().claim,
+					ParathreadClaim(thread_b, collator.clone()),
+				);
+
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para: thread_b,
+						collator: Some(collator.clone()),
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
+		let mut config = default_config();
+		config.parathread_cores = 1;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
+			let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
+
+			Scheduler::add_parathread_claim(thread_claim_a.clone());
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
+					_ => panic!("with no chains, only core should be a thread core"),
+				}
+
+				let queue = ParathreadQueue::get();
+				assert!(queue.get_next_on_core(0).is_none());
+				assert_eq!(
+					Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para: thread_a,
+						collator: Some(collator.clone()),
+					}
+				);
+
+				Scheduler::add_parathread_claim(thread_claim_b);
+
+				let queue = ParathreadQueue::get();
+				assert_eq!(
+					queue.get_next_on_core(0).unwrap().claim,
+					ParathreadClaim(thread_b, collator.clone()),
+				);
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para: thread_b,
+						collator: Some(collator.clone()),
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_available_is_parachain_always() {
+		let mut config = default_config();
+		config.parathread_cores = 0;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parachain => {},
+					_ => panic!("with no threads, only core should be a chain core"),
+				}
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para: chain_a,
+						collator: None,
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_time_out_is_parachain_always() {
+		let mut config = default_config();
+		config.parathread_cores = 0;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parachain => {},
+					_ => panic!("with no threads, only core should be a chain core"),
+				}
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para: chain_a,
+						collator: None,
+					}
+				);
+			}
+		});
+	}
 }
