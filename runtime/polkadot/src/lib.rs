@@ -950,7 +950,6 @@ impl poll::Trait for Runtime {
 }
 
 parameter_types! {
-	pub const VestingTime: BlockNumber = 30 * DAYS;
 	pub const MaxStatementLength: usize = 1_000;
 }
 
