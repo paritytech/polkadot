@@ -35,7 +35,7 @@ use crate::messages::AllMessages;
 
 pub mod messages;
 pub mod util;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;
 
 /// Signals sent by an overseer to a subsystem.

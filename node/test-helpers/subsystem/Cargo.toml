@@ -1,9 +1,0 @@
-[package]
-name = "polkadot-subsystem-test-helpers"
-version = "0.1.0"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
-description = "Helpers for testing subsystems"
-
-[dependencies]
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }

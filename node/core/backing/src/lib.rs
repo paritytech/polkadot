@@ -901,13 +901,13 @@ mod tests {
 	}
 
 	struct TestHarness {
-		virtual_overseer: subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
 		let pool = ThreadPool::new().unwrap();
 
-		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
 
@@ -965,7 +965,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.

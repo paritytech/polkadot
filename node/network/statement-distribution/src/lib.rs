@@ -1210,7 +1210,7 @@ mod tests {
 		};
 
 		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let peer = PeerId::random();
 
 		executor::block_on(async move {
@@ -1302,7 +1302,7 @@ mod tests {
 		].into_iter().collect();
 
 		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let statement = {

@@ -4453,7 +4453,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sc-network",
  "sp-runtime",
  "streamunordered",
@@ -4493,7 +4492,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "polkadot-statement-table",
- "polkadot-subsystem-test-helpers",
  "sc-client-api",
  "sc-keystore",
  "sp-api",
@@ -4609,7 +4607,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sc-network",
  "sp-runtime",
  "streamunordered",
@@ -4962,7 +4959,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sp-keyring",
  "sp-runtime",
  "sp-staking",
@@ -4976,13 +4972,6 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sp-core",
-]
-
-[[package]]
-name = "polkadot-subsystem-test-helpers"
-version = "0.1.0"
-dependencies = [
- "polkadot-node-subsystem",
 ]
 
 [[package]]
