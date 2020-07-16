@@ -496,15 +496,17 @@ impl GroupRotationInfo {
 	/// Returns the index of the group needed to validate the core at the given index, assuming
 	/// the given number of cores.
 	///
-	/// `core_index` should be less than `cores`.
-	pub fn group_for_core(&self, core_index: usize, cores: usize) -> usize {
+	/// `core_index` should be less than `cores`, which in turn should be less than u32::max().
+	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
 		if self.group_rotation_frequency == 0 { return core_index }
 		if cores == 0 { return 0 }
 
+		let cores = sp_std::cmp::max(cores, u32::max_value());
 		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
 		let rotations = blocks_since_start / self.group_rotation_frequency;
 
-		(core_index + rotations as usize) % cores
+		let idx = (core_index.0 as usize + rotations as usize) % cores;
+		GroupIndex(idx)
 	}
 }
 
@@ -555,6 +557,8 @@ pub struct OccupiedCore<N = BlockNumber> {
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
 	pub availability: BitVec<bitvec::order::Lsb0, u8>,
+	/// The group assigned to distribute availability pieces of this candidate.
+	pub group_responsible: GroupIndex,
 }
 
 /// Information about a core which is currently occupied.
