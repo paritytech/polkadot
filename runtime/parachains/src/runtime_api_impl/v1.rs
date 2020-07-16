@@ -23,7 +23,7 @@ use primitives::v1::{
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex,
 };
-use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
+use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating, Zero};
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
@@ -53,6 +53,11 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 
 	let time_out_at = |backed_in_number, availability_period| {
 		let time_out_at = backed_in_number + availability_period;
+
+		if rotation_info.group_rotation_frequency == Zero::zero() {
+			return time_out_at;
+		}
+
 		let current_window = rotation_info.last_rotation_at() + availability_period;
 		let next_rotation = rotation_info.next_rotation_at();
 
@@ -144,6 +149,7 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 		None => CoreState::Free,
 	}).collect();
 
+	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Module<T>>::scheduled() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
 			para: scheduled.para_id,

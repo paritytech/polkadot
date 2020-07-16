@@ -649,3 +649,29 @@ sp_api::decl_runtime_apis! {
 		fn candidate_pending_availability(para: Id) -> Option<CommittedCandidateReceipt<H>>;
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn group_rotation_info_calculations() {
+		let info = GroupRotationInfo {
+			session_start_block: 10u32,
+			now: 15,
+			group_rotation_frequency: 5,
+		};
+
+		assert_eq!(info.next_rotation_at(), 20);
+		assert_eq!(info.last_rotation_at(), 15);
+
+		let info = GroupRotationInfo {
+			session_start_block: 10u32,
+			now: 11,
+			group_rotation_frequency: 0,
+		};
+
+		assert_eq!(info.next_rotation_at(), 0);
+		assert_eq!(info.last_rotation_at(), 0);
+	}
+}
