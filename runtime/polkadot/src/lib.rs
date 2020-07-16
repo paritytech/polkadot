@@ -57,11 +57,11 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use system::{EnsureRoot, EnsureOneOf};
+use system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -953,13 +953,35 @@ parameter_types! {
 	pub const MaxStatementLength: usize = 1_000;
 }
 
+ord_parameter_types! {
+	pub const W3FValidity: AccountId = AccountId::from(
+		// 142wAF65SK7PxhyzzrWz5m5PXDtooehgePBd7rc2NWpfc8Wa
+		hex_literal::hex!("862e432e0cf75693899c62691ac0f48967f815add97ae85659dcde8332708551")
+	);
+	pub const W3FConfiguration: AccountId = AccountId::from(
+		// 1KvKReVmUiTc2LW2a4qyHsaJJ9eE9LRsywZkMk5hyBeyHgw
+		hex_literal::hex!("0e6de68b13b82479fbe988ab9ecb16bad446b67b993cdd9198cd41c7c6259c49")
+	);
+}
+
+type ValidityOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FValidity, AccountId>,
+>;
+
+type ConfigurationOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FConfiguration, AccountId>,
+>;
+
 impl purchase::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type VestingSchedule = Vesting;
-	// TODO: Update these origins.
-	type ValidityOrigin = system::EnsureRoot<AccountId>;
-	type ConfigurationOrigin = system::EnsureRoot<AccountId>;
+	type ValidityOrigin = ValidityOrigin;
+	type ConfigurationOrigin = ConfigurationOrigin;
 	type MaxStatementLength = MaxStatementLength;
 }
 
