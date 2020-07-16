@@ -595,15 +595,15 @@ pub enum CoreState<N = BlockNumber> {
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum OccupiedCoreAssumption {
-    /// The candidate occupying the core was made available and included to free the core.
+	/// The candidate occupying the core was made available and included to free the core.
 	#[codec(index = "0")]
-    Included,
-    /// The candidate occupying the core timed out and freed the core without advancing the para.
+	Included,
+	/// The candidate occupying the core timed out and freed the core without advancing the para.
 	#[codec(index = "1")]
-    TimedOut,
-    /// The core was not occupied to begin with.
+	TimedOut,
+	/// The core was not occupied to begin with.
 	#[codec(index = "2")]
-    Free,
+	Free,
 }
 
 sp_api::decl_runtime_apis! {
