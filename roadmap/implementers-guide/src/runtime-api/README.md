@@ -23,14 +23,25 @@ More broadly, we have the goal of using Runtime APIs to write Node-side code tha
 
 Node-side code is also responsible for detecting and reporting misbehavior performed by other validators, and the set of Runtime APIs needs to provide methods for observing live disputes and submitting reports as transactions.
 
-The next sections will contain information on specific runtime APIs.
+The next sections will contain information on specific runtime APIs. The format is this:
+
+```rust
+/// Fetch the value of the runtime API at the block.
+///
+/// Definitionally, the `at` parameter cannot be any block that is not in the chain.
+/// Thus the return value is unconditional. However, for in-practice implementations
+/// it may be possible to provide an `at` parameter as a hash, which may not refer to a
+/// valid block or one which implements the runtime API. In those cases it would be
+/// best for the implementation to return an error indicating the failure mode.
+fn some_runtime_api(at: Block, arg1: Type1, arg2: Type2, ...) -> ReturnValue;
+```
 
 ## Validators
 
 Yields the validator-set at the state of a given block. This validator set is always the one responsible for backing parachains in the child of the provided block.
 
 ```rust
-fn validators() -> Vec<ValidatorId>;
+fn validators(at: Block) -> Vec<ValidatorId>;
 ```
 
 ## Validator Groups
@@ -54,7 +65,7 @@ impl GroupRotationInfo {
 /// Returns the validator groups and rotation info localized based on the block whose state
 /// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 /// the number of the block.
-fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
+fn validator_groups(at: Block) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
 ```
 
 ## Availability Cores
@@ -62,7 +73,7 @@ fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo);
 Yields information on all availability cores. Cores are either free or occupied. Free cores can have paras assigned to them. Occupied cores don't, but they can become available part-way through a block due to bitfields and then have something scheduled on them. To allow optimistic validation of candidates, the occupied cores are accompanied by information on what is upcoming. This information can be leveraged when validators perceive that there is a high likelihood of a core becoming available based on bitfields seen, and then optimistically validate something that would become scheduled based on that, although there is no guarantee on what the block producer will actually include in the block.
 
 ```rust
-fn availability_cores() -> Vec<CoreState>;
+fn availability_cores(at: Block) -> Vec<CoreState>;
 ```
 
 This is all the information that a validator needs about scheduling for the current block. It includes all information on [Scheduler](../runtime/scheduler.md) core-assignments and [Inclusion](../runtime/inclusion.md) state of blocks occupying availability cores. It includes data necessary to determine not only which paras are assigned now, but which cores are likely to become freed after processing bitfields, and exactly which bitfields would be necessary to make them so.
@@ -115,7 +126,7 @@ enum CoreState {
 Yields the [`GlobalValidationSchedule`](../types/candidate.md#globalvalidationschedule) at the state of a given block. This applies to all para candidates with the relay-parent equal to that block.
 
 ```rust
-fn global_validation_schedule() -> GlobalValidationSchedule;
+fn global_validation_schedule(at: Block) -> GlobalValidationSchedule;
 ```
 
 ## Local Validation Data
@@ -139,7 +150,7 @@ enum OccupiedCoreAssumption {
 ///
 /// Returns `None` if either the para is not registered or the assumption is `Freed`
 /// and the para already occupies a core.
-fn local_validation_data(ParaId, OccupiedCoreAssumption) -> Option<LocalValidationData>;
+fn local_validation_data(at: Block, ParaId, OccupiedCoreAssumption) -> Option<LocalValidationData>;
 ```
 
 ## Session Index
@@ -152,7 +163,7 @@ This session index can be used to derive a [`SigningContext`](../types/candidate
 
 ```rust
 /// Returns the session index expected at a child of the block.
-fn session_index_for_child() -> SessionIndex;
+fn session_index_for_child(at: Block) -> SessionIndex;
 ```
 
 ## Validation Code
@@ -160,7 +171,7 @@ fn session_index_for_child() -> SessionIndex;
 Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 
 ```rust
-fn validation_code(ParaId, OccupiedCoreAssumption) -> ValidationCode;
+fn validation_code(at: Block, ParaId, OccupiedCoreAssumption) -> ValidationCode;
 ```
 
 ## Candidate Pending Availability
@@ -168,5 +179,5 @@ fn validation_code(ParaId, OccupiedCoreAssumption) -> ValidationCode;
 Get the receipt of a candidate pending availability. This returns `Some` for any paras assigned to occupied cores in `availability_cores` and `None` otherwise.
 
 ```rust
-fn candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>;
+fn candidate_pending_availability(at: Block, ParaId) -> Option<CommittedCandidateReceipt>;
 ```
