@@ -1383,7 +1383,6 @@ mod tests {
 		});
 	}
 
-	// TODO [now] awaiting peer sending us something is no longer awaiting.
 	#[test]
 	fn peer_completing_request_no_longer_awaiting() {
 		let hash_a: Hash = [0; 32].into();
