@@ -626,6 +626,8 @@ mod tests {
 			JobTrait,
 			ToJobTrait,
 		},
+		FromOverseer,
+		OverseerSignal,
 	};
 	use futures::{
 		channel::mpsc,
@@ -789,6 +791,11 @@ mod tests {
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle) -> T) {
+		// testing is a little weird: this module throws away quite a few errors where various traits don't offer the opportunity
+		// to propagate them. However, most of the ones we care about get logged. Therefore, we can use a testing logger to make
+		// assertions about the number of errors which have occurred.
+		testing_logger::setup();
+
 		let pool = ThreadPool::new().unwrap();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 
@@ -809,10 +816,41 @@ mod tests {
 		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message.clone())]);
 
 		test_harness(run_args, |mut overseer_handle| async move {
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
 			assert_matches!(
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
+		});
+
+		testing_logger::validate(|captured_logs| assert_eq!(captured_logs.len(), 0));
+	}
+
+	#[test]
+	fn stopping_running_job_works() {
+		let relay_parent: Hash = [0; 32].into();
+		let run_args = HashMap::new();
+
+		test_harness(run_args, |mut overseer_handle| async move {
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+		});
+
+		testing_logger::validate(|captured_logs| assert_eq!(captured_logs.len(), 0));
+	}
+
+	#[test]
+	fn stopping_non_running_job_fails() {
+		let relay_parent: Hash = [0; 32].into();
+		let run_args = HashMap::new();
+
+		test_harness(run_args, |mut overseer_handle| async move {
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+		});
+
+		testing_logger::validate(|captured_logs| {
+			assert_eq!(captured_logs.len(), 1);
+			assert_eq!(captured_logs[0].level, log::Level::Error);
 		});
 	}
 }

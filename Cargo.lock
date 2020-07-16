@@ -4557,6 +4557,7 @@ dependencies = [
  "sc-network",
  "sp-core",
  "streamunordered",
+ "testing_logger",
 ]
 
 [[package]]
@@ -8398,6 +8399,15 @@ dependencies = [
  "test-parachain-code-upgrader",
  "test-parachain-halt",
  "tiny-keccak 1.5.0",
+]
+
+[[package]]
+name = "testing_logger"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d92b727cb45d33ae956f7f46b966b25f1bc712092aeef9dba5ac798fc89f720"
+dependencies = [
+ "log 0.4.8",
 ]
 
 [[package]]
