@@ -59,7 +59,7 @@ struct GroupRotationInfo {
 impl GroupRotationInfo {
 	/// Returns the index of the group needed to validate the core at the given index,
 	/// assuming the given amount of cores/groups.
-	fn group_for_core(&self, core_index: usize, cores: usize) -> usize;
+	fn group_for_core(&self, core_index, cores) -> GroupIndex;
 
 	/// Returns the block number of the next rotation after the current block. If the current block
 	/// is 10 and the rotation frequency is 5, this should return 15.
