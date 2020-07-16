@@ -162,7 +162,7 @@ decl_module! {
 		/// We check that the account does not exist at this stage.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[weight = 0]
+		#[weight = 200_000_000 + T::DbWeight::get().reads_writes(3, 1)]
 		fn create_account(origin,
 			who: T::AccountId,
 			signature: Vec<u8>
@@ -191,7 +191,7 @@ decl_module! {
 		/// We check tht the account exists at this stage, but has not completed the process.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[weight = 0]
+		#[weight = T::DbWeight::get().reads_writes(1, 1)]
 		fn update_validity_status(origin,
 			who: T::AccountId,
 			validity: AccountValidity
@@ -211,7 +211,7 @@ decl_module! {
 		/// We check tht the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[weight = 0]
+		#[weight = T::DbWeight::get().reads_writes(1, 1)]
 		fn update_balance(origin,
 			who: T::AccountId,
 			free_balance: BalanceOf<T>,
@@ -235,7 +235,7 @@ decl_module! {
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
 		/// Origin must match the configured `PaymentAccount`.
-		#[weight = 0]
+		#[weight = T::DbWeight::get().reads_writes(3, 2)]
 		fn payout(origin, who: T::AccountId) {
 			// Payments must be made directly by the `PaymentAccount`.
 			let payment_account = ensure_signed(origin)?;
@@ -284,7 +284,7 @@ decl_module! {
 		/// Set the account that will be used to payout users in the DOT purchase process.
 		///
 		/// Origin must match the `ConfigurationOrigin`
-		#[weight = 0]
+		#[weight = T::DbWeight::get().writes(1)]
 		fn set_payment_account(origin, who: T::AccountId) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			// Possibly this is worse than having the caller account be the payment account?
@@ -295,7 +295,7 @@ decl_module! {
 		/// Set the statement that must be signed for a user to participate on the DOT sale.
 		///
 		/// Origin must match the `ConfigurationOrigin`
-		#[weight = 0]
+		#[weight = T::DbWeight::get().writes(1)]
 		fn set_statement(origin, statement: Vec<u8>) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(statement.len() < T::MaxStatementLength::get(), Error::<T>::InvalidStatement);
@@ -307,7 +307,7 @@ decl_module! {
 		/// Set the block where locked DOTs will become unlocked.
 		///
 		/// Origin must match the `ConfigurationOrigin`
-		#[weight = 0]
+		#[weight = T::DbWeight::get().writes(1)]
 		fn set_unlock_block(origin, unlock_block: T::BlockNumber) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
 			ensure!(unlock_block > system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
