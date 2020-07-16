@@ -4550,11 +4550,11 @@ dependencies = [
  "futures-timer 3.0.2",
  "log 0.4.8",
  "parity-scale-codec",
+ "parking_lot 0.10.2",
  "pin-project",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",
- "polkadot-subsystem-test-helpers",
  "sc-keystore",
  "sc-network",
  "sp-core",
@@ -4982,9 +4982,6 @@ dependencies = [
 name = "polkadot-subsystem-test-helpers"
 version = "0.1.0"
 dependencies = [
- "async-trait",
- "futures 0.3.5",
- "parking_lot 0.10.2",
  "polkadot-node-subsystem",
 ]
 

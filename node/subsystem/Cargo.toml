@@ -23,5 +23,6 @@ streamunordered = "0.5.1"
 
 [dev-dependencies]
 assert_matches = "1.3.0"
+async-trait = "0.1"
 futures = { version = "0.3.5", features = ["thread-pool"] }
-polkadot-subsystem-test-helpers = { path = "../test-helpers/subsystem" }
+parking_lot = "0.10.0"

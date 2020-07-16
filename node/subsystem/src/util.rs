@@ -620,6 +620,7 @@ mod tests {
 	use assert_matches::assert_matches;
 	use crate::{
 		messages::{AllMessages, CandidateSelectionMessage},
+		test_helpers::{self, make_subsystem_context},
 		util::{
 			JobManager,
 			JobTrait,
@@ -636,7 +637,6 @@ mod tests {
 		SinkExt,
 	};
 	use polkadot_primitives::v1::Hash;
-	use polkadot_subsystem_test_helpers::make_subsystem_context;
 	use std::{
 		collections::HashMap,
 		convert::TryFrom,
@@ -660,6 +660,7 @@ mod tests {
 	// - have a Stop variant (to impl ToJobTrait)
 	// - impl ToJobTrait
 	// - impl TryFrom<AllMessages>
+	// - impl From<CandidateSelectionMessage> (from SubsystemContext::Message)
 	//
 	// Mostly, they are just a type-safe subset of AllMessages that this job is prepared to receive
 	enum ToJob {
@@ -686,6 +687,12 @@ mod tests {
 				AllMessages::CandidateSelection(csm) => Ok(ToJob::CandidateSelection(csm)),
 				_ => Err(())
 			}
+		}
+	}
+
+	impl From<CandidateSelectionMessage> for ToJob {
+		fn from(csm: CandidateSelectionMessage) -> ToJob {
+			ToJob::CandidateSelection(csm)
 		}
 	}
 
@@ -779,7 +786,7 @@ mod tests {
 	type FakeCandidateSelectionSubsystem<Spawner, Context> = JobManager<Spawner, Context, FakeCandidateSelectionJob>;
 
 	// this type lets us pretend to be the overseer
-	type OverseerHandle = polkadot_subsystem_test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
+	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle) -> T) {
 		let pool = ThreadPool::new().unwrap();
@@ -799,9 +806,9 @@ mod tests {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
 		let test_message = format!("greetings from {}", relay_parent);
-		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message)]);
+		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message.clone())]);
 
-		test_harness(run_args, |overseer_handle| async move {
+		test_harness(run_args, |mut overseer_handle| async move {
 			assert_matches!(
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message

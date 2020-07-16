@@ -35,6 +35,8 @@ use crate::messages::AllMessages;
 
 pub mod messages;
 pub mod util;
+#[cfg(test)]
+pub mod test_helpers;
 
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
