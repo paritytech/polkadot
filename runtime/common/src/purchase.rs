@@ -134,6 +134,8 @@ decl_error! {
 		InvalidStatement,
 		/// The unlock block is in the past!
 		InvalidUnlockBlock,
+		/// Vesting schedule already exists for this account.
+		VestingScheduleExists,
 	}
 }
 
@@ -235,7 +237,7 @@ decl_module! {
 		/// We reverify all assumptions about the state of an account, and complete the process.
 		///
 		/// Origin must match the configured `PaymentAccount`.
-		#[weight = T::DbWeight::get().reads_writes(3, 2)]
+		#[weight = T::DbWeight::get().reads_writes(4, 2)]
 		fn payout(origin, who: T::AccountId) {
 			// Payments must be made directly by the `PaymentAccount`.
 			let payment_account = ensure_signed(origin)?;
@@ -243,6 +245,9 @@ decl_module! {
 
 			// Account should not be active.
 			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
+
+			// Account should not have a vesting schedule.
+			ensure!(T::VestingSchedule::vesting_balance(&who).is_none(), Error::<T>::VestingScheduleExists);
 
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				// Account has a valid status (not Invalid, Pending, or Completed)...
@@ -256,7 +261,7 @@ decl_module! {
 				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
 				if !status.locked_balance.is_zero() {
-					// Account did not exist before this point, thus it should have no existing vesting schedule.
+					// Account did not exist before this point, and we checked it has no existing vesting schedule.
 					// So this function should never fail, however if it does, not much we can do about it at
 					// this point.
 					let unlock_block = UnlockBlock::<T>::get();
