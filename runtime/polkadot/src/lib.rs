@@ -948,7 +948,7 @@ impl poll::Trait for Runtime {
 parameter_types! {
 	pub const MaxStatementLength: usize = 1_000;
 	pub const UnlockedProportion: Permill = Permill::zero();
-	pub const MaxUnlocked: u64 = 0;
+	pub const MaxUnlocked: Balance = 0;
 }
 
 ord_parameter_types! {
