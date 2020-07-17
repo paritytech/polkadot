@@ -606,6 +606,21 @@ pub enum OccupiedCoreAssumption {
 	Free,
 }
 
+/// An even concerning a candidate.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CandidateEvent {
+	/// This candidate receipt was backed in the most recent block.
+	#[codec(index = "0")]
+	CandidateBacked(CandidateReceipt, HeadData),
+	/// This candidate receipt was included and became a parablock at the most recent block.
+	#[codec(index = "1")]
+	CandidateIncluded(CandidateReceipt, HeadData),
+	/// This candidate receipt was not made available in time and timed out.
+	#[codec(index = "2")]
+	CandidateTimedOut(CandidateReceipt, HeadData),
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode, N: Decode> {
@@ -648,6 +663,12 @@ sp_api::decl_runtime_apis! {
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
+
+		/// Get a vector of events concerning candidates that occurred within a block.
+		// NOTE: this needs to skip block initialization as events are wiped within block
+		// initialization.
+		#[skip_initialize_block]
+		fn candidate_events() -> Vec<CandidateEvent>;
 	}
 }
 

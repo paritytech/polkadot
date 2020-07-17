@@ -24,7 +24,7 @@ use sp_std::prelude::*;
 use primitives::v1::{
 	ValidatorId, CandidateReceipt, CommittedCandidateReceipt, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
-	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment,
+	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, HeadData,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure,
@@ -147,10 +147,12 @@ decl_error! {
 
 decl_event! {
 	pub enum Event<T> where <T as system::Trait>::Hash {
+		/// A candidate was backed.
+		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included.
-		CandidateIncluded(CandidateReceipt<Hash>),
+		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
 		/// A candidate timed out.
-		CandidateTimedOut(CandidateReceipt<Hash>),
+		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
 	}
 }
 
@@ -460,6 +462,12 @@ impl<T: Trait> Module<T> {
 			// initialize all availability votes to 0.
 			let availability_votes: BitVec<BitOrderLsb0, u8>
 				= bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
+
+			Self::deposit_event(Event::<T>::CandidateBacked(
+				candidate.candidate.to_plain(),
+				candidate.candidate.commitments.head_data.clone(),
+			));
+
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
 				receipt: candidate.candidate,
@@ -490,7 +498,9 @@ impl<T: Trait> Module<T> {
 			);
 		}
 
-		Self::deposit_event(Event::<T>::CandidateIncluded(plain));
+		Self::deposit_event(
+			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
+		);
 
 		weight + <paras::Module<T>>::note_new_head(
 			receipt.descriptor.para_id,
@@ -518,7 +528,10 @@ impl<T: Trait> Module<T> {
 
 		for para_id in cleaned_up_ids {
 			if let Some(pending) = <PendingAvailability<T>>::take(&para_id) {
-				Self::deposit_event(Event::<T>::CandidateTimedOut(pending.receipt.to_plain()))
+				Self::deposit_event(Event::<T>::CandidateTimedOut(
+					pending.receipt.to_plain(),
+					pending.receipt.commitments.head_data,
+				));
 			}
 		}
 
@@ -569,7 +582,7 @@ mod tests {
 	use primitives::v1::{BlockNumber, Hash};
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments, SignedStatement, CandidateDescriptor, HeadData, ValidationCode,
+		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
 		AssignmentKind,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
