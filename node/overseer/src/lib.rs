@@ -73,7 +73,6 @@ use streamunordered::{StreamYield, StreamUnordered};
 
 use polkadot_primitives::v1::{Block, BlockNumber, Hash};
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use sp_core::traits::SpawnNamed;
 
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
@@ -86,6 +85,7 @@ pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem,
 };
+use polkadot_node_primitives::SpawnNamed;
 
 
 // A capacity of bounded channels inside the overseer.
