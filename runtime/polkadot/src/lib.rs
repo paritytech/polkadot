@@ -39,7 +39,7 @@ use primitives::v0::{
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
-		transaction_validity::{
+	transaction_validity::{
 		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
@@ -79,6 +79,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+pub mod poll;
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
@@ -92,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 14,
+	spec_version: 15,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -114,16 +115,11 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..))
-				| Call::Democracy(democracy::Call::vote(..))
-				| Call::Democracy(democracy::Call::remove_vote(..))
-				| Call::Democracy(democracy::Call::delegate(..))
-				| Call::Democracy(democracy::Call::undelegate(..))
-				=> true,
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
-			// Governance stuff
+			// Governance stuff, minus council elections.
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
-			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
+			Call::TechnicalMembership(_) | Call::Treasury(_) |
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
@@ -132,13 +128,14 @@ impl Filter<Call> for BaseFilter {
 				false,
 
 			// These modules are all allowed to be called by transactions:
+			Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_)  =>
 				true,
 		}
 	}
@@ -217,7 +214,7 @@ impl babe::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+	babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -490,8 +487,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	/// Weekly council elections initially, later monthly.
-	pub const TermDuration: BlockNumber = 7 * DAYS;
+	/// Daily council elections initially, later weekly and monthly.
+	pub const TermDuration: BlockNumber = 1 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
@@ -619,7 +616,7 @@ impl grandpa::Trait for Runtime {
 	type Call = Call;
 
 	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+	<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
@@ -893,6 +890,7 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+					| Call::Poll(..)
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
@@ -939,6 +937,16 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 			<Runtime as system::Trait>::DbWeight::get().reads(1)
 		}
 	}
+}
+
+parameter_types! {
+	pub const PollEnd: BlockNumber = 888_888;
+}
+
+impl poll::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type End = PollEnd;
 }
 
 construct_runtime! {
@@ -1006,6 +1014,9 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Poll module.
+		Poll: poll::{Module, Call, Storage, Event<T>},
 	}
 }
 

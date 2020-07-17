@@ -59,9 +59,21 @@ has_label(){
   [ -n "$(echo "$out" | tr -d '\r\n' | jq ".labels | .[] | select(.name==\"$label\")")" ]
 }
 
+github_label () {
+  echo
+  echo "# run github-api job for labeling it ${1}"
+  curl -sS -X POST \
+    -F "token=${CI_JOB_TOKEN}" \
+    -F "ref=master" \
+    -F "variables[LABEL]=${1}" \
+    -F "variables[PRNO]=${CI_COMMIT_REF_NAME}" \
+    -F "variables[PROJECT]=paritytech/polkadot" \
+    "${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline"
+}
+
 # Formats a message into a JSON string for posting to Matrix
 # message: 'any plaintext message'
-# formatted_message: '<strong>optional message formatted in <em>html</em></strong>' 
+# formatted_message: '<strong>optional message formatted in <em>html</em></strong>'
 # Usage: structure_message $content $formatted_content (optional)
 structure_message() {
   if [ -z "$2" ]; then
@@ -80,3 +92,7 @@ structure_message() {
 send_message() {
 curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.room.message?access_token=$3"
 }
+
+# Pretty-printing functions
+boldprint () { printf "|\n| \033[1m%s\033[0m\n|\n" "${@}"; }
+boldcat () { printf "|\n"; while read -r l; do printf "| \033[1m%s\033[0m\n" "${l}"; done; printf "|\n" ; }

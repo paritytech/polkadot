@@ -1,18 +1,17 @@
-#!/bin/sh
-#
-#
-# check for any changes in the ^runtime/ tree. if there are no changes check
-# if the substrate reference in the Cargo.lock has been changed. If so pull
-# the repo and verify if the {spec,impl}_version s have been altered since the
-# last reference. If there were changes the script will continue to check if
-# the spec_version resp impl_version of polkadot have been altered as well.
-# this will also be checked if there were changes to the runtime source files.
-#
-# If there are any changes found, it will mark the PR breaksapi and
-# "auto-fail" the PR if there isn't a change in the
-# runtime/{polkadot,kusama}/src/lib.rs file
-# that alters the version since the last release tag.
+#!/usr/bin/env bash
 
+# Check for any changes in any runtime directories (e.g., ^runtime/polkadot) as
+# well as directories common to all runtimes (e.g., ^runtime/common). If there
+# are no changes, check if the Substrate git SHA in Cargo.lock has been
+# changed. If so, pull the repo and verify if {spec,impl}_versions have been
+# altered since the previous Substrate version used. Also, if any of the
+# Substrate changes between the previous and current version referenced by
+# Cargo.lock were labelled with 'D2-breaksapi', label this PR the same.
+#
+# If there were changes to any runtimes or common dirs, we iterate over each
+# runtime (defined in the $runtimes() array), and check if {spec,impl}_version
+# have been changed since the last release. Also, if there have been changes to
+# the runtime since the last commit to master, label the PR with 'D2-breaksapi'
 
 set -e # fail on any error
 
@@ -21,69 +20,73 @@ set -e # fail on any error
 . "$(dirname "${0}")/lib.sh"
 
 SUBSTRATE_REPO="https://github.com/paritytech/substrate"
-SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}\?branch=polkadot-master"
+SUBSTRATE_REPO_CARGO="git\+${SUBSTRATE_REPO}"
 SUBSTRATE_VERSIONS_FILE="bin/node/runtime/src/lib.rs"
-
-boldprint () { printf "|\n| \033[1m%s\033[0m\n|\n" "${@}"; }
-boldcat () { printf "|\n"; while read -r l; do printf "| \033[1m%s\033[0m\n" "${l}"; done; printf "|\n" ; }
-
 
 # figure out the latest release tag
 LATEST_TAG="$(git tag -l | sort -V | tail -n 1)"
 boldprint "latest release tag ${LATEST_TAG}"
 
-
 boldprint "latest 10 commits of ${CI_COMMIT_REF_NAME}"
 git --no-pager log --graph --oneline --decorate=short -n 10
 
 boldprint "make sure the master branch is available in shallow clones"
-git fetch --depth=${GIT_DEPTH:-100} origin master
+git fetch --depth="${GIT_DEPTH:-100}" origin master
 
+runtimes=(
+	"kusama"
+	"polkadot"
+	"westend"
+)
 
-github_label () {
-	echo
-	echo "# run github-api job for labeling it ${1}"
-	curl -sS -X POST \
-		-F "token=${CI_JOB_TOKEN}" \
-		-F "ref=master" \
-		-F "variables[LABEL]=${1}" \
-		-F "variables[PRNO]=${CI_COMMIT_REF_NAME}" \
-		-F "variables[PROJECT]=paritytech/polkadot" \
-		${GITLAB_API}/projects/${GITHUB_API_PROJECT}/trigger/pipeline
-}
+common_dirs=(
+	"common"
+)
 
+# Helper function to join elements in an array with a multi-char delimiter
+# https://stackoverflow.com/questions/1527049/how-can-i-join-elements-of-an-array-in-bash
+function join_by { local d=$1; shift; echo -n "$1"; shift; printf "%s" "${@/#/$d}"; }
+
+# Construct a regex to search for any changes to runtime or common directories
+runtime_regex="^runtime/$(join_by '|^runtime/' "${runtimes[@]}" "${common_dirs[@]}")"
 
 boldprint "check if the wasm sources changed since ${LATEST_TAG}"
-if ! git diff --name-only refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} \
-	| grep -q -e '^runtime/'
+if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
+	| grep -E -q -e "$runtime_regex"
 then
-	boldprint "no changes to the polkadot runtime source code detected"
+	boldprint "no changes to any runtime source code detected"
 	# continue checking if Cargo.lock was updated with a new substrate reference
 	# and if that change includes a {spec|impl}_version update.
 
-	SUBSTRATE_REFS_CHANGED="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} Cargo.lock \
-		| sed -n -r "s~^[\+\-]source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | wc -l)"
+	SUBSTRATE_REFS_CHANGED="$(
+		git diff "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" Cargo.lock \
+		| sed -n -r "s~^[\+\-]source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | wc -l
+	)"
 
 	# check Cargo.lock for substrate ref change
 	case "${SUBSTRATE_REFS_CHANGED}" in
-	  (0)
-	    boldprint "substrate refs not changed in Cargo.lock"
-	    exit 0
-	    ;;
-	  (2)
-	    boldprint "substrate refs updated since ${LATEST_TAG}"
-	    ;;
-	  (*)
-	    boldprint "check unsupported: more than one commit targeted in repo ${SUBSTRATE_REPO_CARGO}"
-	    exit 1
+		(0)
+			boldprint "substrate refs not changed in Cargo.lock"
+			exit 0
+			;;
+		(2)
+			boldprint "substrate refs updated since ${LATEST_TAG}"
+			;;
+		(*)
+			boldprint "check unsupported: more than one commit targeted in repo ${SUBSTRATE_REPO_CARGO}"
+			exit 1
 	esac
 
 
-	SUBSTRATE_PREV_REF="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} Cargo.lock \
-		| sed -n -r "s~^\-source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | head -n 1)"
+	SUBSTRATE_PREV_REF="$(
+		git diff "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" Cargo.lock \
+		| sed -n -r "s~^\-source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | head -n 1
+	)"
 
-	SUBSTRATE_NEW_REF="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} Cargo.lock \
-		| sed -n -r "s~^\+source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | head -n 1)"
+	SUBSTRATE_NEW_REF="$(
+		git diff "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" Cargo.lock \
+		| sed -n -r "s~^\+source = \"${SUBSTRATE_REPO_CARGO}#([a-f0-9]+)\".*$~\1~p" | sort -u | head -n 1
+	)"
 
 
 	boldcat <<-EOT
@@ -93,16 +96,14 @@ then
 
 	# okay so now need to fetch the substrate repository and check whether spec_version or impl_version has changed there
 	SUBSTRATE_CLONE_DIR="$(mktemp -t -d substrate-XXXXXX)"
-	trap "rm -rf ${SUBSTRATE_CLONE_DIR}" INT QUIT TERM ABRT EXIT
+	trap 'rm -rf "${SUBSTRATE_CLONE_DIR}"' INT QUIT TERM ABRT EXIT
 
-
-	git clone --branch polkadot-master --depth 100 --no-tags \
-	  ${SUBSTRATE_REPO} ${SUBSTRATE_CLONE_DIR}
-
+	git clone --depth="${GIT_DEPTH:-100}" --no-tags \
+		"${SUBSTRATE_REPO}" "${SUBSTRATE_CLONE_DIR}"
 
 	# check if there are changes to the spec|impl versions
-	git -C ${SUBSTRATE_CLONE_DIR} diff \
-		${SUBSTRATE_PREV_REF}..${SUBSTRATE_NEW_REF} ${SUBSTRATE_VERSIONS_FILE} \
+	git -C "${SUBSTRATE_CLONE_DIR}" diff \
+		"${SUBSTRATE_PREV_REF}..${SUBSTRATE_NEW_REF}" "${SUBSTRATE_VERSIONS_FILE}" \
 		| grep -E '^[\+\-][[:space:]]+(spec|impl)_version: +([0-9]+),$' || exit 0
 
 	boldcat <<-EOT
@@ -127,34 +128,47 @@ then
 
 fi
 
-
-# Introduce runtime/polkadot/src/lib.rs once Polkadot mainnet is live.
-for VERSIONS_FILE in runtime/kusama/src/lib.rs
+# Iterate over each runtime defined at the start of the script
+for RUNTIME in "${runtimes[@]}"
 do
+
+	# Check if there were changes to this specific runtime or common directories.
+	# If not, we can skip to the next runtime
+	regex="^runtime/$(join_by '|^runtime/' "$RUNTIME" "${common_dirs[@]}")"
+	if ! git diff --name-only "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" \
+		| grep -E -q -e "$regex"; then
+		continue
+	fi
+
 	# check for spec_version updates: if the spec versions changed, then there is
 	# consensus-critical logic that has changed. the runtime wasm blobs must be
 	# rebuilt.
 
-	add_spec_version="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} ${VERSIONS_FILE} \
-		| sed -n -r "s/^\+[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
-	sub_spec_version="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} ${VERSIONS_FILE} \
-		| sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p")"
+	add_spec_version="$(
+		git diff "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" "runtime/${RUNTIME}/src/lib.rs" \
+		| sed -n -r "s/^\+[[:space:]]+spec_version: +([0-9]+),$/\1/p"
+	)"
+	sub_spec_version="$(
+		git diff "refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA}" "runtime/${RUNTIME}/src/lib.rs" \
+		| sed -n -r "s/^\-[[:space:]]+spec_version: +([0-9]+),$/\1/p"
+	)"
 
 
 	# see if the version and the binary blob changed
 	if [ "${add_spec_version}" != "${sub_spec_version}" ]
 	then
 
-		if git diff --name-only origin/master...${CI_COMMIT_SHA} \
-			| grep -q -e '^runtime/'
+		if git diff --name-only "origin/master...${CI_COMMIT_SHA}" \
+			| grep -E -q -e "$regex"
 		then
 			# add label breaksapi only if this pr altered the runtime sources
-		  github_label "D2-breaksapi"
+			github_label "D2-breaksapi"
 		fi
 
 		boldcat <<-EOT
+			## RUNTIME: ${RUNTIME} ##
 
-			changes to the runtime sources and changes in the spec version.
+			changes to the ${RUNTIME} runtime sources and changes in the spec version.
 
 			spec_version: ${sub_spec_version} -> ${add_spec_version}
 
@@ -165,10 +179,14 @@ do
 		# check for impl_version updates: if only the impl versions changed, we assume
 		# there is no consensus-critical logic that has changed.
 
-		add_impl_version="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} ${VERSIONS_FILE} \
-			| sed -n -r 's/^\+[[:space:]]+impl_version: +([0-9]+),$/\1/p')"
-		sub_impl_version="$(git diff refs/tags/${LATEST_TAG}...${CI_COMMIT_SHA} ${VERSIONS_FILE} \
-			| sed -n -r 's/^\-[[:space:]]+impl_version: +([0-9]+),$/\1/p')"
+		add_impl_version="$(
+			git diff refs/tags/"${LATEST_TAG}...${CI_COMMIT_SHA}" "runtime/${RUNTIME}/src/lib.rs" \
+			| sed -n -r 's/^\+[[:space:]]+impl_version: +([0-9]+),$/\1/p'
+		)"
+		sub_impl_version="$(
+			git diff refs/tags/"${LATEST_TAG}...${CI_COMMIT_SHA}" "runtime/${RUNTIME}/src/lib.rs" \
+			| sed -n -r 's/^\-[[:space:]]+impl_version: +([0-9]+),$/\1/p'
+		)"
 
 
 		# see if the impl version changed
@@ -176,7 +194,9 @@ do
 		then
 			boldcat <<-EOT
 
-			changes to the runtime sources and changes in the impl version.
+			## RUNTIME: ${RUNTIME} ##
+
+			changes to the ${RUNTIME} runtime sources and changes in the impl version.
 
 			impl_version: ${sub_impl_version} -> ${add_impl_version}
 
@@ -201,7 +221,6 @@ do
 		exit 1
 	fi
 done
-
 
 exit 0
 

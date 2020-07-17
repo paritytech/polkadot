@@ -16,45 +16,43 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
-#![recursion_limit="256"]
-
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
 use std::sync::Arc;
-use std::time::Duration;
 
 use bitvec::vec::BitVec;
-use log;
 use futures::{
-	select, FutureExt, SinkExt, StreamExt,
-	channel::{oneshot, mpsc},
-	future::{self, Either},
-	task::{Spawn, SpawnError, SpawnExt},
+	channel::{mpsc, oneshot},
+	task::{Spawn, SpawnError},
+	Future, FutureExt, SinkExt, StreamExt,
 };
-use futures_timer::Delay;
-use streamunordered::{StreamUnordered, StreamYield};
 
-use primitives::Pair;
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
-	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorPair, ValidatorId,
+	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
 	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
-	ValidationOutputs,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
+	ValidationOutputs, ValidationResult,
 };
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem,
-};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateSelectionMessage, SchedulerRoster,
-	RuntimeApiMessage, RuntimeApiRequest, CandidateValidationMessage, ValidationFailed,
-	StatementDistributionMessage, NewBackedCandidate, ProvisionerMessage, ProvisionableData,
-	PoVDistributionMessage, AvailabilityStoreMessage,
+	Subsystem, SubsystemContext, SpawnedSubsystem,
+	messages::{
+		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
+		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
+		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
+	},
+	util::{
+		self,
+		request_signing_context,
+		request_validator_groups,
+		request_validators,
+		Validator,
+	},
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
@@ -68,9 +66,7 @@ use statement_table::{
 
 #[derive(Debug, derive_more::From)]
 enum Error {
-	NotInValidatorSet,
 	CandidateNotFound,
-	JobNotFound(Hash),
 	InvalidSignature,
 	#[from]
 	Erasure(erasure_coding::Error),
@@ -82,6 +78,8 @@ enum Error {
 	Mpsc(mpsc::SendError),
 	#[from]
 	Spawn(SpawnError),
+	#[from]
+	UtilError(util::Error),
 }
 
 /// Holds all data needed for candidate backing job operation.
@@ -92,7 +90,6 @@ struct CandidateBackingJob {
 	rx_to: mpsc::Receiver<ToJob>,
 	/// Outbound message channel sending part.
 	tx_from: mpsc::Sender<FromJob>,
-
 	/// The `ParaId`s assigned to this validator.
 	assignment: ParaId,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
@@ -101,7 +98,6 @@ struct CandidateBackingJob {
 	seconded: Option<Hash>,
 	/// We have already reported misbehaviors for these validators.
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
-
 	table: Table<TableContext>,
 	table_context: TableContext,
 }
@@ -113,7 +109,7 @@ const fn group_quorum(n_validators: usize) -> usize {
 #[derive(Default)]
 struct TableContext {
 	signing_context: SigningContext,
-	key: Option<ValidatorPair>,
+	validator: Option<Validator>,
 	groups: HashMap<ParaId, Vec<ValidatorIndex>>,
 	validators: Vec<ValidatorId>,
 }
@@ -142,30 +138,40 @@ impl TableContextTrait for TableContext {
 	}
 }
 
-impl TableContext {
-	fn local_id(&self) -> Option<ValidatorId> {
-		self.key.as_ref().map(|k| k.public())
-	}
-
-	fn local_index(&self) -> Option<ValidatorIndex> {
-		self.local_id().and_then(|id|
-			self.validators
-				.iter()
-				.enumerate()
-				.find(|(_, k)| k == &&id)
-				.map(|(i, _)| i as ValidatorIndex)
-		)
-	}
-}
-
-const CHANNEL_CAPACITY: usize = 64;
-
 /// A message type that is sent from `CandidateBackingSubsystem` to `CandidateBackingJob`.
-enum ToJob {
+pub enum ToJob {
 	/// A `CandidateBackingMessage`.
 	CandidateBacking(CandidateBackingMessage),
 	/// Stop working.
 	Stop,
+}
+
+impl TryFrom<AllMessages> for ToJob {
+	type Error = ();
+
+	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
+		match msg {
+			AllMessages::CandidateBacking(msg) => Ok(ToJob::CandidateBacking(msg)),
+			_ => Err(()),
+		}
+	}
+}
+
+impl From<CandidateBackingMessage> for ToJob {
+	fn from(msg: CandidateBackingMessage) -> Self {
+		Self::CandidateBacking(msg)
+	}
+}
+
+impl util::ToJobTrait for ToJob {
+	const STOP: Self = ToJob::Stop;
+
+	fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::CandidateBacking(cb) => cb.relay_parent(),
+			Self::Stop => None,
+		}
+	}
 }
 
 /// A message type that is sent from `CandidateBackingJob` to `CandidateBackingSubsystem`.
@@ -193,6 +199,23 @@ impl From<FromJob> for AllMessages {
 	}
 }
 
+impl TryFrom<AllMessages> for FromJob {
+	type Error = &'static str;
+
+	fn try_from(f: AllMessages) -> Result<Self, Self::Error> {
+		match f {
+			AllMessages::AvailabilityStore(msg) => Ok(FromJob::AvailabilityStore(msg)),
+			AllMessages::RuntimeApi(msg) => Ok(FromJob::RuntimeApiMessage(msg)),
+			AllMessages::CandidateValidation(msg) => Ok(FromJob::CandidateValidation(msg)),
+			AllMessages::CandidateSelection(msg) => Ok(FromJob::CandidateSelection(msg)),
+			AllMessages::StatementDistribution(msg) => Ok(FromJob::StatementDistribution(msg)),
+			AllMessages::PoVDistribution(msg) => Ok(FromJob::PoVDistribution(msg)),
+			AllMessages::Provisioner(msg) => Ok(FromJob::Provisioner(msg)),
+			_ => Err("can't convert this AllMessages variant to FromJob"),
+		}
+	}
+}
+
 // It looks like it's not possible to do an `impl From` given the current state of
 // the code. So this does the necessary conversion.
 fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
@@ -209,19 +232,9 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 	}
 }
 
-// finds the first key we are capable of signing with out of the given set of validators,
-// if any.
-fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
-	let keystore = keystore.read();
-	validators.iter()
-		.find_map(|v| {
-			keystore.key_pair::<ValidatorPair>(&v).ok()
-		})
-}
-
 impl CandidateBackingJob {
 	/// Run asynchronously.
-	async fn run(mut self) -> Result<(), Error> {
+	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.rx_to.next().await {
 			match msg {
 				ToJob::CandidateBacking(msg) => {
@@ -328,9 +341,7 @@ impl CandidateBackingJob {
 				None => continue,
 			};
 
-			let mut validator_indices = BitVec::with_capacity(
-				group.len()
-			);
+			let mut validator_indices = BitVec::with_capacity(group.len());
 
 			validator_indices.resize(group.len(), false);
 
@@ -371,7 +382,7 @@ impl CandidateBackingJob {
 
 				if let Ok(report) = MisbehaviorReport::try_from(f) {
 					let message = ProvisionerMessage::ProvisionableData(
-						ProvisionableData::MisbehaviorReport(self.parent, report)
+						ProvisionableData::MisbehaviorReport(self.parent, report),
 					);
 
 					reports.push(message);
@@ -513,18 +524,7 @@ impl CandidateBackingJob {
 	}
 
 	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		let local_index = self.table_context.local_index()?;
-
-		let signing_key = self.table_context.key.as_ref()?;
-
-		let signed_statement = SignedFullStatement::sign(
-			statement,
-			&self.table_context.signing_context,
-			local_index,
-			signing_key,
-		);
-
-		Some(signed_statement)
+		Some(self.table_context.validator.as_ref()?.sign(statement))
 	}
 
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
@@ -657,329 +657,133 @@ impl CandidateBackingJob {
 	}
 }
 
-struct JobHandle {
-	abort_handle: future::AbortHandle,
-	to_job: mpsc::Sender<ToJob>,
-	finished: oneshot::Receiver<()>,
-	su_handle: usize,
-}
+impl util::JobTrait for CandidateBackingJob {
+	type ToJob = ToJob;
+	type FromJob = FromJob;
+	type Error = Error;
+	type RunArgs = KeyStorePtr;
 
-impl JobHandle {
-	async fn stop(mut self) {
-		let _ = self.to_job.send(ToJob::Stop).await;
-		let stop_timer = Delay::new(Duration::from_secs(1));
+	const NAME: &'static str = "CandidateBackingJob";
 
-		match future::select(stop_timer, self.finished).await {
-			Either::Left((_, _)) => {
-			},
-			Either::Right((_, _)) => {
-				self.abort_handle.abort();
-			},
-		}
-	}
+	fn run(
+		parent: Hash,
+		keystore: KeyStorePtr,
+		rx_to: mpsc::Receiver<Self::ToJob>,
+		mut tx_from: mpsc::Sender<Self::FromJob>,
+	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
+		async move {
+			let (validators, roster, signing_context) = futures::try_join!(
+				request_validators(parent, &mut tx_from).await?,
+				request_validator_groups(parent, &mut tx_from).await?,
+				request_signing_context(parent, &mut tx_from).await?,
+			)?;
 
-	async fn send_msg(&mut self, msg: ToJob) -> Result<(), Error> {
-		Ok(self.to_job.send(msg).await?)
-	}
-}
+			let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
 
-struct Jobs<S> {
-	spawner: S,
-	running: HashMap<Hash, JobHandle>,
-	outgoing_msgs: StreamUnordered<mpsc::Receiver<FromJob>>,
-}
+			let mut groups = HashMap::new();
 
-async fn run_job(
-	parent: Hash,
-	keystore: KeyStorePtr,
-	rx_to: mpsc::Receiver<ToJob>,
-	mut tx_from: mpsc::Sender<FromJob>,
-) -> Result<(), Error> {
-	let (validators, roster) = futures::try_join!(
-		request_validators(parent, &mut tx_from).await?,
-		request_validator_groups(parent, &mut tx_from).await?,
-	)?;
-
-	let key = signing_key(&validators[..], &keystore).ok_or(Error::NotInValidatorSet)?;
-	let mut groups = HashMap::new();
-
-	for assignment in roster.scheduled {
-		if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
-			groups.insert(
-				assignment.para_id,
-				g.clone(),
-			);
-		}
-	}
-
-	let mut assignment = Default::default();
-
-	if let Some(idx) = validators.iter().position(|k| *k == key.public()) {
-		let idx = idx as u32;
-		for (para_id, group) in groups.iter() {
-			if group.contains(&idx) {
-				assignment = *para_id;
-				break;
+			for assignment in roster.scheduled {
+				if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
+					groups.insert(assignment.para_id, g.clone());
+				}
 			}
-		}
-	}
 
-	let signing_context = request_signing_context(parent, &mut tx_from).await?.await?;
+			let mut assignment = Default::default();
 
-	let table_context = TableContext {
-		signing_context,
-		key: Some(key),
-		groups,
-		validators,
-	};
-
-	let job = CandidateBackingJob {
-		parent,
-		rx_to,
-		tx_from,
-		assignment,
-		issued_statements: HashSet::new(),
-		seconded: None,
-		reported_misbehavior_for: HashSet::new(),
-		table: Table::default(),
-		table_context,
-	};
-
-	job.run().await
-}
-
-/// Request a validator set from the `RuntimeApi`.
-async fn request_validators(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-			parent,
-			RuntimeApiRequest::Validators(tx),
-		)
-	)).await?;
-
-	Ok(rx)
-}
-
-/// Request the scheduler roster from `RuntimeApi`.
-async fn request_validator_groups(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<SchedulerRoster>, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-			parent,
-			RuntimeApiRequest::ValidatorGroups(tx),
-		)
-	)).await?;
-
-	Ok(rx)
-}
-
-/// Request a `SigningContext` from the `RuntimeApi`.
-async fn request_signing_context(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<SigningContext>, Error> {
-	let (tx, rx) = oneshot::channel();
-
-	s.send(FromJob::RuntimeApiMessage(RuntimeApiMessage::Request(
-			parent,
-			RuntimeApiRequest::SigningContext(tx),
-		)
-	)).await?;
-
-	Ok(rx)
-}
-
-impl<S: Spawn> Jobs<S> {
-	fn new(spawner: S) -> Self {
-		Self {
-			spawner,
-			running: HashMap::default(),
-			outgoing_msgs: StreamUnordered::new(),
-		}
-	}
-
-	fn spawn_job(&mut self, parent_hash: Hash, keystore: KeyStorePtr) -> Result<(), Error> {
-		let (to_job_tx, to_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
-		let (from_job_tx, from_job_rx) = mpsc::channel(CHANNEL_CAPACITY);
-
-		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = run_job(parent_hash, keystore, to_job_rx, from_job_tx).await {
-				log::error!(
-					"CandidateBackingJob({}) finished with an error {:?}",
-					parent_hash,
-					e,
-				);
+			if let Some(idx) = validators.iter().position(|k| *k == validator.id()) {
+				let idx = idx as u32;
+				for (para_id, group) in groups.iter() {
+					if group.contains(&idx) {
+						assignment = *para_id;
+						break;
+					}
+				}
 			}
-		});
 
-		let (finished_tx, finished) = oneshot::channel();
+			let table_context = TableContext {
+				groups,
+				validators,
+				signing_context: validator.signing_context().clone(),
+				validator: Some(validator),
+			};
 
-		let future = async move {
-			let _ = future.await;
-			let _ = finished_tx.send(());
-		};
-		self.spawner.spawn(future)?;
+			let job = CandidateBackingJob {
+				parent,
+				rx_to,
+				tx_from,
+				assignment,
+				issued_statements: HashSet::new(),
+				seconded: None,
+				reported_misbehavior_for: HashSet::new(),
+				table: Table::default(),
+				table_context,
+			};
 
-		let su_handle = self.outgoing_msgs.push(from_job_rx);
-
-		let handle = JobHandle {
-			abort_handle,
-			to_job: to_job_tx,
-			finished,
-			su_handle,
-		};
-
-		self.running.insert(parent_hash, handle);
-
-		Ok(())
-	}
-
-	async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
-		match self.running.remove(&parent_hash) {
-			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.su_handle);
-				handle.stop().await;
-				Ok(())
-			}
-			None => Err(Error::JobNotFound(parent_hash))
+			job.run_loop().await
 		}
-	}
-
-	async fn send_msg(&mut self, parent_hash: Hash, msg: ToJob) -> Result<(), Error> {
-		if let Some(job) = self.running.get_mut(&parent_hash) {
-			job.send_msg(msg).await?;
-		}
-		Ok(())
-	}
-
-	async fn next(&mut self) -> Option<FromJob> {
-		self.outgoing_msgs.next().await.and_then(|(e, _)| match e {
-			StreamYield::Item(e) => Some(e),
-			_ => None,
-		})
+		.boxed()
 	}
 }
+
+/// Manager type for the CandidateBackingSubsystem
+type Manager<Spawner, Context> = util::JobManager<Spawner, Context, CandidateBackingJob>;
 
 /// An implementation of the Candidate Backing subsystem.
-pub struct CandidateBackingSubsystem<S, Context> {
-	spawner: S,
-	keystore: KeyStorePtr,
-	_context: std::marker::PhantomData<Context>,
+pub struct CandidateBackingSubsystem<Spawner, Context> {
+	manager: Manager<Spawner, Context>,
 }
 
-impl<S, Context> CandidateBackingSubsystem<S, Context>
-	where
-		S: Spawn + Clone,
-		Context: SubsystemContext<Message=CandidateBackingMessage>,
+impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
+where
+	Spawner: Clone + Spawn + Send + Unpin,
+	Context: SubsystemContext,
+	ToJob: From<<Context as SubsystemContext>::Message>,
 {
 	/// Creates a new `CandidateBackingSubsystem`.
-	pub fn new(keystore: KeyStorePtr, spawner: S) -> Self {
-		Self {
-			spawner,
-			keystore,
-			_context: std::marker::PhantomData,
+	pub fn new(spawner: Spawner, keystore: KeyStorePtr) -> Self {
+		CandidateBackingSubsystem {
+			manager: util::JobManager::new(spawner, keystore)
 		}
 	}
 
-	async fn run(
-		mut ctx: Context,
-		keystore: KeyStorePtr,
-		spawner: S,
-	) {
-		let mut jobs = Jobs::new(spawner.clone());
-
-		loop {
-			select! {
-				incoming = ctx.recv().fuse() => {
-					match incoming {
-						Ok(msg) => match msg {
-							FromOverseer::Signal(OverseerSignal::StartWork(hash)) => {
-								if let Err(e) = jobs.spawn_job(hash, keystore.clone()) {
-									log::error!("Failed to spawn a job: {:?}", e);
-									break;
-								}
-							}
-							FromOverseer::Signal(OverseerSignal::StopWork(hash)) => {
-								if let Err(e) = jobs.stop_job(hash).await {
-									log::error!("Failed to spawn a job: {:?}", e);
-									break;
-								}
-							}
-							FromOverseer::Communication { msg } => {
-								match msg {
-									CandidateBackingMessage::Second(hash, _, _) |
-									CandidateBackingMessage::Statement(hash, _) |
-									CandidateBackingMessage::GetBackedCandidates(hash, _) => {
-										let res = jobs.send_msg(
-											hash.clone(),
-											ToJob::CandidateBacking(msg),
-										).await;
-
-										if let Err(e) = res {
-											log::error!(
-												"Failed to send a message to a job: {:?}",
-												e,
-											);
-
-											break;
-										}
-									}
-									_ => (),
-								}
-							}
-							_ => (),
-						},
-						Err(_) => break,
-					}
-				}
-				outgoing = jobs.next().fuse() => {
-					match outgoing {
-						Some(msg) => {
-							let _ = ctx.send_message(msg.into()).await;
-						}
-						None => break,
-					}
-				}
-				complete => break,
-			}
-		}
+	/// Run this subsystem
+	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
+		<Manager<Spawner, Context>>::run(ctx, keystore, spawner).await
 	}
 }
 
-impl<S, Context> Subsystem<Context> for CandidateBackingSubsystem<S, Context>
-	where
-		S: Spawn + Send + Clone + 'static,
-		Context: SubsystemContext<Message=CandidateBackingMessage>,
+impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
+where
+	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Context: SubsystemContext,
+	<Context as SubsystemContext>::Message: Into<ToJob>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let keystore = self.keystore.clone();
-		let spawner = self.spawner.clone();
-
-		SpawnedSubsystem(Box::pin(async move {
-			Self::run(ctx, keystore, spawner).await;
-		}))
+		self.manager.start(ctx)
 	}
 }
+
+
 
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{Future, executor::{self, ThreadPool}};
-	use std::collections::HashMap;
-	use std::sync::Arc;
-	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::v1::{
-		AssignmentKind, CollatorId, CoreAssignment, BlockData, CoreIndex, GroupIndex, ValidityAttestation,
-		CandidateCommitments, LocalValidationData, GlobalValidationSchedule, HeadData,
-	};
 	use assert_matches::assert_matches;
+	use futures::{
+		executor::{self, ThreadPool},
+		future, Future,
+	};
+	use polkadot_primitives::v1::{
+		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
+		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
+		ValidatorPair, ValidityAttestation,
+	};
+	use polkadot_subsystem::{
+		messages::{RuntimeApiRequest, SchedulerRoster},
+		FromOverseer, OverseerSignal,
+	};
+	use sp_keyring::Sr25519Keyring;
+	use std::collections::HashMap;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
@@ -1545,7 +1349,6 @@ mod tests {
 					).unwrap();
 				}
 			);
-
 		});
 	}
 
@@ -1625,8 +1428,6 @@ mod tests {
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
-
-			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
 
 			assert_matches!(
 				virtual_overseer.recv().await,
