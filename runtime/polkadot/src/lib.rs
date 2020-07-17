@@ -25,7 +25,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight,
+	MaximumExtrinsicWeight, purchase,
 };
 
 use sp_std::prelude::*;
@@ -57,11 +57,11 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use system::{EnsureRoot, EnsureOneOf};
+use system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -135,7 +135,8 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_)  =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
+			Call::Purchase(_) =>
 				true,
 		}
 	}
@@ -626,12 +627,7 @@ impl grandpa::Trait for Runtime {
 
 	type KeyOwnerProofSystem = Historical;
 
-	type HandleEquivocation = grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		primitives::v0::fisherman::FishermanAppCrypto,
-		Runtime,
-		Offences,
-	>;
+	type HandleEquivocation = grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -720,7 +716,6 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
-			grandpa::ValidateEquivocationReport::<Runtime>::new(),
 			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
@@ -950,6 +945,46 @@ impl poll::Trait for Runtime {
 	type End = PollEnd;
 }
 
+parameter_types! {
+	pub const MaxStatementLength: usize = 1_000;
+	pub const UnlockedProportion: Permill = Permill::zero();
+	pub const MaxUnlocked: Balance = 0;
+}
+
+ord_parameter_types! {
+	pub const W3FValidity: AccountId = AccountId::from(
+		// 142wAF65SK7PxhyzzrWz5m5PXDtooehgePBd7rc2NWpfc8Wa
+		hex_literal::hex!("862e432e0cf75693899c62691ac0f48967f815add97ae85659dcde8332708551")
+	);
+	pub const W3FConfiguration: AccountId = AccountId::from(
+		// 1KvKReVmUiTc2LW2a4qyHsaJJ9eE9LRsywZkMk5hyBeyHgw
+		hex_literal::hex!("0e6de68b13b82479fbe988ab9ecb16bad446b67b993cdd9198cd41c7c6259c49")
+	);
+}
+
+type ValidityOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FValidity, AccountId>,
+>;
+
+type ConfigurationOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FConfiguration, AccountId>,
+>;
+
+impl purchase::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type VestingSchedule = Vesting;
+	type ValidityOrigin = ValidityOrigin;
+	type ConfigurationOrigin = ConfigurationOrigin;
+	type MaxStatementLength = MaxStatementLength;
+	type UnlockedProportion = UnlockedProportion;
+	type MaxUnlocked = MaxUnlocked;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -976,7 +1011,7 @@ construct_runtime! {
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
-		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
+		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
@@ -1018,6 +1053,9 @@ construct_runtime! {
 
 		// Poll module.
 		Poll: poll::{Module, Call, Storage, Event<T>},
+
+		// DOT Purchase module. Late addition.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -1042,7 +1080,6 @@ pub type SignedExtra = (
 	transaction_payment::ChargeTransactionPayment<Runtime>,
 	registrar::LimitParathreadCommits<Runtime>,
 	parachains::ValidateDoubleVoteReports<Runtime>,
-	grandpa::ValidateEquivocationReport<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1170,7 +1207,7 @@ sp_api::impl_runtime_apis! {
 			Grandpa::grandpa_authorities()
 		}
 
-		fn submit_report_equivocation_extrinsic(
+		fn submit_report_equivocation_unsigned_extrinsic(
 			equivocation_proof: fg_primitives::EquivocationProof<
 				<Block as BlockT>::Hash,
 				sp_runtime::traits::NumberFor<Block>,
@@ -1179,7 +1216,7 @@ sp_api::impl_runtime_apis! {
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			Grandpa::submit_report_equivocation_extrinsic(
+			Grandpa::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)
