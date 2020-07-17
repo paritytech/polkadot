@@ -21,7 +21,7 @@
 //! pool of processes used for execution of the Wasm.
 
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
 	FromOverseer, OverseerSignal,
 };
 use polkadot_subsystem::messages::{
@@ -35,7 +35,7 @@ use polkadot_primitives::v1::{
 use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::Encode;
 
 use futures::channel::oneshot;
 use futures::prelude::*;
