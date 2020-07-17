@@ -259,7 +259,6 @@ decl_module! {
 				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
 
 				// Transfer funds from the payment account into the purchasing user.
-				// TODO: This is totally safe? No chance of reentrancy?
 				let total_balance = status.free_balance
 					.checked_add(&status.locked_balance)
 					.ok_or(Error::<T>::Overflow)?;
