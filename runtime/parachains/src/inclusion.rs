@@ -22,14 +22,13 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	ValidatorId, CommittedCandidateReceipt, ValidatorIndex, Id as ParaId,
+	ValidatorId, CandidateReceipt, CommittedCandidateReceipt, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment,
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
-	weights::Weight,
-	traits::Get,
+	decl_storage, decl_module, decl_error, decl_event, ensure,
+	dispatch::DispatchResult, IterableStorageMap, weights::Weight, traits::Get,
 };
 use codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -85,7 +84,11 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 	}
 }
 
-pub trait Trait: system::Trait + paras::Trait + configuration::Trait { }
+pub trait Trait:
+	system::Trait + paras::Trait + configuration::Trait
+{
+	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaInclusion {
@@ -142,10 +145,23 @@ decl_error! {
 	}
 }
 
+decl_event! {
+	pub enum Event<T> where <T as system::Trait>::Hash {
+		/// A candidate was included.
+		CandidateIncluded(CandidateReceipt<Hash>),
+		/// A candidate timed out.
+		CandidateTimedOut(CandidateReceipt<Hash>),
+	}
+}
+
 decl_module! {
 	/// The parachain-candidate inclusion module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait>
+		for enum Call where origin: <T as system::Trait>::Origin, system = system
+	{
 		type Error = Error<T>;
+
+		fn deposit_event() = default;
 	}
 }
 
@@ -460,6 +476,7 @@ impl<T: Trait> Module<T> {
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 	) -> Weight {
+		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
 
@@ -472,6 +489,8 @@ impl<T: Trait> Module<T> {
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
+
+		Self::deposit_event(Event::<T>::CandidateIncluded(plain));
 
 		weight + <paras::Module<T>>::note_new_head(
 			receipt.descriptor.para_id,
@@ -498,7 +517,9 @@ impl<T: Trait> Module<T> {
 		}
 
 		for para_id in cleaned_up_ids {
-			<PendingAvailability<T>>::remove(&para_id);
+			if let Some(pending) = <PendingAvailability<T>>::take(&para_id) {
+				Self::deposit_event(Event::<T>::CandidateTimedOut(pending.receipt.to_plain()))
+			}
 		}
 
 		cleaned_up_cores
