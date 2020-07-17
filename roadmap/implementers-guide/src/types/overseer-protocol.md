@@ -252,7 +252,7 @@ enum RuntimeApiRequest {
 		ResponseChannel<Option<LocalValidationData>>,
 	),
 	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<AvailabilityCores>),
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
 }
