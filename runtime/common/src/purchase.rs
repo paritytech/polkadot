@@ -268,13 +268,15 @@ decl_module! {
 					// We checked that this account has no existing vesting schedule. So this function should
 					// never fail, however if it does, not much we can do about it at this point.
 					let unlock_block = UnlockBlock::<T>::get();
+					let unlocked = (status.locked_balance * T::UnlockedProportion::get()).max(T::MaxUnlocked::get());
+					let locked = status.locked_balance.saturating_sub(unlocked);
 					let _ = T::VestingSchedule::add_vesting_schedule(
 						// Apply vesting schedule to this user
 						&who,
 						// For this much amount
-						status.locked_balance,
+						locked,
 						// Unlocking the full amount after one block
-						status.locked_balance,
+						locked,
 						// When everything unlocks
 						unlock_block
 					);
