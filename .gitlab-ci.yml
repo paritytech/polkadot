@@ -117,7 +117,7 @@ test-linux-stable:                 &test
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
   script:
-    - time cargo test --all --release --verbose --locked --features runtime-benchmarks
+    - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
 
 check-web-wasm:                    &test
