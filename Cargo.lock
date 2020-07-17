@@ -4457,6 +4457,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-subsystem-test-helpers",
  "sc-network",
+ "sp-core",
  "sp-runtime",
  "streamunordered",
 ]
@@ -4538,6 +4539,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -4571,9 +4573,11 @@ dependencies = [
  "futures-timer 3.0.2",
  "kv-log-macro",
  "log 0.4.8",
+ "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-client-api",
+ "sp-core",
  "streamunordered",
 ]
 
@@ -4611,6 +4615,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-subsystem-test-helpers",
  "sc-network",
+ "sp-core",
  "sp-runtime",
  "streamunordered",
 ]
@@ -4963,6 +4968,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "polkadot-subsystem-test-helpers",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
  "sp-staking",
@@ -4986,6 +4992,7 @@ dependencies = [
  "futures 0.3.5",
  "parking_lot 0.10.2",
  "polkadot-node-subsystem",
+ "sp-core",
 ]
 
 [[package]]

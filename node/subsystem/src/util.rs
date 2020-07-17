@@ -30,7 +30,7 @@ use futures::{
 	prelude::*,
 	select,
 	stream::Stream,
-	task::{self, Spawn, SpawnError, SpawnExt},
+	task,
 };
 use futures_timer::Delay;
 use keystore::KeyStorePtr;
@@ -40,7 +40,10 @@ use polkadot_primitives::v1::{
 	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext,
 	ValidatorId, ValidatorIndex, ValidatorPair,
 };
-use sp_core::Pair;
+use sp_core::{
+	Pair,
+	traits::SpawnNamed,
+};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -64,9 +67,6 @@ pub enum Error {
 	/// Attempted to send on a MPSC channel which has been canceled
 	#[from]
 	Mpsc(mpsc::SendError),
-	/// Attempted to spawn a new task, and failed
-	#[from]
-	Spawn(SpawnError),
 	/// Attempted to convert from an AllMessages to a FromJob, and failed.
 	SenderConversion(String),
 	/// The local node is not a validator.
@@ -358,7 +358,7 @@ pub struct Jobs<Spawner, Job: JobTrait> {
 	job: std::marker::PhantomData<Job>,
 }
 
-impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
+impl<Spawner: SpawnNamed, Job: JobTrait> Jobs<Spawner, Job> {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
 		Self {
@@ -391,7 +391,7 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 			let _ = future.await;
 			let _ = finished_tx.send(());
 		};
-		self.spawner.spawn(future)?;
+		self.spawner.spawn(Job::NAME, future.boxed());
 
 		// this handle lets us remove the appropriate receiver from self.outgoing_msgs
 		// when it's time to stop the job.
@@ -444,7 +444,7 @@ impl<Spawner, Job: JobTrait> PinnedDrop for Jobs<Spawner, Job> {
 
 impl<Spawner, Job> Stream for Jobs<Spawner, Job>
 where
-	Spawner: Spawn,
+	Spawner: SpawnNamed,
 	Job: JobTrait,
 {
 	type Item = Job::FromJob;
@@ -476,7 +476,7 @@ pub struct JobManager<Spawner, Context, Job: JobTrait> {
 
 impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
 where
-	Spawner: Spawn + Clone + Send + Unpin,
+	Spawner: SpawnNamed + Clone + Send + Unpin,
 	Context: SubsystemContext,
 	Job: JobTrait,
 	Job::RunArgs: Clone,
@@ -595,7 +595,7 @@ where
 
 impl<Spawner, Context, Job> Subsystem<Context> for JobManager<Spawner, Context, Job>
 where
-	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
 	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
 	Job: JobTrait + Send,
@@ -606,8 +606,13 @@ where
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
 
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			Self::run(ctx, run_args, spawner).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "JobManager",
+			future,
+		}
 	}
 }
