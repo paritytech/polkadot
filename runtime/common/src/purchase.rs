@@ -162,6 +162,13 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
+		/// The maximum statement length for the statement users to sign when creating an account.
+		const MaxStatementLength: u32 =  T::MaxStatementLength::get() as u32;
+		/// The amount of purchased locked DOTs that we will unlock for basic actions on the chain.
+		const UnlockedProportion: Permill = T::UnlockedProportion::get();
+		/// The maximum amount of locked DOTs that we will unlock.
+		const MaxUnlocked: BalanceOf<T> = T::MaxUnlocked::get();
+
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
 
