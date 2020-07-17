@@ -8,10 +8,10 @@ Signals from the overseer to a subsystem to request change in execution that has
 
 ```rust
 enum OverseerSignal {
-  /// Signal to start work localized to the relay-parent hash.
-  StartWork(Hash),
-  /// Signal to stop (or phase down) work localized to the relay-parent hash.
-  StopWork(Hash),
+  /// Signal about a change in active leaves.
+  ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Conclude all operation.
+  Conclude,
 }
 ```
 
@@ -21,6 +21,17 @@ All subsystems have their own message types; all of them need to be able to list
 1. Add a generic varint to `OverseerSignal`: `Message(T)`.
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
+
+## Active Leaves Update
+
+Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
+
+```rust
+struct ActiveLeavesUpdate {
+	activated: [Hash], // in practice, these should probably be a SmallVec
+	deactivated: [Hash],
+}
+```
 
 ## All Messages
 
