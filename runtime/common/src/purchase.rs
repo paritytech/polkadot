@@ -18,7 +18,7 @@
 
 use codec::{Encode, Decode};
 use sp_runtime::{Permill, RuntimeDebug, DispatchResult, DispatchError, AnySignature};
-use sp_runtime::traits::{Zero, CheckedAdd, Verify};
+use sp_runtime::traits::{Zero, CheckedAdd, Verify, Saturating};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, Currency, ExistenceRequirement, VestingSchedule, Get
@@ -41,6 +41,10 @@ pub trait Trait: system::Trait {
 	type ConfigurationOrigin: EnsureOrigin<Self::Origin>;
 	/// The maximum statement length for the statement users to sign when creating an account.
 	type MaxStatementLength: Get<usize>;
+	/// The amount of purchased locked DOTs that we will unlock for basic actions on the chain.
+	type UnlockedProportion: Get<Permill>;
+	/// The maximum amount of locked DOTs that we will unlock.
+	type MaxUnlocked: Get<BalanceOf<Self>>;
 }
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -265,11 +269,12 @@ decl_module! {
 				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
 				if !status.locked_balance.is_zero() {
+					let unlock_block = UnlockBlock::<T>::get();
+					// We allow some configurable portion of the purchased locked DOTs to be unlocked for basic usage.
+					let unlocked = (T::UnlockedProportion::get() * status.locked_balance).min(T::MaxUnlocked::get());
+					let locked = status.locked_balance.saturating_sub(unlocked);
 					// We checked that this account has no existing vesting schedule. So this function should
 					// never fail, however if it does, not much we can do about it at this point.
-					let unlock_block = UnlockBlock::<T>::get();
-					let unlocked = (status.locked_balance * T::UnlockedProportion::get()).max(T::MaxUnlocked::get());
-					let locked = status.locked_balance.saturating_sub(unlocked);
 					let _ = T::VestingSchedule::add_vesting_schedule(
 						// Apply vesting schedule to this user
 						&who,
@@ -457,6 +462,8 @@ mod tests {
 
 	parameter_types! {
 		pub const MaxStatementLength: usize =  1_000;
+		pub const UnlockedProportion: Permill = Permill::from_percent(10);
+		pub const MaxUnlocked: u64 = 10;
 	}
 
 	ord_parameter_types! {
@@ -472,6 +479,8 @@ mod tests {
 		type ValidityOrigin = system::EnsureSignedBy<ValidityOrigin, AccountId>;
 		type ConfigurationOrigin = system::EnsureSignedBy<ConfigurationOrigin, AccountId>;
 		type MaxStatementLength = MaxStatementLength;
+		type UnlockedProportion = UnlockedProportion;
+		type MaxUnlocked = MaxUnlocked;
 	}
 
 	type System = system::Module<Test>;
@@ -904,9 +913,11 @@ mod tests {
 			// Payment is made.
 			assert_eq!(<Test as Trait>::Currency::free_balance(&payment_account()), 99_650);
 			assert_eq!(<Test as Trait>::Currency::free_balance(&alice()), 100);
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
+			// 10% of the 50 units is unlocked automatically for Alice
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));
 			assert_eq!(<Test as Trait>::Currency::free_balance(&bob()), 250);
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(150));
+			// A max of 10 units is unlocked automatically for Bob
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(140));
 			// Status is completed.
 			assert_eq!(
 				Accounts::<Test>::get(alice()),
@@ -933,8 +944,8 @@ mod tests {
 			let vest_call = Call::Vesting(vesting::Call::<Test>::vest());
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(50));
-			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(150));
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));
+			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&bob()), Some(140));
 			System::set_block_number(101);
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));

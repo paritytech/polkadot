@@ -951,6 +951,8 @@ impl poll::Trait for Runtime {
 
 parameter_types! {
 	pub const MaxStatementLength: usize = 1_000;
+	pub const UnlockedProportion: Permill = Permill::zero();
+	pub const MaxUnlocked: u64 = Zero::zero();
 }
 
 ord_parameter_types! {
@@ -983,6 +985,8 @@ impl purchase::Trait for Runtime {
 	type ValidityOrigin = ValidityOrigin;
 	type ConfigurationOrigin = ConfigurationOrigin;
 	type MaxStatementLength = MaxStatementLength;
+	type UnlockedProportion = UnlockedProportion;
+	type MaxUnlocked = MaxUnlocked;
 }
 
 construct_runtime! {
