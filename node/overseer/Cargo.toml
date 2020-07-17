@@ -13,6 +13,8 @@ polkadot-primitives = { path = "../../primitives" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 async-trait = "0.1"
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 futures = { version = "0.3.5", features = ["thread-pool"] }
