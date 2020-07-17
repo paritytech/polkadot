@@ -21,7 +21,7 @@ use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
 	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex,
+	GroupIndex, CandidateEvent,
 };
 use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating, Zero};
 use frame_support::debug;
@@ -266,4 +266,22 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
 {
 	<inclusion::Module<T>>::candidate_pending_availability(para_id)
+}
+
+/// Implementatino for the `candidate_events` function of the runtime API.
+// NOTE: this runs without block initialization, as it accesses events.
+// this means it can run in a different session than other runtime APIs at the same block.
+pub fn candidate_events<T: initializer::Trait>(
+	extract_event: impl Fn(<T as system::Trait>::Event) -> Option<inclusion::Event<T>>,
+) -> Vec<CandidateEvent<T::Hash>> {
+	use inclusion::Event as RawEvent;
+
+	<system::Module<T>>::events().into_iter()
+		.filter_map(|record| extract_event(record.event))
+		.map(|event| match event {
+			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),
+			RawEvent::<T>::CandidateIncluded(c, h) => CandidateEvent::CandidateIncluded(c, h),
+			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
+		})
+		.collect()
 }
