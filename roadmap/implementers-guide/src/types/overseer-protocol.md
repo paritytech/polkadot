@@ -228,33 +228,33 @@ enum ProvisionerMessage {
 
 The Runtime API subsystem is responsible for providing an interface to the state of the chain's runtime.
 
-Other subsystems query this data by sending these messages.
+This is fueled by an auxiliary type encapsulating all request types defined in the Runtime API section of the guide.
+
+> TODO: link to the Runtime API section. Not possible currently because of https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/25. Once v0.7.1 is released it will work.
 
 ```rust
-/// The information on validator groups, core assignments,
-/// upcoming paras and availability cores.
-struct SchedulerRoster {
-	/// Validator-to-groups assignments.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
-	/// All scheduled paras.
-	scheduled: Vec<CoreAssignment>,
-	/// Upcoming paras (chains and threads).
-	upcoming: Vec<ParaId>,
-	/// Occupied cores.
-	availability_cores: Vec<Option<CoreOccupied>>,
-}
-
 enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(ResponseChannel<Vec<ValidatorId>>),
-	/// Get the assignments of validators to cores, upcoming parachains.
-	SchedulerRoster(ResponseChannel<SchedulerRoster>),
-	/// Get a signing context for bitfields and statements.
-	SigningContext(ResponseChannel<SigningContext>),
-	/// Get the validation code for a specific para, assuming execution under given block number, and
-	/// an optional block number representing an intermediate parablock executed in the context of
-	/// that block.
-	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, ResponseChannel<ValidationCode>),
+	/// Get the validator groups and rotation info.
+	ValidatorGroups(ResponseChannel<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
+	/// Get the session index for children of the block. This can be used to construct a signing
+	/// context.
+	SessionIndex(ResponseChannel<SessionIndex>),
+	/// Get the validation code for a specific para, using the given occupied core assumption.
+	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
+	/// Get the global validation schedule at the state of a given block.
+	GlobalValidationSchedule(ResponseChannel<GlobalValidationSchedule>),
+	/// Get the local validation data for a specific para, with the given occupied core assumption.
+	LocalValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		ResponseChannel<Option<LocalValidationData>>,
+	),
+	/// Get information about all availability cores.
+	AvailabilityCores(ResponseChannel<AvailabilityCores>),
+	/// Get a committed candidate receipt for all candidates pending availability.
+	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
 }
 
 enum RuntimeApiMessage {

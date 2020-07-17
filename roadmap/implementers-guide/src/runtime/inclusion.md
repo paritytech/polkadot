@@ -14,7 +14,7 @@ struct AvailabilityBitfield {
 
 struct CandidatePendingAvailability {
   core: CoreIndex, // availability core
-  receipt: CandidateReceipt,
+  descriptor: CandidateDescriptor,
   availability_votes: Bitfield, // one bit per validator.
   relay_parent_number: BlockNumber, // number of the relay-parent.
   backed_in_number: BlockNumber,
@@ -65,7 +65,6 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
-  1. Transform each [`CommittedCandidateReceipt`](../types/candidate.md#committed-candidate-receipt) into the corresponding [`CandidateReceipt`](../types/candidate.md#candidate-receipt), setting the commitments aside.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. check that the upward messages, when combined with the existing queue size, are not exceeding `config.max_upward_queue_count` and `config.watermark_upward_queue_size` parameters.
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
@@ -81,7 +80,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   ```rust
     fn collect_pending(f: impl Fn(CoreIndex, BlockNumber) -> bool) -> Vec<u32> {
       // sweep through all paras pending availability. if the predicate returns true, when given the core index and
-      // the block number the candidate has been pending availability since, then clean up the corresponding storage for that candidate.
+      // the block number the candidate has been pending availability since, then clean up the corresponding storage for that candidate and the commitments.
       // return a vector of cleaned-up core IDs.
     }
   ```
