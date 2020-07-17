@@ -21,7 +21,7 @@ use sp_runtime::{Permill, RuntimeDebug, DispatchResult, DispatchError, AnySignat
 use sp_runtime::traits::{Zero, CheckedAdd, Verify};
 use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
-	EnsureOrigin, IsDeadAccount, Currency, ExistenceRequirement, VestingSchedule, Get
+	EnsureOrigin, Currency, ExistenceRequirement, VestingSchedule, Get
 };
 use system::ensure_signed;
 use sp_core::sr25519;
@@ -39,7 +39,7 @@ pub trait Trait: system::Trait {
 	type ValidityOrigin: EnsureOrigin<Self::Origin>;
 	/// The origin allowed to make configurations to the pallet.
 	type ConfigurationOrigin: EnsureOrigin<Self::Origin>;
-	/// The purchase limit for low contributing users.
+	/// The maximum statement length for the statement users to sign when creating an account.
 	type MaxStatementLength: Get<usize>;
 }
 
@@ -166,14 +166,16 @@ decl_module! {
 		/// We check that the account does not exist at this stage.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[weight = 200_000_000 + T::DbWeight::get().reads_writes(3, 1)]
+		#[weight = 200_000_000 + T::DbWeight::get().reads_writes(4, 1)]
 		fn create_account(origin,
 			who: T::AccountId,
 			signature: Vec<u8>
 		) {
 			T::ValidityOrigin::ensure_origin(origin)?;
-			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
+			// Account is already being tracked by the pallet.
 			ensure!(!Accounts::<T>::contains_key(&who), Error::<T>::ExistingAccount);
+			// Account should not have a vesting schedule.
+			ensure!(T::VestingSchedule::vesting_balance(&who).is_none(), Error::<T>::VestingScheduleExists);
 
 			// Verify the signature provided is valid for the statement.
 			Self::verify_signature(&who, &signature)?;
@@ -216,7 +218,7 @@ decl_module! {
 		/// We check tht the account is valid for a balance transfer at this point.
 		///
 		/// Origin must match the `ValidityOrigin`.
-		#[weight = T::DbWeight::get().reads_writes(1, 1)]
+		#[weight = T::DbWeight::get().reads_writes(2, 1)]
 		fn update_balance(origin,
 			who: T::AccountId,
 			free_balance: BalanceOf<T>,
@@ -228,6 +230,7 @@ decl_module! {
 			Accounts::<T>::try_mutate(&who, |status: &mut AccountStatus<BalanceOf<T>>| -> DispatchResult {
 				// Account has a valid status (not Invalid, Pending, or Completed)...
 				ensure!(status.validity.is_valid(), Error::<T>::InvalidAccount);
+
 				free_balance.checked_add(&locked_balance).ok_or(Error::<T>::Overflow)?;
 				status.free_balance = free_balance;
 				status.locked_balance = locked_balance;
@@ -248,9 +251,6 @@ decl_module! {
 			let payment_account = ensure_signed(origin)?;
 			ensure!(payment_account == PaymentAccount::<T>::get(), DispatchError::BadOrigin);
 
-			// Account should not be active.
-			ensure!(system::Module::<T>::is_dead_account(&who), Error::<T>::ExistingAccount);
-
 			// Account should not have a vesting schedule.
 			ensure!(T::VestingSchedule::vesting_balance(&who).is_none(), Error::<T>::VestingScheduleExists);
 
@@ -265,9 +265,8 @@ decl_module! {
 				T::Currency::transfer(&payment_account, &who, total_balance, ExistenceRequirement::AllowDeath)?;
 
 				if !status.locked_balance.is_zero() {
-					// Account did not exist before this point, and we checked it has no existing vesting schedule.
-					// So this function should never fail, however if it does, not much we can do about it at
-					// this point.
+					// We checked that this account has no existing vesting schedule. So this function should
+					// never fail, however if it does, not much we can do about it at this point.
 					let unlock_block = UnlockBlock::<T>::get();
 					let _ = T::VestingSchedule::add_vesting_schedule(
 						// Apply vesting schedule to this user
@@ -659,11 +658,16 @@ mod tests {
 				Error::<Test>::InvalidSignature,
 			);
 
-			// Active Account
-			Balances::make_free_balance_be(&alice(), 100);
+			// Account with vesting
+			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(
+				&alice(),
+				100,
+				1,
+				50
+			));
 			assert_noop!(
 				Purchase::create_account(Origin::signed(validity_origin()), alice(), alice_signature().to_vec()),
-				Error::<Test>::ExistingAccount,
+				Error::<Test>::VestingScheduleExists,
 			);
 
 			// Duplicate Purchasing Account
@@ -945,12 +949,14 @@ mod tests {
 				Origin::signed(alice()),
 				alice(),
 			), BadOrigin);
-			// Existing Account
-			Balances::make_free_balance_be(&bob(), 100);
+			// Account with Existing Vesting Schedule
+			assert_ok!(<Test as Trait>::VestingSchedule::add_vesting_schedule(
+				&bob(), 100, 1, 50,
+			));
 			assert_noop!(Purchase::payout(
 				Origin::signed(payment_account()),
 				bob(),
-			), Error::<Test>::ExistingAccount);
+			), Error::<Test>::VestingScheduleExists);
 			// Invalid Account (never created)
 			assert_noop!(Purchase::payout(
 				Origin::signed(payment_account()),
