@@ -541,7 +541,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OccupiedCore<N = BlockNumber> {
 	/// The ID of the para occupying the core.
-	pub para: Id,
+	pub para_id: Id,
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	pub next_up_on_available: Option<ScheduledCore>,
@@ -566,7 +566,7 @@ pub struct OccupiedCore<N = BlockNumber> {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
-	pub para: Id,
+	pub para_id: Id,
 	/// The collator required to author the block, if any.
 	pub collator: Option<CollatorId>,
 }
@@ -630,7 +630,7 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		fn local_validation_data(para: Id, assumption: OccupiedCoreAssumption)
+		fn local_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<LocalValidationData<N>>;
 
 		/// Returns the session index expected at a child of the block.
@@ -642,11 +642,12 @@ sp_api::decl_runtime_apis! {
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		fn validation_code(para: Id, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>;
+		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
 		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
-		fn candidate_pending_availability(para: Id) -> Option<CommittedCandidateReceipt<H>>;
+		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
 	}
 }
 

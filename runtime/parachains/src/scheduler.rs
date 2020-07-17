@@ -609,14 +609,14 @@ impl<T: Trait> Module<T> {
 		let parachains = <paras::Module<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
 			Some(ScheduledCore {
-				para: parachains[core.0 as usize],
+				para_id: parachains[core.0 as usize],
 				collator: None,
 			})
 		} else {
 			let queue = ParathreadQueue::get();
 			let core_offset = (core.0 as usize - parachains.len()) as u32;
 			queue.get_next_on_core(core_offset).map(|entry| ScheduledCore {
-				para: entry.claim.0,
+				para_id: entry.claim.0,
 				collator: Some(entry.claim.1.clone()),
 			})
 		}
@@ -633,7 +633,7 @@ impl<T: Trait> Module<T> {
 		let parachains = <paras::Module<T>>::parachains();
 		if (core.0 as usize) < parachains.len() {
 			Some(ScheduledCore {
-				para: parachains[core.0 as usize],
+				para_id: parachains[core.0 as usize],
 				collator: None,
 			})
 		} else {
@@ -643,7 +643,7 @@ impl<T: Trait> Module<T> {
 			let core_offset = (core.0 as usize - parachains.len()) as u32;
 			queue.get_next_on_core(core_offset)
 				.map(|entry| ScheduledCore {
-					para: entry.claim.0,
+					para_id: entry.claim.0,
 					collator: Some(entry.claim.1.clone()),
 				})
 				.or_else(|| {
@@ -654,7 +654,7 @@ impl<T: Trait> Module<T> {
 						match o {
 							CoreOccupied::Parathread(entry) => {
 								Some(ScheduledCore {
-									para: entry.claim.0,
+									para_id: entry.claim.0,
 									collator: Some(entry.claim.1.clone()),
 								})
 							}
@@ -1600,7 +1600,7 @@ mod tests {
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
 					ScheduledCore {
-						para: thread_b,
+						para_id: thread_b,
 						collator: Some(collator.clone()),
 					}
 				);
@@ -1673,7 +1673,7 @@ mod tests {
 				assert_eq!(
 					Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
 					ScheduledCore {
-						para: thread_a,
+						para_id: thread_a,
 						collator: Some(collator.clone()),
 					}
 				);
@@ -1690,7 +1690,7 @@ mod tests {
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
 					ScheduledCore {
-						para: thread_b,
+						para_id: thread_b,
 						collator: Some(collator.clone()),
 					}
 				);
@@ -1753,7 +1753,7 @@ mod tests {
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
 					ScheduledCore {
-						para: chain_a,
+						para_id: chain_a,
 						collator: None,
 					}
 				);
@@ -1816,7 +1816,7 @@ mod tests {
 				assert_eq!(
 					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
 					ScheduledCore {
-						para: chain_a,
+						para_id: chain_a,
 						collator: None,
 					}
 				);

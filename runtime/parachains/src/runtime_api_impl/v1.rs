@@ -91,14 +91,14 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 		Some(occupied) => {
 			CoreState::Occupied(match occupied {
 				CoreOccupied::Parachain => {
-					let para = parachains[i];
+					let para_id = parachains[i];
 					let pending_availability = <inclusion::Module<T>>
-						::pending_availability(para)
+						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para,
+						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -118,14 +118,14 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 					}
 				}
 				CoreOccupied::Parathread(p) => {
-					let para = p.claim.0;
+					let para_id = p.claim.0;
 					let pending_availability = <inclusion::Module<T>>
-						::pending_availability(para)
+						::pending_availability(para_id)
 						.expect("Occupied core always has pending availability; qed");
 
 					let backed_in_number = pending_availability.backed_in_number().clone();
 					OccupiedCore {
-						para,
+						para_id,
 						next_up_on_available: <scheduler::Module<T>>::next_up_on_available(
 							CoreIndex(i as u32)
 						),
@@ -152,7 +152,7 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
 	for scheduled in <scheduler::Module<T>>::scheduled() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
-			para: scheduled.para_id,
+			para_id: scheduled.para_id,
 			collator: scheduled.required_collator().map(|c| c.clone()),
 		});
 	}
@@ -174,7 +174,7 @@ pub fn global_validation_schedule<T: initializer::Trait>()
 
 /// Implementation for the `local_validation_data` function of the runtime API.
 pub fn local_validation_data<T: initializer::Trait>(
-	para: ParaId,
+	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<LocalValidationData<T::BlockNumber>> {
 	let construct = || {
@@ -184,7 +184,7 @@ pub fn local_validation_data<T: initializer::Trait>(
 		let freq = config.validation_upgrade_frequency;
 		let delay = config.validation_upgrade_delay;
 
-		let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para, true)?;
+		let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para_id, true)?;
 		let can_upgrade_code = last_code_upgrade <= relay_parent_number
 			&& relay_parent_number.saturating_sub(last_code_upgrade) >= freq;
 
@@ -195,10 +195,10 @@ pub fn local_validation_data<T: initializer::Trait>(
 		};
 
 		Some(LocalValidationData {
-			parent_head: <paras::Module<T>>::para_head(&para)?,
+			parent_head: <paras::Module<T>>::para_head(&para_id)?,
 			balance: 0,
 			validation_code_hash: BlakeTwo256::hash_of(
-				&<paras::Module<T>>::current_code(&para)?
+				&<paras::Module<T>>::current_code(&para_id)?
 			),
 			code_upgrade_allowed,
 		})
@@ -206,14 +206,14 @@ pub fn local_validation_data<T: initializer::Trait>(
 
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para);
+			<inclusion::Module<T>>::force_enact(para_id);
 			construct()
 		}
 		OccupiedCoreAssumption::TimedOut => {
 			construct()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para).is_some() {
+			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				construct()
@@ -236,23 +236,23 @@ pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
 
 /// Implementation for the `validation_code` function of the runtime API.
 pub fn validation_code<T: initializer::Trait>(
-	para: ParaId,
+	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
 	let fetch = || {
-		<paras::Module<T>>::current_code(&para)
+		<paras::Module<T>>::current_code(&para_id)
 	};
 
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para);
+			<inclusion::Module<T>>::force_enact(para_id);
 			fetch()
 		}
 		OccupiedCoreAssumption::TimedOut => {
 			fetch()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para).is_some() {
+			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
 				None
 			} else {
 				fetch()
@@ -262,8 +262,8 @@ pub fn validation_code<T: initializer::Trait>(
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
-pub fn candidate_pending_availability<T: initializer::Trait>(para: ParaId)
+pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>
 {
-	<inclusion::Module<T>>::candidate_pending_availability(para)
+	<inclusion::Module<T>>::candidate_pending_availability(para_id)
 }
