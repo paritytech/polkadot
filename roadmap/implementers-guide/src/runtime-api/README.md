@@ -198,7 +198,7 @@ fn candidate_pending_availability(at: Block, ParaId) -> Option<CommittedCandidat
 
 ## Candidate Events
 
-Yields a vector of events concerning candidates that had been occupying cores.
+Yields a vector of events concerning candidates that occurred within the given block.
 
 ```rust
 enum CandidateEvent {
