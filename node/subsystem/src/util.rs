@@ -83,26 +83,6 @@ pub enum Error {
 	AlreadyForwarding,
 }
 
-impl PartialEq for Error {
-	fn eq(&self, other: &Self) -> bool {
-		match (self, other) {
-			// spawn errors are not comparable
-			(Self::Spawn(_), _) | (_, Self::Spawn(_)) => false,
-
-			(Self::Oneshot(left), Self::Oneshot(right)) => left == right,
-			(Self::Mpsc(left), Self::Mpsc(right)) => left == right,
-			(Self::Subsystem(left), Self::Subsystem(right)) => left == right,
-			(Self::Infallible(left), Self::Infallible(right)) => left == right,
-			(Self::SenderConversion(left), Self::SenderConversion(right)) => left == right,
-			(Self::JobNotFound(left), Self::JobNotFound(right)) => left == right,
-			(Self::NotAValidator, Self::NotAValidator) | (Self::AlreadyForwarding, Self::AlreadyForwarding) => true,
-
-			// if the variants don't match, the errors are unequal
-			_ => false
-		}
-	}
-}
-
 /// Request some data from the `RuntimeApi`.
 pub async fn request_from_runtime<RequestBuilder, Response, FromJob>(
 	parent: Hash,
@@ -337,14 +317,7 @@ pub trait JobTrait: Unpin {
 	type ToJob: 'static + ToJobTrait + Send;
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
-	// the test suite here requires that this error type implements PartialEq, but that's
-	// not a necessary or even an entirely reasonable ask to make of all potential
-	// job error types. Therefore, only impose that trait bound when testing.
 	/// Job runtime error.
-	#[cfg(test)]
-	type Error: 'static + std::fmt::Debug + PartialEq + Send;
-	/// Job runtime error.
-	#[cfg(not(test))]
 	type Error: 'static + std::fmt::Debug + Send;
 	/// Extra arguments this job needs to run properly.
 	///
@@ -380,13 +353,13 @@ pub trait JobTrait: Unpin {
 /// Error which can be returned by the jobs manager
 ///
 /// Wraps the utility error type and the job-specific error
-#[derive(Debug, derive_more::From, PartialEq)]
-pub enum JobsError<Job: JobTrait> {
+#[derive(Debug, derive_more::From)]
+pub enum JobsError<JobError> {
 	/// utility error
 	#[from]
 	Utility(Error),
 	/// internal job error
-	Job(Job::Error),
+	Job(JobError),
 }
 
 /// Jobs manager for a subsystem
@@ -403,7 +376,7 @@ pub struct Jobs<Spawner, Job: JobTrait> {
 	#[pin]
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<Job::FromJob>>,
 	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>,
+	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 }
 
 impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
@@ -424,7 +397,7 @@ impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job>)>) -> Result<(), Error> {
+	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -547,7 +520,7 @@ pub struct JobManager<Spawner, Context, Job: JobTrait> {
 	run_args: Job::RunArgs,
 	context: std::marker::PhantomData<Context>,
 	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>,
+	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 }
 
 impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
@@ -575,7 +548,7 @@ where
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job>)>) -> Result<(), Error> {
+	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -592,7 +565,7 @@ where
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) {
+	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
 		let mut jobs = Jobs::new(spawner.clone());
 		if let Some(ref err_tx) = err_tx {
 			jobs.fwd_errors(err_tx.clone()).expect("we never call this twice in this context; qed");
@@ -608,7 +581,7 @@ where
 	}
 
 	// if we have a channel on which to forward errors, do so
-	async fn fwd_err(hash: Option<Hash>, err: JobsError<Job>, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) {
+	async fn fwd_err(hash: Option<Hash>, err: JobsError<Job::Error>, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
 		if let Some(err_tx) = err_tx {
 			// if we can't send on the error transmission channel, we can't do anything about it
 			let _ = err_tx.send((hash, err)).await;
@@ -620,7 +593,7 @@ where
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>
+		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
 		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
@@ -694,7 +667,7 @@ where
 	}
 
 	// handle an outgoing message. return true if we should break afterwards.
-	async fn handle_outgoing(outgoing: Option<Job::FromJob>, ctx: &mut Context, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) -> bool {
+	async fn handle_outgoing(outgoing: Option<Job::FromJob>, ctx: &mut Context, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) -> bool {
 		match outgoing {
 			Some(msg) => {
 				if let Err(e) = ctx.send_message(msg.into()).await {
@@ -834,7 +807,7 @@ mod tests {
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
-	#[derive(Debug, derive_more::From, PartialEq)]
+	#[derive(Debug, derive_more::From)]
 	enum Error {
 		#[from]
 		Sending(mpsc::SendError)
@@ -963,7 +936,10 @@ mod tests {
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 1);
 			assert_eq!(errs[0].0, Some(relay_parent));
-			assert_eq!(errs[0].1, JobsError::Utility(util::Error::JobNotFound(relay_parent)));
+			assert_matches!(
+				errs[0].1,
+				JobsError::Utility(util::Error::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
+			);
 		});
 	}
 }
