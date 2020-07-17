@@ -45,6 +45,14 @@ use std::sync::Arc;
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem;
 
+impl<C> Subsystem<C> for CandidateValidationSubsystem
+	where C: SubsystemContext<Message = CandidateValidationMessage>
+{
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		SpawnedSubsystem(run(ctx).map(|_| ()).boxed())
+	}
+}
+
 async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>)
 	-> SubsystemResult<()>
 {
