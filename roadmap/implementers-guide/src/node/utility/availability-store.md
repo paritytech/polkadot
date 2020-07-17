@@ -145,7 +145,7 @@ Chunk pruning is organized in a similar schema as PoV pruning.
 
 ### Included blocks caching
 
-In order to process finality events correctly we need to cache the set of parablocks included into each relay block beginning with the last finalized block and up to the most recent heads. We have to cache this data since we are only able to query this info from the state for the `k` last blocks where `k` is a relatively small number (for more info see [`Assumptions`][Assumptions])
+In order to process finality events correctly we need to cache the set of parablocks included into each relay block beginning with the last finalized block and up to the most recent heads. We have to cache this data since we are only able to query this info from the state for the `k` last blocks where `k` is a relatively small number (for more info see `Assumptions`)
 
 These are used to update Chunk pruning and PoV pruning records upon finality:
 When another block finality notification is received:
@@ -195,4 +195,3 @@ Basically we need to test the correctness of data flow through state FSMs descri
 
 [RAM]: ../../types/overseer-protocol.md#runtime-api-message
 [ASM]: ../../types/overseer-protocol.md#availability-store-message
-[Assumptions]: ../../node/index.md#assumptions
