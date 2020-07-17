@@ -21,9 +21,9 @@ use polkadot_subsystem::messages::AllMessages;
 
 use futures::prelude::*;
 use futures::channel::mpsc;
-use futures::task::{Spawn, SpawnExt};
 use futures::poll;
 use parking_lot::Mutex;
+use sp_core::traits::SpawnNamed;
 
 use std::convert::Infallible;
 use std::pin::Pin;
@@ -155,7 +155,7 @@ pub struct TestSubsystemContext<M, S> {
 }
 
 #[async_trait::async_trait]
-impl<M: Send + 'static, S: Spawn + Send + 'static> SubsystemContext for TestSubsystemContext<M, S> {
+impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext for TestSubsystemContext<M, S> {
 	type Message = M;
 
 	async fn try_recv(&mut self) -> Result<Option<FromOverseer<M>>, ()> {
@@ -170,8 +170,11 @@ impl<M: Send + 'static, S: Spawn + Send + 'static> SubsystemContext for TestSubs
 		self.rx.next().await.ok_or(SubsystemError)
 	}
 
-	async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()> {
-		self.spawn.spawn(s).map_err(Into::into)
+	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+		-> SubsystemResult<()>
+	{
+		self.spawn.spawn(name, s);
+		Ok(())
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {

@@ -101,7 +101,12 @@ impl From<std::convert::Infallible> for SubsystemError {
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
+pub struct SpawnedSubsystem {
+	/// Name of the subsystem being spawned.
+	pub name: &'static str,
+	/// The task of the subsystem being spawned.
+	pub future: BoxFuture<'static, ()>,
+}
 
 /// A `Result` type that wraps [`SubsystemError`].
 ///
@@ -130,7 +135,7 @@ pub trait SubsystemContext: Send + 'static {
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
@@ -159,7 +164,7 @@ pub struct DummySubsystem;
 
 impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
@@ -167,6 +172,11 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 					_ => continue,
 				}
 			}
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "DummySubsystem",
+			future,
+		}
 	}
 }
