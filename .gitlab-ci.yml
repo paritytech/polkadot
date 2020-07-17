@@ -119,6 +119,8 @@ test-linux-stable:                 &test
   script:
     - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
+  after_script:
+    - cd substrate && git rev-parse --abbrev-ref HEAD
 
 check-web-wasm:                    &test
   stage:                           test
