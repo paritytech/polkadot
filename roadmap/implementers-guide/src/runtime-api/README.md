@@ -93,7 +93,7 @@ This is all the information that a validator needs about scheduling for the curr
 ```rust
 struct OccupiedCore {
 	/// The ID of the para occupying the core.
-	para: ParaId,
+	para_id: ParaId,
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	next_up_on_available: Option<ScheduledCore>,
@@ -115,7 +115,7 @@ struct OccupiedCore {
 
 struct ScheduledCore {
 	/// The ID of a para scheduled.
-	para: ParaId,
+	para_id: ParaId,
 	/// The collator required to author the block, if any.
 	collator: Option<CollatorId>,
 }
