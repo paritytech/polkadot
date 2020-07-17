@@ -2,7 +2,7 @@
 url="https://api.github.com/repos/paritytech/polkadot/pulls/${CI_COMMIT_REF_NAME}"
 echo "[+] API URL: $url"
 
-pr_title=$(curl -H "Authorization: token ${GITHUB_PR_TOKEN}" "$url" | jq -r .title)
+pr_title=$(curl -H "Authorization: token ${GITHUB_PR_TOKEN}" "$url" | grep -Po '"title": "\K[^"]+')
 echo "[+] PR title: $pr_title"
 
 if echo "$pr_title" | grep -qi '^companion'; then
