@@ -28,7 +28,6 @@ use futures::{
 };
 
 use keystore::KeyStorePtr;
-use sp_core::traits::SpawnNamed;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
@@ -37,7 +36,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	ValidationOutputs, ValidationResult, SpawnNamed,
 };
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,

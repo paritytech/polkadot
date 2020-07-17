@@ -468,16 +468,19 @@ where
 	///         self,
 	///         mut ctx: C,
 	///     ) -> SpawnedSubsystem {
-	///         SpawnedSubsystem(Box::pin(async move {
-	///             loop {
-	///                 Delay::new(Duration::from_secs(1)).await;
-	///             }
-	///         }))
+	///         SpawnedSubsystem {
+	///             name: "validation-subsystem",
+	///             future: Box::pin(async move {
+	///                 loop {
+	///                     Delay::new(Duration::from_secs(1)).await;
+	///                 }
+	///             }),
+	///         }
 	///     }
 	/// }
 	///
 	/// # fn main() { executor::block_on(async move {
-	/// let spawner = executor::ThreadPool::new().unwrap();
+	/// let spawner = sp_core::testing::SpawnBlockingExecutor::new();
 	/// let all_subsystems = AllSubsystems {
 	///     candidate_validation: ValidationSubsystem,
 	///     candidate_backing: DummySubsystem,
