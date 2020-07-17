@@ -748,7 +748,7 @@ where
 
 	/// Run this subsystem
 	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
-		<Manager<Spawner, Context>>::run(ctx, keystore, spawner).await
+		<Manager<Spawner, Context>>::run(ctx, keystore, spawner, None).await
 	}
 }
 

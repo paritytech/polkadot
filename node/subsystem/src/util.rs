@@ -337,8 +337,15 @@ pub trait JobTrait: Unpin {
 	type ToJob: 'static + ToJobTrait + Send;
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
+	// the test suite here requires that this error type implements PartialEq, but that's
+	// not a necessary or even an entirely reasonable ask to make of all potential
+	// job error types. Therefore, only impose that trait bound when testing.
 	/// Job runtime error.
+	#[cfg(test)]
 	type Error: 'static + std::fmt::Debug + PartialEq + Send;
+	/// Job runtime error.
+	#[cfg(not(test))]
+	type Error: 'static + std::fmt::Debug + Send;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
@@ -374,12 +381,12 @@ pub trait JobTrait: Unpin {
 ///
 /// Wraps the utility error type and the job-specific error
 #[derive(Debug, derive_more::From, PartialEq)]
-pub enum JobsError<JobError: PartialEq> {
+pub enum JobsError<Job: JobTrait> {
 	/// utility error
 	#[from]
 	Utility(Error),
 	/// internal job error
-	Job(JobError),
+	Job(Job::Error),
 }
 
 /// Jobs manager for a subsystem
@@ -396,10 +403,10 @@ pub struct Jobs<Spawner, Job: JobTrait> {
 	#[pin]
 	outgoing_msgs: StreamUnordered<mpsc::Receiver<Job::FromJob>>,
 	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
+	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>,
 }
 
-impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
+impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
 		Self {
@@ -417,7 +424,7 @@ impl<Spawner: Spawn, Job: JobTrait> Jobs<Spawner, Job> {
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
+	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -540,14 +547,14 @@ pub struct JobManager<Spawner, Context, Job: JobTrait> {
 	run_args: Job::RunArgs,
 	context: std::marker::PhantomData<Context>,
 	job: std::marker::PhantomData<Job>,
-	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
+	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>,
 }
 
 impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
 where
 	Spawner: Spawn + Clone + Send + Unpin,
 	Context: SubsystemContext,
-	Job: JobTrait,
+	Job: 'static + JobTrait,
 	Job::RunArgs: Clone,
 	Job::ToJob: TryFrom<AllMessages> + TryFrom<<Context as SubsystemContext>::Message> + Sync,
 {
@@ -568,7 +575,7 @@ where
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
+	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -585,7 +592,7 @@ where
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
+	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) {
 		let mut jobs = Jobs::new(spawner.clone());
 		if let Some(ref err_tx) = err_tx {
 			jobs.fwd_errors(err_tx.clone()).expect("we never call this twice in this context; qed");
@@ -601,7 +608,7 @@ where
 	}
 
 	// if we have a channel on which to forward errors, do so
-	async fn fwd_err(hash: Option<Hash>, err: JobsError<Job::Error>, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
+	async fn fwd_err(hash: Option<Hash>, err: JobsError<Job>, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) {
 		if let Some(err_tx) = err_tx {
 			// if we can't send on the error transmission channel, we can't do anything about it
 			let _ = err_tx.send((hash, err)).await;
@@ -613,7 +620,7 @@ where
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
-		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
+		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
 		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
@@ -687,7 +694,7 @@ where
 	}
 
 	// handle an outgoing message. return true if we should break afterwards.
-	async fn handle_outgoing(outgoing: Option<Job::FromJob>, ctx: &mut Context, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) -> bool {
+	async fn handle_outgoing(outgoing: Option<Job::FromJob>, ctx: &mut Context, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job>)>>) -> bool {
 		match outgoing {
 			Some(msg) => {
 				if let Err(e) = ctx.send_message(msg.into()).await {
@@ -705,7 +712,7 @@ where
 	Spawner: Spawn + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
 	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
-	Job: JobTrait + Send,
+	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
 	Job::ToJob: TryFrom<AllMessages> + Sync,
 {
