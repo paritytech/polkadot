@@ -268,7 +268,7 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 	<inclusion::Module<T>>::candidate_pending_availability(para_id)
 }
 
-/// Implementatino for the `candidate_events` function of the runtime API.
+/// Implementation for the `candidate_events` function of the runtime API.
 // NOTE: this runs without block initialization, as it accesses events.
 // this means it can run in a different session than other runtime APIs at the same block.
 pub fn candidate_events<T: initializer::Trait>(

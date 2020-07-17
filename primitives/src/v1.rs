@@ -496,7 +496,7 @@ impl GroupRotationInfo {
 	/// Returns the index of the group needed to validate the core at the given index, assuming
 	/// the given number of cores.
 	///
-	/// `core_index` should be less than `cores`, which in turn should be less than u32::max().
+	/// `core_index` should be less than `cores`, which is capped at u32::max().
 	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
 		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
 		if cores == 0 { return GroupIndex(0) }
