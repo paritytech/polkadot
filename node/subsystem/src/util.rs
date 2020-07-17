@@ -924,6 +924,7 @@ mod tests {
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
+			std::mem::drop(overseer_handle);
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
