@@ -255,6 +255,8 @@ enum RuntimeApiRequest {
 	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
+	/// Get all events concerning candidates in the last block.
+	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
 }
 
 enum RuntimeApiMessage {
