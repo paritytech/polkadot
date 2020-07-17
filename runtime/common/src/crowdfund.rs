@@ -663,6 +663,7 @@ mod tests {
 		type ProposalBondMinimum = ProposalBondMinimum;
 		type SpendPeriod = SpendPeriod;
 		type Burn = Burn;
+		type BurnDestination = ();
 		type Tippers = Nobody;
 		type TipCountdown = TipCountdown;
 		type TipFindersFee = TipFindersFee;

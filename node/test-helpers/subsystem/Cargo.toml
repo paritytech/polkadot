@@ -10,3 +10,4 @@ futures = "0.3.5"
 async-trait = "0.1"
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 parking_lot = "0.10.0"
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
