@@ -25,7 +25,7 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 };
 use polkadot_subsystem::messages::{
-	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed,
+	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
 };
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs};
 use polkadot_primitives::v1::{
@@ -40,6 +40,8 @@ use parity_scale_codec::{Encode, Decode};
 use futures::channel::oneshot;
 use futures::prelude::*;
 
+use std::sync::Arc;
+
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem;
 
@@ -53,10 +55,86 @@ async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage
 			FromOverseer::Signal(OverseerSignal::StartWork(_)) => {}
 			FromOverseer::Signal(OverseerSignal::StopWork(_)) => {}
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			_ => {}
-			// TODO [now]: handle messages.
+			FromOverseer::Communication { msg } => match msg {
+				CandidateValidationMessage::ValidateFromChainState(
+					descriptor,
+					pov,
+					response_sender,
+				) => {
+					spawn_validate_from_chain_state(
+						&mut ctx,
+						Some(pool.clone()),
+						descriptor,
+						pov,
+						response_sender
+					).await?;
+				}
+				CandidateValidationMessage::ValidateFromExhaustive(
+					omitted_validation,
+					validation_code,
+					descriptor,
+					pov,
+					response_sender,
+				) => {
+					spawn_validate_exhaustive(
+						&mut ctx,
+						Some(pool.clone()),
+						omitted_validation,
+						validation_code,
+						descriptor,
+						pov,
+						response_sender
+					).await?;
+				}
+			}
 		}
 	}
+}
+
+async fn spawn_validate_from_chain_state(
+	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	validation_pool: Option<ValidationPool>,
+	descriptor: CandidateDescriptor,
+	pov: Arc<PoV>,
+	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+) -> SubsystemResult<()> {
+	// TODO [now]: check that there is no candidate for the para at the relay-parent
+	// and then fetch global/local validation info & validation code.
+	let omitted_validation = unimplemented!();
+	let validation_code = unimplemented!();
+
+	spawn_validate_exhaustive(
+		ctx,
+		validation_pool,
+		omitted_validation,
+		validation_code,
+		descriptor,
+		pov,
+		response_sender,
+	).await
+}
+
+async fn spawn_validate_exhaustive(
+	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	validation_pool: Option<ValidationPool>,
+	omitted_validation: OmittedValidationData,
+	validation_code: ValidationCode,
+	descriptor: CandidateDescriptor,
+	pov: Arc<PoV>,
+	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+) -> SubsystemResult<()> {
+	let fut = async move {
+		validate_candidate_exhaustive(
+			validation_pool,
+			omitted_validation,
+			validation_code,
+			descriptor,
+			pov,
+			response_sender,
+		);
+	};
+
+	ctx.spawn(fut.boxed()).await
 }
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `true` if basic checks
@@ -110,20 +188,24 @@ fn check_wasm_result_against_constraints(
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
-/// This assumes that basic checks have passed already.
-async fn validate_candidate_exhaustive(
+fn validate_candidate_exhaustive(
 	validation_pool: Option<ValidationPool>,
-	data: OmittedValidationData,
+	omitted_validation: OmittedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
-	pov: PoV,
-	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>
+	pov: Arc<PoV>,
+	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 ) {
+	if !passes_basic_checks(&descriptor, None, &*pov) {
+		let _ = response_sender.send(Ok(ValidationResult::Invalid));
+		return;
+	}
+
 	let execution_mode = validation_pool.as_ref()
 		.map(ExecutionMode::Remote)
 		.unwrap_or(ExecutionMode::Local);
 
-	let OmittedValidationData { global_validation, local_validation } = data;
+	let OmittedValidationData { global_validation, local_validation } = omitted_validation;
 
 	let params = ValidationParams {
 		parent_head: local_validation.parent_head.clone(),
