@@ -20,16 +20,149 @@
 //! according to a validation function. This delegates validation to an underlying
 //! pool of processes used for execution of the Wasm.
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem};
-use polkadot_subsystem::messages::{AllMessages, CandidateValidationMessage, RuntimeApiMessage};
-use polkadot_parachain::wasm_executor::{self, ValidationPool};
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	FromOverseer, OverseerSignal,
+};
+use polkadot_subsystem::messages::{
+	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed,
+};
+use polkadot_node_primitives::{ValidationResult, ValidationOutputs};
+use polkadot_primitives::v1::{
+	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,
+	GlobalValidationSchedule,
+};
+use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode};
+use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
+use parity_scale_codec::{Encode, Decode};
+
+use futures::channel::oneshot;
+use futures::prelude::*;
+
+/// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem;
 
-async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>) {
+async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>)
+	-> SubsystemResult<()>
+{
 	let pool = ValidationPool::new();
 
 	loop {
-
+		match ctx.recv().await? {
+			FromOverseer::Signal(OverseerSignal::StartWork(_)) => {}
+			FromOverseer::Signal(OverseerSignal::StopWork(_)) => {}
+			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
+			_ => {}
+			// TODO [now]: handle messages.
+		}
 	}
+}
+
+/// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `true` if basic checks
+/// are passed, false otherwise.
+fn passes_basic_checks(
+	candidate: &CandidateDescriptor,
+	max_block_data_size: Option<u64>,
+	pov: &PoV,
+) -> bool {
+	let encoded_pov = pov.encode();
+	let hash = pov.hash();
+
+	if let Some(max_size) = max_block_data_size {
+		if encoded_pov.len() as u64 > max_size {
+			return false;
+		}
+	}
+
+	if hash != candidate.pov_hash {
+		return false;
+	}
+
+	if let Err(()) = candidate.check_collator_signature() {
+		return false;
+	}
+
+	true
+}
+
+/// Check the result of Wasm execution against the constraints given by the relay-chain.
+///
+/// Returns `true` if checks pass, false otherwise.
+fn check_wasm_result_against_constraints(
+	global_validation_schedule: &GlobalValidationSchedule,
+	_local_validation_data: &LocalValidationData,
+	result: &WasmValidationResult,
+) -> bool {
+	if result.head_data.0.len() > global_validation_schedule.max_head_data_size as _ {
+		return false
+	}
+
+	if let Some(ref code) = result.new_validation_code {
+		if code.0.len() > global_validation_schedule.max_code_size as _ {
+			return false
+		}
+	}
+
+	true
+}
+
+/// Validates the candidate from exhaustive parameters.
+///
+/// Sends the result of validation on the channel once complete.
+/// This assumes that basic checks have passed already.
+async fn validate_candidate_exhaustive(
+	validation_pool: Option<ValidationPool>,
+	data: OmittedValidationData,
+	validation_code: ValidationCode,
+	descriptor: CandidateDescriptor,
+	pov: PoV,
+	response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>
+) {
+	let execution_mode = validation_pool.as_ref()
+		.map(ExecutionMode::Remote)
+		.unwrap_or(ExecutionMode::Local);
+
+	let OmittedValidationData { global_validation, local_validation } = data;
+
+	let params = ValidationParams {
+		parent_head: local_validation.parent_head.clone(),
+		block_data: pov.block_data.clone(),
+		max_code_size: global_validation.max_code_size,
+		max_head_data_size: global_validation.max_head_data_size,
+		relay_chain_height: global_validation.block_number,
+		code_upgrade_allowed: local_validation.code_upgrade_allowed,
+	};
+
+	let res = match wasm_executor::validate_candidate(
+		&validation_code.0,
+		params,
+		execution_mode,
+	) {
+		Err(wasm_executor::Error::BadReturn) => Ok(ValidationResult::Invalid),
+		Err(_) => Err(ValidationFailed),
+		Ok(res) => {
+
+			let passes_post_checks = check_wasm_result_against_constraints(
+				&global_validation,
+				&local_validation,
+				&res,
+			);
+
+			Ok(if passes_post_checks {
+				ValidationResult::Valid(ValidationOutputs {
+					head_data: res.head_data,
+					global_validation_schedule: global_validation,
+					local_validation_data: local_validation,
+					upward_messages: res.upward_messages,
+					fees: 0,
+					new_validation_code: res.new_validation_code,
+				})
+			} else {
+				ValidationResult::Invalid
+			})
+		}
+	};
+
+	let _ = response_sender.send(res);
 }
