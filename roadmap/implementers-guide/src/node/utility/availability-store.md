@@ -123,7 +123,7 @@ On finality event:
 
 ### PoV pruning
 
-We keep a record about every PoV we keep tracking its state and time after which this PoV should be pruned.
+We keep a record about every PoV we keep, tracking its state and the time after which this PoV should be pruned.
 
 As the state of the `Candidate` changes, so does the `Prune At` time according to the rules defined earlier.
 
