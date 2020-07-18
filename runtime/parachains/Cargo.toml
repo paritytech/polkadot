@@ -49,6 +49,8 @@ pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate",
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.41"
 libsecp256k1 = "0.3.2"
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 
 [features]
 default = ["std"]

@@ -4633,6 +4633,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-application-crypto",
+ "sp-arithmetic",
  "sp-core",
  "sp-inherents",
  "sp-runtime",
@@ -4829,6 +4830,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "sp-trie",
+ "sp-version",
 ]
 
 [[package]]
