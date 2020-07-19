@@ -839,6 +839,7 @@ pub enum ProxyType {
 	Staking,
 	SudoBalances,
 	IdentityJudgement,
+	NonDepositGovernance,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
@@ -899,7 +900,25 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(identity::Call::provide_judgement(..))
 				| Call::Utility(utility::Call::batch(..))
-			)
+			),
+			ProxyType::NonDepositGovernance => matches!(c,
+				Call::Democracy(..) |
+				// Although most Council calls do not risk slashing, we don't include them because
+				// running for Council requires a slashable deposit.
+				Call::Council(council::Call::close(..)) |
+				// Can vote and unvote in Council elections.
+				Call::ElectionsPhragmen(elections_phragmen::Call::vote(..)) |
+				Call::ElectionsPhragmen(elections_phragmen::Call::remove_voter(..)) |
+				// Can participate in tipping, but making a proposal puts the deposit at risk should
+				// it be rejected.
+				Call::Treasury(treasury::Call::report_awesome(..)) |
+				Call::Treasury(treasury::Call::retrace_tip(..)) |
+				Call::Treasury(treasury::Call::tip_new(..)) |
+				Call::Treasury(treasury::Call::tip(..)) |
+				Call::Treasury(treasury::Call::close_tip(..)) |
+				Call::Utility(..) |
+				Call::Poll(..)
+			),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
