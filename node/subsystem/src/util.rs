@@ -397,7 +397,7 @@ impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
+	pub fn forward_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -548,7 +548,7 @@ where
 	/// the error is forwarded onto the provided channel.
 	///
 	/// Errors if the error channel already exists.
-	pub fn fwd_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
+	pub fn forward_errors(&mut self, tx: mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>) -> Result<(), Error> {
 		if self.errors.is_some() { return Err(Error::AlreadyForwarding) }
 		self.errors = Some(tx);
 		Ok(())
@@ -568,7 +568,7 @@ where
 	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
 		let mut jobs = Jobs::new(spawner.clone());
 		if let Some(ref err_tx) = err_tx {
-			jobs.fwd_errors(err_tx.clone()).expect("we never call this twice in this context; qed");
+			jobs.forward_errors(err_tx.clone()).expect("we never call this twice in this context; qed");
 		}
 
 		loop {
