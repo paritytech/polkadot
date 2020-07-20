@@ -105,12 +105,10 @@ publish-draft-release:
   interruptible:                   true
   allow_failure:                   true
 
-test-deterministic-wasm:           &test-linux
+test-deterministic-wasm:
   stage:                           test
   <<:                              *docker-env
   except:
-    variables:
-      - $DEPLOY_TAG
   script:
     # build runtime
     - WASM_BUILD_NO_COLOR=1 cargo build --verbose --release -p kusama-runtime -p polkadot-runtime -p westend-runtime
