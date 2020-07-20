@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.8.14"
+version = "0.8.15"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -20,7 +20,8 @@ babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/par
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -67,7 +68,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.2.1", optional = true }
+hex-literal = { version = "0.2.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -78,7 +79,7 @@ libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.20.0"
+trie-db = "0.22.0"
 serde_json = "1.0.41"
 
 [build-dependencies]
@@ -162,7 +163,8 @@ runtime-benchmarks = [
 	"vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
-	"hex-literal",
+	# renable when optional
+	# "hex-literal",
 ]
 # When enabled, the runtime api will not be build.
 #

@@ -1,10 +1,19 @@
 # Candidate Types
 
 Para candidates are some of the most common types, both within the runtime and on the Node-side.
+Candidates are the fundamental datatype for advancing parachains and parathreads, encapsulating the collator's signature, the context of the parablock, the commitments to the output, and a commitment to the data which proves it valid.
 
 In a way, this entire guide is about these candidates: how they are scheduled, constructed, backed, included, and challenged.
 
 This section will describe the base candidate type, its components, and variants that contain extra data.
+
+## Para Id
+
+A unique 32-bit identifier referring to a specific para (chain or thread). The relay-chain runtime guarantees that `ParaId`s are unique for the duration of any session, but recycling and reuse over a longer period of time is permitted.
+
+```rust
+struct ParaId(u32);
+```
 
 ## Candidate Receipt
 
@@ -63,7 +72,7 @@ This struct is pure description of the candidate, in a lightweight format.
 /// A unique descriptor of the candidate receipt.
 struct CandidateDescriptor {
 	/// The ID of the para this is a candidate for.
-	para_id: Id,
+	para_id: ParaId,
 	/// The hash of the relay-chain block this is executed in the context of.
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
@@ -80,8 +89,6 @@ struct CandidateDescriptor {
 ## GlobalValidationSchedule
 
 The global validation schedule comprises of information describing the global environment for para execution, as derived from a particular relay-parent. These are parameters that will apply to all parablocks executed in the context of this relay-parent.
-
-> TODO: message queue watermarks (first downward messages, then XCMP channels)
 
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -111,6 +118,7 @@ This choice can also be expressed as a choice of which parent head of the para w
 Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
 
 > TODO: determine if balance/fees are even needed here.
+> TODO: message queue watermarks (first downward messages, then XCMP channels)
 
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -177,5 +185,26 @@ struct SigningContext {
 	parent_hash: Hash,
 	/// The session index this signature is in the context of.
 	session_index: SessionIndex,
+}
+```
+
+## Validation Outputs
+
+This struct encapsulates the outputs of candidate validation.
+
+```rust
+struct ValidationOutputs {
+	/// The head-data produced by validation.
+	head_data: HeadData,
+	/// The global validation schedule.
+	global_validation_schedule: GlobalValidationSchedule,
+	/// The local validation data.
+	local_validation_data: LocalValidationData,
+	/// Upwards messages to the relay chain.
+	upwards_messages: Vec<UpwardsMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	new_validation_code: Option<ValidationCode>,
 }
 ```

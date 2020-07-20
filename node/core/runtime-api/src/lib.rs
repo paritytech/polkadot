@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Inclusion Inherent primitives define types and constants which can be imported
-//! without needing to import the entire inherent module.
-
-use inherents::InherentIdentifier;
-
-/// Unique identifier for the Inclusion Inherent
-pub const INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
+//! Implements the Runtime API Subsystem
+//!
+//! This provides a clean, ownerless wrapper around the parachain-related runtime APIs. This crate
+//! can also be used to cache responses from heavy runtime APIs.
+//!
+//! TODO: https://github.com/paritytech/polkadot/issues/1419 implement this.

@@ -25,20 +25,21 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight,
+	MaximumExtrinsicWeight, purchase,
 };
 
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
-use primitives::{
+use primitives::v0::{
+	self as parachain,
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
+	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId,
 	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
-		transaction_validity::{
+	transaction_validity::{
 		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
@@ -56,11 +57,11 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use system::{EnsureRoot, EnsureOneOf};
+use system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -78,6 +79,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
+pub mod poll;
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
@@ -91,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 14,
+	spec_version: 15,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -113,16 +115,11 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..))
-				| Call::Democracy(democracy::Call::vote(..))
-				| Call::Democracy(democracy::Call::remove_vote(..))
-				| Call::Democracy(democracy::Call::delegate(..))
-				| Call::Democracy(democracy::Call::undelegate(..))
-				=> true,
+			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
-			// Governance stuff
+			// Governance stuff, minus council elections.
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
-			Call::ElectionsPhragmen(_) | Call::TechnicalMembership(_) | Call::Treasury(_) |
+			Call::TechnicalMembership(_) | Call::Treasury(_) |
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
@@ -131,13 +128,15 @@ impl Filter<Call> for BaseFilter {
 				false,
 
 			// These modules are all allowed to be called by transactions:
+			Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) =>
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
+			Call::Purchase(_) =>
 				true,
 		}
 	}
@@ -178,6 +177,7 @@ impl system::Trait for Runtime {
 	type AccountData = balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
 }
 
 impl scheduler::Trait for Runtime {
@@ -187,6 +187,7 @@ impl scheduler::Trait for Runtime {
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -214,7 +215,7 @@ impl babe::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+	babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -226,6 +227,7 @@ impl indices::Trait for Runtime {
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
 	type Event = Event;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -246,12 +248,12 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
 }
 
 parameter_types! {
 	pub const TransactionByteFee: Balance = 10 * MILLICENTS;
 }
-
 
 impl transaction_payment::Trait for Runtime {
 	type Currency = Balances;
@@ -268,6 +270,7 @@ impl timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -306,6 +309,7 @@ impl session::Trait for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type WeightInfo = ();
 }
 
 impl session::historical::Trait for Runtime {
@@ -371,6 +375,7 @@ impl staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -395,6 +400,7 @@ impl identity::Trait for Runtime {
 	type Slashed = Treasury;
 	type ForceOrigin = MoreThanHalfCouncil;
 	type RegistrarOrigin = MoreThanHalfCouncil;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -461,6 +467,7 @@ impl democracy::Trait for Runtime {
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -475,13 +482,14 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
+	type WeightInfo = ();
 }
 
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	/// Weekly council elections initially, later monthly.
-	pub const TermDuration: BlockNumber = 7 * DAYS;
+	/// Daily council elections initially, later weekly and monthly.
+	pub const TermDuration: BlockNumber = 1 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
@@ -505,6 +513,7 @@ impl elections_phragmen::Trait for Runtime {
 	type DesiredMembers = DesiredMembers;
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -519,6 +528,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type Event = Event;
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
+	type WeightInfo = ();
 }
 
 impl membership::Trait<membership::Instance1> for Runtime {
@@ -567,6 +577,8 @@ impl treasury::Trait for Runtime {
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type BurnDestination = ();
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -578,6 +590,7 @@ impl offences::Trait for Runtime {
 	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
+	type WeightInfo = ();
 }
 
 impl authority_discovery::Trait for Runtime {}
@@ -597,6 +610,7 @@ impl im_online::Trait for Runtime {
 	type SessionDuration = SessionDuration;
 	type ReportUnresponsiveness = Offences;
 	type UnsignedPriority = ImOnlineUnsignedPriority;
+	type WeightInfo = ();
 }
 
 impl grandpa::Trait for Runtime {
@@ -604,7 +618,7 @@ impl grandpa::Trait for Runtime {
 	type Call = Call;
 
 	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+	<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
@@ -613,12 +627,7 @@ impl grandpa::Trait for Runtime {
 
 	type KeyOwnerProofSystem = Historical;
 
-	type HandleEquivocation = grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		primitives::fisherman::FishermanAppCrypto,
-		Runtime,
-		Offences,
-	>;
+	type HandleEquivocation = grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -652,7 +661,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::fisherman::FishermanAppCrypto;
+	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -707,7 +716,6 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 			registrar::LimitParathreadCommits::<Runtime>::new(),
 			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
-			grandpa::ValidateEquivocationReport::<Runtime>::new(),
 			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
@@ -782,11 +790,13 @@ impl vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
+	type WeightInfo = ();
 }
 
 impl utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -804,6 +814,7 @@ impl multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
+	type WeightInfo = ();
 }
 
 impl sudo::Trait for Runtime {
@@ -875,6 +886,7 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+					| Call::Poll(..)
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
@@ -909,6 +921,7 @@ impl proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
+	type WeightInfo = ();
 }
 
 pub struct CustomOnRuntimeUpgrade;
@@ -922,10 +935,60 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	}
 }
 
+parameter_types! {
+	pub const PollEnd: BlockNumber = 888_888;
+}
+
+impl poll::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type End = PollEnd;
+}
+
+parameter_types! {
+	pub const MaxStatementLength: usize = 1_000;
+	pub const UnlockedProportion: Permill = Permill::zero();
+	pub const MaxUnlocked: Balance = 0;
+}
+
+ord_parameter_types! {
+	pub const W3FValidity: AccountId = AccountId::from(
+		// 142wAF65SK7PxhyzzrWz5m5PXDtooehgePBd7rc2NWpfc8Wa
+		hex_literal::hex!("862e432e0cf75693899c62691ac0f48967f815add97ae85659dcde8332708551")
+	);
+	pub const W3FConfiguration: AccountId = AccountId::from(
+		// 1KvKReVmUiTc2LW2a4qyHsaJJ9eE9LRsywZkMk5hyBeyHgw
+		hex_literal::hex!("0e6de68b13b82479fbe988ab9ecb16bad446b67b993cdd9198cd41c7c6259c49")
+	);
+}
+
+type ValidityOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FValidity, AccountId>,
+>;
+
+type ConfigurationOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<W3FConfiguration, AccountId>,
+>;
+
+impl purchase::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type VestingSchedule = Vesting;
+	type ValidityOrigin = ValidityOrigin;
+	type ConfigurationOrigin = ConfigurationOrigin;
+	type MaxStatementLength = MaxStatementLength;
+	type UnlockedProportion = UnlockedProportion;
+	type MaxUnlocked = MaxUnlocked;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::Block,
+		NodeBlock = primitives::v0::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -948,7 +1011,7 @@ construct_runtime! {
 		Historical: session_historical::{Module},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
-		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
+		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
@@ -987,6 +1050,12 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Poll module.
+		Poll: poll::{Module, Call, Storage, Event<T>},
+
+		// DOT Purchase module. Late addition.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -1011,7 +1080,6 @@ pub type SignedExtra = (
 	transaction_payment::ChargeTransactionPayment<Runtime>,
 	registrar::LimitParathreadCommits<Runtime>,
 	parachains::ValidateDoubleVoteReports<Runtime>,
-	grandpa::ValidateEquivocationReport<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1129,7 +1197,7 @@ sp_api::impl_runtime_apis! {
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
 			Parachains::downward_messages(id)
 		}
 	}
@@ -1139,7 +1207,7 @@ sp_api::impl_runtime_apis! {
 			Grandpa::grandpa_authorities()
 		}
 
-		fn submit_report_equivocation_extrinsic(
+		fn submit_report_equivocation_unsigned_extrinsic(
 			equivocation_proof: fg_primitives::EquivocationProof<
 				<Block as BlockT>::Hash,
 				sp_runtime::traits::NumberFor<Block>,
@@ -1148,7 +1216,7 @@ sp_api::impl_runtime_apis! {
 		) -> Option<()> {
 			let key_owner_proof = key_owner_proof.decode()?;
 
-			Grandpa::submit_report_equivocation_extrinsic(
+			Grandpa::submit_unsigned_equivocation_report(
 				equivocation_proof,
 				key_owner_proof,
 			)

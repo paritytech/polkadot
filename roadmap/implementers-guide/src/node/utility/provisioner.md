@@ -40,7 +40,7 @@ Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorsh
 
 ## Block Production
 
-When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting generally means that there are never two distinct parachain candidates included for the same parachain.
+When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting means that there are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be included until the previous one either gets declared available or expired.
 
 One might ask: given `ProvisionerMessage::RequestInherentData`, what's the point of `ProvisionerMessage::RequestBlockAuthorshipData`? The answer is that the block authorship data includes more information than is present in the inherent data; disputes, for example.
 

@@ -16,14 +16,14 @@
 
 //! Polkadot-specific GRANDPA integration utilities.
 
-use polkadot_primitives::Hash;
+use polkadot_primitives::v0::Hash;
 use sp_runtime::traits::{Block as BlockT, NumberFor};
 
 /// A custom GRANDPA voting rule that "pauses" voting (i.e. keeps voting for the
 /// same last finalized block) after a given block at height `N` has been
 /// finalized and for a delay of `M` blocks, i.e. until the best block reaches
 /// `N` + `M`, the voter will keep voting for block `N`.
-pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
+pub struct PauseAfterBlockFor<N>(pub N, pub N);
 
 impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
 	Block: BlockT,
@@ -98,7 +98,7 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 /// #1500988).
 pub(crate) fn kusama_hard_forks() -> Vec<(
 	grandpa_primitives::SetId,
-	(Hash, polkadot_primitives::BlockNumber),
+	(Hash, polkadot_primitives::v0::BlockNumber),
 	grandpa_primitives::AuthorityList,
 )> {
 	use sp_core::crypto::Ss58Codec;
@@ -250,17 +250,21 @@ mod tests {
 
 		let mut push_blocks = {
 			let mut client = client.clone();
+			let mut base = 0;
+
 			move |n| {
-				for _ in 0..n {
+				for i in 0..n {
 					let mut builder = client.new_block(Default::default()).unwrap();
 
-					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![]) {
+					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![], base + i) {
 						builder.push(extrinsic).unwrap()
 					}
 
 					let block = builder.build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
+
+				base += n;
 			}
 		};
 

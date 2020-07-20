@@ -22,20 +22,18 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, AccountId, Nonce, Balance};
+use polkadot_primitives::v1::{AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use service::{error::Error as ServiceError, ServiceBuilder};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
-use polkadot_overseer::{self as overseer, BlockInfo, Overseer, OverseerHandler};
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem,
-	messages::{CandidateValidationMessage, CandidateBackingMessage},
-};
+use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, OverseerHandler};
+use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
+use sp_core::traits::SpawnNamed;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -48,8 +46,7 @@ pub use sc_consensus::LongestChain;
 pub use sp_api::{ApiRef, Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use polkadot_primitives::{Block, BlockId};
+pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Id as ParaId};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
@@ -87,7 +84,6 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
@@ -107,7 +103,6 @@ where
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
@@ -168,11 +163,16 @@ macro_rules! new_full_start {
 				Ok(sc_consensus::LongestChain::new(backend.clone()))
 			})?
 			.with_transaction_pool(|builder| {
-				let pool_api = sc_transaction_pool::FullChainApi::new(builder.client().clone());
-				let pool = sc_transaction_pool::BasicPool::new(
+				let pool_api = sc_transaction_pool::FullChainApi::new(
+					builder.client().clone(),
+					builder.prometheus_registry(),
+				);
+				let pool = sc_transaction_pool::BasicPool::new_full(
 					builder.config().transaction_pool.clone(),
 					std::sync::Arc::new(pool_api),
 					builder.prometheus_registry(),
+					builder.spawn_handle(),
+					builder.client().clone(),
 				);
 				Ok(pool)
 			})?
@@ -270,38 +270,28 @@ macro_rules! new_full_start {
 	}}
 }
 
-struct CandidateValidationSubsystem;
-
-impl<C> Subsystem<C> for CandidateValidationSubsystem
-	where C: SubsystemContext<Message = CandidateValidationMessage>
-{
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
-			while let Ok(_) = ctx.recv().await {}
-		}))
-	}
-}
-
-struct CandidateBackingSubsystem;
-
-impl<C> Subsystem<C> for CandidateBackingSubsystem
-	where C: SubsystemContext<Message = CandidateBackingMessage>
-{
-	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
-			while let Ok(_) = ctx.recv().await {}
-		}))
-	}
-}
-
-fn real_overseer<S: futures::task::Spawn>(
+fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	let validation = CandidateValidationSubsystem;
-	let candidate_backing = CandidateBackingSubsystem;
-	Overseer::new(leaves, validation, candidate_backing, s)
-		.map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
+	let all_subsystems = AllSubsystems {
+		candidate_validation: DummySubsystem,
+		candidate_backing: DummySubsystem,
+		candidate_selection: DummySubsystem,
+		statement_distribution: DummySubsystem,
+		availability_distribution: DummySubsystem,
+		bitfield_distribution: DummySubsystem,
+		provisioner: DummySubsystem,
+		pov_distribution: DummySubsystem,
+		runtime_api: DummySubsystem,
+		availability_store: DummySubsystem,
+		network_bridge: DummySubsystem,
+	};
+	Overseer::new(
+		leaves,
+		all_subsystems,
+		s,
+	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
 /// Builds a new service for a full client.
@@ -310,7 +300,7 @@ macro_rules! new_full {
 	(
 		$config:expr,
 		$collating_for:expr,
-		$authority_discovery_enabled:expr,
+		$authority_discovery_disabled:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
@@ -506,12 +496,12 @@ macro_rules! new_light {
 					builder.client().clone(),
 					fetcher,
 				);
-				let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
+				let pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
 					builder.config().transaction_pool.clone(),
 					Arc::new(pool_api),
 					builder.prometheus_registry(),
-					sc_transaction_pool::RevalidationType::Light,
-				);
+					builder.spawn_handle(),
+				));
 				Ok(pool)
 			})?
 			.with_import_queue_and_fprb(|
@@ -586,7 +576,7 @@ macro_rules! new_light {
 /// Builds a new object suitable for chain operations.
 pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 	(
-		Arc<service::TFullClient<Block, Runtime, Dispatch>>, 
+		Arc<service::TFullClient<Block, Runtime, Dispatch>>,
 		Arc<TFullBackend<Block>>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
@@ -609,9 +599,9 @@ where
 #[cfg(feature = "full-node")]
 pub fn polkadot_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -628,7 +618,7 @@ pub fn polkadot_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
 		PolkadotExecutor,
@@ -641,9 +631,9 @@ pub fn polkadot_new_full(
 #[cfg(feature = "full-node")]
 pub fn kusama_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -660,7 +650,7 @@ pub fn kusama_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
 		KusamaExecutor,
@@ -673,9 +663,9 @@ pub fn kusama_new_full(
 #[cfg(feature = "full-node")]
 pub fn westend_new_full(
 	mut config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
+	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -692,7 +682,7 @@ pub fn westend_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,

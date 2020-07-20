@@ -21,7 +21,7 @@
 
 #![recursion_limit="256"]
 
-use polkadot_primitives::{Block, Hash, BlakeTwo256, HashT};
+use polkadot_primitives::v0::{Block, Hash, BlakeTwo256, HashT};
 
 pub mod legacy;
 pub mod protocol;

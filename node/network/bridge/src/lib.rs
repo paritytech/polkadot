@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
 use node_primitives::{ProtocolId, View};
-use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::v1::{Block, Hash};
 
 use std::collections::btree_map::{BTreeMap, Entry as BEntry};
 use std::collections::hash_map::{HashMap, Entry as HEntry};
@@ -184,7 +184,10 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		SpawnedSubsystem(run_network(self.0, ctx).map(|_| ()).boxed())
+		SpawnedSubsystem {
+			name: "network-bridge-subsystem",
+			future: run_network(self.0, ctx).map(|_| ()).boxed(),
+		}
 	}
 }
 
@@ -521,7 +524,7 @@ async fn run_network<N: Network>(
 mod tests {
 	use super::*;
 	use futures::channel::mpsc;
-	use futures::executor::{self, ThreadPool};
+	use futures::executor;
 
 	use std::sync::Arc;
 	use parking_lot::Mutex;
@@ -632,8 +635,7 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
-		let pool = ThreadPool::new().unwrap();
-
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (network, network_handle) = new_test_network();
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool);
 
