@@ -394,7 +394,7 @@ where
 }
 
 
-/// Send messages which were exchanged in the past
+/// Send a gossip message and track it in the per relay parent data.
 async fn send_tracked_gossip_message<Context>(
     ctx: &mut Context,
     tracker: &mut Tracker,
