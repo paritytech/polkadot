@@ -857,7 +857,7 @@ mod proxt_type_tests {
 			(OldProxyType::Staking, ProxyType::Staking),
 			(OldProxyType::IdentityJudgement, ProxyType::IdentityJudgement),
 		].into_iter() {
-			assert_eq!(ProxyType::decode(&mut &i.encode()).unwrap(), j);
+			assert_eq!(i.encode(), j.encode());
 		}
 		assert!(ProxyType::decode(&mut &OldProxyType::SudoBalances.encode()).is_err());
 	}
