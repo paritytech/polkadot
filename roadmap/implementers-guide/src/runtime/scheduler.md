@@ -68,7 +68,7 @@ digraph {
 		fr3 -> fr4 [label = "No backing"]
 		fr3 -> occ4 [label = "Backing"]
 		occ3 -> occ4 [label = "(no change)"]
-		fr4 -> occ4 [label = "Availability Timeout"]
+		occ3 -> fr3 [label = "Availability Timeout"]
 
 		{ rank=same; fr3[group=g1]; occ3[group=g2] }
 		{ rank=same; fr4[group=g1]; occ4[group=g2] }

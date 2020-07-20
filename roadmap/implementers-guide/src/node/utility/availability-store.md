@@ -104,20 +104,14 @@ On finality event:
 
 - For the finalized block and any earlier block (if any) update pruning records of `PoV`s and chunks to keep them for respective periods after finality.
 
-### Note any new candidates backed in the block by `hash`
+### Note any backed, included and timedout candidates in the block by `hash`.
 
 - Create a `(sender, receiver)` pair.
-- Dispatch a [`RuntimeApiMessage`][RAM]`::Request(hash, RuntimeApiRequest::AvailabilityCores(sender)` and listen on the receiver for a response.
-- For every occupied core returned on the previous step
-  * Create a `(sender, receiver)` pair.
-  * Dispatch a [`RuntimeApiMessage`][RAM]`::Request(hash, RuntimeApiRequest::CandidatePendingAvailability(para_id, sender)`.
-  * Wait on the `receiver` for the receipt of the candidate, check if the candidate is a new one and if it is add it to the set of new candidates backed in the block `hash`.
-  * For every newly-backed candidate update pruning records of any blocks that the node stored previously.
-
-### Note any newly-included candidates backed in the block
-
-- > TODO: figure out how to do this using the existing API
-- Update records tracking which parablocks were included in which relay-chain blocks.
+- Dispatch a [`RuntimeApiMessage`][RAM]`::Request(hash, RuntimeApiRequest::CandidateEvents(sender)` and listen on the receiver for a response.
+- For every event in the response:`CandidateEvent::CandidateIncluded`.
+  * For every `CandidateEvent::CandidateBacked` do nothing
+  * For every `CandidateEvent::CandidateIncluded` update pruning records of any blocks that the node stored previously.
+  * For every `CandidateEvent::CandidateTimedOut` use pruning records to prune the data; delete the info from records.
 
 ## Schema
 
@@ -190,8 +184,18 @@ Basically we need to test the correctness of data flow through state FSMs descri
   - Send finality notification about the block in question.
   - Wait for some time below finalized data timeout.
   - The data is still available.
-  - Wait until the data should have been purged.
+  - Wait until the data should have been pruned.
   - The data is no longer available.
+
+- Forkfulness of the relay chain is taken into account
+  - Block `B1` is added to the store.
+  - Block `B2` is added to the store.
+  - Notify the subsystem that both `B1` and `B2` were included in different leafs of relay chain.
+  - Notify the subsystem that the leaf with `B1` was finalized.
+  - Leaf with `B2` is never finalized.
+  - Leaf with `B2` is pruned and its data is no longer available.
+  - Wait until the finalized data of `B1` should have been pruned.
+  - `B1` is no longer available.
 
 [RAM]: ../../types/overseer-protocol.md#runtime-api-message
 [ASM]: ../../types/overseer-protocol.md#availability-store-message
