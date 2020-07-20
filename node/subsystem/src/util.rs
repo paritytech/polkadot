@@ -719,17 +719,18 @@ mod tests {
 	use futures::{
 		channel::mpsc,
 		executor::{self, ThreadPool},
-		future,
 		Future,
 		FutureExt,
 		stream::{self, StreamExt},
 		SinkExt,
 	};
+	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
 	use std::{
 		collections::HashMap,
 		convert::TryFrom,
 		pin::Pin,
+		time::Duration,
 	};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
@@ -884,15 +885,23 @@ mod tests {
 
 		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, pool, Some(err_tx));
 		let test_future = test(overseer_handle, err_rx);
+		let timeout = Delay::new(Duration::from_secs(2));
 
 		futures::pin_mut!(test_future);
 		futures::pin_mut!(subsystem);
+		futures::pin_mut!(timeout);
 
-		executor::block_on(future::select(test_future, subsystem));
+		executor::block_on(async move {
+			futures::select! {
+				_ = test_future.fuse() => (),
+				_ = subsystem.fuse() => (),
+				_ = timeout.fuse() => panic!("test timed out instead of completing"),
+			}
+		});
 	}
 
 	#[test]
-	fn starting_job_works() {
+	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
 		let test_message = format!("greetings from {}", relay_parent);
@@ -904,20 +913,6 @@ mod tests {
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
-			std::mem::drop(overseer_handle);
-
-			let errs: Vec<_> = err_rx.collect().await;
-			assert_eq!(errs.len(), 0);
-		});
-	}
-
-	#[test]
-	fn stopping_running_job_works() {
-		let relay_parent: Hash = [0; 32].into();
-		let run_args = HashMap::new();
-
-		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
 			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
