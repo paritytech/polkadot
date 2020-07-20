@@ -833,6 +833,36 @@ pub enum ProxyType {
 	// Skip 4 as it is now removed (was SudoBalances)
 	IdentityJudgement = 5,
 }
+
+#[cfg(test)]
+mod proxt_type_tests {
+	use super::*;
+
+	#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+	pub enum OldProxyType {
+		Any,
+		NonTransfer,
+		Governance,
+		Staking,
+		SudoBalances,
+		IdentityJudgement,
+	}
+
+	#[test]
+	fn proxy_type_decodes_correctly() {
+		for (i, j) in vec![
+			(OldProxyType::Any, ProxyType::Any),
+			(OldProxyType::NonTransfer, ProxyType::NonTransfer),
+			(OldProxyType::Governance, ProxyType::Governance),
+			(OldProxyType::Staking, ProxyType::Staking),
+			(OldProxyType::IdentityJudgement, ProxyType::IdentityJudgement),
+		].into_iter() {
+			assert_eq!(ProxyType::decode(&mut &i.encode()).unwrap(), j);
+		}
+		assert!(ProxyType::decode(&mut &OldProxyType::SudoBalances.encode()).is_err());
+	}
+}
+
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
