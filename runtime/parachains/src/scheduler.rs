@@ -510,7 +510,7 @@ impl<T: Trait> Module<T> {
 
 		if at < session_start_block { return None }
 
-		if config.parachain_rotation_frequency.is_zero() {
+		if config.group_rotation_frequency.is_zero() {
 			// interpret this as "no rotations"
 			return Some(GroupIndex(core.0));
 		}
@@ -520,7 +520,7 @@ impl<T: Trait> Module<T> {
 		if core.0 as usize >= validator_groups.len() { return None }
 
 		let rotations_since_session_start: T::BlockNumber =
-			(at - session_start_block) / config.parachain_rotation_frequency.into();
+			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start
 			= match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start)
@@ -550,7 +550,7 @@ impl<T: Trait> Module<T> {
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
-		let blocks_since_last_rotation = blocks_since_session_start % config.parachain_rotation_frequency;
+		let blocks_since_last_rotation = blocks_since_session_start % config.group_rotation_frequency;
 
 		let absolute_cutoff = sp_std::cmp::max(
 			config.chain_availability_period,
@@ -590,7 +590,7 @@ impl<T: Trait> Module<T> {
 		let session_start_block = Self::session_start_block();
 		let now = <system::Module<T>>::block_number();
 		let group_rotation_frequency = <configuration::Module<T>>::config()
-			.parachain_rotation_frequency;
+			.group_rotation_frequency;
 
 		GroupRotationInfo {
 			session_start_block,
@@ -707,7 +707,7 @@ mod tests {
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		HostConfiguration {
 			parathread_cores: 3,
-			parachain_rotation_frequency: 10,
+			group_rotation_frequency: 10,
 			chain_availability_period: 3,
 			thread_availability_period: 5,
 			scheduling_lookahead: 2,
@@ -1278,12 +1278,12 @@ mod tests {
 			let mut config = default_config();
 
 			// make sure parathread requests don't retry-out
-			config.parathread_retries = config.parachain_rotation_frequency * 3;
+			config.parathread_retries = config.group_rotation_frequency * 3;
 			config.parathread_cores = 2;
 			config
 		};
 
-		let rotation_frequency = config.parachain_rotation_frequency;
+		let rotation_frequency = config.group_rotation_frequency;
 		let parathread_cores = config.parathread_cores;
 
 		let genesis_config = MockGenesisConfig {
@@ -1429,7 +1429,7 @@ mod tests {
 		};
 
 		let HostConfiguration {
-			parachain_rotation_frequency,
+			group_rotation_frequency,
 			chain_availability_period,
 			thread_availability_period,
 			..
@@ -1437,7 +1437,7 @@ mod tests {
 		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 		assert!(chain_availability_period < thread_availability_period &&
-			thread_availability_period < parachain_rotation_frequency);
+			thread_availability_period < group_rotation_frequency);
 
 		let chain_a = ParaId::from(1);
 		let thread_a = ParaId::from(2);
@@ -1482,7 +1482,7 @@ mod tests {
 			run_to_block(1 + thread_availability_period, |_| None);
 			assert!(Scheduler::availability_timeout_predicate().is_none());
 
-			run_to_block(1 + parachain_rotation_frequency, |_| None);
+			run_to_block(1 + group_rotation_frequency, |_| None);
 
 			{
 				let pred = Scheduler::availability_timeout_predicate()
@@ -1509,7 +1509,7 @@ mod tests {
 				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
 			}
 
-			run_to_block(1 + parachain_rotation_frequency + chain_availability_period, |_| None);
+			run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
 
 			{
 				let pred = Scheduler::availability_timeout_predicate()
@@ -1521,7 +1521,7 @@ mod tests {
 				assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
 			}
 
-			run_to_block(1 + parachain_rotation_frequency + thread_availability_period, |_| None);
+			run_to_block(1 + group_rotation_frequency + thread_availability_period, |_| None);
 
 			assert!(Scheduler::availability_timeout_predicate().is_none());
 		});
