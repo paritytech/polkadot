@@ -93,7 +93,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 15,
+	spec_version: 16,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -117,9 +117,6 @@ impl Filter<Call> for BaseFilter {
 		match call {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
-			// Governance stuff, minus council elections.
-			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
-			Call::TechnicalMembership(_) | Call::Treasury(_) |
 			// Parachains stuff
 			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
 			// Balances and Vesting's transfer (which can be used to transfer)
@@ -128,7 +125,8 @@ impl Filter<Call> for BaseFilter {
 				false,
 
 			// These modules are all allowed to be called by transactions:
-			Call::ElectionsPhragmen(_) |
+			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
+			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
 			Call::Babe(_) | Call::Timestamp(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
