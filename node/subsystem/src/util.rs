@@ -424,7 +424,10 @@ impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 				if let Some(mut err_tx) = err_tx {
 					// if we can't send the notification of error on the error channel, then
 					// there's no point trying to propagate this error onto the channel too
-					let _ = err_tx.send((Some(parent_hash), JobsError::Job(e))).await;
+					// all we can do is warn that error propagatio has failed
+					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
+						log::warn!("failed to forward error: {:?}", e);
+					}
 				}
 			}
 		});
@@ -583,8 +586,11 @@ where
 	// if we have a channel on which to forward errors, do so
 	async fn fwd_err(hash: Option<Hash>, err: JobsError<Job::Error>, err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
 		if let Some(err_tx) = err_tx {
-			// if we can't send on the error transmission channel, we can't do anything about it
-			let _ = err_tx.send((hash, err)).await;
+			// if we can't send on the error transmission channel, we can't do anything useful about it
+			// still, we can at least log the failure
+			if let Err(e) = err_tx.send((hash, err)).await {
+				log::warn!("failed to forward error: {:?}", e);
+			}
 		}
 	}
 
