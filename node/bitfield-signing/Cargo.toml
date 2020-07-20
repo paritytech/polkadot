@@ -1,0 +1,12 @@
+[package]
+name = "polkadot-node-bitfield-signing"
+version = "0.1.0"
+authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.5"
+log = "0.4.8"
+polkadot-primitives = { path = "../../primitives" }
+polkadot-node-subsystem = { path = "../subsystem" }
+wasm-timer = "0.2.4"
