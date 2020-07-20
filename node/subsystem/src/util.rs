@@ -30,7 +30,7 @@ use futures::{
 	prelude::*,
 	select,
 	stream::Stream,
-	task::{self, Spawn, SpawnError, SpawnExt},
+	task,
 };
 use futures_timer::Delay;
 use keystore::KeyStorePtr;
@@ -40,7 +40,10 @@ use polkadot_primitives::v1::{
 	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext,
 	ValidatorId, ValidatorIndex, ValidatorPair,
 };
-use sp_core::Pair;
+use sp_core::{
+	Pair,
+	traits::SpawnNamed,
+};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -64,9 +67,6 @@ pub enum Error {
 	/// Attempted to send on a MPSC channel which has been canceled
 	#[from]
 	Mpsc(mpsc::SendError),
-	/// Attempted to spawn a new task, and failed
-	#[from]
-	Spawn(SpawnError),
 	/// A subsystem error
 	#[from]
 	Subsystem(SubsystemError),
@@ -379,7 +379,7 @@ pub struct Jobs<Spawner, Job: JobTrait> {
 	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 }
 
-impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
+impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	/// Create a new Jobs manager which handles spawning appropriate jobs.
 	pub fn new(spawner: Spawner) -> Self {
 		Self {
@@ -442,7 +442,7 @@ impl<Spawner: Spawn, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			// which means the handle is dropped, which means we don't care anymore
 			let _ = finished_tx.send(());
 		};
-		self.spawner.spawn(future)?;
+		self.spawner.spawn(Job::NAME, future.boxed());
 
 		// this handle lets us remove the appropriate receiver from self.outgoing_msgs
 		// when it's time to stop the job.
@@ -495,7 +495,7 @@ impl<Spawner, Job: JobTrait> PinnedDrop for Jobs<Spawner, Job> {
 
 impl<Spawner, Job> Stream for Jobs<Spawner, Job>
 where
-	Spawner: Spawn,
+	Spawner: SpawnNamed,
 	Job: JobTrait,
 {
 	type Item = Job::FromJob;
@@ -528,7 +528,7 @@ pub struct JobManager<Spawner, Context, Job: JobTrait> {
 
 impl<Spawner, Context, Job> JobManager<Spawner, Context, Job>
 where
-	Spawner: Spawn + Clone + Send + Unpin,
+	Spawner: SpawnNamed + Clone + Send + Unpin,
 	Context: SubsystemContext,
 	Job: 'static + JobTrait,
 	Job::RunArgs: Clone,
@@ -688,7 +688,7 @@ where
 
 impl<Spawner, Context, Job> Subsystem<Context> for JobManager<Spawner, Context, Job>
 where
-	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
 	<Context as SubsystemContext>::Message: Into<Job::ToJob>,
 	Job: 'static + JobTrait + Send,
@@ -700,9 +700,15 @@ where
 		let run_args = self.run_args.clone();
 		let errors = self.errors;
 
-		SpawnedSubsystem(Box::pin(async move {
+
+		let future = Box::pin(async move {
 			Self::run(ctx, run_args, spawner, errors).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "JobManager",
+			future,
+		}
 	}
 }
 
@@ -724,7 +730,7 @@ mod tests {
 	};
 	use futures::{
 		channel::mpsc,
-		executor::{self, ThreadPool},
+		executor,
 		Future,
 		FutureExt,
 		stream::{self, StreamExt},
@@ -885,7 +891,7 @@ mod tests {
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T) {
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 

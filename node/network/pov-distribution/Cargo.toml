@@ -19,3 +19,4 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 [dev-dependencies]
 parking_lot = "0.10.0"
 assert_matches = "1.3.0"
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
