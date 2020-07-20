@@ -436,7 +436,10 @@ where
     C: SubsystemContext<Message = BitfieldDistributionMessage> + Clone + Sync + Send,
 {
     fn start(self, ctx: C) -> SpawnedSubsystem {
-        SpawnedSubsystem(Box::pin(async move { Self::run(ctx) }.map(|_| ())))
+        SpawnedSubsystem {
+            name: "bitfield-distribution",
+            future: Box::pin(async move { Self::run(ctx) }.map(|_| ())),
+        }
     }
 }
 
