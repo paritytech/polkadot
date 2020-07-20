@@ -859,7 +859,7 @@ mod proxt_type_tests {
 		].into_iter() {
 			assert_eq!(i.encode(), j.encode());
 		}
-		assert!(ProxyType::decode(&mut &OldProxyType::SudoBalances.encode()).is_err());
+		assert!(ProxyType::decode(&mut &OldProxyType::SudoBalances.encode()[..]).is_err());
 	}
 }
 
