@@ -93,13 +93,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 16,
+	spec_version: 17,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 2,
+	transaction_version: 3,
 };
 
 /// Native version.
@@ -132,7 +132,7 @@ impl Filter<Call> for BaseFilter {
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
-			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
 			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
 			Call::Purchase(_) =>
 				true,
@@ -835,7 +835,6 @@ pub enum ProxyType {
 	NonTransfer,
 	Governance,
 	Staking,
-	SudoBalances,
 	IdentityJudgement,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
@@ -876,7 +875,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Vesting(vesting::Call::vest_other(..)) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				Call::Utility(..) |
-				// Specifically omitting Sudo pallet
 				Call::Identity(..) |
 				Call::Proxy(..) |
 				Call::Multisig(..)
@@ -889,11 +887,6 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
 			),
-			ProxyType::SudoBalances => match c {
-				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
-				Call::Utility(..) => true,
-				_ => false,
-			},
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(identity::Call::provide_judgement(..))
 				| Call::Utility(utility::Call::batch(..))
@@ -1037,8 +1030,8 @@ construct_runtime! {
 		// Cunning utilities. Usable initially.
 		Utility: utility::{Module, Call, Event},
 
-		// Sudo. Last module. Usable initially, but removed once governance enabled.
-		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
+		// DOT Purchase module. Late addition; this is in place of Sudo.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 
 		// Identity. Late addition.
 		Identity: identity::{Module, Call, Storage, Event<T>},
@@ -1051,9 +1044,6 @@ construct_runtime! {
 
 		// Poll module.
 		Poll: poll::{Module, Call, Storage, Event<T>},
-
-		// DOT Purchase module. Late addition.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
