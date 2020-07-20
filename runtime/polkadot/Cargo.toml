@@ -139,7 +139,6 @@ std = [
 	"sp-session/std",
 	"randomness-collective-flip/std",
 	"runtime-common/std",
-	"sudo/std",
 	"vesting/std",
 	"utility/std",
 ]
