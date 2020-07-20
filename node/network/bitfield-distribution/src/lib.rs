@@ -215,10 +215,6 @@ where
     let interested_peers = tracker
         .peer_views
         .iter()
-        .filter(|(peerid, view)| {
-            // @todo
-            true
-        })
         .filter_map(|(peerid, view)| {
             if view.contains(&message.relay_parent) {
                 Some(peerid.clone())
@@ -391,13 +387,49 @@ where
         .collect();
 
     for (validator, message) in delta_set.into_iter() {
-        // @todo track the send messages
-        relay_message(ctx, tracker, message).await?;
+        send_tracked_gossip_message(ctx, tracker, origin.clone(), validator, message).await?;
     }
 
     Ok(())
 }
 
+
+/// Send messages which were exchanged in the past
+async fn send_tracked_gossip_message<Context>(
+    ctx: &mut Context,
+    tracker: &mut Tracker,
+    dest: PeerId,
+    validator: ValidatorId,
+    message: BitfieldGossipMessage,
+) -> SubsystemResult<()>
+where
+    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+{
+    let per_job = if let Some(per_job) = tracker.per_relay_parent.get_mut(&message.relay_parent) {
+        per_job
+    } else {
+        // TODO punishing here seems unreasonable
+        return Ok(());
+    };
+
+    let message_sent_to_peer = &mut (per_job.message_sent_to_peer);
+    message_sent_to_peer
+        .entry(dest.clone())
+        .or_default()
+        .insert(validator.clone());
+
+
+    let bytes = Encode::encode(&message);
+    ctx.send_message(AllMessages::NetworkBridge(
+            NetworkBridgeMessage::SendMessage(
+                vec![dest],
+                BitfieldDistribution::PROTOCOL_ID,
+                bytes,
+            ),
+        ))
+        .await?;
+    Ok(())
+}
 
 impl<C> Subsystem<C> for BitfieldDistribution
 where
