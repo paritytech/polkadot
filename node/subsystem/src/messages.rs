@@ -397,8 +397,6 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
-	/// Message for the block authorship provisioning subsystem.
-	BlockAuthorshipProvisioning(BlockAuthorshipProvisioningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.

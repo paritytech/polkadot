@@ -14,7 +14,7 @@ Output:
 - `NetworkBridge::RegisterEventProducer(ProtocolId)` in order to register ourselfs as an event provide for the protocol.
 - `NetworkBridge::SendMessage([PeerId], ProtocolId, Bytes)` gossip a verified incoming bitfield on to interested subsystems within this validator node.
 - `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)` improve or penalize the reputation of peers based on the messages that are received relative to the current view.
-- `BlockAuthorshipProvisioning::Bitfield(relay_parent, SignedAvailabilityBitfield)` pass
+- `ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(relay_parent, SignedAvailabilityBitfield))` pass
   on the bitfield to the other submodules via the overseer.
 
 ## Functionality

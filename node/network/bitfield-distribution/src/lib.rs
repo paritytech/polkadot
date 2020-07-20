@@ -93,7 +93,8 @@ struct PerRelayParentData {
 }
 
 impl PerRelayParentData {
-    fn peer_already_was_sent_message_signed_by_validator(&self, peer: &PeerId, validator: &ValidatorId) -> bool {
+    /// Determines if that particular message signed by a validator is needed by the given peer.
+    fn message_from_validator_needed_by_peer(&self, peer: &PeerId, validator: &ValidatorId) -> bool {
         if let Some(set) = self.message_sent_to_peer.get(peer) {
             !set.contains(validator)
         } else {
@@ -290,10 +291,9 @@ where
         message_sent_to_peer
             .entry(origin)
             .or_insert_with(|| {
-                HashSet::with_capacity(16)
+                HashSet::default()
             })
             .insert(validator.clone());
-
     } else {
         return modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
     }
@@ -358,26 +358,42 @@ where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
     use std::collections::hash_map::Entry;
-
-    match tracker
+    let current = tracker
         .peer_views
-        .entry(origin) {
-            Entry::Occupied(ref mut occupied) => {
-                let current = occupied.get_mut();
+        .entry(origin.clone())
+        .or_default();
 
-                // send all messages we've seen before for this peer
-                for new_relay_parent_interest in (*current).difference(&view) {
-                    if let Some(data) = tracker.per_relay_parent.get(new_relay_parent_interest) {
-                        // if !data.peer_ {
-                        // } @todo
-                        todo!("XXX");
-                    }
-                }
 
-                *current = view;
-            },
-            Entry::Vacant(vacant) => { let _ = vacant.insert(view.clone()); } ,
-        }
+    let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
+
+    *current = view;
+
+    // Send all messages we've seen before and the peer is now interested
+    // in to that peer.
+
+    let delta_set: HashMap<ValidatorId, BitfieldGossipMessage> = delta_vec.into_iter()
+        .filter_map(|new_relay_parent_interest| {
+            if let Some(per_job) = (&*tracker).per_relay_parent.get(&new_relay_parent_interest) {
+                // send all messages
+                let one_per_validator = per_job.one_per_validator.clone();
+                let origin = origin.clone();
+                Some(one_per_validator.into_iter().filter(move |(validator, _message)| {
+                    // except for the ones the peer already has
+                    // let validator = validator.clone();
+                    per_job.message_from_validator_needed_by_peer(&origin, validator)
+                }))
+            } else {
+                // A relay parent is in the peers view, which is not in ours, ignore those.
+                None
+            }
+        })
+        .flatten()
+        .collect();
+
+    for (validator, message) in delta_set.into_iter() {
+        // @todo track the send messages
+        relay_message(ctx, tracker, message).await?;
+    }
 
     Ok(())
 }
