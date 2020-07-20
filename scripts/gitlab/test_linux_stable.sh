@@ -75,11 +75,11 @@ then
     prepare_git
     prepare_substrate "$pr_companion"
   else
-    boldprint "no companion branch found - building substrate:master"
+    boldprint "no companion branch found - building your Polkadot branch"
   fi
   rm -f "${pr_data_file}"
 else
-  boldprint "this is not a pull request - building substrate:master"
+  boldprint "this is not a pull request - building your Polkadot branch"
 fi
 
 
