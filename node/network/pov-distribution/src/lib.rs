@@ -551,7 +551,7 @@ async fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::executor::{self, ThreadPool};
+	use futures::executor;
 	use polkadot_primitives::v1::BlockData;
 	use assert_matches::assert_matches;
 
