@@ -69,7 +69,10 @@ impl<C> Subsystem<C> for PoVDistribution
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
-		SpawnedSubsystem(run(ctx).map(|_| ()).boxed())
+		SpawnedSubsystem {
+			name: "pov-distribution-subsystem",
+			future: run(ctx).map(|_| ()).boxed(),
+		}
 	}
 }
 
@@ -548,7 +551,7 @@ async fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::executor::{self, ThreadPool};
+	use futures::executor;
 	use polkadot_primitives::v1::BlockData;
 	use assert_matches::assert_matches;
 
@@ -616,7 +619,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -696,7 +699,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -774,7 +777,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -846,7 +849,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -934,7 +937,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -997,7 +1000,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1058,7 +1061,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1116,7 +1119,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1201,7 +1204,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1263,7 +1266,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1340,7 +1343,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1383,7 +1386,6 @@ mod tests {
 		});
 	}
 
-	// TODO [now] awaiting peer sending us something is no longer awaiting.
 	#[test]
 	fn peer_completing_request_no_longer_awaiting() {
 		let hash_a: Hash = [0; 32].into();
@@ -1424,7 +1426,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
 
 		executor::block_on(async move {

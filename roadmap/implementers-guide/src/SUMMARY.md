@@ -14,6 +14,7 @@
   - [InclusionInherent Module](runtime/inclusioninherent.md)
   - [Validity Module](runtime/validity.md)
   - [Router Module](runtime/router.md)
+- [Runtime APIs](runtime-api/README.md)
 - [Node Architecture](node/README.md)
   - [Subsystems and Jobs](node/subsystems-and-jobs.md)
   - [Overseer](node/overseer.md)
