@@ -57,6 +57,7 @@ decl_event! {
 		<T as system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
 	{
+		/// A poll has been voted on. [who, balance, approvals]
 		Voted(AccountId, Balance, Approvals),
 	}
 }

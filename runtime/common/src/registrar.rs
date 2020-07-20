@@ -496,10 +496,10 @@ decl_module! {
 
 decl_event!{
 	pub enum Event {
-		/// A parathread was registered; its new ID is supplied.
+		/// A parathread was registered; its new ID is supplied. [parachain_id]
 		ParathreadRegistered(ParaId),
 
-		/// The parathread of the supplied ID was de-registered.
+		/// The parathread of the supplied ID was de-registered. [parachain_id]
 		ParathreadDeregistered(ParaId),
 	}
 }
