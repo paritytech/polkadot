@@ -664,9 +664,6 @@ pub fn polkadot_testnet_genesis(
 		vesting: Some(polkadot::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(polkadot::SudoConfig {
-			key: root_key,
-		}),
 	}
 }
 
