@@ -34,7 +34,6 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
-
 use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
@@ -398,6 +397,8 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the block authorship provisioning subsystem.
+	BlockAuthorshipProvisioning(BlockAuthorshipProvisioningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.

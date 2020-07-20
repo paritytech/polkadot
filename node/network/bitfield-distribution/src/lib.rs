@@ -1,12 +1,12 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
-// Polkadot is free software: you can redistribute it and/or modify
+// Polkadot is free software: you can rerelay_message it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Polkadot is distributed in the hope that it will be useful,
+// Polkadot is relay_messaged in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
@@ -47,6 +47,17 @@ const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
     ReputationChange::new(-100, "Not intersted in that parent hash");
 
 
+/// Checked signed availability bitfield that is distributed
+/// to other peers.
+#[derive(Encode, Decode, Debug, Clone)]
+pub struct BitfieldGossipMessage {
+	/// The relay parent this message is relative to.
+	pub relay_parent: Hash,
+	/// The actual signed availability bitfield.
+    pub signed_availability: SignedAvailabilityBitfield,
+}
+
+
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
 #[derive(Default, Clone)]
@@ -72,9 +83,23 @@ struct PerRelayParentData {
     validator_set: Vec<ValidatorId>,
 
     /// Set of validators for a particular relay parent for which we
-    /// received a valid `BitfieldGossipMessage` and gossiped it to
-    /// interested peers.
-    one_per_validator: HashSet<ValidatorId>,
+    /// received a valid `BitfieldGossipMessage`.
+    /// Also serves as the list of known messages for peers connecting
+    /// after bitfield gossips were already received.
+    one_per_validator: HashMap<ValidatorId, BitfieldGossipMessage>,
+
+    /// which messages of which validators were already sent
+    message_sent_to_peer: HashMap<PeerId, HashSet<ValidatorId>>,
+}
+
+impl PerRelayParentData {
+    fn peer_already_was_sent_message_signed_by_validator(&self, peer: &PeerId, validator: &ValidatorId) -> bool {
+        if let Some(set) = self.message_sent_to_peer.get(peer) {
+            !set.contains(validator)
+        } else {
+            false
+        }
+    }
 }
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
@@ -108,7 +133,7 @@ impl BitfieldDistribution {
                     FromOverseer::Communication { msg } => {
                         // another subsystem created this signed availability bitfield messages
                         match msg {
-                            // distribute a bitfield via gossip to other validators.
+                            // relay_message a bitfield via gossip to other validators
                             BitfieldDistributionMessage::DistributeBitfield(
                                 hash,
                                 signed_availability,
@@ -119,12 +144,12 @@ impl BitfieldDistribution {
                                 };
                                 // @todo are we subject to sending something multiple times?
                                 // @todo this also apply to ourself?
-                                distribute(&mut ctx, &mut tracker, msg).await?;
+                                relay_message(&mut ctx, &mut tracker, msg).await?;
                             }
                             BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
                                 // a network message was received
                                 if let Err(e) = handle_network_msg(&mut ctx, &mut tracker, event).await {
-                                    log::warn!("Failed to handle incomming network messages: {:?}", e);
+                                    log::warn!(target: "bitd", "Failed to handle incomming network messages: {:?}", e);
                                 }
                             }
                         }
@@ -145,7 +170,7 @@ impl BitfieldDistribution {
                         );
                     }
                     FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-                        // @todo assumption: it is good enough to prevent addition work from being
+                        // @todo assumption: it is good enough to prevent additional work from being
                         // scheduled, the individual futures are supposedly completed quickly
                         let _ = tracker.per_relay_parent.remove(&relay_parent);
                     }
@@ -159,8 +184,8 @@ impl BitfieldDistribution {
     }
 }
 
-/// Modify the reputiation of peer based on their behaviour.
-async fn modify_reputiation<Context>(
+/// Modify the reputation of peer based on their behaviour.
+async fn modify_reputation<Context>(
     ctx: &mut Context,
     peerid: PeerId,
     rep: ReputationChange,
@@ -177,7 +202,7 @@ where
 /// Distribute a given valid bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
-async fn distribute<Context>(
+async fn relay_message<Context>(
     ctx: &mut Context,
     tracker: &mut Tracker,
     message: BitfieldGossipMessage,
@@ -185,16 +210,16 @@ async fn distribute<Context>(
 where
     Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
 {
-    let BitfieldGossipMessage {
-        relay_parent,
-        signed_availability,
-    } = message;
     // concurrently pass on the bitfield distribution to all interested peers
     let interested_peers = tracker
         .peer_views
         .iter()
+        .filter(|(peerid, view)| {
+            // @todo
+            true
+        })
         .filter_map(|(peerid, view)| {
-            if view.contains(&relay_parent) {
+            if view.contains(&message.relay_parent) {
                 Some(peerid.clone())
             } else {
                 None
@@ -202,11 +227,7 @@ where
         })
         .collect::<Vec<PeerId>>();
 
-    let message = BitfieldGossipMessage {
-        relay_parent,
-        signed_availability,
-    };
-    let bytes = message.encode();
+    let bytes = Encode::encode(&message);
     ctx.send_message(AllMessages::NetworkBridge(
         NetworkBridgeMessage::SendMessage(
             interested_peers,
@@ -218,11 +239,12 @@ where
     Ok(())
 }
 
+
 /// Handle an incoming message from a peer.
 async fn process_incoming_peer_message<Context>(
     ctx: &mut Context,
     tracker: &mut Tracker,
-    peerid: PeerId,
+    origin: PeerId,
     message: BitfieldGossipMessage,
 ) -> SubsystemResult<()>
 where
@@ -230,7 +252,7 @@ where
 {
     // we don't care about this, not part of our view
     if !tracker.view.contains(&message.relay_parent) {
-        return modify_reputiation(ctx, peerid, COST_NOT_INTERESTED).await;
+        return modify_reputation(ctx, origin, COST_NOT_INTERESTED).await;
     }
 
     // Ignore anything the overseer did not tell this subsystem to work on
@@ -238,12 +260,12 @@ where
     let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
         job_data
     } else {
-        return modify_reputiation(ctx, peerid, COST_NOT_INTERESTED).await;
+        return modify_reputation(ctx, origin, COST_NOT_INTERESTED).await;
     };
 
     let validator_set = &job_data.validator_set;
     if validator_set.len() == 0 {
-        return modify_reputiation(ctx, peerid, COST_MISSING_PEER_SESSION_KEY).await;
+        return modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
     }
 
     // check all validators that could have signed this message
@@ -256,26 +278,30 @@ where
             .is_ok()
     }) {
         let one_per_validator = &mut (job_data.one_per_validator);
-        // only distribute a message of a validator once
-        if one_per_validator.contains(validator) {
+        // only relay_message a message of a validator once
+        if one_per_validator.get(validator).is_some() {
             return Ok(());
         }
-        one_per_validator.insert(validator.clone());
+        one_per_validator.insert(validator.clone(), message.clone());
+
+
+        // track which messages that peer already received
+        let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
+        message_sent_to_peer
+            .entry(origin)
+            .or_insert_with(|| {
+                HashSet::with_capacity(16)
+            })
+            .insert(validator.clone());
+
     } else {
-        return modify_reputiation(ctx, peerid, COST_SIGNATURE_INVALID).await;
+        return modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
     }
 
-    // passed all conditions, distribute!
-    distribute(ctx, tracker, message).await?;
+    // passed all conditions, distribute to peers!
+    relay_message(ctx, tracker, message).await?;
 
     Ok(())
-}
-
-/// A gossiped or gossipable signed availability bitfield for a particular relay parent.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BitfieldGossipMessage {
-    relay_parent: Hash,
-    signed_availability: SignedAvailabilityBitfield,
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
@@ -297,31 +323,65 @@ where
             tracker.peer_views.remove(&peerid);
         }
         NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-            tracker
-                .peer_views
-                .entry(peerid)
-                .and_modify(|val| *val = view);
+            catch_up_messages(ctx, tracker, peerid, view).await?;
         }
         NetworkBridgeEvent::OurViewChange(view) => {
             let old_view = std::mem::replace(&mut (tracker.view), view);
 
             for new in tracker.view.difference(&old_view) {
                 if !tracker.per_relay_parent.contains_key(&new) {
-                    log::warn!("Our view contains {} but the overseer never told use we should work on this", &new);
+                    log::warn!(target: "bitd", "Our view contains {} but the overseer never told use we should work on this", &new);
                 }
             }
         }
         NetworkBridgeEvent::PeerMessage(remote, bytes) => {
-            log::info!("Got a peer message from {:?}", &remote);
             if let Ok(gossiped_bitfield) = BitfieldGossipMessage::decode(&mut (bytes.as_slice())) {
+                log::trace!(target: "bitd", "Received bitfield gossip from peer {:?}", &remote);
                 process_incoming_peer_message(ctx, tracker, remote, gossiped_bitfield).await?;
             } else {
-                return modify_reputiation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await;
+                return modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await;
             }
         }
     }
     Ok(())
 }
+
+// Send the difference between two views which were not sent
+// to that particular peer.
+async fn catch_up_messages<Context>(
+    ctx: &mut Context,
+    tracker: &mut Tracker,
+    origin: PeerId,
+    view: View,
+) -> SubsystemResult<()>
+where
+    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+{
+    use std::collections::hash_map::Entry;
+
+    match tracker
+        .peer_views
+        .entry(origin) {
+            Entry::Occupied(ref mut occupied) => {
+                let current = occupied.get_mut();
+
+                // send all messages we've seen before for this peer
+                for new_relay_parent_interest in (*current).difference(&view) {
+                    if let Some(data) = tracker.per_relay_parent.get(new_relay_parent_interest) {
+                        // if !data.peer_ {
+                        // } @todo
+                        todo!("XXX");
+                    }
+                }
+
+                *current = view;
+            },
+            Entry::Vacant(vacant) => { let _ = vacant.insert(view.clone()); } ,
+        }
+
+    Ok(())
+}
+
 
 impl<C> Subsystem<C> for BitfieldDistribution
 where
