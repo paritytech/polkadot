@@ -826,11 +826,12 @@ parameter_types! {
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum ProxyType {
-	Any,
-	NonTransfer,
-	Governance,
-	Staking,
-	IdentityJudgement,
+	Any = 0,
+	NonTransfer = 1,
+	Governance = 2,
+	Staking = 3,
+	// Skip 4 as it is now removed (was SudoBalances)
+	IdentityJudgement = 5,
 }
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
