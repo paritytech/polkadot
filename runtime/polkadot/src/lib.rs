@@ -93,13 +93,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 16,
+	spec_version: 17,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 2,
+	transaction_version: 3,
 };
 
 /// Native version.
@@ -132,7 +132,7 @@ impl Filter<Call> for BaseFilter {
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
-			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) | Call::Sudo(_) |
+			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
 			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
 			Call::Purchase(_) =>
 				true,
@@ -815,11 +815,6 @@ impl multisig::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl sudo::Trait for Runtime {
-	type Event = Event;
-	type Call = Call;
-}
-
 parameter_types! {
 	// One storage item; key size 32, value size 8; .
 	pub const ProxyDepositBase: Balance = deposit(1, 8);
@@ -831,13 +826,43 @@ parameter_types! {
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum ProxyType {
-	Any,
-	NonTransfer,
-	Governance,
-	Staking,
-	SudoBalances,
-	IdentityJudgement,
+	Any = 0,
+	NonTransfer = 1,
+	Governance = 2,
+	Staking = 3,
+	// Skip 4 as it is now removed (was SudoBalances)
+	IdentityJudgement = 5,
 }
+
+#[cfg(test)]
+mod proxt_type_tests {
+	use super::*;
+
+	#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
+	pub enum OldProxyType {
+		Any,
+		NonTransfer,
+		Governance,
+		Staking,
+		SudoBalances,
+		IdentityJudgement,
+	}
+
+	#[test]
+	fn proxy_type_decodes_correctly() {
+		for (i, j) in vec![
+			(OldProxyType::Any, ProxyType::Any),
+			(OldProxyType::NonTransfer, ProxyType::NonTransfer),
+			(OldProxyType::Governance, ProxyType::Governance),
+			(OldProxyType::Staking, ProxyType::Staking),
+			(OldProxyType::IdentityJudgement, ProxyType::IdentityJudgement),
+		].into_iter() {
+			assert_eq!(i.encode(), j.encode());
+		}
+		assert!(ProxyType::decode(&mut &OldProxyType::SudoBalances.encode()[..]).is_err());
+	}
+}
+
 impl Default for ProxyType { fn default() -> Self { Self::Any } }
 impl InstanceFilter<Call> for ProxyType {
 	fn filter(&self, c: &Call) -> bool {
@@ -876,7 +901,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Vesting(vesting::Call::vest_other(..)) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				Call::Utility(..) |
-				// Specifically omitting Sudo pallet
 				Call::Identity(..) |
 				Call::Proxy(..) |
 				Call::Multisig(..)
@@ -889,11 +913,6 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
 			),
-			ProxyType::SudoBalances => match c {
-				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
-				Call::Utility(..) => true,
-				_ => false,
-			},
 			ProxyType::IdentityJudgement => matches!(c,
 				Call::Identity(identity::Call::provide_judgement(..))
 				| Call::Utility(utility::Call::batch(..))
@@ -1037,8 +1056,8 @@ construct_runtime! {
 		// Cunning utilities. Usable initially.
 		Utility: utility::{Module, Call, Event},
 
-		// Sudo. Last module. Usable initially, but removed once governance enabled.
-		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
+		// DOT Purchase module. Late addition; this is in place of Sudo.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 
 		// Identity. Late addition.
 		Identity: identity::{Module, Call, Storage, Event<T>},
@@ -1051,9 +1070,6 @@ construct_runtime! {
 
 		// Poll module.
 		Poll: poll::{Module, Call, Storage, Event<T>},
-
-		// DOT Purchase module. Late addition.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 

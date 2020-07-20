@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime"
-version = "0.8.16"
+version = "0.8.17"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -60,7 +60,6 @@ system = { package = "frame-system", git = "https://github.com/paritytech/substr
 system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 utility = { package = "pallet-utility", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
@@ -140,7 +139,6 @@ std = [
 	"sp-session/std",
 	"randomness-collective-flip/std",
 	"runtime-common/std",
-	"sudo/std",
 	"vesting/std",
 	"utility/std",
 ]
