@@ -32,7 +32,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, ErasureChunk, ValidatorIndex, CommittedCandidateReceipt,
+	Hash, AvailableData, ErasureChunk, ValidatorIndex, CandidateEvent,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -126,6 +126,14 @@ struct ChunkPruning {
 	state: CandidateState,
 }
 
+// Since we can only get this info for the latest K blocks we have to cache
+// which parablocks were made available in which relay block. When the relay block gets finalized
+// we thus know which parablocks need an update to pruning records.
+#[derive(Encode, Decode, Debug)]
+struct BlocksAvailableCached {
+	blocks: Vec<Hash>,
+}
+
 pub struct AvailabilityStoreSubsystem<Context, Time=SystemTime> {
 	inner: Arc<dyn KeyValueDB>,
 	_context: std::marker::PhantomData<Context>,
@@ -140,6 +148,10 @@ fn erasure_chunks_key(candidate_hash: &Hash) -> Vec<u8> {
 	(candidate_hash, 1i8).encode()
 }
 
+fn blocks_available_key(relay_parent: &Hash) -> Vec<u8> {
+	(relay_parent, 2i8).encode()
+}
+
 pub trait Time {
 	fn now_as_secs() -> Result<u64, SystemTimeError>;
 }
@@ -152,6 +164,22 @@ impl Time for SystemTime {
 			.as_secs()
 		)
 	}
+}
+
+async fn request_candidate_events<Context>(hash: Hash, ctx: &mut Context)
+	-> Result<Vec<CandidateEvent>, Error>
+where
+	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+
+	let msg = AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash,
+		RuntimeApiRequest::CandidateEvents(tx))
+	);
+
+	ctx.send_message(msg.into()).await?;
+
+	Ok(rx.await?)
 }
 
 impl<Context, T> AvailabilityStoreSubsystem<Context, T>
@@ -194,47 +222,60 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		}
 	}
 
-	async fn request_included_candidates(hash: Hash, ctx: &mut Context)
-		-> Result<Option<Vec<CommittedCandidateReceipt>>, Error>
-	{
-		let (tx, rx) = oneshot::channel();
 
-		let msg = AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash,
-				RuntimeApiRequest::GetCandidates(hash, tx))
+	async fn process_start_work(&mut self, ctx: &mut Context, hash: Hash) -> Result<(), Error> {
+		let events = request_candidate_events(hash, ctx).await?;
+		let mut included = HashSet::new();
+
+		for event in events {
+			if let CandidateEvent::CandidateIncluded(receipt, _) = event {
+				included.insert(receipt.hash());
+			}
+		}
+
+		// for every candidate in relay block
+		let _ = self.update_pruning(
+			&included,
+			CandidateState::Included,
 		);
 
-		ctx.send_message(msg.into()).await?;
+		Ok(())
+	}
 
-		Ok(rx.await?)
+	async fn process_block_finalized(&mut self, hash: Hash) -> Result<(), Error> {
+		let key = blocks_available_key(&hash);
+		let cached = self.query_inner::<BlocksAvailableCached>(
+			columns::META,
+			&key,
+		);
+
+		let mut finalized = HashSet::new();
+
+		if let Some(cached) = cached {
+			for c in cached.blocks {
+				finalized.insert(c);
+			}
+
+			let _ = self.update_pruning(
+				&finalized,
+				CandidateState::Finalized,
+			);
+		}
+
+		Ok(())
 	}
 
 	async fn run(mut self, mut ctx: Context) -> Result<(), Error> {
+		let ctx = &mut ctx;
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => {
 					match incoming {
 						Ok(FromOverseer::Signal(OverseerSignal::StartWork(hash))) => {
-							let included = match Self::request_included_candidates(hash, &mut ctx).await? {
-								Some(included) => HashSet::from_iter(included.iter().map(|c| c.hash())),
-								None => HashSet::new(),
-							};
-
-							// for every candidate in relay block
-							let _ = self.update_pruning(
-								&included,
-								CandidateState::Included,
-							);
+							self.process_start_work(ctx, hash).await?;
 						}
 						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-							let included = match Self::request_included_candidates(hash, &mut ctx).await? {
-								Some(included) => HashSet::from_iter(included.iter().map(|c| c.hash())),
-								None => HashSet::new(),
-							};
-
-							let _ = self.update_pruning(
-								&included,
-								CandidateState::Finalized,
-							);
+							self.process_block_finalized(hash).await?;
 						}
 						Ok(FromOverseer::Signal(OverseerSignal::StopWork(_))) => (),
 						Ok(FromOverseer::Signal(Conclude)) => break,
@@ -529,7 +570,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		AvailableData, BlockData, HeadData, GlobalValidationSchedule, LocalValidationData, PoV,
 		OmittedValidationData, CandidateDescriptor, CandidateCommitments, Id as ParaId,
-		ValidationCode,
+		ValidationCode, CommittedCandidateReceipt,
 	};
 	use assert_matches::assert_matches;
 
@@ -814,10 +855,9 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					hash,
-					RuntimeApiRequest::GetCandidates(relay_parent, tx),
+					RuntimeApiRequest::CandidateEvents(tx),
 				)) => {
-					tx.send(None).unwrap();
-					assert_eq!(hash, relay_parent);
+					tx.send(vec![]).unwrap();
 				}
 			);
 
@@ -887,10 +927,11 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					hash,
-					RuntimeApiRequest::GetCandidates(relay_parent, tx),
+					RuntimeApiRequest::CandidateEvents(tx),
 				)) => {
-					assert_eq!(hash, relay_parent);
-					tx.send(Some(vec![candidate.clone()])).unwrap();
+					tx.send(vec![
+						CandidateEvent::CandidateIncluded(candidate.to_plain(), HeadData(vec![])),
+					]).unwrap();
 				}
 			);
 
@@ -907,17 +948,6 @@ mod tests {
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::from([6; 32])))
 			).await;
 
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::GetCandidates(relay_parent, tx),
-				)) => {
-					assert_eq!(hash, relay_parent);
-					tx.send(Some(vec![candidate])).unwrap();
-				}
-			);
-
 			virtual_overseer.send(
 				FromOverseer::Signal(OverseerSignal::StartWork(Hash::from([7; 32])))
 			).await;
@@ -925,10 +955,10 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_,
-					RuntimeApiRequest::GetCandidates(_, tx),
+					hash,
+					RuntimeApiRequest::CandidateEvents(tx),
 				)) => {
-					tx.send(None).unwrap();
+					tx.send(vec![]).unwrap();
 				}
 			);
 
@@ -947,10 +977,10 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_,
-					RuntimeApiRequest::GetCandidates(_, tx),
+					hash,
+					RuntimeApiRequest::CandidateEvents(tx),
 				)) => {
-					tx.send(None).unwrap();
+					tx.send(vec![]).unwrap();
 				}
 			);
 
