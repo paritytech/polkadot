@@ -1,12 +1,12 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
-// Polkadot is free software: you can rerelay_message it and/or modify
+// Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Polkadot is relay_messaged in the hope that it will be useful,
+// Polkadot is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
@@ -143,8 +143,6 @@ impl BitfieldDistribution {
                                     relay_parent: hash,
                                     signed_availability,
                                 };
-                                // @todo are we subject to sending something multiple times?
-                                // @todo this also apply to ourself?
                                 relay_message(&mut ctx, &mut tracker, msg).await?;
                             }
                             BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
@@ -473,6 +471,11 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
+    use bitvec::{bitvec, vec::BitVec};
+    use polkadot_primitives::v1::AvailabilityBitfield;
+    use polkadot_primitives::v0::{Signed, ValidatorPair};
+    use sp_core::crypto::Pair;
+	use futures::executor;
 
     fn generate_valid_message() -> AllMessages {
         // AllMessages::BitfieldDistribution(BitfieldDistributionMessage::DistributeBitfield())
@@ -483,8 +486,52 @@ mod test {
         unimplemented!()
     }
 
+    macro_rules! msg_sequence {
+        ($( $input:expr ),+ $(,)? ) => [
+            vec![ $( AllMessages::BitfieldDistribution($input) ),+ ]
+        ];
+    }
+
+    macro_rules! view {
+        ( $( $hash:expr ),+ $(,)? ) => [
+            View(vec![ $( $hash.clone() ),+ ])
+        ];
+    }
+
     #[test]
-    fn game_changer() {
-        // @todo
+    fn relay_must_work() {
+		let hash_a: Hash = [0; 32].into(); // us
+		let hash_b: Hash = [1; 32].into(); // other
+
+		let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+
+
+        let context = SigningContext {
+            session_index: 1,
+            parent_hash: hash_a.clone(),
+        };
+
+        // validator 0 key pair
+        let (validator_pair, _seed) = ValidatorPair::generate();
+        let validator = validator_pair.public();
+
+        let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+        let signed = Signed::<AvailabilityBitfield>::sign(
+            payload, &context, 0, &validator_pair);
+
+        let input = msg_sequence![
+            BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(view![hash_a, hash_b])),
+            BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)),
+            BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b])),
+            BitfieldDistributionMessage::DistributeBitfield(hash_b, signed),
+        ];
+
+        let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context::<AllMessages, _>(pool);
+
+		executor::block_on(async move {
+
+        });
     }
 }

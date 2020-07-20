@@ -4318,16 +4318,20 @@ dependencies = [
 name = "polkadot-availability-bitfield-distribution"
 version = "0.1.0"
 dependencies = [
+ "bitvec",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.8",
  "parity-scale-codec",
+ "parking_lot 0.10.2",
  "polkadot-network",
  "polkadot-network-bridge",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
+ "polkadot-subsystem-test-helpers",
  "sc-network",
+ "sp-core",
  "streamunordered",
 ]
 
