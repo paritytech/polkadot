@@ -28,14 +28,14 @@ use primitives::v0::{
 	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use runtime_common::{
-	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
+	attestations, parachains, registrar, purchase, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Permill, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -51,7 +51,7 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -59,7 +59,7 @@ use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use system::EnsureRoot;
+use system::{EnsureRoot, EnsureSignedBy, EnsureOneOf};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -690,6 +690,46 @@ impl proxy::Trait for Runtime {
 	type WeightInfo = ();
 }
 
+parameter_types! {
+	pub const MaxStatementLength: usize = 1_000;
+	pub const UnlockedProportion: Permill = Permill::zero();
+	pub const MaxUnlocked: Balance = 0;
+}
+
+ord_parameter_types! {
+	pub const PurchaseValidity: AccountId = AccountId::from(
+		// 5CqSB6zNHcp3mvTAyh5Vr2MbSdb7DgLi9yWoAppHRveGcYQh
+		hex_literal::hex!("221d409ba60508368d4448ccda40182aca2744bcdfa0881944c08108a9fd966d")
+	);
+	pub const PurchaseConfiguration: AccountId = AccountId::from(
+		// 5FUP4BwQzi8F5WBTmaHsoobGbMSUTiX7Exwb7QzTjgNQypo1
+		hex_literal::hex!("96c34c8c60b3690701176bdbc9b16aced2898d754385a84ee0cfe7fb015db800")
+	);
+}
+
+type ValidityOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<PurchaseValidity, AccountId>,
+>;
+
+type ConfigurationOrigin = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	EnsureSignedBy<PurchaseConfiguration, AccountId>,
+>;
+
+impl purchase::Trait for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+	type VestingSchedule = Vesting;
+	type ValidityOrigin = ValidityOrigin;
+	type ConfigurationOrigin = ConfigurationOrigin;
+	type MaxStatementLength = MaxStatementLength;
+	type UnlockedProportion = UnlockedProportion;
+	type MaxUnlocked = MaxUnlocked;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -748,6 +788,9 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Purchase module. Late addition.
+		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 

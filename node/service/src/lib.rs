@@ -33,6 +33,7 @@ use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, Ov
 use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
+use sp_core::traits::SpawnNamed;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -269,7 +270,7 @@ macro_rules! new_full_start {
 	}}
 }
 
-fn real_overseer<S: futures::task::Spawn>(
+fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {

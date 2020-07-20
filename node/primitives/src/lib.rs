@@ -35,6 +35,8 @@ use polkadot_statement_table::{
 	v1::Misbehavior as TableMisbehavior,
 };
 
+pub use sp_core::traits::SpawnNamed;
+
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
 /// This is the committed candidate receipt instead of the bare candidate receipt. As such,

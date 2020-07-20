@@ -26,9 +26,10 @@ use sp_runtime::{
 };
 use primitives::v1::{BlockNumber, Header};
 use frame_support::{
-	impl_outer_origin, impl_outer_dispatch, parameter_types,
+	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,
 };
+use crate::inclusion;
 
 /// A test runtime struct.
 #[derive(Clone, Eq, PartialEq)]
@@ -41,6 +42,13 @@ impl_outer_origin! {
 impl_outer_dispatch! {
 	pub enum Call for Test where origin: Origin {
 		initializer::Initializer,
+	}
+}
+
+impl_outer_event! {
+	pub enum TestEvent for Test {
+		system<T>,
+		inclusion<T>,
 	}
 }
 
@@ -70,7 +78,7 @@ impl system::Trait for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
 	type Header = Header;
-	type Event = ();
+	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = ();
@@ -97,7 +105,9 @@ impl crate::paras::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
-impl crate::inclusion::Trait for Test { }
+impl crate::inclusion::Trait for Test {
+	type Event = TestEvent;
+}
 
 pub type System = system::Module<Test>;
 

@@ -14,21 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Runtime modules for parachains code.
+//! Runtime API implementations for Parachains.
 //!
-//! It is crucial to include all the modules from this crate in the runtime, in
-//! particular the `Initializer` module, as it is responsible for initializing the state
-//! of the other modules.
+//! These are exposed as different modules using different sets of primitives.
+//! At the moment there is only a v1 module and it is not completely clear how migration
+//! to a v2 would be done.
 
-mod configuration;
-mod inclusion;
-mod inclusion_inherent;
-mod initializer;
-mod paras;
-mod scheduler;
-mod validity;
-
-pub mod runtime_api_impl;
-
-#[cfg(test)]
-mod mock;
+pub mod v1;

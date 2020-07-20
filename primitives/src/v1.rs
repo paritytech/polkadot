@@ -23,6 +23,7 @@ use bitvec::vec::BitVec;
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
+use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
 
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
@@ -49,6 +50,8 @@ pub use crate::v0::{
 // More exports from v0 for std.
 #[cfg(feature = "std")]
 pub use crate::v0::{ValidatorPair, CollatorPair};
+
+pub use sp_staking::SessionIndex;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
@@ -139,13 +142,13 @@ impl<H> CandidateReceipt<H> {
 /// All data pertaining to the execution of a para candidate.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct FullCandidateReceipt<H = Hash> {
+pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationSchedule<N>,
 	/// The local validation data.
-	pub local_validation: LocalValidationData,
+	pub local_validation: LocalValidationData<N>,
 }
 
 /// A candidate-receipt with commitments directly included.
@@ -202,7 +205,7 @@ impl Ord for CommittedCandidateReceipt {
 /// to fully validate the candidate. These fields are parachain-specific.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct LocalValidationData {
+pub struct LocalValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
 	/// The balance of the parachain at the moment of validation.
@@ -220,7 +223,7 @@ pub struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
-	pub code_upgrade_allowed: Option<BlockNumber>,
+	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -229,13 +232,13 @@ pub struct LocalValidationData {
 /// These are global parameters that apply to all candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule {
+pub struct GlobalValidationSchedule<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The relay-chain block number this is in the context of.
-	pub block_number: BlockNumber,
+	pub block_number: N,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -475,4 +478,222 @@ pub struct AvailableData {
 	pub pov: PoV,
 	/// The omitted validation data.
 	pub omitted_validation: OmittedValidationData,
+}
+
+/// A helper data-type for tracking validator-group rotations.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct GroupRotationInfo<N = BlockNumber> {
+	/// The block number where the session started.
+	pub session_start_block: N,
+	/// How often groups rotate. 0 means never.
+	pub group_rotation_frequency: N,
+	/// The current block number.
+	pub now: N,
+}
+
+impl GroupRotationInfo {
+	/// Returns the index of the group needed to validate the core at the given index, assuming
+	/// the given number of cores.
+	///
+	/// `core_index` should be less than `cores`, which is capped at u32::max().
+	pub fn group_for_core(&self, core_index: CoreIndex, cores: usize) -> GroupIndex {
+		if self.group_rotation_frequency == 0 { return GroupIndex(core_index.0) }
+		if cores == 0 { return GroupIndex(0) }
+
+		let cores = sp_std::cmp::min(cores, u32::max_value() as usize);
+		let blocks_since_start = self.now.saturating_sub(self.session_start_block);
+		let rotations = blocks_since_start / self.group_rotation_frequency;
+
+		let idx = (core_index.0 as usize + rotations as usize) % cores;
+		GroupIndex(idx as u32)
+	}
+}
+
+impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
+	/// Returns the block number of the next rotation after the current block. If the current block
+	/// is 10 and the rotation frequency is 5, this should return 15.
+	///
+	/// If the group rotation frequency is 0, returns 0.
+	pub fn next_rotation_at(&self) -> N {
+		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
+
+		let cycle_once = self.now + self.group_rotation_frequency;
+		cycle_once - (
+			cycle_once.saturating_sub(self.session_start_block) % self.group_rotation_frequency
+		)
+	}
+
+	/// Returns the block number of the last rotation before or including the current block. If the
+	/// current block is 10 and the rotation frequency is 5, this should return 10.
+	///
+	/// If the group rotation frequency is 0, returns 0.
+	pub fn last_rotation_at(&self) -> N {
+		if self.group_rotation_frequency.is_zero() { return Zero::zero() }
+		self.now - (
+			self.now.saturating_sub(self.session_start_block) % self.group_rotation_frequency
+		)
+	}
+}
+
+/// Information about a core which is currently occupied.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct OccupiedCore<N = BlockNumber> {
+	/// The ID of the para occupying the core.
+	pub para_id: Id,
+	/// If this core is freed by availability, this is the assignment that is next up on this
+	/// core, if any. None if there is nothing queued for this core.
+	pub next_up_on_available: Option<ScheduledCore>,
+	/// The relay-chain block number this began occupying the core at.
+	pub occupied_since: N,
+	/// The relay-chain block this will time-out at, if any.
+	pub time_out_at: N,
+	/// If this core is freed by being timed-out, this is the assignment that is next up on this
+	/// core. None if there is nothing queued for this core or there is no possibility of timing
+	/// out.
+	pub next_up_on_time_out: Option<ScheduledCore>,
+	/// A bitfield with 1 bit for each validator in the set. `1` bits mean that the corresponding
+	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
+	/// this will be available.
+	pub availability: BitVec<bitvec::order::Lsb0, u8>,
+	/// The group assigned to distribute availability pieces of this candidate.
+	pub group_responsible: GroupIndex,
+}
+
+/// Information about a core which is currently occupied.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct ScheduledCore {
+	/// The ID of a para scheduled.
+	pub para_id: Id,
+	/// The collator required to author the block, if any.
+	pub collator: Option<CollatorId>,
+}
+
+/// The state of a particular availability core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CoreState<N = BlockNumber> {
+	/// The core is currently occupied.
+	#[codec(index = "0")]
+	Occupied(OccupiedCore<N>),
+	/// The core is currently free, with a para scheduled and given the opportunity
+	/// to occupy.
+	///
+	/// If a particular Collator is required to author this block, that is also present in this
+	/// variant.
+	#[codec(index = "1")]
+	Scheduled(ScheduledCore),
+	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
+	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
+	#[codec(index = "2")]
+	Free,
+}
+
+/// An assumption being made about the state of an occupied core.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum OccupiedCoreAssumption {
+	/// The candidate occupying the core was made available and included to free the core.
+	#[codec(index = "0")]
+	Included,
+	/// The candidate occupying the core timed out and freed the core without advancing the para.
+	#[codec(index = "1")]
+	TimedOut,
+	/// The core was not occupied to begin with.
+	#[codec(index = "2")]
+	Free,
+}
+
+/// An even concerning a candidate.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum CandidateEvent<H = Hash> {
+	/// This candidate receipt was backed in the most recent block.
+	#[codec(index = "0")]
+	CandidateBacked(CandidateReceipt<H>, HeadData),
+	/// This candidate receipt was included and became a parablock at the most recent block.
+	#[codec(index = "1")]
+	CandidateIncluded(CandidateReceipt<H>, HeadData),
+	/// This candidate receipt was not made available in time and timed out.
+	#[codec(index = "2")]
+	CandidateTimedOut(CandidateReceipt<H>, HeadData),
+}
+
+sp_api::decl_runtime_apis! {
+	/// The API for querying the state of parachains on-chain.
+	pub trait ParachainHost<H: Decode, N: Decode> {
+		/// Get the current validators.
+		fn validators() -> Vec<ValidatorId>;
+
+		/// Returns the validator groups and rotation info localized based on the block whose state
+		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
+		/// the number of the block.
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
+
+		/// Yields information on all availability cores. Cores are either free or occupied. Free
+		/// cores can have paras assigned to them.
+		fn availability_cores() -> Vec<CoreState<N>>;
+
+		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
+		/// relay-parent equal to the block in which context this is invoked in.
+		fn global_validation_schedule() -> GlobalValidationSchedule<N>;
+
+		/// Yields the LocalValidationData for the given ParaId along with an assumption that
+		/// should be used if the para currently occupies a core.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		fn local_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<LocalValidationData<N>>;
+
+		/// Returns the session index expected at a child of the block.
+		///
+		/// This can be used to instantiate a `SigningContext`.
+		fn session_index_for_child() -> SessionIndex;
+
+		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>;
+
+		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
+		/// assigned to occupied cores in `availability_cores` and `None` otherwise.
+		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<H>>;
+
+		/// Get a vector of events concerning candidates that occurred within a block.
+		// NOTE: this needs to skip block initialization as events are wiped within block
+		// initialization.
+		#[skip_initialize_block]
+		fn candidate_events() -> Vec<CandidateEvent<H>>;
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	#[test]
+	fn group_rotation_info_calculations() {
+		let info = GroupRotationInfo {
+			session_start_block: 10u32,
+			now: 15,
+			group_rotation_frequency: 5,
+		};
+
+		assert_eq!(info.next_rotation_at(), 20);
+		assert_eq!(info.last_rotation_at(), 15);
+
+		let info = GroupRotationInfo {
+			session_start_block: 10u32,
+			now: 11,
+			group_rotation_frequency: 0,
+		};
+
+		assert_eq!(info.next_rotation_at(), 0);
+		assert_eq!(info.last_rotation_at(), 0);
+	}
 }

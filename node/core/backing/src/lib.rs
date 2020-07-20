@@ -24,7 +24,6 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
-	task::{Spawn, SpawnError},
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
@@ -37,7 +36,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	ValidationOutputs, ValidationResult, SpawnNamed,
 };
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -76,8 +75,6 @@ enum Error {
 	Oneshot(oneshot::Canceled),
 	#[from]
 	Mpsc(mpsc::SendError),
-	#[from]
-	Spawn(SpawnError),
 	#[from]
 	UtilError(util::Error),
 }
@@ -735,7 +732,7 @@ pub struct CandidateBackingSubsystem<Spawner, Context> {
 
 impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
 where
-	Spawner: Clone + Spawn + Send + Unpin,
+	Spawner: Clone + SpawnNamed + Send + Unpin,
 	Context: SubsystemContext,
 	ToJob: From<<Context as SubsystemContext>::Message>,
 {
@@ -754,7 +751,7 @@ where
 
 impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
 where
-	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
 	<Context as SubsystemContext>::Message: Into<ToJob>,
 {
@@ -769,10 +766,7 @@ where
 mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
-	use futures::{
-		executor::{self, ThreadPool},
-		future, Future,
-	};
+	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
 		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
 		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
@@ -905,7 +899,7 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
 

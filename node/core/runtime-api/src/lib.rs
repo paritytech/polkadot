@@ -14,21 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Runtime modules for parachains code.
+//! Implements the Runtime API Subsystem
 //!
-//! It is crucial to include all the modules from this crate in the runtime, in
-//! particular the `Initializer` module, as it is responsible for initializing the state
-//! of the other modules.
-
-mod configuration;
-mod inclusion;
-mod inclusion_inherent;
-mod initializer;
-mod paras;
-mod scheduler;
-mod validity;
-
-pub mod runtime_api_impl;
-
-#[cfg(test)]
-mod mock;
+//! This provides a clean, ownerless wrapper around the parachain-related runtime APIs. This crate
+//! can also be used to cache responses from heavy runtime APIs.
+//!
+//! TODO: https://github.com/paritytech/polkadot/issues/1419 implement this.
