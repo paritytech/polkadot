@@ -893,7 +893,7 @@ mod tests {
 	use primitives::v0::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test where system = system {}
 	}
 
 	// For testing the module, we construct most of a mock runtime. This means
