@@ -64,12 +64,12 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	pov_hash: &Hash,
 ) -> [u8; 100] {
 	// 32-byte hash length is protected in a test below.
-	let mut payload = [0u8; 68];
+	let mut payload = [0u8; 100];
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
 	u32::from(*para_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
 	payload[36..68].copy_from_slice(validation_data_hash.as_ref());
-	payload[36..68].copy_from_slice(pov_hash.as_ref());
+	payload[68..100].copy_from_slice(pov_hash.as_ref());
 
 	payload
 }
