@@ -10,17 +10,17 @@ edition = "2018"
 # this crate for WASM. This is critical to avoid forcing all parachain WASM into implementing
 # various unnecessary Substrate-specific endpoints.
 codec = { package = "parity-scale-codec", version = "1.1.0", default-features = false, features = [ "derive" ] }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 
 # all optional crates.
 derive_more = { version = "0.99.2", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", optional = true }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", optional = true }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", optional = true }
 parking_lot = { version = "0.10.0", optional = true }
 log = { version = "0.4.8", optional = true }
 

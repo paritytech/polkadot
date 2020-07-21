@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 futures = "0.3.5"
 log = "0.4.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }

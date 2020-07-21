@@ -9,8 +9,8 @@ adder = { package = "test-parachain-adder", path = ".." }
 parachain = { package = "polkadot-parachain", path = "../../.." }
 collator = { package = "polkadot-collator", path = "../../../../collator" }
 primitives = { package = "polkadot-primitives", path = "../../../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+client-api = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 parking_lot = "0.10.0"
 codec = { package = "parity-scale-codec", version = "1.2.0" }
 futures = "0.3.4"

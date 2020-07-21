@@ -19,24 +19,24 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }

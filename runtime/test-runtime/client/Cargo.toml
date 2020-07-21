@@ -16,14 +16,14 @@ polkadot-test-runtime = { path = ".." }
 polkadot-test-service = { path = "../../../node/test-service" }
 
 # Substrate dependencies
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-light = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["test-helpers"],  default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", features = ["test-helpers"],  default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }

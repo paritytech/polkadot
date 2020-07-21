@@ -10,14 +10,14 @@ log = "0.4.8"
 parking_lot = "0.10.0"
 futures = "0.3.1"
 rand = "0.7.2"
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "master" }
-sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-service = { git = "https://github.com/paritytech/substrate", features = ["test-helpers"], branch = "ashley-remove-service-builder" }
+sc-network-test = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }

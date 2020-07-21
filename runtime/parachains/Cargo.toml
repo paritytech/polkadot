@@ -12,25 +12,25 @@ rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
 
-authorship = { package = "pallet-authorship", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+authorship = { package = "pallet-authorship", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+vesting = { package = "pallet-vesting", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
@@ -40,16 +40,16 @@ rand_chacha = { version = "0.2.2", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+treasury = { package = "pallet-treasury", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 serde_json = "1.0.41"
 libsecp256k1 = "0.3.2"
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder", default-features = false }
 
 
 [features]
