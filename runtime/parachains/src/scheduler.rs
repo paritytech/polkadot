@@ -578,7 +578,6 @@ impl<T: Trait> Module<T> {
 						if blocks_since_last_rotation >= config.chain_availability_period {
 							false // no pruning except recently after rotation.
 						} else {
-							// the parachain has been occupied for too long.
 							now.saturating_sub(pending_since) >= config.chain_availability_period
 						}
 					}
@@ -586,7 +585,6 @@ impl<T: Trait> Module<T> {
 						if blocks_since_last_rotation >= config.thread_availability_period {
 							false // no pruning except recently after rotation.
 						} else {
-							// the parathread has been occupied for too long.
 							now.saturating_sub(pending_since) >= config.thread_availability_period
 						}
 					}
