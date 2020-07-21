@@ -49,7 +49,10 @@ impl<C> Subsystem<C> for CandidateValidationSubsystem
 	where C: SubsystemContext<Message = CandidateValidationMessage>
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(run(ctx).map(|_| ()).boxed())
+		SpawnedSubsystem {
+			name: "candidate-validation-subsystem",
+			future: run(ctx).map(|_| ()).boxed(),
+		}
 	}
 }
 
@@ -142,7 +145,7 @@ async fn spawn_validate_exhaustive(
 		);
 	};
 
-	ctx.spawn(fut.boxed()).await
+	ctx.spawn("blocking-candidate-validation-task", fut.boxed()).await
 }
 
 /// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `true` if basic checks
