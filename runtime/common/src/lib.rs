@@ -106,7 +106,7 @@ mod multiplier_tests {
 	pub struct Runtime;
 
 	impl_outer_origin!{
-		pub enum Origin for Runtime {}
+		pub enum Origin for Runtime where system = system {}
 	}
 
 	parameter_types! {
