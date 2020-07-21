@@ -77,11 +77,14 @@ struct CandidateDescriptor {
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
-	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, and the pov_hash.
-	signature: CollatorSignature,
+	/// The blake2-256 hash of the validation data. These are extra parameters
+	/// derived from relay-chain state that influence the validity of the block.
+	validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
+	signature: CollatorSignature,
 }
 ```
 
