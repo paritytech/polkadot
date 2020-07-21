@@ -18,7 +18,7 @@
 //! functions.
 
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
+	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
 	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent,
@@ -160,12 +160,12 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	core_states
 }
 
-/// Implementation for the `global_validation_schedule` function of the runtime API.
-pub fn global_validation_schedule<T: initializer::Trait>()
-	-> GlobalValidationSchedule<T::BlockNumber>
+/// Implementation for the `global_validation_data` function of the runtime API.
+pub fn global_validation_data<T: initializer::Trait>()
+	-> GlobalValidationData<T::BlockNumber>
 {
 	let config = <configuration::Module<T>>::config();
-	GlobalValidationSchedule {
+	GlobalValidationData {
 		max_code_size: config.max_code_size,
 		max_head_data_size: config.max_head_data_size,
 		block_number: <system::Module<T>>::block_number() - One::one(),

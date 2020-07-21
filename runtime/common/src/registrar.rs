@@ -1070,7 +1070,7 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: Parachains::global_validation_schedule(),
+			global_validation: Parachains::global_validation_data(),
 			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,

@@ -41,7 +41,7 @@ use primitives::v0::{
 	Balance, BlockNumber,
 	Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
 	UpwardMessage, ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
-	CandidateReceipt, GlobalValidationSchedule, AbridgedCandidateReceipt,
+	CandidateReceipt, GlobalValidationData, AbridgedCandidateReceipt,
 	LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
 	ValidatorSignature, SigningContext, HeadData, ValidationCode,
 	Remark, DownwardMessage
@@ -601,7 +601,7 @@ decl_module! {
 
 			let mut proceeded = Vec::with_capacity(heads.len());
 
-			let schedule = Self::global_validation_schedule();
+			let schedule = Self::global_validation_data();
 
 			if !active_parachains.is_empty() {
 				// perform integrity checks before writing to storage.
@@ -1168,9 +1168,9 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Get the global validation schedule for all parachains.
-	pub fn global_validation_schedule() -> GlobalValidationSchedule {
+	pub fn global_validation_data() -> GlobalValidationData {
 		let now = <system::Module<T>>::block_number();
-		GlobalValidationSchedule {
+		GlobalValidationData {
 			max_code_size: T::MaxCodeSize::get(),
 			max_head_data_size: T::MaxHeadDataSize::get(),
 			block_number: T::BlockNumberConversion::convert(if now.is_zero() {
@@ -1322,7 +1322,7 @@ impl<T: Trait> Module<T> {
 	// check the attestations on these candidates. The candidates should have been checked
 	// that each candidates' chain ID is valid.
 	fn check_candidates(
-		schedule: &GlobalValidationSchedule,
+		schedule: &GlobalValidationData,
 		attested_candidates: &[AttestedCandidate],
 		active_parachains: &[(ParaId, Option<(CollatorId, Retriable)>)]
 	) -> sp_std::result::Result<IncludedBlocks<T>, sp_runtime::DispatchError> {
@@ -2157,7 +2157,7 @@ mod tests {
 			collator: Default::default(),
 			signature: Default::default(),
 			pov_block_hash: Default::default(),
-			global_validation: Parachains::global_validation_schedule(),
+			global_validation: Parachains::global_validation_data(),
 			local_validation: Parachains::current_local_validation_data(&para_id).unwrap(),
 			commitments: CandidateCommitments::default(),
 		}

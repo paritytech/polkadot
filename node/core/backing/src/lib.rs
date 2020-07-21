@@ -602,7 +602,7 @@ impl CandidateBackingJob {
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
 		let omitted_validation = OmittedValidationData {
-			global_validation: outputs.global_validation_schedule,
+			global_validation: outputs.global_validation_data,
 			local_validation: outputs.local_validation_data,
 		};
 
@@ -769,7 +769,7 @@ mod tests {
 	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
 		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
-		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
+		LocalValidationData, GlobalValidationData, GroupIndex, HeadData,
 		ValidatorPair, ValidityAttestation,
 	};
 	use polkadot_subsystem::{
@@ -788,7 +788,7 @@ mod tests {
 		keystore: KeyStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		global_validation_schedule: GlobalValidationSchedule,
+		global_validation_data: GlobalValidationData,
 		local_validation_data: LocalValidationData,
 		roster: SchedulerRoster,
 		head_data: HashMap<ParaId, HeadData>,
@@ -873,7 +873,7 @@ mod tests {
 				validation_code_hash: Default::default(),
 			};
 
-			let global_validation_schedule = GlobalValidationSchedule {
+			let global_validation_data = GlobalValidationData {
 				max_code_size: 1000,
 				max_head_data_size: 1000,
 				block_number: Default::default(),
@@ -887,7 +887,7 @@ mod tests {
 				roster,
 				head_data,
 				local_validation_data,
-				global_validation_schedule,
+				global_validation_data,
 				signing_context,
 				relay_parent,
 			}
@@ -917,7 +917,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let omitted_validation = OmittedValidationData {
-			global_validation: test.global_validation_schedule.clone(),
+			global_validation: test.global_validation_data.clone(),
 			local_validation: test.local_validation_data.clone(),
 		};
 
@@ -1044,7 +1044,7 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1156,7 +1156,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1277,7 +1277,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1434,7 +1434,7 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),

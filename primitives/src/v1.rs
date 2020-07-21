@@ -146,7 +146,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule<N>,
+	pub global_validation: GlobalValidationData<N>,
 	/// The local validation data.
 	pub local_validation: LocalValidationData<N>,
 }
@@ -232,7 +232,7 @@ pub struct LocalValidationData<N = BlockNumber> {
 /// These are global parameters that apply to all candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule<N = BlockNumber> {
+pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
@@ -465,7 +465,7 @@ impl CoreAssignment {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OmittedValidationData {
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationData,
 	/// The local validation data.
 	pub local_validation: LocalValidationData,
 }
@@ -636,9 +636,9 @@ sp_api::decl_runtime_apis! {
 		/// cores can have paras assigned to them.
 		fn availability_cores() -> Vec<CoreState<N>>;
 
-		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
+		/// Yields the GlobalValidationData. This applies to all para candidates with the
 		/// relay-parent equal to the block in which context this is invoked in.
-		fn global_validation_schedule() -> GlobalValidationSchedule<N>;
+		fn global_validation_data() -> GlobalValidationData<N>;
 
 		/// Yields the LocalValidationData for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.

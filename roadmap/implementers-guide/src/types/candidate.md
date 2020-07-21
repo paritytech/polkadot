@@ -33,7 +33,7 @@ struct CandidateReceipt {
 
 ## Full Candidate Receipt
 
-This is the full receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
+This is the full receipt type. The `GlobalValidationData` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
 
 However, the Full Candidate Receipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
@@ -42,7 +42,7 @@ However, the Full Candidate Receipt type is useful as a means of avoiding the im
 struct FullCandidateReceipt {
 	inner: CandidateReceipt,
 	/// The global validation schedule.
-	global_validation: GlobalValidationSchedule,
+	global_validation: GlobalValidationData,
 	/// The local validation data.
 	local_validation: LocalValidationData,
 }
@@ -86,7 +86,7 @@ struct CandidateDescriptor {
 ```
 
 
-## GlobalValidationSchedule
+## GlobalValidationData
 
 The global validation schedule comprises of information describing the global environment for para execution, as derived from a particular relay-parent. These are parameters that will apply to all parablocks executed in the context of this relay-parent.
 
@@ -95,7 +95,7 @@ The global validation schedule comprises of information describing the global en
 /// to fully validate the candidate.
 ///
 /// These are global parameters that apply to all candidates in a block.
-struct GlobalValidationSchedule {
+struct GlobalValidationData {
 	/// The maximum code size permitted, in bytes.
 	max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
@@ -197,7 +197,7 @@ struct ValidationOutputs {
 	/// The head-data produced by validation.
 	head_data: HeadData,
 	/// The global validation schedule.
-	global_validation_schedule: GlobalValidationSchedule,
+	global_validation_data: GlobalValidationData,
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
 	/// Upwards messages to the relay chain.
