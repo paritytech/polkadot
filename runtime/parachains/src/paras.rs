@@ -546,9 +546,11 @@ impl<T: Trait> Module<T> {
 		let freq = config.validation_upgrade_frequency;
 		let delay = config.validation_upgrade_delay;
 
-		let last_code_upgrade = Self::last_code_upgrade(para_id, true)?;
-		let can_upgrade_code = last_code_upgrade <= relay_parent_number
-			&& relay_parent_number.saturating_sub(last_code_upgrade) >= freq;
+		let last_code_upgrade = Self::last_code_upgrade(para_id, true);
+		let can_upgrade_code = last_code_upgrade.map_or(
+			true,
+			|l| l <= relay_parent_number && relay_parent_number.saturating_sub(l) >= freq,
+		);
 
 		let code_upgrade_allowed = if can_upgrade_code {
 			Some(relay_parent_number + delay)

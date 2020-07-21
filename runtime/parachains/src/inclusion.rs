@@ -22,6 +22,7 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
+	validation_data_hash,
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, CommittedCandidateReceipt,
@@ -145,6 +146,8 @@ decl_error! {
 		InvalidBacking,
 		/// Collator did not sign PoV.
 		NotCollatorSigned,
+		/// The validation data hash does not match expected.
+		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
 	}
@@ -420,6 +423,27 @@ impl<T: Trait> Module<T> {
 							ensure!(
 								required_collator == &candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
+							);
+						}
+
+						{
+							// this should never fail because the para is registered
+							let (global_validation_data, local_validation_data) = (
+								<configuration::Module<T>>::global_validation_data(),
+								match <paras::Module<T>>::local_validation_data(para_id) {
+									Some(l) => l,
+									None => return Err(Error::<T>::InternalError.into()),
+								}
+							);
+
+							let expected = validation_data_hash(
+								&global_validation_data,
+								&local_validation_data,
+							);
+
+							ensure!(
+								expected == candidate.descriptor().validation_data_hash,
+								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
@@ -815,6 +839,7 @@ mod tests {
 		head_data: HeadData,
 		pov_hash: Hash,
 		relay_parent: Hash,
+		validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
 	}
 
@@ -825,6 +850,7 @@ mod tests {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
+					validation_data_hash: self.validation_data_hash,
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -834,6 +860,12 @@ mod tests {
 				},
 			}
 		}
+	}
+
+	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+		let global_validation_data = Configuration::global_validation_data();
+		let local_validation_data = Paras::local_validation_data(para_id)?;
+		Some(validation_data_hash(&global_validation_data, &local_validation_data))
 	}
 
 	#[test]
@@ -1635,6 +1667,7 @@ mod tests {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
+				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1646,6 +1679,7 @@ mod tests {
 				para_id: chain_b,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
+				validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1657,6 +1691,7 @@ mod tests {
 				para_id: thread_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
+				validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(

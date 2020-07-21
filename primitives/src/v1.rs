@@ -96,6 +96,14 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 	}
 }
 
+/// Compute the `validation_data_hash` from global & local validation data.
+pub fn validation_data_hash<N: Encode>(
+	global: &GlobalValidationData<N>,
+	local: &LocalValidationData<N>,
+) -> Hash {
+	BlakeTwo256::hash_of(&(global, local))
+}
+
 /// A unique descriptor of the candidate receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
