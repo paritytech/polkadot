@@ -37,6 +37,8 @@ use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
 	ReputationChange::new(-100, "Bitfield signature invalid");
+const COST_VALIDATOR_INDEX_INVALID: ReputationChange =
+	ReputationChange::new(-100, "Bitfield validator index invalid");
 const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
 	ReputationChange::new(-133, "Missing peer session key");
 const COST_NOT_INTERESTED: ReputationChange =
@@ -46,7 +48,7 @@ const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
-#[derive(Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct BitfieldGossipMessage {
 	/// The relay parent this message is relative to.
 	pub relay_parent: Hash,
@@ -253,12 +255,11 @@ where
 		})
 		.collect::<Vec<PeerId>>();
 
-	let bytes = Encode::encode(&message);
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendMessage(
 			interested_peers,
 			BitfieldDistribution::PROTOCOL_ID,
-			bytes,
+			Encode::encode(&message),
 		),
 	))
 	.await?;
@@ -300,7 +301,7 @@ where
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		return modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
+		return modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
 	};
 
 	if message
@@ -316,12 +317,6 @@ where
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
 
-		// track which messages that peer already received
-		// let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
-		// message_sent_to_peer
-		// 	.entry(origin)
-		// 	.or_insert_with(|| HashSet::default())
-		// 	.insert(validator.clone());
 		relay_message(ctx, job_data, &mut tracker.peer_views, validator, message).await
 	} else {
 		return modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await;
@@ -656,16 +651,19 @@ mod test {
 		);
 
 		executor::block_on(async move {
-			let res = handle_network_msg(&mut ctx, &mut tracker, NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()))
+			let _res = handle_network_msg(&mut ctx, &mut tracker, NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()))
 				.timeout(Duration::from_millis(10))
 				.await
-				.expect("10ms is more than enough for sending messages. qed");
-
-			assert!(dbg!(res).is_ok());
+				.expect("10ms is more than enough for sending messages. qed")
+				.expect("There are no error values. qed");
 
 			// we should have a reputiation change due to invalid signature
-			while let Some(Ok(Some(rxd))) = ctx.try_recv().timeout(Duration::from_millis(100)).await {
-				dbg!(rxd);
+			// @todo assess if Eq+PartialEq are viable to simplify this kind of code
+			if let AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)) = handle.recv().await {
+				assert_eq!(peer, peer_b);
+				assert_eq!(rep, COST_SIGNATURE_INVALID);
+			} else {
+				panic!("Received unexpected message type.");
 			}
 		});
 	}
