@@ -221,7 +221,7 @@ where
 	.await
 }
 
-/// Distribute a given valid bitfield message.
+/// Distribute a given valid and signature checked bitfield message.
 ///
 /// Can be originated by another subsystem or received via network from another peer.
 async fn relay_message<Context>(
@@ -234,6 +234,19 @@ async fn relay_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
+
+	// notify the overseer about a new and valid signed bitfield
+	ctx.send_message(
+		AllMessages::Provisioner(
+			ProvisionerMessage::ProvisionableData(
+				ProvisionableData::Bitfield(
+					message.relay_parent.clone(),
+					message.signed_availability.clone(),
+				)
+			)
+		)
+	).await;
+
 	let message_sent_to_peer = &mut (per_job.message_sent_to_peer);
 
 	// concurrently pass on the bitfield distribution to all interested peers
@@ -324,6 +337,7 @@ where
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
+/// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	tracker: &mut Tracker,
@@ -461,7 +475,7 @@ where
 	}
 }
 
-/// query the validator set and signing context
+/// Query our validator set and signing context for a particular relay parent.
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
