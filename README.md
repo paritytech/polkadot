@@ -24,7 +24,7 @@ release and download the binary that is provided.
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
-cargo install --force --git https://github.com/paritytech/polkadot --tag <version> polkadot
+cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot
 ```
 
 ### Build from Source
