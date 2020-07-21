@@ -117,7 +117,7 @@ impl BitfieldDistribution {
     /// Start processing work as passed on from the Overseer.
     async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
     where
-        Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+        Context: SubsystemContext<Message = BitfieldDistributionMessage>,
     {
         // startup: register the network protocol with the bridge.
         ctx.send_message(AllMessages::NetworkBridge(
@@ -190,7 +190,7 @@ async fn modify_reputation<Context>(
     rep: ReputationChange,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     ctx.send_message(AllMessages::NetworkBridge(
         NetworkBridgeMessage::ReportPeer(peerid, rep),
@@ -207,7 +207,7 @@ async fn relay_message<Context>(
     message: BitfieldGossipMessage,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     // concurrently pass on the bitfield distribution to all interested peers
     let interested_peers = tracker
@@ -243,7 +243,7 @@ async fn process_incoming_peer_message<Context>(
     message: BitfieldGossipMessage,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     // we don't care about this, not part of our view
     if !tracker.view.contains(&message.relay_parent) {
@@ -305,7 +305,7 @@ async fn handle_network_msg<Context>(
     bridge_message: NetworkBridgeEvent,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     match bridge_message {
         NetworkBridgeEvent::PeerConnected(peerid, _role) => {
@@ -349,7 +349,7 @@ async fn catch_up_messages<Context>(
     view: View,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     use std::collections::hash_map::Entry;
     let current = tracker
@@ -401,7 +401,7 @@ async fn send_tracked_gossip_message<Context>(
     message: BitfieldGossipMessage,
 ) -> SubsystemResult<()>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     let per_job = if let Some(per_job) = tracker.per_relay_parent.get_mut(&message.relay_parent) {
         per_job
@@ -431,7 +431,7 @@ where
 
 impl<C> Subsystem<C> for BitfieldDistribution
 where
-    C: SubsystemContext<Message = BitfieldDistributionMessage> + Clone + Sync + Send,
+    C: SubsystemContext<Message = BitfieldDistributionMessage> + Sync + Send,
 {
     fn start(self, ctx: C) -> SpawnedSubsystem {
         SpawnedSubsystem {
@@ -447,7 +447,7 @@ async fn query_basics<Context>(
     relay_parent: Hash,
 ) -> SubsystemResult<(Vec<ValidatorId>, SigningContext)>
 where
-    Context: SubsystemContext<Message = BitfieldDistributionMessage> + Clone,
+    Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
     let (validators_tx, validators_rx) = oneshot::channel();
     let (signing_tx, signing_rx) = oneshot::channel();
@@ -488,7 +488,7 @@ mod test {
 
     macro_rules! msg_sequence {
         ($( $input:expr ),+ $(,)? ) => [
-            vec![ $( AllMessages::BitfieldDistribution($input) ),+ ]
+            vec![ $( FromOverseer::Communication { msg: $input } ),+ ]
         ];
     }
 
