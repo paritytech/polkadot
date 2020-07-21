@@ -31,7 +31,7 @@ use polkadot_primitives::v0::{
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_service::{
-	new_full, new_full_start, FullNodeHandles, PolkadotClient, ServiceComponents,
+	new_full, FullNodeHandles, PolkadotClient, ServiceComponents,
 };
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
@@ -81,15 +81,16 @@ pub fn polkadot_test_new_full(
 	),
 	ServiceError,
 > {
-	let (task_manager, client, handles, network, rpc_handlers) = new_full!(test
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_disabled,
-		slot_duration,
-		polkadot_test_runtime::RuntimeApi,
-		PolkadotTestExecutor,
-	);
+	let (task_manager, client, handles, network, rpc_handlers) =
+		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
+			config,
+			collating_for,
+			max_block_data_size,
+			authority_discovery_disabled,
+			slot_duration,
+			None,
+			true,
+		)?;
 
 	Ok((task_manager, client, handles, network, rpc_handlers))
 }
