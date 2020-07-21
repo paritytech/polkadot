@@ -524,14 +524,37 @@ mod test {
             BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(view![hash_a, hash_b])),
             BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)),
             BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b])),
-            BitfieldDistributionMessage::DistributeBitfield(hash_b, signed),
+            BitfieldDistributionMessage::DistributeBitfield(hash_b.clone(), signed.clone()),
         ];
 
-        let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context::<AllMessages, _>(pool);
+        let mut tracker = Tracker::default();
 
+        let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+
+        //
 		executor::block_on(async move {
 
+            println!("11111111111");
+            for input in input {
+                println!("msg");
+                handle.send(input.into());
+            }
+            let _ = BitfieldDistribution::start(BitfieldDistribution, ctx).future.await;
+
+            let msg = BitfieldGossipMessage {
+                relay_parent: hash_a.clone(),
+                signed_availability: signed.clone(),
+            };
+            println!("tx");
+            let x = dbg!(send_tracked_gossip_message(&mut ctx, &mut tracker, peer_b, validator, msg).await);
+
+            println!("wait for rx");
+
+            while let Ok(rxd) = ctx.recv().await {
+                dbg!(rxd);
+            }
         });
+
     }
 }
