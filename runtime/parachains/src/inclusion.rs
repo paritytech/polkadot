@@ -402,14 +402,20 @@ impl<T: Trait> Module<T> {
 					Error::<T>::CandidateNotInParentContext,
 				);
 
-				let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true)
-					.map_or(
-						true,
-						|last| last <= relay_parent_number &&
-							relay_parent_number.saturating_sub(last) >= config.validation_upgrade_frequency,
-					);
+				// if any, the code upgrade attempt is allowed.
+				let valid_upgrade_attempt = candidate.candidate.commitments.new_validation_code.is_none();
+					|| <paras::Module<T>>::last_code_upgrade(para_id, true)
+						.map_or(
+							true,
+							|last| last <= relay_parent_number &&
+								relay_parent_number.saturating_sub(last)
+									>= config.validation_upgrade_frequency,
+						);
 
-				ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
+				ensure!(
+					valid_upgrade_attempt,
+					Error::<T>::PrematureCodeUpgrade,
+				);
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
@@ -432,7 +438,12 @@ impl<T: Trait> Module<T> {
 								<configuration::Module<T>>::global_validation_data(),
 								match <paras::Module<T>>::local_validation_data(para_id) {
 									Some(l) => l,
-									None => return Err(Error::<T>::InternalError.into()),
+									None => {
+										// We don't want to error out here because it will
+										// brick the relay-chain. So we return early without
+										// doing anything.
+										return Ok(Vec::new());
+									}
 								}
 							);
 
@@ -1294,6 +1305,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1309,11 +1321,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_b_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_b_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::UnscheduledCandidate.into()),
+				);
 			}
 
 			// candidates out of order.
@@ -1322,12 +1337,14 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
+					validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1357,11 +1374,15 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed_b, backed_a],
-					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
-					&group_validators,
-				).is_err());
+				// out-of-order manifests as unscheduled.
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed_b, backed_a],
+						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::UnscheduledCandidate.into()),
+				);
 			}
 
 			// candidate not backed.
@@ -1370,6 +1391,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1385,11 +1407,14 @@ mod tests {
 					BackingKind::Lacking,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::InsufficientBacking.into()),
+				);
 			}
 
 			// candidate not in parent context.
@@ -1401,6 +1426,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1416,11 +1442,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateNotInParentContext.into()),
+				);
 			}
 
 			// candidate has wrong collator.
@@ -1429,6 +1458,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1446,15 +1476,18 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![
-						chain_a_assignment.clone(),
-						chain_b_assignment.clone(),
-						thread_a_assignment.clone(),
-					],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![
+							chain_a_assignment.clone(),
+							chain_b_assignment.clone(),
+							thread_a_assignment.clone(),
+						],
+						&group_validators,
+					),
+					Err(Error::<Test>::WrongCollator.into()),
+				);
 			}
 
 			// candidate not well-signed by collator.
@@ -1463,6 +1496,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1483,11 +1517,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![thread_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![thread_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::NotCollatorSigned.into()),
+				);
 			}
 
 			// para occupied - reject.
@@ -1496,6 +1533,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1522,11 +1560,14 @@ mod tests {
 				});
 				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+				);
 
 				<PendingAvailability<Test>>::remove(&chain_a);
 				<PendingAvailabilityCommitments>::remove(&chain_a);
@@ -1538,6 +1579,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1557,11 +1599,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+				);
 
 				<PendingAvailabilityCommitments>::remove(&chain_a);
 			}
@@ -1573,6 +1618,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
+					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1597,11 +1643,47 @@ mod tests {
 
 				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(10));
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![thread_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::PrematureCodeUpgrade.into()),
+				);
+			}
+
+			// Bad validation data hash - reject
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::from([1; 32]),
+					validation_data_hash: [42u8; 32].into(),
+					..Default::default()
+				}.build();
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::ValidationDataHashMismatch.into()),
+				);
 			}
 		});
 	}
