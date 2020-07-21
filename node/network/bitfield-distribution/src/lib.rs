@@ -142,10 +142,10 @@ impl BitfieldDistribution {
 								signed_availability,
 							) => {
 								trace!(target: "bitd", "Processing DistributeBitfield");
-								let per_job = &mut tracker.per_relay_parent.get_mut(&hash).expect("Overseer does not send work items related to relay parents that are not part of our workset. qed");
+								let job_data = &mut tracker.per_relay_parent.get_mut(&hash).expect("Overseer does not send work items related to relay parents that are not part of our workset. qed");
 
 								let validator = {
-									per_job
+									job_data
 										.validator_set
 										.get(signed_availability.validator_index() as usize)
 										.expect("Our own validation index exists. qed")
@@ -158,7 +158,7 @@ impl BitfieldDistribution {
 									signed_availability,
 								};
 
-								relay_message(&mut ctx, per_job, peer_views, validator, msg)
+								relay_message(&mut ctx, job_data, peer_views, validator, msg)
 									.await?;
 							}
 							BitfieldDistributionMessage::NetworkBridgeUpdate(event) => {
@@ -226,7 +226,7 @@ where
 /// Can be originated by another subsystem or received via network from another peer.
 async fn relay_message<Context>(
 	ctx: &mut Context,
-	per_job: &mut PerRelayParentData,
+	job_data: &mut PerRelayParentData,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -247,7 +247,7 @@ where
 		)
 	).await;
 
-	let message_sent_to_peer = &mut (per_job.message_sent_to_peer);
+	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
 
 	// concurrently pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
@@ -403,9 +403,9 @@ where
 	let delta_set: HashMap<ValidatorId, BitfieldGossipMessage> = delta_vec
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
-			if let Some(per_job) = (&*tracker).per_relay_parent.get(&new_relay_parent_interest) {
+			if let Some(job_data) = (&*tracker).per_relay_parent.get(&new_relay_parent_interest) {
 				// send all messages
-				let one_per_validator = per_job.one_per_validator.clone();
+				let one_per_validator = job_data.one_per_validator.clone();
 				let origin = origin.clone();
 				Some(
 					one_per_validator
@@ -413,7 +413,7 @@ where
 						.filter(move |(validator, _message)| {
 							// except for the ones the peer already has
 							// let validator = validator.clone();
-							per_job.message_from_validator_needed_by_peer(&origin, validator)
+							job_data.message_from_validator_needed_by_peer(&origin, validator)
 						}),
 				)
 			} else {
@@ -442,14 +442,14 @@ async fn send_tracked_gossip_message<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	let per_job = if let Some(per_job) = tracker.per_relay_parent.get_mut(&message.relay_parent) {
-		per_job
+	let job_data = if let Some(job_data) = tracker.per_relay_parent.get_mut(&message.relay_parent) {
+		job_data
 	} else {
 		// @todo punishing here seems unreasonable
 		return Ok(());
 	};
 
-	let message_sent_to_peer = &mut (per_job.message_sent_to_peer);
+	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
 	message_sent_to_peer
 		.entry(dest.clone())
 		.or_default()
