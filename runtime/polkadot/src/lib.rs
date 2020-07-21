@@ -939,7 +939,7 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 		// have done anyway).
 		for (who, mut voting) in VotingOf::<Runtime>::iter() {
 			if let Direct { ref mut votes, .. } = voting {
-				if let Some((_, Standard { ref mut vote, .. })) = votes.first_mut() {
+				if let Some((0, Standard { ref mut vote, .. })) = votes.first_mut() {
 					vote.conviction = Conviction::None
 				}
 			}
