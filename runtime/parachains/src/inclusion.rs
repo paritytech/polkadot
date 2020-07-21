@@ -686,6 +686,7 @@ mod tests {
 		let payload = primitives::v1::collator_signature_payload(
 			&candidate.descriptor.relay_parent,
 			&candidate.descriptor.para_id,
+			&candidate.descriptor.validation_data_hash,
 			&candidate.descriptor.pov_hash,
 		);
 
