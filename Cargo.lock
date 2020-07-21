@@ -4457,7 +4457,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sc-network",
  "sp-core",
  "sp-runtime",
@@ -4498,7 +4497,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "polkadot-statement-table",
- "polkadot-subsystem-test-helpers",
  "sc-client-api",
  "sc-keystore",
  "sp-api",
@@ -4549,12 +4547,14 @@ dependencies = [
 name = "polkadot-node-subsystem"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "async-trait",
  "derive_more 0.99.9",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.8",
  "parity-scale-codec",
+ "parking_lot 0.10.2",
  "pin-project",
  "polkadot-node-primitives",
  "polkadot-primitives",
@@ -4615,7 +4615,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sc-network",
  "sp-core",
  "sp-runtime",
@@ -4970,7 +4969,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sp-core",
  "sp-keyring",
  "sp-runtime",
@@ -4984,17 +4982,6 @@ version = "0.8.17"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core",
-]
-
-[[package]]
-name = "polkadot-subsystem-test-helpers"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "futures 0.3.5",
- "parking_lot 0.10.2",
- "polkadot-node-subsystem",
  "sp-core",
 ]
 
