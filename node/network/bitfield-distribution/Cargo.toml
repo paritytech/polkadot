@@ -22,3 +22,6 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 subsystem-test = { package = "polkadot-subsystem-test-helpers", path = "../../test-helpers/subsystem" }
 parking_lot = "0.10.0"
+maplit = "1.0.2"
+smol-timeout = "0.1"
+smol = "0.1"

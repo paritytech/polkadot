@@ -499,7 +499,7 @@ mod test {
     }
 
     #[test]
-    fn relay_must_work() {
+    fn boundary_to_boundary() {
 		let hash_a: Hash = [0; 32].into(); // us
 		let hash_b: Hash = [1; 32].into(); // other
 
@@ -507,7 +507,7 @@ mod test {
         let peer_b = PeerId::random();
 
 
-        let context = SigningContext {
+        let signing_context = SigningContext {
             session_index: 1,
             parent_hash: hash_a.clone(),
         };
@@ -518,7 +518,7 @@ mod test {
 
         let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
         let signed = Signed::<AvailabilityBitfield>::sign(
-            payload, &context, 0, &validator_pair);
+            payload, &signing_context, 0, &validator_pair);
 
         let input = msg_sequence![
             BitfieldDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::OurViewChange(view![hash_a, hash_b])),
@@ -527,33 +527,93 @@ mod test {
             BitfieldDistributionMessage::DistributeBitfield(hash_b.clone(), signed.clone()),
         ];
 
+        // empty initial state
         let mut tracker = Tracker::default();
 
         let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
-        //
-		executor::block_on(async move {
-
-            println!("11111111111");
-            for input in input {
-                println!("msg");
+	    executor::block_on(async move {
+            for input in input.into_iter() {
                 handle.send(input.into());
             }
-            let _ = BitfieldDistribution::start(BitfieldDistribution, ctx).future.await;
-
-            let msg = BitfieldGossipMessage {
-                relay_parent: hash_a.clone(),
-                signed_availability: signed.clone(),
-            };
-            println!("tx");
-            let x = dbg!(send_tracked_gossip_message(&mut ctx, &mut tracker, peer_b, validator, msg).await);
-
-            println!("wait for rx");
+            let completion = ctx.spawn("test-system", BitfieldDistribution::start(BitfieldDistribution, ctx.clone()).future);
 
             while let Ok(rxd) = ctx.recv().await {
+                // @todo impl expectation checks against a hashmap
                 dbg!(rxd);
             }
+        });
+
+    }
+
+    use maplit::hashmap;
+    use maplit::hashset;
+
+    fn prewarmed_tracker(validator: ValidatorId, signing_context: SigningContext, message: BitfieldGossipMessage, peers: Vec<PeerId>) -> Tracker {
+        let mut tracker = Tracker::default();
+        tracker.per_relay_parent.insert(message.relay_parent.clone(),
+            PerRelayParentData {
+                signing_context,
+                validator_set: vec![validator.clone()],
+                one_per_validator: hashmap!{
+                    validator.clone() => message.clone(),
+                },
+                message_sent_to_peer: hashmap!{},
+            });
+        tracker
+    }
+
+
+    use std::time::Duration;
+    use smol::Timer;
+    use smol_timeout::TimeoutExt;
+
+    #[test]
+    fn relay_must_work() {
+		let hash_a: Hash = [0; 32].into(); // us
+		let hash_b: Hash = [1; 32].into(); // other
+
+		let peer_a = PeerId::random();
+        let peer_b = PeerId::random();
+        assert_ne!(peer_a, peer_b);
+
+
+        let signing_context = SigningContext {
+            session_index: 1,
+            parent_hash: hash_a.clone(),
+        };
+
+        // validator 0 key pair
+        let (validator_pair, _seed) = ValidatorPair::generate();
+        let validator = validator_pair.public();
+
+        let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+        let signed = Signed::<AvailabilityBitfield>::sign(
+            payload, &signing_context, 0, &validator_pair);
+
+        let msg = BitfieldGossipMessage {
+            relay_parent: hash_a.clone(),
+            signed_availability: signed.clone(),
+        };
+
+
+        let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+
+        let mut tracker = prewarmed_tracker(validator.clone(), signing_context.clone(), msg.clone(), vec![peer_b.clone()]);
+
+		executor::block_on(async move {
+            let x = async move { send_tracked_gossip_message(&mut ctx, &mut tracker, peer_b, validator, msg).await };
+
+            let res = dbg!(x.timeout(Duration::from_millis(500)).await);
+
+            println!("complete?");
+            // while let Ok(rxd) = async move {
+            //     ctx.recv()
+            // }.await {
+            //     dbg!(rxd);
+            // }
         });
 
     }

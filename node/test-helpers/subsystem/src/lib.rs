@@ -45,6 +45,7 @@ enum SinkState<T> {
 pub struct SingleItemSink<T>(Arc<Mutex<SinkState<T>>>);
 
 /// The stream half of a single-item sink.
+#[derive(Clone)]
 pub struct SingleItemStream<T>(Arc<Mutex<SinkState<T>>>);
 
 impl<T> Sink<T> for SingleItemSink<T> {
