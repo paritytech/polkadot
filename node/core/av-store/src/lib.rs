@@ -21,7 +21,6 @@
 
 use std::collections::{HashSet, HashMap};
 use std::io;
-use std::iter::FromIterator;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
@@ -226,6 +225,7 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 	async fn process_start_work(&mut self, ctx: &mut Context, hash: Hash) -> Result<(), Error> {
 		let events = request_candidate_events(hash, ctx).await?;
 		let mut included = HashSet::new();
+		let mut tx = DBTransaction::new();
 
 		for event in events {
 			if let CandidateEvent::CandidateIncluded(receipt, _) = event {
@@ -235,9 +235,12 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 
 		// for every candidate in relay block
 		let _ = self.update_pruning(
+			&mut tx,
 			&included,
 			CandidateState::Included,
 		);
+
+		self.inner.write(tx)?;
 
 		Ok(())
 	}
@@ -248,6 +251,7 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			columns::META,
 			&key,
 		);
+		let mut tx = DBTransaction::new();
 
 		let mut finalized = HashSet::new();
 
@@ -257,10 +261,13 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			}
 
 			let _ = self.update_pruning(
+				&mut tx,
 				&finalized,
 				CandidateState::Finalized,
 			);
 		}
+
+		self.inner.write(tx)?;
 
 		Ok(())
 	}
@@ -294,17 +301,19 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 
 	fn update_pruning(
 		&mut self,
+		tx: &mut DBTransaction,
 		candidates: &HashSet<Hash>,
 		state: CandidateState,
 	) -> Result<(), Error> {
-		let _ = self.update_pruning_pov(candidates, state);
-		let _ = self.update_pruning_chunks(candidates, state);
+		self.update_pruning_pov(tx, candidates, state)?;
+		self.update_pruning_chunks(tx, candidates, state)?;
 
 		Ok(())
 	}
 
 	fn update_pruning_pov(
 		&mut self,
+		tx: &mut DBTransaction,
 		candidates: &HashSet<Hash>,
 		state: CandidateState,
 	) -> Result<(), Error> {
@@ -315,8 +324,6 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			Some(pruning) => pruning,
 			None => return Ok(()),
 		};
-
-		let mut tx = DBTransaction::new();
 
 		let now = T::now_as_secs()?;
 
@@ -344,13 +351,12 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			tx.delete(columns::DATA, available_data_key(&pruned.candidate_hash).as_slice());
 		}
 
-		self.inner.write(tx)?;
-
 		Ok(())
 	}
 
 	fn update_pruning_chunks(
 		&mut self,
+		tx: &mut DBTransaction,
 		candidates: &HashSet<Hash>,
 		state: CandidateState,
 	) -> Result<(), Error> {
@@ -361,7 +367,6 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			Some(pruning) => pruning,
 			None => return Ok(()),
 		};
-		let mut tx = DBTransaction::new();
 
 		let now = T::now_as_secs()?;
 
@@ -388,8 +393,6 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		for pruned in prune_these_chunks.drain(..) {
 			tx.delete(columns::DATA, erasure_chunks_key(&pruned.candidate_hash).as_slice());
 		}
-
-		self.inner.write(tx)?;
 
 		Ok(())
 	}
