@@ -36,18 +36,12 @@ use primitives::v0::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
-use sp_runtime::{
-	create_runtime_str, generic, impl_opaque_keys, ModuleId,
-	ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill,
-	transaction_validity::{
-		TransactionValidity, TransactionSource, TransactionPriority,
-	},
-	curve::PiecewiseLinear,
-	traits::{
-		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
-		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
-	},
-};
+use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, transaction_validity::{
+	TransactionValidity, TransactionSource, TransactionPriority,
+}, curve::PiecewiseLinear, traits::{
+	BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
+	Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+}};
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
 use version::RuntimeVersion;
@@ -79,7 +73,6 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-pub mod poll;
 use constants::{time::*, currency::*, fee::*};
 use frame_support::traits::InstanceFilter;
 
@@ -99,7 +92,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: version::create_apis_vec![[]],
-	transaction_version: 3,
+	transaction_version: 4,
 };
 
 /// Native version.
@@ -118,22 +111,19 @@ impl Filter<Call> for BaseFilter {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
 			// Parachains stuff
-			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
-			// Balances and Vesting's transfer (which can be used to transfer)
-			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) |
-			Call::Indices(indices::Call::transfer(..)) =>
+			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
 			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
-			Call::Babe(_) | Call::Timestamp(_) |
+			Call::Babe(_) | Call::Timestamp(_) | Call::Balances(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) | Call::Poll(_) |
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
 			Call::Purchase(_) =>
 				true,
 		}
@@ -486,8 +476,8 @@ impl collective::Trait<CouncilCollective> for Runtime {
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
 	pub const VotingBond: Balance = 5 * DOLLARS;
-	/// Daily council elections initially, later weekly and monthly.
-	pub const TermDuration: BlockNumber = 1 * DAYS;
+	/// Weekly council elections; scaling up to monthly eventually.
+	pub const TermDuration: BlockNumber = 7 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
@@ -908,7 +898,6 @@ impl InstanceFilter<Call> for ProxyType {
 			ProxyType::Governance => matches!(c,
 				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
 					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
-					| Call::Poll(..)
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) | Call::Utility(utility::Call::batch(..)) | Call::Utility(..)
@@ -944,22 +933,108 @@ impl proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		if scheduler::Module::<Runtime>::migrate_v1_to_t2() {
-			<Runtime as system::Trait>::MaximumBlockWeight::get()
-		} else {
-			<Runtime as system::Trait>::DbWeight::get().reads(1)
+		use frame_support::storage::{StorageMap, IterableStorageMap};
+		use democracy::{VotingOf, Conviction, Voting::Direct, AccountVote::Standard};
+		// Cancel convictions for Referendum Zero (for removing Sudo - this is something we would
+		// have done anyway).
+		for (who, mut voting) in VotingOf::<Runtime>::iter() {
+			if let Direct { ref mut votes, .. } = voting {
+				if let Some((0, Standard { ref mut vote, .. })) = votes.first_mut() {
+					vote.conviction = Conviction::None
+				}
+			}
+			VotingOf::<Runtime>::insert(who, voting);
 		}
+
+		<Runtime as system::Trait>::MaximumBlockWeight::get()
 	}
 }
 
-parameter_types! {
-	pub const PollEnd: BlockNumber = 888_888;
-}
-
-impl poll::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type End = PollEnd;
+#[test]
+fn test_rm_ref_0() {
+	use sp_runtime::AccountId32;
+	use frame_support::{traits::OnRuntimeUpgrade, storage::StorageMap};
+	use democracy::{VotingOf, Vote, Voting::{Direct, Delegating}, AccountVote::{Standard, Split}};
+	use democracy::Conviction::{Locked1x, Locked2x, Locked3x, None as NoConviction};
+	let t = system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		let a = |i| AccountId32::from([i; 32]);
+		VotingOf::<Runtime>::insert(a(1), Direct {
+			votes: vec![(0, Standard {
+				vote: Vote { aye: true, conviction: Locked1x },
+				balance: 1,
+			})],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		VotingOf::<Runtime>::insert(a(2), Direct {
+			votes: vec![
+				(0, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2 }),
+				(1, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2 })
+			],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		VotingOf::<Runtime>::insert(a(3), Direct {
+			votes: vec![(1, Standard { vote: Vote { aye: true, conviction: Locked3x }, balance: 3 })],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		VotingOf::<Runtime>::insert(a(4), Direct {
+			votes: vec![],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		VotingOf::<Runtime>::insert(a(5), Delegating {
+			balance: 5,
+			target: a(0),
+			conviction: Locked1x,
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		VotingOf::<Runtime>::insert(a(6), Direct {
+			votes: vec![(0, Split { aye: 6, nay: 6 }), (1, Split { aye: 6, nay: 6 })],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		CustomOnRuntimeUpgrade::on_runtime_upgrade();
+		assert_eq!(VotingOf::<Runtime>::get(a(1)), Direct {
+			votes: vec![(0, Standard { vote: Vote { aye: true, conviction: NoConviction }, balance: 1, })],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		assert_eq!(VotingOf::<Runtime>::get(a(2)), Direct {
+			votes: vec![
+				(0, Standard { vote: Vote { aye: true, conviction: NoConviction }, balance: 2, }),
+				(1, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2, })
+			],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		assert_eq!(VotingOf::<Runtime>::get(a(3)), Direct {
+			votes: vec![(1, Standard { vote: Vote { aye: true, conviction: Locked3x }, balance: 3, })],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		assert_eq!(VotingOf::<Runtime>::get(a(4)), Direct {
+			votes: vec![],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		assert_eq!(VotingOf::<Runtime>::get(a(5)), Delegating {
+			balance: 5,
+			target: a(0),
+			conviction: Locked1x,
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+		assert_eq!(VotingOf::<Runtime>::get(a(6)), Direct {
+			votes: vec![(0, Split { aye: 6, nay: 6 }), (1, Split { aye: 6, nay: 6 })],
+			delegations: Default::default(),
+			prior: Default::default(),
+		});
+	});
 }
 
 parameter_types! {
@@ -1067,9 +1142,6 @@ construct_runtime! {
 
 		// Multisig dispatch. Late addition.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
-
-		// Poll module.
-		Poll: poll::{Module, Call, Storage, Event<T>},
 	}
 }
 
