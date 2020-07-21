@@ -80,6 +80,18 @@ impl From<u32> for Id {
 	fn from(x: u32) -> Self { Id(x) }
 }
 
+impl From<usize> for Id {
+	fn from(x: usize) -> Self {
+		use std::convert::TryInto;
+		// can't panic, so need to truncate
+		let x: u32 = match x.try_into() {
+			Ok(x) => x,
+			Err(_) => u32::MAX,
+		};
+		Id(x)
+	}
+}
+
 const USER_INDEX_START: u32 = 1000;
 
 /// The ID of the first user (non-system) parachain.

@@ -24,11 +24,19 @@ use futures::{
 };
 use keystore::KeyStorePtr;
 use polkadot_node_subsystem::{
-	messages::{self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage, BitfieldSigningMessage, CandidateBackingMessage},
+	messages::{
+		self,
+		AllMessages,
+		AvailabilityStoreMessage,
+		BitfieldDistributionMessage,
+		BitfieldSigningMessage,
+		CandidateBackingMessage,
+		RuntimeApiMessage,
+	},
 	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, Hash,
+	CoreOccupied, Hash,
 };
 use std::{
 	convert::TryFrom,
@@ -39,6 +47,9 @@ use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
+
+/// Unsigned bitfield type
+pub type Bitfield = bitvec::vec::BitVec<bitvec::order::Lsb0, u8>;
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -82,6 +93,7 @@ pub enum FromJob {
 	AvailabilityStore(AvailabilityStoreMessage),
 	BitfieldDistribution(BitfieldDistributionMessage),
 	CandidateBacking(CandidateBackingMessage),
+	RuntimeApi(RuntimeApiMessage),
 }
 
 impl From<FromJob> for AllMessages {
@@ -90,6 +102,7 @@ impl From<FromJob> for AllMessages {
 			FromJob::AvailabilityStore(asm) => AllMessages::AvailabilityStore(asm),
 			FromJob::BitfieldDistribution(bdm) => AllMessages::BitfieldDistribution(bdm),
 			FromJob::CandidateBacking(cbm) => AllMessages::CandidateBacking(cbm),
+			FromJob::RuntimeApi(ram) => AllMessages::RuntimeApi(ram),
 		}
 	}
 }
@@ -102,6 +115,7 @@ impl TryFrom<AllMessages> for FromJob {
 			AllMessages::AvailabilityStore(asm) => Ok(Self::AvailabilityStore(asm)),
 			AllMessages::BitfieldDistribution(bdm) => Ok(Self::BitfieldDistribution(bdm)),
 			AllMessages::CandidateBacking(cbm) => Ok(Self::CandidateBacking(cbm)),
+			AllMessages::RuntimeApi(ram) => Ok(Self::RuntimeApi(ram)),
 			_ => Err(()),
 		}
 	}
@@ -124,15 +138,44 @@ pub enum Error {
 	MpscSend(mpsc::SendError),
 }
 
-async fn get_backed_candidates_pending_availability(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<BackedCandidate>, Error> {
-	use FromJob::CandidateBacking;
-	use CandidateBackingMessage::GetBackedCandidates;
-	use messages::NewBackedCandidate;
+// the way this function works is not intuitive:
+//
+// - get the scheduler roster so we have a list of cores, in order.
+// - for each occupied core, fetch `candidate_pending_availability` from runtime
+// - from there, we can get the `CandidateDescriptor`
+// - from there, we can send a `AvailabilityStore::QueryPoV` and set the indexed bit to 1 if it returns Some(_)
+async fn construct_availability_bitvec(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Bitfield, Error> {
+	use messages::{
+		AvailabilityStoreMessage::QueryPoVAvailable,
+		RuntimeApiRequest::{CandidatePendingAvailability, ValidatorGroups},
+	};
+	use RuntimeApiMessage::Request;
+	use FromJob::{AvailabilityStore, RuntimeApi};
 
 	let (tx, rx) = oneshot::channel();
-	// REVIEW: is this where we should be getting the set of backed candidates from?
-	sender.send(CandidateBacking(GetBackedCandidates(relay_parent, tx))).await?;
-	Ok(rx.await?.into_iter().map(|NewBackedCandidate(backed_candidate)| backed_candidate).collect())
+
+	sender.send(RuntimeApi(Request(relay_parent, ValidatorGroups(tx)))).await?;
+	let scheduler_roster = rx.await?;
+
+	let mut out = bitvec!(bitvec::order::Lsb0, u8; 0; scheduler_roster.availability_cores.len());
+
+	// TODO: make this concurrent by spawning a new task for each iteration of this loop
+	for (idx, core) in scheduler_roster.availability_cores.iter().enumerate() {
+		// REVIEW: is it safe to ignore parathreads here, or do they also figure in the availability mapping?
+		if let Some(CoreOccupied::Parachain) = core {
+			let (tx, rx) = oneshot::channel();
+			sender.send(RuntimeApi(Request(relay_parent, CandidatePendingAvailability(idx.into(), tx)))).await?;
+			let committed_candidate_receipt = match rx.await? {
+				Some(ccr) => ccr,
+				None => continue,
+			};
+			let (tx, rx) = oneshot::channel();
+			sender.send(AvailabilityStore(QueryPoVAvailable(committed_candidate_receipt.descriptor.pov_hash, tx))).await?;
+			out.set(idx, rx.await?);
+		}
+	}
+
+	Ok(out)
 }
 
 impl JobTrait for BitfieldSigningJob {
@@ -165,11 +208,9 @@ impl JobTrait for BitfieldSigningJob {
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
 
-			let backed_candidates = get_backed_candidates_pending_availability(parent, &mut sender).await?;
-			let bitvec_size: usize = todo!();
-			let mut out = bitvec![0; bitvec_size];
-
+			let bitvec = construct_availability_bitvec(parent, &mut sender).await?;
 			unimplemented!()
+
 		}.boxed()
 	}
 }
