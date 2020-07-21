@@ -539,7 +539,7 @@ impl<T: Trait> Module<T> {
 	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
 	/// block number since which it has been occupied, and the respective parachain and parathread
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
-	/// of the last rotation would this return `Some`.
+	/// of the last rotation would this return `Some`, unless there are no rotations.
 	///
 	/// If there are no rotations (config.group_rotation_frequency == 0),
 	/// availability timeouts can occur at any block.
@@ -553,11 +553,12 @@ impl<T: Trait> Module<T> {
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
-		if config.group_rotation_frequency.is_zero() { 
-			// if there are no rotations, availability timeouts can occur at any block
-			return Some(Box::new(move |_: CoreIndex, _| true));
-		}
-		let blocks_since_last_rotation = blocks_since_session_start % config.group_rotation_frequency;
+		let no_rotation = config.group_rotation_frequency.is_zero();
+		let blocks_since_last_rotation = if no_rotation {
+			<T::BlockNumber>::zero()
+		} else {
+			blocks_since_session_start % config.group_rotation_frequency
+		};
 
 		let absolute_cutoff = sp_std::cmp::max(
 			config.chain_availability_period,
@@ -577,6 +578,7 @@ impl<T: Trait> Module<T> {
 						if blocks_since_last_rotation >= config.chain_availability_period {
 							false // no pruning except recently after rotation.
 						} else {
+							// the parachain has been occupied for too long.
 							now.saturating_sub(pending_since) >= config.chain_availability_period
 						}
 					}
@@ -584,6 +586,7 @@ impl<T: Trait> Module<T> {
 						if blocks_since_last_rotation >= config.thread_availability_period {
 							false // no pruning except recently after rotation.
 						} else {
+							// the parathread has been occupied for too long.
 							now.saturating_sub(pending_since) >= config.thread_availability_period
 						}
 					}
@@ -1597,20 +1600,25 @@ mod tests {
 					}))
 				});
 			}
-
-			run_to_block(1 + thread_availability_period, |_| None);
+			run_to_block(1 + 1, |_| None);
+			run_to_block(1 + 1 + 100500, |_| None);
 			{
 				let pred = Scheduler::availability_timeout_predicate()
 					.expect("predicate exists with no rotation");
 
 				let now = System::block_number();
-				for i in 0..AvailabilityCores::get().len() {
-					// can time out both threads and chains at this stage
-					assert!(pred(CoreIndex(i as u32), now - thread_availability_period - 1));
-					assert!(pred(CoreIndex(i as u32), now - thread_availability_period));
-					assert!(pred(CoreIndex(i as u32), now - chain_availability_period));
-					assert!(pred(CoreIndex(i as u32), now));
-				}
+
+				assert!(!pred(CoreIndex(0), now)); // assigned: chain
+				assert!(!pred(CoreIndex(1), now)); // assigned: thread
+				assert!(pred(CoreIndex(2), now));
+
+				// check the tighter bound on chains vs threads.
+				assert!(pred(CoreIndex(0), now - chain_availability_period));
+				assert!(pred(CoreIndex(1), now - thread_availability_period));
+
+				// check the threshold is exact.
+				assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
+				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
 			}
 		});
 	}
