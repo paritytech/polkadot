@@ -211,6 +211,7 @@ enum Action {
 	PeerMessages(PeerId, Vec<WireMessage>),
 
 	Abort,
+	Nop,
 }
 
 fn action_from_overseer_message(
@@ -230,7 +231,7 @@ fn action_from_overseer_message(
 				=> Action::SendMessage(peers, protocol, message),
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
-			=> unimplemented!(),
+			=> Action::Nop,
 		Err(e) => {
 			log::warn!("Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
@@ -518,6 +519,7 @@ async fn run_network<N: Network>(
 			},
 
 			Action::Abort => return Ok(()),
+			Action::Nop => (),
 		}
 	}
 }

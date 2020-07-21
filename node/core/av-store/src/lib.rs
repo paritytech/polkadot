@@ -286,9 +286,10 @@ mod tests {
 		AvailableData, BlockData, HeadData, GlobalValidationSchedule, LocalValidationData, PoV,
 		OmittedValidationData,
 	};
+	use polkadot_subsystem::test_helpers;
 
 	struct TestHarness {
-		virtual_overseer: subsystem_test::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+		virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 	}
 
 	thread_local! {
@@ -329,7 +330,7 @@ mod tests {
 	) {
 		let pool = ThreadPool::new().unwrap();
 
-		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = AvailabilityStoreSubsystem::new_in_memory(store);
 		let subsystem = subsystem.run(context);
@@ -484,7 +485,7 @@ mod tests {
 	}
 
 	async fn query_available_data(
-		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+		virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 		candidate_hash: Hash,
 	) -> Option<AvailableData> {
 		let (tx, rx) = oneshot::channel();
@@ -496,7 +497,7 @@ mod tests {
 	}
 
 	async fn query_chunk(
-		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<AvailabilityStoreMessage>,
+		virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 		candidate_hash: Hash,
 		index: u32,
 	) -> Option<ErasureChunk> {
