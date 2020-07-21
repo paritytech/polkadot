@@ -118,17 +118,15 @@ impl Filter<Call> for BaseFilter {
 			Call::Parachains(parachains::Call::set_heads(..)) => true,
 
 			// Parachains stuff
-			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) |
+			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) =>
 			// Balances and Vesting's transfer (which can be used to transfer)
-			Call::Balances(_) | Call::Vesting(vesting::Call::vested_transfer(..)) |
-			Call::Indices(indices::Call::transfer(..)) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
 			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::ElectionsPhragmen(_) |
 			Call::System(_) | Call::Scheduler(_) | Call::Indices(_) |
-			Call::Babe(_) | Call::Timestamp(_) |
+			Call::Babe(_) | Call::Timestamp(_) | Call::Balances(_) |
 			Call::Authorship(_) | Call::Staking(_) | Call::Offences(_) |
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
@@ -944,11 +942,24 @@ impl proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		if scheduler::Module::<Runtime>::migrate_v1_to_t2() {
-			<Runtime as system::Trait>::MaximumBlockWeight::get()
-		} else {
-			<Runtime as system::Trait>::DbWeight::get().reads(1)
+		use frame_support::storage::{StorageMap, IterableStorageMap};
+		// Cancel convictions for Referendum Zero (for removing Sudo - this is something we would
+		// have done anyway).
+		for (who, mut voting) in democracy::VotingOf::<Runtime>::iter() {
+			if let democracy::Voting::Direct { ref mut votes, .. } = voting {
+				if votes.is_empty() || votes[0].0 != 0 {
+					continue
+				}
+				if let (_, democracy::AccountVote::Standard { ref mut vote, .. }) = votes[0] {
+					vote.conviction = democracy::Conviction::None
+				}
+			} else {
+				continue
+			}
+			democracy::VotingOf::<Runtime>::insert(who, voting);
 		}
+
+		<Runtime as system::Trait>::MaximumBlockWeight::get()
 	}
 }
 
