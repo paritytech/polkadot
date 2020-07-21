@@ -19,11 +19,10 @@
 
 #![recursion_limit="256"]
 
-use std::collections::{HashSet, HashMap};
+use std::collections::HashMap;
 use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::{SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use codec::{Encode, Decode};
 use futures::{select, channel::oneshot, FutureExt};
@@ -31,33 +30,17 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, ErasureChunk, ValidatorIndex, CandidateEvent,
+	Hash, AvailableData, ErasureChunk, ValidatorIndex,
 };
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+	FromOverseer, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
 };
-use polkadot_subsystem::messages::{
-	AllMessages, AvailabilityStoreMessage, RuntimeApiMessage, RuntimeApiRequest,
-};
+use polkadot_subsystem::messages::AvailabilityStoreMessage;
 
 const LOG_TARGET: &str = "availability";
 
-const CHUNKS_PRUNING_KEY: [u8; 14] = *b"chunks_pruning";
-
-const POV_PRUNING_KEY: [u8; 11] = *b"pov_pruning";
-
-// Stored block is kept for 1 hour.
-const KEEP_STORED_BLOCK_FOR: u64 = 1000;
-
-// Finalized block is kept for 1 day.
-const KEEP_FINALIZED_BLOCK_FOR: u64 = 1_000_000;
-
-// Keep chunk for 1 day + 1 hour.
-const KEEP_FINALIZED_CHUNK_FOR: u64 = 1_000_001;
-
 mod columns {
 	pub const DATA: u32 = 0;
-	pub const META: u32 = 1;
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
@@ -68,123 +51,33 @@ enum Error {
 	#[from]
 	Io(io::Error),
 	#[from]
-	Time(SystemTimeError),
-	#[from]
 	Oneshot(oneshot::Canceled),
 	#[from]
 	Subsystem(SubsystemError),
 }
 
-#[derive(Decode, Encode, Debug, Clone, Copy)]
-enum CandidateState {
-	// We commited to storing this data but the candidate it relates to
-	// hasn't been included yet. If it remains not included this data has
-	// to be pruned in 1 hour.
-	Stored,
-	// The block was included and is now awaiting to be finalized.
-	Included,
-	// The block was finalized, from now on the
-	//  PoV is kept for 1 day
-	//  Chunk is kept for 1 day + 1 hour
-	Finalized,
-}
-
-fn prune_pov_at(now: u64, state: CandidateState) -> u64 {
-	use CandidateState::*;
-
-	match state {
-		Stored => now + KEEP_STORED_BLOCK_FOR,
-		// Keep until finalized.
-		Included => u64::MAX,
-		Finalized => now + KEEP_FINALIZED_BLOCK_FOR,
-	}
-}
-
-fn prune_chunk_at(now: u64, state: CandidateState) -> u64 {
-	use CandidateState::*;
-
-	match state {
-		// The same for chunks and for blocks.
-		Stored | Included => prune_pov_at(now, state),
-		// Keep chunk for longer than the block.
-		Finalized => now + KEEP_FINALIZED_CHUNK_FOR,
-	}
-}
-
-#[derive(Encode, Decode, Debug)]
-struct PoVPruning {
-	candidate_hash: Hash,
-	prune_at: u64,
-	state: CandidateState,
-}
-
-#[derive(Encode, Decode, Debug)]
-struct ChunkPruning {
-	candidate_hash: Hash,
-	prune_at: u64,
-	state: CandidateState,
-}
-
-// Since we can only get this info for the latest K blocks we have to cache
-// which parablocks were made available in which relay block. When the relay block gets finalized
-// we thus know which parablocks need an update to pruning records.
-#[derive(Encode, Decode, Debug)]
-struct BlocksAvailableCached {
-	blocks: Vec<Hash>,
-}
-
-pub struct AvailabilityStoreSubsystem<Context, Time=SystemTime> {
+pub struct AvailabilityStoreSubsystem<Context> {
 	inner: Arc<dyn KeyValueDB>,
 	_context: std::marker::PhantomData<Context>,
-	_time: std::marker::PhantomData<Time>,
 }
 
 fn available_data_key(candidate_hash: &Hash) -> Vec<u8> {
 	(candidate_hash, 0i8).encode()
 }
 
-fn erasure_chunks_key(candidate_hash: &Hash) -> Vec<u8> {
-	(candidate_hash, 1i8).encode()
+fn erasure_chunk_key(candidate_hash: &Hash, index: u32) -> Vec<u8> {
+	(candidate_hash, index, 0i8).encode()
 }
 
-fn blocks_available_key(relay_parent: &Hash) -> Vec<u8> {
-	(relay_parent, 2i8).encode()
+#[derive(Encode, Decode)]
+struct StoredAvailableData {
+	data: AvailableData,
+	n_validators: u32,
 }
 
-pub trait Time {
-	fn now_as_secs() -> Result<u64, SystemTimeError>;
-}
-
-impl Time for SystemTime {
-	fn now_as_secs() -> Result<u64, SystemTimeError> {
-		Ok(
-			SystemTime::now()
-			.duration_since(UNIX_EPOCH)?
-			.as_secs()
-		)
-	}
-}
-
-async fn request_candidate_events<Context>(hash: Hash, ctx: &mut Context)
-	-> Result<Vec<CandidateEvent>, Error>
-where
-	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-
-	let msg = AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash,
-		RuntimeApiRequest::CandidateEvents(tx))
-	);
-
-	ctx.send_message(msg.into()).await?;
-
-	Ok(rx.await?)
-}
-
-impl<Context, T> AvailabilityStoreSubsystem<Context, T>
+impl<Context> AvailabilityStoreSubsystem<Context>
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-		T: Time,
 {
 	pub fn new(config: Config) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
@@ -208,7 +101,6 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		Ok(Self {
 			inner: Arc::new(db),
 			_context: std::marker::PhantomData,
-			_time: std::marker::PhantomData,
 		})
 	}
 
@@ -217,59 +109,7 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		Self {
 			inner,
 			_context: std::marker::PhantomData,
-			_time: std::marker::PhantomData,
 		}
-	}
-
-
-	async fn process_start_work(&mut self, ctx: &mut Context, hash: Hash) -> Result<(), Error> {
-		let events = request_candidate_events(hash, ctx).await?;
-		let mut included = HashSet::new();
-		let mut tx = DBTransaction::new();
-
-		for event in events {
-			if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-				included.insert(receipt.hash());
-			}
-		}
-
-		// for every candidate in relay block
-		let _ = self.update_pruning(
-			&mut tx,
-			&included,
-			CandidateState::Included,
-		);
-
-		self.inner.write(tx)?;
-
-		Ok(())
-	}
-
-	async fn process_block_finalized(&mut self, hash: Hash) -> Result<(), Error> {
-		let key = blocks_available_key(&hash);
-		let cached = self.query_inner::<BlocksAvailableCached>(
-			columns::META,
-			&key,
-		);
-		let mut tx = DBTransaction::new();
-
-		let mut finalized = HashSet::new();
-
-		if let Some(cached) = cached {
-			for c in cached.blocks {
-				finalized.insert(c);
-			}
-
-			let _ = self.update_pruning(
-				&mut tx,
-				&finalized,
-				CandidateState::Finalized,
-			);
-		}
-
-		self.inner.write(tx)?;
-
-		Ok(())
 	}
 
 	async fn run(mut self, mut ctx: Context) -> Result<(), Error> {
@@ -278,14 +118,8 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 			select! {
 				incoming = ctx.recv().fuse() => {
 					match incoming {
-						Ok(FromOverseer::Signal(OverseerSignal::StartWork(hash))) => {
-							self.process_start_work(ctx, hash).await?;
-						}
-						Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-							self.process_block_finalized(hash).await?;
-						}
-						Ok(FromOverseer::Signal(OverseerSignal::StopWork(_))) => (),
 						Ok(FromOverseer::Signal(Conclude)) => break,
+						Ok(FromOverseer::Signal(_)) => (),
 						Ok(FromOverseer::Communication { msg }) => {
 							let _ = self.process_message(msg);
 						}
@@ -299,173 +133,53 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		Ok(())
 	}
 
-	fn update_pruning(
-		&mut self,
-		tx: &mut DBTransaction,
-		candidates: &HashSet<Hash>,
-		state: CandidateState,
-	) -> Result<(), Error> {
-		self.update_pruning_pov(tx, candidates, state)?;
-		self.update_pruning_chunks(tx, candidates, state)?;
-
-		Ok(())
-	}
-
-	fn update_pruning_pov(
-		&mut self,
-		tx: &mut DBTransaction,
-		candidates: &HashSet<Hash>,
-		state: CandidateState,
-	) -> Result<(), Error> {
-		let mut pruning_pov = match self.query_inner::<Vec<PoVPruning>>(
-			columns::META,
-			&POV_PRUNING_KEY,
-		) {
-			Some(pruning) => pruning,
-			None => return Ok(()),
-		};
-
-		let now = T::now_as_secs()?;
-
-		let mut prune_these_pov = Vec::new();
-		let mut keep_these_pov = Vec::new();
-
-		for mut record in pruning_pov.drain(..) {
-			if candidates.contains(&record.candidate_hash) {
-				record.prune_at = prune_pov_at(now, state);
-				keep_these_pov.push(record);
-			} else if record.prune_at > now {
-				keep_these_pov.push(record);
-			} else {
-				prune_these_pov.push(record);
-			}
-		}
-
-		tx.put_vec(
-			columns::META,
-			&POV_PRUNING_KEY,
-			keep_these_pov.encode(),
-		);
-
-		for pruned in prune_these_pov.drain(..) {
-			tx.delete(columns::DATA, available_data_key(&pruned.candidate_hash).as_slice());
-		}
-
-		Ok(())
-	}
-
-	fn update_pruning_chunks(
-		&mut self,
-		tx: &mut DBTransaction,
-		candidates: &HashSet<Hash>,
-		state: CandidateState,
-	) -> Result<(), Error> {
-		let mut pruning_chunks = match self.query_inner::<Vec<ChunkPruning>>(
-			columns::META,
-			&CHUNKS_PRUNING_KEY,
-		) {
-			Some(pruning) => pruning,
-			None => return Ok(()),
-		};
-
-		let now = T::now_as_secs()?;
-
-		let mut prune_these_chunks = Vec::new();
-		let mut keep_these_chunks = Vec::new();
-
-		for mut record in pruning_chunks.drain(..) {
-			if candidates.contains(&record.candidate_hash) {
-				record.prune_at = prune_chunk_at(now, state);
-				keep_these_chunks.push(record);
-			} else if record.prune_at > now {
-				keep_these_chunks.push(record);
-			} else {
-				prune_these_chunks.push(record);
-			}
-		}
-
-		tx.put_vec(
-			columns::META,
-			&CHUNKS_PRUNING_KEY,
-			keep_these_chunks.encode(),
-		);
-
-		for pruned in prune_these_chunks.drain(..) {
-			tx.delete(columns::DATA, erasure_chunks_key(&pruned.candidate_hash).as_slice());
-		}
-
-		Ok(())
-	}
-
 	fn process_message(&mut self, msg: AvailabilityStoreMessage) -> Result<(), Error> {
 		use AvailabilityStoreMessage::*;
 		match msg {
-			QueryPoV(hash, tx) => {
-				let _ = tx.send(self.available_data(&hash));
+			QueryAvailableData(hash, tx) => {
+				let _ = tx.send(self.available_data(&hash).map(|d| d.data));
 			}
 			QueryChunk(hash, id, tx) => {
-				let _ = tx.send(self.get_chunk(&hash, id));
+				let _ = tx.send(self.get_chunk(&hash, id)?);
 			}
 			StoreChunk(hash, id, chunk) => {
-				self.store_chunk(hash, id, chunk)?;
+				self.store_chunk(&hash, id, chunk)?;
 			}
-			StorePoV(hash, id, n_validators, av_data) => {
-				self.store_pov(hash, id, n_validators, av_data)?;
+			StoreAvailableData(hash, id, n_validators, av_data) => {
+				self.store_available_data(&hash, id, n_validators, av_data)?;
 			}
 		}
 
 		Ok(())
 	}
 
-	fn available_data(&self, candidate_hash: &Hash) -> Option<AvailableData> {
+	fn available_data(&self, candidate_hash: &Hash) -> Option<StoredAvailableData> {
 		self.query_inner(columns::DATA, &available_data_key(candidate_hash))
 	}
 
-	fn store_pov(
+	fn store_available_data(
 		&self,
-		candidate_hash: Hash,
+		candidate_hash: &Hash,
 		id: Option<ValidatorIndex>,
 		n_validators: u32,
 		available_data: AvailableData,
 	) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 
-		let mut pruning = self.query_inner(columns::META, &POV_PRUNING_KEY).unwrap_or(Vec::new());
-
-		if let None = pruning.iter().position(|c: &PoVPruning| c.candidate_hash == candidate_hash) {
-			let now = T::now_as_secs()?; 
-			let prune_at = prune_pov_at(now, CandidateState::Stored);
-
-			pruning.push(PoVPruning {
-				candidate_hash,
-				prune_at,
-				state: CandidateState::Stored,
-			});
-		}
-
 		if let Some(index) = id {
-			let chunks = erasure::obtain_chunks_v1(n_validators as usize, &available_data)?;
-			let mut branches = erasure::branches(chunks.as_ref());
-			if let Some(branch) = branches.nth(index as usize) {
-				let chunk = ErasureChunk {
-					chunk: branch.1.to_vec(),
-					index,
-					proof: branch.0
-				};
-				self.store_chunk(candidate_hash, n_validators, chunk)?;
-			}
+			let chunks = get_chunks(&available_data, n_validators as usize)?;
+			self.store_chunk(candidate_hash, n_validators, chunks[index as usize].clone())?;
 		}
+
+		let stored_data = StoredAvailableData {
+			data: available_data,
+			n_validators,
+		};
 
 		tx.put_vec(
 			columns::DATA,
 			available_data_key(&candidate_hash).as_slice(),
-			available_data.encode(),
-		);
-
-		tx.put_vec(
-			columns::META,
-			&POV_PRUNING_KEY,
-			pruning.encode(),
+			stored_data.encode(),
 		);
 
 		self.inner.write(tx)?;
@@ -473,54 +187,36 @@ impl<Context, T> AvailabilityStoreSubsystem<Context, T>
 		Ok(())
 	}
 
-	fn store_chunk(&self, candidate_hash: Hash, n_validators: u32, chunk: ErasureChunk)
+	fn store_chunk(&self, candidate_hash: &Hash, _n_validators: u32, chunk: ErasureChunk)
 		-> Result<(), Error>
 	{
 		let mut tx = DBTransaction::new();
 
-		let dbkey = erasure_chunks_key(&candidate_hash);
+		let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
 
-		let mut pruning = self.query_inner(columns::META, &CHUNKS_PRUNING_KEY).unwrap_or(Vec::new());
-		let mut v = self.query_inner(columns::DATA, &dbkey).unwrap_or(Vec::new());
-
-		if let None = pruning.iter().position(|c: &ChunkPruning| c.candidate_hash == candidate_hash) {
-			let now = T::now_as_secs()?;
-			let prune_at = prune_chunk_at(now, CandidateState::Stored);
-			pruning.push(ChunkPruning {
-				candidate_hash,
-				prune_at,
-				state: CandidateState::Stored,
-			});
-		}
-
-		if let None = v.iter().position(|c: &ErasureChunk| c.index == chunk.index) {
-			v.push(chunk);
-		}
-
-		if self.available_data(&candidate_hash).is_none() {
-			if let Ok(available_data) = erasure::reconstruct_v1(
-				n_validators as usize,
-				v.iter().map(|chunk| (chunk.chunk.as_ref(), chunk.index as usize)),
-			) {
-				self.store_pov(candidate_hash, None, n_validators, available_data)?;
-			}
-		}
-
-		tx.put_vec(columns::DATA, &dbkey, v.encode());
-		tx.put_vec(columns::META, &CHUNKS_PRUNING_KEY, pruning.encode());
+		tx.put_vec(columns::DATA, &dbkey, chunk.encode());
 		self.inner.write(tx)?;
 
 		Ok(())
 	}
 
-	fn get_chunk(&self, candidate_hash: &Hash, index: u32) -> Option<ErasureChunk> {
-		self.query_inner(columns::DATA, &erasure_chunks_key(candidate_hash))
-			.and_then(|chunks: Vec<ErasureChunk>| {
-				chunks
-					.iter()
-					.find(|chunk: &&ErasureChunk| chunk.index == index)
-					.map(|chunk| chunk.clone())
-			})
+	fn get_chunk(&self, candidate_hash: &Hash, index: u32) -> Result<Option<ErasureChunk>, Error> {
+		if let Some(chunk) = self.query_inner(
+			columns::DATA,
+			&erasure_chunk_key(candidate_hash, index)) {
+			return Ok(Some(chunk));
+		}
+
+		if let Some(data) = self.available_data(candidate_hash) {
+			let mut chunks = get_chunks(&data.data, data.n_validators as usize)?;
+			let chunk = chunks.get(index as usize).cloned();
+			for chunk in chunks.drain(..) {
+				self.store_chunk(candidate_hash, data.n_validators, chunk)?;
+			}
+			return Ok(chunk);
+		}
+
+		Ok(None)
 	}
 
 	fn query_inner<D: Decode>(&self, column: u32, key: &[u8]) -> Option<D> {
@@ -546,10 +242,9 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-impl<Context, T> Subsystem<Context> for AvailabilityStoreSubsystem<Context, T>
+impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem<Context>
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-		T: Time + Send + 'static
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem(Box::pin(async move {
@@ -558,6 +253,23 @@ impl<Context, T> Subsystem<Context> for AvailabilityStoreSubsystem<Context, T>
 			}
 		}))
 	}
+}
+
+fn get_chunks(data: &AvailableData, n_validators: usize) -> Result<Vec<ErasureChunk>, Error> {
+	let chunks = erasure::obtain_chunks_v1(n_validators, data)?;
+	let branches = erasure::branches(chunks.as_ref());
+
+	Ok(chunks
+		.iter()
+		.zip(branches.map(|(proof, _)| proof))
+		.enumerate()
+		.map(|(index, (chunk, proof))| ErasureChunk {
+			chunk: chunk.clone(),
+			proof,
+			index: index as u32,
+		})
+		.collect()
+	)
 }
 
 #[cfg(test)]
@@ -572,10 +284,8 @@ mod tests {
 	use std::cell::RefCell;
 	use polkadot_primitives::v1::{
 		AvailableData, BlockData, HeadData, GlobalValidationSchedule, LocalValidationData, PoV,
-		OmittedValidationData, CandidateDescriptor, CandidateCommitments, Id as ParaId,
-		ValidationCode, CommittedCandidateReceipt,
+		OmittedValidationData,
 	};
-	use assert_matches::assert_matches;
 
 	struct TestHarness {
 		virtual_overseer: subsystem_test::TestSubsystemContextHandle<AvailabilityStoreMessage>,
@@ -588,7 +298,6 @@ mod tests {
 	struct TestState {
 		global_validation_schedule: GlobalValidationSchedule,
 		local_validation_data: LocalValidationData,
-		relay_parent: Hash,
 	}
 
 	impl Default for TestState {
@@ -607,73 +316,11 @@ mod tests {
 				block_number: Default::default(),
 			};
 
-			let relay_parent = Hash::from([1; 32]);
-
 			Self {
-				relay_parent,
 				local_validation_data,
 				global_validation_schedule,
 			}
 		}
-	}
-
-	struct TestTime;
-
-	impl TestTime {
-		fn set(time: u64) {
-			TIME_NOW.with(|cell| *cell.borrow_mut() = Some(time))
-		}
-
-		fn get() -> Result<u64, SystemTimeError> {
-			Ok(TIME_NOW.with(|cell| cell
-					.borrow()
-					.as_ref()
-					.cloned()
-					.unwrap_or(0)
-				)
-			)
-		}
-
-		fn add(t: u64) {
-			TIME_NOW.with(|cell| {
-				if let Some(time) = cell.borrow_mut().as_mut() {
-					*time += t;
-				}
-			});
-		}
-	}
-
-	impl TestCandidateBuilder {
-		fn build(self) -> CommittedCandidateReceipt {
-			CommittedCandidateReceipt {
-				descriptor: CandidateDescriptor {
-					para_id: self.para_id,
-					pov_hash: self.pov_hash,
-					relay_parent: self.relay_parent,
-					..Default::default()
-				},
-				commitments: CandidateCommitments {
-					head_data: self.head_data,
-					new_validation_code: self.new_validation_code,
-					..Default::default()
-				},
-			}
-		}
-	}
-
-	impl Time for TestTime {
-		fn now_as_secs() -> Result<u64, SystemTimeError> {
-			Self::get()
-		}
-	}
-
-	#[derive(Default)]
-	struct TestCandidateBuilder {
-		para_id: ParaId,
-		head_data: HeadData,
-		pov_hash: Hash,
-		relay_parent: Hash,
-		new_validation_code: Option<ValidationCode>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(
@@ -683,11 +330,8 @@ mod tests {
 		let pool = ThreadPool::new().unwrap();
 
 		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
-		TestTime::set(0);//SystemTime::now_as_secs().unwrap());
 
-		// TODO: why the type?
-		let subsystem: AvailabilityStoreSubsystem<_, TestTime> =
-			AvailabilityStoreSubsystem::new_in_memory(store);
+		let subsystem = AvailabilityStoreSubsystem::new_in_memory(store);
 		let subsystem = subsystem.run(context);
 
 		let test_fut = test(TestHarness {
@@ -762,23 +406,18 @@ mod tests {
 				omitted_validation,
 			};
 
-			let block_msg = AvailabilityStoreMessage::StorePoV(
+			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash,
 				Some(validator_index),
 				n_validators,
 				available_data.clone(),
 			);
+
 			virtual_overseer.send(FromOverseer::Communication{ msg: block_msg }).await;
 
-			let (tx, rx) = oneshot::channel();
-			let query_pov = AvailabilityStoreMessage::QueryPoV(
-				candidate_hash,
-				tx,
-			);
+			let pov = query_available_data(&mut virtual_overseer, candidate_hash).await.unwrap();
 
-			virtual_overseer.send(FromOverseer::Communication{ msg: query_pov }).await;
-
-			assert_eq!(rx.await.unwrap().unwrap(), available_data);
+			assert_eq!(pov, available_data);
 
 			let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap();
 
@@ -797,208 +436,60 @@ mod tests {
 		});
 	}
 
+
 	#[test]
-	fn store_not_included_candidate_is_pruned() {
+	fn store_pov_and_query_chunk_works() {
 		let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+		let test_state = TestState::default();
+
 		test_harness(store.clone(), |test_harness| async move {
 			let TestHarness { mut virtual_overseer } = test_harness;
-			let validator_index = 5;
+			let candidate_hash = Hash::from([1; 32]);
 			let n_validators = 10;
 
-			TestTime::set(100000);
 			let pov = PoV {
 				block_data: BlockData(vec![4, 5, 6]),
 			};
 
-			let global_validation = GlobalValidationSchedule {
-				max_code_size: 1024,
-				max_head_data_size: 1024,
-				block_number: 2,
-			};
-
-			let local_validation = LocalValidationData {
-				parent_head: HeadData(vec![6, 7, 8]),
-				balance: 9000,
-				validation_code_hash: Hash::from([2; 32]),
-				code_upgrade_allowed: None,
-			};
+			let global_validation = test_state.global_validation_schedule;
+			let local_validation = test_state.local_validation_data;
 
 			let omitted_validation = OmittedValidationData {
 				global_validation,
 				local_validation,
 			};
-				
-			let available_data = AvailableData {
-				pov,
-				omitted_validation,
-			};
-
-			let candidate_hash = Hash::from([7; 32]);
-
-			let block_msg = AvailabilityStoreMessage::StorePoV(
-				candidate_hash,
-				Some(validator_index),
-				n_validators,
-				available_data.clone(),
-			);
-
-			virtual_overseer.send(FromOverseer::Communication{ msg: block_msg }).await;
-
-			let av_data = query_pov(&mut virtual_overseer, candidate_hash).await.unwrap();
-
-			assert_eq!(av_data, available_data);
-
-			TestTime::set(100000 + KEEP_STORED_BLOCK_FOR * 2);
-
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::StartWork(Hash::from([6; 32])))
-			).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::CandidateEvents(tx),
-				)) => {
-					tx.send(vec![]).unwrap();
-				}
-			);
-
-			assert!(query_pov(&mut virtual_overseer, candidate_hash).await.is_none());
-		});
-	}
-
-	#[test]
-	fn store_finalized_block_and_chunk_are_pruned_in_time() {
-		let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
-		let test_state = TestState::default();
-		test_harness(store.clone(), |test_harness| async move {
-			let TestHarness { mut virtual_overseer } = test_harness;
-			let validator_index = 5;
-			let n_validators = 10;
-
-			let pov = PoV {
-				block_data: BlockData(vec![42, 43, 44]),
-			};
-
-			let pov_hash = pov.hash();
-
-			let candidate = TestCandidateBuilder {
-				pov_hash,
-				relay_parent: test_state.relay_parent,
-				..Default::default()
-			}.build();
-
-			let candidate_hash = candidate.hash();
-
-			let omitted_validation = OmittedValidationData {
-				global_validation: test_state.global_validation_schedule,
-				local_validation: test_state.local_validation_data,
-			};
 
 			let available_data = AvailableData {
 				pov,
 				omitted_validation,
 			};
 
-			let block_msg = AvailabilityStoreMessage::StorePoV(
+			let chunks_expected = get_chunks(&available_data, n_validators as usize).unwrap();
+
+			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash,
-				Some(validator_index),
+				None,
 				n_validators,
-				available_data.clone(),
+				available_data,
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: block_msg }).await;
 
-			assert_eq!(
-				query_pov(&mut virtual_overseer, candidate_hash).await.unwrap(),
-				available_data,
-			);
+			for validator_index in 0..n_validators {
+				let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap();
 
-			TestTime::add(KEEP_STORED_BLOCK_FOR / 2);
-
-			assert_eq!(
-				query_pov(&mut virtual_overseer, candidate_hash).await.unwrap(),
-				available_data,
-			);
-
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::StartWork(Hash::from([6; 32])))
-			).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::CandidateEvents(tx),
-				)) => {
-					tx.send(vec![
-						CandidateEvent::CandidateIncluded(candidate.to_plain(), HeadData(vec![])),
-					]).unwrap();
-				}
-			);
-
-			// whatever time passes by the block should remain there until finalized.
-			TestTime::add(KEEP_STORED_BLOCK_FOR * 5);
-
-			// Still there?
-			assert_eq!(
-				query_pov(&mut virtual_overseer, candidate_hash).await.unwrap(),
-				available_data,
-			);
-
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::BlockFinalized(Hash::from([6; 32])))
-			).await;
-
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::StartWork(Hash::from([7; 32])))
-			).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::CandidateEvents(tx),
-				)) => {
-					tx.send(vec![]).unwrap();
-				}
-			);
-
-			// Still there?
-			assert_eq!(
-				query_pov(&mut virtual_overseer, candidate_hash).await.unwrap(),
-				available_data,
-			);
-
-			TestTime::add(KEEP_FINALIZED_BLOCK_FOR + 10);
-
-			virtual_overseer.send(
-				FromOverseer::Signal(OverseerSignal::StartWork(Hash::from([8; 32])))
-			).await;
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::CandidateEvents(tx),
-				)) => {
-					tx.send(vec![]).unwrap();
-				}
-			);
-
-			// Should be gone by now
-			assert!(query_pov(&mut virtual_overseer, candidate_hash).await.is_none());
+				assert_eq!(chunk, chunks_expected[validator_index as usize]);
+			}
 		});
 	}
 
-	async fn query_pov(
+	async fn query_available_data(
 		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 		candidate_hash: Hash,
 	) -> Option<AvailableData> {
 		let (tx, rx) = oneshot::channel();
 
-		let query = AvailabilityStoreMessage::QueryPoV(candidate_hash, tx);
+		let query = AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx);
 		virtual_overseer.send(FromOverseer::Communication{ msg: query }).await;
 
 		rx.await.unwrap()

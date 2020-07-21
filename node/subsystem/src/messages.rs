@@ -236,7 +236,7 @@ impl BitfieldSigningMessage {
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `AvailableData` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<AvailableData>>),
+	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
 
 	/// Query whether a `PoV` exists within the AV Store.
 	///
@@ -253,7 +253,7 @@ pub enum AvailabilityStoreMessage {
 
 	/// Store a `AvailableData` in the AV store.
 	/// If `ValidatorIndex` is present store corresponding chunk also.
-	StorePoV(Hash, Option<ValidatorIndex>, u32, AvailableData),
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData),
 }
 
 impl AvailabilityStoreMessage {
