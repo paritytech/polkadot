@@ -111,6 +111,9 @@ test-deterministic-wasm:
   except:
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
+    - sccache -s
+  after_script:
+    - cd substrate && git rev-parse --abbrev-ref HEAD
 
 test-linux-stable:                 &test
   stage:                           test
@@ -135,17 +138,10 @@ check-web-wasm:                    &test
   <<:                              *docker-env
   <<:                              *compiler_info
   script:
-    # WASM support is in progress. As more and more crates support WASM, we
-    # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
+    - ./scripts/gitlab/check_web_wasm.sh
     - sccache -s
+  after_script:
+    - cd substrate && git rev-parse --abbrev-ref HEAD
 
 check-runtime-benchmarks:          &test
   stage:                           test
