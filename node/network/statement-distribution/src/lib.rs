@@ -915,21 +915,21 @@ mod tests {
 		let candidate_a = {
 			let mut c = CommittedCandidateReceipt::default();
 			c.descriptor.relay_parent = parent_hash;
-			c.descriptor.para_id = 1.into();
+			c.descriptor.para_id = 1_u32.into();
 			c
 		};
 
 		let candidate_b = {
 			let mut c = CommittedCandidateReceipt::default();
 			c.descriptor.relay_parent = parent_hash;
-			c.descriptor.para_id = 2.into();
+			c.descriptor.para_id = 2_u32.into();
 			c
 		};
 
 		let candidate_c = {
 			let mut c = CommittedCandidateReceipt::default();
 			c.descriptor.relay_parent = parent_hash;
-			c.descriptor.para_id = 3.into();
+			c.descriptor.para_id = 3_u32.into();
 			c
 		};
 
@@ -1144,7 +1144,7 @@ mod tests {
 		let candidate = {
 			let mut c = CommittedCandidateReceipt::default();
 			c.descriptor.relay_parent = hash_c;
-			c.descriptor.para_id = 1.into();
+			c.descriptor.para_id = 1_u32.into();
 			c
 		};
 		let candidate_hash = candidate.hash();
@@ -1279,7 +1279,7 @@ mod tests {
 		let candidate = {
 			let mut c = CommittedCandidateReceipt::default();
 			c.descriptor.relay_parent = hash_b;
-			c.descriptor.para_id = 1.into();
+			c.descriptor.para_id = 1_u32.into();
 			c
 		};
 

@@ -798,9 +798,9 @@ mod tests {
 
 	impl Default for TestState {
 		fn default() -> Self {
-			let chain_a = ParaId::from(1);
-			let chain_b = ParaId::from(2);
-			let thread_a = ParaId::from(3);
+			let chain_a = ParaId::from(1_u32);
+			let chain_b = ParaId::from(2_u32);
+			let thread_a = ParaId::from(3_u32);
 
 			let chain_ids = vec![chain_a, chain_b, thread_a];
 
