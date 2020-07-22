@@ -142,17 +142,10 @@ type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
 
-type LightBackend = sc_light::backend::Backend<
-	sc_client_db::light::LightStorage<Block>, sp_runtime::traits::BlakeTwo256
->;
-type LightClient<RuntimeApi, Executor> = service::client::Client<
-	LightBackend,
-	sc_light::GenesisCallExecutor<
-		LightBackend,
-		service::client::LocalCallExecutor<LightBackend, sc_executor::NativeExecutor<Executor>>
-	>,
-	Block, RuntimeApi
->;
+type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
+
+type LightClient<RuntimeApi, Executor> =
+	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, test: bool) -> Result<(
 	service::ServiceParams<
