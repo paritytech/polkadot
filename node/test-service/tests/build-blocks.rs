@@ -26,7 +26,7 @@ static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TE
 #[tokio::test]
 async fn ensure_test_service_build_blocks() {
 	let task_executor: TaskExecutor = (move |fut, _| {
-		spawn(fut);
+		spawn(fut).map(|_| ())
 	})
 	.into();
 	let mut alice = run_test_node(

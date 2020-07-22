@@ -585,7 +585,7 @@ mod tests {
 	use crate::registrar::Registrar;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test where system = system {}
 	}
 
 	// For testing the module, we construct most of a mock runtime. This means

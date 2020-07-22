@@ -48,7 +48,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
 	/// How often parachain groups should be rotated across parachains. Must be non-zero.
-	pub parachain_rotation_frequency: BlockNumber,
+	pub group_rotation_frequency: BlockNumber,
 	/// The availability period, in blocks, for parachains. This is the amount of blocks
 	/// after inclusion that validators have to make the block available and signal its availability to
 	/// the chain. Must be at least 1.
@@ -153,10 +153,10 @@ decl_module! {
 
 		/// Set the parachain validator-group rotation frequency
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn set_parachain_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
+		pub fn set_group_rotation_frequency(origin, new: T::BlockNumber) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.parachain_rotation_frequency, new) != new
+				sp_std::mem::replace(&mut config.group_rotation_frequency, new) != new
 			});
 			Ok(())
 		}
@@ -264,7 +264,7 @@ mod tests {
 				max_head_data_size: 1_000,
 				parathread_cores: 2,
 				parathread_retries: 5,
-				parachain_rotation_frequency: 20,
+				group_rotation_frequency: 20,
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
@@ -293,8 +293,8 @@ mod tests {
 			Configuration::set_parathread_retries(
 				Origin::root(), new_config.parathread_retries,
 			).unwrap();
-			Configuration::set_parachain_rotation_frequency(
-				Origin::root(), new_config.parachain_rotation_frequency,
+			Configuration::set_group_rotation_frequency(
+				Origin::root(), new_config.group_rotation_frequency,
 			).unwrap();
 			Configuration::set_chain_availability_period(
 				Origin::root(), new_config.chain_availability_period,

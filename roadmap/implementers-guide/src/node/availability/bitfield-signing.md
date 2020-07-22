@@ -11,7 +11,7 @@ Output:
 
 ## Functionality
 
-Upon onset of a new relay-chain head with `StartWork`, launch bitfield signing job for the head. Stop the job on `StopWork`.
+Upon receipt of an `ActiveLeavesUpdate`, launch bitfield signing job for each `activated` head. Stop the job for each `deactivated` head.
 
 ## Bitfield Signing Job
 
