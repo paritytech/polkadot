@@ -82,7 +82,7 @@ impl From<u32> for Id {
 
 impl From<usize> for Id {
 	fn from(x: usize) -> Self {
-		use std::convert::TryInto;
+		use sp_std::convert::TryInto;
 		// can't panic, so need to truncate
 		let x: u32 = match x.try_into() {
 			Ok(x) => x,
