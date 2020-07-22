@@ -96,3 +96,41 @@ curl -XPOST -d "$1" "https://matrix.parity.io/_matrix/client/r0/rooms/$2/send/m.
 # Pretty-printing functions
 boldprint () { printf "|\n| \033[1m%s\033[0m\n|\n" "${@}"; }
 boldcat () { printf "|\n"; while read -r l; do printf "| \033[1m%s\033[0m\n" "${l}"; done; printf "|\n" ; }
+
+prepare_git(){
+  # Set the user name and email to make merging work
+  git config --global user.name 'CI system'
+  git config --global user.email '<>'
+}
+
+prepare_substrate(){
+  pr_companion=$1
+  boldprint "companion pr specified/detected: #${pr_companion}"
+
+  # Clone the current Substrate master branch into ./substrate.
+  # NOTE: we need to pull enough commits to be able to find a common
+  # ancestor for successfully performing merges below.
+  git clone --depth 20 https://github.com/paritytech/substrate.git
+  previous_path=$(pwd)
+  cd substrate
+  SUBSTRATE_PATH=$(pwd)
+
+  git fetch origin refs/pull/${pr_companion}/head:pr/${pr_companion}
+  git checkout pr/${pr_companion}
+  git merge origin/master
+
+  cd "$previous_path"
+
+  # Merge master into our branch before building Polkadot to make sure we don't miss
+  # any commits that are required by Polkadot.
+  git merge origin/master
+
+  # Make sure we override the crates in native and wasm build
+  # patching the git path as described in the link below did not test correctly
+  # https://doc.rust-lang.org/cargo/reference/overriding-dependencies.html
+  mkdir .cargo
+  echo "paths = [ \"$SUBSTRATE_PATH\" ]" > .cargo/config
+
+  mkdir -p target/debug/wbuild/.cargo
+  cp .cargo/config target/debug/wbuild/.cargo/config
+}
