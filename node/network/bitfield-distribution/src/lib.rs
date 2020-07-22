@@ -89,8 +89,13 @@ struct PerRelayParentData {
 	/// after bitfield gossips were already received.
 	one_per_validator: HashMap<ValidatorId, BitfieldGossipMessage>,
 
-	/// which messages of which validators were already sent
+	/// Avoid duplicate message transmission to our peers.
 	message_sent_to_peer: HashMap<PeerId, HashSet<ValidatorId>>,
+
+
+	/// Track messages that were already received by a peer
+	/// to prevent flooding.
+	message_received_from_peer: HashMap<PeerId, HashSet<ValidatorId>>,
 }
 
 impl PerRelayParentData {
@@ -177,7 +182,6 @@ impl BitfieldDistribution {
 				FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
 					trace!(target: "bitd", "Start {:?}", relay_parent);
 					// query basic system parameters once
-					// @todo assumption: these cannot change within a session
 					let (validator_set, signing_context) =
 						query_basics(&mut ctx, relay_parent).await?;
 
@@ -192,9 +196,7 @@ impl BitfieldDistribution {
 				}
 				FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
 					trace!(target: "bitd", "Stop {:?}", relay_parent);
-					// @todo assumption: it is good enough to prevent additional work from being
-					// scheduled, the individual futures are supposedly completed quickly
-					let _ = tracker.per_relay_parent.remove(&relay_parent);
+					// defer the cleanup to the view change
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "bitd", "Conclude");
@@ -205,7 +207,7 @@ impl BitfieldDistribution {
 	}
 }
 
-/// Modify the reputation of peer based on their behaviour.
+/// Modify the reputation of a peer based on its behaviour.
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
@@ -304,15 +306,28 @@ where
 
 	let validator_set = &job_data.validator_set;
 	if validator_set.len() == 0 {
+		trace!(
+			target: "bitd",
+			"Validator set for relay parent {:?} is empty",
+			&message.relay_parent
+		);
 		return modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
 	}
 
-	// use the (untrusted) validator index provided by the signed payload
-	// and see if that one actually signed the availability bitset
+	// Use the (untrusted) validator index provided by the signed payload
+	// and see if that one actually signed the availability bitset.
 	let signing_context = job_data.signing_context.clone();
 	let validator_index = message.signed_availability.validator_index() as usize;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
+	} else {
+		return modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
+	};
+
+	// Check if the peer already sent us a message for this validator earlier.
+	let received_set = job_data.message_received_from_peer.entry(origin.clone()).or_default();
+	if !received_set.contains(&validator) {
+		received_set.insert(validator.clone());
 	} else {
 		return modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
 	};
@@ -323,16 +338,22 @@ where
 		.is_ok()
 	{
 		let one_per_validator = &mut (job_data.one_per_validator);
+
 		// only relay_message a message of a validator once
 		if one_per_validator.get(&validator).is_some() {
-			trace!(target: "bitd", "Already received a message for validator at index {}", validator_index);
+			trace!(
+				target: "bitd",
+				"Already received a message for validator at index {}",
+				validator_index
+			);
+			modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await;
 			return Ok(());
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
 
 		relay_message(ctx, job_data, &mut tracker.peer_views, validator, message).await;
 
-		modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await
+		modify_reputation(ctx, origin, GAIN_VALID_MESSAGE_FIRST).await
 	} else {
 		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await
 	}
@@ -351,22 +372,30 @@ where
 	match bridge_message {
 		NetworkBridgeEvent::PeerConnected(peerid, _role) => {
 			// insert if none already present
-			tracker.peer_views.entry(peerid).or_insert(View::default());
+			tracker.peer_views.entry(peerid).or_default();
 		}
 		NetworkBridgeEvent::PeerDisconnected(peerid) => {
 			// get rid of superfluous data
 			tracker.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			catch_up_messages(ctx, tracker, peerid, view).await?;
+			handle_peer_view_change(ctx, tracker, peerid, view).await?;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
 			let old_view = std::mem::replace(&mut (tracker.view), view);
 
-			for new in tracker.view.difference(&old_view) {
-				if !tracker.per_relay_parent.contains_key(&new) {
-					warn!(target: "bitd", "Our view contains {} but the overseer never told use we should work on this", &new);
+			for added in tracker.view.difference(&old_view) {
+				if !tracker.per_relay_parent.contains_key(&added) {
+					warn!(
+						target: "bitd",
+						"Our view contains {} but the overseer never told use we should work on this",
+						&added
+					);
 				}
+			}
+			for removed in old_view.difference(&tracker.view) {
+				// cleanup relay parents we are not interested in any more
+				let _ = tracker.per_relay_parent.remove(&removed);
 			}
 		}
 		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
@@ -374,7 +403,7 @@ where
 				trace!(target: "bitd", "Received bitfield gossip from peer {:?}", &remote);
 				process_incoming_peer_message(ctx, tracker, remote, gossiped_bitfield).await?;
 			} else {
-				return modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await;
+				modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await?;
 			}
 		}
 	}
@@ -383,7 +412,7 @@ where
 
 // Send the difference between two views which were not sent
 // to that particular peer.
-async fn catch_up_messages<Context>(
+async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	tracker: &mut Tracker,
 	origin: PeerId,
@@ -402,7 +431,7 @@ where
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
-	let delta_set: HashMap<ValidatorId, BitfieldGossipMessage> = delta_vec
+	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = delta_vec
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
 			if let Some(job_data) = (&*tracker).per_relay_parent.get(&new_relay_parent_interest) {
@@ -446,7 +475,6 @@ where
 	let job_data = if let Some(job_data) = tracker.per_relay_parent.get_mut(&message.relay_parent) {
 		job_data
 	} else {
-		// @todo punishing here seems unreasonable
 		return Ok(());
 	};
 
@@ -578,17 +606,12 @@ mod test {
 				handle.send(input.into());
 			}
 
-			// @todo cannot clone or move `ctx`
+			// launch a complete subsystem instance and check responses on stimuli
 			//
 			// let completion = BitfieldDistribution::start(BitfieldDistribution, ctx)
 			//     .future
 			//     .timeout(Duration::from_millis(1000))
 			//     .await;
-
-			// while let Ok(rxd) = ctx.recv().await {
-			//     // @todo impl expectation checks against a hashmap
-			//     dbg!(rxd);
-			// }
 		});
 	}
 
@@ -611,6 +634,7 @@ mod test {
 						one_per_validator: hashmap! {
 							validator.clone() => known_message.clone(),
 						},
+						message_received_from_peer: hashmap! {},
 						message_sent_to_peer: hashmap! {},
 					},
 			},
