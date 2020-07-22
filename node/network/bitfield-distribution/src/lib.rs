@@ -198,7 +198,6 @@ impl BitfieldDistribution {
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "bitd", "Conclude");
-					tracker.per_relay_parent.clear();
 					return Ok(());
 				}
 			}
@@ -250,7 +249,7 @@ where
 
 	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
 
-	// concurrently pass on the bitfield distribution to all interested peers
+	// pass on the bitfield distribution to all interested peers
 	let interested_peers = peer_views
 		.iter()
 		.filter_map(|(peer, view)| {
@@ -326,7 +325,7 @@ where
 		let one_per_validator = &mut (job_data.one_per_validator);
 		// only relay_message a message of a validator once
 		if one_per_validator.get(&validator).is_some() {
-			trace!(target: "bitd", "Alrady received a message for validator at index {}", validator_index);
+			trace!(target: "bitd", "Already received a message for validator at index {}", validator_index);
 			return Ok(());
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
@@ -457,11 +456,14 @@ where
 		.or_default()
 		.insert(validator.clone());
 
-	let bytes = Encode::encode(&message);
 	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendMessage(vec![dest], BitfieldDistribution::PROTOCOL_ID, bytes),
-	))
-	.await?;
+			NetworkBridgeMessage::SendMessage(
+				vec![dest],
+				BitfieldDistribution::PROTOCOL_ID,
+				message.encode()
+			),
+		)).await?;
+
 	Ok(())
 }
 
