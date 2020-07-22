@@ -40,7 +40,7 @@ const COST_VALIDATOR_INDEX_INVALID: ReputationChange =
 	ReputationChange::new(-100, "Bitfield validator index invalid");
 const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
 	ReputationChange::new(-133, "Missing peer session key");
-const COST_NOT_INTERESTED: ReputationChange =
+const COST_NOT_IN_VIEW: ReputationChange =
 	ReputationChange::new(-51, "Not interested in that parent hash");
 const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
 	ReputationChange::new(-100, "Not interested in that parent hash");
@@ -301,7 +301,7 @@ where
 			NetworkBridgeMessage::SendMessage(
 				interested_peers,
 				BitfieldDistribution::PROTOCOL_ID,
-				Encode::encode(&message),
+				message.encode(),
 			),
 		))
 		.await?;
@@ -321,7 +321,7 @@ where
 {
 	// we don't care about this, not part of our view
 	if !tracker.view.contains(&message.relay_parent) {
-		return modify_reputation(ctx, origin, COST_NOT_INTERESTED).await;
+		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
 	}
 
 	// Ignore anything the overseer did not tell this subsystem to work on
@@ -329,7 +329,7 @@ where
 	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
 		job_data
 	} else {
-		return modify_reputation(ctx, origin, COST_NOT_INTERESTED).await;
+		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
 	};
 
 	let validator_set = &job_data.validator_set;
@@ -392,7 +392,6 @@ where
 		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await
 	}
 }
-
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
@@ -416,21 +415,7 @@ where
 			handle_peer_view_change(ctx, tracker, peerid, view).await?;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
-			let old_view = std::mem::replace(&mut (tracker.view), view);
-
-			for added in tracker.view.difference(&old_view) {
-				if !tracker.per_relay_parent.contains_key(&added) {
-					warn!(
-						target: "bitd",
-						"Our view contains {} but the overseer never told use we should work on this",
-						&added
-					);
-				}
-			}
-			for removed in old_view.difference(&tracker.view) {
-				// cleanup relay parents we are not interested in any more
-				let _ = tracker.per_relay_parent.remove(&removed);
-			}
+			handle_our_view_change(tracker, view)?;
 		}
 		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
 			if let Ok(gossiped_bitfield) = BitfieldGossipMessage::decode(&mut (bytes.as_slice())) {
@@ -443,6 +428,27 @@ where
 	}
 	Ok(())
 }
+
+/// Handle the changes necassary when our view changes.
+fn handle_our_view_change(tracker: &mut Tracker, view: View) -> SubsystemResult<()> {
+	let old_view = std::mem::replace(&mut (tracker.view), view);
+
+	for added in tracker.view.difference(&old_view) {
+		if !tracker.per_relay_parent.contains_key(&added) {
+			warn!(
+				target: "bitd",
+				"Our view contains {} but the overseer never told use we should work on this",
+				&added
+			);
+		}
+	}
+	for removed in old_view.difference(&tracker.view) {
+		// cleanup relay parents we are not interested in any more
+		let _ = tracker.per_relay_parent.remove(&removed);
+	}
+	Ok(())
+}
+
 
 // Send the difference between two views which were not sent
 // to that particular peer.
@@ -583,14 +589,20 @@ mod test {
 	use assert_matches::assert_matches;
 
 	macro_rules! msg_sequence {
-		($( $input:expr ),+ $(,)? ) => [
-			vec![ $( FromOverseer::Communication { msg: $input } ),+ ]
+		($( $input:expr ),* $(,)? ) => [
+			vec![ $( FromOverseer::Communication { msg: $input } ),* ]
 		];
 	}
 
 	macro_rules! view {
-		( $( $hash:expr ),+ $(,)? ) => [
-			View(vec![ $( $hash.clone() ),+ ])
+		( $( $hash:expr ),* $(,)? ) => [
+			View(vec![ $( $hash.clone() ),* ])
+		];
+	}
+
+	macro_rules! peers {
+		( $( $peer:expr ),* $(,)? ) => [
+			vec![ $( $peer.clone() ),* ]
 		];
 	}
 
@@ -693,19 +705,21 @@ mod test {
 		}
 	}
 
-	fn tracker_with_view(view: View) -> (Tracker, ValidatorPair) {
+	fn tracker_with_view(view: View, relay_parent: Hash) -> (Tracker, SigningContext, ValidatorPair) {
 		let mut tracker = Tracker::default();
 
 		let (validator_pair, _seed) = ValidatorPair::generate();
 		let validator = validator_pair.public();
 
+		let signing_context = SigningContext {
+			session_index: 1,
+			parent_hash: relay_parent.clone(),
+		};
+
 		tracker.per_relay_parent = view.0.iter().map(|relay_parent| {(
 				relay_parent.clone(),
 				PerRelayParentData {
-					signing_context: SigningContext {
-						session_index: 1,
-						parent_hash: relay_parent.clone(),
-					},
+					signing_context: signing_context.clone(),
 					validator_set: vec![validator.clone()],
 					one_per_validator: hashmap! {},
 					message_received_from_peer: hashmap! {},
@@ -715,7 +729,7 @@ mod test {
 
 		tracker.view = view;
 
-		(tracker, validator_pair)
+		(tracker, signing_context, validator_pair)
 	}
 
 	#[test]
@@ -798,14 +812,9 @@ mod test {
 		let peer_b = PeerId::random();
 		assert_ne!(peer_a, peer_b);
 
-		let signing_context = SigningContext {
-			session_index: 1,
-			parent_hash: hash_a.clone(),
-		};
-
 		// validator 0 key pair
-		let (validator_pair, _seed) = ValidatorPair::generate();
-		let validator = validator_pair.public();
+		let (mut tracker, signing_context, validator_pair) = tracker_with_view(view![hash_a, hash_b], hash_a.clone());
+		tracker.peer_views.insert(peer_b.clone(), view![hash_a]);
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed =
@@ -819,13 +828,6 @@ mod test {
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
 			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
-
-		let mut tracker = prewarmed_tracker(
-			validator.clone(),
-			signing_context.clone(),
-			msg.clone(),
-			vec![peer_b.clone()],
-		);
 
 		executor::block_on(async move {
 			launch!(handle_network_msg(
@@ -855,20 +857,16 @@ mod test {
 			.try_init();
 
 		let hash_a: Hash = [0; 32].into();
-		let hash_b: Hash = [1; 32].into(); // other
+		let hash_b: Hash = [1; 32].into();
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
 		assert_ne!(peer_a, peer_b);
 
-		let signing_context = SigningContext {
-			session_index: 1,
-			parent_hash: hash_a.clone(),
-		};
-
 		// validator 0 key pair
-		let (mut tracker, validator_pair) = tracker_with_view(view![hash_a, hash_b]);
+		let (mut tracker, signing_context, validator_pair) = tracker_with_view(view![hash_a, hash_b], hash_a.clone());
 
+		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed_bitfield =
 			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
@@ -892,6 +890,7 @@ mod test {
 
 			// none of our peers has any interest in any messages
 			// so we do not receive a network send type message here
+			// but only the one for the next subsystem
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
@@ -943,6 +942,154 @@ mod test {
 				) => {
 					assert_eq!(peer, peer_b);
 					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				}
+			);
+		});
+	}
+	#[test]
+	fn change_view_and_then_recv() {
+		let _ = env_logger::builder()
+			.filter(None, log::LevelFilter::Trace)
+			.is_test(true)
+			.try_init();
+
+		let hash_a: Hash = [0; 32].into();
+		let hash_b: Hash = [1; 32].into();
+
+		let peer_a = PeerId::random();
+		let peer_b = PeerId::random();
+		assert_ne!(peer_a, peer_b);
+
+		// validator 0 key pair
+		let (mut tracker, signing_context, validator_pair) = tracker_with_view(view![hash_a, hash_b], hash_a.clone());
+
+		// create a signed message by validator 0
+		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
+		let signed_bitfield =
+			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
+
+		let msg = BitfieldGossipMessage {
+			relay_parent: hash_a.clone(),
+			signed_availability: signed_bitfield.clone(),
+		};
+
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let (mut ctx, mut handle) =
+			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+
+		executor::block_on(async move {
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+			));
+
+			// make peer b interested
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b]),
+			));
+
+			assert!(tracker.peer_views.contains_key(&peer_b));
+
+			// recv a first message from the network
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+			));
+
+			// gossip to the overseer
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					ProvisionableData::Bitfield(hash, signed)
+				)) => {
+					assert_eq!(hash, hash_a);
+					assert_eq!(signed, signed_bitfield)
+				}
+			);
+
+			// gossip to the network
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage (
+					peers, proto, bytes
+				)) => {
+					assert_eq!(peers, peers![peer_b]);
+					assert_eq!(proto, BitfieldDistribution::PROTOCOL_ID);
+					assert_eq!(bytes, msg.encode());
+				}
+			);
+
+			// reputation change for peer B
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+				}
+			);
+
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![]),
+			));
+
+			assert!(tracker.peer_views.contains_key(&peer_b));
+			assert_eq!(
+				tracker.peer_views.get(&peer_b).expect("Must contain value for peer B"),
+				&view![]
+			);
+
+			// on rx of the same message, since we are not interested,
+			// should give penalty
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+			));
+
+			// reputation change for peer B
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				}
+			);
+
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
+			));
+
+			// we are not interested in any peers at all anymore
+			tracker.view = view![];
+
+			// on rx of the same message, since we are not interested,
+			// should give penalty
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.encode()),
+			));
+
+			// reputation change for peer B
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_NOT_IN_VIEW)
 				}
 			);
 
