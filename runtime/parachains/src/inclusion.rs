@@ -25,12 +25,11 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, CommittedCandidateReceipt,
+	CandidateReceipt, HeadData,
 };
 use frame_support::{
-	decl_storage, decl_module, decl_error, ensure, dispatch::DispatchResult, IterableStorageMap,
-	weights::Weight,
-	traits::Get,
-	debug,
+	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
+	dispatch::DispatchResult, IterableStorageMap, weights::Weight, traits::Get,
 };
 use codec::{Encode, Decode};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
@@ -69,7 +68,28 @@ pub struct CandidatePendingAvailability<H, N> {
 	backed_in_number: N,
 }
 
-pub trait Trait: system::Trait + paras::Trait + configuration::Trait { }
+impl<H, N> CandidatePendingAvailability<H, N> {
+	/// Get the availability votes on the candidate.
+	pub(crate) fn availability_votes(&self) -> &BitVec<BitOrderLsb0, u8> {
+		&self.availability_votes
+	}
+
+	/// Get the relay-chain block number this was backed in.
+	pub(crate) fn backed_in_number(&self) -> &N {
+		&self.backed_in_number
+	}
+
+	/// Get the core index.
+	pub(crate) fn core_occupied(&self)-> CoreIndex {
+		self.core.clone()
+	}
+}
+
+pub trait Trait:
+	system::Trait + paras::Trait + configuration::Trait
+{
+	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaInclusion {
@@ -89,7 +109,7 @@ decl_storage! {
 		Validators get(fn validators) config(validators): Vec<ValidatorId>;
 
 		/// The current session index.
-		CurrentSessionIndex: SessionIndex;
+		CurrentSessionIndex get(fn session_index): SessionIndex;
 	}
 }
 
@@ -130,10 +150,25 @@ decl_error! {
 	}
 }
 
+decl_event! {
+	pub enum Event<T> where <T as system::Trait>::Hash {
+		/// A candidate was backed.
+		CandidateBacked(CandidateReceipt<Hash>, HeadData),
+		/// A candidate was included.
+		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
+		/// A candidate timed out.
+		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
+	}
+}
+
 decl_module! {
 	/// The parachain-candidate inclusion module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait>
+		for enum Call where origin: <T as system::Trait>::Origin, system = system
+	{
 		type Error = Error<T>;
+
+		fn deposit_event() = default;
 	}
 }
 
@@ -450,7 +485,17 @@ impl<T: Trait> Module<T> {
 			// initialize all availability votes to 0.
 			let availability_votes: BitVec<BitOrderLsb0, u8>
 				= bitvec::bitvec![BitOrderLsb0, u8; 0; validators.len()];
-			let (descriptor, commitments) = (candidate.candidate.descriptor, candidate.candidate.commitments);
+
+			Self::deposit_event(Event::<T>::CandidateBacked(
+				candidate.candidate.to_plain(),
+				candidate.candidate.commitments.head_data.clone(),
+			));
+
+			let (descriptor, commitments) = (
+				candidate.candidate.descriptor,
+				candidate.candidate.commitments,
+			);
+
 			<PendingAvailability<T>>::insert(&para_id, CandidatePendingAvailability {
 				core,
 				descriptor,
@@ -468,6 +513,7 @@ impl<T: Trait> Module<T> {
 		relay_parent_number: T::BlockNumber,
 		receipt: CommittedCandidateReceipt<T::Hash>,
 	) -> Weight {
+		let plain = receipt.to_plain();
 		let commitments = receipt.commitments;
 		let config = <configuration::Module<T>>::config();
 
@@ -480,6 +526,10 @@ impl<T: Trait> Module<T> {
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
+
+		Self::deposit_event(
+			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
+		);
 
 		weight + <paras::Module<T>>::note_new_head(
 			receipt.descriptor.para_id,
@@ -506,11 +556,65 @@ impl<T: Trait> Module<T> {
 		}
 
 		for para_id in cleaned_up_ids {
-			<PendingAvailability<T>>::remove(&para_id);
-			<PendingAvailabilityCommitments>::remove(&para_id);
+			let pending = <PendingAvailability<T>>::take(&para_id);
+			let commitments = <PendingAvailabilityCommitments>::take(&para_id);
+
+			if let (Some(pending), Some(commitments)) = (pending, commitments) {
+				// defensive: this should always be true.
+				let candidate = CandidateReceipt {
+					descriptor: pending.descriptor,
+					commitments_hash: commitments.hash(),
+				};
+
+				Self::deposit_event(Event::<T>::CandidateTimedOut(
+					candidate,
+					commitments.head_data,
+				));
+			}
 		}
 
 		cleaned_up_cores
+	}
+
+	/// Forcibly enact the candidate with the given ID as though it had been deemed available
+	/// by bitfields.
+	///
+	/// Is a no-op if there is no candidate pending availability for this para-id.
+	/// This should generally not be used but it is useful during execution of Runtime APIs,
+	/// where the changes to the state are expected to be discarded directly after.
+	pub(crate) fn force_enact(para: ParaId) {
+		let pending = <PendingAvailability<T>>::take(&para);
+		let commitments = <PendingAvailabilityCommitments>::take(&para);
+
+		if let (Some(pending), Some(commitments)) = (pending, commitments) {
+			let candidate = CommittedCandidateReceipt {
+				descriptor: pending.descriptor,
+				commitments,
+			};
+
+			Self::enact_candidate(
+				pending.relay_parent_number,
+				candidate,
+			);
+		}
+	}
+
+	/// Returns the CommittedCandidateReceipt pending availability for the para provided, if any.
+	pub(crate) fn candidate_pending_availability(para: ParaId)
+		-> Option<CommittedCandidateReceipt<T::Hash>>
+	{
+		<PendingAvailability<T>>::get(&para)
+			.map(|p| p.descriptor)
+			.and_then(|d| <PendingAvailabilityCommitments>::get(&para).map(move |c| (d, c)))
+			.map(|(d, c)| CommittedCandidateReceipt { descriptor: d, commitments: c })
+	}
+
+	/// Returns the metadata around the candidate pending availability for the
+	/// para provided, if any.
+	pub(crate) fn pending_availability(para: ParaId)
+		-> Option<CandidatePendingAvailability<T::Hash, T::BlockNumber>>
+	{
+		<PendingAvailability<T>>::get(&para)
 	}
 }
 
@@ -527,7 +631,7 @@ mod tests {
 	use primitives::v1::{BlockNumber, Hash};
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
-		CandidateCommitments, SignedStatement, CandidateDescriptor, HeadData, ValidationCode,
+		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
 		AssignmentKind,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};

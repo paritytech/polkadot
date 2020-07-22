@@ -228,7 +228,7 @@ echo "$release_text"
 
 echo "[+] Pushing release to github"
 # Create release on github
-release_name="Polkadot CC1 $version"
+release_name="Polkadot $version"
 data=$(jq -Rs --arg version "$version" \
   --arg release_name "$release_name" \
   --arg release_text "$release_text" \

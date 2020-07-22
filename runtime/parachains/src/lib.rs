@@ -28,5 +28,7 @@ mod paras;
 mod scheduler;
 mod validity;
 
+pub mod runtime_api_impl;
+
 #[cfg(test)]
 mod mock;
