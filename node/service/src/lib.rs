@@ -329,7 +329,7 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
 	_authority_discovery_disabled: bool,
-	_fslot_duration: u64,
+	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 	TaskManager,
