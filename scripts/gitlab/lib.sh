@@ -112,14 +112,14 @@ prepare_substrate() {
   # ancestor for successfully performing merges below.
   git clone --depth 20 https://github.com/paritytech/substrate.git
   previous_path=$(pwd)
-  cd substrate
+  cd substrate || exit 1
   SUBSTRATE_PATH=$(pwd)
 
-  git fetch origin refs/pull/${pr_companion}/head:pr/${pr_companion}
-  git checkout pr/${pr_companion}
+  git fetch origin "refs/pull/${pr_companion}/head:pr/${pr_companion}"
+  git checkout "pr/${pr_companion}"
   git merge origin/master
 
-  cd "$previous_path"
+  cd "$previous_path" || exit 1
 
   # Merge master into our branch before building Polkadot to make sure we don't miss
   # any commits that are required by Polkadot.
@@ -143,7 +143,7 @@ pull_companion_substrate() {
 
   # either it's a pull request then check for a companion otherwise use
   # substrate:master
-  if expr match "${CI_COMMIT_REF_NAME}" '^[0-9]\+$' >/dev/null
+  if expr "${CI_COMMIT_REF_NAME}" : '^[0-9]\+$' >/dev/null
   then
     boldprint "this is pull request no ${CI_COMMIT_REF_NAME}"
 
@@ -152,7 +152,7 @@ pull_companion_substrate() {
     curl -sSL -H "${github_header}" -o "${pr_data_file}" \
       "${github_api_polkadot_pull_url}/${CI_COMMIT_REF_NAME}"
 
-    pr_body="$(sed -n -r 's/^[[:space:]]+"body": (".*")[^"]+$/\1/p' "${pr_data_file}")"
+    pr_body="$(jq '.body' < ${pr_data_file})"
 
     pr_companion="$(echo "${pr_body}" | sed -n -r \
         -e 's;^.*substrate companion: paritytech/substrate#([0-9]+).*$;\1;p' \
@@ -161,7 +161,7 @@ pull_companion_substrate() {
 
     if [ "${pr_companion}" ]
     then
-      echo Substrate path: $SUBSTRATE_PATH
+      echo "Substrate path: $SUBSTRATE_PATH"
       prepare_git
       prepare_substrate "$pr_companion"
     else
