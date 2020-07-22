@@ -149,9 +149,10 @@ check-runtime-benchmarks:          &test
   <<:                              *docker-env
   <<:                              *compiler_info
   script:
-    # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - time cargo check --features runtime-benchmarks
+    - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
+  after_script:
+    - cd substrate && git rev-parse --abbrev-ref HEAD
 
 build-wasm-release:
   stage:                          build
