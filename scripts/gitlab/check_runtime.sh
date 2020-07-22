@@ -128,6 +128,8 @@ then
 
 fi
 
+failed_runtime_checks=()
+
 # Iterate over each runtime defined at the start of the script
 for RUNTIME in "${runtimes[@]}"
 do
@@ -204,24 +206,29 @@ do
       continue
     fi
 
-
-    boldcat <<-EOT
-    wasm source files changed or the spec version in the substrate reference in
-    the Cargo.lock but not the spec/impl version. If changes made do not alter
-    logic, just bump 'impl_version'. If they do change logic, bump
-    'spec_version'.
-
-    source file directories:
-    - runtime
-
-    versions file: ${VERSIONS_FILE}
-
-    EOT
-
-    exit 1
+    failed_runtime_checks+=($RUNTIME)
   fi
 done
 
-exit 0
+if [ ${#failed_runtime_checks} -gt 0 ]; then
+  boldcat <<-EOT
+  wasm source files changed or the spec version in the substrate reference in
+  the Cargo.lock but not the spec/impl version. If changes made do not alter
+  logic, just bump 'impl_version'. If they do change logic, bump
+  'spec_version'.
 
-# vim: noexpandtab
+  source file directories:
+  - runtime
+
+  version files:
+  EOT
+
+  for RUNTIME in "${failed_runtime_checks[@]}"
+  do
+    boldprint "- $RUNTIME"
+  done
+
+  exit 1
+fi
+
+exit 0
