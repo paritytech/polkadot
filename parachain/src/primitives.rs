@@ -84,10 +84,7 @@ impl From<usize> for Id {
 	fn from(x: usize) -> Self {
 		use sp_std::convert::TryInto;
 		// can't panic, so need to truncate
-		let x: u32 = match x.try_into() {
-			Ok(x) => x,
-			Err(_) => u32::MAX,
-		};
+		let x = x.try_into().unwrap_or(u32::MAX);
 		Id(x)
 	}
 }
