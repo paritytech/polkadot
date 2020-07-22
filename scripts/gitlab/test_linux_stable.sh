@@ -1,4 +1,5 @@
-#!/bin/sh
+#!/usr/bin/env bash
+
 url="https://api.github.com/repos/paritytech/polkadot/pulls/${CI_COMMIT_REF_NAME}"
 echo "[+] API URL: $url"
 
