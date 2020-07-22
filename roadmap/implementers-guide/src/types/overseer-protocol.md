@@ -131,6 +131,8 @@ enum CollatorProtocolMessage {
 	/// of collating on the given para. This is only expected to be called once, early on, if at all,
 	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
 	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators.
 	DistributeCollation(CommittedCandidateReceipt, PoV),
