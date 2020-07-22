@@ -4390,6 +4390,7 @@ dependencies = [
 name = "polkadot-availability-bitfield-distribution"
 version = "0.1.0"
 dependencies = [
+ "assert_matches",
  "bitvec",
  "env_logger",
  "futures 0.3.5",

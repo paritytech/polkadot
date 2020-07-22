@@ -41,12 +41,15 @@ const COST_VALIDATOR_INDEX_INVALID: ReputationChange =
 const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
 	ReputationChange::new(-133, "Missing peer session key");
 const COST_NOT_INTERESTED: ReputationChange =
-	ReputationChange::new(-51, "Not intersted in that parent hash");
+	ReputationChange::new(-51, "Not interested in that parent hash");
 const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
-	ReputationChange::new(-100, "Not intersted in that parent hash");
+	ReputationChange::new(-100, "Not interested in that parent hash");
+const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
+	ReputationChange::new(-500, "Peer sent the same message multiple times");
 const GAIN_VALID_MESSAGE_FIRST: ReputationChange =
 	ReputationChange::new(15, "Valid message with new information");
-const GAIN_VALID_MESSAGE: ReputationChange = ReputationChange::new(5, "Valid message");
+const GAIN_VALID_MESSAGE: ReputationChange =
+	ReputationChange::new(10, "Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -259,11 +262,12 @@ where
 {
 	// notify the overseer about a new and valid signed bitfield
 	ctx.send_message(AllMessages::Provisioner(
-			ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(
-				message.relay_parent.clone(),
-				message.signed_availability.clone(),
-			)),
-		)).await;
+		ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(
+			message.relay_parent.clone(),
+			message.signed_availability.clone(),
+		)),
+	))
+	.await;
 
 	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
 
@@ -286,14 +290,22 @@ where
 		})
 		.collect::<Vec<PeerId>>();
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendMessage(
-			interested_peers,
-			BitfieldDistribution::PROTOCOL_ID,
-			Encode::encode(&message),
-		),
-	))
-	.await?;
+	if interested_peers.is_empty() {
+		trace!(
+			target: "bitd",
+			"No peers are interested in gossip for relay parent {:?}",
+			message.relay_parent
+		);
+	} else {
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendMessage(
+				interested_peers,
+				BitfieldDistribution::PROTOCOL_ID,
+				Encode::encode(&message),
+			),
+		))
+		.await?;
+	}
 	Ok(())
 }
 
@@ -321,7 +333,7 @@ where
 	};
 
 	let validator_set = &job_data.validator_set;
-	if validator_set.len() == 0 {
+	if validator_set.is_empty() {
 		trace!(
 			target: "bitd",
 			"Validator set for relay parent {:?} is empty",
@@ -347,10 +359,11 @@ where
 		.message_received_from_peer
 		.entry(origin.clone())
 		.or_default();
+
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
 	} else {
-		return modify_reputation(ctx, origin, COST_VALIDATOR_INDEX_INVALID).await;
+		return modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
 	};
 
 	if message
@@ -567,6 +580,7 @@ mod test {
 	use smol_timeout::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
+	use assert_matches::assert_matches;
 
 	macro_rules! msg_sequence {
 		($( $input:expr ),+ $(,)? ) => [
@@ -637,6 +651,17 @@ mod test {
 		});
 	}
 
+
+	macro_rules! launch {
+		($fut:expr) => {
+			$fut
+			.timeout(Duration::from_millis(10))
+			.await
+			.expect("10ms is more than enough for sending messages.")
+			.expect("Error values should really never occur.")
+		};
+	}
+
 	/// A very limited tracker, only interested in the relay parent of the
 	/// given message, which must be signed by `validator` and a set of peers
 	/// which are also only interested in that relay parent.
@@ -666,6 +691,31 @@ mod test {
 				.collect(),
 			view: view!(relay_parent),
 		}
+	}
+
+	fn tracker_with_view(view: View) -> (Tracker, ValidatorPair) {
+		let mut tracker = Tracker::default();
+
+		let (validator_pair, _seed) = ValidatorPair::generate();
+		let validator = validator_pair.public();
+
+		tracker.per_relay_parent = view.0.iter().map(|relay_parent| {(
+				relay_parent.clone(),
+				PerRelayParentData {
+					signing_context: SigningContext {
+						session_index: 1,
+						parent_hash: relay_parent.clone(),
+					},
+					validator_set: vec![validator.clone()],
+					one_per_validator: hashmap! {},
+					message_received_from_peer: hashmap! {},
+					message_sent_to_peer: hashmap!{},
+				})
+			}).collect();
+
+		tracker.view = view;
+
+		(tracker, validator_pair)
 	}
 
 	#[test]
@@ -715,26 +765,22 @@ mod test {
 		);
 
 		executor::block_on(async move {
-			let _res = handle_network_msg(
+			launch!(handle_network_msg(
 				&mut ctx,
 				&mut tracker,
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
-			)
-			.timeout(Duration::from_millis(10))
-			.await
-			.expect("10ms is more than enough for sending messages. qed")
-			.expect("There are no error values. qed");
+			));
 
-			// we should have a reputiation change due to invalid signature
-			// @todo assess if Eq+PartialEq are viable to simplify this kind of code
-			if let AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)) =
-				handle.recv().await
-			{
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_SIGNATURE_INVALID);
-			} else {
-				panic!("Received unexpected message type.");
-			}
+			// we should have a reputation change due to invalid validator index
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_SIGNATURE_INVALID)
+				}
+			);
 		});
 	}
 
@@ -782,31 +828,27 @@ mod test {
 		);
 
 		executor::block_on(async move {
-			let _res = handle_network_msg(
+			launch!(handle_network_msg(
 				&mut ctx,
 				&mut tracker,
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
-			)
-			.timeout(Duration::from_millis(10))
-			.await
-			.expect("10ms is more than enough for sending messages. qed")
-			.expect("There are no error values. qed");
+			));
 
-			// we should have a reputiation change due to invalid signature
-			// @todo assess if Eq+PartialEq are viable to simplify this kind of code
-			if let AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)) =
-				handle.recv().await
-			{
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID);
-			} else {
-				panic!("Received unexpected message type.");
-			}
+			// we should have a reputation change due to invalid validator index
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID)
+				}
+			);
 		});
 	}
 
 	#[test]
-	fn duplicate_message() {
+	fn receive_duplicate_messages() {
 		let _ = env_logger::builder()
 			.filter(None, log::LevelFilter::Trace)
 			.is_test(true)
@@ -825,69 +867,85 @@ mod test {
 		};
 
 		// validator 0 key pair
-		let (validator_pair, _seed) = ValidatorPair::generate();
-		let validator = validator_pair.public();
+		let (mut tracker, validator_pair) = tracker_with_view(view![hash_a, hash_b]);
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 42, &validator_pair);
+		let signed_bitfield =
+			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
-			signed_availability: signed.clone(),
+			signed_availability: signed_bitfield.clone(),
 		};
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
 			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
-		let mut tracker = prewarmed_tracker(
-			validator.clone(),
-			signing_context.clone(),
-			msg.clone(),
-			vec![peer_b.clone()],
-		);
-
 		executor::block_on(async move {
-			let _res = handle_network_msg(
+			// send a first message
+			launch!(handle_network_msg(
 				&mut ctx,
 				&mut tracker,
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
-			)
-			.timeout(Duration::from_millis(10))
-			.await
-			.expect("10ms is more than enough for sending messages. qed")
-			.expect("There are no error values. qed");
+			));
 
-			if let AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)) =
-				handle.recv().await
-			{
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID);
-			} else {
-				panic!("Received unexpected message type.");
-			}
+			// none of our peers has any interest in any messages
+			// so we do not receive a network send type message here
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					ProvisionableData::Bitfield(hash, signed)
+				)) => {
+					assert_eq!(hash, hash_a);
+					assert_eq!(signed, signed_bitfield)
+				}
+			);
 
-			let _res = handle_network_msg(
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+				}
+			);
+
+			// let peer A send the same message again
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut tracker,
+				NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.encode()),
+			));
+
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, GAIN_VALID_MESSAGE)
+				}
+			);
+
+			// let peer B send the initial message again
+			launch!(handle_network_msg(
 				&mut ctx,
 				&mut tracker,
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
-			)
-			.timeout(Duration::from_millis(10))
-			.await
-			.expect("10ms is more than enough for sending messages. qed")
-			.expect("There are no error values. qed");
+			));
 
-			// we should have a reputiation change due to invalid signature
-			// @todo assess if Eq+PartialEq are viable to simplify this kind of code
-			if let AllMessages::NetworkBridge(NetworkBridgeMessage::ReportPeer(peer, rep)) =
-				handle.recv().await
-			{
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_VALIDATOR_INDEX_INVALID);
-			} else {
-				panic!("Received unexpected message type.");
-			}
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE)
+				}
+			);
+
 		});
 	}
 }
