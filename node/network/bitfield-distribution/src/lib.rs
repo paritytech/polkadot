@@ -952,7 +952,7 @@ mod test {
 		});
 	}
 	#[test]
-	fn change_view_and_then_recv() {
+	fn changing_view() {
 		let _ = env_logger::builder()
 			.filter(None, log::LevelFilter::Trace)
 			.is_test(true)
@@ -1095,6 +1095,61 @@ mod test {
 				) => {
 					assert_eq!(peer, peer_a);
 					assert_eq!(rep, COST_NOT_IN_VIEW)
+				}
+			);
+
+		});
+	}
+
+
+	#[test]
+	fn invalid_peer_message() {
+		let _ = env_logger::builder()
+			.filter(None, log::LevelFilter::Trace)
+			.is_test(true)
+			.try_init();
+
+		let hash_a: Hash = [0; 32].into();
+		let peer_a = PeerId::random();
+
+		// validator 0 key pair
+		let (mut state, _signing_context, _validator_pair) = state_with_view(view![], hash_a.clone());
+
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let (mut ctx, mut handle) =
+			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+
+		executor::block_on(async move {
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
+			));
+
+			// make peer b interested
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
+			));
+
+			assert!(state.peer_views.contains_key(&peer_a));
+
+			// recv a first message from the network
+			launch!(handle_network_msg(
+				&mut ctx,
+				&mut state,
+				NetworkBridgeEvent::PeerMessage(peer_a.clone(), b"00AaBbCcDdEeFf".to_vec()),
+			));
+
+			// reputation change for peer A
+			assert_matches!(
+				handle.recv().await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_MESSAGE_NOT_DECODABLE);
 				}
 			);
 
