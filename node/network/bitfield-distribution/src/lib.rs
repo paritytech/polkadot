@@ -593,12 +593,6 @@ mod test {
 	use std::time::Duration;
 	use assert_matches::assert_matches;
 
-	macro_rules! msg_sequence {
-		($( $input:expr ),* $(,)? ) => [
-			vec![ $( FromOverseer::Communication { msg: $input } ),* ]
-		];
-	}
-
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
 			View(vec![ $( $hash.clone() ),* ])
@@ -610,64 +604,6 @@ mod test {
 			vec![ $( $peer.clone() ),* ]
 		];
 	}
-
-	#[test]
-	#[ignore]
-	fn boundary_to_boundary() {
-		let hash_a: Hash = [0; 32].into(); // us
-		let hash_b: Hash = [1; 32].into(); // other
-
-		let peer_a = PeerId::random();
-		let peer_b = PeerId::random();
-
-		let signing_context = SigningContext {
-			session_index: 1,
-			parent_hash: hash_a.clone(),
-		};
-
-		// validator 0 key pair
-		let (validator_pair, _seed) = ValidatorPair::generate();
-		let validator = validator_pair.public();
-
-		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
-		let signed =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
-
-		let input =
-			msg_sequence![
-				BitfieldDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::OurViewChange(view![hash_a, hash_b])
-				),
-				BitfieldDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full)
-				),
-				BitfieldDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![hash_a, hash_b])
-				),
-				BitfieldDistributionMessage::DistributeBitfield(hash_b.clone(), signed.clone()),
-			];
-
-		// empty initial state
-		let mut state = ProtocolState::default();
-
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
-
-		executor::block_on(async move {
-			for input in input.into_iter() {
-				handle.send(input.into());
-			}
-
-			// launch a complete subsystem instance and check responses on stimuli
-			//
-			// let completion = BitfieldDistribution::start(BitfieldDistribution, ctx)
-			//     .future
-			//     .timeout(Duration::from_millis(1000))
-			//     .await;
-		});
-	}
-
 
 	macro_rules! launch {
 		($fut:expr) => {
@@ -790,7 +726,7 @@ mod test {
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
 			));
 
-			// we should have a reputation change due to invalid validator index
+			// reputation change due to invalid validator index
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
@@ -841,7 +777,7 @@ mod test {
 				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
 			));
 
-			// we should have a reputation change due to invalid validator index
+			// reputation change due to invalid validator index
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
