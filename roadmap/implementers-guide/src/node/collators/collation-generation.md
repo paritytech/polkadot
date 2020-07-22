@@ -1,6 +1,6 @@
 # Collation Generation
 
-The collation generation subsystem is executed on collator nodes and produces candidates to be distributed to validators. If configured to produce collations for a para, it produces collations and then feeds them to the collation distribution subsystem to be distributed to validators.
+The collation generation subsystem is executed on collator nodes and produces candidates to be distributed to validators. If configured to produce collations for a para, it produces collations and then feeds them to the [Collator Protocol][CP] subsystem, which handles the networking.
 
 ## Protocol
 
@@ -30,4 +30,7 @@ On `ActiveLeavesUpdate`:
 	* Construct validation function params based on validation data.
 	* Invoke the `collation_producer`.
 	* Construct a `CommittedCandidateReceipt` using the outputs of the `collation_producer` and signing with the `key`.
-	* Dispatch a `CollationDistributionMessage::DistributeCollation(key, receipt, pov)`.
+	* Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
+
+[CP]: collator-protocol.md
+[CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage
