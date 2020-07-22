@@ -20,29 +20,18 @@ use bitvec::bitvec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
-	Future,
+	stream, Future,
 };
 use keystore::KeyStorePtr;
 use polkadot_node_subsystem::{
 	messages::{
-		self,
-		AllMessages,
-		AvailabilityStoreMessage,
-		BitfieldDistributionMessage,
-		BitfieldSigningMessage,
-		CandidateBackingMessage,
-		RuntimeApiMessage,
+		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
+		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
 	},
 	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
 };
-use polkadot_primitives::v1::{
-	AvailabilityBitfield, CoreOccupied, Hash,
-};
-use std::{
-	convert::TryFrom,
-	pin::Pin,
-	time::Duration,
-};
+use polkadot_primitives::v1::{AvailabilityBitfield, CoreOccupied, Hash};
+use std::{convert::TryFrom, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
@@ -74,7 +63,7 @@ impl TryFrom<AllMessages> for ToJob {
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
 			AllMessages::BitfieldSigning(bsm) => Ok(ToJob::BitfieldSigning(bsm)),
-			_ => Err(())
+			_ => Err(()),
 		}
 	}
 }
@@ -133,6 +122,51 @@ pub enum Error {
 	/// a mspc channel failed to send
 	#[from]
 	MpscSend(mpsc::SendError),
+	/// several errors collected into one
+	#[from]
+	Multiple(Vec<Error>),
+}
+
+// this function exists mainly to collect a bunch of potential error points into one.
+async fn get_core_availability(
+	relay_parent: Hash,
+	idx: usize,
+	core: Option<CoreOccupied>,
+	sender: &mpsc::Sender<FromJob>,
+) -> Result<bool, Error> {
+	use messages::{
+		AvailabilityStoreMessage::QueryPoVAvailable,
+		RuntimeApiRequest::CandidatePendingAvailability,
+	};
+	use FromJob::{AvailabilityStore, RuntimeApi};
+	use RuntimeApiMessage::Request;
+
+	// we have to (cheaply) clone this sender so we can mutate it to actually send anything
+	let mut sender = sender.clone();
+
+	// REVIEW: is it safe to ignore parathreads here, or do they also figure in the availability mapping?
+	if let Some(CoreOccupied::Parachain) = core {
+		let (tx, rx) = oneshot::channel();
+		sender
+			.send(RuntimeApi(Request(
+				relay_parent,
+				CandidatePendingAvailability(idx.into(), tx),
+			)))
+			.await?;
+		let committed_candidate_receipt = match rx.await? {
+			Some(ccr) => ccr,
+			None => return Ok(false),
+		};
+		let (tx, rx) = oneshot::channel();
+		sender
+			.send(AvailabilityStore(QueryPoVAvailable(
+				committed_candidate_receipt.descriptor.pov_hash,
+				tx,
+			)))
+			.await?;
+		return Ok(rx.await?);
+	}
+	Ok(false)
 }
 
 // the way this function works is not intuitive:
@@ -141,38 +175,63 @@ pub enum Error {
 // - for each occupied core, fetch `candidate_pending_availability` from runtime
 // - from there, we can get the `CandidateDescriptor`
 // - from there, we can send a `AvailabilityStore::QueryPoV` and set the indexed bit to 1 if it returns Some(_)
-async fn construct_availability_bitfield(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<AvailabilityBitfield, Error> {
-	use messages::{
-		AvailabilityStoreMessage::QueryPoVAvailable,
-		RuntimeApiRequest::{CandidatePendingAvailability, ValidatorGroups},
-	};
+async fn construct_availability_bitfield(
+	relay_parent: Hash,
+	sender: &mut mpsc::Sender<FromJob>,
+) -> Result<AvailabilityBitfield, Error> {
+	use futures::lock::Mutex;
+
+	use messages::RuntimeApiRequest::ValidatorGroups;
+	use FromJob::RuntimeApi;
 	use RuntimeApiMessage::Request;
-	use FromJob::{AvailabilityStore, RuntimeApi};
 
+	// request the validator groups so we can get the scheduler roster
 	let (tx, rx) = oneshot::channel();
+	sender
+		.send(RuntimeApi(Request(relay_parent, ValidatorGroups(tx))))
+		.await?;
 
-	sender.send(RuntimeApi(Request(relay_parent, ValidatorGroups(tx)))).await?;
+	// we now need sender to be immutable so we can copy the reference to multiple concurrent closures
+	let sender = &*sender;
+
+	// wait for the scheduler roster
 	let scheduler_roster = rx.await?;
 
-	let mut out = bitvec!(bitvec::order::Lsb0, u8; 0; scheduler_roster.availability_cores.len());
+	// prepare outputs
+	let out =
+		Mutex::new(bitvec!(bitvec::order::Lsb0, u8; 0; scheduler_roster.availability_cores.len()));
+	// in principle, we know that we never want concurrent access to the _same_ bit within the vec;
+	// we could `let out_ref = out.as_mut_ptr();` here instead, and manually assign bits, avoiding
+	// any need to ever wait to lock this mutex.
+	// in practice, it's safer to just use the mutex, and speed optimizations should wait until
+	// benchmarking proves that they are necessary.
+	let out_ref = &out;
+	let errs = Mutex::new(Vec::new());
+	let errs_ref = &errs;
 
-	// TODO: make this concurrent by spawning a new task for each iteration of this loop
-	for (idx, core) in scheduler_roster.availability_cores.iter().enumerate() {
-		// REVIEW: is it safe to ignore parathreads here, or do they also figure in the availability mapping?
-		if let Some(CoreOccupied::Parachain) = core {
-			let (tx, rx) = oneshot::channel();
-			sender.send(RuntimeApi(Request(relay_parent, CandidatePendingAvailability(idx.into(), tx)))).await?;
-			let committed_candidate_receipt = match rx.await? {
-				Some(ccr) => ccr,
-				None => continue,
+	// Handle each (idx, core) pair concurrently
+	//
+	// In principle, this work is all concurrent, not parallel. In practice, we can't guarantee it, which is why
+	// we need the mutexes and explicit references above.
+	stream::iter(scheduler_roster.availability_cores.into_iter().enumerate())
+		.for_each_concurrent(None, |(idx, core)| async move {
+			let availability = match get_core_availability(relay_parent, idx, core, sender).await {
+				Ok(availability) => availability,
+				Err(err) => {
+					errs_ref.lock().await.push(err);
+					return;
+				}
 			};
-			let (tx, rx) = oneshot::channel();
-			sender.send(AvailabilityStore(QueryPoVAvailable(committed_candidate_receipt.descriptor.pov_hash, tx))).await?;
-			out.set(idx, rx.await?);
-		}
-	}
+			out_ref.lock().await.set(idx, availability);
+		})
+		.await;
 
-	Ok(out.into())
+	let errs = errs.into_inner();
+	if errs.is_empty() {
+		Ok(out.into_inner().into())
+	} else {
+		Err(errs.into())
+	}
 }
 
 impl JobTrait for BitfieldSigningJob {
@@ -213,11 +272,19 @@ impl JobTrait for BitfieldSigningJob {
 				use BitfieldDistributionMessage::DistributeBitfield;
 				use FromJob::BitfieldDistribution;
 
-				sender.send(BitfieldDistribution(DistributeBitfield(relay_parent, signed_bitfield))).await.map_err(Into::into)
+				sender
+					.send(BitfieldDistribution(DistributeBitfield(
+						relay_parent,
+						signed_bitfield,
+					)))
+					.await
+					.map_err(Into::into)
 			}
-		}.boxed()
+		}
+		.boxed()
 	}
 }
 
 /// BitfieldSigningSubsystem manages a number of bitfield signing jobs.
-pub type BitfieldSigningSubsystem<Spawner, Context> = JobManager<Spawner, Context, BitfieldSigningJob>;
+pub type BitfieldSigningSubsystem<Spawner, Context> =
+	JobManager<Spawner, Context, BitfieldSigningJob>;
