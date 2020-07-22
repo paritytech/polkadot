@@ -226,13 +226,17 @@ where
 
 		return Ok(());
 	};
+	let validator_set = &job_data.validator_set;
+	if validator_set.is_empty() {
+		trace!(target: "bitd", "Validator set for {:?} is empty", relay_parent);
+		return Ok(());
+	}
 
 	let validator_index = signed_availability.validator_index() as usize;
-	let validator_set = &job_data.validator_set;
 	let validator = if let Some(validator) = validator_set.get(validator_index) {
 		validator.clone()
 	} else {
-		trace!(target: "bitd", "Could not find a validator matching index {}", validator_index);
+		trace!(target: "bitd", "Could not find a validator for index {}", validator_index);
 		return Ok(());
 	};
 
@@ -475,14 +479,15 @@ where
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
 			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
-				// send all messages
+				// Send all jointly known messages for a validator (given the current relay parent)
+				// to the peer `origin`...
 				let one_per_validator = job_data.one_per_validator.clone();
 				let origin = origin.clone();
 				Some(
 					one_per_validator
 						.into_iter()
 						.filter(move |(validator, _message)| {
-							// except for the ones the peer already has
+							// ..except for the ones the peer already has
 							job_data.message_from_validator_needed_by_peer(&origin, validator)
 						}),
 				)
