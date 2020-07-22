@@ -33,6 +33,7 @@ use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, Ov
 use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
+use sp_core::traits::SpawnNamed;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -269,7 +270,7 @@ macro_rules! new_full_start {
 	}}
 }
 
-fn real_overseer<S: futures::task::Spawn>(
+fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
@@ -287,7 +288,7 @@ fn real_overseer<S: futures::task::Spawn>(
 		network_bridge: DummySubsystem,
 	};
 	Overseer::new(
-		leaves, 
+		leaves,
 		all_subsystems,
 		s,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
@@ -299,7 +300,7 @@ macro_rules! new_full {
 	(
 		$config:expr,
 		$collating_for:expr,
-		$authority_discovery_enabled:expr,
+		$authority_discovery_disabled:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
 		$dispatch:ty,
@@ -600,7 +601,7 @@ pub fn polkadot_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -617,7 +618,7 @@ pub fn polkadot_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
 		PolkadotExecutor,
@@ -632,7 +633,7 @@ pub fn kusama_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -649,7 +650,7 @@ pub fn kusama_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
 		KusamaExecutor,
@@ -664,7 +665,7 @@ pub fn westend_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
+	_authority_discovery_disabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -681,7 +682,7 @@ pub fn westend_new_full(
 	let (components, client) = new_full!(
 		config,
 		collating_for,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,
 		WestendExecutor,

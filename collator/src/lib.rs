@@ -510,7 +510,7 @@ mod tests {
 		fn check_send<T: Send>(_: T) {}
 
 		let cli = Cli::from_iter(&["-dev"]);
-		let task_executor = |_, _| {};
+		let task_executor = |_, _| async {};
 		let config = cli.create_configuration(&cli.run.base, task_executor.into()).unwrap();
 
 		check_send(start_collator(

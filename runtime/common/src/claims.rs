@@ -646,7 +646,7 @@ mod tests {
 	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test where system = system {}
 	}
 
 	impl_outer_dispatch! {

@@ -194,9 +194,6 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		vesting: Some(polkadot::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(polkadot::SudoConfig {
-			key: endowed_accounts[0].clone(),
-		}),
 	}
 }
 
@@ -606,7 +603,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 pub fn polkadot_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
-	root_key: AccountId,
+	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> polkadot::GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
@@ -673,9 +670,6 @@ pub fn polkadot_testnet_genesis(
 		}),
 		vesting: Some(polkadot::VestingConfig {
 			vesting: vec![],
-		}),
-		sudo: Some(polkadot::SudoConfig {
-			key: root_key,
 		}),
 	}
 }
