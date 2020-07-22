@@ -147,6 +147,7 @@ type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::Bl
 type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
+#[cfg(feature = "full-node")]
 pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, test: bool) -> Result<(
 	service::ServiceParams<
 		Block,
@@ -287,6 +288,7 @@ pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, t
 	Ok((params, select_chain, import_setup, inherent_data_providers, rpc_setup))
 }
 
+#[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
@@ -658,6 +660,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 }
 
 /// Builds a new object suitable for chain operations.
+#[cfg(feature = "full-node")]
 pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 	(
 		Arc<FullClient<Runtime, Dispatch>>,

@@ -23,7 +23,6 @@ mod client;
 use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::v1::{AccountId, Nonce, Balance};
-#[cfg(feature = "full-node")]
 use service::{error::Error as ServiceError};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
@@ -157,6 +156,7 @@ type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::Bl
 type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
+#[cfg(feature = "full-node")]
 fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Result<(
 	service::ServiceParams<
 		Block,
@@ -316,7 +316,7 @@ fn real_overseer<S: SpawnNamed>(
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
-
+#[cfg(feature = "full-node")]
 fn new_full<RuntimeApi, Executor, Extrinsic>(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
@@ -590,6 +590,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 }
 
 /// Builds a new object suitable for chain operations.
+#[cfg(feature = "full-node")]
 pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 	(
 		Arc<FullClient<Runtime, Dispatch>>,
