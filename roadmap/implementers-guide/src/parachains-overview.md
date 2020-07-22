@@ -56,18 +56,92 @@ Reiterating the lifecycle of a candidate:
 1. Included: Backed and considered available.
 1. Accepted: Backed, available, and undisputed
 
-> TODO Diagram: Inclusion Pipeline & Approval Subsystems interaction
+```dot process Inclusion Pipeline
+digraph {
+	subgraph cluster_vg {
+		label="Parachain Validators"
+		labeljust=l
+		style=filled
+		color=lightgrey
+		node [style=filled color=white]
+
+		v1 [label="Validator 1"]
+		v2 [label="Validator 2"]
+		v3 [label="Validator 3"]
+
+		b [label="(3) Backable", shape=box]
+
+		v1 -> v2 [label="(2) Seconded"]
+		v1 -> v3 [label="(2) Seconded"]
+
+		v2 -> b [style=dashed arrowhead=none]
+		v3 -> b [style=dashed arrowhead=none]
+		v1 -> b [style=dashed arrowhead=none]
+
+	}
+
+	v4 [label=<
+		<b>Validator 4</b> (relay chain)
+		<br/>
+		<font point-size="10">
+			(selected by BABE)
+		</font>
+	>]
+
+	col [label="Collator"]
+	pa [label="(5) Relay Block (Pending Availability)", shape=box]
+	pb [label="Parablock", shape=box]
+	rc [label="Relay Chain Validators"]
+
+	subgraph cluster_approval {
+		label="Approval Subsystem"
+		labeljust=c
+		style=filled
+		color=lightgrey
+		node [style=filled color=white]
+
+		a1 [label=<
+			<b>Validator 1</b>
+			<br/>
+			<font point-size="10">
+				(secondary checker)
+			</font>
+		>]
+		a2 [label="Validator 2"]
+		a3 [label=<
+			<b>Validator 3</b>
+			<br/>
+			<font point-size="10">
+				(secondary checker)
+			</font>
+		>]
+	}
+
+	b -> v4 [label="(4) Backed"]
+	col -> v1 [label="(1) Candidate"]
+	v4 -> pa
+	pa -> pb [label="(6) a few blocks later..." arrowhead=none]
+	pb -> a1
+	pb -> a3
+
+	a1 -> rc [label="(7) Approved"]
+	a3 -> rc [label="(7) Approved"]
+
+}
+```
+
+The diagram above shows the happy path of a block from (1) Candidate to the (7) Approved state.
 
 It is also important to take note of the fact that the relay-chain is extended by BABE, which is a forkful algorithm. That means that different block authors can be chosen at the same time, and may not be building on the same block parent. Furthermore, the set of validators is not fixed, nor is the set of parachains. And even with the same set of validators and parachains, the validators' assignments to parachains is flexible. This means that the architecture proposed in the next chapters must deal with the variability and multiplicity of the network state.
 
 
 ```dot process
 digraph {
-	rca [label = "Relay Block A" shape=box]
-	rcb [label = "Relay Block B" shape=box]
-	rcc [label = "Relay Block C" shape=box]
+	rca [label="Relay Block A" shape=box]
+	rcb [label="Relay Block B" shape=box]
+	rcc [label="Relay Block C" shape=box]
 
-	vg1 [label =<
+	vg1 [label=<
 		<b>Validator Group 1</b>
 		<br/>
 		<br/>
@@ -79,7 +153,7 @@ digraph {
 			(Validator 5)
 		</font>
 	>]
-	vg2 [label =<
+	vg2 [label=<
 		<b>Validator Group 2</b>
 		<br/>
 		<br/>
@@ -102,12 +176,12 @@ In this example, group 1 has received block C while the others have not due to n
 
 ```dot process
 digraph {
-	rca [label = "Relay Block A" shape=box]
-	rcb [label = "Relay Block B" shape=box]
-	rcc [label = "Relay Block C" shape=box]
-	rcc_prime [label = "Relay Block C'" shape=box]
+	rca [label="Relay Block A" shape=box]
+	rcb [label="Relay Block B" shape=box]
+	rcc [label="Relay Block C" shape=box]
+	rcc_prime [label="Relay Block C'" shape=box]
 
-	vg1 [label =<
+	vg1 [label=<
 		<b>Validator Group 1</b>
 		<br/>
 		<br/>
@@ -115,7 +189,7 @@ digraph {
 			(Validator 4) (Validator 1)
 		</font>
 	>]
-	vg2 [label =<
+	vg2 [label=<
 		<b>Validator Group 2</b>
 		<br/>
 		<br/>
@@ -123,7 +197,7 @@ digraph {
 			(Validator 7) (Validator 6)
 		</font>
 	>]
-	vg3 [label =<
+	vg3 [label=<
 		<b>Validator Group 3</b>
 		<br/>
 		<br/>
@@ -138,10 +212,10 @@ digraph {
 	rcc -> rcb
 	rcc_prime -> rcb
 
-	vg1 -> rcc [style=dashed arrowhead=none]
+	vg1 -> rcc       [style=dashed arrowhead=none]
 	vg2 -> rcc_prime [style=dashed arrowhead=none]
 	vg3 -> rcc_prime [style=dashed arrowhead=none]
-	vg3 -> rcc [style=dashed arrowhead=none]
+	vg3 -> rcc       [style=dashed arrowhead=none]
 }
 ```
 
