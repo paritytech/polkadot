@@ -67,6 +67,7 @@ use statement_table::{
 enum Error {
 	CandidateNotFound,
 	InvalidSignature,
+	StoreFailed,
 	#[from]
 	Erasure(erasure_coding::Error),
 	#[from]
@@ -587,15 +588,19 @@ impl CandidateBackingJob {
 		n_validators: u32,
 		available_data: AvailableData,
 	) -> Result<(), Error> {
+		let (tx, rx) = oneshot::channel();
 		self.tx_from.send(FromJob::AvailabilityStore(
 				AvailabilityStoreMessage::StoreAvailableData(
 					self.parent,
 					id,
 					n_validators,
 					available_data,
+					tx,
 				)
 			)
 		).await?;
+
+		rx.await?.map_err(|_| Error::StoreFailed)?;
 
 		Ok(())
 	}
@@ -1064,8 +1069,10 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _)
-				) if parent_hash == test_state.relay_parent
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
 			);
 
 			assert_matches!(
@@ -1295,8 +1302,10 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _)
-					) if parent_hash == test_state.relay_parent
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+					) if parent_hash == test_state.relay_parent => {
+						tx.send(Ok(())).unwrap();
+					}
 			);
 
 			assert_matches!(
@@ -1450,8 +1459,10 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _)
-				) if parent_hash == test_state.relay_parent
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
 			);
 
 			assert_matches!(

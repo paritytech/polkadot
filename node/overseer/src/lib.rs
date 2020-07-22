@@ -1377,6 +1377,7 @@ mod tests {
 				OverseerSignal::StartWork(second_block_hash),
 				OverseerSignal::StopWork(first_block_hash),
 				OverseerSignal::StopWork(second_block_hash),
+				OverseerSignal::BlockFinalized(third_block_hash),
 			];
 
 			loop {

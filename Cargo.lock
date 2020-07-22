@@ -4560,7 +4560,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
 ]
 
 [[package]]

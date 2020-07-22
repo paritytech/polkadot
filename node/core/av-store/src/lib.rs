@@ -56,9 +56,9 @@ enum Error {
 	Subsystem(SubsystemError),
 }
 
-pub struct AvailabilityStoreSubsystem<Context> {
+/// An implementation of the Availability Store subsystem.
+pub struct AvailabilityStoreSubsystem {
 	inner: Arc<dyn KeyValueDB>,
-	_context: std::marker::PhantomData<Context>,
 }
 
 fn available_data_key(candidate_hash: &Hash) -> Vec<u8> {
@@ -75,10 +75,7 @@ struct StoredAvailableData {
 	n_validators: u32,
 }
 
-impl<Context> AvailabilityStoreSubsystem<Context>
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
-{
+impl AvailabilityStoreSubsystem {
 	pub fn new(config: Config) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
@@ -100,7 +97,6 @@ impl<Context> AvailabilityStoreSubsystem<Context>
 
 		Ok(Self {
 			inner: Arc::new(db),
-			_context: std::marker::PhantomData,
 		})
 	}
 
@@ -108,128 +104,150 @@ impl<Context> AvailabilityStoreSubsystem<Context>
 	fn new_in_memory(inner: Arc<dyn KeyValueDB>) -> Self {
 		Self {
 			inner,
-			_context: std::marker::PhantomData,
 		}
 	}
+}
 
-	async fn run(mut self, mut ctx: Context) -> Result<(), Error> {
-		let ctx = &mut ctx;
-		loop {
-			select! {
-				incoming = ctx.recv().fuse() => {
-					match incoming {
-						Ok(FromOverseer::Signal(Conclude)) => break,
-						Ok(FromOverseer::Signal(_)) => (),
-						Ok(FromOverseer::Communication { msg }) => {
-							let _ = self.process_message(msg);
-						}
-						Err(_) => break,
+async fn run<Context>(subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
+	-> Result<(), Error>
+where
+	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+{
+	let ctx = &mut ctx;
+	loop {
+		select! {
+			incoming = ctx.recv().fuse() => {
+				match incoming {
+					Ok(FromOverseer::Signal(Conclude)) => break,
+					Ok(FromOverseer::Signal(_)) => (),
+					Ok(FromOverseer::Communication { msg }) => {
+						let _ = process_message(&subsystem.inner, msg);
 					}
+					Err(_) => break,
 				}
-				complete => break,
+			}
+			complete => break,
+		}
+	}
+
+	Ok(())
+}
+
+fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> Result<(), Error> {
+	use AvailabilityStoreMessage::*;
+	match msg {
+		QueryAvailableData(hash, tx) => {
+			let _ = tx.send(available_data(db, &hash).map(|d| d.data));
+		}
+		QueryChunk(hash, id, tx) => {
+			let _ = tx.send(get_chunk(db, &hash, id)?);
+		}
+		StoreChunk(hash, id, chunk, tx) => {
+			match store_chunk(db, &hash, id, chunk) {
+				Err(e) => {
+					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					return Err(e);
+				}
+				Ok(()) => {
+					let _ = tx.send(Ok(()));
+				}
 			}
 		}
-
-		Ok(())
-	}
-
-	fn process_message(&mut self, msg: AvailabilityStoreMessage) -> Result<(), Error> {
-		use AvailabilityStoreMessage::*;
-		match msg {
-			QueryAvailableData(hash, tx) => {
-				let _ = tx.send(self.available_data(&hash).map(|d| d.data));
-			}
-			QueryChunk(hash, id, tx) => {
-				let _ = tx.send(self.get_chunk(&hash, id)?);
-			}
-			StoreChunk(hash, id, chunk) => {
-				self.store_chunk(&hash, id, chunk)?;
-			}
-			StoreAvailableData(hash, id, n_validators, av_data) => {
-				self.store_available_data(&hash, id, n_validators, av_data)?;
+		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
+			match store_available_data(db, &hash, id, n_validators, av_data) {
+				Err(e) => {
+					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					return Err(e);
+				}
+				Ok(()) => {
+					let _ = tx.send(Ok(()));
+				}
 			}
 		}
-
-		Ok(())
 	}
 
-	fn available_data(&self, candidate_hash: &Hash) -> Option<StoredAvailableData> {
-		self.query_inner(columns::DATA, &available_data_key(candidate_hash))
+	Ok(())
+}
+
+fn available_data(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash) -> Option<StoredAvailableData> {
+	query_inner(db, columns::DATA, &available_data_key(candidate_hash))
+}
+
+fn store_available_data(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: &Hash,
+	id: Option<ValidatorIndex>,
+	n_validators: u32,
+	available_data: AvailableData,
+) -> Result<(), Error> {
+	let mut tx = DBTransaction::new();
+
+	if let Some(index) = id {
+		let chunks = get_chunks(&available_data, n_validators as usize)?;
+		store_chunk(db, candidate_hash, n_validators, chunks[index as usize].clone())?;
 	}
 
-	fn store_available_data(
-		&self,
-		candidate_hash: &Hash,
-		id: Option<ValidatorIndex>,
-		n_validators: u32,
-		available_data: AvailableData,
-	) -> Result<(), Error> {
-		let mut tx = DBTransaction::new();
+	let stored_data = StoredAvailableData {
+		data: available_data,
+		n_validators,
+	};
 
-		if let Some(index) = id {
-			let chunks = get_chunks(&available_data, n_validators as usize)?;
-			self.store_chunk(candidate_hash, n_validators, chunks[index as usize].clone())?;
+	tx.put_vec(
+		columns::DATA,
+		available_data_key(&candidate_hash).as_slice(),
+		stored_data.encode(),
+	);
+
+	db.write(tx)?;
+
+	Ok(())
+}
+
+fn store_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, _n_validators: u32, chunk: ErasureChunk)
+	-> Result<(), Error>
+{
+	let mut tx = DBTransaction::new();
+
+	let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
+
+	tx.put_vec(columns::DATA, &dbkey, chunk.encode());
+	db.write(tx)?;
+
+	Ok(())
+}
+
+fn get_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, index: u32)
+	-> Result<Option<ErasureChunk>, Error>
+{
+	if let Some(chunk) = query_inner(
+		db,
+		columns::DATA,
+		&erasure_chunk_key(candidate_hash, index)) {
+		return Ok(Some(chunk));
+	}
+
+	if let Some(data) = available_data(db, candidate_hash) {
+		let mut chunks = get_chunks(&data.data, data.n_validators as usize)?;
+		let chunk = chunks.get(index as usize).cloned();
+		for chunk in chunks.drain(..) {
+			store_chunk(db, candidate_hash, data.n_validators, chunk)?;
 		}
-
-		let stored_data = StoredAvailableData {
-			data: available_data,
-			n_validators,
-		};
-
-		tx.put_vec(
-			columns::DATA,
-			available_data_key(&candidate_hash).as_slice(),
-			stored_data.encode(),
-		);
-
-		self.inner.write(tx)?;
-
-		Ok(())
+		return Ok(chunk);
 	}
 
-	fn store_chunk(&self, candidate_hash: &Hash, _n_validators: u32, chunk: ErasureChunk)
-		-> Result<(), Error>
-	{
-		let mut tx = DBTransaction::new();
+	Ok(None)
+}
 
-		let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
-
-		tx.put_vec(columns::DATA, &dbkey, chunk.encode());
-		self.inner.write(tx)?;
-
-		Ok(())
-	}
-
-	fn get_chunk(&self, candidate_hash: &Hash, index: u32) -> Result<Option<ErasureChunk>, Error> {
-		if let Some(chunk) = self.query_inner(
-			columns::DATA,
-			&erasure_chunk_key(candidate_hash, index)) {
-			return Ok(Some(chunk));
+fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> Option<D> {
+	match db.get(column, key) {
+		Ok(Some(raw)) => {
+			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
+			Some(res)
 		}
-
-		if let Some(data) = self.available_data(candidate_hash) {
-			let mut chunks = get_chunks(&data.data, data.n_validators as usize)?;
-			let chunk = chunks.get(index as usize).cloned();
-			for chunk in chunks.drain(..) {
-				self.store_chunk(candidate_hash, data.n_validators, chunk)?;
-			}
-			return Ok(chunk);
-		}
-
-		Ok(None)
-	}
-
-	fn query_inner<D: Decode>(&self, column: u32, key: &[u8]) -> Option<D> {
-		match self.inner.get(column, key) {
-			Ok(Some(raw)) => {
-				let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
-				Some(res)
-			}
-			Ok(None) => None,
-			Err(e) => {
-				log::warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
-				None
-			}
+		Ok(None) => None,
+		Err(e) => {
+			log::warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
+			None
 		}
 	}
 }
@@ -242,7 +260,7 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
-impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem<Context>
+impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
@@ -333,7 +351,7 @@ mod tests {
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = AvailabilityStoreSubsystem::new_in_memory(store);
-		let subsystem = subsystem.run(context);
+		let subsystem = run(subsystem, context);
 
 		let test_fut = test(TestHarness {
 			virtual_overseer,
@@ -359,13 +377,17 @@ mod tests {
 				proof: vec![vec![3, 4, 5]],
 			};
 
+			let (tx, rx) = oneshot::channel();
+
 			let chunk_msg = AvailabilityStoreMessage::StoreChunk(
 				relay_parent,
 				validator_index, 
 				chunk.clone(),
+				tx,
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: chunk_msg }).await;
+			assert_eq!(rx.await.unwrap(), Ok(()));
 
 			let (tx, rx) = oneshot::channel();
 			let query_chunk = AvailabilityStoreMessage::QueryChunk(
@@ -407,17 +429,20 @@ mod tests {
 				omitted_validation,
 			};
 
+
+			let (tx, rx) = oneshot::channel();
 			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash,
 				Some(validator_index),
 				n_validators,
 				available_data.clone(),
+				tx,
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: block_msg }).await;
+			assert_eq!(rx.await.unwrap(), Ok(()));
 
 			let pov = query_available_data(&mut virtual_overseer, candidate_hash).await.unwrap();
-
 			assert_eq!(pov, available_data);
 
 			let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap();
@@ -467,14 +492,18 @@ mod tests {
 
 			let chunks_expected = get_chunks(&available_data, n_validators as usize).unwrap();
 
+			let (tx, rx) = oneshot::channel();
 			let block_msg = AvailabilityStoreMessage::StoreAvailableData(
 				candidate_hash,
 				None,
 				n_validators,
 				available_data,
+				tx,
 			);
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: block_msg }).await;
+
+			assert_eq!(rx.await.unwrap(), Ok(()));
 
 			for validator_index in 0..n_validators {
 				let chunk = query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap();
