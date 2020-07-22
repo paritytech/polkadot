@@ -412,8 +412,8 @@ mod tests {
 	fn finalization_removes_unneeded() {
 		let relay_parent = [1; 32].into();
 
-		let para_id_1 = 5.into();
-		let para_id_2 = 6.into();
+		let para_id_1 = 5_u32.into();
+		let para_id_2 = 6_u32.into();
 
 		let mut candidate_1 = AbridgedCandidateReceipt::default();
 		let mut candidate_2 = AbridgedCandidateReceipt::default();
@@ -482,7 +482,7 @@ mod tests {
 	#[test]
 	fn erasure_coding() {
 		let relay_parent: Hash = [1; 32].into();
-		let para_id: ParaId = 5.into();
+		let para_id: ParaId = 5_u32.into();
 		let available_data = available_data(&[42; 8]);
 		let n_validators = 5;
 
@@ -555,11 +555,11 @@ mod tests {
 		let mut receipt_2 = AbridgedCandidateReceipt::default();
 
 
-		receipt_1.parachain_index = 1.into();
+		receipt_1.parachain_index = 1_u32.into();
 		receipt_1.commitments.erasure_root = erasure_root_1;
 		receipt_1.relay_parent = relay_parent;
 
-		receipt_2.parachain_index = 2.into();
+		receipt_2.parachain_index = 2_u32.into();
 		receipt_2.commitments.erasure_root = erasure_root_2;
 		receipt_2.relay_parent = relay_parent;
 
