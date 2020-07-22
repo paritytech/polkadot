@@ -391,7 +391,7 @@ mod tests {
 	use balances::Error as BalancesError;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test where system = system {}
 	}
 
 	impl_outer_dispatch! {
