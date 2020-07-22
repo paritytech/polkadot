@@ -220,13 +220,8 @@ logic, just bump 'impl_version'. If they do change logic, bump
 source file directories:
 - runtime
 
-version files:
+version files: ${failed_runtime_checks[@]}
 EOT
-
-  for RUNTIME in "${failed_runtime_checks[@]}"
-  do
-    boldprint "- $RUNTIME"
-  done
 
   exit 1
 fi
