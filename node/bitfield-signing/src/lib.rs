@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
 };
 use polkadot_primitives::v1::{
-	CoreOccupied, Hash,
+	AvailabilityBitfield, CoreOccupied, Hash,
 };
 use std::{
 	convert::TryFrom,
@@ -47,9 +47,6 @@ use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
-
-/// Unsigned bitfield type
-pub type Bitfield = bitvec::vec::BitVec<bitvec::order::Lsb0, u8>;
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -144,7 +141,7 @@ pub enum Error {
 // - for each occupied core, fetch `candidate_pending_availability` from runtime
 // - from there, we can get the `CandidateDescriptor`
 // - from there, we can send a `AvailabilityStore::QueryPoV` and set the indexed bit to 1 if it returns Some(_)
-async fn construct_availability_bitvec(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Bitfield, Error> {
+async fn construct_availability_bitfield(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<AvailabilityBitfield, Error> {
 	use messages::{
 		AvailabilityStoreMessage::QueryPoVAvailable,
 		RuntimeApiRequest::{CandidatePendingAvailability, ValidatorGroups},
@@ -175,7 +172,7 @@ async fn construct_availability_bitvec(relay_parent: Hash, sender: &mut mpsc::Se
 		}
 	}
 
-	Ok(out)
+	Ok(out.into())
 }
 
 impl JobTrait for BitfieldSigningJob {
@@ -188,7 +185,7 @@ impl JobTrait for BitfieldSigningJob {
 
 	/// Run a job for the parent block indicated
 	fn run(
-		parent: Hash,
+		relay_parent: Hash,
 		keystore: Self::RunArgs,
 		_receiver: mpsc::Receiver<ToJob>,
 		mut sender: mpsc::Sender<FromJob>,
@@ -199,7 +196,7 @@ impl JobTrait for BitfieldSigningJob {
 
 			// now do all the work we can before we need to wait for the availability store
 			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(parent, keystore, sender.clone()).await {
+			let validator = match Validator::new(relay_parent, keystore, sender.clone()).await {
 				Ok(validator) => validator,
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
@@ -208,9 +205,16 @@ impl JobTrait for BitfieldSigningJob {
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
 
-			let bitvec = construct_availability_bitvec(parent, &mut sender).await?;
-			unimplemented!()
+			let bitfield = construct_availability_bitfield(relay_parent, &mut sender).await?;
+			let signed_bitfield = validator.sign(bitfield);
 
+			// make an anonymous scope to contain some use statements to simplify creating the outbound message
+			{
+				use BitfieldDistributionMessage::DistributeBitfield;
+				use FromJob::BitfieldDistribution;
+
+				sender.send(BitfieldDistribution(DistributeBitfield(relay_parent, signed_bitfield))).await.map_err(Into::into)
+			}
 		}.boxed()
 	}
 }
