@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.8.18"
+version = "0.8.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2018"

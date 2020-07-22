@@ -26,7 +26,7 @@ static INTEGRATION_TEST_ALLOWED_TIME: Option<&str> = option_env!("INTEGRATION_TE
 async fn call_function_actually_work() {
 	let mut alice = run_test_node(
 		(move |fut, _| {
-			spawn(fut);
+			spawn(fut).map(|_| ())
 		})
 		.into(),
 		Alice,
