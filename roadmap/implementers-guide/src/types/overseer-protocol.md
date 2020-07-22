@@ -110,6 +110,24 @@ enum CandidateSelectionMessage {
 }
 ```
 
+## Collator Protocol Message
+
+Messages received by the [Collator Protocol subsystem](../node/collators/collator-protocol.md)
+
+```rust
+enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	DistributeCollation(CommittedCandidateReceipt, PoV),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
