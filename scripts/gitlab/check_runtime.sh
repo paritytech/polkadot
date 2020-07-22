@@ -89,10 +89,10 @@ then
   )"
 
 
-  boldcat <<-EOT
-  previous substrate commit id ${SUBSTRATE_PREV_REF}
-  new substrate commit id      ${SUBSTRATE_NEW_REF}
-  EOT
+  boldcat <<EOT
+previous substrate commit id ${SUBSTRATE_PREV_REF}
+new substrate commit id      ${SUBSTRATE_NEW_REF}
+EOT
 
   # okay so now need to fetch the substrate repository and check whether spec_version or impl_version has changed there
   SUBSTRATE_CLONE_DIR="$(mktemp -t -d substrate-XXXXXX)"
@@ -106,10 +106,10 @@ then
     "${SUBSTRATE_PREV_REF}..${SUBSTRATE_NEW_REF}" "${SUBSTRATE_VERSIONS_FILE}" \
     | grep -E '^[\+\-][[:space:]]+(spec|impl)_version: +([0-9]+),$' || exit 0
 
-  boldcat <<-EOT
-  spec_version or or impl_version have changed in substrate after updating Cargo.lock
-  please make sure versions are bumped in polkadot accordingly
-  EOT
+  boldcat <<EOT
+spec_version or or impl_version have changed in substrate after updating Cargo.lock
+please make sure versions are bumped in polkadot accordingly
+EOT
 
   # Now check if any of the substrate changes have been tagged D2-breaksapi
   (
@@ -167,14 +167,14 @@ do
       github_label "D2-breaksapi"
     fi
 
-    boldcat <<-EOT
-      ## RUNTIME: ${RUNTIME} ##
+    boldcat <<EOT
+## RUNTIME: ${RUNTIME} ##
 
-      changes to the ${RUNTIME} runtime sources and changes in the spec version.
+changes to the ${RUNTIME} runtime sources and changes in the spec version.
 
-      spec_version: ${sub_spec_version} -> ${add_spec_version}
+spec_version: ${sub_spec_version} -> ${add_spec_version}
 
-    EOT
+EOT
     continue
 
   else
@@ -194,15 +194,15 @@ do
     # see if the impl version changed
     if [ "${add_impl_version}" != "${sub_impl_version}" ]
     then
-      boldcat <<-EOT
+      boldcat <<EOT
 
-      ## RUNTIME: ${RUNTIME} ##
+## RUNTIME: ${RUNTIME} ##
 
-      changes to the ${RUNTIME} runtime sources and changes in the impl version.
+changes to the ${RUNTIME} runtime sources and changes in the impl version.
 
-      impl_version: ${sub_impl_version} -> ${add_impl_version}
+impl_version: ${sub_impl_version} -> ${add_impl_version}
 
-      EOT
+EOT
       continue
     fi
 
@@ -211,17 +211,17 @@ do
 done
 
 if [ ${#failed_runtime_checks} -gt 0 ]; then
-  boldcat <<-EOT
-  wasm source files changed or the spec version in the substrate reference in
-  the Cargo.lock but not the spec/impl version. If changes made do not alter
-  logic, just bump 'impl_version'. If they do change logic, bump
-  'spec_version'.
+  boldcat <<EOT
+wasm source files changed or the spec version in the substrate reference in
+the Cargo.lock but not the spec/impl version. If changes made do not alter
+logic, just bump 'impl_version'. If they do change logic, bump
+'spec_version'.
 
-  source file directories:
-  - runtime
+source file directories:
+- runtime
 
-  version files:
-  EOT
+version files:
+EOT
 
   for RUNTIME in "${failed_runtime_checks[@]}"
   do
