@@ -6,7 +6,7 @@ echo "[+] API URL: $url"
 pr_title=$(curl -H "Authorization: token ${GITHUB_PR_TOKEN}" "$url" | jq -r .title)
 echo "[+] PR title: $pr_title"
 
-if echo "$pr_title" | grep -qi '^companion'; then
+if grep -qi '^companion' <<< "$pr_title"; then
   echo "[!] PR is a companion PR. Build is already done in substrate"
   exit 0
 else
