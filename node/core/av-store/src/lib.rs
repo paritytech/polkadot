@@ -18,6 +18,7 @@
 //!
 
 #![recursion_limit="256"]
+#![warn(missing_docs)]
 
 use std::collections::HashMap;
 use std::io;
@@ -84,7 +85,8 @@ pub struct Config {
 }
 
 impl AvailabilityStoreSubsystem {
-	pub fn new(config: Config) -> io::Result<Self> {
+	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
+	pub fn new_on_disk(config: Config) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
 		if let Some(cache_size) = config.cache_size {
