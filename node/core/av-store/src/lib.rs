@@ -75,6 +75,14 @@ struct StoredAvailableData {
 	n_validators: u32,
 }
 
+/// Configuration for the availability store.
+pub struct Config {
+	/// Cache size in bytes. If `None` default is used.
+	pub cache_size: Option<usize>,
+	/// Path to the database.
+	pub path: PathBuf,
+}
+
 impl AvailabilityStoreSubsystem {
 	pub fn new(config: Config) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
@@ -250,14 +258,6 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 			None
 		}
 	}
-}
-
-/// Configuration for the availability store.
-pub struct Config {
-	/// Cache size in bytes. If `None` default is used.
-	pub cache_size: Option<usize>,
-	/// Path to the database.
-	pub path: PathBuf,
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
