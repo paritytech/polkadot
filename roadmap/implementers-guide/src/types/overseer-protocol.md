@@ -126,6 +126,7 @@ enum CollatorProtocolMessage {
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
+}
 ```
 
 ## Network Bridge Message
