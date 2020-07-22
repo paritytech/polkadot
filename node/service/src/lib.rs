@@ -93,7 +93,7 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
 {}
 
 impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
@@ -111,7 +111,7 @@ where
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
 	Extrinsic: RuntimeExtrinsic,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
+	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
 {}
 
 pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
@@ -150,6 +150,18 @@ type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
+>;
+
+type LightBackend = sc_light::backend::Backend<
+	sc_client_db::light::LightStorage<Block>, sp_runtime::traits::BlakeTwo256
+>;
+type LightClient<RuntimeApi, Executor> = service::client::Client<
+	LightBackend,
+	sc_light::GenesisCallExecutor<
+		LightBackend,
+		service::client::LocalCallExecutor<LightBackend, sc_executor::NativeExecutor<Executor>>
+	>,
+	Block, RuntimeApi
 >;
 
 fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Result<(
@@ -499,86 +511,89 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 pub struct FullNodeHandles;
 
 /// Builds a new service for a light client.
-// TODO: this should really be a function, but the generics are tricky.
-#[macro_export]
-macro_rules! new_light {
-	($config:expr, $runtime:ty, $dispatch:ty) => {{
-		crate::set_prometheus_registry(&mut $config)?;
-		use sc_client_api::backend::RemoteBackend;
+fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<TaskManager, Error>
+	where
+		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
+		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
+		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
+		Dispatch: NativeExecutionDispatch + 'static,
+		Extrinsic: RuntimeExtrinsic,
+{
+	crate::set_prometheus_registry(&mut config)?;
+	use sc_client_api::backend::RemoteBackend;
 
-		let (client, backend, keystore, task_manager, on_demand) =
-			service::new_light_parts::<Block, $runtime, $dispatch>(&$config)?;
+	let (client, backend, keystore, task_manager, on_demand) =
+		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
-		let select_chain = sc_consensus::LongestChain::new(backend.clone());
+	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-		let pool_api = sc_transaction_pool::LightChainApi::new(
-			client.clone(),
-			on_demand.clone(),
-		);
-		let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
-			$config.transaction_pool.clone(),
-			Arc::new(pool_api),
-			$config.prometheus_registry(),
-			task_manager.spawn_handle(),
-		));
+	let pool_api = sc_transaction_pool::LightChainApi::new(
+		client.clone(),
+		on_demand.clone(),
+	);
+	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
+		config.transaction_pool.clone(),
+		Arc::new(pool_api),
+		config.prometheus_registry(),
+		task_manager.spawn_handle(),
+	));
 
-		let grandpa_block_import = grandpa::light_block_import(
-			client.clone(), backend.clone(), &(client.clone() as Arc<_>),
-			Arc::new(on_demand.checker().clone()),
-		)?;
+	let grandpa_block_import = grandpa::light_block_import(
+		client.clone(), backend.clone(), &(client.clone() as Arc<_>),
+		Arc::new(on_demand.checker().clone()),
+	)?;
 
-		let finality_proof_import = grandpa_block_import.clone();
-		let finality_proof_request_builder =
-			finality_proof_import.create_finality_proof_request_builder();
+	let finality_proof_import = grandpa_block_import.clone();
+	let finality_proof_request_builder =
+		finality_proof_import.create_finality_proof_request_builder();
 
-		let (babe_block_import, babe_link) = babe::block_import(
-			babe::Config::get_or_compute(&*client)?,
-			grandpa_block_import,
-			client.clone(),
-		)?;
+	let (babe_block_import, babe_link) = babe::block_import(
+		babe::Config::get_or_compute(&*client)?,
+		grandpa_block_import,
+		client.clone(),
+	)?;
 
-		let inherent_data_providers = inherents::InherentDataProviders::new();
+	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-		// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-		let import_queue = babe::import_queue(
-			babe_link,
-			babe_block_import,
-			None,
-			Some(Box::new(finality_proof_import)),
-			client.clone(),
-			select_chain.clone(),
-			inherent_data_providers.clone(),
-			&task_manager.spawn_handle(),
-			$config.prometheus_registry(),
-		)?;
+	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
+	let import_queue = babe::import_queue(
+		babe_link,
+		babe_block_import,
+		None,
+		Some(Box::new(finality_proof_import)),
+		client.clone(),
+		select_chain.clone(),
+		inherent_data_providers.clone(),
+		&task_manager.spawn_handle(),
+		config.prometheus_registry(),
+	)?;
 
-		let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
-		let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider));
+	let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
+	let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider));
 
-		let light_deps = polkadot_rpc::LightDeps {
-			remote_blockchain: backend.remote_blockchain(),
-			fetcher: on_demand.clone(),
-			client: client.clone(),
-			pool: transaction_pool.clone(),
-		};
+	let light_deps = polkadot_rpc::LightDeps {
+		remote_blockchain: backend.remote_blockchain(),
+		fetcher: on_demand.clone(),
+		client: client.clone(),
+		pool: transaction_pool.clone(),
+	};
 
-		let rpc_extensions = polkadot_rpc::create_light(light_deps);
+	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-		let ServiceComponents { task_manager, .. } = service::build(service::ServiceParams {	
-			config: $config,
-			block_announce_validator_builder: None,
-			finality_proof_request_builder: Some(finality_proof_request_builder),
-			finality_proof_provider: Some(finality_proof_provider),
-			on_demand: Some(on_demand),
-			remote_blockchain: Some(backend.remote_blockchain()),
-			rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
-			client: client.clone(),
-			transaction_pool: transaction_pool.clone(),
-			import_queue, keystore, backend, task_manager,
-		})?;
-		
-		Ok(task_manager)
-	}}
+	let ServiceComponents { task_manager, .. } = service::build(service::ServiceParams {	
+		config,
+		block_announce_validator_builder: None,
+		finality_proof_request_builder: Some(finality_proof_request_builder),
+		finality_proof_provider: Some(finality_proof_provider),
+		on_demand: Some(on_demand),
+		remote_blockchain: Some(backend.remote_blockchain()),
+		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
+		client: client.clone(),
+		transaction_pool: transaction_pool.clone(),
+		import_queue, keystore, backend, task_manager,
+	})?;
+	
+	Ok(task_manager)
 }
 
 /// Builds a new object suitable for chain operations.
@@ -701,19 +716,19 @@ pub fn westend_new_full(
 }
 
 /// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
+pub fn polkadot_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light!(config, polkadot_runtime::RuntimeApi, PolkadotExecutor)
+	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(config)
 }
 
 /// Create a new Kusama service for a light client.
-pub fn kusama_new_light(mut config: Configuration) -> Result<TaskManager, ServiceError>
+pub fn kusama_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light!(config, kusama_runtime::RuntimeApi, KusamaExecutor)
+	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(config)
 }
 
 /// Create a new Westend service for a light client.
-pub fn westend_new_light(mut config: Configuration, ) -> Result<TaskManager, ServiceError>
+pub fn westend_new_light(config: Configuration, ) -> Result<TaskManager, ServiceError>
 {
-	new_light!(config, westend_runtime::RuntimeApi, KusamaExecutor)
+	new_light::<westend_runtime::RuntimeApi, KusamaExecutor, _>(config)
 }

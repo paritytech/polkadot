@@ -42,6 +42,7 @@ sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
 im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "ashley-remove-service-builder" }
