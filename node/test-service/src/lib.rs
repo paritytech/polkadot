@@ -21,17 +21,13 @@
 mod chain_spec;
 
 pub use chain_spec::*;
-use consensus_common::{block_validation::Chain, SelectChain};
 use futures::future::Future;
-use grandpa::FinalityProofProvider as GrandpaFinalityProofProvider;
-use log::info;
-use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use polkadot_primitives::v0::{
-	Block, BlockId, Hash, CollatorId, Id as ParaId,
+	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
 use polkadot_service::{
-	new_full, FullNodeHandles, PolkadotClient, ServiceComponents,
+	new_full, FullNodeHandles, PolkadotClient,
 };
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
@@ -54,7 +50,6 @@ use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
-use std::time::Duration;
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
