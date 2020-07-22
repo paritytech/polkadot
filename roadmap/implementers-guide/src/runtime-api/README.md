@@ -59,7 +59,19 @@ struct GroupRotationInfo {
 impl GroupRotationInfo {
 	/// Returns the index of the group needed to validate the core at the given index,
 	/// assuming the given amount of cores/groups.
-	fn group_for_core(core_index: usize, cores: usize) -> usize;
+	fn group_for_core(&self, core_index, cores) -> GroupIndex;
+
+	/// Returns the block number of the next rotation after the current block. If the current block
+	/// is 10 and the rotation frequency is 5, this should return 15.
+	///
+	/// If the group rotation frequency is 0, returns 0.
+	fn next_rotation_at(&self) -> BlockNumber;
+
+	/// Returns the block number of the last rotation before or including the current block. If the
+	/// current block is 10 and the rotation frequency is 5, this should return 10.
+	///
+	/// If the group rotation frequency is 0, returns 0.
+	fn last_rotation_at(&self) -> BlockNumber;
 }
 
 /// Returns the validator groups and rotation info localized based on the block whose state
@@ -81,7 +93,7 @@ This is all the information that a validator needs about scheduling for the curr
 ```rust
 struct OccupiedCore {
 	/// The ID of the para occupying the core.
-	para: ParaId,
+	para_id: ParaId,
 	/// If this core is freed by availability, this is the assignment that is next up on this
 	/// core, if any. None if there is nothing queued for this core.
 	next_up_on_available: Option<ScheduledCore>,
@@ -97,11 +109,13 @@ struct OccupiedCore {
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
 	availability: Bitfield,
+	/// The group assigned to distribute availability pieces of this candidate.
+	group_responsible: GroupIndex,
 }
 
 struct ScheduledCore {
 	/// The ID of a para scheduled.
-	para: ParaId,
+	para_id: ParaId,
 	/// The collator required to author the block, if any.
 	collator: Option<CollatorId>,
 }
@@ -171,7 +185,7 @@ fn session_index_for_child(at: Block) -> SessionIndex;
 Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 
 ```rust
-fn validation_code(at: Block, ParaId, OccupiedCoreAssumption) -> ValidationCode;
+fn validation_code(at: Block, ParaId, OccupiedCoreAssumption) -> Option<ValidationCode>;
 ```
 
 ## Candidate Pending Availability
@@ -180,4 +194,21 @@ Get the receipt of a candidate pending availability. This returns `Some` for any
 
 ```rust
 fn candidate_pending_availability(at: Block, ParaId) -> Option<CommittedCandidateReceipt>;
+```
+
+## Candidate Events
+
+Yields a vector of events concerning candidates that occurred within the given block.
+
+```rust
+enum CandidateEvent {
+	/// This candidate receipt was backed in the most recent block.
+	CandidateBacked(CandidateReceipt, HeadData),
+	/// This candidate receipt was included and became a parablock at the most recent block.
+	CandidateIncluded(CandidateReceipt, HeadData),
+	/// This candidate receipt was not made available in time and timed out.
+	CandidateTimedOut(CandidateReceipt, HeadData),
+}
+
+fn candidate_events(at: Block) -> Vec<CandidateEvent>;
 ```

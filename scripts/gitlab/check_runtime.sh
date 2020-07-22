@@ -214,7 +214,7 @@ do
 		source file directories:
 		- runtime
 
-		versions file: ${VERSIONS_FILE}
+		versions file: ${RUNTIME}
 
 		EOT
 
