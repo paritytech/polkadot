@@ -152,7 +152,7 @@ pull_companion_substrate() {
     curl -sSL -H "${github_header}" -o "${pr_data_file}" \
       "${github_api_polkadot_pull_url}/${CI_COMMIT_REF_NAME}"
 
-    pr_body="$(jq '.body' < ${pr_data_file})"
+    pr_body="$(jq '.body' < "${pr_data_file}")"
 
     pr_companion="$(echo "${pr_body}" | sed -n -r \
         -e 's;^.*substrate companion: paritytech/substrate#([0-9]+).*$;\1;p' \
