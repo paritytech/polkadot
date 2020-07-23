@@ -51,9 +51,9 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct ActiveLeavesUpdate {
 	/// New relay chain block hashes of interest.
-	activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	pub activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 	/// Relay chain block hashes no longer of interest.
-	deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 }
 
 impl ActiveLeavesUpdate {

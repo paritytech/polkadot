@@ -21,7 +21,7 @@
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
-	FromOverseer, OverseerSignal,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, NetworkBridgeMessage, NetworkBridgeEvent, StatementDistributionMessage,
@@ -840,30 +840,29 @@ async fn run(
 	loop {
 		let message = ctx.recv().await?;
 		match message {
-			FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-				let (validators, session_index) = {
-					let (val_tx, val_rx) = oneshot::channel();
-					let (session_tx, session_rx) = oneshot::channel();
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
+				for relay_parent in activated {
+					let (validators, session_index) = {
+						let (val_tx, val_rx) = oneshot::channel();
+						let (session_tx, session_rx) = oneshot::channel();
 
-					let val_message = AllMessages::RuntimeApi(
-						RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Validators(val_tx)),
-					);
-					let session_message = AllMessages::RuntimeApi(
-						RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::SigningContext(session_tx)),
-					);
+						let val_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Validators(val_tx)),
+						);
+						let session_message = AllMessages::RuntimeApi(
+							RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::SigningContext(session_tx)),
+						);
 
-					ctx.send_messages(
-						std::iter::once(val_message).chain(std::iter::once(session_message))
-					).await?;
+						ctx.send_messages(
+							std::iter::once(val_message).chain(std::iter::once(session_message))
+						).await?;
 
-					(val_rx.await?, session_rx.await?.session_index)
-				};
+						(val_rx.await?, session_rx.await?.session_index)
+					};
 
-				active_heads.entry(relay_parent)
-					.or_insert(ActiveHeadData::new(validators, session_index));
-			}
-			FromOverseer::Signal(OverseerSignal::StopWork(_relay_parent)) => {
-				// do nothing - we will handle this when our view changes.
+					active_heads.entry(relay_parent)
+						.or_insert(ActiveHeadData::new(validators, session_index));
+				}
 			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
 			FromOverseer::Communication { msg } => match msg {

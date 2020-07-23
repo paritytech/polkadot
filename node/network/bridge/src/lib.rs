@@ -28,7 +28,7 @@ use sc_network::{
 use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
 use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
@@ -203,8 +203,7 @@ enum Action {
 	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
 	ReportPeer(PeerId, ReputationChange),
-	StartWork(Hash),
-	StopWork(Hash),
+	ActiveLeaves(ActiveLeavesUpdate),
 
 	PeerConnected(PeerId, ObservedRole),
 	PeerDisconnected(PeerId),
@@ -217,10 +216,8 @@ fn action_from_overseer_message(
 	res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 ) -> Action {
 	match res {
-		Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)))
-			=> Action::StartWork(relay_parent),
-		Ok(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)))
-			=> Action::StopWork(relay_parent),
+		Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves)))
+			=> Action::ActiveLeaves(active_leaves),
 		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
 		Ok(FromOverseer::Communication { msg }) => match msg {
 			NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer)
@@ -392,37 +389,39 @@ async fn run_network<N: Network>(
 			Action::ReportPeer(peer, rep) => {
 				net.report_peer(peer, rep).await?;
 			}
-			Action::StartWork(relay_parent) => {
-				live_heads.push(relay_parent);
-				if let Some(view_update)
-					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-				{
-					if let Err(e) = dispatch_update_to_all(
-						view_update,
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
+			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+				for relay_parent in activated {
+					live_heads.push(relay_parent);
+					if let Some(view_update)
+						= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
+					{
+						if let Err(e) = dispatch_update_to_all(
+							view_update,
+							event_producers.values(),
+							&mut ctx,
+						).await {
+							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							return Err(e)
+						}
 					}
 				}
-			}
-			Action::StopWork(relay_parent) => {
-				live_heads.retain(|h| h != &relay_parent);
-				if let Some(view_update)
-					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-				{
-					if let Err(e) = dispatch_update_to_all(
-						view_update,
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
-					}
-				}
-			}
 
+				for relay_parent in deactivated {
+					live_heads.retain(|h| h != &relay_parent);
+					if let Some(view_update)
+						= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
+					{
+						if let Err(e) = dispatch_update_to_all(
+							view_update,
+							event_producers.values(),
+							&mut ctx,
+						).await {
+							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							return Err(e)
+						}
+					}
+				}
+			}
 			Action::PeerConnected(peer, role) => {
 				match peers.entry(peer.clone()) {
 					HEntry::Occupied(_) => continue,
@@ -670,7 +669,7 @@ mod tests {
 
 			let hash_a = Hash::from([1; 32]);
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(hash_a))).await;
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))).await;
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::ViewUpdate(View(vec![hash_a])).encode();
