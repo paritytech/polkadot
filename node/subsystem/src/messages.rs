@@ -26,7 +26,7 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
 	BlockNumber, Hash,
-	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
+	CandidateReceipt, CommittedCandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData,
@@ -219,11 +219,31 @@ impl BitfieldDistributionMessage {
 	}
 }
 
+/// Bitfield signing message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum BitfieldSigningMessage {}
+
+impl BitfieldSigningMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `PoV` from the AV store.
 	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
+
+	/// Query whether a `PoV` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around multiple
+	/// megabytes of data to get a single bit of information.
+	QueryPoVAvailable(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
@@ -237,6 +257,7 @@ impl AvailabilityStoreMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::QueryPoV(hash, _) => Some(*hash),
+			Self::QueryPoVAvailable(hash, _) => Some(*hash),
 			Self::QueryChunk(hash, _, _) => Some(*hash),
 			Self::StoreChunk(hash, _, _) => Some(*hash),
 		}
@@ -271,6 +292,8 @@ pub enum RuntimeApiRequest {
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
 	/// Get head data for a specific para.
 	HeadData(ParaId, oneshot::Sender<HeadData>),
+	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -397,6 +420,8 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the bitfield signing subsystem.
+	BitfieldSigning(BitfieldSigningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.

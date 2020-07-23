@@ -302,6 +302,7 @@ fn real_overseer<S: SpawnNamed>(
 		candidate_selection: DummySubsystem,
 		statement_distribution: DummySubsystem,
 		availability_distribution: DummySubsystem,
+		bitfield_signing: DummySubsystem,
 		bitfield_distribution: DummySubsystem,
 		provisioner: DummySubsystem,
 		pov_distribution: DummySubsystem,
