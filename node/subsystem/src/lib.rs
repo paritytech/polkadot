@@ -48,12 +48,24 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 /// Changes in the set of active leaves: the parachain heads which we care to work on.
 ///
 /// Note that the activated and deactivated fields indicate deltas, not complete sets.
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Default)]
 pub struct ActiveLeavesUpdate {
 	/// New relay chain block hashes of interest.
 	activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
 	/// Relay chain block hashes no longer of interest.
 	deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+}
+
+impl ActiveLeavesUpdate {
+	/// Create a ActiveLeavesUpdate with a single activated hash
+	pub fn start_work(hash: Hash) -> Self {
+		Self { activated: [hash].as_ref().into(), ..Default::default() }
+	}
+
+	/// Create a ActiveLeavesUpdate with a single deactivated hash
+	pub fn stop_work(hash: Hash) -> Self {
+		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+	}
 }
 
 /// Signals sent by an overseer to a subsystem.

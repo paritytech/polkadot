@@ -729,6 +729,7 @@ mod tests {
 			JobTrait,
 			ToJobTrait,
 		},
+		ActiveLeavesUpdate,
 		FromOverseer,
 		OverseerSignal,
 	};
@@ -924,12 +925,12 @@ mod tests {
 		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message.clone())]);
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(relay_parent)))).await;
 			assert_matches!(
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
@@ -942,7 +943,7 @@ mod tests {
 		let run_args = HashMap::new();
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 1);
