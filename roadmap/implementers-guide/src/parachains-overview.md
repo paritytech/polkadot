@@ -94,7 +94,7 @@ digraph {
 	rc [label="Relay Chain Validators"]
 
 	subgraph cluster_approval {
-		label="Approval Subsystem"
+		label="Parachain Validators (Approval)"
 		labeljust=c
 		style=filled
 		color=lightgrey
@@ -126,7 +126,6 @@ digraph {
 
 	a1 -> rc [label="(7) Approved"]
 	a3 -> rc [label="(7) Approved"]
-
 }
 ```
 
