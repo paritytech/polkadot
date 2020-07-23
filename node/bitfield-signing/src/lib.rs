@@ -164,7 +164,7 @@ async fn get_core_availability(
 				tx,
 			)))
 			.await?;
-		return Ok(rx.await?);
+		return rx.await.map_err(Into::into);
 	}
 	Ok(false)
 }
