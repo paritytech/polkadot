@@ -4416,7 +4416,6 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sc-network",
  "smol 0.2.0",
  "smol-timeout",

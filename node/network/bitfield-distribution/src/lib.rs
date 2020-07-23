@@ -25,9 +25,9 @@ use futures::{channel::oneshot, FutureExt};
 
 use node_primitives::{ProtocolId, View};
 
-use log::{debug, info, trace, warn};
-use polkadot_node_subsystem::messages::*;
-use polkadot_node_subsystem::{
+use log::{trace, warn};
+use polkadot_subsystem::messages::*;
+use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
@@ -271,7 +271,7 @@ where
 			message.signed_availability.clone(),
 		)),
 	))
-	.await;
+	.await?;
 
 	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
 
@@ -384,12 +384,12 @@ where
 				"Already received a message for validator at index {}",
 				validator_index
 			);
-			modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await;
+			modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await?;
 			return Ok(());
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
 
-		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await;
+		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await?;
 
 		modify_reputation(ctx, origin, GAIN_VALID_MESSAGE_FIRST).await
 	} else {
@@ -465,7 +465,6 @@ async fn handle_peer_view_change<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	use std::collections::hash_map::Entry;
 	let current = state.peer_views.entry(origin.clone()).or_default();
 
 	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
@@ -583,11 +582,11 @@ where
 #[cfg(test)]
 mod test {
 	use super::*;
-	use bitvec::{bitvec, vec::BitVec};
+	use bitvec::bitvec;
 	use futures::executor;
-	use maplit::{hashmap, hashset};
-	use polkadot_primitives::v0::{Signed, ValidatorPair};
-	use polkadot_primitives::v1::AvailabilityBitfield;
+	use maplit::hashmap;
+	use polkadot_primitives::v1::{Signed, ValidatorPair, AvailabilityBitfield};
+	use polkadot_subsystem::test_helpers::make_subsystem_context;
 	use smol_timeout::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
@@ -634,8 +633,8 @@ mod test {
 						one_per_validator: hashmap! {
 							validator.clone() => known_message.clone(),
 						},
-						message_received_from_peer: hashmap! {},
-						message_sent_to_peer: hashmap! {},
+						message_received_from_peer: hashmap!{},
+						message_sent_to_peer: hashmap!{},
 					},
 			},
 			peer_views: peers
@@ -662,8 +661,8 @@ mod test {
 				PerRelayParentData {
 					signing_context: signing_context.clone(),
 					validator_set: vec![validator.clone()],
-					one_per_validator: hashmap! {},
-					message_received_from_peer: hashmap! {},
+					one_per_validator: hashmap!{},
+					message_received_from_peer: hashmap!{},
 					message_sent_to_peer: hashmap!{},
 				})
 			}).collect();
@@ -681,7 +680,6 @@ mod test {
 			.try_init();
 
 		let hash_a: Hash = [0; 32].into();
-		let hash_b: Hash = [1; 32].into(); // other
 
 		let peer_a = PeerId::random();
 		let peer_b = PeerId::random();
@@ -710,7 +708,7 @@ mod test {
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		let mut state = prewarmed_state(
 			validator.clone(),
@@ -754,7 +752,9 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, validator_pair) = state_with_view(view![hash_a, hash_b], hash_a.clone());
+		let (mut state, signing_context, validator_pair) =
+			state_with_view(view![hash_a, hash_b], hash_a.clone());
+
 		state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
@@ -768,7 +768,7 @@ mod test {
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
 			launch!(handle_network_msg(
@@ -805,7 +805,8 @@ mod test {
 		assert_ne!(peer_a, peer_b);
 
 		// validator 0 key pair
-		let (mut state, signing_context, validator_pair) = state_with_view(view![hash_a, hash_b], hash_a.clone());
+		let (mut state, signing_context, validator_pair) =
+			state_with_view(view![hash_a, hash_b], hash_a.clone());
 
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
@@ -819,7 +820,7 @@ mod test {
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
 			// send a first message
@@ -916,7 +917,7 @@ mod test {
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
 			launch!(handle_network_msg(
@@ -1053,7 +1054,7 @@ mod test {
 
 		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (mut ctx, mut handle) =
-			subsystem_test::make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
 		executor::block_on(async move {
 			launch!(handle_network_msg(
