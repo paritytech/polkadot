@@ -711,11 +711,14 @@ where
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
+		let mut update = ActiveLeavesUpdate::default();
 
 		for leaf in leaves.into_iter() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(leaf.0))).await?;
+			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		loop {
 			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
@@ -760,33 +763,35 @@ where
 	}
 
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
+		let mut update = ActiveLeavesUpdate::default();
+
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(parent.0))).await?;
+			update.deactivated.push(parent.0);
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(block.hash))).await?;
+			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		let mut stop_these = Vec::new();
+		let mut update = ActiveLeavesUpdate::default();
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
-				stop_these.push(*h);
+				update.deactivated.push(*h);
 				false
 			} else {
 				true
 			}
 		});
 
-		for hash in stop_these.into_iter() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(hash))).await?
-		}
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
