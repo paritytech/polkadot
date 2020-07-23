@@ -1,14 +1,38 @@
 name: CI
 
-on: push
+on:
+  push:
+    tags:
+      - v**.**.**
 
 jobs:
-  build:
+  publish-draft-release:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
-    - name: Run a one-line script
-      uses: s3krit/srtool-action@master
       with:
-        runtime: "polkadot-runtime"
-        profile: "release"
+        fetch-depth: 0
+        path: polkadot
+    - name: Set up Ruby 2.7
+      uses: actions/setup-ruby@v1
+      with:
+        ruby-version: 2.6
+    - name: Generate release text
+      run: |
+        env
+        ls $GITHUB_WORKSPACE
+        gem install changelogerator git
+        ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb > release_text.md
+    - uses: actions/upload-artifact@v2
+      with:
+        name: release_text
+        path: release_text.md
+    - name: Create release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Polkadot ${{ github.ref }}
+        body_path: ./release_text.md
+        draft: true
