@@ -1702,7 +1702,7 @@ mod tests {
 	];
 
 	impl_outer_origin! {
-		pub enum Origin for Test {
+		pub enum Origin for Test where system = system {
 			parachains
 		}
 	}

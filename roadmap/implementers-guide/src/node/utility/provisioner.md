@@ -50,8 +50,12 @@ The subsystem should maintain a set of handles to Block Authorship Provisioning 
 
 ### On Overseer Signal
 
-- `StartWork`: spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
-- `StopWork`: terminate the Block Authorship Provisioning Job for the given relay parent, if any.
+- `ActiveLeavesUpdate`:
+	- For each `activated` head:
+		- spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
+	- For each `deactivated` head:
+		- terminate the Block Authorship Provisioning Job for the given relay parent, if any.
+- `Conclude`: Forward `Conclude` to all jobs, waiting a small amount of time for them to join, and then hard-exiting.
 
 ### On `ProvisionerMessage`
 

@@ -439,7 +439,11 @@ impl CandidateBackingJob {
 			}
 			CandidateBackingMessage::Statement(_, statement) => {
 				self.check_statement_signature(&statement)?;
-				self.maybe_validate_and_import(statement).await?;
+				match self.maybe_validate_and_import(statement).await {
+					Err(Error::ValidationFailed(_)) => return Ok(()),
+					Err(e) => return Err(e),
+					Ok(()) => (),
+				}
 			}
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
@@ -1609,6 +1613,83 @@ mod tests {
 					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
+		});
+	}
+
+	// That that if the validation of the candidate has failed this does not stop
+	// the work of this subsystem and so it is not fatal to the node.
+	#[test]
+	fn backing_works_after_failed_validation() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_hash = pov.hash();
+
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let signed_a = SignedFullStatement::sign(
+				Statement::Seconded(candidate.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
+
+			// Send in a `Statement` with a candidate.
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_a.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// Subsystem requests PoV and requests validation.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::PoVDistribution(
+					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(Arc::new(pov.clone())).unwrap();
+				}
+			);
+
+			// Tell subsystem that this candidate is invalid.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
+						pov,
+						tx,
+					)
+				) if pov == pov && &c == candidate.descriptor() => {
+					tx.send(Err(ValidationFailed)).unwrap();
+				}
+			);
+
+			// Try to get a set of backable candidates to trigger _some_ action in the subsystem
+			// and check that it is still alive.
+			let (tx, rx) = oneshot::channel();
+			let msg = CandidateBackingMessage::GetBackedCandidates(
+				test_state.relay_parent,
+				tx,
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
+			assert_eq!(rx.await.unwrap().len(), 0);
 		});
 	}
 }
