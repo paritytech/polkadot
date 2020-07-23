@@ -29,10 +29,11 @@ Input: [`AvailabilityStoreMessage`](../../types/overseer-protocol.md#availabilit
 
 ## Functionality
 
-On `StartWork`:
+On `ActiveLeavesUpdate`:
 
-- Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
-- Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
+For each head in the `activated` list:
+	- Note any new candidates backed in the block. Update pruning records for any stored `PoVBlock`s.
+	- Note any newly-included candidates backed in the block. Update pruning records for any stored availability chunks.
 
 On block finality events:
 

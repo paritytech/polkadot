@@ -407,4 +407,10 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Test message
+	///
+	/// This variant is only valid while testing, but makes the process of testing the
+	/// subsystem job manager much simpler.
+	#[cfg(test)]
+	Test(String),
 }
