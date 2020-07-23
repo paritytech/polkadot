@@ -1,7 +1,7 @@
 [package]
 name = "polkadot-node-bitfield-signing"
 version = "0.1.0"
-authors = ["Peter Goodspeed-Niklaus <peter.r.goodspeedniklaus@gmail.com>"]
+authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
