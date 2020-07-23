@@ -602,21 +602,25 @@ where
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
-		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
+		use crate::ActiveLeavesUpdate;
+		use crate::OverseerSignal::{Conclude, ActiveLeaves};
 
 		match incoming {
-			Ok(Signal(StartWork(hash))) => {
-				if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
-					log::error!("Failed to spawn a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }))) => {
+				for hash in activated {
+					if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+						log::error!("Failed to spawn a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
-			}
-			Ok(Signal(StopWork(hash))) => {
-				if let Err(e) = jobs.stop_job(hash).await {
-					log::error!("Failed to stop a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+
+				for hash in deactivated {
+					if let Err(e) = jobs.stop_job(hash).await {
+						log::error!("Failed to stop a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
 			}
 			Ok(Signal(Conclude)) => {

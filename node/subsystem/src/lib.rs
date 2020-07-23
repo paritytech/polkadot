@@ -30,6 +30,7 @@ use futures::future::BoxFuture;
 
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
+use smallvec::SmallVec;
 
 use crate::messages::AllMessages;
 
@@ -38,13 +39,28 @@ pub mod util;
 #[cfg(any(test, feature = "test-helpers"))]
 pub mod test_helpers;
 
+/// How many slots are stack-reserved for active leaves updates
+///
+/// If there are fewer than this number of slots, then we've wasted some stack space.
+/// If there are greater than this number of slots, then we fall back to a heap vector.
+const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
+
+/// Changes in the set of active leaves: the parachain heads which we care to work on.
+///
+/// Note that the activated and deactivated fields indicate deltas, not complete sets.
+#[derive(PartialEq, Clone, Debug)]
+pub struct ActiveLeavesUpdate {
+	/// New relay chain block hashes of interest.
+	activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	/// Relay chain block hashes no longer of interest.
+	deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+}
+
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
 pub enum OverseerSignal {
-	/// `Subsystem` should start working on block-based work, given by the relay-chain block hash.
-	StartWork(Hash),
-	/// `Subsystem` should stop working on block-based work specified by the relay-chain block hash.
-	StopWork(Hash),
+	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
+	ActiveLeaves(ActiveLeavesUpdate),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }
