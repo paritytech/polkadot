@@ -34,7 +34,6 @@ use polkadot_primitives::v1::{
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
-
 use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};

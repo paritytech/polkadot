@@ -220,6 +220,35 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7deb0a829ca7bcfaf5da70b073a8d128619259a7be8216a355e23f00763059e5"
 
 [[package]]
+name = "async-channel"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ee81ba99bee79f3c8ae114ae4baa7eaa326f63447cf2ec65e4393618b63f8770"
+dependencies = [
+ "concurrent-queue",
+ "event-listener",
+ "futures-core",
+]
+
+[[package]]
+name = "async-io"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a0fc2017a5cca12763bb5636092a7786b52789c23c5838a392db2eb99963fd3"
+dependencies = [
+ "cfg-if",
+ "concurrent-queue",
+ "futures-lite",
+ "libc",
+ "once_cell",
+ "parking",
+ "socket2",
+ "vec-arena",
+ "wepoll-sys-stjepang",
+ "winapi 0.3.9",
+]
+
+[[package]]
 name = "async-std"
 version = "1.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -239,7 +268,7 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
- "smol",
+ "smol 0.1.18",
  "wasm-bindgen-futures",
 ]
 
@@ -271,6 +300,12 @@ dependencies = [
  "quote 1.0.7",
  "syn 1.0.33",
 ]
+
+[[package]]
+name = "atomic-waker"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "065374052e7df7ee4047b1160cca5e1467a12351a40b3da123c870ba0b8eda2a"
 
 [[package]]
 name = "atty"
@@ -469,12 +504,13 @@ dependencies = [
 
 [[package]]
 name = "blocking"
-version = "0.4.6"
+version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d17efb70ce4421e351d61aafd90c16a20fb5bfe339fcdc32a86816280e62ce0"
+checksum = "d2468ff7bf85066b4a3678fede6fe66db31846d753ff0adfbfab2c6a6e81612b"
 dependencies = [
- "futures-channel",
- "futures-util",
+ "async-channel",
+ "atomic-waker",
+ "futures-lite",
  "once_cell",
  "parking",
  "waker-fn",
@@ -1156,6 +1192,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "event-listener"
+version = "2.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "699d84875f1b72b4da017e6b0f77dfa88c0137f089958a88974d15938cbc2976"
+
+[[package]]
 name = "exit-future"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1592,6 +1634,19 @@ name = "futures-io"
 version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de27142b013a8e869c14957e6d2edeef89e97c289e69d042ee3a49acd8b51789"
+
+[[package]]
+name = "futures-lite"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af0bbcb0ec905ef6ee23fab499119b5da2362b8697d66e08d1ef01a8c0d438e2"
+dependencies = [
+ "fastrand",
+ "futures-core",
+ "futures-io",
+ "memchr",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "futures-macro"
@@ -2989,6 +3044,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "maplit"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3e2e65a1a2e43cfcb47a895c4c8b10d1f4a61097f9f254f183aee60cad9c651d"
+
+[[package]]
 name = "matches"
 version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3196,6 +3257,17 @@ dependencies = [
  "pin-project",
  "smallvec 1.4.1",
  "unsigned-varint 0.4.0",
+]
+
+[[package]]
+name = "multitask"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c09c35271e7dcdb5f709779111f2c8e8ab8e06c1b587c1c6a9e179d865aaa5b4"
+dependencies = [
+ "async-task",
+ "concurrent-queue",
+ "fastrand",
 ]
 
 [[package]]
@@ -4102,9 +4174,9 @@ checksum = "ddfc878dac00da22f8f61e7af3157988424567ab01d9920b962ef7dcbd7cd865"
 
 [[package]]
 name = "parking"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1efcee3c6d23b94012e240525f131c6abaa9e5eeb8f211002d93beec3b7be350"
+checksum = "50d4a6da31f8144a32532fe38fe8fb439a6842e0ec633f0037f0144c14e7f907"
 
 [[package]]
 name = "parking_lot"
@@ -4275,6 +4347,31 @@ dependencies = [
  "polkadot-collator",
  "polkadot-service",
  "tempfile",
+]
+
+[[package]]
+name = "polkadot-availability-bitfield-distribution"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "env_logger",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "maplit",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "polkadot-network",
+ "polkadot-network-bridge",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "sc-network",
+ "smol 0.2.0",
+ "smol-timeout",
+ "sp-core",
+ "streamunordered",
 ]
 
 [[package]]
@@ -7148,6 +7245,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "smol"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346a94824d48ed7c5fc7247f3cbbf0317bdfe15fc39d08f9262609cccce61254"
+dependencies = [
+ "async-io",
+ "blocking",
+ "multitask",
+ "num_cpus",
+ "once_cell",
+]
+
+[[package]]
+name = "smol-timeout"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "024818c1f00b80e8171ddcfcee33860134293aa3aced60c9cbd7a5a2d41db392"
+dependencies = [
+ "pin-project",
+ "smol 0.1.18",
+]
+
+[[package]]
 name = "snow"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8928,6 +9048,12 @@ name = "vcpkg"
 version = "0.2.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6454029bf181f092ad1b853286f23e2c507d8e8194d01d92da4a55c274a5508c"
+
+[[package]]
+name = "vec-arena"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17dfb54bf57c9043f4616cb03dab30eff012cc26631b797d8354b916708db919"
 
 [[package]]
 name = "vec_map"
