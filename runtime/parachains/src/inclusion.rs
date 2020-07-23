@@ -1866,6 +1866,91 @@ mod tests {
 	}
 
 	#[test]
+	fn can_include_candidate_with_ok_code_upgrade() {
+		let chain_a = ParaId::from(1);
+
+		let paras = vec![(chain_a, true)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			run_to_block(5, |_| None);
+
+			let signing_context = SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: 5,
+			};
+
+			let group_validators = |group_index: GroupIndex| match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1, 2, 3, 4]),
+				_ => panic!("Group index out of bounds for 1 parachain"),
+			};
+
+			let chain_a_assignment = CoreAssignment {
+				core: CoreIndex::from(0),
+				para_id: chain_a,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(0),
+			};
+
+			let mut candidate_a = TestCandidateBuilder {
+				para_id: chain_a,
+				relay_parent: System::parent_hash(),
+				pov_hash: Hash::from([1; 32]),
+				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				new_validation_code: Some(vec![1, 2, 3].into()),
+				..Default::default()
+			}.build();
+			collator_sign_candidate(
+				Sr25519Keyring::One,
+				&mut candidate_a,
+			);
+
+			let backed_a = back_candidate(
+				candidate_a.clone(),
+				&validators,
+				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				&signing_context,
+				BackingKind::Threshold,
+			);
+
+			let occupied_cores = Inclusion::process_candidates(
+				vec![backed_a],
+				vec![
+					chain_a_assignment.clone(),
+				],
+				&group_validators,
+			).expect("candidates scheduled, in order, and backed");
+
+			assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+
+			assert_eq!(
+				<PendingAvailability<Test>>::get(&chain_a),
+				Some(CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					descriptor: candidate_a.descriptor,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
+				})
+			);
+			assert_eq!(
+				<PendingAvailabilityCommitments>::get(&chain_a),
+				Some(candidate_a.commitments),
+			);
+		});
+	}
+
+	#[test]
 	fn session_change_wipes_and_updates_session_info() {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
