@@ -149,6 +149,14 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 		QueryAvailableData(hash, tx) => {
 			let _ = tx.send(available_data(db, &hash).map(|d| d.data));
 		}
+		QueryDataAvailability(hash, tx) => {
+			let result = match available_data(db, &hash) {
+				Some(_) => true,
+				None => false,
+			};
+
+			let _ = tx.send(result);
+		}
 		QueryChunk(hash, id, tx) => {
 			let _ = tx.send(get_chunk(db, &hash, id)?);
 		}

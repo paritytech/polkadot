@@ -1178,6 +1178,15 @@ mod tests {
 				}
 			);
 
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
+
 			let statement = CandidateBackingMessage::Statement(
 				test_state.relay_parent,
 				signed_b.clone(),
