@@ -547,7 +547,7 @@ mod tests {
 	use availability_store::ErasureNetworking;
 	use polkadot_primitives::v0::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
-		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
+		CollationInfo, DutyRoster, GlobalValidationData, LocalValidationData,
 		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext, ValidationCode,
 	};
 	use runtime_primitives::traits::Block as BlockT;
@@ -697,7 +697,7 @@ mod tests {
 			fn validators(&self) -> Vec<ValidatorId> { self.validators.clone() }
 			fn duty_roster(&self) -> DutyRoster { self.duty_roster.clone() }
 			fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> { vec![(ParaId::from(1), None)] }
-			fn global_validation_schedule() -> GlobalValidationSchedule { Default::default() }
+			fn global_validation_data() -> GlobalValidationData { Default::default() }
 			fn local_validation_data(_: ParaId) -> Option<LocalValidationData> { None }
 			fn parachain_code(_: ParaId) -> Option<ValidationCode> { None }
 			fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {

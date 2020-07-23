@@ -676,8 +676,8 @@ sp_api::impl_runtime_apis! {
 		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
 			Registrar::active_paras()
 		}
-		fn global_validation_schedule() -> parachain::GlobalValidationSchedule {
-			Parachains::global_validation_schedule()
+		fn global_validation_data() -> parachain::GlobalValidationData {
+			Parachains::global_validation_data()
 		}
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
 			Parachains::current_local_validation_data(&id)
