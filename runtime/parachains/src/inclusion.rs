@@ -403,8 +403,9 @@ impl<T: Trait> Module<T> {
 				);
 
 				// if any, the code upgrade attempt is allowed.
-				let valid_upgrade_attempt = candidate.candidate.commitments.new_validation_code.is_none();
-					|| <paras::Module<T>>::last_code_upgrade(para_id, true)
+				let valid_upgrade_attempt =
+					candidate.candidate.commitments.new_validation_code.is_none() ||
+					<paras::Module<T>>::last_code_upgrade(para_id, true)
 						.map_or(
 							true,
 							|last| last <= relay_parent_number &&

@@ -719,4 +719,18 @@ mod tests {
 		assert_eq!(info.next_rotation_at(), 0);
 		assert_eq!(info.last_rotation_at(), 0);
 	}
+
+	#[test]
+	fn collator_signature_payload_is_valid() {
+		// if this fails, collator signature verification code has to be updated.
+		let h = Hash::default();
+		assert_eq!(h.as_ref().len(), 32);
+
+		let _payload = collator_signature_payload(
+			&Hash::from([1; 32]),
+			&5u32.into(),
+			&Hash::from([2; 32]),
+			&Hash::from([3; 32]),
+		);
+	}
 }

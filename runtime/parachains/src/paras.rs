@@ -549,7 +549,7 @@ impl<T: Trait> Module<T> {
 		let last_code_upgrade = Self::last_code_upgrade(para_id, true);
 		let can_upgrade_code = last_code_upgrade.map_or(
 			true,
-			|l| l <= relay_parent_number && relay_parent_number.saturating_sub(l) >= freq,
+			|l| { l <= relay_parent_number && relay_parent_number.saturating_sub(l) >= freq },
 		);
 
 		let code_upgrade_allowed = if can_upgrade_code {
