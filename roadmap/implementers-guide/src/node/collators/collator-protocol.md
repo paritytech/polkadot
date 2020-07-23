@@ -147,6 +147,10 @@ digraph G {
 }
 ```
 
+At any step in the above diagram, the sentry node will be doing validation of the network statements sent by the collator and can report or disconnect the collator.
+
+The protocol tracks advertisements received and the source of the advertisement. The advertisement source is either `Direct(PeerId)` or `Sentry(PeerId)`. We accept one advertisement per collator per source per relay-parent.
+
 [PoV]: ../../types/availability.md#proofofvalidity
 [CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage
 [CG]: collation-generation.md
