@@ -1,0 +1,14 @@
+name: CI
+
+on: push
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Run a one-line script
+      uses: s3krit/srtool-action@master
+      with:
+        runtime: "polkadot-runtime"
+        profile: "release"
