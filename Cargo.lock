@@ -4410,6 +4410,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-availability-distribution"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "bitvec",
+ "env_logger",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.8",
+ "maplit",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "polkadot-network",
+ "polkadot-network-bridge",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "sc-network",
+ "smol 0.2.0",
+ "smol-timeout",
+ "sp-core",
+ "streamunordered",
+]
+
+[[package]]
 name = "polkadot-availability-store"
 version = "0.8.19"
 dependencies = [
