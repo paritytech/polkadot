@@ -135,10 +135,14 @@ enum CollatorProtocolMessage {
 	/// This should be sent before any `DistributeCollation` message.
 	CollateOn(ParaId),
 	/// Provide a collation to distribute to validators.
-	DistributeCollation(CommittedCandidateReceipt, PoV),
+	DistributeCollation(CandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
 }
 ```
 
