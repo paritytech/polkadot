@@ -824,6 +824,7 @@ impl NodeBuilder {
 	}
 
 	/// Build a new full node.
+	#[cfg(feature = "full-node")]
 	pub fn build_full(
 		self,
 		collating_for: Option<(CollatorId, parachain::Id)>,
