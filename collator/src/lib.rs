@@ -62,7 +62,7 @@ use polkadot_primitives::v0::{
 	Collation, CollationInfo, collator_signature_payload,
 };
 use polkadot_cli::{
-	ProvideRuntimeApi, ParachainHost, IdentifyVariant,
+	ProvideRuntimeApi, ParachainHost,
 	service::{self, Role}
 };
 pub use polkadot_cli::service::Configuration;
@@ -393,64 +393,27 @@ where
 		.into());
 	}
 
-	if config.chain_spec.is_kusama() {
-		let (task_manager, client, handlers) = service::kusama_new_full(
-			config,
-			Some((key.public(), para_id)),
-			None,
-			false,
-			6000,
-			None,
-		)?;
-		let spawn_handle = task_manager.spawn_handle();
-		let future = build_collator_service(
-			spawn_handle,
-			handlers,
-			client,
-			para_id,
-			key,
-			build_parachain_context
-		)?;
-		Ok((future.boxed(), task_manager))
-	} else if config.chain_spec.is_westend() {
-		let (task_manager, client, handlers) = service::westend_new_full(
-			config,
-			Some((key.public(), para_id)),
-			None,
-			false,
-			6000,
-			None,
-		)?;
-		let spawn_handle = task_manager.spawn_handle();
-		let future = build_collator_service(
-			spawn_handle,
-			handlers,
-			client,
-			para_id,
-			key,
-			build_parachain_context
-		)?;
-		Ok((future.boxed(), task_manager))
-	} else {
-		let (task_manager, client, handles) = service::polkadot_new_full(
-			config,
-			Some((key.public(), para_id)),
-			None,
-			false,
-			6000,
-			None,
-		)?;
-		let spawn_handle = task_manager.spawn_handle();
-		let future = build_collator_service(
-			spawn_handle,
-			handles,
-			client,
-			para_id,
-			key,
-			build_parachain_context
-		)?;
-		Ok((future.boxed(), task_manager))
-	}
+	service::new!(
+		full
+		config,
+		Some((key.public(), para_id)),
+		None,
+		false,
+		6000,
+		None,
+		(task_manager, client, handlers) => {
+			let spawn_handle = task_manager.spawn_handle();
+			let future = build_collator_service(
+				spawn_handle,
+				handlers,
+				client,
+				para_id,
+				key,
+				build_parachain_context
+			)?;
+			Ok((future.boxed(), task_manager))
+		},
+	)
 }
 
 #[cfg(not(feature = "service-rewr"))]

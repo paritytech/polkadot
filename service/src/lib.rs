@@ -643,7 +643,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let ServiceComponents { task_manager, rpc_handlers, .. } = service::build(service::ServiceParams {	
+	let ServiceComponents { task_manager, rpc_handlers, .. } = service::build(service::ServiceParams {
 		config,
 		block_announce_validator_builder: None,
 		finality_proof_request_builder: Some(finality_proof_request_builder),
@@ -655,7 +655,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 		transaction_pool: transaction_pool.clone(),
 		import_queue, keystore, backend, task_manager,
 	})?;
-	
+
 	Ok((task_manager, rpc_handlers))
 }
 
@@ -815,4 +815,82 @@ pub fn westend_new_light(config: Configuration, ) -> Result<
 >
 {
 	new_light::<westend_runtime::RuntimeApi, KusamaExecutor, _>(config)
+}
+
+#[macro_export]
+macro_rules! new {
+	(
+		full
+		$config:expr,
+		$collating_for:expr,
+		$max_block_data_size:expr,
+		$authority_discovery_disabled:expr,
+		$slot_duration:expr,
+		$grandpa_pause:expr,
+		(
+			$task_manager:ident,
+			$client:ident,
+			$handlers:ident $(,)?
+		) => $code:block
+		$(,)?
+	) => {{
+		use $crate::IdentifyVariant;
+
+		if $config.chain_spec.is_kusama() {
+			let ($task_manager, $client, $handlers) = $crate::kusama_new_full(
+				$config,
+				$collating_for,
+				$max_block_data_size,
+				$authority_discovery_disabled,
+				$slot_duration,
+				$grandpa_pause,
+			)?;
+			$code
+		} else if $config.chain_spec.is_westend() {
+			let ($task_manager, $client, $handlers) = $crate::westend_new_full(
+				$config,
+				$collating_for,
+				$max_block_data_size,
+				$authority_discovery_disabled,
+				$slot_duration,
+				$grandpa_pause,
+			)?;
+			$code
+		} else {
+			let ($task_manager, $client, $handlers) = $crate::polkadot_new_full(
+				$config,
+				$collating_for,
+				$max_block_data_size,
+				$authority_discovery_disabled,
+				$slot_duration,
+				$grandpa_pause,
+			)?;
+			$code
+		}
+	}};
+	(
+		light
+		$config:expr,
+		($task_manager:ident, $handlers:ident $(,)?) => $code:block
+		$(,)?
+	) => {{
+		use $crate::IdentifyVariant;
+
+		if $config.chain_spec.is_kusama() {
+			let ($task_manager, $handlers) = $crate::kusama_new_light(
+				$config,
+			)?;
+			$code
+		} else if $config.chain_spec.is_westend() {
+			let ($task_manager, $handlers) = $crate::westend_new_light(
+				$config,
+			)?;
+			$code
+		} else {
+			let ($task_manager, $handlers) = $crate::polkadot_new_light(
+				$config,
+			)?;
+			$code
+		}
+	}};
 }
