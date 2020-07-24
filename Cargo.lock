@@ -4591,7 +4591,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-parachain",
  "polkadot-primitives",
- "polkadot-subsystem-test-helpers",
  "sp-blockchain",
  "sp-core",
  "sp-keyring",
