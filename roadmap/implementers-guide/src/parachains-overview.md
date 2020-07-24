@@ -107,27 +107,9 @@ digraph {
 		color=lightgrey
 		node [style=filled color=white]
 
-		a5 [label=<
-			<b>Validator 5</b>
-			<br/>
-			<font point-size="10">
-				(secondary checker)
-			</font>
-		>]
-		a6 [label=<
-			<b>Validator 6</b>
-			<br/>
-			<font point-size="10">
-				(secondary checker)
-			</font>
-		>]
-		a7 [label=<
-			<b>Validator 7</b>
-			<br/>
-			<font point-size="10">
-				(secondary checker)
-			</font>
-		>]
+		a5 [label="Validator 5"]
+		a6 [label="Validator 6"]
+		a7 [label="Validator 7"]
 	}
 
 	b -> v4 [label="(4) Backed"]
