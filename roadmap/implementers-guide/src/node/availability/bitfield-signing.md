@@ -4,6 +4,10 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 ## Protocol
 
+Input:
+
+There is no dedicated input mechanism for bitfield signing. Instead, Bitfield Signing produces a bitfield representing the current state of availability on `StartWork`.
+
 Output:
 
 - BitfieldDistribution::DistributeBitfield: distribute a locally signed bitfield
@@ -18,8 +22,8 @@ Upon receipt of an `ActiveLeavesUpdate`, launch bitfield signing job for each `a
 Localized to a specific relay-parent `r`
 If not running as a validator, do nothing.
 
+- Begin by waiting a fixed period of time so availability distribution has the chance to make candidates available.
 - Determine our validator index `i`, the set of backed candidates pending availability in `r`, and which bit of the bitfield each corresponds to.
-- > TODO: wait T time for availability distribution?
 - Start with an empty bitfield. For each bit in the bitfield, if there is a candidate pending availability, query the [Availability Store](../utility/availability-store.md) for whether we have the availability chunk for our validator index.
 - For all chunks we have, set the corresponding bit in the bitfield.
 - Sign the bitfield and dispatch a `BitfieldDistribution::DistributeBitfield` message.

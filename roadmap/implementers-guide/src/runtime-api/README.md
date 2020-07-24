@@ -137,10 +137,10 @@ enum CoreState {
 
 ## Global Validation Schedule
 
-Yields the [`GlobalValidationSchedule`](../types/candidate.md#globalvalidationschedule) at the state of a given block. This applies to all para candidates with the relay-parent equal to that block.
+Yields the [`GlobalValidationData`](../types/candidate.md#globalvalidationschedule) at the state of a given block. This applies to all para candidates with the relay-parent equal to that block.
 
 ```rust
-fn global_validation_schedule(at: Block) -> GlobalValidationSchedule;
+fn global_validation_data(at: Block) -> GlobalValidationData;
 ```
 
 ## Local Validation Data

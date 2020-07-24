@@ -58,7 +58,7 @@ use sp_core::Pair;
 use polkadot_primitives::v0::{
 	BlockId, Hash, Block, DownwardMessage,
 	BlockData, DutyRoster, HeadData, Id as ParaId,
-	PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationSchedule,
+	PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationData,
 	Collation, CollationInfo, collator_signature_payload,
 };
 use polkadot_cli::{
@@ -148,7 +148,7 @@ pub trait ParachainContext: Clone {
 	fn produce_candidate(
 		&mut self,
 		relay_parent: Hash,
-		global_validation: GlobalValidationSchedule,
+		global_validation: GlobalValidationData,
 		local_validation: LocalValidationData,
 		downward_messages: Vec<DownwardMessage>,
 	) -> Self::ProduceCandidate;
@@ -158,7 +158,7 @@ pub trait ParachainContext: Clone {
 pub async fn collate<P>(
 	relay_parent: Hash,
 	local_id: ParaId,
-	global_validation: GlobalValidationSchedule,
+	global_validation: GlobalValidationData,
 	local_validation_data: LocalValidationData,
 	downward_messages: Vec<DownwardMessage>,
 	mut para_context: P,
@@ -315,7 +315,7 @@ fn build_collator_service<P, C, R, Extrinsic>(
 
 			let work = future::lazy(move |_| {
 				let api = client.runtime_api();
-				let global_validation = try_fr!(api.global_validation_schedule(&id));
+				let global_validation = try_fr!(api.global_validation_data(&id));
 				let local_validation = match try_fr!(api.local_validation_data(&id, para_id)) {
 					Some(local_validation) => local_validation,
 					None => return future::Either::Left(future::ok(())),
@@ -477,7 +477,7 @@ mod tests {
 		fn produce_candidate(
 			&mut self,
 			_relay_parent: Hash,
-			_global: GlobalValidationSchedule,
+			_global: GlobalValidationData,
 			_local_validation: LocalValidationData,
 			_: Vec<DownwardMessage>,
 		) -> Self::ProduceCandidate {
