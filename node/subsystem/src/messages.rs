@@ -305,11 +305,18 @@ pub enum RuntimeApiRequest {
 	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
 	/// Get the global validation data.
 	GlobalValidationData(oneshot::Sender<GlobalValidationData>),
-	/// Get the local validation data,
+	/// Get the local validation data.
 	LocalValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
 		oneshot::Sender<Option<LocalValidationData>>,
+	),
+	/// Get the validation code.
+	#[allow(non_camel_case_types)]
+	ValidationCode_New(
+		ParaId,
+		OccupiedCoreAssumption,
+		oneshot::Sender<Option<ValidationCode>>,
 	),
 }
 
