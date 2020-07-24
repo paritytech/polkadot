@@ -663,6 +663,7 @@ where
 					}
 				}
 			}
+			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
 				Self::fwd_err(None, Error::from(err).into(), err_tx).await;

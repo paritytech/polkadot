@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Implements a `AvailabilityStoreSubsystem`.
-//!
 
 #![recursion_limit="256"]
 #![warn(missing_docs)]
@@ -42,7 +41,7 @@ const LOG_TARGET: &str = "availability";
 
 mod columns {
 	pub const DATA: u32 = 0;
-	pub const NUM_COLUMNS: u32 = 2;
+	pub const NUM_COLUMNS: u32 = 1;
 }
 
 #[derive(Debug, derive_more::From)]
@@ -78,7 +77,7 @@ struct StoredAvailableData {
 
 /// Configuration for the availability store.
 pub struct Config {
-	/// Cache size in bytes. If `None` default is used.
+	/// Total cache size in megabytes. If `None` the default (128 MiB per column) is used.
 	pub cache_size: Option<usize>,
 	/// Path to the database.
 	pub path: PathBuf,
@@ -131,7 +130,7 @@ where
 					Ok(FromOverseer::Signal(Conclude)) => break,
 					Ok(FromOverseer::Signal(_)) => (),
 					Ok(FromOverseer::Communication { msg }) => {
-						let _ = process_message(&subsystem.inner, msg);
+						process_message(&subsystem.inner, msg)?;
 					}
 					Err(_) => break,
 				}
@@ -147,7 +146,7 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 	use AvailabilityStoreMessage::*;
 	match msg {
 		QueryAvailableData(hash, tx) => {
-			let _ = tx.send(available_data(db, &hash).map(|d| d.data));
+			tx.send(available_data(db, &hash).map(|d| d.data)).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryDataAvailability(hash, tx) => {
 			let result = match available_data(db, &hash) {
@@ -155,10 +154,10 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 				None => false,
 			};
 
-			let _ = tx.send(result);
+			tx.send(result).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunk(hash, id, tx) => {
-			let _ = tx.send(get_chunk(db, &hash, id)?);
+			tx.send(get_chunk(db, &hash, id)?).map_err(|_| oneshot::Canceled)?;
 		}
 		StoreChunk(hash, id, chunk, tx) => {
 			match store_chunk(db, &hash, id, chunk) {
@@ -167,7 +166,7 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 					return Err(e);
 				}
 				Ok(()) => {
-					let _ = tx.send(Ok(()));
+					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
 				}
 			}
 		}
@@ -178,7 +177,7 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 					return Err(e);
 				}
 				Ok(()) => {
-					let _ = tx.send(Ok(()));
+					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
 				}
 			}
 		}
@@ -246,11 +245,11 @@ fn get_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, index: u32)
 
 	if let Some(data) = available_data(db, candidate_hash) {
 		let mut chunks = get_chunks(&data.data, data.n_validators as usize)?;
-		let chunk = chunks.get(index as usize).cloned();
+		let desired_chunk = chunks.get(index as usize).cloned();
 		for chunk in chunks.drain(..) {
 			store_chunk(db, candidate_hash, data.n_validators, chunk)?;
 		}
-		return Ok(chunk);
+		return Ok(desired_chunk);
 	}
 
 	Ok(None)
