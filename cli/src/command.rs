@@ -53,18 +53,18 @@ impl SubstrateCli for Cli {
 				.unwrap_or("polkadot")
 		} else { id };
 		Ok(match id {
-			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()),
-			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()),
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()),
-			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()),
-			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()),
-			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
+			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
+			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()?),
+			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()?),
+			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			"kusama" => Box::new(service::chain_spec::kusama_config()?),
-			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
-			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
-			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),
+			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
+			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
+			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
 			path if self.run.force_kusama => {
 				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
 			},
