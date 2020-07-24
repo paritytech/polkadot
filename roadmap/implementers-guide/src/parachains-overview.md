@@ -94,38 +94,48 @@ digraph {
 	rc [label="Relay Chain Validators"]
 
 	subgraph cluster_approval {
-		label="Parachain Validators (Approval)"
-		labeljust=c
+		label="All Validators (Approval)"
+		labeljust=l
 		style=filled
 		color=lightgrey
 		node [style=filled color=white]
 
-		a1 [label=<
-			<b>Validator 1</b>
+		a5 [label=<
+			<b>Validator 5</b>
 			<br/>
 			<font point-size="10">
 				(secondary checker)
 			</font>
 		>]
-		a2 [label="Validator 2"]
-		a3 [label=<
-			<b>Validator 3</b>
+		a6 [label=<
+			<b>Validator 6</b>
 			<br/>
 			<font point-size="10">
 				(secondary checker)
 			</font>
 		>]
+		a7 [label=<
+			<b>Validator 7</b>
+			<br/>
+			<font point-size="10">
+				(secondary checker)
+			</font>
+		>]
+		a8 [label="Other validators"]
+
 	}
 
 	b -> v4 [label="(4) Backed"]
 	col -> v1 [label="(1) Candidate"]
 	v4 -> pa
 	pa -> pb [label="(6) a few blocks later..." arrowhead=none]
-	pb -> a1
-	pb -> a3
+	pb -> a5
+	pb -> a6
+	pb -> a7
 
-	a1 -> rc [label="(7) Approved"]
-	a3 -> rc [label="(7) Approved"]
+	a5 -> rc [label="(7) Approved"]
+	a6 -> rc [label="(7) Approved"]
+	a7 -> rc [label="(7) Approved"]
 }
 ```
 
