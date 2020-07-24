@@ -16,4 +16,4 @@ On receipt of `RuntimeApiMessage::Request(relay_parent, request)`, answer the re
 
 ## Jobs
 
-> TODO Don't limit requests based on parent hash, but limit caching. No caching should be done for any requests on relay_parents that are not live based on `StartWork` or `StopWork` messages. Maybe with some leeway for things that have just been stopped.
+> TODO Don't limit requests based on parent hash, but limit caching. No caching should be done for any requests on relay_parents that are not active based on `ActiveLeavesUpdate` messages. Maybe with some leeway for things that have just been stopped.

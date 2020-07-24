@@ -77,7 +77,7 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, StatementDistributionMessage,
-	AvailabilityDistributionMessage, BitfieldDistributionMessage,
+	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages,
 };
@@ -339,6 +339,9 @@ pub struct Overseer<S: SpawnNamed> {
 	/// An availability distribution subsystem.
 	availability_distribution_subsystem: OverseenSubsystem<AvailabilityDistributionMessage>,
 
+	/// A bitfield signing subsystem.
+	bitfield_signing_subsystem: OverseenSubsystem<BitfieldSigningMessage>,
+
 	/// A bitfield distribution subsystem.
 	bitfield_distribution_subsystem: OverseenSubsystem<BitfieldDistributionMessage>,
 
@@ -390,7 +393,7 @@ pub struct Overseer<S: SpawnNamed> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB> {
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
@@ -401,6 +404,8 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB> {
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
 	pub availability_distribution: AD,
+	/// A bitfield signing subsystem.
+	pub bitfield_signing: BS,
 	/// A bitfield distribution subsystem.
 	pub bitfield_distribution: BD,
 	/// A provisioner subsystem.
@@ -487,6 +492,7 @@ where
 	///     candidate_selection: DummySubsystem,
 	///     statement_distribution: DummySubsystem,
 	///     availability_distribution: DummySubsystem,
+	///     bitfield_signing: DummySubsystem,
 	///     bitfield_distribution: DummySubsystem,
 	///     provisioner: DummySubsystem,
 	///     pov_distribution: DummySubsystem,
@@ -513,9 +519,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>(
+	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -524,6 +530,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
 		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
 		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
 		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
@@ -573,6 +580,13 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.availability_distribution,
+		)?;
+
+		let bitfield_signing_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.bitfield_signing,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
@@ -630,6 +644,7 @@ where
 			candidate_selection_subsystem,
 			statement_distribution_subsystem,
 			availability_distribution_subsystem,
+			bitfield_signing_subsystem,
 			bitfield_distribution_subsystem,
 			provisioner_subsystem,
 			pov_distribution_subsystem,
@@ -871,6 +886,11 @@ where
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
+			AllMessages::BitfieldSigning(msg) => {
+				if let Some(ref mut s) = self.bitfield_signing_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication{ msg }).await;
+				}
+			}
 			AllMessages::Provisioner(msg) => {
 				if let Some(ref mut s) = self.provisioner_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
@@ -1050,6 +1070,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1112,6 +1133,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1227,6 +1249,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1323,6 +1346,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,

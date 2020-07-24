@@ -8,10 +8,10 @@ Signals from the overseer to a subsystem to request change in execution that has
 
 ```rust
 enum OverseerSignal {
-  /// Signal to start work localized to the relay-parent hash.
-  StartWork(Hash),
-  /// Signal to stop (or phase down) work localized to the relay-parent hash.
-  StopWork(Hash),
+  /// Signal about a change in active leaves.
+  ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Conclude all operation.
+  Conclude,
 }
 ```
 
@@ -21,6 +21,17 @@ All subsystems have their own message types; all of them need to be able to list
 1. Add a generic varint to `OverseerSignal`: `Message(T)`.
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
+
+## Active Leaves Update
+
+Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
+
+```rust
+struct ActiveLeavesUpdate {
+	activated: [Hash], // in practice, these should probably be a SmallVec
+	deactivated: [Hash],
+}
+```
 
 ## All Messages
 
@@ -244,7 +255,7 @@ enum RuntimeApiRequest {
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
 	/// Get the global validation schedule at the state of a given block.
-	GlobalValidationSchedule(ResponseChannel<GlobalValidationSchedule>),
+	GlobalValidationData(ResponseChannel<GlobalValidationData>),
 	/// Get the local validation data for a specific para, with the given occupied core assumption.
 	LocalValidationData(
 		ParaId,
@@ -252,9 +263,11 @@ enum RuntimeApiRequest {
 		ResponseChannel<Option<LocalValidationData>>,
 	),
 	/// Get information about all availability cores.
-	AvailabilityCores(ResponseChannel<AvailabilityCores>),
+	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
 	CandidatePendingAvailability(ParaId, ResponseChannel<Option<CommittedCandidateReceipt>>),
+	/// Get all events concerning candidates in the last block.
+	CandidateEvents(ResponseChannel<Vec<CandidateEvent>>),
 }
 
 enum RuntimeApiMessage {

@@ -62,6 +62,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
   1. check that `scheduled` is sorted ascending by `CoreIndex`, without duplicates.
   1. check that there is no candidate pending availability for any scheduled `ParaId`.
+  1. check that each candidate's `validation_data_hash` corresponds to a `(LocalValidationData, GlobalValidationData)` computed from the current state.
   1. If the core assignment includes a specific collator, ensure the backed candidate is issued by that collator.
   1. Ensure that any code upgrade scheduled by the candidate does not happen within `config.validation_upgrade_frequency` of `Paras::last_code_upgrade(para_id, true)`, if any, comparing against the value of `Paras::FutureCodeUpgrades` for the given para ID.
   1. Check the collator's signature on the candidate data.
@@ -84,3 +85,6 @@ All failed checks should lead to an unrecoverable error making the block invalid
       // return a vector of cleaned-up core IDs.
     }
   ```
+* `force_enact(ParaId)`: Forcibly enact the candidate with the given ID as though it had been deemed available by bitfields. Is a no-op if there is no candidate pending availability for this para-id. This should generally not be used but it is useful during execution of Runtime APIs, where the changes to the state are expected to be discarded directly after.
+* `candidate_pending_availability(ParaId) -> Option<CommittedCandidateReceipt>`: returns the `CommittedCandidateReceipt` pending availability for the para provided, if any.
+* `pending_availability(ParaId) -> Option<CandidatePendingAvailability>`: returns the metadata around the candidate pending availability for the para, if any.
