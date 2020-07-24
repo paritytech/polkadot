@@ -126,16 +126,20 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
-			runner.run_node_until_exit(|config| match config.role {
-				Role::Light => service::NodeBuilder::build_light(config),
-				_ => service::NodeBuilder::build_full(
-					config,
-					None,
-					None,
-					authority_discovery_disabled,
-					6000,
-					grandpa_pause,
-				),
+			runner.run_node_until_exit(|config| {
+				let role = config.role.clone();
+				let builder = service::NodeBuilder::new(config);
+
+				match role {
+					Role::Light => builder.build_light(),
+					_ => builder.build_full(
+						None,
+						None,
+						authority_discovery_disabled,
+						6000,
+						grandpa_pause,
+					),
+				}
 			})
 		},
 		Some(Subcommand::Base(subcommand)) => {

@@ -793,36 +793,48 @@ pub struct FullNodeHandles {
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
-pub struct NodeBuilder;
+/// A builder for a node.
+pub struct NodeBuilder {
+	config: Configuration,
+}
 
 impl NodeBuilder {
-	pub fn build_light(config: Configuration) -> Result<TaskManager, ServiceError> {
-		if config.chain_spec.is_kusama() {
+	/// Create a new node builder.
+	pub fn new(config: Configuration) -> Self {
+		Self {
+			config,
+		}
+	}
+
+	/// Build a new light node.
+	pub fn build_light(self) -> Result<TaskManager, ServiceError> {
+		if self.config.chain_spec.is_kusama() {
 			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
-				config,
+				self.config,
 			).map(|(task_manager, _)| task_manager)
-		} else if config.chain_spec.is_westend() {
+		} else if self.config.chain_spec.is_westend() {
 			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
-				config,
+				self.config,
 			).map(|(task_manager, _)| task_manager)
 		} else {
 			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
-				config,
+				self.config,
 			).map(|(task_manager, _)| task_manager)
 		}
 	}
 
+	/// Build a new full node.
 	pub fn build_full(
-		config: Configuration,
+		self,
 		collating_for: Option<(CollatorId, parachain::Id)>,
 		max_block_data_size: Option<u64>,
 		authority_discovery_disabled: bool,
 		slot_duration: u64,
 		grandpa_pause: Option<(u32, u32)>,
 	) -> Result<TaskManager, ServiceError> {
-		if config.chain_spec.is_kusama() {
+		if self.config.chain_spec.is_kusama() {
 			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
-				config,
+				self.config,
 				collating_for,
 				max_block_data_size,
 				authority_discovery_disabled,
@@ -830,9 +842,9 @@ impl NodeBuilder {
 				grandpa_pause,
 				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
-		} else if config.chain_spec.is_westend() {
+		} else if self.config.chain_spec.is_westend() {
 			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
-				config,
+				self.config,
 				collating_for,
 				max_block_data_size,
 				authority_discovery_disabled,
@@ -842,7 +854,7 @@ impl NodeBuilder {
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else {
 			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
-				config,
+				self.config,
 				collating_for,
 				max_block_data_size,
 				authority_discovery_disabled,
