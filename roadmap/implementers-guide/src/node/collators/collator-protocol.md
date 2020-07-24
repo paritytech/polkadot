@@ -18,7 +18,6 @@ Input: [`CollatorProtocolMessage`][CPM]
 
 Output:
   - [`RuntimeApiMessage`][RAM]
-  - [`CandidateBackingMessage`][CBM]`::Second`
   - [`NetworkBridgeMessage`][NBM]
 
 ## Functionality
@@ -51,8 +50,11 @@ enum WireMessage {
 	/// A wire message to our sentry.
 	ToOurSentry(ToOurSentryMessage),
 
-	/// Advertise a collation to a validator.
-	AdvertiseCollation(Hash, CollatorId, ParaId),
+	/// Declare the intent to advertise collations under a collator ID.
+	Declare(CollatorId),
+	/// Advertise a collation to a validator. Can only be sent once the peer has declared
+	/// that they are a collator with given ID.
+	AdvertiseCollation(Hash, ParaId),
 	/// Request the advertised collation at that relay-parent.
 	RequestCollation(RequestId, Hash, ParaId),
 	/// A requested collation.
@@ -150,6 +152,92 @@ digraph G {
 At any step in the above diagram, the sentry node will be doing validation of the network statements sent by the collator and can report or disconnect the collator.
 
 The protocol tracks advertisements received and the source of the advertisement. The advertisement source is either `Direct(PeerId)` or `Sentry(PeerId)`. We accept one advertisement per collator per source per relay-parent.
+
+We use the `NetworkBridgeUpdate::OurViewChange` to track which heads we consider in our active leaves set and have communicated to peers. We ensure we keep records for all active leaves, mutating based on incoming `ActiveLeavesUpdate`s. The records have this form:
+
+```rust
+struct CollationAdvertisements {
+	received_advertisements: Set<(Collator, Source)>,
+	advertisements: Map<ParaId, Map<Collator, [Source]>>>,
+}
+```
+
+We also keep a record of what we are fetching for each leaf/relay-parent:
+
+```rust
+struct CollationFetch {
+	unserved_fetch: Map<ParaId, [FetchDest]>,
+	fetch_inflight: Map<RequestId, (FetchMetadata, [FetchDest])>,
+	fetched_candidates: Map<FetchMetadata, (CandidateReceipt, PoV)>,
+}
+
+struct FetchMetadata {
+	Collator,
+	Source,
+	ParaId,
+}
+
+enum FetchDest {
+	Subsystem(fn(CandidateReceipt, PoV) -> AllMessages),
+	Validator(RequestId, PeerId),
+}
+```
+
+We also keep a record per-peer:
+
+```rust
+struct PeerData {
+	role: ObservedRole,
+	live_requests: Map<RequestId, Hash>, // relay-parent the request is under.
+	collator_id: Option<CollatorId>,
+	view: View,
+}
+```
+
+On receiving a `NetworkBridgeUpdate::PeerViewChange`:
+  * If the peer is our guarded validator, for each new leaf in their view that is also in our view, send a `ToOurValidator::AdvertisedCollation` for each advertisement with source `Direct` to each peer who is our validator.
+
+On receiving a `NetworkBridgeUpdate::PeerDisconnected`:
+  * Remove all received advertisements with source being this peer. If this peer is one of our sentry nodes, this includes advertisements with the peer being the sentry.
+  * Call `request_timed_out` for each `(request_id, hash)` in the peer's `live_requests` map.
+
+On receiving a `WireMessage::AdvertiseCollation(relay-parent, collator, para)`:
+  * `receive_advertisement(relay_parent, Direct(sender), collator, para)`
+
+`WireMessage::RequestCollation` handling logic is addressed in the section on the collator side of the protocol.
+
+On receiving a `WireMessage::Collation(request_id, candidate_receipt, pov)`:
+  * If the sender doesn't have `request_id` in its `PeerData`: report and ignore. Remove the `request_id` and take the relay-parent associated.
+  * `receive_collation(request_id, relay-parent, candidate_receipt, pov)`
+
+On receiving a `ToOurSentryMessage::RequestCollation(request_id, relay_parent, collator_id, para_id)`:
+  * If the sender is not our guarded validator, report & ignore.
+  * If we have no record for that collator and para under the relay parent, respond with `ToOurValidatorMessage::RequestedCollation(request_id, hash, None)` and return.
+  * Otherwise, generate a new request ID r and issue a `WireMessage::RequestCollation(r, hash, para_id)` to the source. Note the request as in-flight with `FetchDest::Validator(sender)` and note the request-id under the peer data.
+  * Start a time-out for the request, which will call `request_timed_out(r, relay_parent)` if too long is taken.
+
+On receiving `ToOurSentryMessage::BlacklistCollator(collator)`:
+  * Report & ignore unless coming from our validator
+  * Issue necessary reputational changes. If any peer advertises as the given collator, disconnect the peer and ignore any advertisements from that collator from that point onwards.
+
+On receiving `ToOurSentryMessage::NoteGoodCollation(collator)`:
+  * Report & ignore unless coming from our validator.
+  * Issue positive reputational change for all peers advertising as the collator.
+
+`receive_advertisement(relay_parent, source, collator, para)`:
+  * If we have no record for the relay-parent, report and ignore.
+  * If we have already received an advertisement from this collator from the source, report and ignore.
+  * Make a record in `received_advertisements` and `advertisements` for the relay-parent.
+  * If `unserved_fetch` contains the para ID, attempt to initiate a new fetch request.
+
+`receive_collation(request_id, relay_parent, candidate_receipt, pov)`:
+  * If there is not an entry in `fetch_inflight` for the request ID under that relay-parent, report sender & ignore.
+  * Check that the receipt's collator and para_id match the metadata of the fetch.
+  * Notify each `FetchDest` of the collation: for `FetchDest::Subsystem`, this sends a message to the subsystem. For `FetchDest::Validator(request_id, peer_id)`, this sends a `ToOurValidator::RequestedCollation(request_id, relay_parent, relay_parent, Some((candidate_receipt, pov)))` to the `peer_id`.
+
+`request_timed_out(request_id, relay_parent)`:
+  * Remove the request from tracking under `relay_parent` and add the `ParaId` back to `unserved_fetch` with all `FetchDest::Subsystem` but removing all `FetchDest::Validator`. For all `FetchDest::Validator`, send the validator a `ToValidatorMessage::RequestedCollation(request_id, relay_parent, None)`.
+  * Attempt to initiate a new fetch request, if we restored an entry in `unserved_fetch`.
 
 [PoV]: ../../types/availability.md#proofofvalidity
 [CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage
