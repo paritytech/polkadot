@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	},
 	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
 };
-use polkadot_primitives::v1::{AvailabilityBitfield, CoreOccupied, Hash};
+use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
 
@@ -127,15 +127,17 @@ pub enum Error {
 	Multiple(Vec<Error>),
 }
 
-// this function exists mainly to collect a bunch of potential error points into one.
+// if there is a candidate pending availability, query the Availability Store
+// for whether we have the availability chunk for our validator index.
 async fn get_core_availability(
 	relay_parent: Hash,
 	idx: usize,
-	core: Option<CoreOccupied>,
+	core: CoreState,
+	validator_idx: ValidatorIndex,
 	sender: &mpsc::Sender<FromJob>,
 ) -> Result<bool, Error> {
 	use messages::{
-		AvailabilityStoreMessage::QueryPoVAvailable,
+		AvailabilityStoreMessage::QueryChunkAvailability,
 		RuntimeApiRequest::CandidatePendingAvailability,
 	};
 	use FromJob::{AvailabilityStore, RuntimeApi};
@@ -144,8 +146,7 @@ async fn get_core_availability(
 	// we have to (cheaply) clone this sender so we can mutate it to actually send anything
 	let mut sender = sender.clone();
 
-	// REVIEW: is it safe to ignore parathreads here, or do they also figure in the availability mapping?
-	if let Some(CoreOccupied::Parachain) = core {
+	if let CoreState::Occupied(_) = core {
 		let (tx, rx) = oneshot::channel();
 		sender
 			.send(RuntimeApi(Request(
@@ -159,14 +160,20 @@ async fn get_core_availability(
 		};
 		let (tx, rx) = oneshot::channel();
 		sender
-			.send(AvailabilityStore(QueryPoVAvailable(
+			.send(AvailabilityStore(QueryChunkAvailability(
 				committed_candidate_receipt.descriptor.pov_hash,
+				validator_idx,
 				tx,
 			)))
 			.await?;
 		return rx.await.map_err(Into::into);
 	}
 	Ok(false)
+}
+
+// delegates to the v1 runtime API
+async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
+	unimplemented!()
 }
 
 // the way this function works is not intuitive:
@@ -177,29 +184,19 @@ async fn get_core_availability(
 // - from there, we can send a `AvailabilityStore::QueryPoV` and set the indexed bit to 1 if it returns Some(_)
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
+	validator_idx: ValidatorIndex,
 	sender: &mut mpsc::Sender<FromJob>,
 ) -> Result<AvailabilityBitfield, Error> {
 	use futures::lock::Mutex;
 
-	use messages::RuntimeApiRequest::ValidatorGroups;
-	use FromJob::RuntimeApi;
-	use RuntimeApiMessage::Request;
-
-	// request the validator groups so we can get the scheduler roster
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send(RuntimeApi(Request(relay_parent, ValidatorGroups(tx))))
-		.await?;
+	// get the set of availability cores from the runtime
+	let availability_cores = get_availability_cores(relay_parent, sender).await?;
 
 	// we now need sender to be immutable so we can copy the reference to multiple concurrent closures
 	let sender = &*sender;
 
-	// wait for the scheduler roster
-	let scheduler_roster = rx.await?;
-
 	// prepare outputs
-	let out =
-		Mutex::new(bitvec!(bitvec::order::Lsb0, u8; 0; scheduler_roster.availability_cores.len()));
+	let out = Mutex::new(bitvec!(bitvec::order::Lsb0, u8; 0; availability_cores.len()));
 	// in principle, we know that we never want concurrent access to the _same_ bit within the vec;
 	// we could `let out_ref = out.as_mut_ptr();` here instead, and manually assign bits, avoiding
 	// any need to ever wait to lock this mutex.
@@ -213,9 +210,9 @@ async fn construct_availability_bitfield(
 	//
 	// In principle, this work is all concurrent, not parallel. In practice, we can't guarantee it, which is why
 	// we need the mutexes and explicit references above.
-	stream::iter(scheduler_roster.availability_cores.into_iter().enumerate())
+	stream::iter(availability_cores.into_iter().enumerate())
 		.for_each_concurrent(None, |(idx, core)| async move {
-			let availability = match get_core_availability(relay_parent, idx, core, sender).await {
+			let availability = match get_core_availability(relay_parent, idx, core, validator_idx, sender).await {
 				Ok(availability) => availability,
 				Err(err) => {
 					errs_ref.lock().await.push(err);
@@ -264,7 +261,7 @@ impl JobTrait for BitfieldSigningJob {
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
 
-			let bitfield = construct_availability_bitfield(relay_parent, &mut sender).await?;
+			let bitfield = construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await?;
 			let signed_bitfield = validator.sign(bitfield);
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message
