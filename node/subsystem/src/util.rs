@@ -602,7 +602,7 @@ where
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
-		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
+		use crate::OverseerSignal::{BlockFinalized, Conclude, StartWork, StopWork};
 
 		match incoming {
 			Ok(Signal(StartWork(hash))) => {

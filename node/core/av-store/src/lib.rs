@@ -274,11 +274,16 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
-			if let Err(e) = self.run(ctx).await {
+		let future = Box::pin(async move {
+			if let Err(e) = run(self, ctx).await {
 				log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
 			}
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "availability-store-subsystem",
+			future,
+		}
 	}
 }
 
@@ -305,12 +310,12 @@ mod tests {
 	use futures::{
 		future,
 		channel::oneshot,
-		executor::{self, ThreadPool},
+		executor,
 		Future,
 	};
 	use std::cell::RefCell;
 	use polkadot_primitives::v1::{
-		AvailableData, BlockData, HeadData, GlobalValidationSchedule, LocalValidationData, PoV,
+		AvailableData, BlockData, HeadData, GlobalValidationData, LocalValidationData, PoV,
 		OmittedValidationData,
 	};
 	use polkadot_subsystem::test_helpers;
@@ -324,7 +329,7 @@ mod tests {
 	}
 
 	struct TestState {
-		global_validation_schedule: GlobalValidationSchedule,
+		global_validation_schedule: GlobalValidationData,
 		local_validation_data: LocalValidationData,
 	}
 
@@ -338,7 +343,7 @@ mod tests {
 				validation_code_hash: Default::default(),
 			};
 
-			let global_validation_schedule = GlobalValidationSchedule {
+			let global_validation_schedule = GlobalValidationData {
 				max_code_size: 1000,
 				max_head_data_size: 1000,
 				block_number: Default::default(),
@@ -355,8 +360,7 @@ mod tests {
 		store: Arc<dyn KeyValueDB>,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
-		let pool = ThreadPool::new().unwrap();
-
+		let pool = sp_core::testing::SpawnBlockingExecutor::new();
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = AvailabilityStoreSubsystem::new_in_memory(store);

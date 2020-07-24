@@ -172,6 +172,7 @@ impl BitfieldDistribution {
 						},
 					);
 				}
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
 				FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
 					trace!(target: "bitd", "Stop {:?}", relay_parent);
 					// defer the cleanup to the view change
