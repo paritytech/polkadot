@@ -59,7 +59,11 @@ Reiterating the lifecycle of a candidate:
 ```dot process Inclusion Pipeline
 digraph {
 	subgraph cluster_vg {
-		label="Parachain Validators"
+		label=<
+			Parachain Validators
+			<br/>
+			(subset of all)
+		>
 		labeljust=l
 		style=filled
 		color=lightgrey
@@ -77,7 +81,6 @@ digraph {
 		v2 -> b [style=dashed arrowhead=none]
 		v3 -> b [style=dashed arrowhead=none]
 		v1 -> b [style=dashed arrowhead=none]
-
 	}
 
 	v4 [label=<
@@ -94,7 +97,11 @@ digraph {
 	rc [label="Relay Chain Validators"]
 
 	subgraph cluster_approval {
-		label="All Validators (Approval)"
+		label=<
+			Secondary Checkers
+			<br/>
+			(subset of all)
+		>
 		labeljust=l
 		style=filled
 		color=lightgrey
@@ -121,8 +128,6 @@ digraph {
 				(secondary checker)
 			</font>
 		>]
-		a8 [label="Other validators"]
-
 	}
 
 	b -> v4 [label="(4) Backed"]
