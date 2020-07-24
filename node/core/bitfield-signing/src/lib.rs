@@ -172,7 +172,8 @@ async fn get_core_availability(
 }
 
 // delegates to the v1 runtime API
-async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
+async fn get_availability_cores(_relay_parent: Hash, _sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
+	// pending https://github.com/paritytech/polkadot/issues/1419
 	unimplemented!()
 }
 
