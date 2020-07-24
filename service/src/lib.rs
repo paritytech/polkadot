@@ -570,7 +570,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 }
 
 /// Builds a new service for a light client.
-pub fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
