@@ -29,7 +29,8 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, CommittedCandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData,
+	ValidatorSignature, OmittedValidationData, GlobalValidationData, LocalValidationData,
+	OccupiedCoreAssumption,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -282,8 +283,9 @@ pub struct SchedulerRoster {
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
-	/// Get the current validator set.
-	Validators(oneshot::Sender<Vec<ValidatorId>>),
+
+	// OLD runtime APIs.
+
 	/// Get the assignments of validators to cores.
 	ValidatorGroups(oneshot::Sender<SchedulerRoster>),
 	/// Get a signing context for bitfields and statements.
@@ -294,8 +296,21 @@ pub enum RuntimeApiRequest {
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
 	/// Get head data for a specific para.
 	HeadData(ParaId, oneshot::Sender<HeadData>),
-	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+
+	// NEW runtime APIs.
+
+	/// Get the current validator set.
+	Validators(oneshot::Sender<Vec<ValidatorId>>),
+	/// Get the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
+	/// Get the global validation data.
+	GlobalValidationData(oneshot::Sender<GlobalValidationData>),
+	/// Get the local validation data,
+	LocalValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		oneshot::Sender<Option<LocalValidationData>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
