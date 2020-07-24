@@ -4545,20 +4545,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-node-bitfield-signing"
-version = "0.1.0"
-dependencies = [
- "bitvec",
- "derive_more 0.99.9",
- "futures 0.3.5",
- "log 0.4.8",
- "polkadot-node-subsystem",
- "polkadot-primitives",
- "sc-keystore",
- "wasm-timer",
-]
-
-[[package]]
 name = "polkadot-node-core-backing"
 version = "0.1.0"
 dependencies = [
@@ -4577,6 +4563,20 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-keyring",
+]
+
+[[package]]
+name = "polkadot-node-core-bitfield-signing"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "log 0.4.8",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "sc-keystore",
+ "wasm-timer",
 ]
 
 [[package]]

@@ -255,7 +255,7 @@ enum RuntimeApiRequest {
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
 	/// Get the global validation schedule at the state of a given block.
-	GlobalValidationSchedule(ResponseChannel<GlobalValidationSchedule>),
+	GlobalValidationData(ResponseChannel<GlobalValidationData>),
 	/// Get the local validation data for a specific para, with the given occupied core assumption.
 	LocalValidationData(
 		ParaId,
