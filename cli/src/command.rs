@@ -127,26 +127,15 @@ pub fn run() -> Result<()> {
 			}
 
 			runner.run_node_until_exit(|config| match config.role {
-				Role::Light => {
-					service::new!(light config,
-						(task_manager, _handlers) => {
-							Ok(task_manager)
-						},
-					)
-				},
-				_ => {
-					service::new!(full
-						config,
-						None,
-						None,
-						authority_discovery_disabled,
-						6000,
-						grandpa_pause,
-						(task_manager, _client, _handlers) => {
-							Ok(task_manager)
-						},
-					)
-				},
+				Role::Light => service::NodeBuilder::build_light(config),
+				_ => service::NodeBuilder::build_full(
+					config,
+					None,
+					None,
+					authority_discovery_disabled,
+					6000,
+					grandpa_pause,
+				),
 			})
 		},
 		Some(Subcommand::Base(subcommand)) => {

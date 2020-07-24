@@ -570,7 +570,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+pub fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -793,45 +793,77 @@ pub struct FullNodeHandles {
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
-/// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(config: Configuration) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(config)
-}
+pub struct NodeBuilder;
 
-/// Create a new Kusama service for a light client.
-pub fn kusama_new_light(config: Configuration) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(config)
-}
+impl NodeBuilder {
+	pub fn build_light(config: Configuration) -> Result<TaskManager, ServiceError> {
+		if config.chain_spec.is_kusama() {
+			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+				config,
+			).map(|(task_manager, _)| task_manager)
+		} else if config.chain_spec.is_westend() {
+			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+				config,
+			).map(|(task_manager, _)| task_manager)
+		} else {
+			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+				config,
+			).map(|(task_manager, _)| task_manager)
+		}
+	}
 
-/// Create a new Westend service for a light client.
-pub fn westend_new_light(config: Configuration, ) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<westend_runtime::RuntimeApi, KusamaExecutor, _>(config)
+	pub fn build_full(
+		config: Configuration,
+		collating_for: Option<(CollatorId, parachain::Id)>,
+		max_block_data_size: Option<u64>,
+		authority_discovery_disabled: bool,
+		slot_duration: u64,
+		grandpa_pause: Option<(u32, u32)>,
+	) -> Result<TaskManager, ServiceError> {
+		if config.chain_spec.is_kusama() {
+			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+				config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		} else if config.chain_spec.is_westend() {
+			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+				config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		} else {
+			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+				config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		}
+	}
 }
 
 #[macro_export]
-macro_rules! new {
+macro_rules! run_code_with_full_node {
 	(
-		full
 		$config:expr,
 		$collating_for:expr,
 		$max_block_data_size:expr,
 		$authority_discovery_disabled:expr,
 		$slot_duration:expr,
 		$grandpa_pause:expr,
-		(
-			$task_manager:ident,
-			$client:ident,
-			$handlers:ident $(,)?
-		) => $code:block
+		|$task_manager:ident, $client:ident, $handlers:ident $(,)?| $code:block
 		$(,)?
 	) => {{
 		use $crate::IdentifyVariant;
@@ -864,31 +896,6 @@ macro_rules! new {
 				$authority_discovery_disabled,
 				$slot_duration,
 				$grandpa_pause,
-			)?;
-			$code
-		}
-	}};
-	(
-		light
-		$config:expr,
-		($task_manager:ident, $handlers:ident $(,)?) => $code:block
-		$(,)?
-	) => {{
-		use $crate::IdentifyVariant;
-
-		if $config.chain_spec.is_kusama() {
-			let ($task_manager, $handlers) = $crate::kusama_new_light(
-				$config,
-			)?;
-			$code
-		} else if $config.chain_spec.is_westend() {
-			let ($task_manager, $handlers) = $crate::westend_new_light(
-				$config,
-			)?;
-			$code
-		} else {
-			let ($task_manager, $handlers) = $crate::polkadot_new_light(
-				$config,
 			)?;
 			$code
 		}

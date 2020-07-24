@@ -393,15 +393,14 @@ where
 		.into());
 	}
 
-	service::new!(
-		full
+	service::run_code_with_full_node!(
 		config,
 		Some((key.public(), para_id)),
 		None,
 		false,
 		6000,
 		None,
-		(task_manager, client, handlers) => {
+		|task_manager, client, handlers| {
 			let spawn_handle = task_manager.spawn_handle();
 			let future = build_collator_service(
 				spawn_handle,
