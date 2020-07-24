@@ -51,3 +51,10 @@ On `SendMessage` message:
 - Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.
 
 [NBM]: ../../types/overseer-protocol.md#network-bridge-message
+
+On `ConnectToValidators` message:
+
+- Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
+- Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
+- Accumulate all `(ValidatorId, PeerId)` pairs and send on the response channel.
+- Feed all Peer IDs to the discovery utility the underlying network provides.

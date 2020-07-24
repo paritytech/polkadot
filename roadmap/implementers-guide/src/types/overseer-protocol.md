@@ -170,6 +170,11 @@ enum NetworkBridgeMessage {
 	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
 	/// Send a message to one or more peers on the given protocol ID.
 	SendMessage(PeerSet, [PeerId], ProtocolId, Bytes),
+	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	///
+	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
+	/// validators.
+	ConnectToValidators(PeerSet, [ValidatorId], ResponseChannel<[(ValidatorId, PeerId)]>>),
 }
 ```
 
