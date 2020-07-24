@@ -152,14 +152,24 @@ Messages received by the network bridge. This subsystem is invoked by others to 
 to the low-level networking code.
 
 ```rust
+/// Peer-sets handled by the network bridge.
+enum PeerSet {
+	/// The collation peer-set is used to distribute collations from collators to validators.
+	Collation,
+	/// The validation peer-set is used to distribute information relevant to parachain
+	/// validation among validators. This may include nodes which are not validators,
+	/// as some protocols on this peer-set are expected to be gossip.
+	Validation,
+}
+
 enum NetworkBridgeMessage {
 	/// Register an event producer with the network bridge. This should be done early and cannot
 	/// be de-registered.
-	RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
+	RegisterEventProducer(PeerSet, ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
 	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-	ReportPeer(PeerId, cost_benefit: i32),
+	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
 	/// Send a message to one or more peers on the given protocol ID.
-	SendMessage([PeerId], ProtocolId, Bytes),
+	SendMessage(PeerSet, [PeerId], ProtocolId, Bytes),
 }
 ```
 

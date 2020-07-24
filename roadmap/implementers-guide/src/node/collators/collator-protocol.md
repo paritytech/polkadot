@@ -22,6 +22,8 @@ Output:
 
 ## Functionality
 
+This network protocol uses the `Collation` peer-set of the [`NetworkBridge`][NB].
+
 ```rust
 type RequestId = u64;
 
