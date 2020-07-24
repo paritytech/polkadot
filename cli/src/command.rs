@@ -131,7 +131,7 @@ pub fn run() -> Result<()> {
 				let builder = service::NodeBuilder::new(config);
 
 				match role {
-					Role::Light => builder.build_light(),
+					Role::Light => builder.build_light().map(|(task_manager, _)| task_manager),
 					_ => builder.build_full(
 						None,
 						None,

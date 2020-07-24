@@ -807,19 +807,19 @@ impl NodeBuilder {
 	}
 
 	/// Build a new light node.
-	pub fn build_light(self) -> Result<TaskManager, ServiceError> {
+	pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
 		if self.config.chain_spec.is_kusama() {
 			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
 				self.config,
-			).map(|(task_manager, _)| task_manager)
+			)
 		} else if self.config.chain_spec.is_westend() {
 			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
 				self.config,
-			).map(|(task_manager, _)| task_manager)
+			)
 		} else {
 			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
 				self.config,
-			).map(|(task_manager, _)| task_manager)
+			)
 		}
 	}
 
