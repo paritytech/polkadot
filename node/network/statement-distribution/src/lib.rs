@@ -1212,7 +1212,7 @@ mod tests {
 			},
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let peer = PeerId::random();
 
@@ -1304,7 +1304,7 @@ mod tests {
 			(peer_c.clone(), peer_data_from_view(peer_c_view)),
 		].into_iter().collect();
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {

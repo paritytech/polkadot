@@ -485,7 +485,7 @@ where
 	/// }
 	///
 	/// # fn main() { executor::block_on(async move {
-	/// let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+	/// let spawner = sp_core::testing::TaskExecutor::new();
 	/// let all_subsystems = AllSubsystems {
 	///     candidate_validation: ValidationSubsystem,
 	///     candidate_backing: DummySubsystem,
@@ -1058,7 +1058,7 @@ mod tests {
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
 	fn overseer_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let (s1_tx, mut s1_rx) = mpsc::channel(64);
@@ -1123,7 +1123,7 @@ mod tests {
 	// Should immediately conclude the overseer itself with an error.
 	#[test]
 	fn overseer_panics_on_subsystem_exit() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
@@ -1218,7 +1218,7 @@ mod tests {
 	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
 	#[test]
 	fn overseer_start_stop_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let first_block_hash = [1; 32].into();
@@ -1314,7 +1314,7 @@ mod tests {
 	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
 	#[test]
 	fn overseer_finalize_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let first_block_hash = [1; 32].into();

@@ -14,6 +14,9 @@ adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 code-upgrader = { package = "test-parachain-code-upgrader", path = "code-upgrader" }
 
+[dev-dependencies]
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [features]
 default = [ "std" ]
 std = [

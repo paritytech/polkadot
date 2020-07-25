@@ -4670,6 +4670,7 @@ name = "polkadot-parachain"
 version = "0.8.19"
 dependencies = [
  "derive_more 0.99.9",
+ "futures 0.3.5",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
@@ -8435,6 +8436,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-code-upgrader",
  "test-parachain-halt",

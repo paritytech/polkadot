@@ -312,6 +312,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 				&expected_relay_parent,
 				max_block_data_size,
 				n_validators,
+				primitives::testing::TaskExecutor::new(),
 			)?;
 
 			full_output.check_consistency(candidate)?;
