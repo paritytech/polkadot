@@ -49,7 +49,7 @@ struct TaskExecutor(ThreadPool);
 
 impl TaskExecutor {
 	fn new() -> Result<Self, String> {
-        ThreadPool::new().map_err(|e| e.to_string()).map(Self)
+		ThreadPool::new().map_err(|e| e.to_string()).map(Self)
 	}
 }
 

@@ -172,8 +172,8 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			live_instances: HashMap::new(),
 			validation_pool: validation_pool.clone(),
 			collation_fetch: DefaultCollationFetch {
-				collators: self.collators, 
-				validation_pool, 
+				collators: self.collators,
+				validation_pool,
 				spawner: self.spawner,
 			},
 		};
@@ -258,7 +258,7 @@ pub(crate) trait CollationFetch {
 
 #[derive(Clone)]
 struct DefaultCollationFetch<C, S> {
-	collators: C, 
+	collators: C,
 	validation_pool: Option<ValidationPool>,
 	spawner: S,
 }
@@ -291,7 +291,7 @@ impl<C, S> CollationFetch for DefaultCollationFetch<C, S>
 			client,
 			max_block_data_size,
 			n_validators,
-            self.spawner,
+			self.spawner,
 		).boxed()
 	}
 }
