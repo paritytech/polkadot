@@ -706,7 +706,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -766,7 +766,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -818,7 +818,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -915,7 +915,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -1052,7 +1052,7 @@ mod test {
 		// validator 0 key pair
 		let (mut state, _signing_context, _validator_pair) = state_with_view(view![], hash_a.clone());
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
