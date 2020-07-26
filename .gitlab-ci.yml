@@ -208,7 +208,7 @@ build-linux-release:               &build
 build-linux-release-pr:            &build
   stage:                           build
   <<:                              *collect-artifacts
-  <<:                              *build-refs
+  <<:                              *test-refs
   <<:                              *docker-env
   <<:                              *compiler_info
   script:
