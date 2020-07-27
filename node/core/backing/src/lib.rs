@@ -31,7 +31,7 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
-	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
+	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments,
 };
 use polkadot_node_primitives::{
@@ -67,6 +67,7 @@ use statement_table::{
 enum Error {
 	CandidateNotFound,
 	InvalidSignature,
+	StoreFailed,
 	#[from]
 	Erasure(erasure_coding::Error),
 	#[from]
@@ -581,20 +582,30 @@ impl CandidateBackingJob {
 		Ok(rx.await??)
 	}
 
-	async fn store_chunk(
+	async fn store_available_data(
 		&mut self,
-		id: ValidatorIndex,
-		chunk: ErasureChunk,
+		id: Option<ValidatorIndex>,
+		n_validators: u32,
+		available_data: AvailableData,
 	) -> Result<(), Error> {
+		let (tx, rx) = oneshot::channel();
 		self.tx_from.send(FromJob::AvailabilityStore(
-				AvailabilityStoreMessage::StoreChunk(self.parent, id, chunk)
+				AvailabilityStoreMessage::StoreAvailableData(
+					self.parent,
+					id,
+					n_validators,
+					available_data,
+					tx,
+				)
 			)
 		).await?;
+
+		rx.await?.map_err(|_| Error::StoreFailed)?;
 
 		Ok(())
 	}
 
-	// Compute the erasure-coding and make it available.
+	// Make a `PoV` available.
 	//
 	// This calls an inspection function before making the PoV available for any last checks
 	// that need to be done. If the inspection function returns an error, this function returns
@@ -636,15 +647,11 @@ impl CandidateBackingJob {
 			Err(e) => return Ok(Err(e)),
 		};
 
-		for (index, (proof, chunk)) in branches.enumerate() {
-			let chunk = ErasureChunk {
-				chunk: chunk.to_vec(),
-				index: index as u32,
-				proof,
-			};
-
-			self.store_chunk(index as ValidatorIndex, chunk).await?;
-		}
+		self.store_available_data(
+			self.table_context.validator.as_ref().map(|v| v.index()),
+			self.table_context.validators.len() as u32,
+			available_data,
+		).await?;
 
 		Ok(Ok(res))
 	}
@@ -1059,14 +1066,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1168,6 +1175,15 @@ mod tests {
 							new_validation_code: None,
 						}),
 					)).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
 				}
 			);
 
@@ -1292,14 +1308,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+					) if parent_hash == test_state.relay_parent => {
+						tx.send(Ok(())).unwrap();
+					}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1449,14 +1465,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,

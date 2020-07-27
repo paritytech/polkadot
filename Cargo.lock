@@ -4580,6 +4580,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-av-store"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "kvdb",
+ "kvdb-memorydb",
+ "kvdb-rocksdb",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "polkadot-erasure-coding",
+ "polkadot-node-subsystem",
+ "polkadot-overseer",
+ "polkadot-primitives",
+ "sp-core",
+]
+
+[[package]]
 name = "polkadot-node-core-backing"
 version = "0.1.0"
 dependencies = [
