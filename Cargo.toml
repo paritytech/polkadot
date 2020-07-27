@@ -45,6 +45,7 @@ members = [
 
 	"node/core/bitfield-signing",
 	"node/core/proposer",
+	"node/core/av-store",
 	"node/network/bridge",
 	"node/network/pov-distribution",
 	"node/network/statement-distribution",

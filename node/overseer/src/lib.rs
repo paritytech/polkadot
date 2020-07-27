@@ -808,6 +808,8 @@ where
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
+		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash)).await?;
+
 		Ok(())
 	}
 
@@ -1388,6 +1390,7 @@ mod tests {
 					deactivated: [first_block_hash, second_block_hash].as_ref().into(),
 					..Default::default()
 				}),
+				OverseerSignal::BlockFinalized(third_block_hash),
 			];
 
 			loop {

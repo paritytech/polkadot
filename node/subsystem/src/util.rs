@@ -603,7 +603,7 @@ where
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
 		use crate::ActiveLeavesUpdate;
-		use crate::OverseerSignal::{Conclude, ActiveLeaves};
+		use crate::OverseerSignal::{BlockFinalized, Conclude, ActiveLeaves};
 
 		match incoming {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }))) => {
@@ -667,6 +667,7 @@ where
 					}
 				}
 			}
+			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
 				Self::fwd_err(None, Error::from(err).into(), err_tx).await;

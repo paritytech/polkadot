@@ -179,6 +179,9 @@ impl BitfieldDistribution {
 						// defer the cleanup to the view change
 					}
 				}
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
+					trace!(target: "bitd", "Block finalized {:?}", hash);
+				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "bitd", "Conclude");
 					return Ok(());
