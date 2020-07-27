@@ -393,35 +393,19 @@ async fn run_network<N: Network>(
 				net.report_peer(peer, rep).await?;
 			}
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
-				for relay_parent in activated {
-					live_heads.push(relay_parent);
-					if let Some(view_update)
-						= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-					{
-						if let Err(e) = dispatch_update_to_all(
-							view_update,
-							event_producers.values(),
-							&mut ctx,
-						).await {
-							log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-							return Err(e)
-						}
-					}
-				}
+				live_heads.extend(activated);
+				live_heads.retain(|h| !deactivated.contains(h));
 
-				for relay_parent in deactivated {
-					live_heads.retain(|h| h != &relay_parent);
-					if let Some(view_update)
-						= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-					{
-						if let Err(e) = dispatch_update_to_all(
-							view_update,
-							event_producers.values(),
-							&mut ctx,
-						).await {
-							log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-							return Err(e)
-						}
+				if let Some(view_update)
+					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
+				{
+					if let Err(e) = dispatch_update_to_all(
+						view_update,
+						event_producers.values(),
+						&mut ctx,
+					).await {
+						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+						return Err(e)
 					}
 				}
 			}
