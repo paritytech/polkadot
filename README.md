@@ -29,8 +29,21 @@ cargo install --git https://github.com/paritytech/polkadot --tag <version> polka
 
 ### Build from Source
 
-If you'd like to build from source, first install Rust. You may need to add Cargo's bin directory
-to your PATH environment variable. Restarting your computer will do this for you automatically.
+If you'd like to build from source, follow these instructions.
+
+#### Quick Setup
+
+Install all the required dependencies with a single command. (Be patient, this can take up to 30
+minutes):
+
+```bash
+curl https://getsubstrate.io -sSf | bash -s -- --fast
+```
+
+#### Manual Setup
+
+First install Rust. You may need to add Cargo's bin directory to your PATH environment variable.
+Restarting your computer will do this for you automatically.
 
 ```bash
 curl https://sh.rustup.rs -sSf | sh
@@ -45,8 +58,10 @@ rustup update
 Once done, finish installing the support software:
 
 ```bash
-sudo apt install make clang pkg-config libssl-dev
+sudo apt install make clang pkg-config libssl-dev libclang-dev
 ```
+
+#### Build
 
 Build the client by cloning this repository and running the following commands from the root
 directory of the repo:
