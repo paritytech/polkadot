@@ -23,34 +23,34 @@ polkadot-service = { path = "../../service" }
 polkadot-test-runtime = { path = "../../runtime/test-runtime" }
 
 # Substrate dependencies
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-informant = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-informant = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications", default-features = false }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications", default-features = false }
 serde_json = "1.0"
 tokio = { version = "0.2", features = ["macros"] }

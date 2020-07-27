@@ -15,12 +15,12 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-network = { path = "../../../network" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
 
 [dev-dependencies]
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = [ "test-helpers" ] }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "tka-send-notifications" }
 parking_lot = "0.10.0"
 maplit = "1.0.2"
 smol = "0.2.0"
