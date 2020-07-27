@@ -864,6 +864,9 @@ async fn run(
 						.or_insert(ActiveHeadData::new(validators, session_index));
 				}
 			}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(_block_hash)) => {
+				// do nothing
+			}
 			FromOverseer::Signal(OverseerSignal::Conclude) => break,
 			FromOverseer::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) =>
