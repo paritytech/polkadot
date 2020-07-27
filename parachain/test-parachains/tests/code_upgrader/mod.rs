@@ -24,8 +24,6 @@ use parachain::primitives::{
 use codec::{Decode, Encode};
 use code_upgrader::{hash_state, HeadData, BlockData, State};
 
-const TEST_CODE: &[u8] = code_upgrader::WASM_BINARY;
-
 #[test]
 pub fn execute_good_no_upgrade() {
 	let pool = parachain::wasm_executor::ValidationPool::new();
@@ -42,7 +40,7 @@ pub fn execute_good_no_upgrade() {
 	};
 
 	let ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
+		code_upgrader::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
@@ -78,7 +76,7 @@ pub fn execute_good_with_upgrade() {
 	};
 
 	let ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
+		code_upgrader::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
@@ -121,7 +119,7 @@ pub fn code_upgrade_not_allowed() {
 	};
 
 	parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
+		code_upgrader::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
@@ -151,7 +149,7 @@ pub fn applies_code_upgrade_after_delay() {
 		};
 
 		let ret = parachain::wasm_executor::validate_candidate(
-			TEST_CODE,
+			code_upgrader::wasm_binary_unwrap(),
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
@@ -186,7 +184,7 @@ pub fn applies_code_upgrade_after_delay() {
 		};
 
 		let ret = parachain::wasm_executor::validate_candidate(
-			TEST_CODE,
+			code_upgrader::wasm_binary_unwrap(),
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),

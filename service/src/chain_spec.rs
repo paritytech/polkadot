@@ -21,6 +21,7 @@ use polkadot_primitives::v0::{AccountId, AccountPublic, ValidatorId};
 use polkadot_runtime as polkadot;
 use kusama_runtime as kusama;
 use westend_runtime as westend;
+use rococo_runtime as rococo;
 use polkadot::constants::currency::DOTS;
 use kusama::constants::currency::DOTS as KSM;
 use westend::constants::currency::DOTS as WND;
@@ -133,7 +134,7 @@ fn rococo_session_keys(
 	rococo_runtime::SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
 }
 
-fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
+fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![];
 
@@ -152,7 +153,7 @@ fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 
 	polkadot::GenesisConfig {
 		system: Some(polkadot::SystemConfig {
-			code: polkadot::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		balances: Some(polkadot::BalancesConfig {
@@ -217,7 +218,7 @@ fn polkadot_staging_testnet_config_genesis() -> polkadot::GenesisConfig {
 	}
 }
 
-fn westend_staging_testnet_config_genesis() -> westend::GenesisConfig {
+fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
 // subkey inspect "$SECRET"
 	let endowed_accounts = vec![
 		// 5ENpP27BrVdJTdUfY6djmcw3d3xEJ6NzSUU52CCPmGpMrdEY
@@ -304,7 +305,7 @@ fn westend_staging_testnet_config_genesis() -> westend::GenesisConfig {
 
 	westend::GenesisConfig {
 		system: Some(westend::SystemConfig {
-			code: westend::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		balances: Some(westend::BalancesConfig {
@@ -357,7 +358,7 @@ fn westend_staging_testnet_config_genesis() -> westend::GenesisConfig {
 	}
 }
 
-fn rococo_staging_testnet_config_genesis() -> rococo_runtime::GenesisConfig {
+fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![
 		// 5FeyRQmjtdHoPH56ASFW76AJEP1yaQC1K9aEMvJTF9nzt9S9
@@ -507,7 +508,7 @@ fn rococo_staging_testnet_config_genesis() -> rococo_runtime::GenesisConfig {
 
 	rococo_runtime::GenesisConfig {
 		system: Some(rococo_runtime::SystemConfig {
-			code: rococo_runtime::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		balances: Some(rococo_runtime::BalancesConfig {
@@ -548,7 +549,7 @@ fn rococo_staging_testnet_config_genesis() -> rococo_runtime::GenesisConfig {
 	}
 }
 
-fn kusama_staging_testnet_config_genesis() -> kusama::GenesisConfig {
+fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
 	// subkey inspect "$SECRET"
 	let endowed_accounts = vec![
 		// 5CVFESwfkk7NmhQ6FwHCM9roBvr9BGa4vJHFYU8DnGQxrXvz
@@ -635,7 +636,7 @@ fn kusama_staging_testnet_config_genesis() -> kusama::GenesisConfig {
 
 	kusama::GenesisConfig {
 		system: Some(kusama::SystemConfig {
-			code: kusama::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		balances: Some(kusama::BalancesConfig {
@@ -701,70 +702,79 @@ fn kusama_staging_testnet_config_genesis() -> kusama::GenesisConfig {
 }
 
 /// Polkadot staging testnet config.
-pub fn polkadot_staging_testnet_config() -> PolkadotChainSpec {
+pub fn polkadot_staging_testnet_config() -> Result<PolkadotChainSpec, String> {
+	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
 	let boot_nodes = vec![];
-	PolkadotChainSpec::from_genesis(
+
+	Ok(PolkadotChainSpec::from_genesis(
 		"Polkadot Staging Testnet",
 		"polkadot_staging_testnet",
 		ChainType::Live,
-		polkadot_staging_testnet_config_genesis,
+		move || polkadot_staging_testnet_config_genesis(wasm_binary),
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(POLKADOT_STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Polkadot Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Staging testnet config.
-pub fn kusama_staging_testnet_config() -> KusamaChainSpec {
+pub fn kusama_staging_testnet_config() -> Result<KusamaChainSpec, String> {
+	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
 	let boot_nodes = vec![];
-	KusamaChainSpec::from_genesis(
+
+	Ok(KusamaChainSpec::from_genesis(
 		"Kusama Staging Testnet",
 		"kusama_staging_testnet",
 		ChainType::Live,
-		kusama_staging_testnet_config_genesis,
+		move || kusama_staging_testnet_config_genesis(wasm_binary),
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(KUSAMA_STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Kusama Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Westend staging testnet config.
-pub fn westend_staging_testnet_config() -> WestendChainSpec {
+pub fn westend_staging_testnet_config() -> Result<WestendChainSpec, String> {
+	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
 	let boot_nodes = vec![];
-	WestendChainSpec::from_genesis(
+
+	Ok(WestendChainSpec::from_genesis(
 		"Westend Staging Testnet",
 		"westend_staging_testnet",
 		ChainType::Live,
-		westend_staging_testnet_config_genesis,
+		move || westend_staging_testnet_config_genesis(wasm_binary),
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(WESTEND_STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Westend Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Rococo staging testnet config.
-pub fn rococo_staging_testnet_config() -> RococoChainSpec {
-	RococoChainSpec::from_genesis(
+pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
+	let boot_nodes = vec![];
+
+	Ok(RococoChainSpec::from_genesis(
 		"Rococo Staging Testnet",
 		"rococo_staging_testnet",
 		ChainType::Live,
-		rococo_staging_testnet_config_genesis,
-		Vec::new(),
+		move || rococo_staging_testnet_config_genesis(wasm_binary),
+		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(WESTEND_STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Rococo Staging telemetry url is valid; qed")),
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Helper function to generate a crypto pair from seed
@@ -822,6 +832,7 @@ fn testnet_accounts() -> Vec<AccountId> {
 
 /// Helper function to create polkadot GenesisConfig for testing
 pub fn polkadot_testnet_genesis(
+	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -833,7 +844,7 @@ pub fn polkadot_testnet_genesis(
 
 	polkadot::GenesisConfig {
 		system: Some(polkadot::SystemConfig {
-			code: polkadot::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(polkadot::IndicesConfig {
@@ -896,6 +907,7 @@ pub fn polkadot_testnet_genesis(
 
 /// Helper function to create kusama GenesisConfig for testing
 pub fn kusama_testnet_genesis(
+	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	_root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -907,7 +919,7 @@ pub fn kusama_testnet_genesis(
 
 	kusama::GenesisConfig {
 		system: Some(kusama::SystemConfig {
-			code: kusama::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(kusama::IndicesConfig {
@@ -970,6 +982,7 @@ pub fn kusama_testnet_genesis(
 
 /// Helper function to create polkadot GenesisConfig for testing
 pub fn westend_testnet_genesis(
+	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -981,7 +994,7 @@ pub fn westend_testnet_genesis(
 
 	westend::GenesisConfig {
 		system: Some(westend::SystemConfig {
-			code: westend::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(westend::IndicesConfig {
@@ -1032,6 +1045,7 @@ pub fn westend_testnet_genesis(
 
 /// Helper function to create rococo GenesisConfig for testing
 pub fn rococo_testnet_genesis(
+	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
@@ -1042,7 +1056,7 @@ pub fn rococo_testnet_genesis(
 
 	rococo_runtime::GenesisConfig {
 		system: Some(rococo_runtime::SystemConfig {
-			code: rococo_runtime::WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		indices: Some(rococo_runtime::IndicesConfig {
@@ -1080,8 +1094,9 @@ pub fn rococo_testnet_genesis(
 	}
 }
 
-fn polkadot_development_config_genesis() -> polkadot::GenesisConfig {
+fn polkadot_development_config_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 		],
@@ -1090,8 +1105,9 @@ fn polkadot_development_config_genesis() -> polkadot::GenesisConfig {
 	)
 }
 
-fn kusama_development_config_genesis() -> kusama::GenesisConfig {
+fn kusama_development_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
 	kusama_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 		],
@@ -1100,8 +1116,9 @@ fn kusama_development_config_genesis() -> kusama::GenesisConfig {
 	)
 }
 
-fn westend_development_config_genesis() -> westend::GenesisConfig {
+fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
 	westend_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 		],
@@ -1111,52 +1128,59 @@ fn westend_development_config_genesis() -> westend::GenesisConfig {
 }
 
 /// Polkadot development config (single validator Alice)
-pub fn polkadot_development_config() -> PolkadotChainSpec {
-	PolkadotChainSpec::from_genesis(
+pub fn polkadot_development_config() -> Result<PolkadotChainSpec, String> {
+	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
+
+	Ok(PolkadotChainSpec::from_genesis(
 		"Development",
 		"dev",
 		ChainType::Development,
-		polkadot_development_config_genesis,
+		move || polkadot_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Kusama development config (single validator Alice)
-pub fn kusama_development_config() -> KusamaChainSpec {
-	KusamaChainSpec::from_genesis(
+pub fn kusama_development_config() -> Result<KusamaChainSpec, String> {
+	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
+
+	Ok(KusamaChainSpec::from_genesis(
 		"Development",
 		"kusama_dev",
 		ChainType::Development,
-		kusama_development_config_genesis,
+		move || kusama_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Westend development config (single validator Alice)
-pub fn westend_development_config() -> WestendChainSpec {
-	WestendChainSpec::from_genesis(
+pub fn westend_development_config() -> Result<WestendChainSpec, String> {
+	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
+
+	Ok(WestendChainSpec::from_genesis(
 		"Development",
 		"westend_dev",
 		ChainType::Development,
-		westend_development_config_genesis,
+		move || westend_development_config_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
-fn polkadot_local_testnet_genesis() -> polkadot::GenesisConfig {
+fn polkadot_local_testnet_genesis(wasm_binary: &[u8]) -> polkadot::GenesisConfig {
 	polkadot_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -1167,22 +1191,25 @@ fn polkadot_local_testnet_genesis() -> polkadot::GenesisConfig {
 }
 
 /// Polkadot local testnet config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
-	PolkadotChainSpec::from_genesis(
+pub fn polkadot_local_testnet_config() -> Result<PolkadotChainSpec, String> {
+	let wasm_binary = polkadot::WASM_BINARY.ok_or("Polkadot development wasm not available")?;
+
+	Ok(PolkadotChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		polkadot_local_testnet_genesis,
+		move || polkadot_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
-fn kusama_local_testnet_genesis() -> kusama::GenesisConfig {
+fn kusama_local_testnet_genesis(wasm_binary: &[u8]) -> kusama::GenesisConfig {
 	kusama_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -1193,22 +1220,25 @@ fn kusama_local_testnet_genesis() -> kusama::GenesisConfig {
 }
 
 /// Kusama local testnet config (multivalidator Alice + Bob)
-pub fn kusama_local_testnet_config() -> KusamaChainSpec {
-	KusamaChainSpec::from_genesis(
+pub fn kusama_local_testnet_config() -> Result<KusamaChainSpec, String> {
+	let wasm_binary = kusama::WASM_BINARY.ok_or("Kusama development wasm not available")?;
+
+	Ok(KusamaChainSpec::from_genesis(
 		"Kusama Local Testnet",
 		"kusama_local_testnet",
 		ChainType::Local,
-		kusama_local_testnet_genesis,
+		move || kusama_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
-fn westend_local_testnet_genesis() -> westend::GenesisConfig {
+fn westend_local_testnet_genesis(wasm_binary: &[u8]) -> westend::GenesisConfig {
 	westend_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -1218,8 +1248,9 @@ fn westend_local_testnet_genesis() -> westend::GenesisConfig {
 	)
 }
 
-fn rococo_local_testnet_genesis() -> rococo_runtime::GenesisConfig {
+fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
+		wasm_binary,
 		vec![
 			get_authority_keys_from_seed("Alice"),
 			get_authority_keys_from_seed("Bob"),
@@ -1230,31 +1261,35 @@ fn rococo_local_testnet_genesis() -> rococo_runtime::GenesisConfig {
 }
 
 /// Westend local testnet config (multivalidator Alice + Bob)
-pub fn westend_local_testnet_config() -> WestendChainSpec {
-	WestendChainSpec::from_genesis(
+pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
+	let wasm_binary = westend::WASM_BINARY.ok_or("Westend development wasm not available")?;
+
+	Ok(WestendChainSpec::from_genesis(
 		"Westend Local Testnet",
 		"westend_local_testnet",
 		ChainType::Local,
-		westend_local_testnet_genesis,
+		move || westend_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
 
 /// Rococo local testnet config (multivalidator Alice + Bob)
-pub fn rococo_local_testnet_config() -> RococoChainSpec {
-	RococoChainSpec::from_genesis(
+pub fn rococo_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Rococo development wasm not available")?;
+
+	Ok(RococoChainSpec::from_genesis(
 		"Rococo Local Testnet",
 		"rococo_local_testnet",
 		ChainType::Local,
-		rococo_local_testnet_genesis,
+		move || rococo_local_testnet_genesis(wasm_binary),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
 		None,
 		Default::default(),
-	)
+	))
 }
