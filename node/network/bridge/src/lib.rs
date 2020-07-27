@@ -57,6 +57,9 @@ const UNKNOWN_PROTO_COST: ReputationChange
 const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
+// network bridge log target
+const TARGET: &'static str = "network_bridge";
+
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
 pub enum WireMessage {
@@ -227,7 +230,7 @@ fn action_from_overseer_message(
 				=> Action::SendMessage(peers, protocol, message),
 		},
 		Err(e) => {
-			log::warn!("Shutting down Network Bridge due to error {:?}", e);
+			log::warn!(target: TARGET, "Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
 		}
 	}
@@ -236,7 +239,7 @@ fn action_from_overseer_message(
 fn action_from_network_message(event: Option<NetworkEvent>) -> Option<Action> {
 	match event {
 		None => {
-			log::info!("Shutting down Network Bridge: underlying event stream concluded");
+			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Some(Action::Abort)
 		}
 		Some(NetworkEvent::Dht(_)) => None,
@@ -400,7 +403,7 @@ async fn run_network<N: Network>(
 							event_producers.values(),
 							&mut ctx,
 						).await {
-							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 							return Err(e)
 						}
 					}
@@ -416,7 +419,7 @@ async fn run_network<N: Network>(
 							event_producers.values(),
 							&mut ctx,
 						).await {
-							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 							return Err(e)
 						}
 					}
@@ -449,7 +452,7 @@ async fn run_network<N: Network>(
 						event_producers.values(),
 						&mut ctx,
 					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
+						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 						return Err(e)
 					}
 				}
@@ -509,7 +512,7 @@ async fn run_network<N: Network>(
 
 				let send_messages = ctx.send_messages(outgoing_messages);
 				if let Err(e) = send_messages.await {
-					log::warn!("Aborting - Failure to dispatch messages to overseer");
+					log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 					return Err(e)
 				}
 			},
