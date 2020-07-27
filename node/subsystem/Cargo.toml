@@ -9,6 +9,6 @@ description = "Subsystem traits and message definitions"
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-primitives = { path = "../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.5"
 async-trait = "0.1"

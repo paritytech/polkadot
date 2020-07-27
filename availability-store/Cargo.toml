@@ -15,14 +15,14 @@ futures = "0.3.4"
 tokio = { version = "0.2.13", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.3.0", features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-sp-api = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 kvdb = "0.7.0"
 kvdb-memorydb = "0.7.0"
 
