@@ -172,17 +172,22 @@ async fn get_core_availability(
 }
 
 // delegates to the v1 runtime API
-async fn get_availability_cores(_relay_parent: Hash, _sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
-	// pending https://github.com/paritytech/polkadot/issues/1419
-	unimplemented!()
+async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<Vec<CoreState>, Error> {
+	use FromJob::RuntimeApi;
+	use messages::{
+		RuntimeApiMessage::Request,
+		RuntimeApiRequest::AvailabilityCores,
+	};
+
+	let (tx, rx) = oneshot::channel();
+	sender.send(RuntimeApi(Request(relay_parent, AvailabilityCores(tx)))).await?;
+	rx.await.map_err(Into::into)
 }
 
-// the way this function works is not intuitive:
-//
-// - get the scheduler roster so we have a list of cores, in order.
-// - for each occupied core, fetch `candidate_pending_availability` from runtime
-// - from there, we can get the `CandidateDescriptor`
-// - from there, we can send a `AvailabilityStore::QueryPoV` and set the indexed bit to 1 if it returns Some(_)
+// - get the list of core states from the runtime
+// - for each core, concurrently determine chunk availability (see `get_core_availability`)
+// - return the bitfield if there were no errors at any point in this process
+//   (otherwise, it's prone to false negatives)
 async fn construct_availability_bitfield(
 	relay_parent: Hash,
 	validator_idx: ValidatorIndex,

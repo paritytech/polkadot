@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	BlockNumber, Hash,
 	CandidateReceipt, CommittedCandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
+	CoreAssignment, CoreOccupied, CoreState, HeadData, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData, AvailableData, CandidateEvent,
 };
 use polkadot_node_primitives::{
@@ -311,8 +311,10 @@ pub enum RuntimeApiRequest {
 	HeadData(ParaId, oneshot::Sender<HeadData>),
 	/// Get all events concerning candidates in the last block.
 	CandidateEvents(oneshot::Sender<Vec<CandidateEvent>>),
-	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	/// Get the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
+	/// Get the current availability cores
+	AvailabilityCores(oneshot::Sender<Vec<CoreState>>),
 }
 
 /// A message to the Runtime API subsystem.
