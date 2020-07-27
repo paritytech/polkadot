@@ -22,9 +22,9 @@ use std::sync::Arc;
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use sp_core::Pair;
 use codec::{Encode, Decode};
-use primitives::{
+use primitives::v0::{
 	Hash, DownwardMessage,
-	parachain::{HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule},
+	HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule,
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
 use parking_lot::Mutex;

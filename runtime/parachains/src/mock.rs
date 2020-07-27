@@ -24,10 +24,7 @@ use sp_runtime::{
 		BlakeTwo256, IdentityLookup,
 	},
 };
-use primitives::{
-	BlockNumber,
-	Header,
-};
+use primitives::v1::{BlockNumber, Header};
 use frame_support::{
 	impl_outer_origin, impl_outer_dispatch, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,

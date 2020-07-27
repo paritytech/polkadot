@@ -34,7 +34,7 @@ use std::{
 	sync::Arc,
 };
 use codec::Encode;
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
 	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
 	CompactStatement as PrimitiveStatement,
 	PoVBlock, ErasureChunk, ValidatorSignature, ValidatorIndex,

@@ -22,7 +22,7 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::{parachain, Hash, BlockId, AccountId, Nonce, Balance};
+use polkadot_primitives::v0::{self as parachain, Hash, BlockId, AccountId, Nonce, Balance};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError, ServiceBuilder};
@@ -42,8 +42,7 @@ pub use sc_consensus::LongestChain;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
-pub use polkadot_primitives::parachain::{CollatorId, ParachainHost};
-pub use polkadot_primitives::Block;
+pub use polkadot_primitives::v0::{Block, CollatorId, ParachainHost};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
@@ -175,10 +174,12 @@ macro_rules! new_full_start {
 					builder.client().clone(),
 					builder.prometheus_registry(),
 				);
-				let pool = sc_transaction_pool::BasicPool::new(
+				let pool = sc_transaction_pool::BasicPool::new_full(
 					builder.config().transaction_pool.clone(),
 					std::sync::Arc::new(pool_api),
 					builder.prometheus_registry(),
+					builder.spawn_handle(),
+					builder.client().clone(),
 				);
 				Ok(pool)
 			})?
@@ -641,12 +642,12 @@ macro_rules! new_light {
 					builder.client().clone(),
 					fetcher,
 				);
-				let pool = sc_transaction_pool::BasicPool::with_revalidation_type(
+				let pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
 					builder.config().transaction_pool.clone(),
 					Arc::new(pool_api),
 					builder.prometheus_registry(),
-					sc_transaction_pool::RevalidationType::Light,
-				);
+					builder.spawn_handle(),
+				));
 				Ok(pool)
 			})?
 			.with_import_queue_and_fprb(|

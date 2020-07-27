@@ -22,9 +22,10 @@
 
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
-use primitives::{
+use primitives::v0::{
+	self as parachain,
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	parachain::{self, ActiveParas, AbridgedCandidateReceipt, SigningContext},
+	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use runtime_common::{
 	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
@@ -385,7 +386,7 @@ impl grandpa::Trait for Runtime {
 
 	type HandleEquivocation = grandpa::EquivocationHandler<
 		Self::KeyOwnerIdentification,
-		primitives::fisherman::FishermanAppCrypto,
+		primitives::v0::fisherman::FishermanAppCrypto,
 		Runtime,
 		Offences,
 	>;
@@ -421,7 +422,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::fisherman::FishermanAppCrypto;
+	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
 	type ParachainCurrency = Balances;
@@ -698,7 +699,7 @@ impl proxy::Trait for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::Block,
+		NodeBlock = primitives::v0::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -887,7 +888,7 @@ sp_api::impl_runtime_apis! {
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::DownwardMessage> {
+		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
 			Parachains::downward_messages(id)
 		}
 	}

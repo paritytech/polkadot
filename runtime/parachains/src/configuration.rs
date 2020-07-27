@@ -19,9 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::{
-	parachain::{ValidatorId},
-};
+use primitives::v1::ValidatorId;
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	dispatch::DispatchResult,

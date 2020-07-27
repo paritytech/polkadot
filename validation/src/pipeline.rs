@@ -19,12 +19,12 @@
 
 use codec::Encode;
 use polkadot_erasure_coding as erasure;
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
 	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
 	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
 	Id as ParaId, AbridgedCandidateReceipt, ValidationCode,
 };
-use polkadot_primitives::{Block, BlockId, Balance, Hash};
+use polkadot_primitives::v0::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
 	primitives::{UpwardMessage, ValidationParams},
@@ -125,7 +125,7 @@ impl<'a> ValidatedCandidate<'a> {
 			omitted_validation,
 		};
 
-		let erasure_chunks = erasure::obtain_chunks(
+		let erasure_chunks = erasure::obtain_chunks_v0(
 			n_validators,
 			&available_data,
 		)?;

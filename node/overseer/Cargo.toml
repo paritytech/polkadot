@@ -10,7 +10,7 @@ log = "0.4.8"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", rev = "e824e8ab0fadec9949ebb8b9e14d98703d6b8d44" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", rev = "56cf04f289f9cd5e8bb96fe5bd23a923e21acf1c" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 async-trait = "0.1"
 

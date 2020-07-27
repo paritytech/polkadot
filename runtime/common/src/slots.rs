@@ -28,7 +28,7 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
-use primitives::parachain::{
+use primitives::v0::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
 };
 use system::{ensure_signed, ensure_root};
@@ -890,8 +890,7 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use balances;
-	use primitives::{BlockNumber, Header};
-	use primitives::parachain::{Id as ParaId, Info as ParaInfo, Scheduling};
+	use primitives::v0::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}

@@ -326,7 +326,7 @@ pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 /// The index of the block must be provided to calculate a valid timestamp for the block. The value starts at 0 and
 /// should be incremented by one for every block produced.
 pub fn needed_extrinsics(
-	heads: Vec<polkadot_primitives::parachain::AttestedCandidate>,
+	heads: Vec<polkadot_primitives::v0::AttestedCandidate>,
 	i: u64,
 ) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
 	use polkadot_runtime_common::parachains;

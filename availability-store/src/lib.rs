@@ -25,12 +25,10 @@
 use futures::prelude::*;
 use futures::channel::{mpsc, oneshot};
 use keystore::KeyStorePtr;
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	Hash, Block,
-	parachain::{
-		PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
-		ParachainHost, AvailableData, OmittedValidationData,
-	},
+	PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
+	ParachainHost, AvailableData, OmittedValidationData,
 };
 use sp_runtime::traits::HashFor;
 use sp_blockchain::Result as ClientResult;

@@ -58,8 +58,8 @@ use sc_network_gossip::{
 	ValidatorContext, MessageIntent,
 };
 use polkadot_validation::{SignedStatement};
-use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{
+use polkadot_primitives::v0::{
+	Block, Hash,
 	ParachainHost, ValidatorId, ErasureChunk as PrimitiveChunk, SigningContext, PoVBlock,
 };
 use polkadot_erasure_coding::{self as erasure};
@@ -755,7 +755,7 @@ mod tests {
 	use sc_network_gossip::Validator as ValidatorT;
 	use std::sync::mpsc;
 	use parking_lot::Mutex;
-	use polkadot_primitives::parachain::{AbridgedCandidateReceipt, BlockData};
+	use polkadot_primitives::v0::{AbridgedCandidateReceipt, BlockData};
 	use sp_core::sr25519::Signature as Sr25519Signature;
 	use polkadot_validation::GenericStatement;
 

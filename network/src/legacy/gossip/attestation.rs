@@ -33,7 +33,7 @@
 use sc_network_gossip::{ValidationResult as GossipValidationResult};
 use sc_network::ReputationChange;
 use polkadot_validation::GenericStatement;
-use polkadot_primitives::Hash;
+use polkadot_primitives::v0::Hash;
 
 use std::collections::HashMap;
 

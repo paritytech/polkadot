@@ -19,7 +19,7 @@
 //! Collations are attempted to be repropagated when a new validator connects,
 //! a validator changes his session key, or when they are generated.
 
-use polkadot_primitives::{Hash, parachain::{ValidatorId}};
+use polkadot_primitives::v0::{Hash, ValidatorId};
 use crate::legacy::collator_pool::Role;
 use std::collections::{HashMap, HashSet};
 use std::time::Duration;
@@ -144,7 +144,7 @@ impl<C: Clone> LocalCollations<C> {
 mod tests {
 	use super::*;
 	use sp_core::crypto::UncheckedInto;
-	use polkadot_primitives::parachain::ValidatorId;
+	use polkadot_primitives::v0::ValidatorId;
 
 	#[test]
 	fn add_validator_with_ready_collation() {
