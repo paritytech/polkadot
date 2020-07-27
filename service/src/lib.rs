@@ -643,7 +643,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let ServiceComponents { task_manager, rpc_handlers, .. } = service::build(service::ServiceParams {	
+	let ServiceComponents { task_manager, rpc_handlers, .. } = service::build(service::ServiceParams {
 		config,
 		block_announce_validator_builder: None,
 		finality_proof_request_builder: Some(finality_proof_request_builder),
@@ -655,7 +655,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 		transaction_pool: transaction_pool.clone(),
 		import_queue, keystore, backend, task_manager,
 	})?;
-	
+
 	Ok((task_manager, rpc_handlers))
 }
 
@@ -793,26 +793,76 @@ pub struct FullNodeHandles {
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
-/// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(config: Configuration) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(config)
+/// A builder for a node.
+pub struct NodeBuilder {
+	config: Configuration,
 }
 
-/// Create a new Kusama service for a light client.
-pub fn kusama_new_light(config: Configuration) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(config)
-}
+impl NodeBuilder {
+	/// Create a new node builder.
+	pub fn new(config: Configuration) -> Self {
+		Self {
+			config,
+		}
+	}
 
-/// Create a new Westend service for a light client.
-pub fn westend_new_light(config: Configuration, ) -> Result<
-	(TaskManager, Arc<RpcHandlers>), ServiceError
->
-{
-	new_light::<westend_runtime::RuntimeApi, KusamaExecutor, _>(config)
+	/// Build a new light node.
+	pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
+		if self.config.chain_spec.is_kusama() {
+			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+				self.config,
+			)
+		} else if self.config.chain_spec.is_westend() {
+			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+				self.config,
+			)
+		} else {
+			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+				self.config,
+			)
+		}
+	}
+
+	/// Build a new full node.
+	#[cfg(feature = "full-node")]
+	pub fn build_full(
+		self,
+		collating_for: Option<(CollatorId, parachain::Id)>,
+		max_block_data_size: Option<u64>,
+		authority_discovery_disabled: bool,
+		slot_duration: u64,
+		grandpa_pause: Option<(u32, u32)>,
+	) -> Result<TaskManager, ServiceError> {
+		if self.config.chain_spec.is_kusama() {
+			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+				self.config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		} else if self.config.chain_spec.is_westend() {
+			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+				self.config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		} else {
+			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+				self.config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		}
+	}
 }

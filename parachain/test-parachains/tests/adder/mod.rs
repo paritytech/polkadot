@@ -78,6 +78,7 @@ pub fn execute_good_on_parent() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -117,6 +118,7 @@ fn execute_good_chain_on_parent() {
 				code_upgrade_allowed: None,
 			},
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -157,5 +159,6 @@ fn execute_bad_on_parent() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap_err();
 }
