@@ -50,6 +50,7 @@ pub fn execute_good_no_upgrade() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -86,6 +87,7 @@ pub fn execute_good_with_upgrade() {
 			code_upgrade_allowed: Some(20),
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -129,6 +131,7 @@ pub fn code_upgrade_not_allowed() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 }
 
@@ -159,6 +162,7 @@ pub fn applies_code_upgrade_after_delay() {
 				code_upgrade_allowed: Some(2),
 			},
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -194,6 +198,7 @@ pub fn applies_code_upgrade_after_delay() {
 				code_upgrade_allowed: None,
 			},
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();

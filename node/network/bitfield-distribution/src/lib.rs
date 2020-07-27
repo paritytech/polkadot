@@ -28,7 +28,7 @@ use node_primitives::{ProtocolId, View};
 use log::{trace, warn};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use sc_network::ReputationChange;
@@ -157,24 +157,27 @@ impl BitfieldDistribution {
 						warn!(target: "bitd", "Failed to handle incomming network messages: {:?}", e);
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-					trace!(target: "bitd", "Start {:?}", relay_parent);
-					// query basic system parameters once
-					let (validator_set, signing_context) =
-						query_basics(&mut ctx, relay_parent).await?;
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
+					for relay_parent in activated {
+						trace!(target: "bitd", "Start {:?}", relay_parent);
+						// query basic system parameters once
+						let (validator_set, signing_context) =
+							query_basics(&mut ctx, relay_parent).await?;
 
-					let _ = state.per_relay_parent.insert(
-						relay_parent,
-						PerRelayParentData {
-							signing_context,
-							validator_set,
-							..Default::default()
-						},
-					);
-				}
-				FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-					trace!(target: "bitd", "Stop {:?}", relay_parent);
-					// defer the cleanup to the view change
+						let _ = state.per_relay_parent.insert(
+							relay_parent,
+							PerRelayParentData {
+								signing_context,
+								validator_set,
+								..Default::default()
+							},
+						);
+					}
+
+					for relay_parent in deactivated {
+						trace!(target: "bitd", "Stop {:?}", relay_parent);
+						// defer the cleanup to the view change
+					}
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "bitd", "Conclude");
@@ -706,7 +709,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -766,7 +769,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -818,7 +821,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -915,7 +918,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -1052,7 +1055,7 @@ mod test {
 		// validator 0 key pair
 		let (mut state, _signing_context, _validator_pair) = state_with_view(view![], hash_a.clone());
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
