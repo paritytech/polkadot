@@ -1,1 +1,1 @@
-Stub - This folder will hold core subsystem implementations, each with their own crate.
+This folder contains core subsystems, each with their own crate.

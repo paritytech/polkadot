@@ -21,18 +21,21 @@
 use std::time::Duration;
 use futures::{
 	channel::oneshot,
-	pending, pin_mut, executor, select, stream,
+	pending, pin_mut, select, stream,
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use polkadot_primitives::parachain::{BlockData, PoVBlock};
-use polkadot_overseer::Overseer;
+use polkadot_primitives::v1::{BlockData, PoV};
+use polkadot_overseer::{Overseer, AllSubsystems};
 
-use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, DummySubsystem,
+	SpawnedSubsystem, FromOverseer,
+};
 use polkadot_subsystem::messages::{
-	AllMessages, CandidateBackingMessage, CandidateValidationMessage
+	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
 
 struct Subsystem1;
@@ -58,12 +61,11 @@ impl Subsystem1 {
 			let (tx, _) = oneshot::channel();
 
 			ctx.send_message(AllMessages::CandidateValidation(
-				CandidateValidationMessage::Validate(
+				CandidateValidationMessage::ValidateFromChainState(
 					Default::default(),
-					Default::default(),
-					PoVBlock {
+					PoV {
 						block_data: BlockData(Vec::new()),
-					},
+					}.into(),
 					tx,
 				)
 			)).await.unwrap();
@@ -75,9 +77,14 @@ impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-1",
+			future,
+		}
 	}
 }
 
@@ -85,12 +92,15 @@ struct Subsystem2;
 
 impl Subsystem2 {
 	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
-		ctx.spawn(Box::pin(async {
-			loop {
-				log::info!("Job tick");
-				Delay::new(Duration::from_secs(1)).await;
-			}
-		})).await.unwrap();
+		ctx.spawn(
+			"subsystem-2-job",
+			Box::pin(async {
+				loop {
+					log::info!("Job tick");
+					Delay::new(Duration::from_secs(1)).await;
+				}
+			}),
+		).await.unwrap();
 
 		loop {
 			match ctx.try_recv().await {
@@ -112,25 +122,42 @@ impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-2",
+			future,
+		}
 	}
 }
 
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
-	let spawner = executor::ThreadPool::new().unwrap();
-
+	let spawner = sp_core::testing::TaskExecutor::new();
 	futures::executor::block_on(async {
 		let timer_stream = stream::repeat(()).then(|_| async {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
+		let all_subsystems = AllSubsystems {
+			candidate_validation: Subsystem2,
+			candidate_backing: Subsystem1,
+			candidate_selection: DummySubsystem,
+			statement_distribution: DummySubsystem,
+			availability_distribution: DummySubsystem,
+			bitfield_signing: DummySubsystem,
+			bitfield_distribution: DummySubsystem,
+			provisioner: DummySubsystem,
+			pov_distribution: DummySubsystem,
+			runtime_api: DummySubsystem,
+			availability_store: DummySubsystem,
+			network_bridge: DummySubsystem,
+		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
-			Subsystem2,
-			Subsystem1,
+			all_subsystems,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

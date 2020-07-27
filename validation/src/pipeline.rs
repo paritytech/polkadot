@@ -19,12 +19,12 @@
 
 use codec::Encode;
 use polkadot_erasure_coding as erasure;
-use polkadot_primitives::parachain::{
-	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationSchedule, OmittedValidationData,
+use polkadot_primitives::v0::{
+	CollationInfo, PoVBlock, LocalValidationData, GlobalValidationData, OmittedValidationData,
 	AvailableData, FeeSchedule, CandidateCommitments, ErasureChunk, ParachainHost,
 	Id as ParaId, AbridgedCandidateReceipt, ValidationCode,
 };
-use polkadot_primitives::{Block, BlockId, Balance, Hash};
+use polkadot_primitives::v0::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
 	primitives::{UpwardMessage, ValidationParams},
@@ -32,6 +32,7 @@ use parachain::{
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
 use crate::Error;
+use primitives::traits::SpawnNamed;
 
 pub use parachain::wasm_executor::ValidationPool;
 
@@ -95,7 +96,7 @@ impl FullOutput {
 /// validation are needed, call `full_output`. Otherwise, safely drop this value.
 pub struct ValidatedCandidate<'a> {
 	pov_block: &'a PoVBlock,
-	global_validation: &'a GlobalValidationSchedule,
+	global_validation: &'a GlobalValidationData,
 	local_validation: &'a LocalValidationData,
 	upward_messages: Vec<UpwardMessage>,
 	fees: Balance,
@@ -125,7 +126,7 @@ impl<'a> ValidatedCandidate<'a> {
 			omitted_validation,
 		};
 
-		let erasure_chunks = erasure::obtain_chunks(
+		let erasure_chunks = erasure::obtain_chunks_v0(
 			n_validators,
 			&available_data,
 		)?;
@@ -189,8 +190,9 @@ pub fn validate<'a>(
 	collation: &'a CollationInfo,
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
-	global_validation: &'a GlobalValidationSchedule,
+	global_validation: &'a GlobalValidationData,
 	validation_code: &ValidationCode,
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidatedCandidate<'a>, Error> {
 	if collation.head_data.0.len() > global_validation.max_head_data_size as _ {
 		return Err(Error::HeadDataTooLarge(
@@ -222,6 +224,7 @@ pub fn validate<'a>(
 		&validation_code.0,
 		params,
 		execution_mode,
+		spawner,
 	) {
 		Ok(result) => {
 			if result.head_data == collation.head_data {
@@ -249,7 +252,7 @@ pub fn validate<'a>(
 
 /// Extracts validation parameters from a Polkadot runtime API for a specific parachain.
 pub fn validation_params<P>(api: &P, relay_parent: Hash, para_id: ParaId)
-	-> Result<(LocalValidationData, GlobalValidationSchedule, ValidationCode), Error>
+	-> Result<(LocalValidationData, GlobalValidationData, ValidationCode), Error>
 where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -261,7 +264,7 @@ where
 	let local_validation = api.local_validation_data(&relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
-	let global_validation = api.global_validation_schedule(&relay_parent)?;
+	let global_validation = api.global_validation_data(&relay_parent)?;
 	let validation_code = api.parachain_code(&relay_parent, para_id)?
 		.ok_or_else(|| Error::InactiveParachain(para_id))?;
 
@@ -277,6 +280,7 @@ pub fn full_output_validation_with_api<P>(
 	expected_relay_parent: &Hash,
 	max_block_data_size: Option<u64>,
 	n_validators: usize,
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<FullOutput, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -302,6 +306,7 @@ pub fn full_output_validation_with_api<P>(
 				&local_validation,
 				&global_validation,
 				&validation_code,
+				spawner,
 			);
 
 			match res {

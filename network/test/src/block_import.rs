@@ -29,7 +29,7 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 	let mut client = polkadot_test_runtime_client::new();
 	let mut builder = client.new_block(Default::default()).unwrap();
 
-	let extrinsics = polkadot_test_runtime_client::needed_extrinsics(vec![]);
+	let extrinsics = polkadot_test_runtime_client::needed_extrinsics(vec![], 0);
 
 	for extrinsic in &extrinsics {
 		builder.push(extrinsic.clone()).unwrap();
@@ -88,7 +88,7 @@ fn import_single_good_block_without_header_fails() {
 
 #[test]
 fn async_import_queue_drops() {
-	let executor = sp_core::testing::SpawnBlockingExecutor::new();
+	let executor = sp_core::testing::TaskExecutor::new();
 	// Perform this test multiple times since it exhibits non-deterministic behavior.
 	for _ in 0..100 {
 		let verifier = PassThroughVerifier::new(true);

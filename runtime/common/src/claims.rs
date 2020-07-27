@@ -35,7 +35,7 @@ use sp_runtime::{
 		TransactionSource, TransactionValidityError,
 	},
 };
-use primitives::ValidityError;
+use primitives::v0::ValidityError;
 
 type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -194,7 +194,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
@@ -539,10 +539,10 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+	<T as system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -556,7 +556,7 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -565,7 +565,7 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
 	type Call = <T as system::Trait>::Call;
@@ -646,7 +646,7 @@ mod tests {
 	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {}
+		pub enum Origin for Test where system = system {}
 	}
 
 	impl_outer_dispatch! {
@@ -690,6 +690,7 @@ mod tests {
 		type AccountData = balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	parameter_types! {
@@ -704,6 +705,7 @@ mod tests {
 		type DustRemoval = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	impl vesting::Trait for Test {
@@ -711,6 +713,7 @@ mod tests {
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
+		type WeightInfo = ();
 	}
 
 	parameter_types!{

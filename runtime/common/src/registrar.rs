@@ -34,7 +34,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 };
 use system::{self, ensure_root, ensure_signed};
-use primitives::parachain::{
+use primitives::v0::{
 	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
 	Retriable, ValidationCode, HeadData,
 };
@@ -213,7 +213,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&only_ids);
 
 	for (id, code, genesis) in p {
-		Paras::insert(id, &primitives::parachain::PARACHAIN_INFO);
+		Paras::insert(id, &primitives::v0::PARACHAIN_INFO);
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
@@ -254,7 +254,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -561,10 +561,10 @@ impl<T: Trait> ActiveParas for Module<T> {
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>;
+	<T as system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create a new `LimitParathreadCommits` struct.
 	pub fn new() -> Self {
@@ -573,7 +573,7 @@ impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
 }
 
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
@@ -590,7 +590,7 @@ pub enum ValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Module<T>, T>
+	<T as system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;
@@ -670,12 +670,10 @@ mod tests {
 			AccountIdConversion, Extrinsic as ExtrinsicT,
 		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
-	use primitives::{
-		parachain::{
-			ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
-			CandidateReceipt, HeadData, ValidityAttestation, CompactStatement as Statement, Chain,
-			CollatorPair, CandidateCommitments,
-		},
+	use primitives::v0::{
+		ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
+		CandidateReceipt, HeadData, ValidityAttestation, CompactStatement as Statement, Chain,
+		CollatorPair, CandidateCommitments,
 		Balance, BlockNumber, Header, Signature,
 	};
 	use frame_support::{
@@ -690,7 +688,7 @@ mod tests {
 	use crate::attestations;
 
 	impl_outer_origin! {
-		pub enum Origin for Test {
+		pub enum Origin for Test where system = system {
 			parachains,
 		}
 	}
@@ -747,6 +745,7 @@ mod tests {
 		type AccountData = balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
+		type SystemWeightInfo = ();
 	}
 
 	impl<C> system::offchain::SendTransactionTypes<C> for Test where
@@ -766,6 +765,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type WeightInfo = ();
 	}
 
 	parameter_types!{
@@ -814,6 +814,7 @@ mod tests {
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+		type WeightInfo = ();
 	}
 
 	parameter_types! {
@@ -848,12 +849,14 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
+		type WeightInfo = ();
 	}
 
 	impl timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
+		type WeightInfo = ();
 	}
 
 	impl session::historical::Trait for Test {
@@ -864,7 +867,7 @@ mod tests {
 	// This is needed for a custom `AccountId` type which is `u64` in testing here.
 	pub mod test_keys {
 		use sp_core::{crypto::KeyTypeId, sr25519};
-		use primitives::Signature;
+		use primitives::v0::Signature;
 
 		pub const KEY_TYPE: KeyTypeId = KeyTypeId(*b"test");
 
@@ -1067,7 +1070,7 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: Parachains::global_validation_schedule(),
+			global_validation: Parachains::global_validation_data(),
 			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,

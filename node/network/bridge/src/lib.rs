@@ -28,12 +28,12 @@ use sc_network::{
 use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
 use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
 use node_primitives::{ProtocolId, View};
-use polkadot_primitives::{Block, Hash};
+use polkadot_primitives::v1::{Block, Hash};
 
 use std::collections::btree_map::{BTreeMap, Entry as BEntry};
 use std::collections::hash_map::{HashMap, Entry as HEntry};
@@ -56,6 +56,9 @@ const UNKNOWN_PROTO_COST: ReputationChange
 	= ReputationChange::new(-50, "Message sent to unknown protocol");
 const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
+
+// network bridge log target
+const TARGET: &'static str = "network_bridge";
 
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
@@ -184,7 +187,10 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
-		SpawnedSubsystem(run_network(self.0, ctx).map(|_| ()).boxed())
+		SpawnedSubsystem {
+			name: "network-bridge-subsystem",
+			future: run_network(self.0, ctx).map(|_| ()).boxed(),
+		}
 	}
 }
 
@@ -200,24 +206,22 @@ enum Action {
 	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
 	ReportPeer(PeerId, ReputationChange),
-	StartWork(Hash),
-	StopWork(Hash),
+	ActiveLeaves(ActiveLeavesUpdate),
 
 	PeerConnected(PeerId, ObservedRole),
 	PeerDisconnected(PeerId),
 	PeerMessages(PeerId, Vec<WireMessage>),
 
 	Abort,
+	Nop,
 }
 
 fn action_from_overseer_message(
 	res: polkadot_subsystem::SubsystemResult<FromOverseer<NetworkBridgeMessage>>,
 ) -> Action {
 	match res {
-		Ok(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)))
-			=> Action::StartWork(relay_parent),
-		Ok(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)))
-			=> Action::StopWork(relay_parent),
+		Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(active_leaves)))
+			=> Action::ActiveLeaves(active_leaves),
 		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
 		Ok(FromOverseer::Communication { msg }) => match msg {
 			NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer)
@@ -226,8 +230,10 @@ fn action_from_overseer_message(
 			NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				=> Action::SendMessage(peers, protocol, message),
 		},
+		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
+			=> Action::Nop,
 		Err(e) => {
-			log::warn!("Shutting down Network Bridge due to error {:?}", e);
+			log::warn!(target: TARGET, "Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
 		}
 	}
@@ -236,7 +242,7 @@ fn action_from_overseer_message(
 fn action_from_network_message(event: Option<NetworkEvent>) -> Option<Action> {
 	match event {
 		None => {
-			log::info!("Shutting down Network Bridge: underlying event stream concluded");
+			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Some(Action::Abort)
 		}
 		Some(NetworkEvent::Dht(_)) => None,
@@ -389,37 +395,23 @@ async fn run_network<N: Network>(
 			Action::ReportPeer(peer, rep) => {
 				net.report_peer(peer, rep).await?;
 			}
-			Action::StartWork(relay_parent) => {
-				live_heads.push(relay_parent);
-				if let Some(view_update)
-					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-				{
-					if let Err(e) = dispatch_update_to_all(
-						view_update,
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
-					}
-				}
-			}
-			Action::StopWork(relay_parent) => {
-				live_heads.retain(|h| h != &relay_parent);
-				if let Some(view_update)
-					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-				{
-					if let Err(e) = dispatch_update_to_all(
-						view_update,
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
-					}
-				}
-			}
+			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+				live_heads.extend(activated);
+				live_heads.retain(|h| !deactivated.contains(h));
 
+				if let Some(view_update)
+					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
+				{
+					if let Err(e) = dispatch_update_to_all(
+						view_update,
+						event_producers.values(),
+						&mut ctx,
+					).await {
+						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+						return Err(e)
+					}
+				}
+			}
 			Action::PeerConnected(peer, role) => {
 				match peers.entry(peer.clone()) {
 					HEntry::Occupied(_) => continue,
@@ -447,7 +439,7 @@ async fn run_network<N: Network>(
 						event_producers.values(),
 						&mut ctx,
 					).await {
-						log::warn!("Aborting - Failure to dispatch messages to overseer");
+						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 						return Err(e)
 					}
 				}
@@ -507,12 +499,13 @@ async fn run_network<N: Network>(
 
 				let send_messages = ctx.send_messages(outgoing_messages);
 				if let Err(e) = send_messages.await {
-					log::warn!("Aborting - Failure to dispatch messages to overseer");
+					log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 					return Err(e)
 				}
 			},
 
 			Action::Abort => return Ok(()),
+			Action::Nop => (),
 		}
 	}
 }
@@ -521,14 +514,14 @@ async fn run_network<N: Network>(
 mod tests {
 	use super::*;
 	use futures::channel::mpsc;
-	use futures::executor::{self, ThreadPool};
+	use futures::executor;
 
 	use std::sync::Arc;
 	use parking_lot::Mutex;
 	use assert_matches::assert_matches;
 
 	use polkadot_subsystem::messages::{StatementDistributionMessage, BitfieldDistributionMessage};
-	use subsystem_test::{SingleItemSink, SingleItemStream};
+	use polkadot_subsystem::test_helpers::{SingleItemSink, SingleItemStream};
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
@@ -547,7 +540,7 @@ mod tests {
 		TestNetwork,
 		TestNetworkHandle,
 	) {
-		let (net_tx, net_rx) = subsystem_test::single_item_sink();
+		let (net_tx, net_rx) = polkadot_subsystem::test_helpers::single_item_sink();
 		let (action_tx, action_rx) = mpsc::unbounded();
 
 		(
@@ -628,14 +621,13 @@ mod tests {
 
 	struct TestHarness {
 		network_handle: TestNetworkHandle,
-		virtual_overseer: subsystem_test::TestSubsystemContextHandle<NetworkBridgeMessage>,
+		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<NetworkBridgeMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
-		let pool = ThreadPool::new().unwrap();
-
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (network, network_handle) = new_test_network();
-		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool);
+		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		let network_bridge = run_network(
 			network,
@@ -668,7 +660,7 @@ mod tests {
 
 			let hash_a = Hash::from([1; 32]);
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::StartWork(hash_a))).await;
+			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))).await;
 
 			let actions = network_handle.next_network_actions(2).await;
 			let wire_message = WireMessage::ViewUpdate(View(vec![hash_a])).encode();
