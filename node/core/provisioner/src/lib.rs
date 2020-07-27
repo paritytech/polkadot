@@ -41,7 +41,6 @@ use std::{
 pub struct ProvisioningJob {
 	receiver: mpsc::Receiver<ToJob>,
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
-	inherent_data_channels: Vec<mpsc::Sender<ProvisionerInherentData>>,
 }
 
 pub enum ToJob {
@@ -125,14 +124,23 @@ impl ProvisioningJob {
 		Self {
 			receiver,
 			provisionable_data_channels: Vec::new(),
-			inherent_data_channels: Vec::new(),
 		}
 	}
 
 	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.receiver.next().await {
+			use ProvisionerMessage::{RequestBlockAuthorshipData, RequestInherentData, ProvisionableData};
+
 			match msg {
-				ToJob::Provisioner(_pm) => unimplemented!(),
+				ToJob::Provisioner(RequestInherentData(_, sender)) => unimplemented!(),
+				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => self.provisionable_data_channels.push(sender),
+				ToJob::Provisioner(ProvisionableData(data)) => {
+					for channel in self.provisionable_data_channels.iter_mut() {
+						// REVIEW: the try operator here breaks the run loop if any receiver ever unexpectedly
+						// closes their channel. Is that desired?
+						channel.send(data.clone()).await?;
+					}
+				}
 				ToJob::Stop => break,
 			}
 		}

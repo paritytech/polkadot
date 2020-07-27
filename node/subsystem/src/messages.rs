@@ -342,7 +342,8 @@ impl StatementDistributionMessage {
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
-#[derive(Debug)]
+// It needs to be cloneable because multiple potential block authors can request copies.
+#[derive(Debug, Clone)]
 pub enum ProvisionableData {
 	/// This bitfield indicates the availability of various candidate blocks.
 	Bitfield(Hash, SignedAvailabilityBitfield),
