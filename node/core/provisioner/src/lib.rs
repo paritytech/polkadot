@@ -19,20 +19,13 @@
 
 use futures::{
 	channel::{mpsc, oneshot},
-	future::Either,
 	prelude::*,
-	select,
-	stream::Stream,
-	task,
 };
 use polkadot_node_subsystem::{
 	messages::{AllMessages, ProvisionableData, ProvisionerInherentData, ProvisionerMessage},
 	util::{JobTrait, ToJobTrait},
 };
-use polkadot_primitives::v1::{
-	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext, ValidatorId, ValidatorIndex,
-	ValidatorPair,
-};
+use polkadot_primitives::v1::Hash;
 use std::{
 	convert::TryFrom,
 	pin::Pin,
@@ -80,7 +73,7 @@ impl From<ProvisionerMessage> for ToJob {
 pub enum FromJob {}
 
 impl From<FromJob> for AllMessages {
-	fn from(from_job: FromJob) -> AllMessages {
+	fn from(_from_job: FromJob) -> AllMessages {
 		unreachable!("uninstantiable; qed")
 	}
 }
@@ -132,7 +125,7 @@ impl ProvisioningJob {
 			use ProvisionerMessage::{RequestBlockAuthorshipData, RequestInherentData, ProvisionableData};
 
 			match msg {
-				ToJob::Provisioner(RequestInherentData(_, sender)) => unimplemented!(),
+				ToJob::Provisioner(RequestInherentData(_, sender)) => self.select_inherent_data(sender).await?,
 				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => self.provisionable_data_channels.push(sender),
 				ToJob::Provisioner(ProvisionableData(data)) => {
 					for channel in self.provisionable_data_channels.iter_mut() {
@@ -146,5 +139,26 @@ impl ProvisioningJob {
 		}
 
 		Ok(())
+	}
+
+	// The provisioner is the subsystem best suited to choosing which specific
+	// backed candidates and availability bitfields should be assembled into the
+	// block. To engage this functionality, a
+	// `ProvisionerMessage::RequestInherentData` is sent; the response is a set of
+	// non-conflicting candidates and the appropriate bitfields. Non-conflicting
+	// means that there are never two distinct parachain candidates included for
+	// the same parachain and that new parachain candidates cannot be included
+	// until the previous one either gets declared available or expired.
+	//
+	// The main complication here is going to be around handling
+	// occupied-core-assumptions. We might have candidates that are only
+	// includable when some bitfields are included. And we might have candidates
+	// that are not includable when certain bitfields are included.
+	//
+	// When we're choosing bitfields to include, the rule should be simple:
+	// maximize availability. So basically, include all bitfields. And then
+	// choose a coherent set of candidates along with that.
+	async fn select_inherent_data(&mut self, _sender: oneshot::Sender<ProvisionerInherentData>) -> Result<(), Error> {
+		unimplemented!()
 	}
 }
