@@ -1040,57 +1040,6 @@ mod tests {
 		}
 	}
 
-	// item isn't equal, but is close enough
-	//
-	// we need this to properly test that we've collected all expected results, even if
-	// they arrive out of order
-	trait Equivalent {
-		fn equiv(&self, other: &Self) -> bool;
-	}
-
-	impl Equivalent for ActiveLeavesUpdate {
-		fn equiv(&self, other: &Self) -> bool {
-			self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
-			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
-		}
-	}
-
-	impl Equivalent for OverseerSignal {
-		fn equiv(&self, other: &Self) -> bool {
-			use OverseerSignal::{
-				ActiveLeaves,
-				Conclude,
-			};
-
-			match (self, other) {
-				(ActiveLeaves(lalu), ActiveLeaves(ralu)) => lalu.equiv(ralu),
-				(Conclude, Conclude) => true,
-				_ => false,
-			}
-		}
-	}
-
-	fn contains_equivalent<T: Equivalent>(list: &[T], expect: &T) -> bool {
-		list.iter().any(|have| have.equiv(&expect))
-	}
-
-	#[test]
-	fn equivalence_works() {
-		let first_hash = [1; 32].into();
-		let second_hash = [2; 32].into();
-
-		let signal_1 = OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: [first_hash, second_hash].as_ref().into(),
-			..Default::default()
-		});
-		let signal_2 = OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-			activated: [second_hash, first_hash].as_ref().into(),
-			..Default::default()
-		});
-
-		assert!(signal_1.equiv(&signal_2));
-	}
-
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
 	fn overseer_works() {
@@ -1448,8 +1397,8 @@ mod tests {
 			// Notifications on finality for multiple blocks at once
 			// may be received in different orders.
 			for expected in expected_heartbeats {
-				assert!(contains_equivalent(&ss5_results, &expected));
-				assert!(contains_equivalent(&ss6_results, &expected));
+				assert!(ss5_results.contains(&expected));
+				assert!(ss6_results.contains(&expected));
 			}
 		});
 	}

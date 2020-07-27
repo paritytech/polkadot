@@ -48,7 +48,7 @@ const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
 /// Changes in the set of active leaves: the parachain heads which we care to work on.
 ///
 /// Note that the activated and deactivated fields indicate deltas, not complete sets.
-#[derive(PartialEq, Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Eq)]
 pub struct ActiveLeavesUpdate {
 	/// New relay chain block hashes of interest.
 	pub activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
@@ -65,6 +65,17 @@ impl ActiveLeavesUpdate {
 	/// Create a ActiveLeavesUpdate with a single deactivated hash
 	pub fn stop_work(hash: Hash) -> Self {
 		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+	}
+}
+
+impl PartialEq for ActiveLeavesUpdate {
+	/// Equality for `ActiveLeavesUpdate` doesnt imply bitwise equality.
+	///
+	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
+	fn eq(&self, other: &Self) -> bool {
+		use std::collections::HashSet;
+		self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
+			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
 	}
 }
 
