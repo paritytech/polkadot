@@ -785,7 +785,7 @@ mod tests {
 	};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, SchedulerRoster},
-		FromOverseer, OverseerSignal,
+		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::HashMap;
@@ -910,7 +910,7 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 
 		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
 
@@ -975,7 +975,7 @@ mod tests {
 	) {
 		// Start work on some new parent.
 		virtual_overseer.send(FromOverseer::Signal(
-			OverseerSignal::StartWork(test_state.relay_parent))
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(test_state.relay_parent)))
 		).await;
 
 		// Check that subsystem job issues a request for a validator set.
@@ -1091,7 +1091,7 @@ mod tests {
 			);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}
@@ -1218,7 +1218,7 @@ mod tests {
 			assert_eq!(backed[0].0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0]);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}
@@ -1492,7 +1492,7 @@ mod tests {
 			);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}

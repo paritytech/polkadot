@@ -360,7 +360,7 @@ mod tests {
 		store: Arc<dyn KeyValueDB>,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = AvailabilityStoreSubsystem::new_in_memory(store);
