@@ -30,7 +30,7 @@ use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
-use polkadot_primitives::v1::{Hash, ErasureChunk, PoV, SigningContext, ValidatorId, ValidatorIndex};
+use polkadot_primitives::v1::{CommittedCandidateReceipt, Hash, ErasureChunk, PoV, SigningContext, ValidatorId, ValidatorIndex};
 use sc_network::ReputationChange;
 use std::collections::{HashMap, HashSet};
 
@@ -55,6 +55,28 @@ pub struct AvailabilityGossipMessage {
 struct ProtocolState {
 	/// Our own view.
 	view: View,
+
+	/// Accumulated erasure chunks from all peers.
+	acc_erasure_chunks: HashMap<, ErasureChunk>,
+
+	///
+	peer_views : HashMap<PeerId, View>,
+
+	///
+	per_relay_parent : HashMap<Hash, PerRelayParent>,
+}
+
+impl ProtocolId {
+	fn live_candidates(&self) -> HashSet<CommittedCandidateReceipt> {
+
+	}
+}
+
+#[derive(Default, Clone)]
+struct PerRelayParent {
+	/// The relay parent is backed but only
+	backed_candidate: HashSet<ValidatorId>,
+
 }
 
 
