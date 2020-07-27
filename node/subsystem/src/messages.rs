@@ -277,8 +277,6 @@ pub enum AvailabilityStoreMessage {
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
 
-
-
 	/// Store a `AvailableData` in the AV store.
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
