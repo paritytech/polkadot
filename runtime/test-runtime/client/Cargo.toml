@@ -16,14 +16,14 @@ polkadot-test-runtime = { path = ".." }
 polkadot-test-service = { path = "../../../node/test-service" }
 
 # Substrate dependencies
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sc-light = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sc-service = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c", features = ["test-helpers"],  default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sp-core = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-light = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["test-helpers"],  default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
