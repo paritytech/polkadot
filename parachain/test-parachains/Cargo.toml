@@ -15,7 +15,7 @@ halt = { package = "test-parachain-halt", path = "halt" }
 code-upgrader = { package = "test-parachain-code-upgrader", path = "code-upgrader" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "8180062d6c1c542015988527fecf320974b21051" }
 
 [features]
 default = [ "std" ]

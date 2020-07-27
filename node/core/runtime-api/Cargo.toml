@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 futures = "0.3.5"
 log = "0.4.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", rev = "8180062d6c1c542015988527fecf320974b21051" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "8180062d6c1c542015988527fecf320974b21051" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "8180062d6c1c542015988527fecf320974b21051" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", rev = "8180062d6c1c542015988527fecf320974b21051" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
