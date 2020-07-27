@@ -12,16 +12,16 @@ parity-scale-codec = "1.3.0"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-telemetry = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sc-telemetry = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-api = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", rev = "ae579a841587919bc12940388e994ef799c37e6c" }
 tokio-executor = { version = "0.2.0-alpha.6", features = ["blocking"] }
 wasm-timer = "0.2.4"

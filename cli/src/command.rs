@@ -161,8 +161,9 @@ pub fn run() -> Result<()> {
 						config,
 						None,
 						None,
-						authority_discovery_enabled,
+						authority_discovery_disabled,
 						6000,
+						grandpa_pause,
 					).map(|(components, _, _)| components)
 				})
 			} else {
