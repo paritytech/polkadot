@@ -25,28 +25,10 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	AvailableData,
-	BackedCandidate,
-	BlockNumber,
-	CandidateDescriptor,
-	CandidateEvent,
-	CandidateReceipt,
-	CommittedCandidateReceipt,
-	CoreAssignment,
-	CoreOccupied,
-	CoreState,
-	ErasureChunk,
-	Hash,
-	HeadData,
-	Id as ParaId,
-	OmittedValidationData,
-	PoV,
-	SignedAvailabilityBitfield,
-	SigningContext,
-	ValidationCode,
-	ValidatorId,
-	ValidatorIndex,
-	ValidatorSignature,
+	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt,
+	CommittedCandidateReceipt, CoreAssignment, CoreOccupied, CoreState, ErasureChunk, Hash, HeadData,
+	Id as ParaId, OmittedValidationData, PoV, SignedAvailabilityBitfield, SigningContext, ValidationCode,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
