@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-exit 0
-
 # Check for any changes in any runtime directories (e.g., ^runtime/polkadot) as
 # well as directories common to all runtimes (e.g., ^runtime/common). If there
 # are no changes, check if the Substrate git SHA in Cargo.lock has been
