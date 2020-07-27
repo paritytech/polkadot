@@ -58,7 +58,7 @@ rustup update
 Once done, finish installing the support software:
 
 ```bash
-sudo apt install make clang pkg-config libssl-dev libclang-dev
+sudo apt install build-essential git clang libclang-dev pkg-config libssl-dev 
 ```
 
 #### Build
