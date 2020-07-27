@@ -268,7 +268,7 @@ async fn spawn_validate_exhaustive(
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (tx, rx) = oneshot::channel();
 	let fut = async move {
-		let res = validate_candidate_exhaustive(
+		let res = validate_candidate_exhaustive::<RealValidationBackend>(
 			validation_pool,
 			omitted_validation,
 			validation_code,
@@ -331,11 +331,43 @@ fn check_wasm_result_against_constraints(
 	true
 }
 
+trait ValidationBackend {
+	type Arg;
+
+	fn validate(
+		arg: Self::Arg,
+		validation_code: &ValidationCode,
+		params: ValidationParams,
+	) -> Result<WasmValidationResult, wasm_executor::Error>;
+}
+
+struct RealValidationBackend;
+
+impl ValidationBackend for RealValidationBackend {
+	type Arg = Option<ValidationPool>;
+
+	fn validate(
+		pool: Option<ValidationPool>,
+		validation_code: &ValidationCode,
+		params: ValidationParams,
+	) -> Result<WasmValidationResult, wasm_executor::Error> {
+		let execution_mode = pool.as_ref()
+			.map(ExecutionMode::Remote)
+			.unwrap_or(ExecutionMode::Local);
+
+		wasm_executor::validate_candidate(
+			&validation_code.0,
+			params,
+			execution_mode,
+		)
+	}
+}
+
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
-fn validate_candidate_exhaustive(
-	validation_pool: Option<ValidationPool>,
+fn validate_candidate_exhaustive<B: ValidationBackend>(
+	backend_arg: B::Arg,
 	omitted_validation: OmittedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
@@ -344,10 +376,6 @@ fn validate_candidate_exhaustive(
 	if !passes_basic_checks(&descriptor, None, &*pov) {
 		return Ok(ValidationResult::Invalid);
 	}
-
-	let execution_mode = validation_pool.as_ref()
-		.map(ExecutionMode::Remote)
-		.unwrap_or(ExecutionMode::Local);
 
 	let OmittedValidationData { global_validation, local_validation } = omitted_validation;
 
@@ -360,15 +388,10 @@ fn validate_candidate_exhaustive(
 		code_upgrade_allowed: local_validation.code_upgrade_allowed,
 	};
 
-	match wasm_executor::validate_candidate(
-		&validation_code.0,
-		params,
-		execution_mode,
-	) {
+	match B::validate(backend_arg, &validation_code, params) {
 		Err(wasm_executor::Error::BadReturn) => Ok(ValidationResult::Invalid),
 		Err(_) => Err(ValidationFailed),
 		Ok(res) => {
-
 			let passes_post_checks = check_wasm_result_against_constraints(
 				&global_validation,
 				&local_validation,
