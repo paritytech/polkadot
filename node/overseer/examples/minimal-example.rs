@@ -21,7 +21,7 @@
 use std::time::Duration;
 use futures::{
 	channel::oneshot,
-	pending, pin_mut, executor, select, stream,
+	pending, pin_mut, select, stream,
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
@@ -77,9 +77,14 @@ impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-1",
+			future,
+		}
 	}
 }
 
@@ -87,12 +92,15 @@ struct Subsystem2;
 
 impl Subsystem2 {
 	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
-		ctx.spawn(Box::pin(async {
-			loop {
-				log::info!("Job tick");
-				Delay::new(Duration::from_secs(1)).await;
-			}
-		})).await.unwrap();
+		ctx.spawn(
+			"subsystem-2-job",
+			Box::pin(async {
+				loop {
+					log::info!("Job tick");
+					Delay::new(Duration::from_secs(1)).await;
+				}
+			}),
+		).await.unwrap();
 
 		loop {
 			match ctx.try_recv().await {
@@ -114,16 +122,20 @@ impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-2",
+			future,
+		}
 	}
 }
 
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
-	let spawner = executor::ThreadPool::new().unwrap();
-
+	let spawner = sp_core::testing::SpawnBlockingExecutor::new();
 	futures::executor::block_on(async {
 		let timer_stream = stream::repeat(()).then(|_| async {
 			Delay::new(Duration::from_secs(1)).await;

@@ -312,7 +312,7 @@ macro_rules! new_full {
 		$config:expr,
 		$collating_for:expr,
 		$max_block_data_size:expr,
-		$authority_discovery_enabled:expr,
+		$authority_discovery_disabled:expr,
 		$slot_duration:expr,
 		$grandpa_pause:expr,
 		$new_full_start:expr $(,)?
@@ -333,7 +333,7 @@ macro_rules! new_full {
 		let max_block_data_size = $max_block_data_size;
 		let disable_grandpa = $config.disable_grandpa;
 		let name = $config.network.node_name.clone();
-		let authority_discovery_enabled = $authority_discovery_enabled;
+		let authority_discovery_disabled = $authority_discovery_disabled;
 		let slot_duration = $slot_duration;
 
 		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) = $new_full_start;
@@ -474,7 +474,7 @@ macro_rules! new_full {
 		}
 
 		if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
-			if authority_discovery_enabled {
+			if !authority_discovery_disabled {
 				let (sentries, authority_discovery_role) = match role {
 					Role::Authority { ref sentry_nodes } => (
 						sentry_nodes.clone(),
@@ -583,7 +583,7 @@ macro_rules! new_full {
 		$config:expr,
 		$collating_for:expr,
 		$max_block_data_size:expr,
-		$authority_discovery_enabled:expr,
+		$authority_discovery_disabled:expr,
 		$slot_duration:expr,
 		$grandpa_pause:expr,
 		$runtime:ty,
@@ -593,7 +593,7 @@ macro_rules! new_full {
 			$config,
 			$collating_for,
 			$max_block_data_size,
-			$authority_discovery_enabled,
+			$authority_discovery_disabled,
 			$slot_duration,
 			$grandpa_pause,
 			new_full_start!($config, $runtime, $dispatch),
@@ -604,7 +604,7 @@ macro_rules! new_full {
 		$config:expr,
 		$collating_for:expr,
 		$max_block_data_size:expr,
-		$authority_discovery_enabled:expr,
+		$authority_discovery_disabled:expr,
 		$slot_duration:expr,
 		$runtime:ty,
 		$dispatch:ty,
@@ -613,7 +613,7 @@ macro_rules! new_full {
 			$config,
 			$collating_for,
 			$max_block_data_size,
-			$authority_discovery_enabled,
+			$authority_discovery_disabled,
 			$slot_duration,
 			None,
 			new_full_start!(test $config, $runtime, $dispatch),
@@ -749,7 +749,7 @@ pub fn polkadot_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -767,7 +767,7 @@ pub fn polkadot_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
 		polkadot_runtime::RuntimeApi,
@@ -783,7 +783,7 @@ pub fn kusama_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -801,7 +801,7 @@ pub fn kusama_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
 		kusama_runtime::RuntimeApi,
@@ -817,7 +817,7 @@ pub fn westend_new_full(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -835,7 +835,7 @@ pub fn westend_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_enabled,
+		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
 		westend_runtime::RuntimeApi,

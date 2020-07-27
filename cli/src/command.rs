@@ -114,7 +114,7 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
+			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -135,7 +135,7 @@ pub fn run() -> Result<()> {
 						config,
 						None,
 						None,
-						authority_discovery_enabled,
+						authority_discovery_disabled,
 						6000,
 						grandpa_pause,
 					).map(|(components, _, _)| components)
@@ -148,7 +148,7 @@ pub fn run() -> Result<()> {
 						config,
 						None,
 						None,
-						authority_discovery_enabled,
+						authority_discovery_disabled,
 						6000,
 						grandpa_pause,
 					).map(|(components, _, _)| components)
@@ -173,7 +173,7 @@ pub fn run() -> Result<()> {
 						config,
 						None,
 						None,
-						authority_discovery_enabled,
+						authority_discovery_disabled,
 						6000,
 						grandpa_pause,
 					).map(|(components, _, _)| components)
