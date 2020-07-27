@@ -43,6 +43,7 @@ members = [
 	"service",
 	"validation",
 
+	"node/core/av-store",
 	"node/core/bitfield-signing",
 	"node/core/proposer",
 	"node/core/provisioner",

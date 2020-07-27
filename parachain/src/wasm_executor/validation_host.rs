@@ -19,11 +19,12 @@
 use std::{process, env, sync::Arc, sync::atomic};
 use codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
-use super::{validate_candidate_internal, Error};
-use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
+use super::{validate_candidate_internal, Error, MAX_CODE_MEM, MAX_RUNTIME_MEM};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
+use futures::executor::ThreadPool;
+use sp_core::traits::SpawnNamed;
 
 const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
@@ -41,6 +42,25 @@ enum Event {
 	CandidateReady = 0,
 	ResultReady = 1,
 	WorkerReady = 2,
+}
+
+#[derive(Clone)]
+struct TaskExecutor(ThreadPool);
+
+impl TaskExecutor {
+	fn new() -> Result<Self, String> {
+		ThreadPool::new().map_err(|e| e.to_string()).map(Self)
+	}
+}
+
+impl SpawnNamed for TaskExecutor {
+	fn spawn_blocking(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		self.0.spawn_ok(future);
+	}
+
+	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		self.0.spawn_ok(future);
+	}
 }
 
 /// A pool of hosts.
@@ -92,6 +112,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	};
 
 	let exit = Arc::new(atomic::AtomicBool::new(false));
+    let task_executor = TaskExecutor::new()?;
 	// spawn parent monitor thread
 	let watch_exit = exit.clone();
 	std::thread::spawn(move || {
@@ -139,7 +160,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
 
-				let result = validate_candidate_internal(code, call_data);
+				let result = validate_candidate_internal(code, call_data, task_executor.clone());
 				debug!("{} Candidate validated: {:?}", process::id(), result);
 
 				match result {

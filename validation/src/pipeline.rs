@@ -32,6 +32,7 @@ use parachain::{
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
 use crate::Error;
+use primitives::traits::SpawnNamed;
 
 pub use parachain::wasm_executor::ValidationPool;
 
@@ -191,6 +192,7 @@ pub fn validate<'a>(
 	local_validation: &'a LocalValidationData,
 	global_validation: &'a GlobalValidationData,
 	validation_code: &ValidationCode,
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidatedCandidate<'a>, Error> {
 	if collation.head_data.0.len() > global_validation.max_head_data_size as _ {
 		return Err(Error::HeadDataTooLarge(
@@ -222,6 +224,7 @@ pub fn validate<'a>(
 		&validation_code.0,
 		params,
 		execution_mode,
+		spawner,
 	) {
 		Ok(result) => {
 			if result.head_data == collation.head_data {
@@ -277,6 +280,7 @@ pub fn full_output_validation_with_api<P>(
 	expected_relay_parent: &Hash,
 	max_block_data_size: Option<u64>,
 	n_validators: usize,
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<FullOutput, Error> where
 	P: ProvideRuntimeApi<Block>,
 	P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -302,6 +306,7 @@ pub fn full_output_validation_with_api<P>(
 				&local_validation,
 				&global_validation,
 				&validation_code,
+				spawner,
 			);
 
 			match res {

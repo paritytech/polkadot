@@ -602,21 +602,25 @@ where
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
-		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
+		use crate::ActiveLeavesUpdate;
+		use crate::OverseerSignal::{BlockFinalized, Conclude, ActiveLeaves};
 
 		match incoming {
-			Ok(Signal(StartWork(hash))) => {
-				if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
-					log::error!("Failed to spawn a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }))) => {
+				for hash in activated {
+					if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+						log::error!("Failed to spawn a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
-			}
-			Ok(Signal(StopWork(hash))) => {
-				if let Err(e) = jobs.stop_job(hash).await {
-					log::error!("Failed to stop a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+
+				for hash in deactivated {
+					if let Err(e) = jobs.stop_job(hash).await {
+						log::error!("Failed to stop a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
 			}
 			Ok(Signal(Conclude)) => {
@@ -663,6 +667,7 @@ where
 					}
 				}
 			}
+			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
 				Self::fwd_err(None, Error::from(err).into(), err_tx).await;
@@ -725,6 +730,7 @@ mod tests {
 			JobTrait,
 			ToJobTrait,
 		},
+		ActiveLeavesUpdate,
 		FromOverseer,
 		OverseerSignal,
 	};
@@ -891,7 +897,7 @@ mod tests {
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T) {
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 
@@ -920,12 +926,12 @@ mod tests {
 		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message.clone())]);
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(relay_parent)))).await;
 			assert_matches!(
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
@@ -938,7 +944,7 @@ mod tests {
 		let run_args = HashMap::new();
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 1);

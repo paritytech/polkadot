@@ -23,6 +23,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 parking_lot = { version = "0.10.0", optional = true }
 log = { version = "0.4.8", optional = true }
+futures = { version = "0.3.4", optional = true }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 shared_memory = { version = "0.10.0", optional = true }
@@ -43,4 +44,5 @@ std = [
 	"sc-executor",
 	"sp-io",
 	"polkadot-core-primitives/std",
+	"futures",
 ]

@@ -19,6 +19,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+smallvec = "1.4.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 streamunordered = "0.5.1"
 

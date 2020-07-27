@@ -30,24 +30,11 @@ use av_store::{Store as AvailabilityStore, ErasureNetworking};
 use sc_network_gossip::TopicNotification;
 use sp_api::{ApiRef, ProvideRuntimeApi};
 use sp_runtime::traits::Block as BlockT;
-use sp_core::{crypto::Pair, traits::SpawnNamed};
+use sp_core::{crypto::Pair, testing::TaskExecutor};
 use sp_keyring::Sr25519Keyring;
 
-use futures::executor::{LocalPool, LocalSpawner};
+use futures::executor::LocalPool;
 use futures::task::{LocalSpawnExt, SpawnExt};
-
-#[derive(Clone)]
-struct Executor(LocalSpawner);
-
-impl SpawnNamed for Executor {
-	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
-		self.0.spawn_local(future).unwrap();
-	}
-
-	fn spawn_blocking(&self, name: &'static str, future: futures::future::BoxFuture<'static, ()>) {
-		self.spawn(name, future);
-	}
-}
 
 #[derive(Default)]
 pub struct MockNetworkOps {
@@ -256,7 +243,7 @@ fn test_setup(config: Config) -> (
 		mock_gossip.clone(),
 		api.clone(),
 		worker_rx,
-		Executor(pool.spawner()),
+		TaskExecutor::new(),
 	);
 
 	let service = Service {
