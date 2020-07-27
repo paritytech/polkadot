@@ -135,7 +135,7 @@ async fn get_core_availability(
 	sender: &mpsc::Sender<FromJob>,
 ) -> Result<bool, Error> {
 	use messages::{
-		AvailabilityStoreMessage::QueryPoVAvailable,
+		AvailabilityStoreMessage::QueryDataAvailability,
 		RuntimeApiRequest::CandidatePendingAvailability,
 	};
 	use FromJob::{AvailabilityStore, RuntimeApi};
@@ -159,7 +159,7 @@ async fn get_core_availability(
 		};
 		let (tx, rx) = oneshot::channel();
 		sender
-			.send(AvailabilityStore(QueryPoVAvailable(
+			.send(AvailabilityStore(QueryDataAvailability(
 				committed_candidate_receipt.descriptor.pov_hash,
 				tx,
 			)))

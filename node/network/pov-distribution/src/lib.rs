@@ -128,6 +128,7 @@ async fn handle_signal(
 
 			Ok(false)
 		}
+		OverseerSignal::BlockFinalized(_) => Ok(false),
 	}
 }
 
