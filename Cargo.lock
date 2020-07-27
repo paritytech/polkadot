@@ -4670,6 +4670,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-keystore",
  "sc-network",
+ "smallvec 1.4.1",
  "sp-core",
  "streamunordered",
 ]

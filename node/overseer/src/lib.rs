@@ -83,7 +83,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem,
+	SpawnedSubsystem, ActiveLeavesUpdate,
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -726,11 +726,14 @@ where
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
+		let mut update = ActiveLeavesUpdate::default();
 
 		for leaf in leaves.into_iter() {
-			self.broadcast_signal(OverseerSignal::StartWork(leaf.0)).await?;
+			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		loop {
 			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
@@ -775,33 +778,35 @@ where
 	}
 
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
+		let mut update = ActiveLeavesUpdate::default();
+
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
-			self.broadcast_signal(OverseerSignal::StopWork(parent.0)).await?;
+			update.deactivated.push(parent.0);
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
-			self.broadcast_signal(OverseerSignal::StartWork(block.hash)).await?;
+			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		let mut stop_these = Vec::new();
+		let mut update = ActiveLeavesUpdate::default();
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
-				stop_these.push(*h);
+				update.deactivated.push(*h);
 				false
 			} else {
 				true
 			}
 		});
 
-		for hash in stop_these.into_iter() {
-			self.broadcast_signal(OverseerSignal::StopWork(hash)).await?
-		}
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
@@ -1273,11 +1278,15 @@ mod tests {
 			handler.block_imported(third_block).await.unwrap();
 
 			let expected_heartbeats = vec![
-				OverseerSignal::StartWork(first_block_hash),
-				OverseerSignal::StopWork(first_block_hash),
-				OverseerSignal::StartWork(second_block_hash),
-				OverseerSignal::StopWork(second_block_hash),
-				OverseerSignal::StartWork(third_block_hash),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(first_block_hash)),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [second_block_hash].as_ref().into(),
+					deactivated: [first_block_hash].as_ref().into(),
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [third_block_hash].as_ref().into(),
+					deactivated: [second_block_hash].as_ref().into(),
+				}),
 			];
 
 			loop {
@@ -1371,10 +1380,14 @@ mod tests {
 			handler.block_finalized(third_block).await.unwrap();
 
 			let expected_heartbeats = vec![
-				OverseerSignal::StartWork(first_block_hash),
-				OverseerSignal::StartWork(second_block_hash),
-				OverseerSignal::StopWork(first_block_hash),
-				OverseerSignal::StopWork(second_block_hash),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [first_block_hash, second_block_hash].as_ref().into(),
+					..Default::default()
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					deactivated: [first_block_hash, second_block_hash].as_ref().into(),
+					..Default::default()
+				}),
 			];
 
 			loop {
