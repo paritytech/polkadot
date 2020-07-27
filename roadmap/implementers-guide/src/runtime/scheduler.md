@@ -16,48 +16,64 @@ It aims to achieve these tasks with these goals in mind:
 
 The Scheduler manages resource allocation using the concept of "Availability Cores". There will be one availability core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as availability cores. Validator groups will be assigned to different availability cores over time.
 
-An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After inclusion, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
+An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After backing, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
 
-```text
-Availability Core State Machine
+```dot process
+digraph {
+	label = "Availability Core State Machine\n\n\n";
+	labelloc = "t";
 
-              Assignment &
-              Backing
-+-----------+              +-----------+
-|           +-------------->           |
-|  Free     |              | Occupied  |
-|           <--------------+           |
-+-----------+ Availability +-----------+
-              or Timeout
+	{ rank=same vg1 vg2 }
 
+	vg1 [label = "Free" shape=rectangle]
+	vg2 [label = "Occupied" shape=rectangle]
+
+	vg1 -> vg2 [label = "Assignment & Backing" ]
+	vg2 -> vg1 [label = "Availability or Timeout" ]
+}
 ```
 
-```text
-Availability Core Transitions within Block
+```dot process
+digraph {
+	label = "Availability Core Transitions within Block\n\n\n";
+	labelloc = "t";
+	splines="line";
 
-              +-----------+                |                    +-----------+
-              |           |                |                    |           |
-              | Free      |                |                    | Occupied  |
-              |           |                |                    |           |
-              +--/-----\--+                |                    +--/-----\--+
-               /-       -\                 |                     /-       -\
- No Backing  /-           \ Backing        |      Availability /-           \ No availability
-           /-              \               |                  /              \
-         /-                 -\             |                /-                -\
-  +-----v-----+         +----v------+      |         +-----v-----+        +-----v-----+
-  |           |         |           |      |         |           |        |           |
-  | Free      |         | Occupied  |      |         | Free      |        | Occupied  |
-  |           |         |           |      |         |           |        |           |
-  +-----------+         +-----------+      |         +-----|---\-+        +-----|-----+
-                                           |               |    \               |
-                                           |    No backing |     \ Backing      | (no change)
-                                           |               |      -\            |
-                                           |         +-----v-----+  \     +-----v-----+
-                                           |         |           |   \    |           |
-                                           |         | Free      -----+---> Occupied  |
-                                           |         |           |        |           |
-                                           |         +-----------+        +-----------+
-                                           |                 Availability Timeout
+	subgraph cluster_left {
+		label = "";
+		labelloc = "t";
+
+		fr1 [label = "Free" shape=rectangle]
+		fr2 [label = "Free" shape=rectangle]
+		occ [label = "Occupied" shape=rectangle]
+
+		fr1 -> fr2 [label = "No Backing"]
+		fr1 -> occ [label = "Backing"]
+
+		{ rank=same fr2 occ }
+	}
+
+	subgraph cluster_right {
+		label = "";
+		labelloc = "t";
+
+		occ2 [label = "Occupied" shape=rectangle]
+		fr3 [label = "Free" shape=rectangle]
+		fr4 [label = "Free" shape=rectangle]
+		occ3 [label = "Occupied" shape=rectangle]
+		occ4 [label = "Occupied" shape=rectangle]
+
+		occ2 -> fr3 [label = "Availability"]
+		occ2 -> occ3 [label = "No availability"]
+		fr3 -> fr4 [label = "No backing"]
+		fr3 -> occ4 [label = "Backing"]
+		occ3 -> occ4 [label = "(no change)"]
+		occ3 -> fr3 [label = "Availability Timeout"]
+
+		{ rank=same; fr3[group=g1]; occ3[group=g2] }
+		{ rank=same; fr4[group=g1]; occ4[group=g2] }
+	}
+}
 ```
 
 Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the [Validity module](validity.md). Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
