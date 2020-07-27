@@ -18,12 +18,12 @@
 //! functions.
 
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
+	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
 	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent,
 };
-use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating, Zero};
+use sp_runtime::traits::Zero;
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
@@ -160,16 +160,11 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	core_states
 }
 
-/// Implementation for the `global_validation_schedule` function of the runtime API.
-pub fn global_validation_schedule<T: initializer::Trait>()
-	-> GlobalValidationSchedule<T::BlockNumber>
+/// Implementation for the `global_validation_data` function of the runtime API.
+pub fn global_validation_data<T: initializer::Trait>()
+	-> GlobalValidationData<T::BlockNumber>
 {
-	let config = <configuration::Module<T>>::config();
-	GlobalValidationSchedule {
-		max_code_size: config.max_code_size,
-		max_head_data_size: config.max_head_data_size,
-		block_number: <system::Module<T>>::block_number() - One::one(),
-	}
+	<configuration::Module<T>>::global_validation_data()
 }
 
 /// Implementation for the `local_validation_data` function of the runtime API.
@@ -177,46 +172,19 @@ pub fn local_validation_data<T: initializer::Trait>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<LocalValidationData<T::BlockNumber>> {
-	let construct = || {
-		let relay_parent_number = <system::Module<T>>::block_number() - One::one();
-
-		let config = <configuration::Module<T>>::config();
-		let freq = config.validation_upgrade_frequency;
-		let delay = config.validation_upgrade_delay;
-
-		let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para_id, true)?;
-		let can_upgrade_code = last_code_upgrade <= relay_parent_number
-			&& relay_parent_number.saturating_sub(last_code_upgrade) >= freq;
-
-		let code_upgrade_allowed = if can_upgrade_code {
-			Some(relay_parent_number + delay)
-		} else {
-			None
-		};
-
-		Some(LocalValidationData {
-			parent_head: <paras::Module<T>>::para_head(&para_id)?,
-			balance: 0,
-			validation_code_hash: BlakeTwo256::hash_of(
-				&<paras::Module<T>>::current_code(&para_id)?
-			),
-			code_upgrade_allowed,
-		})
-	};
-
 	match assumption {
 		OccupiedCoreAssumption::Included => {
 			<inclusion::Module<T>>::force_enact(para_id);
-			construct()
+			<paras::Module<T>>::local_validation_data(para_id)
 		}
 		OccupiedCoreAssumption::TimedOut => {
-			construct()
+			<paras::Module<T>>::local_validation_data(para_id)
 		}
 		OccupiedCoreAssumption::Free => {
 			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
 				None
 			} else {
-				construct()
+				<paras::Module<T>>::local_validation_data(para_id)
 			}
 		}
 	}

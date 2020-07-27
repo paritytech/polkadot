@@ -21,7 +21,7 @@ use polkadot_primitives::v0::{
 	Block,
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
-	GlobalValidationSchedule, LocalValidationData, ErasureChunk, SigningContext,
+	GlobalValidationData, LocalValidationData, ErasureChunk, SigningContext,
 	PoVBlock, BlockData, ValidationCode,
 };
 use polkadot_validation::{SharedTable, TableRouter};
@@ -180,7 +180,7 @@ sp_api::mock_impl_runtime_apis! {
 			Some(ValidationCode(Vec::new()))
 		}
 
-		fn global_validation_schedule() -> GlobalValidationSchedule {
+		fn global_validation_data() -> GlobalValidationData {
 			Default::default()
 		}
 
