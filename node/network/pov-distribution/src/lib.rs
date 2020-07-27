@@ -619,7 +619,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -699,7 +699,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -777,7 +777,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -849,7 +849,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -937,7 +937,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1000,7 +1000,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1061,7 +1061,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1119,7 +1119,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1204,7 +1204,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1266,7 +1266,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1343,7 +1343,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1426,7 +1426,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {

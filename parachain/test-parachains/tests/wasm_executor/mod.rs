@@ -37,6 +37,7 @@ fn terminates_on_timeout() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	);
 	match result {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
@@ -66,6 +67,7 @@ fn parallel_execution() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
+		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -78,6 +80,7 @@ fn parallel_execution() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC

@@ -635,7 +635,7 @@ mod tests {
 	}
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (network, network_handle) = new_test_network();
 		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
