@@ -418,10 +418,42 @@ fn validate_candidate_exhaustive<B: ValidationBackend>(
 mod tests {
 	use super::*;
 	use polkadot_subsystem::test_helpers;
-	use polkadot_primitives::v1::ValidationCode;
+	use polkadot_primitives::v1::{HeadData, BlockData};
 	use sp_core::testing::SpawnBlockingExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
+	use sp_keyring::Sr25519Keyring;
+
+	struct MockValidationBackend;
+
+	struct MockValidationArg {
+		result: Result<WasmValidationResult, wasm_executor::Error>,
+	}
+
+	impl ValidationBackend for MockValidationBackend {
+		type Arg = MockValidationArg;
+
+		fn validate(
+			arg: Self::Arg,
+			_validation_code: &ValidationCode,
+			_params: ValidationParams,
+		) -> Result<WasmValidationResult, wasm_executor::Error> {
+			arg.result
+		}
+	}
+
+	fn collator_sign(descriptor: &mut CandidateDescriptor, collator: Sr25519Keyring) {
+		descriptor.collator = collator.public().into();
+		let payload = polkadot_primitives::v1::collator_signature_payload(
+			&descriptor.relay_parent,
+			&descriptor.para_id,
+			&descriptor.validation_data_hash,
+			&descriptor.pov_hash,
+		);
+
+		descriptor.signature = collator.sign(&payload[..]).into();
+		assert!(descriptor.check_collator_signature().is_ok());
+	}
 
 	#[test]
 	fn correctly_checks_included_assumption() {
@@ -705,7 +737,136 @@ mod tests {
 	}
 
 	#[test]
-	fn executes_parachain_wasm() {
+	fn candidate_validation_ok_is_ok() {
+		let mut omitted_validation = OmittedValidationData {
+			local_validation: Default::default(),
+			global_validation: Default::default(),
+		};
 
+		omitted_validation.global_validation.max_head_data_size = 1024;
+		omitted_validation.global_validation.max_code_size = 1024;
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+
+		let validation_result = WasmValidationResult {
+			head_data: HeadData(vec![1, 1, 1]),
+			new_validation_code: Some(vec![2, 2, 2].into()),
+			upward_messages: Vec::new(),
+			processed_downward_messages: 0,
+		};
+
+		assert!(check_wasm_result_against_constraints(
+			&omitted_validation.global_validation,
+			&omitted_validation.local_validation,
+			&validation_result,
+		));
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+			MockValidationArg { result: Ok(validation_result) },
+			omitted_validation.clone(),
+			vec![1, 2, 3].into(),
+			descriptor,
+			Arc::new(pov),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Valid(outputs) => {
+			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
+			assert_eq!(outputs.global_validation_data, omitted_validation.global_validation);
+			assert_eq!(outputs.local_validation_data, omitted_validation.local_validation);
+			assert_eq!(outputs.upward_messages, Vec::new());
+			assert_eq!(outputs.fees, 0);
+			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+		});
+	}
+
+	#[test]
+	fn candidate_validation_bad_return_is_invalid() {
+		let mut omitted_validation = OmittedValidationData {
+			local_validation: Default::default(),
+			global_validation: Default::default(),
+		};
+
+		omitted_validation.global_validation.max_head_data_size = 1024;
+		omitted_validation.global_validation.max_code_size = 1024;
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+
+		let validation_result = WasmValidationResult {
+			head_data: HeadData(vec![1, 1, 1]),
+			new_validation_code: Some(vec![2, 2, 2].into()),
+			upward_messages: Vec::new(),
+			processed_downward_messages: 0,
+		};
+
+		assert!(check_wasm_result_against_constraints(
+			&omitted_validation.global_validation,
+			&omitted_validation.local_validation,
+			&validation_result,
+		));
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+			MockValidationArg { result: Err(wasm_executor::Error::BadReturn) },
+			omitted_validation.clone(),
+			vec![1, 2, 3].into(),
+			descriptor,
+			Arc::new(pov),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Invalid);
+	}
+
+
+	#[test]
+	fn candidate_validation_timeout_is_internal_error() {
+		let mut omitted_validation = OmittedValidationData {
+			local_validation: Default::default(),
+			global_validation: Default::default(),
+		};
+
+		omitted_validation.global_validation.max_head_data_size = 1024;
+		omitted_validation.global_validation.max_code_size = 1024;
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+
+		let validation_result = WasmValidationResult {
+			head_data: HeadData(vec![1, 1, 1]),
+			new_validation_code: Some(vec![2, 2, 2].into()),
+			upward_messages: Vec::new(),
+			processed_downward_messages: 0,
+		};
+
+		assert!(check_wasm_result_against_constraints(
+			&omitted_validation.global_validation,
+			&omitted_validation.local_validation,
+			&validation_result,
+		));
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+			MockValidationArg { result: Err(wasm_executor::Error::Timeout) },
+			omitted_validation.clone(),
+			vec![1, 2, 3].into(),
+			descriptor,
+			Arc::new(pov),
+		);
+
+		assert_matches!(v, Err(ValidationFailed));
 	}
 }
