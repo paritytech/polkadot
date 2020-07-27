@@ -126,6 +126,7 @@ async fn runtime_api_request<T>(
 	receiver.await.map_err(Into::into)
 }
 
+#[derive(Debug)]
 enum AssumptionCheckOutcome {
 	Matches(OmittedValidationData, ValidationCode),
 	DoesNotMatch,
@@ -387,5 +388,301 @@ fn validate_candidate_exhaustive(
 				ValidationResult::Invalid
 			})
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_subsystem::test_helpers;
+	use polkadot_primitives::v1::ValidationCode;
+	use sp_core::testing::SpawnBlockingExecutor;
+	use futures::executor;
+	use assert_matches::assert_matches;
+
+	#[test]
+	fn correctly_checks_included_assumption() {
+		let local_validation_data = LocalValidationData::default();
+		let global_validation_data = GlobalValidationData::default();
+		let validation_code: ValidationCode = vec![1, 2, 3].into();
+
+		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.validation_data_hash = validation_data_hash;
+		candidate.para_id = para_id;
+
+		let pool = SpawnBlockingExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			&global_validation_data,
+			OccupiedCoreAssumption::Included,
+		).remote_handle();
+
+		let global_validation_data = global_validation_data.clone();
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(local_validation_data.clone()));
+				}
+			);
+
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(validation_code.clone()));
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+				assert_eq!(o, OmittedValidationData {
+					local_validation: local_validation_data,
+					global_validation: global_validation_data,
+				});
+
+				assert_eq!(v, validation_code);
+			});
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn correctly_checks_timed_out_assumption() {
+		let local_validation_data = LocalValidationData::default();
+		let global_validation_data = GlobalValidationData::default();
+		let validation_code: ValidationCode = vec![1, 2, 3].into();
+
+		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.validation_data_hash = validation_data_hash;
+		candidate.para_id = para_id;
+
+		let pool = SpawnBlockingExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			&global_validation_data,
+			OccupiedCoreAssumption::TimedOut,
+		).remote_handle();
+
+		let global_validation_data = global_validation_data.clone();
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(local_validation_data.clone()));
+				}
+			);
+
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(validation_code.clone()));
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
+				assert_eq!(o, OmittedValidationData {
+					local_validation: local_validation_data,
+					global_validation: global_validation_data,
+				});
+
+				assert_eq!(v, validation_code);
+			});
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn check_is_bad_request_if_no_validation_data() {
+		let local_validation_data = LocalValidationData::default();
+		let global_validation_data = GlobalValidationData::default();
+
+		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.validation_data_hash = validation_data_hash;
+		candidate.para_id = para_id;
+
+		let pool = SpawnBlockingExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			&global_validation_data,
+			OccupiedCoreAssumption::Included,
+		).remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(None);
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn check_is_bad_request_if_no_validation_code() {
+		let local_validation_data = LocalValidationData::default();
+		let global_validation_data = GlobalValidationData::default();
+
+		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.validation_data_hash = validation_data_hash;
+		candidate.para_id = para_id;
+
+		let pool = SpawnBlockingExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			&global_validation_data,
+			OccupiedCoreAssumption::TimedOut,
+		).remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(local_validation_data.clone()));
+				}
+			);
+
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(None);
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::BadRequest);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn check_does_not_match() {
+		let local_validation_data = LocalValidationData::default();
+		let global_validation_data = GlobalValidationData::default();
+
+		let relay_parent = [2; 32].into();
+		let para_id = 5.into();
+
+		let mut candidate = CandidateDescriptor::default();
+		candidate.relay_parent = relay_parent;
+		candidate.validation_data_hash = [3; 32].into();
+		candidate.para_id = para_id;
+
+		let pool = SpawnBlockingExecutor::new();
+		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
+
+		let (check_fut, check_result) = check_assumption_validation_data(
+			&mut ctx,
+			&candidate,
+			&global_validation_data,
+			OccupiedCoreAssumption::Included,
+		).remote_handle();
+
+		let test_fut = async move {
+			assert_matches!(
+				ctx_handle.recv().await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					rp,
+					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+				)) => {
+					assert_eq!(rp, relay_parent);
+					assert_eq!(p, para_id);
+
+					let _ = tx.send(Some(local_validation_data.clone()));
+				}
+			);
+
+			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::DoesNotMatch);
+		};
+
+		let test_fut = future::join(test_fut, check_fut);
+		executor::block_on(test_fut);
+	}
+
+	#[test]
+	fn executes_parachain_wasm() {
+
 	}
 }
