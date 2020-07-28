@@ -4422,6 +4422,7 @@ dependencies = [
  "maplit",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "polkadot-erasure-coding",
  "polkadot-network",
  "polkadot-network-bridge",
  "polkadot-node-primitives",

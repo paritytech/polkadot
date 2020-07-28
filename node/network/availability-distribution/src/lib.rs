@@ -30,6 +30,7 @@ use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
+use polkadot_erasure_coding::{obtain_chunks, branches, reconstruct};
 use polkadot_primitives::v1::{CommittedCandidateReceipt, Hash, ErasureChunk, PoV, SigningContext, ValidatorId, ValidatorIndex};
 use sc_network::ReputationChange;
 use std::collections::{HashMap, HashSet};
@@ -53,23 +54,18 @@ pub struct AvailabilityGossipMessage {
 /// overseer ordered us to work on.
 #[derive(Default, Clone)]
 struct ProtocolState {
+	/// Track all active peers and their views
+	/// to determine what is relevant to them.
+	peer_views: HashMap<PeerId, View>,
+
 	/// Our own view.
 	view: View,
 
-	/// Accumulated erasure chunks from all peers.
-	acc_erasure_chunks: HashMap<, ErasureChunk>,
-
-	///
-	peer_views : HashMap<PeerId, View>,
-
-	///
+	/// Data specific to one relay parent.
 	per_relay_parent : HashMap<Hash, PerRelayParent>,
 }
 
-impl ProtocolId {
-	fn live_candidates(&self) -> HashSet<CommittedCandidateReceipt> {
-
-	}
+impl ProtocolState {
 }
 
 #[derive(Default, Clone)]
@@ -77,12 +73,204 @@ struct PerRelayParent {
 	/// The relay parent is backed but only
 	backed_candidate: HashSet<ValidatorId>,
 
+	///
+	erasure_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 }
-
-
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
 	AllMessages::AvailabilityDistribution(AvailabilityDistributionMessage::NetworkBridgeUpdate(n))
+}
+
+/// Based on a iterator of relay heads
+async fn live_candidates(relay_heads: impl IntoIterator<Hash>) -> HashSet<CommittedCandidateReceipt> {
+	unimplemented!("use runtime availability API")
+}
+
+
+/// Deal with network bridge updates and track what needs to be tracked
+/// which depends on the message type received.
+async fn handle_network_msg<Context>(
+	ctx: &mut Context,
+	state: &mut ProtocolState,
+	bridge_message: NetworkBridgeEvent,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
+{
+	match bridge_message {
+		NetworkBridgeEvent::PeerConnected(peerid, _role) => {
+			// insert if none already present
+			state.peer_views.entry(peerid).or_default();
+		}
+		NetworkBridgeEvent::PeerDisconnected(peerid) => {
+			// get rid of superfluous data
+			state.peer_views.remove(&peerid);
+		}
+		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
+			handle_peer_view_change(ctx, state, peerid, view).await?;
+		}
+		NetworkBridgeEvent::OurViewChange(view) => {
+			handle_our_view_change(state, view)?;
+		}
+		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
+			if let Ok(gossiped_bitfield) = AvailabilityGossipMessage::decode(&mut (bytes.as_slice())) {
+				trace!(target: "avad", "Received bitfield gossip from peer {:?}", &remote);
+				process_incoming_peer_message(ctx, state, remote, gossiped_bitfield).await?;
+			} else {
+				modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await?;
+			}
+		}
+	}
+	Ok(())
+}
+
+/// Handle the changes necassary when our view changes.
+fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemResult<()> {
+	let old_view = std::mem::replace(&mut (state.view), view);
+
+	for added in state.view.difference(&old_view) {
+		if !state.per_relay_parent.contains_key(&added) {
+
+		}
+
+
+		let validator_set = &state.validator_set;
+
+		// @todo for all live candidates
+		if let Some(pov) = query_proof_of_validity(ctx, added).await? {
+			// perform erasure encoding
+			let erasure_chunks : Vec<Vec<u8>> = obtain_chunks(validator_set.len(), pov)?;
+			// create proofs for each erasure chunk
+
+			let branches = branches(chunks.as_ref());
+			let root = branches.root();
+
+			let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+		}
+	}
+	for removed in old_view.difference(&state.view) {
+		// cleanup relay parents we are not interested in any more
+		let _ = state.per_relay_parent.remove(&removed);
+	}
+	Ok(())
+}
+
+
+// Send the difference between two views which were not sent
+// to that particular peer.
+async fn handle_peer_view_change<Context>(
+	ctx: &mut Context,
+	state: &mut ProtocolState,
+	origin: PeerId,
+	view: View,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
+{
+	let current = state.peer_views.entry(origin.clone()).or_default();
+
+	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
+
+	*current = view;
+
+	// Send all messages we've seen before and the peer is now interested
+	// in to that peer.
+
+	let delta_set: Vec<(ValidatorId, GossipMessage)> = delta_vec
+		.into_iter()
+		.filter_map(|new_relay_parent_interest| {
+			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
+				// Send all jointly known messages for a validator (given the current relay parent)
+				// to the peer `origin`...
+				let one_per_validator = job_data.one_per_validator.clone();
+				let origin = origin.clone();
+				Some(
+					one_per_validator
+						.into_iter()
+						.filter(move |(validator, _message)| {
+							// ..except for the ones the peer already has
+							job_data.message_from_validator_needed_by_peer(&origin, validator)
+						}),
+				)
+			} else {
+				// A relay parent is in the peers view, which is not in ours, ignore those.
+				None
+			}
+		})
+		.flatten()
+		.collect();
+
+	for (validator, message) in delta_set.into_iter() {
+		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await?;
+	}
+
+	Ok(())
+}
+
+/// Send a gossip message and track it in the per relay parent data.
+async fn send_tracked_gossip_message<Context>(
+	ctx: &mut Context,
+	state: &mut ProtocolState,
+	dest: PeerId,
+	validator: ValidatorId,
+	message: BitfieldGossipMessage,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
+{
+	let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
+		job_data
+	} else {
+		return Ok(());
+	};
+
+	let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
+	message_sent_to_peer
+		.entry(dest.clone())
+		.or_default()
+		.insert(validator.clone());
+
+	ctx.send_message(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::SendMessage(
+			vec![dest],
+			AvailabilityDistribution::PROTOCOL_ID,
+			message.encode(),
+		),
+	))
+	.await?;
+
+	Ok(())
+}
+
+
+async fn obtain_validator_set_and_our_index() -> SubsystemResult<()> {
+
+}
+
+/// Handle an incoming message from a peer.
+async fn process_incoming_peer_message<Context>(
+	ctx: &mut Context,
+	state: &mut ProtocolState,
+	origin: PeerId,
+	message: AvailabilityGossipMessage,
+) -> SubsystemResult<()>
+where
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+{
+	// we don't care about this, not part of our view
+	if !state.view.contains(&message.relay_parent) {
+		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
+	}
+
+	// Ignore anything the overseer did not tell this subsystem to work on
+	let mut job_data = state.per_relay_parent.get_mut(&message.relay_parent);
+	let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
+		job_data
+	} else {
+		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
+	};
+
+	// @todo !?
 }
 
 /// The bitfield distribution subsystem.
@@ -91,6 +279,9 @@ pub struct AvailabilityDistribution;
 impl AvailabilityDistribution {
 	/// The protocol identifier for bitfield distribution.
 	const PROTOCOL_ID: ProtocolId = *b"avad";
+
+	/// Number of ancestors to keep around for the relay-chain heads.
+	const K: usize = 3;
 
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
@@ -113,9 +304,9 @@ impl AvailabilityDistribution {
 				} => {
 					trace!(target: "avad", "Processing NetworkMessage");
 					// a network message was received
-					// if let Err(e) = handle_network_msg(&mut ctx, &mut state, event).await {
-					// 	warn!(target: "avad", "Failed to handle incomming network messages: {:?}", e);
-					// }
+					if let Err(e) = handle_network_msg(&mut ctx, &mut state, event).await {
+					 	warn!(target: "avad", "Failed to handle incomming network messages: {:?}", e);
+					}
 				}
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::DistributeChunk(hash, erasure_chunk),
@@ -128,12 +319,14 @@ impl AvailabilityDistribution {
 					trace!(target: "avad", "Processing incoming erasure chunk");
 				}
 				/// Event from the network bridge.
-				FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-					trace!(target: "avad", "Start {:?}", relay_parent);
-				}
-				FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-					trace!(target: "avad", "Stop {:?}", relay_parent);
-					// defer the cleanup to the view change
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves( ActiveLeavesUpdate{ activated, deactivated })) => {
+					for relay_parent in activated {
+						trace!(target: "avad", "Start {:?}", relay_parent);
+					}
+					for relay_parent in deactivated {
+						trace!(target: "avad", "Stop {:?}", relay_parent);
+					}
+
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "avad", "Conclude");
@@ -202,7 +395,6 @@ fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemRes
 	Ok(())
 }
 
-
 // Send the difference between two views which were not sent
 // to that particular peer.
 async fn handle_peer_view_change<Context>(
@@ -214,8 +406,13 @@ async fn handle_peer_view_change<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-
 	unimplemented!("peer view change");
+
+	// @todo obtain the added difference
+
+	// @todo check if we have messages, that we did not send to the peer just yet
+
+	// @todo send those messages to the peer
 	Ok(())
 }
 

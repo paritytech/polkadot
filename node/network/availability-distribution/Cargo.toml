@@ -12,6 +12,7 @@ streamunordered = "0.5.1"
 codec = { package="parity-scale-codec", version = "1.3.0" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-network = { path = "../../../network" }

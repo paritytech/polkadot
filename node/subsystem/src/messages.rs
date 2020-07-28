@@ -245,7 +245,7 @@ pub enum AvailabilityStoreMessage {
 	/// megabytes of data to get a single bit of information.
 	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
-	/// Query an `ErasureChunk` from the AV store.
+	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Store an `ErasureChunk` in the AV store.
