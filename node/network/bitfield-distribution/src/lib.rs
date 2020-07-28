@@ -46,9 +46,9 @@ const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
 	ReputationChange::new(-100, "Not interested in that parent hash");
 const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
 	ReputationChange::new(-500, "Peer sent the same message multiple times");
-const GAIN_VALID_MESSAGE_FIRST: ReputationChange =
+const BENEFIT_VALID_MESSAGE_FIRST: ReputationChange =
 	ReputationChange::new(15, "Valid message with new information");
-const GAIN_VALID_MESSAGE: ReputationChange =
+const BENEFIT_VALID_MESSAGE: ReputationChange =
 	ReputationChange::new(10, "Valid message");
 
 /// Checked signed availability bitfield that is distributed
@@ -390,14 +390,14 @@ where
 				"Already received a message for validator at index {}",
 				validator_index
 			);
-			modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 			return Ok(());
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
 
 		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await?;
 
-		modify_reputation(ctx, origin, GAIN_VALID_MESSAGE_FIRST).await
+		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 	} else {
 		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await
 	}
@@ -855,7 +855,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_b);
-					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
 				}
 			);
 
@@ -872,7 +872,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_a);
-					assert_eq!(rep, GAIN_VALID_MESSAGE)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE)
 				}
 			);
 
@@ -978,7 +978,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_b);
-					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
 				}
 			);
 
