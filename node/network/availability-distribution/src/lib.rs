@@ -194,7 +194,9 @@ where
                 {
                     warn!("Failed to store our own erasure chunk");
                 }
-            }
+			}
+
+			// @ todo distribute all
         }
     }
     for removed in old_view.difference(&state.view) {
@@ -311,8 +313,18 @@ where
     Ok(())
 }
 
-async fn obtain_validator_set_and_our_index() -> SubsystemResult<()> {
-    Ok(())
+
+
+/// Obtain the first key with a signing key, which must be ours. We obtain the index as `ValidatorIndex`
+fn obtain_our_validator_index<Context>(validators: &[ValidatorId], keystore: &KeyStorePtr) -> SubsystemResult<ValidatorIndex> {
+	let keystore = keystore.read();
+	let opt = validators.iter()
+		.enumerate()
+		.find_map(|(idx, v)| {
+			keystore.key_pair::<ValidatorPair>(&v).ok().map(|_| idx)
+		});
+
+    Ok(opt)
 }
 
 /// Handle an incoming message from a peer.
