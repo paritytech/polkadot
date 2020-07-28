@@ -248,7 +248,7 @@ pub enum AvailabilityStoreMessage {
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
-	/// Store an `ErasureChunk` in the AV store.
+	/// Store an `ErasureChunk` in the AV store by candidate hash and validator index.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
 	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
@@ -303,6 +303,8 @@ pub enum RuntimeApiRequest {
 	HeadData(ParaId, oneshot::Sender<HeadData>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
+	/// Query the state of all availability cores.
+	AvailabilityCores(oneshot::Sender<Vec<CoreState>>)
 }
 
 /// A message to the Runtime API subsystem.
