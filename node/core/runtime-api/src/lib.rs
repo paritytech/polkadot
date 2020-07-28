@@ -122,8 +122,11 @@ mod tests {
 		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent,
 	};
+	use polkadot_subsystem::test_helpers;
+	use sp_core::testing::TaskExecutor;
 
 	use std::collections::HashMap;
+	use futures::channel::oneshot;
 
 	#[derive(Default, Clone)]
 	struct MockRuntimeApi {
@@ -204,5 +207,255 @@ mod tests {
 				self.candidate_events.clone()
 			}
 		}
+	}
+
+	#[test]
+	fn requests_validators() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::Validators(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validators);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_validator_groups() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::ValidatorGroups(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap().0, runtime_api.validator_groups);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_availability_cores() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_global_validation_data() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::GlobalValidationData(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.global_validation_data);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_local_validation_data() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		runtime_api.local_validation_data.insert(para_a, Default::default());
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::LocalValidationData(para_a, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::LocalValidationData(para_b, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_session_index_for_child() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionIndexForChild(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_validation_code() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		runtime_api.validation_code.insert(para_a, Default::default());
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCode(para_a, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::ValidationCode(para_b, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_candidate_pending_availability() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CandidatePendingAvailability(para_a, tx),
+				)
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CandidatePendingAvailability(para_b, tx),
+				)
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_candidate_events() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+
+		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(relay_parent, Request::CandidateEvents(tx))
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.candidate_events);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
 	}
 }
