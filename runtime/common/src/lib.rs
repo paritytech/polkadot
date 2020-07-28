@@ -30,7 +30,7 @@ pub mod impls;
 
 use primitives::v0::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
-use system::weights;
+use system::limits;
 use frame_support::{
 	parameter_types, traits::{Currency},
 	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
@@ -77,20 +77,25 @@ parameter_types! {
 	/// See `multiplier_can_grow_from_zero`.
 	pub MinimumMultiplier: Multiplier = Multiplier::saturating_from_rational(1, 1_000_000_000u128);
 	/// Maximum length of block. Up to 5MB.
-	pub BlockLength: weights::BlockLength =
-		weights::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
+	pub BlockLength: limits::BlockLength =
+		limits::BlockLength::max_with_normal_ratio(5 * 1024 * 1024, NORMAL_DISPATCH_RATIO);
 	/// Block weights base values and limits.
-	pub BlockWeights: weights::BlockWeights = weights::BlockWeights::builder()
+	pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
 		.base_block(BlockExecutionWeight::get())
-		.base_extrinsic(ExtrinsicBaseWeight::get(), weights::ExtrinsicDispatchClass::All)
-		.max_for_class(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT, DispatchClass::Normal)
-		.max_for_class(MAXIMUM_BLOCK_WEIGHT, DispatchClass::Operational)
-		// Operational transactions have an extra reserved space, so that they
-		// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-		.reserved(
-			MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
-			DispatchClass::Operational
-		)
+		.for_class(DispatchClass::all(), |weights| {
+			weights.base_extrinsic = ExtrinsicBaseWeight::get();
+		})
+		.for_class(DispatchClass::Normal, |weights| {
+			weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+		})
+		.for_class(DispatchClass::Operational, |weights| {
+			weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+			// Operational transactions have an extra reserved space, so that they
+			// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
+			weights.reserved = Some(
+				MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
+			);
+		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
 }
@@ -127,10 +132,10 @@ mod multiplier_tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
-		pub BlockLength: system::weights::BlockLength =
-			system::weights::BlockLength::max(2 * 1024);
-		pub BlockWeights: system::weights::BlockWeights =
-			system::weights::BlockWeights::simple_max(1024);
+		pub BlockLength: system::limits::BlockLength =
+			system::limits::BlockLength::max(2 * 1024);
+		pub BlockWeights: system::limits::BlockWeights =
+			system::limits::BlockWeights::simple_max(1024);
 	}
 
 	impl system::Trait for Runtime {
