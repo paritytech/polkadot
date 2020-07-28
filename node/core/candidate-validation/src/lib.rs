@@ -63,8 +63,7 @@ async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::StartWork(_)) => {}
-			FromOverseer::Signal(OverseerSignal::StopWork(_)) => {}
+			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
@@ -419,7 +418,7 @@ mod tests {
 	use super::*;
 	use polkadot_subsystem::test_helpers;
 	use polkadot_primitives::v1::{HeadData, BlockData};
-	use sp_core::testing::SpawnBlockingExecutor;
+	use sp_core::testing::TaskExecutor;
 	use futures::executor;
 	use assert_matches::assert_matches;
 	use sp_keyring::Sr25519Keyring;
@@ -470,7 +469,7 @@ mod tests {
 		candidate.validation_data_hash = validation_data_hash;
 		candidate.para_id = para_id;
 
-		let pool = SpawnBlockingExecutor::new();
+		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
 		let (check_fut, check_result) = check_assumption_validation_data(
@@ -537,7 +536,7 @@ mod tests {
 		candidate.validation_data_hash = validation_data_hash;
 		candidate.para_id = para_id;
 
-		let pool = SpawnBlockingExecutor::new();
+		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
 		let (check_fut, check_result) = check_assumption_validation_data(
@@ -603,7 +602,7 @@ mod tests {
 		candidate.validation_data_hash = validation_data_hash;
 		candidate.para_id = para_id;
 
-		let pool = SpawnBlockingExecutor::new();
+		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
 		let (check_fut, check_result) = check_assumption_validation_data(
@@ -648,7 +647,7 @@ mod tests {
 		candidate.validation_data_hash = validation_data_hash;
 		candidate.para_id = para_id;
 
-		let pool = SpawnBlockingExecutor::new();
+		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
 		let (check_fut, check_result) = check_assumption_validation_data(
@@ -705,7 +704,7 @@ mod tests {
 		candidate.validation_data_hash = [3; 32].into();
 		candidate.para_id = para_id;
 
-		let pool = SpawnBlockingExecutor::new();
+		let pool = TaskExecutor::new();
 		let (mut ctx, mut ctx_handle) = test_helpers::make_subsystem_context(pool.clone());
 
 		let (check_fut, check_result) = check_assumption_validation_data(
