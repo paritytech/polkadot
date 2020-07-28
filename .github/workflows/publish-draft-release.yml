@@ -22,6 +22,8 @@ jobs:
   publish-draft-release:
     runs-on: ubuntu-latest
     needs: get-rust-versions
+    outputs:
+      release_url: ${{ steps.create-release.outputs.html_url }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -42,7 +44,8 @@ jobs:
       with:
         name: release_text
         path: release_text.md
-    - name: Create release
+    - name: Create draft release
+      id: create-release
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -52,3 +55,14 @@ jobs:
         body_path: ./release_text.md
         draft: true
 
+  post_to_matrix:
+    runs-on: ubuntu-latest
+    needs: publish-draft-release
+    steps:
+      - name: Internal polkadot channel
+        uses: s3krit/matrix-message-action@v0.0.2
+        with:
+          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Gav: Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
+          server: "matrix.parity.io"
