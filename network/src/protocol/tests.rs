@@ -34,7 +34,7 @@ use sp_core::{crypto::Pair, testing::TaskExecutor};
 use sp_keyring::Sr25519Keyring;
 
 use futures::executor::LocalPool;
-use futures::task::{LocalSpawnExt, SpawnExt};
+use futures::task::LocalSpawnExt;
 
 #[derive(Default)]
 pub struct MockNetworkOps {
@@ -486,22 +486,14 @@ fn erasure_fetch_drop_also_drops_gossip_sender() {
 			expected_index,
 		);
 
-		// spawn an abortable handle to the chunk listener future.
-		// we will wait until this future has proceeded enough to start grabbing
-		// messages from gossip, and then we will abort the future.
-		let (chunk_listener, abort_handle) = future::abortable(chunk_listener);
-		let handle = spawner.spawn_with_handle(chunk_listener).unwrap();
+		// Poll the listener once, to make sure that it is waiting for messages.
+		assert!(futures::poll!(chunk_listener).is_pending());
 		gossip_taken_rx.await.unwrap();
 
 		// gossip listener was taken. and is active.
 		assert!(!gossip.contains_listener(&topic));
 		assert!(!gossip_tx.is_closed());
 
-		abort_handle.abort();
-
-		// we must `await` this, otherwise context may never transfer over
-		// to the spawned `Abortable` future.
-		assert!(handle.await.is_err());
 		loop {
 			// if dropping the sender leads to the gossip listener
 			// being cleaned up, we will eventually be unable to send a message
