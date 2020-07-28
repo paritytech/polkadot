@@ -25,16 +25,15 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	BlockNumber, Hash,
+	BlockNumber, Hash, CommittedCandidateReceipt,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData,
+	ValidatorSignature, OmittedValidationData, AvailableData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
-
 use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
@@ -220,26 +219,56 @@ impl BitfieldDistributionMessage {
 	}
 }
 
+/// Bitfield signing message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum BitfieldSigningMessage {}
+
+impl BitfieldSigningMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
-	/// Query a `PoV` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
+	/// Query a `AvailableData` from the AV store.
+	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
+
+	/// Query whether a `AvailableData` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around multiple
+	/// megabytes of data to get a single bit of information.
+	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
+	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Store an `ErasureChunk` in the AV store.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+
+	/// Store a `AvailableData` in the AV store.
+	/// If `ValidatorIndex` is present store corresponding chunk also.
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
 }
 
 impl AvailabilityStoreMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::QueryPoV(hash, _) => Some(*hash),
+			Self::QueryAvailableData(hash, _) => Some(*hash),
+			Self::QueryDataAvailability(hash, _) => Some(*hash),
 			Self::QueryChunk(hash, _, _) => Some(*hash),
-			Self::StoreChunk(hash, _, _) => Some(*hash),
+			Self::StoreChunk(hash, _, _, _) => Some(*hash),
+			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
 		}
 	}
 }
@@ -272,6 +301,8 @@ pub enum RuntimeApiRequest {
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
 	/// Get head data for a specific para.
 	HeadData(ParaId, oneshot::Sender<HeadData>),
+	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -398,6 +429,8 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the bitfield signing subsystem.
+	BitfieldSigning(BitfieldSigningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.
@@ -408,4 +441,10 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Test message
+	///
+	/// This variant is only valid while testing, but makes the process of testing the
+	/// subsystem job manager much simpler.
+	#[cfg(test)]
+	Test(String),
 }

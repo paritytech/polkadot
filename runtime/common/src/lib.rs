@@ -25,6 +25,7 @@ pub mod slot_range;
 pub mod registrar;
 pub mod slots;
 pub mod crowdfund;
+pub mod purchase;
 pub mod impls;
 
 use primitives::v0::BlockNumber;
@@ -120,7 +121,7 @@ mod multiplier_tests {
 	pub struct Runtime;
 
 	impl_outer_origin!{
-		pub enum Origin for Runtime {}
+		pub enum Origin for Runtime where system = system {}
 	}
 
 	parameter_types! {

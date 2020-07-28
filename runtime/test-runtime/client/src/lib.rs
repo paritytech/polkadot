@@ -295,7 +295,7 @@ pub fn new_light() -> (
 	let local_call_executor = LocalCallExecutor::new(
 		backend.clone(),
 		executor,
-		sp_core::tasks::executor(),
+		Box::new(sp_core::testing::TaskExecutor::new()),
 		Default::default()
 	);
 	let call_executor = LightExecutor::new(

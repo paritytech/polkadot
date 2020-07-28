@@ -24,7 +24,6 @@ use std::sync::Arc;
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
-	task::{Spawn, SpawnError},
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
@@ -32,12 +31,12 @@ use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
-	CandidateDescriptor, AvailableData, ErasureChunk, ValidatorSignature, Hash, CandidateReceipt,
+	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	ValidationOutputs, ValidationResult, SpawnNamed,
 };
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -68,6 +67,7 @@ use statement_table::{
 enum Error {
 	CandidateNotFound,
 	InvalidSignature,
+	StoreFailed,
 	#[from]
 	Erasure(erasure_coding::Error),
 	#[from]
@@ -76,8 +76,6 @@ enum Error {
 	Oneshot(oneshot::Canceled),
 	#[from]
 	Mpsc(mpsc::SendError),
-	#[from]
-	Spawn(SpawnError),
 	#[from]
 	UtilError(util::Error),
 }
@@ -442,7 +440,11 @@ impl CandidateBackingJob {
 			}
 			CandidateBackingMessage::Statement(_, statement) => {
 				self.check_statement_signature(&statement)?;
-				self.maybe_validate_and_import(statement).await?;
+				match self.maybe_validate_and_import(statement).await {
+					Err(Error::ValidationFailed(_)) => return Ok(()),
+					Err(e) => return Err(e),
+					Ok(()) => (),
+				}
 			}
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
@@ -580,20 +582,30 @@ impl CandidateBackingJob {
 		Ok(rx.await??)
 	}
 
-	async fn store_chunk(
+	async fn store_available_data(
 		&mut self,
-		id: ValidatorIndex,
-		chunk: ErasureChunk,
+		id: Option<ValidatorIndex>,
+		n_validators: u32,
+		available_data: AvailableData,
 	) -> Result<(), Error> {
+		let (tx, rx) = oneshot::channel();
 		self.tx_from.send(FromJob::AvailabilityStore(
-				AvailabilityStoreMessage::StoreChunk(self.parent, id, chunk)
+				AvailabilityStoreMessage::StoreAvailableData(
+					self.parent,
+					id,
+					n_validators,
+					available_data,
+					tx,
+				)
 			)
 		).await?;
+
+		rx.await?.map_err(|_| Error::StoreFailed)?;
 
 		Ok(())
 	}
 
-	// Compute the erasure-coding and make it available.
+	// Make a `PoV` available.
 	//
 	// This calls an inspection function before making the PoV available for any last checks
 	// that need to be done. If the inspection function returns an error, this function returns
@@ -605,7 +617,7 @@ impl CandidateBackingJob {
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
 		let omitted_validation = OmittedValidationData {
-			global_validation: outputs.global_validation_schedule,
+			global_validation: outputs.global_validation_data,
 			local_validation: outputs.local_validation_data,
 		};
 
@@ -635,15 +647,11 @@ impl CandidateBackingJob {
 			Err(e) => return Ok(Err(e)),
 		};
 
-		for (index, (proof, chunk)) in branches.enumerate() {
-			let chunk = ErasureChunk {
-				chunk: chunk.to_vec(),
-				index: index as u32,
-				proof,
-			};
-
-			self.store_chunk(index as ValidatorIndex, chunk).await?;
-		}
+		self.store_available_data(
+			self.table_context.validator.as_ref().map(|v| v.index()),
+			self.table_context.validators.len() as u32,
+			available_data,
+		).await?;
 
 		Ok(Ok(res))
 	}
@@ -735,7 +743,7 @@ pub struct CandidateBackingSubsystem<Spawner, Context> {
 
 impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
 where
-	Spawner: Clone + Spawn + Send + Unpin,
+	Spawner: Clone + SpawnNamed + Send + Unpin,
 	Context: SubsystemContext,
 	ToJob: From<<Context as SubsystemContext>::Message>,
 {
@@ -748,13 +756,13 @@ where
 
 	/// Run this subsystem
 	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
-		<Manager<Spawner, Context>>::run(ctx, keystore, spawner).await
+		<Manager<Spawner, Context>>::run(ctx, keystore, spawner, None).await
 	}
 }
 
 impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
 where
-	Spawner: Spawn + Send + Clone + Unpin + 'static,
+	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
 	Context: SubsystemContext,
 	<Context as SubsystemContext>::Message: Into<ToJob>,
 {
@@ -769,18 +777,15 @@ where
 mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
-	use futures::{
-		executor::{self, ThreadPool},
-		future, Future,
-	};
+	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
 		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
-		LocalValidationData, GlobalValidationSchedule, GroupIndex, HeadData,
+		LocalValidationData, GlobalValidationData, GroupIndex, HeadData,
 		ValidatorPair, ValidityAttestation,
 	};
 	use polkadot_subsystem::{
 		messages::{RuntimeApiRequest, SchedulerRoster},
-		FromOverseer, OverseerSignal,
+		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::HashMap;
@@ -794,7 +799,7 @@ mod tests {
 		keystore: KeyStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		global_validation_schedule: GlobalValidationSchedule,
+		global_validation_data: GlobalValidationData,
 		local_validation_data: LocalValidationData,
 		roster: SchedulerRoster,
 		head_data: HashMap<ParaId, HeadData>,
@@ -879,7 +884,7 @@ mod tests {
 				validation_code_hash: Default::default(),
 			};
 
-			let global_validation_schedule = GlobalValidationSchedule {
+			let global_validation_data = GlobalValidationData {
 				max_code_size: 1000,
 				max_head_data_size: 1000,
 				block_number: Default::default(),
@@ -893,7 +898,7 @@ mod tests {
 				roster,
 				head_data,
 				local_validation_data,
-				global_validation_schedule,
+				global_validation_data,
 				signing_context,
 				relay_parent,
 			}
@@ -901,13 +906,13 @@ mod tests {
 	}
 
 	struct TestHarness {
-		virtual_overseer: subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
-		let pool = ThreadPool::new().unwrap();
+		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = subsystem_test::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
 
@@ -923,7 +928,7 @@ mod tests {
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let omitted_validation = OmittedValidationData {
-			global_validation: test.global_validation_schedule.clone(),
+			global_validation: test.global_validation_data.clone(),
 			local_validation: test.local_validation_data.clone(),
 		};
 
@@ -965,12 +970,12 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut subsystem_test::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
 		virtual_overseer.send(FromOverseer::Signal(
-			OverseerSignal::StartWork(test_state.relay_parent))
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(test_state.relay_parent)))
 		).await;
 
 		// Check that subsystem job issues a request for a validator set.
@@ -1050,7 +1055,7 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1061,14 +1066,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1086,7 +1091,7 @@ mod tests {
 			);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}
@@ -1162,7 +1167,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1170,6 +1175,15 @@ mod tests {
 							new_validation_code: None,
 						}),
 					)).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
 				}
 			);
 
@@ -1204,7 +1218,7 @@ mod tests {
 			assert_eq!(backed[0].0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0]);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}
@@ -1283,7 +1297,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1294,14 +1308,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+					) if parent_hash == test_state.relay_parent => {
+						tx.send(Ok(())).unwrap();
+					}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1440,7 +1454,7 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_schedule: test_state.global_validation_schedule,
+							global_validation_data: test_state.global_validation_data,
 							local_validation_data: test_state.local_validation_data,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
@@ -1451,14 +1465,14 @@ mod tests {
 				}
 			);
 
-			for _ in 0..test_state.validators.len() {
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(parent_hash, _, _)
-					) if parent_hash == test_state.relay_parent
-				);
-			}
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
+				) if parent_hash == test_state.relay_parent => {
+					tx.send(Ok(())).unwrap();
+				}
+			);
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -1478,7 +1492,7 @@ mod tests {
 			);
 
 			virtual_overseer.send(FromOverseer::Signal(
-				OverseerSignal::StopWork(test_state.relay_parent))
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
 			).await;
 		});
 	}
@@ -1615,6 +1629,83 @@ mod tests {
 					assert_eq!(&*pov, &pov_to_second);
 				}
 			);
+		});
+	}
+
+	// That that if the validation of the candidate has failed this does not stop
+	// the work of this subsystem and so it is not fatal to the node.
+	#[test]
+	fn backing_works_after_failed_validation() {
+		let test_state = TestState::default();
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_hash = pov.hash();
+
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let signed_a = SignedFullStatement::sign(
+				Statement::Seconded(candidate.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
+
+			// Send in a `Statement` with a candidate.
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				signed_a.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// Subsystem requests PoV and requests validation.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::PoVDistribution(
+					PoVDistributionMessage::FetchPoV(relay_parent, _, tx)
+				) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(Arc::new(pov.clone())).unwrap();
+				}
+			);
+
+			// Tell subsystem that this candidate is invalid.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateValidation(
+					CandidateValidationMessage::ValidateFromChainState(
+						c,
+						pov,
+						tx,
+					)
+				) if pov == pov && &c == candidate.descriptor() => {
+					tx.send(Err(ValidationFailed)).unwrap();
+				}
+			);
+
+			// Try to get a set of backable candidates to trigger _some_ action in the subsystem
+			// and check that it is still alive.
+			let (tx, rx) = oneshot::channel();
+			let msg = CandidateBackingMessage::GetBackedCandidates(
+				test_state.relay_parent,
+				tx,
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
+			assert_eq!(rx.await.unwrap().len(), 0);
 		});
 	}
 }
