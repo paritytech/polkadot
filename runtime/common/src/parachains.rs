@@ -1724,13 +1724,15 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub const MaximumBlockWeight: Weight = 4 * 1024 * 1024;
-		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
-		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+		pub BlockWeights: system::limits::BlockWeights =
+			system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 	}
 
 	impl system::Trait for Test {
 		type BaseCallFilter = ();
+		type BlockWeights = BlockWeights;
+		type BlockLength = ();
+		type DbWeight = ();
 		type Origin = Origin;
 		type Call = Call;
 		type Index = u64;
@@ -1742,13 +1744,6 @@ mod tests {
 		type Header = Header;
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
-		type MaximumBlockWeight = MaximumBlockWeight;
-		type DbWeight = ();
-		type BlockExecutionWeight = ();
-		type ExtrinsicBaseWeight = ();
-		type MaximumExtrinsicWeight = MaximumBlockWeight;
-		type MaximumBlockLength = MaximumBlockLength;
-		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
 		type AccountData = balances::AccountData<u128>;
@@ -1953,7 +1948,7 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 	}
 
 	impl offences::Trait for Test {

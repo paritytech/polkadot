@@ -30,7 +30,7 @@ use keyring::AccountKeyring;
 use polkadot_runtime::constants::currency::*;
 use polkadot_runtime::{self, Runtime};
 use primitives::v0::AccountId;
-use runtime_common::MaximumBlockWeight;
+use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
 use democracy::Call as DemocracyCall;
 use elections_phragmen::Call as PhragmenCall;
@@ -122,8 +122,8 @@ fn weight_of_staking_nominate_is_correct() {
 
 #[test]
 fn weight_of_system_set_code_is_correct() {
-	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
-	let expected_weight = MaximumBlockWeight::get();
+	// #[weight = (T::block_weights().max_block, DispatchClass::Operational)]
+	let expected_weight = MAXIMUM_BLOCK_WEIGHT;
 	let weight = SystemCall::set_code::<Runtime>(vec![]).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -208,8 +208,8 @@ fn weight_of_democracy_vote_is_correct() {
 
 #[test]
 fn weight_of_democracy_enact_proposal_is_correct() {
-	// #[weight = T::MaximumBlockWeight::get()]
-	let expected_weight = MaximumBlockWeight::get();
+	// #[weight = T::block_weights().max_block]
+	let expected_weight = MAXIMUM_BLOCK_WEIGHT;
 	let weight =
 		DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 

@@ -30,8 +30,7 @@ use primitives::v0::{
 use runtime_common::{
 	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
 	impls::CurrencyToVoteHandler,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
+	BlockHashCount, BlockWeights,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -132,6 +131,9 @@ parameter_types! {
 
 impl system::Trait for Runtime {
 	type BaseCallFilter = ();
+	type BlockWeights = BlockWeights;
+	type BlockLength = ();
+	type DbWeight = ();
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -143,13 +145,6 @@ impl system::Trait for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = ();
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = balances::AccountData<Balance>;
@@ -448,7 +443,7 @@ impl system::offchain::SigningTypes for Runtime {
 }
 
 parameter_types! {
-	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub storage OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl offences::Trait for Runtime {

@@ -60,13 +60,12 @@ const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(10);
 /// by  Operational  extrinsics.
 const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 /// We allow for 2 seconds of compute with a 6 second average block time.
-const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
+pub const MAXIMUM_BLOCK_WEIGHT: Weight = 2 * WEIGHT_PER_SECOND;
 
 // Common constants used in all runtimes.
 parameter_types! {
 	pub const BlockHashCount: BlockNumber = 2400;
-	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
-	/// The portion of the `AvailableBlockRatio` that we adjust the fees with. Blocks filled less
+	/// The portion of the `NORMAL_DISPATCH_RATIO` that we adjust the fees with. Blocks filled less
 	/// than this will decrease the weight and more will increase.
 	pub const TargetBlockFullness: Perquintill = Perquintill::from_percent(25);
 	/// The adjustment variable of the runtime. Higher values will cause `TargetBlockFullness` to
@@ -168,7 +167,7 @@ mod multiplier_tests {
 		let mut t: sp_io::TestExternalities =
 			system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
 		t.execute_with(|| {
-			System::set_block_limits(w, 0);
+			System::set_block_consumed_resources(w, 0);
 			assertions()
 		});
 	}
@@ -176,7 +175,8 @@ mod multiplier_tests {
 	#[test]
 	fn multiplier_can_grow_from_zero() {
 		let minimum_multiplier = MinimumMultiplier::get();
-		let target = TargetBlockFullness::get() * (AvailableBlockRatio::get() * MaximumBlockWeight::get());
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
 		// the weight is 1/10th bigger than target.
 		run_with_system_weight(target * 101 / 100, || {
