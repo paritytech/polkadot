@@ -21,7 +21,7 @@ There are two types of network messages this sends and receives:
 - ProtocolMessage(ProtocolId, Bytes)
 - ViewUpdate(View)
 
-`StartWork` and `StopWork` determine the computation of our local view. A `ViewUpdate` is issued to each connected peer, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
+`ActiveLeavesUpdate`'s `activated` and `deactivated` lists determine the evolution of our local view over time. A `ViewUpdate` is issued to each connected peer after each update, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
 
 On `RegisterEventProducer`:
 

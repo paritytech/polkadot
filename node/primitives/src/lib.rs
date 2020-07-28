@@ -24,7 +24,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, GlobalValidationSchedule, LocalValidationData,
+	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
 	HeadData,
 };
 use polkadot_statement_table::{
@@ -34,6 +34,8 @@ use polkadot_statement_table::{
 	},
 	v1::Misbehavior as TableMisbehavior,
 };
+
+pub use sp_core::traits::SpawnNamed;
 
 /// A statement, where the candidate receipt is included in the `Seconded` variant.
 ///
@@ -116,7 +118,7 @@ pub struct ValidationOutputs {
 	/// The head-data produced by validation.
 	pub head_data: HeadData,
 	/// The global validation schedule.
-	pub global_validation_schedule: GlobalValidationSchedule,
+	pub global_validation_data: GlobalValidationData,
 	/// The local validation data.
 	pub local_validation_data: LocalValidationData,
 	/// Upward messages to the relay chain.

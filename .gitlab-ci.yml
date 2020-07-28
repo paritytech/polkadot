@@ -105,6 +105,23 @@ publish-draft-release:
   interruptible:                   true
   allow_failure:                   true
 
+test-deterministic-wasm:
+  stage:                           test
+  <<:                              *docker-env
+  except:
+  script:
+    # build runtime
+    - WASM_BUILD_NO_COLOR=1 cargo build --verbose --release -p kusama-runtime -p polkadot-runtime -p westend-runtime
+    # make checksum
+    - sha256sum target/release/wbuild/target/wasm32-unknown-unknown/release/*.wasm > checksum.sha256
+    # clean up – FIXME: can we reuse some of the artifacts?
+    - cargo clean
+    # build again
+    - WASM_BUILD_NO_COLOR=1 cargo build --verbose --release -p kusama-runtime -p polkadot-runtime -p westend-runtime
+    # confirm checksum
+    - sha256sum -c checksum.sha256
+
+
 test-linux-stable:                 &test
   stage:                           test
   <<:                              *test-refs
@@ -253,8 +270,8 @@ publish-s3-release:
     - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
     - echo "update objects at https://${BUCKET}/${PREFIX}/${EXTRATAG}"
-    - for file in ./artifacts/*; do
-      name="$(basename ${file})";
+    - find ./artifacts -type f | while read file; do
+      name="${file#./artifacts/}";
       aws s3api copy-object
         --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
         --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};

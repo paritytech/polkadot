@@ -20,6 +20,8 @@
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 
+#![warn(missing_docs)]
+
 use std::pin::Pin;
 
 use futures::prelude::*;
@@ -28,18 +30,62 @@ use futures::future::BoxFuture;
 
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
+use smallvec::SmallVec;
 
 use crate::messages::AllMessages;
 
 pub mod messages;
+pub mod util;
+#[cfg(any(test, feature = "test-helpers"))]
+pub mod test_helpers;
+
+/// How many slots are stack-reserved for active leaves updates
+///
+/// If there are fewer than this number of slots, then we've wasted some stack space.
+/// If there are greater than this number of slots, then we fall back to a heap vector.
+const ACTIVE_LEAVES_SMALLVEC_CAPACITY: usize = 8;
+
+/// Changes in the set of active leaves: the parachain heads which we care to work on.
+///
+/// Note that the activated and deactivated fields indicate deltas, not complete sets.
+#[derive(Clone, Debug, Default, Eq)]
+pub struct ActiveLeavesUpdate {
+	/// New relay chain block hashes of interest.
+	pub activated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+	/// Relay chain block hashes no longer of interest.
+	pub deactivated: SmallVec<[Hash; ACTIVE_LEAVES_SMALLVEC_CAPACITY]>,
+}
+
+impl ActiveLeavesUpdate {
+	/// Create a ActiveLeavesUpdate with a single activated hash
+	pub fn start_work(hash: Hash) -> Self {
+		Self { activated: [hash].as_ref().into(), ..Default::default() }
+	}
+
+	/// Create a ActiveLeavesUpdate with a single deactivated hash
+	pub fn stop_work(hash: Hash) -> Self {
+		Self { deactivated: [hash].as_ref().into(), ..Default::default() }
+	}
+}
+
+impl PartialEq for ActiveLeavesUpdate {
+	/// Equality for `ActiveLeavesUpdate` doesnt imply bitwise equality.
+	///
+	/// Instead, it means equality when `activated` and `deactivated` are considered as sets.
+	fn eq(&self, other: &Self) -> bool {
+		use std::collections::HashSet;
+		self.activated.iter().collect::<HashSet<_>>() == other.activated.iter().collect::<HashSet<_>>() &&
+			self.deactivated.iter().collect::<HashSet<_>>() == other.deactivated.iter().collect::<HashSet<_>>()
+	}
+}
 
 /// Signals sent by an overseer to a subsystem.
 #[derive(PartialEq, Clone, Debug)]
 pub enum OverseerSignal {
-	/// `Subsystem` should start working on block-based work, given by the relay-chain block hash.
-	StartWork(Hash),
-	/// `Subsystem` should stop working on block-based work specified by the relay-chain block hash.
-	StopWork(Hash),
+	/// Subsystems should adjust their jobs to start and stop work on appropriate block hashes.
+	ActiveLeaves(ActiveLeavesUpdate),
+	/// `Subsystem` is informed of a finalized block by its block hash.
+	BlockFinalized(Hash),
 	/// Conclude the work of the `Overseer` and all `Subsystem`s.
 	Conclude,
 }
@@ -56,6 +102,7 @@ pub enum FromOverseer<M> {
 
 	/// Some other `Subsystem`'s message.
 	Communication {
+		/// Contained message
 		msg: M,
 	},
 }
@@ -67,7 +114,7 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct SubsystemError;
 
 impl From<mpsc::SendError> for SubsystemError {
@@ -97,7 +144,12 @@ impl From<std::convert::Infallible> for SubsystemError {
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
-pub struct SpawnedSubsystem(pub BoxFuture<'static, ()>);
+pub struct SpawnedSubsystem {
+	/// Name of the subsystem being spawned.
+	pub name: &'static str,
+	/// The task of the subsystem being spawned.
+	pub future: BoxFuture<'static, ()>,
+}
 
 /// A `Result` type that wraps [`SubsystemError`].
 ///
@@ -126,7 +178,7 @@ pub trait SubsystemContext: Send + 'static {
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<Self::Message>>;
 
 	/// Spawn a child task on the executor.
-	async fn spawn(&mut self, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
+	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
 
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
@@ -155,7 +207,7 @@ pub struct DummySubsystem;
 
 impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
 					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
@@ -163,6 +215,11 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 					_ => continue,
 				}
 			}
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "DummySubsystem",
+			future,
+		}
 	}
 }

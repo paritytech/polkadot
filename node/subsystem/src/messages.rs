@@ -25,16 +25,15 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	BlockNumber, Hash,
+	BlockNumber, Hash, CommittedCandidateReceipt,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData,
+	ValidatorSignature, OmittedValidationData, AvailableData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
-
 use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
@@ -51,6 +50,15 @@ pub enum CandidateSelectionMessage {
 	Invalid(Hash, CandidateReceipt),
 }
 
+impl CandidateSelectionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::Invalid(hash, _) => Some(*hash),
+		}
+	}
+}
+
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -63,6 +71,18 @@ pub enum CandidateBackingMessage {
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
+}
+
+
+impl CandidateBackingMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::GetBackedCandidates(hash, _) => Some(*hash),
+			Self::Second(hash, _, _) => Some(*hash),
+			Self::Statement(hash, _) => Some(*hash),
+		}
+	}
 }
 
 /// Blanket error for validation failing.
@@ -102,6 +122,16 @@ pub enum CandidateValidationMessage {
 	),
 }
 
+impl CandidateValidationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::ValidateFromChainState(_, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+		}
+	}
+}
+
 /// Events from network.
 #[derive(Debug, Clone)]
 pub enum NetworkBridgeEvent {
@@ -134,6 +164,17 @@ pub enum NetworkBridgeMessage {
 	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
 }
 
+impl NetworkBridgeMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::RegisterEventProducer(_, _) => None,
+			Self::ReportPeer(_, _) => None,
+			Self::SendMessage(_, _, _) => None,
+		}
+	}
+}
+
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
@@ -147,6 +188,17 @@ pub enum AvailabilityDistributionMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
+impl AvailabilityDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::DistributeChunk(hash, _) => Some(*hash),
+			Self::FetchChunk(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
+}
+
 /// Bitfield distribution message.
 #[derive(Debug)]
 pub enum BitfieldDistributionMessage {
@@ -157,17 +209,68 @@ pub enum BitfieldDistributionMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
 
+impl BitfieldDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::DistributeBitfield(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
+}
+
+/// Bitfield signing message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum BitfieldSigningMessage {}
+
+impl BitfieldSigningMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
-	/// Query a `PoV` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
+	/// Query a `AvailableData` from the AV store.
+	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
+
+	/// Query whether a `AvailableData` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around multiple
+	/// megabytes of data to get a single bit of information.
+	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
+	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Store an `ErasureChunk` in the AV store.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+
+	/// Store a `AvailableData` in the AV store.
+	/// If `ValidatorIndex` is present store corresponding chunk also.
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+}
+
+impl AvailabilityStoreMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::QueryAvailableData(hash, _) => Some(*hash),
+			Self::QueryDataAvailability(hash, _) => Some(*hash),
+			Self::QueryChunk(hash, _, _) => Some(*hash),
+			Self::StoreChunk(hash, _, _, _) => Some(*hash),
+			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
+		}
+	}
 }
 
 /// The information on scheduler assignments that some somesystems may be querying.
@@ -198,6 +301,8 @@ pub enum RuntimeApiRequest {
 	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
 	/// Get head data for a specific para.
 	HeadData(ParaId, oneshot::Sender<HeadData>),
+	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -205,6 +310,15 @@ pub enum RuntimeApiRequest {
 pub enum RuntimeApiMessage {
 	/// Make a request of the runtime API against the post-state of the given relay-parent.
 	Request(Hash, RuntimeApiRequest),
+}
+
+impl RuntimeApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::Request(hash, _) => Some(*hash),
+		}
+	}
 }
 
 /// Statement distribution message.
@@ -215,6 +329,16 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
+impl StatementDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::Share(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
@@ -253,6 +377,17 @@ pub enum ProvisionerMessage {
 	ProvisionableData(ProvisionableData),
 }
 
+impl ProvisionerMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
+			Self::RequestInherentData(hash, _) => Some(*hash),
+			Self::ProvisionableData(_) => None,
+		}
+	}
+}
+
 /// Message to the PoV Distribution Subsystem.
 #[derive(Debug)]
 pub enum PoVDistributionMessage {
@@ -266,6 +401,17 @@ pub enum PoVDistributionMessage {
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
+}
+
+impl PoVDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::FetchPoV(hash, _, _) => Some(*hash),
+			Self::DistributePoV(hash, _, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
 }
 
 /// A message type tying together all message types that are used across Subsystems.
@@ -283,6 +429,8 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the bitfield signing subsystem.
+	BitfieldSigning(BitfieldSigningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.
@@ -293,4 +441,10 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Test message
+	///
+	/// This variant is only valid while testing, but makes the process of testing the
+	/// subsystem job manager much simpler.
+	#[cfg(test)]
+	Test(String),
 }

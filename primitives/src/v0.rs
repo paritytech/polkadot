@@ -179,7 +179,7 @@ pub struct DutyRoster {
 /// These are global parameters that apply to all parachain candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule<N = BlockNumber> {
+pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
@@ -278,7 +278,7 @@ pub struct CandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The hash of the PoV-block.
 	pub pov_block_hash: H,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule<N>,
+	pub global_validation: GlobalValidationData<N>,
 	/// The local validation data.
 	pub local_validation: LocalValidationData<N>,
 	/// Commitments made as a result of validation.
@@ -352,7 +352,7 @@ impl Ord for CandidateReceipt {
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct OmittedValidationData<N = BlockNumber> {
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule<N>,
+	pub global_validation: GlobalValidationData<N>,
 	/// The local validation data.
 	pub local_validation: LocalValidationData<N>,
 }
@@ -762,7 +762,7 @@ sp_api::decl_runtime_apis! {
 		fn active_parachains() -> Vec<(Id, Option<(CollatorId, Retriable)>)>;
 		/// Get the global validation schedule that all parachains should
 		/// be validated under.
-		fn global_validation_schedule() -> GlobalValidationSchedule;
+		fn global_validation_data() -> GlobalValidationData;
 		/// Get the local validation data for a particular parachain.
 		fn local_validation_data(id: Id) -> Option<LocalValidationData>;
 		/// Get the given parachain's head code blob.
