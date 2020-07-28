@@ -12,12 +12,12 @@ streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 parity-scale-codec = "1.3.0"
-sc-network = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+sc-network = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
 parking_lot = "0.10.0"
 assert_matches = "1.3.0"
-sp-core = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = [ "test-helpers" ] }

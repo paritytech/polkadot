@@ -19,24 +19,24 @@ parachain = { package = "polkadot-parachain", path = "../parachain" }
 polkadot-primitives = { path = "../primitives" }
 polkadot-erasure-coding = { path = "../erasure-coding" }
 table = { package = "polkadot-statement-table", path = "../statement-table" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-consensus = { package = "sp-consensus", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-primitives = { package = "sp-core", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-trie = { package = "sp-trie", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+consensus = { package = "sp-consensus", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+primitives = { package = "sp-core", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+trie = { package = "sp-trie", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-runtime_babe = { package = "pallet-babe", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-keystore = { package = "sc-keystore", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-basic-authorship = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+runtime_babe = { package = "pallet-babe", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+keystore = { package = "sc-keystore", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-basic-authorship = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }

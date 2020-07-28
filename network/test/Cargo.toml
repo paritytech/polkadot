@@ -10,14 +10,14 @@ log = "0.4.8"
 parking_lot = "0.10.0"
 futures = "0.3.1"
 rand = "0.7.2"
-sc-consensus = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-network = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-service = { git = "https://github.com/tomaka/polkadot", features = ["test-helpers"], branch = "send-notifications-subtest1" }
-sc-network-test = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-consensus = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-core = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-block-builder = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+sc-consensus = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-network = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-service = { git = "https://github.com/tomaka/polkadot", features = ["test-helpers"], branch = "send-notifications-subtest2" }
+sc-network-test = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-consensus = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-runtime = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-block-builder = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }

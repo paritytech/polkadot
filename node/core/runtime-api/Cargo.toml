@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 futures = "0.3.5"
 log = "0.4.8"
-sp-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
-primitives = { package = "sp-core", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest1" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
+primitives = { package = "sp-core", git = "https://github.com/tomaka/polkadot", branch = "send-notifications-subtest2" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
