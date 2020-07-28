@@ -8,7 +8,7 @@ edition = "2018"
 futures = "0.3.4"
 futures-timer = "3.0.1"
 log = "0.4.8"
-parity-scale-codec = "1.3.0"
+parity-scale-codec = "1.3.4"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
