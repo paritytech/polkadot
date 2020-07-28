@@ -4,7 +4,7 @@
 source "$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )/lib.sh"
 
 # Set initial variables
-substrate_repo="https://github.com/paritytech/substrate"
+substrate_repo="https://github.com/tomaka/polkadot"
 substrate_dir='./substrate'
 
 # Cloning repos to ensure freshness
