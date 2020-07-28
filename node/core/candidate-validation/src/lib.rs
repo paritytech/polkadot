@@ -36,6 +36,7 @@ use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
+use sp_core::traits::SpawnNamed;
 
 use futures::channel::oneshot;
 use futures::prelude::*;
@@ -43,20 +44,31 @@ use futures::prelude::*;
 use std::sync::Arc;
 
 /// The candidate validation subsystem.
-pub struct CandidateValidationSubsystem;
+pub struct CandidateValidationSubsystem<S>(S);
 
-impl<C> Subsystem<C> for CandidateValidationSubsystem
-	where C: SubsystemContext<Message = CandidateValidationMessage>
+impl<S> CandidateValidationSubsystem<S> {
+	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
+	pub fn new(spawn: S) -> Self {
+		CandidateValidationSubsystem(spawn)
+	}
+}
+
+impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
+	C: SubsystemContext<Message = CandidateValidationMessage>,
+	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx).map(|_| ()).boxed(),
+			future: run(ctx, self.0).map(|_| ()).boxed(),
 		}
 	}
 }
 
-async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>)
+async fn run(
+	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
+	spawn: impl SpawnNamed + Clone + 'static,
+)
 	-> SubsystemResult<()>
 {
 	let pool = ValidationPool::new();
@@ -64,6 +76,7 @@ async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
+			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
 			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOverseer::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
@@ -76,6 +89,7 @@ async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage
 						Some(pool.clone()),
 						descriptor,
 						pov,
+						spawn.clone(),
 					).await;
 
 					match res {
@@ -97,6 +111,7 @@ async fn run(mut ctx: impl SubsystemContext<Message = CandidateValidationMessage
 						validation_code,
 						descriptor,
 						pov,
+						spawn.clone(),
 					).await;
 
 					match res {
@@ -196,6 +211,7 @@ async fn spawn_validate_from_chain_state(
 	validation_pool: Option<ValidationPool>,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	spawn: impl SpawnNamed + 'static,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	// The candidate descriptor has a `validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
@@ -225,6 +241,7 @@ async fn spawn_validate_from_chain_state(
 				validation_code,
 				descriptor,
 				pov,
+				spawn,
 			).await;
 		}
 		AssumptionCheckOutcome::DoesNotMatch => {},
@@ -245,6 +262,7 @@ async fn spawn_validate_from_chain_state(
 				validation_code,
 				descriptor,
 				pov,
+				spawn,
 			).await;
 		}
 		AssumptionCheckOutcome::DoesNotMatch => {},
@@ -264,15 +282,17 @@ async fn spawn_validate_exhaustive(
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	spawn: impl SpawnNamed + 'static,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (tx, rx) = oneshot::channel();
 	let fut = async move {
-		let res = validate_candidate_exhaustive::<RealValidationBackend>(
+		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			validation_pool,
 			omitted_validation,
 			validation_code,
 			descriptor,
 			pov,
+			spawn,
 		);
 
 		let _ = tx.send(res);
@@ -333,10 +353,11 @@ fn check_wasm_result_against_constraints(
 trait ValidationBackend {
 	type Arg;
 
-	fn validate(
+	fn validate<S: SpawnNamed + 'static>(
 		arg: Self::Arg,
 		validation_code: &ValidationCode,
 		params: ValidationParams,
+		spawn: S,
 	) -> Result<WasmValidationResult, wasm_executor::Error>;
 }
 
@@ -345,10 +366,11 @@ struct RealValidationBackend;
 impl ValidationBackend for RealValidationBackend {
 	type Arg = Option<ValidationPool>;
 
-	fn validate(
+	fn validate<S: SpawnNamed + 'static>(
 		pool: Option<ValidationPool>,
 		validation_code: &ValidationCode,
 		params: ValidationParams,
+		spawn: S,
 	) -> Result<WasmValidationResult, wasm_executor::Error> {
 		let execution_mode = pool.as_ref()
 			.map(ExecutionMode::Remote)
@@ -358,6 +380,7 @@ impl ValidationBackend for RealValidationBackend {
 			&validation_code.0,
 			params,
 			execution_mode,
+			spawn,
 		)
 	}
 }
@@ -365,12 +388,13 @@ impl ValidationBackend for RealValidationBackend {
 /// Validates the candidate from exhaustive parameters.
 ///
 /// Sends the result of validation on the channel once complete.
-fn validate_candidate_exhaustive<B: ValidationBackend>(
+fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	omitted_validation: OmittedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
+	spawn: S,
 ) -> Result<ValidationResult, ValidationFailed> {
 	if !passes_basic_checks(&descriptor, None, &*pov) {
 		return Ok(ValidationResult::Invalid);
@@ -387,7 +411,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend>(
 		code_upgrade_allowed: local_validation.code_upgrade_allowed,
 	};
 
-	match B::validate(backend_arg, &validation_code, params) {
+	match B::validate(backend_arg, &validation_code, params, spawn) {
 		Err(wasm_executor::Error::BadReturn) => Ok(ValidationResult::Invalid),
 		Err(_) => Err(ValidationFailed),
 		Ok(res) => {
@@ -432,10 +456,11 @@ mod tests {
 	impl ValidationBackend for MockValidationBackend {
 		type Arg = MockValidationArg;
 
-		fn validate(
+		fn validate<S: SpawnNamed + 'static>(
 			arg: Self::Arg,
 			_validation_code: &ValidationCode,
 			_params: ValidationParams,
+			_spawn: S,
 		) -> Result<WasmValidationResult, wasm_executor::Error> {
 			arg.result
 		}
@@ -766,12 +791,13 @@ mod tests {
 			&validation_result,
 		));
 
-		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			omitted_validation.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Valid(outputs) => {
@@ -815,12 +841,13 @@ mod tests {
 			&validation_result,
 		));
 
-		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Err(wasm_executor::Error::BadReturn) },
 			omitted_validation.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid);
@@ -858,12 +885,13 @@ mod tests {
 			&validation_result,
 		));
 
-		let v = validate_candidate_exhaustive::<MockValidationBackend>(
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Err(wasm_executor::Error::Timeout) },
 			omitted_validation.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
+			TaskExecutor::new(),
 		);
 
 		assert_matches!(v, Err(ValidationFailed));
