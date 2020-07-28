@@ -468,60 +468,6 @@ fn validator_key_spillover_cleaned() {
 }
 
 #[test]
-fn erasure_fetch_drop_also_drops_gossip_sender() {
-	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
-	let candidate_hash = [1; 32].into();
-
-	let expected_index = 1;
-
-	let spawner = pool.spawner();
-
-	spawner.spawn_local(worker_task).unwrap();
-	let topic = crate::erasure_coding_topic(&candidate_hash);
-	let (mut gossip_tx, gossip_taken_rx) = gossip.add_gossip_stream(topic);
-
-	let test_work = async move {
-		let chunk_listener = service.fetch_erasure_chunk(
-			&candidate_hash,
-			expected_index,
-		);
-
-		// Poll the listener once, to make sure that it is waiting for messages.
-		assert!(futures::poll!(chunk_listener).is_pending());
-		gossip_taken_rx.await.unwrap();
-
-		// gossip listener was taken. and is active.
-		assert!(!gossip.contains_listener(&topic));
-		assert!(!gossip_tx.is_closed());
-
-		loop {
-			// if dropping the sender leads to the gossip listener
-			// being cleaned up, we will eventually be unable to send a message
-			// on the sender.
-			if gossip_tx.is_closed() { break }
-
-			let fake_chunk = GossipMessage::ErasureChunk(
-				crate::legacy::gossip::ErasureChunkMessage {
-					chunk: ErasureChunk {
-						chunk: vec![],
-						index: expected_index + 1,
-						proof: vec![],
-					},
-					candidate_hash,
-				}
-			).encode();
-
-			match gossip_tx.send(TopicNotification { message: fake_chunk, sender: None }).await {
-				Err(e) => { assert!(e.is_disconnected()); break },
-				Ok(_) => continue,
-			}
-		}
-	};
-
-	pool.run_until(test_work);
-}
-
-#[test]
 fn fetches_pov_block_from_gossip() {
 	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
 	let relay_parent = [255; 32].into();
