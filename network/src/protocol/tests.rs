@@ -21,12 +21,12 @@ use polkadot_primitives::v0::{
 	Block,
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
-	GlobalValidationData, LocalValidationData, ErasureChunk, SigningContext,
+	GlobalValidationData, LocalValidationData, SigningContext,
 	PoVBlock, BlockData, ValidationCode,
 };
 use polkadot_validation::{SharedTable, TableRouter};
 
-use av_store::{Store as AvailabilityStore, ErasureNetworking};
+use av_store::Store as AvailabilityStore;
 use sc_network_gossip::TopicNotification;
 use sp_api::{ApiRef, ProvideRuntimeApi};
 use sp_runtime::traits::Block as BlockT;
@@ -34,7 +34,7 @@ use sp_core::{crypto::Pair, testing::TaskExecutor};
 use sp_keyring::Sr25519Keyring;
 
 use futures::executor::LocalPool;
-use futures::task::{LocalSpawnExt, SpawnExt};
+use futures::task::LocalSpawnExt;
 
 #[derive(Default)]
 pub struct MockNetworkOps {
@@ -65,10 +65,6 @@ impl MockGossip {
 		let (o_tx, o_rx) = oneshot::channel();
 		self.inner.lock().insert(topic, (rx, o_tx));
 		(tx, o_rx)
-	}
-
-	fn contains_listener(&self, topic: &Hash) -> bool {
-		self.inner.lock().contains_key(topic)
 	}
 }
 
@@ -465,68 +461,6 @@ fn validator_key_spillover_cleaned() {
 			active_correct && active_lookup && discarded
 		}).await);
 	});
-}
-
-#[test]
-fn erasure_fetch_drop_also_drops_gossip_sender() {
-	let (service, gossip, mut pool, worker_task) = test_setup(Config { collating_for: None });
-	let candidate_hash = [1; 32].into();
-
-	let expected_index = 1;
-
-	let spawner = pool.spawner();
-
-	spawner.spawn_local(worker_task).unwrap();
-	let topic = crate::erasure_coding_topic(&candidate_hash);
-	let (mut gossip_tx, gossip_taken_rx) = gossip.add_gossip_stream(topic);
-
-	let test_work = async move {
-		let chunk_listener = service.fetch_erasure_chunk(
-			&candidate_hash,
-			expected_index,
-		);
-
-		// spawn an abortable handle to the chunk listener future.
-		// we will wait until this future has proceeded enough to start grabbing
-		// messages from gossip, and then we will abort the future.
-		let (chunk_listener, abort_handle) = future::abortable(chunk_listener);
-		let handle = spawner.spawn_with_handle(chunk_listener).unwrap();
-		gossip_taken_rx.await.unwrap();
-
-		// gossip listener was taken. and is active.
-		assert!(!gossip.contains_listener(&topic));
-		assert!(!gossip_tx.is_closed());
-
-		abort_handle.abort();
-
-		// we must `await` this, otherwise context may never transfer over
-		// to the spawned `Abortable` future.
-		assert!(handle.await.is_err());
-		loop {
-			// if dropping the sender leads to the gossip listener
-			// being cleaned up, we will eventually be unable to send a message
-			// on the sender.
-			if gossip_tx.is_closed() { break }
-
-			let fake_chunk = GossipMessage::ErasureChunk(
-				crate::legacy::gossip::ErasureChunkMessage {
-					chunk: ErasureChunk {
-						chunk: vec![],
-						index: expected_index + 1,
-						proof: vec![],
-					},
-					candidate_hash,
-				}
-			).encode();
-
-			match gossip_tx.send(TopicNotification { message: fake_chunk, sender: None }).await {
-				Err(e) => { assert!(e.is_disconnected()); break },
-				Ok(_) => continue,
-			}
-		}
-	};
-
-	pool.run_until(test_work);
 }
 
 #[test]
