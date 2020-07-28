@@ -3,8 +3,9 @@
 require 'changelogerator'
 require 'git'
 require 'erb'
+require 'toml'
 
-polkadot_path = ENV['GITHUB_WORKSPACE']+"/polkadot"
+polkadot_path = ENV['GITHUB_WORKSPACE'] + '/polkadot'
 pg = Git.open(polkadot_path)
 
 version = ENV['GITHUB_REF']
@@ -28,16 +29,18 @@ polkadot_cl = Changelog.new(
   's3krit/polkadot', version, last_version, token: token
 )
 
-# Get prev and cur substrate shas HACKY!
-substrate_prev_sha = ''
-substrate_cur_sha = ''
-patch = pg.diff(last_version, version).path('Cargo.lock').patch.split("\n")
-patch.each_with_index do |x, i|
-  if x =~ / name = "sc-cli"/
-    substrate_prev_sha = patch[i + 2].split('#').last.chomp('"')
-    substrate_cur_sha = patch[i + 4].split('#').last.chomp('"')
-  end
-end
+# Get prev and cur substrate SHAs - parse the old and current Cargo.lock for
+# polkadot and extract the sha that way.
+prev_cargo = TOML::Parser.new(pg.show("#{last_version}:Cargo.lock")).parsed
+current_cargo = TOML::Parser.new(pg.show("#{version}:Cargo.lock")).parsed
+
+substrate_prev_sha = prev_cargo['package']
+                    .find { |p| p['name'] == 'sc-cli' }['source']
+                    .split('#').last
+
+substrate_cur_sha = current_cargo['package']
+                    .find { |p| p['name'] == 'sc-cli' }['source']
+                    .split('#').last
 
 substrate_cl = Changelog.new(
   'paritytech/substrate', substrate_prev_sha, substrate_cur_sha,
@@ -53,5 +56,8 @@ runtime_changes = Changelog.changes_with_label(all_changes, 'B7-runtimenoteworth
 
 release_priority = Changelog.highest_priority_for_changes(all_changes)
 
-renderer = ERB.new(File.read('polkadot_release.erb'), trim_mode: '<>')
-renderer.result
+renderer = ERB.new(
+  File.read(ENV['GITHUB_WORKSPACE'] + '/polkadot/scripts/github/polkadot_release.erb'),
+  trim_mode: '<>'
+)
+puts renderer.result

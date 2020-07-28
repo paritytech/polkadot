@@ -19,9 +19,7 @@ jobs:
         ruby-version: 2.6
     - name: Generate release text
       run: |
-        env
-        ls $GITHUB_WORKSPACE
-        gem install changelogerator git
+        gem install changelogerator git toml
         ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb > release_text.md
     - uses: actions/upload-artifact@v2
       with:
