@@ -21,12 +21,12 @@ use polkadot_primitives::v0::{
 	Block,
 	Id as ParaId, Chain, DutyRoster, ParachainHost, ValidatorId,
 	Retriable, CollatorId, AbridgedCandidateReceipt,
-	GlobalValidationData, LocalValidationData, ErasureChunk, SigningContext,
+	GlobalValidationData, LocalValidationData, SigningContext,
 	PoVBlock, BlockData, ValidationCode,
 };
 use polkadot_validation::{SharedTable, TableRouter};
 
-use av_store::{Store as AvailabilityStore, ErasureNetworking};
+use av_store::Store as AvailabilityStore;
 use sc_network_gossip::TopicNotification;
 use sp_api::{ApiRef, ProvideRuntimeApi};
 use sp_runtime::traits::Block as BlockT;
@@ -65,10 +65,6 @@ impl MockGossip {
 		let (o_tx, o_rx) = oneshot::channel();
 		self.inner.lock().insert(topic, (rx, o_tx));
 		(tx, o_rx)
-	}
-
-	fn contains_listener(&self, topic: &Hash) -> bool {
-		self.inner.lock().contains_key(topic)
 	}
 }
 
