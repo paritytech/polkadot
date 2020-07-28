@@ -2,6 +2,8 @@
 
 Yields information on all availability cores. Cores are either free or occupied. Free cores can have paras assigned to them. Occupied cores don't, but they can become available part-way through a block due to bitfields and then have something scheduled on them. To allow optimistic validation of candidates, the occupied cores are accompanied by information on what is upcoming. This information can be leveraged when validators perceive that there is a high likelihood of a core becoming available based on bitfields seen, and then optimistically validate something that would become scheduled based on that, although there is no guarantee on what the block producer will actually include in the block.
 
+See also the [Scheduler Module](../runtime/scheduler.md) for a high-level description of what an availability core is and why it exists.
+
 ```rust
 fn availability_cores(at: Block) -> Vec<CoreState>;
 ```
