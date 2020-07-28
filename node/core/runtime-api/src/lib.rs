@@ -28,7 +28,9 @@ use polkadot_subsystem::messages::{
 };
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use sp_api::{ProvideRuntimeApi};
+
+use futures::prelude::*;
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client>(Client);
@@ -40,8 +42,21 @@ impl<Client> RuntimeApiSubsystem<Client> {
 	}
 }
 
+impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
+	Client: ProvideRuntimeApi<Block> + Send + 'static,
+	Client::Api: ParachainHost<Block>,
+	Context: SubsystemContext<Message = RuntimeApiMessage>
+{
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		SpawnedSubsystem {
+			future: run(ctx, self.0).map(|_| ()).boxed(),
+			name: "RuntimeApiSubsystem",
+		}
+	}
+}
+
 async fn run<Client>(
-	ctx: &mut impl SubsystemContext<Message = RuntimeApiMessage>,
+	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
 	client: Client,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block>,
