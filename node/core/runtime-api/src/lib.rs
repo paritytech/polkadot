@@ -112,3 +112,97 @@ fn make_runtime_api_request<Client>(
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use polkadot_primitives::v1::{
+		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
+		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
+		CommittedCandidateReceipt, CandidateEvent,
+	};
+
+	use std::collections::HashMap;
+
+	#[derive(Default, Clone)]
+	struct MockRuntimeApi {
+		validators: Vec<ValidatorId>,
+		validator_groups: Vec<Vec<ValidatorIndex>>,
+		availability_cores: Vec<CoreState>,
+		global_validation_data: GlobalValidationData,
+		local_validation_data: HashMap<ParaId, LocalValidationData>,
+		session_index_for_child: SessionIndex,
+		validation_code: HashMap<ParaId, ValidationCode>,
+		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
+		candidate_events: Vec<CandidateEvent>,
+	}
+
+	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
+		type Api = Self;
+
+		fn runtime_api<'a>(&'a self) -> sp_api::ApiRef<'a, Self::Api> {
+			self.clone().into()
+		}
+	}
+
+	sp_api::mock_impl_runtime_apis! {
+		impl ParachainHost<Block> for MockRuntimeApi {
+			type Error = String;
+
+			fn validators(&self) -> Vec<ValidatorId> {
+				self.validators.clone()
+			}
+
+			fn validator_groups(&self) -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo) {
+				(
+					self.validator_groups.clone(),
+					GroupRotationInfo {
+						session_start_block: 1,
+						group_rotation_frequency: 100,
+						now: 10,
+					},
+				)
+			}
+
+			fn availability_cores(&self) -> Vec<CoreState> {
+				self.availability_cores.clone()
+			}
+
+			fn global_validation_data(&self) -> GlobalValidationData {
+				self.global_validation_data.clone()
+			}
+
+			fn local_validation_data(
+				&self,
+				para: ParaId,
+				_assumption: OccupiedCoreAssumption,
+			) -> Option<LocalValidationData> {
+				self.local_validation_data.get(&para).map(|l| l.clone())
+			}
+
+			fn session_index_for_child(&self) -> SessionIndex {
+				self.session_index_for_child.clone()
+			}
+
+			fn validation_code(
+				&self,
+				para: ParaId,
+				_assumption: OccupiedCoreAssumption,
+			) -> Option<ValidationCode> {
+				self.validation_code.get(&para).map(|c| c.clone())
+			}
+
+			fn candidate_pending_availability(
+				&self,
+				para: ParaId,
+			) -> Option<CommittedCandidateReceipt> {
+				self.candidate_pending_availability.get(&para).map(|c| c.clone())
+			}
+
+			fn candidate_events(&self) -> Vec<CandidateEvent> {
+				self.candidate_events.clone()
+			}
+		}
+	}
+}
