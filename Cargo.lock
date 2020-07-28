@@ -1388,8 +1388,8 @@ dependencies = [
  "sp-api",
  "sp-io",
  "sp-runtime",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-runtime-interface",
+ "sp-std",
 ]
 
 [[package]]
@@ -1404,8 +1404,8 @@ dependencies = [
  "sc-client-db",
  "sc-executor",
  "sc-service",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-runtime",
  "sp-state-machine",
  "structopt",
@@ -1422,8 +1422,8 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1433,8 +1433,8 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -1453,13 +1453,13 @@ dependencies = [
  "serde",
  "smallvec 1.4.1",
  "sp-arithmetic",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-state-machine",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1504,10 +1504,10 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-version",
 ]
 
@@ -1520,9 +1520,9 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -2534,7 +2534,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
@@ -2542,7 +2542,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
@@ -3552,7 +3552,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-authority-discovery",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3567,7 +3567,7 @@ dependencies = [
  "sp-authorship",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3591,7 +3591,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -3606,7 +3606,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3619,10 +3619,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3637,7 +3637,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3652,7 +3652,7 @@ dependencies = [
  "serde",
  "sp-npos-elections",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3668,7 +3668,7 @@ dependencies = [
  "sp-finality-tracker",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3685,12 +3685,12 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3706,7 +3706,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3722,11 +3722,11 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3738,11 +3738,11 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-keyring",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3756,7 +3756,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3768,10 +3768,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3785,7 +3785,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3800,7 +3800,7 @@ dependencies = [
  "serde",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3821,7 +3821,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3833,10 +3833,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3849,7 +3849,7 @@ dependencies = [
  "parity-scale-codec",
  "safe-mix",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3864,7 +3864,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3879,7 +3879,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3893,12 +3893,12 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-trie",
 ]
 
@@ -3915,7 +3915,7 @@ dependencies = [
  "rand 0.7.3",
  "sp-runtime",
  "sp-session",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3929,7 +3929,7 @@ dependencies = [
  "rand_chacha 0.2.2",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3950,7 +3950,7 @@ dependencies = [
  "sp-npos-elections",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -3976,7 +3976,7 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3993,7 +3993,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -4008,10 +4008,10 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "smallvec 1.4.1",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4027,7 +4027,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-rpc",
  "sp-runtime",
 ]
@@ -4042,7 +4042,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4057,7 +4057,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4070,10 +4070,10 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4088,7 +4088,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4405,7 +4405,7 @@ dependencies = [
  "sc-network",
  "smol 0.2.0",
  "smol-timeout",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "streamunordered",
 ]
 
@@ -4430,7 +4430,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "tokio 0.2.21",
 ]
@@ -4450,7 +4450,7 @@ dependencies = [
  "sc-executor",
  "sc-service",
  "sp-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "structopt",
  "substrate-browser-utils",
@@ -4482,7 +4482,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
  "tokio 0.2.21",
@@ -4493,9 +4493,9 @@ name = "polkadot-core-primitives"
 version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4506,7 +4506,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-trie",
 ]
 
@@ -4532,7 +4532,7 @@ dependencies = [
  "sc-network-gossip",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
@@ -4553,7 +4553,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-network",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "streamunordered",
 ]
@@ -4575,7 +4575,7 @@ dependencies = [
  "sc-service",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -4595,7 +4595,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
 ]
 
 [[package]]
@@ -4615,7 +4615,7 @@ dependencies = [
  "sc-keystore",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
 ]
 
@@ -4651,7 +4651,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-transaction-pool",
@@ -4667,7 +4667,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -4690,7 +4690,7 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "smallvec 1.4.1",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "streamunordered",
 ]
 
@@ -4708,7 +4708,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-client-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "streamunordered",
 ]
 
@@ -4725,11 +4725,11 @@ dependencies = [
  "sc-executor",
  "serde",
  "shared_memory",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-io",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
+ "sp-wasm-interface",
 ]
 
 [[package]]
@@ -4746,7 +4746,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sc-network",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "streamunordered",
 ]
@@ -4765,12 +4765,12 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-serializer",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-trie",
  "sp-version",
 ]
@@ -4857,7 +4857,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
@@ -4865,7 +4865,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
@@ -4906,14 +4906,14 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-trie",
  "static_assertions",
  "trie-db",
@@ -4951,14 +4951,14 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-trie",
  "sp-version",
 ]
@@ -5010,7 +5010,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-io",
@@ -5071,7 +5071,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-io",
@@ -5099,7 +5099,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
  "sp-staking",
@@ -5112,7 +5112,7 @@ version = "0.8.19"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5158,7 +5158,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
@@ -5166,7 +5166,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
@@ -5192,7 +5192,7 @@ dependencies = [
  "sc-service",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "substrate-test-client",
 ]
@@ -5235,7 +5235,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-keyring",
@@ -5274,7 +5274,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-keyring",
  "sp-runtime",
@@ -6083,7 +6083,7 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
@@ -6104,7 +6104,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-transaction-pool",
@@ -6123,7 +6123,7 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-state-machine",
@@ -6141,7 +6141,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -6184,7 +6184,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
  "sp-panic-handler",
  "sp-runtime",
@@ -6217,15 +6217,15 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-externalities",
  "sp-inherents",
  "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-storage 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
+ "sp-storage",
  "sp-transaction-pool",
  "sp-trie",
  "sp-utils",
@@ -6254,7 +6254,7 @@ dependencies = [
  "sc-state-db",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-database",
  "sp-runtime",
  "sp-state-machine",
@@ -6306,7 +6306,7 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-runtime",
@@ -6335,7 +6335,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -6369,7 +6369,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-state-machine",
@@ -6384,7 +6384,7 @@ dependencies = [
  "sc-client-api",
  "sp-authorship",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
 ]
@@ -6405,15 +6405,15 @@ dependencies = [
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
  "sp-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-io",
  "sp-panic-handler",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-runtime-interface",
  "sp-serializer",
  "sp-trie",
  "sp-version",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6427,10 +6427,10 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm",
  "sp-allocator",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-runtime-interface",
  "sp-serializer",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6443,9 +6443,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-executor-common",
  "sp-allocator",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6462,9 +6462,9 @@ dependencies = [
  "sc-executor-common",
  "scoped-tls 1.0.0",
  "sp-allocator",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "substrate-wasmtime",
  "wasmtime-environ",
  "wasmtime-runtime",
@@ -6499,7 +6499,7 @@ dependencies = [
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-finality-tracker",
  "sp-inherents",
@@ -6555,7 +6555,7 @@ dependencies = [
  "rand 0.7.3",
  "serde_json",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "subtle 2.2.3",
 ]
 
@@ -6572,8 +6572,8 @@ dependencies = [
  "sc-executor",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-runtime",
  "sp-state-machine",
 ]
@@ -6619,7 +6619,7 @@ dependencies = [
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -6665,7 +6665,7 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "substrate-test-runtime",
  "substrate-test-runtime-client",
@@ -6692,7 +6692,7 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "sp-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-offchain",
  "sp-runtime",
  "sp-utils",
@@ -6742,7 +6742,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-chain-spec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-offchain",
  "sp-rpc",
  "sp-runtime",
@@ -6770,7 +6770,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-rpc",
  "sp-runtime",
  "sp-transaction-pool",
@@ -6838,8 +6838,8 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-inherents",
  "sp-io",
  "sp-runtime",
@@ -6867,7 +6867,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.10.2",
  "sc-client-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
 ]
 
 [[package]]
@@ -6904,7 +6904,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-tracing",
  "tracing-core",
 ]
 
@@ -6922,7 +6922,7 @@ dependencies = [
  "retain_mut",
  "serde",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
@@ -6946,9 +6946,9 @@ dependencies = [
  "sc-transaction-graph",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -7391,9 +7391,9 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "derive_more 0.99.9",
  "log 0.4.8",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-std",
+ "sp-wasm-interface",
 ]
 
 [[package]]
@@ -7404,10 +7404,10 @@ dependencies = [
  "hash-db",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "sp-state-machine",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-version",
 ]
 
@@ -7430,9 +7430,9 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-io",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7444,8 +7444,8 @@ dependencies = [
  "num-traits 0.2.12",
  "parity-scale-codec",
  "serde",
- "sp-debug-derive 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -7457,7 +7457,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7468,7 +7468,7 @@ dependencies = [
  "parity-scale-codec",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7480,7 +7480,7 @@ dependencies = [
  "sp-api",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7522,11 +7522,11 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
  "sp-state-machine",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-trie",
  "sp-utils",
  "sp-version",
@@ -7544,7 +7544,7 @@ dependencies = [
  "sp-application-crypto",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -7560,10 +7560,10 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -7583,9 +7583,9 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7619,55 +7619,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.8.2",
- "sp-debug-derive 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-storage 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "substrate-bip39",
- "tiny-bip39",
- "tiny-keccak 2.0.2",
- "twox-hash",
- "wasmi",
- "zeroize",
-]
-
-[[package]]
-name = "sp-core"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder",
- "derive_more 0.99.9",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.5",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde 0.3.1",
- "lazy_static",
- "libsecp256k1",
- "log 0.4.8",
- "merlin",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.10.2",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.8.2",
- "sp-debug-derive 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "tiny-bip39",
  "tiny-keccak 2.0.2",
@@ -7696,35 +7652,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-debug-derive"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
 name = "sp-externalities"
 version = "0.8.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-storage 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.8.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -7738,9 +7673,9 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-application-crypto",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7750,7 +7685,7 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7761,8 +7696,8 @@ dependencies = [
  "derive_more 0.99.9",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -7776,14 +7711,14 @@ dependencies = [
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime-interface",
  "sp-state-machine",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
+ "sp-tracing",
  "sp-trie",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-wasm-interface",
 ]
 
 [[package]]
@@ -7792,7 +7727,7 @@ version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
 dependencies = [
  "lazy_static",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "strum",
 ]
@@ -7806,7 +7741,7 @@ dependencies = [
  "serde",
  "sp-arithmetic",
  "sp-npos-elections-compact",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7826,7 +7761,7 @@ version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
 dependencies = [
  "sp-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
 ]
 
@@ -7845,7 +7780,7 @@ version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
 dependencies = [
  "serde",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
 ]
 
 [[package]]
@@ -7864,10 +7799,10 @@ dependencies = [
  "serde",
  "sp-application-crypto",
  "sp-arithmetic",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7877,26 +7812,11 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-runtime-interface-proc-macro 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
 ]
 
@@ -7904,18 +7824,6 @@ dependencies = [
 name = "sp-runtime-interface-proc-macro"
 version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -7940,10 +7848,10 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7953,7 +7861,7 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -7969,8 +7877,8 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "smallvec 1.4.1",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-externalities 0.8.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-externalities",
  "sp-panic-handler",
  "sp-trie",
  "trie-db",
@@ -7983,11 +7891,6 @@ version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
 
 [[package]]
-name = "sp-std"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-
-[[package]]
 name = "sp-storage"
 version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
@@ -7995,20 +7898,8 @@ dependencies = [
  "impl-serde 0.2.3",
  "ref-cast",
  "serde",
- "sp-debug-derive 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
-]
-
-[[package]]
-name = "sp-storage"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "impl-serde 0.2.3",
- "ref-cast",
- "serde",
- "sp-debug-derive 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8021,7 +7912,7 @@ dependencies = [
  "sp-api",
  "sp-inherents",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "wasm-timer",
 ]
 
@@ -8029,16 +7920,6 @@ dependencies = [
 name = "sp-tracing"
 version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components#b118d6c0efa1c2bc1d084e72a159283d0b62a83b"
-dependencies = [
- "log 0.4.8",
- "rental",
- "tracing",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
 dependencies = [
  "log 0.4.8",
  "rental",
@@ -8068,8 +7949,8 @@ dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
 ]
@@ -8095,7 +7976,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-runtime",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8105,18 +7986,7 @@ source = "git+https://github.com/paritytech/substrate?branch=ashley-rem-service-
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
- "wasmi",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate#8180062d6c1c542015988527fecf320974b21051"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -8292,7 +8162,7 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "sp-transaction-pool",
 ]
@@ -8331,7 +8201,7 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
@@ -8360,16 +8230,16 @@ dependencies = [
  "sp-block-builder",
  "sp-consensus-aura",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
  "sp-offchain",
  "sp-runtime",
- "sp-runtime-interface 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-runtime-interface",
  "sp-session",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
@@ -8392,7 +8262,7 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-runtime",
  "substrate-test-client",
  "substrate-test-runtime",
@@ -8569,7 +8439,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -8585,7 +8455,7 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "sc-client-api",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "test-parachain-adder",
 ]
 
@@ -8597,7 +8467,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-io",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
 ]
@@ -8615,7 +8485,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-code-upgrader",
  "test-parachain-halt",
@@ -9693,7 +9563,7 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-core",
  "sp-inherents",
  "sp-io",
  "sp-keyring",
@@ -9701,7 +9571,7 @@ dependencies = [
  "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0-rc5 (git+https://github.com/paritytech/substrate?branch=ashley-rem-service-components)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-trie",
  "sp-version",
