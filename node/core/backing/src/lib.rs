@@ -694,9 +694,8 @@ impl util::JobTrait for CandidateBackingJob {
 							);
 
 							// We can't do candidate validation work if we don't have the
-							// requisite runtime API data.
-							let mut rx_to = rx_to;
-							while let Some(_) = rx_to.next().await { }
+							// requisite runtime API data. But these errors should not take
+							// down the node.
 							return Ok(());
 						}
 					}

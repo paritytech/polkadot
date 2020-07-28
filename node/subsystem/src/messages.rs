@@ -300,7 +300,6 @@ pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
 	Validators(RuntimeApiSender<Vec<ValidatorId>>),
-
 	/// Get the validator groups and group rotation info.
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
