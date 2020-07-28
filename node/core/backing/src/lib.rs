@@ -877,8 +877,6 @@ mod tests {
 				now: 1,
 			};
 
-			let parent_hash_1 = [1; 32].into();
-
 			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 			let availability_cores = vec![
 				CoreState::Scheduled(ScheduledCore {
@@ -895,15 +893,15 @@ mod tests {
 				}),
 			];
 
-			let signing_context = SigningContext {
-				session_index: 1,
-				parent_hash: parent_hash_1,
-			};
-
 			let mut head_data = HashMap::new();
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
 			let relay_parent = Hash::from([5; 32]);
+
+			let signing_context = SigningContext {
+				session_index: 1,
+				parent_hash: relay_parent,
+			};
 
 			let local_validation_data = LocalValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
