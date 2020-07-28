@@ -1,4 +1,4 @@
-<%= print release_priority[:text] %> <%= puts " due to changes: #{Changelog.changes_with_label(all_changes, release_priority[:label]).map(&:pretty_title).join(", ")}" if release_priority[:priority] > 1 %>
+<%= print release_priority[:text] %> <%= puts " due to changes: *#{Changelog.changes_with_label(all_changes, release_priority[:label]).map(&:pretty_title).join(", ")}*" if release_priority[:priority] > 1 %>
 
 Native runtimes:
 

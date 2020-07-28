@@ -58,8 +58,8 @@ runtime_changes = Changelog.changes_with_label(all_changes, 'B7-runtimenoteworth
 release_priority = Changelog.highest_priority_for_changes(all_changes)
 
 # Pulled from the previous Github step
-rustc_stable = 'v1.2.3'
-rustc_nightly = 'v1.2.3'
+rustc_stable = ENV['RUSTC_STABLE']
+rustc_nightly = ENV['RUSTC_NIGHTLY']
 
 polkadot_runtime = File.open(polkadot_path + '/runtime/polkadot/src/lib.rs')
                        .find { |l| l =~ /spec_version/ }
