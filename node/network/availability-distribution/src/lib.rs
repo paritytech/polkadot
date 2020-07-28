@@ -377,7 +377,10 @@ async fn store_chunk<Context>(
 	ctx: &mut Context, hash: Hash, validator_index: ValidatorIndex, erasure_chunk: ErasureChunk) -> SubsystemResult<()> where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	ctx.send_message(AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreChunk(hash, validator_index, erasure_chunk))).await
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::AvailabilityStore(AvailabilityStoreMessage::StoreChunk(hash, validator_index, erasure_chunk, tx))).await
+	let x = rx.await.expect("FIXME");
+	Ok(x)
 }
 
 
