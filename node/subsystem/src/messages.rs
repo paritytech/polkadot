@@ -322,20 +322,6 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-
-	// Old Runtime APIs that need to be phased out.
-
-	#[allow(non_camel_case_types, missing_docs)]
-	HeadData_Old(ParaId, oneshot::Sender<HeadData>),
-
-	#[allow(non_camel_case_types, missing_docs)]
-	ValidatorGroups_Old(oneshot::Sender<SchedulerRoster>),
-
-	#[allow(non_camel_case_types, missing_docs)]
-	SigningContext_Old(oneshot::Sender<SigningContext>),
-
-	#[allow(non_camel_case_types, missing_docs)]
-	ValidationCode_Old(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
 }
 
 /// A message to the Runtime API subsystem.
