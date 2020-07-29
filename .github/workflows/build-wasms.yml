@@ -9,12 +9,15 @@ jobs:
     container:
       image: chevdor/srtool:nightly-2020-07-20
       volumes:
-        - ${{ github.workspace }}:/build
+        - ${{ github.workspace }}/polkadot:/build
       env:
         PACKAGE: polkadot-runtime
         RUSTC_VERSION: nightly-2020-07-20
     steps:
       - uses: actions/checkout@v2
+      - run: |
+          ls -lha /build
+          exit 1
       - name: Cache target dir
         uses: actions/cache@v2
         with:
