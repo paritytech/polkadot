@@ -1,0 +1,22 @@
+name: Build runtime WASMS
+
+# TODO: Change this to be tag-restricted before submitting PR
+on: push
+
+jobs:
+  build-polkadot-runtime:
+    runs-on: ubuntu-latest
+    container:
+      image: chevdor/srtool:nightly-2020-07-20
+      volumes:
+        - ${{ github.workspace }}:/build
+      env:
+        PACKAGE: release
+        RUSTC_VERSION: nightly-2020-07-20
+    steps:
+      - uses: actions/checkout@v2
+      - id: build-runtime
+        run: |
+          pwd
+          ls
+          build
