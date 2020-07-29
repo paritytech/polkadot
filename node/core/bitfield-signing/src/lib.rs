@@ -26,7 +26,7 @@ use keystore::KeyStorePtr;
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
-		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
+		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage, RuntimeApiError
 	},
 	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
 };
@@ -125,13 +125,15 @@ pub enum Error {
 	/// several errors collected into one
 	#[from]
 	Multiple(Vec<Error>),
+	/// the runtime API failed to return what we wanted
+	#[from]
+	Runtime(RuntimeApiError),
 }
 
 // if there is a candidate pending availability, query the Availability Store
 // for whether we have the availability chunk for our validator index.
 async fn get_core_availability(
 	relay_parent: Hash,
-	idx: usize,
 	core: CoreState,
 	validator_idx: ValidatorIndex,
 	sender: &mpsc::Sender<FromJob>,
@@ -146,17 +148,23 @@ async fn get_core_availability(
 	// we have to (cheaply) clone this sender so we can mutate it to actually send anything
 	let mut sender = sender.clone();
 
-	if let CoreState::Occupied(_) = core {
+	if let CoreState::Occupied(core) = core {
 		let (tx, rx) = oneshot::channel();
 		sender
 			.send(RuntimeApi(Request(
 				relay_parent,
-				CandidatePendingAvailability(idx.into(), tx),
+				CandidatePendingAvailability(core.para_id, tx),
 			)))
 			.await?;
+
 		let committed_candidate_receipt = match rx.await? {
-			Some(ccr) => ccr,
-			None => return Ok(false),
+			Ok(Some(ccr)) => ccr,
+			Ok(None) => return Ok(false),
+			Err(e) => {
+				// Don't take down the node on runtime API errors.
+				log::warn!(target: "bitfield_signing", "Encountered a runtime API error: {:?}", e);
+				return Ok(false);
+			}
 		};
 		let (tx, rx) = oneshot::channel();
 		sender
@@ -181,7 +189,11 @@ async fn get_availability_cores(relay_parent: Hash, sender: &mut mpsc::Sender<Fr
 
 	let (tx, rx) = oneshot::channel();
 	sender.send(RuntimeApi(Request(relay_parent, AvailabilityCores(tx)))).await?;
-	rx.await.map_err(Into::into)
+	match rx.await {
+		Ok(Ok(out)) => Ok(out),
+		Ok(Err(runtime_err)) => Err(runtime_err.into()),
+		Err(err) => Err(err.into())
+	}
 }
 
 // - get the list of core states from the runtime
@@ -218,7 +230,7 @@ async fn construct_availability_bitfield(
 	// we need the mutexes and explicit references above.
 	stream::iter(availability_cores.into_iter().enumerate())
 		.for_each_concurrent(None, |(idx, core)| async move {
-			let availability = match get_core_availability(relay_parent, idx, core, validator_idx, sender).await {
+			let availability = match get_core_availability(relay_parent, core, validator_idx, sender).await {
 				Ok(availability) => availability,
 				Err(err) => {
 					errs_ref.lock().await.push(err);
@@ -267,7 +279,18 @@ impl JobTrait for BitfieldSigningJob {
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
 
-			let bitfield = construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await?;
+			let bitfield =
+				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
+			{
+				Err(Error::Runtime(runtime_err)) => {
+					// Don't take down the node on runtime API errors.
+					log::warn!(target: "bitfield_signing", "Encountered a runtime API error: {:?}", runtime_err);
+					return Ok(());
+				}
+				Err(err) => return Err(err),
+				Ok(bitfield) => bitfield,
+			};
+
 			let signed_bitfield = validator.sign(bitfield);
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message

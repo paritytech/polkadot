@@ -25,10 +25,13 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CommittedCandidateReceipt, CoreAssignment, CoreOccupied, CoreState, ErasureChunk, Hash, HeadData,
-	Id as ParaId, OmittedValidationData, PoV, SignedAvailabilityBitfield, SigningContext, ValidationCode,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	Hash, CommittedCandidateReceipt,
+	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
+	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
+	CoreAssignment, CoreOccupied, CandidateDescriptor,
+	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
+	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
+	CandidateEvent, SessionIndex,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -293,27 +296,39 @@ pub struct SchedulerRoster {
 	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
+/// A description of an error causing the runtime API request to be unservable.
+#[derive(Debug, Clone)]
+pub struct RuntimeApiError(String);
+
+/// A sender for the result of a runtime API request.
+pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
+
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
-	Validators(oneshot::Sender<Vec<ValidatorId>>),
-	/// Get the assignments of validators to cores.
-	ValidatorGroups(oneshot::Sender<SchedulerRoster>),
-	/// Get a signing context for bitfields and statements.
-	SigningContext(oneshot::Sender<SigningContext>),
-	/// Get the validation code for a specific para, assuming execution under given block number, and
-	/// an optional block number representing an intermediate parablock executed in the context of
-	/// that block.
-	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
-	/// Get head data for a specific para.
-	HeadData(ParaId, oneshot::Sender<HeadData>),
-	/// Get all events concerning candidates in the last block.
-	CandidateEvents(oneshot::Sender<Vec<CandidateEvent>>),
-	/// Get the candidate pending availability for a particular parachain by parachain / core index
-	CandidatePendingAvailability(ParaId, oneshot::Sender<Option<CommittedCandidateReceipt>>),
-	/// Get the current availability cores
-	AvailabilityCores(oneshot::Sender<Vec<CoreState>>),
+	Validators(RuntimeApiSender<Vec<ValidatorId>>),
+	/// Get the validator groups and group rotation info.
+	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
+	/// Get information on all availability cores.
+	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
+	/// Get the global validation data.
+	GlobalValidationData(RuntimeApiSender<GlobalValidationData>),
+	/// Get the local validation data for a particular para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
+	LocalValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<LocalValidationData>>,
+	),
+	/// Get the session index that a child of the block will have.
+	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
+	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
+	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
+	/// the block in whose state this request is executed.
+	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
 }
 
 /// A message to the Runtime API subsystem.
