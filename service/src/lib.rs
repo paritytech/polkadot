@@ -148,7 +148,7 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, test: bool) -> Result<
+pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		babe::BabeImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -174,11 +174,9 @@ pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, 
 		Executor: NativeExecutionDispatch + 'static,
 		Extrinsic: RuntimeExtrinsic,
 {
-	if !test {
-		// If we're using prometheus, use a registry with a prefix of `polkadot`.
-		if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
-			*registry = Registry::new_custom(Some("polkadot".into()), None)?;
-		}
+	// If we're using prometheus, use a registry with a prefix of `polkadot`.
+	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
+		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 	}
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
@@ -196,7 +194,7 @@ pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, 
 		client.clone(),
 	);
 
-	let grandpa_hard_forks = if config.chain_spec.is_kusama() && !test {
+	let grandpa_hard_forks = if config.chain_spec.is_kusama() {
 		crate::grandpa_support::kusama_hard_forks()
 	} else {
 		Vec::new()
@@ -281,7 +279,6 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 	authority_discovery_disabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	test: bool,
 ) -> Result<(
 	TaskManager,
 	Arc<FullClient<RuntimeApi, Executor>>,
@@ -316,7 +313,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
-	} = new_partial::<RuntimeApi, Executor, Extrinsic>(&mut config, test)?;
+	} = new_partial::<RuntimeApi, Executor, Extrinsic>(&mut config)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
@@ -662,7 +659,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 			finality_proof_request_builder: Some(finality_proof_request_builder),
 			finality_proof_provider: Some(finality_proof_provider),
 		})?;
-	
+
 	if config.offchain_worker.enabled {
 		service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
@@ -678,7 +675,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {	
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
@@ -711,7 +708,7 @@ where
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch, Extrinsic>(&mut config, false)?;
+		= new_partial::<Runtime, Dispatch, Extrinsic>(&mut config)?;
 	Ok((client, backend, import_queue, task_manager))
 }
 
@@ -742,7 +739,6 @@ pub fn polkadot_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
-		false,
 	)?;
 
 	Ok((service, client, handles))
@@ -775,7 +771,6 @@ pub fn kusama_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
-		false,
 	)?;
 
 	Ok((service, client, handles))
@@ -808,7 +803,6 @@ pub fn westend_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
-		false,
 	)?;
 
 	Ok((service, client, handles))
@@ -873,7 +867,6 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
-				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else if self.config.chain_spec.is_westend() {
 			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
@@ -883,7 +876,6 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
-				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else {
 			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
@@ -893,7 +885,6 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
-				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		}
 	}
