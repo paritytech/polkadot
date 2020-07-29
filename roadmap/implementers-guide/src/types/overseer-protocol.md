@@ -126,6 +126,23 @@ enum CandidateSelectionMessage {
 }
 ```
 
+## Chain API Message
+
+The Chain API subsystem is responsible for providing an interface to chain data.
+All the requests are fallible and may return `None`.
+// TODO (now): Result?
+
+```rust
+enum ChainApiRequestMessage {
+	/// Get the block number by hash.
+	BlockNumber(Hash, ResponseChannel<Option<BlockNumber>>),
+	/// Get the finalized block hash by number.
+	FinalizedBlockHash(BlockNumber, ResponseChannel<Option<Hash>>),
+	/// Get the finalized block number.
+	FinalizedBlockNumber(ResponseChannel<Option<BlockNumber>>),
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access

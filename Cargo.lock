@@ -4635,6 +4635,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-chain-api"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "futures 0.3.5",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "sp-blockchain",
+]
+
+[[package]]
 name = "polkadot-node-core-proposer"
 version = "0.1.0"
 dependencies = [

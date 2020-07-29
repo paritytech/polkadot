@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
 	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex,
+	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -272,6 +272,28 @@ impl AvailabilityStoreMessage {
 			Self::StoreChunk(hash, _, _, _) => Some(*hash),
 			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
 		}
+	}
+}
+
+/// A response channel for the result of a chain API request.
+// TODO (now): use Result
+pub type ChainApiResponseChannel<T> = oneshot::Sender<Option<T>>;
+
+/// Chain API request subsystem message.
+#[derive(Debug)]
+pub enum ChainApiRequestMessage {
+	/// Request the block number by hash.
+	BlockNumber(Hash, ChainApiResponseChannel<BlockNumber>),
+	/// Request the finalized block hash by number.
+	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Hash>),
+	/// Request the finalized block number.
+	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
+}
+
+impl ChainApiRequestMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
 	}
 }
 
