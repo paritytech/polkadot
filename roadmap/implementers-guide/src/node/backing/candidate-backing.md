@@ -31,8 +31,10 @@ The subsystem should maintain a set of handles to Candidate Backing Jobs that ar
 
 ### On Overseer Signal
 
-* If the signal is an [`OverseerSignal`][OverseerSignal]`::StartWork(relay_parent)`, spawn a Candidate Backing Job with the given relay parent, storing a bidirectional channel with the Candidate Backing Job in the set of handles.
-* If the signal is an [`OverseerSignal`][OverseerSignal]`::StopWork(relay_parent)`, cease the Candidate Backing Job under that relay parent, if any.
+* If the signal is an [`OverseerSignal`][OverseerSignal]`::ActiveLeavesUpdate`:
+  * spawn a Candidate Backing Job for each `activated` head, storing a bidirectional channel with the Candidate Backing Job in the set of handles.
+  * cease the Candidate Backing Job for each `deactivated` head, if any.
+* If the signal is an [`OverseerSignal`][OverseerSignal]`::Conclude`: Forward conclude messages to all jobs, wait a small amount of time for them to join, and then exit.
 
 ### On Receiving `CandidateBackingMessage`
 

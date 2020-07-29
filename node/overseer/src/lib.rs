@@ -77,13 +77,13 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, StatementDistributionMessage,
-	AvailabilityDistributionMessage, BitfieldDistributionMessage,
+	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem,
+	SpawnedSubsystem, ActiveLeavesUpdate,
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -339,6 +339,9 @@ pub struct Overseer<S: SpawnNamed> {
 	/// An availability distribution subsystem.
 	availability_distribution_subsystem: OverseenSubsystem<AvailabilityDistributionMessage>,
 
+	/// A bitfield signing subsystem.
+	bitfield_signing_subsystem: OverseenSubsystem<BitfieldSigningMessage>,
+
 	/// A bitfield distribution subsystem.
 	bitfield_distribution_subsystem: OverseenSubsystem<BitfieldDistributionMessage>,
 
@@ -390,7 +393,7 @@ pub struct Overseer<S: SpawnNamed> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB> {
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
@@ -401,6 +404,8 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB> {
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
 	pub availability_distribution: AD,
+	/// A bitfield signing subsystem.
+	pub bitfield_signing: BS,
 	/// A bitfield distribution subsystem.
 	pub bitfield_distribution: BD,
 	/// A provisioner subsystem.
@@ -480,13 +485,14 @@ where
 	/// }
 	///
 	/// # fn main() { executor::block_on(async move {
-	/// let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+	/// let spawner = sp_core::testing::TaskExecutor::new();
 	/// let all_subsystems = AllSubsystems {
 	///     candidate_validation: ValidationSubsystem,
 	///     candidate_backing: DummySubsystem,
 	///     candidate_selection: DummySubsystem,
 	///     statement_distribution: DummySubsystem,
 	///     availability_distribution: DummySubsystem,
+	///     bitfield_signing: DummySubsystem,
 	///     bitfield_distribution: DummySubsystem,
 	///     provisioner: DummySubsystem,
 	///     pov_distribution: DummySubsystem,
@@ -513,9 +519,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>(
+	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BD, P, PoVD, RA, AS, NB>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -524,6 +530,7 @@ where
 		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
 		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
 		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
 		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
@@ -573,6 +580,13 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.availability_distribution,
+		)?;
+
+		let bitfield_signing_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.bitfield_signing,
 		)?;
 
 		let bitfield_distribution_subsystem = spawn(
@@ -630,6 +644,7 @@ where
 			candidate_selection_subsystem,
 			statement_distribution_subsystem,
 			availability_distribution_subsystem,
+			bitfield_signing_subsystem,
 			bitfield_distribution_subsystem,
 			provisioner_subsystem,
 			pov_distribution_subsystem,
@@ -711,11 +726,14 @@ where
 	/// Run the `Overseer`.
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
+		let mut update = ActiveLeavesUpdate::default();
 
 		for leaf in leaves.into_iter() {
-			self.broadcast_signal(OverseerSignal::StartWork(leaf.0)).await?;
+			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		loop {
 			while let Poll::Ready(Some(msg)) = poll!(&mut self.events_rx.next()) {
@@ -760,33 +778,37 @@ where
 	}
 
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
+		let mut update = ActiveLeavesUpdate::default();
+
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
-			self.broadcast_signal(OverseerSignal::StopWork(parent.0)).await?;
+			update.deactivated.push(parent.0);
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
-			self.broadcast_signal(OverseerSignal::StartWork(block.hash)).await?;
+			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
 		}
+
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
 	}
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		let mut stop_these = Vec::new();
+		let mut update = ActiveLeavesUpdate::default();
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
-				stop_these.push(*h);
+				update.deactivated.push(*h);
 				false
 			} else {
 				true
 			}
 		});
 
-		for hash in stop_these.into_iter() {
-			self.broadcast_signal(OverseerSignal::StopWork(hash)).await?
-		}
+		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+
+		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash)).await?;
 
 		Ok(())
 	}
@@ -869,6 +891,11 @@ where
 			AllMessages::BitfieldDistribution(msg) => {
 				if let Some(ref mut s) = self.bitfield_distribution_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::BitfieldSigning(msg) => {
+				if let Some(ref mut s) = self.bitfield_signing_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication{ msg }).await;
 				}
 			}
 			AllMessages::Provisioner(msg) => {
@@ -1038,7 +1065,7 @@ mod tests {
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
 	fn overseer_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let (s1_tx, mut s1_rx) = mpsc::channel(64);
@@ -1050,6 +1077,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1102,7 +1130,7 @@ mod tests {
 	// Should immediately conclude the overseer itself with an error.
 	#[test]
 	fn overseer_panics_on_subsystem_exit() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
@@ -1112,6 +1140,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1196,7 +1225,7 @@ mod tests {
 	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
 	#[test]
 	fn overseer_start_stop_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let first_block_hash = [1; 32].into();
@@ -1227,6 +1256,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1250,11 +1280,15 @@ mod tests {
 			handler.block_imported(third_block).await.unwrap();
 
 			let expected_heartbeats = vec![
-				OverseerSignal::StartWork(first_block_hash),
-				OverseerSignal::StopWork(first_block_hash),
-				OverseerSignal::StartWork(second_block_hash),
-				OverseerSignal::StopWork(second_block_hash),
-				OverseerSignal::StartWork(third_block_hash),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(first_block_hash)),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [second_block_hash].as_ref().into(),
+					deactivated: [first_block_hash].as_ref().into(),
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [third_block_hash].as_ref().into(),
+					deactivated: [second_block_hash].as_ref().into(),
+				}),
 			];
 
 			loop {
@@ -1291,7 +1325,7 @@ mod tests {
 	// notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
 	#[test]
 	fn overseer_finalize_works() {
-		let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
 			let first_block_hash = [1; 32].into();
@@ -1323,6 +1357,7 @@ mod tests {
 				candidate_selection: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
 				bitfield_distribution: DummySubsystem,
 				provisioner: DummySubsystem,
 				pov_distribution: DummySubsystem,
@@ -1347,10 +1382,15 @@ mod tests {
 			handler.block_finalized(third_block).await.unwrap();
 
 			let expected_heartbeats = vec![
-				OverseerSignal::StartWork(first_block_hash),
-				OverseerSignal::StartWork(second_block_hash),
-				OverseerSignal::StopWork(first_block_hash),
-				OverseerSignal::StopWork(second_block_hash),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: [first_block_hash, second_block_hash].as_ref().into(),
+					..Default::default()
+				}),
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					deactivated: [first_block_hash, second_block_hash].as_ref().into(),
+					..Default::default()
+				}),
+				OverseerSignal::BlockFinalized(third_block_hash),
 			];
 
 			loop {

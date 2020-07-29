@@ -26,12 +26,12 @@ struct PoV(Vec<u8>);
 
 Validation data that is often omitted from types describing candidates as it can be derived from the relay-parent of the candidate. However, with the expectation of state pruning, these are best kept available elsewhere as well.
 
-This contains the [`GlobalValidationSchedule`](candidate.md#globalvalidationschedule) and [`LocalValidationData`](candidate.md#localvalidationdata)
+This contains the [`GlobalValidationData`](candidate.md#globalvalidationschedule) and [`LocalValidationData`](candidate.md#localvalidationdata)
 
 ```rust
 struct OmittedValidationData {
     /// The global validation schedule.
-    global_validation: GlobalValidationSchedule,
+    global_validation: GlobalValidationData,
     /// The local validation data.
     local_validation: LocalValidationData,
 }

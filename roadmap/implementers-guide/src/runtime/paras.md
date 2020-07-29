@@ -112,6 +112,7 @@ OutgoingParas: Vec<ParaId>;
 * `is_parathread(ParaId) -> bool`: Returns true if the para ID references any live parathread.
 
 * `last_code_upgrade(id: ParaId, include_future: bool) -> Option<BlockNumber>`: The block number of the last scheduled upgrade of the requested para. Includes future upgrades if the flag is set. This is the `expected_at` number, not the `activated_at` number.
+* `local_validation_data(id: ParaId) -> Option<LocalValidationData>`: Get the LocalValidationData of the given para, assuming the context is the parent block. Returns `None` if the para is not known.
 
 ## Finalization
 

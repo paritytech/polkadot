@@ -22,15 +22,12 @@ use parachain::{
 	wasm_executor::EXECUTION_TIMEOUT_SEC,
 };
 
-// Code that exposes `validate_block` and loops infinitely
-const INFINITE_LOOP_CODE: &[u8] = halt::WASM_BINARY;
-
 #[test]
 fn terminates_on_timeout() {
 	let pool = parachain::wasm_executor::ValidationPool::new();
 
 	let result = parachain::wasm_executor::validate_candidate(
-		INFINITE_LOOP_CODE,
+		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
@@ -40,6 +37,7 @@ fn terminates_on_timeout() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	);
 	match result {
 		Err(parachain::wasm_executor::Error::Timeout) => {},
@@ -59,7 +57,7 @@ fn parallel_execution() {
 	let pool2 = pool.clone();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
-		INFINITE_LOOP_CODE,
+		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
@@ -69,9 +67,10 @@ fn parallel_execution() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
+		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
-		INFINITE_LOOP_CODE,
+		halt::wasm_binary_unwrap(),
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
@@ -81,6 +80,7 @@ fn parallel_execution() {
 			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();
 	// total time should be < 2 x EXECUTION_TIMEOUT_SEC

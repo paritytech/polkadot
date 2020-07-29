@@ -135,7 +135,7 @@ impl<C> Subsystem<C> for Subsystem2
 
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
-	let spawner = sp_core::testing::SpawnBlockingExecutor::new();
+	let spawner = sp_core::testing::TaskExecutor::new();
 	futures::executor::block_on(async {
 		let timer_stream = stream::repeat(()).then(|_| async {
 			Delay::new(Duration::from_secs(1)).await;
@@ -147,6 +147,7 @@ fn main() {
 			candidate_selection: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
+			bitfield_signing: DummySubsystem,
 			bitfield_distribution: DummySubsystem,
 			provisioner: DummySubsystem,
 			pov_distribution: DummySubsystem,

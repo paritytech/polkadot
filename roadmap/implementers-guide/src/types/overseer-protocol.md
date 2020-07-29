@@ -8,10 +8,10 @@ Signals from the overseer to a subsystem to request change in execution that has
 
 ```rust
 enum OverseerSignal {
-  /// Signal to start work localized to the relay-parent hash.
-  StartWork(Hash),
-  /// Signal to stop (or phase down) work localized to the relay-parent hash.
-  StopWork(Hash),
+  /// Signal about a change in active leaves.
+  ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Conclude all operation.
+  Conclude,
 }
 ```
 
@@ -21,6 +21,17 @@ All subsystems have their own message types; all of them need to be able to list
 1. Add a generic varint to `OverseerSignal`: `Message(T)`.
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
+
+## Active Leaves Update
+
+Indicates a change in active leaves. Activated leaves should have jobs, whereas deactivated leaves should lead to winding-down of work based on those leaves.
+
+```rust
+struct ActiveLeavesUpdate {
+	activated: [Hash], // in practice, these should probably be a SmallVec
+	deactivated: [Hash],
+}
+```
 
 ## All Messages
 
@@ -48,14 +59,19 @@ Messages to and from the availability store.
 
 ```rust
 enum AvailabilityStoreMessage {
-	/// Query the PoV of a candidate by hash.
-	QueryPoV(Hash, ResponseChannel<PoV>),
+	/// Query the `AvailableData` of a candidate by hash.
+	QueryAvailableData(Hash, ResponseChannel<Option<AvailableData>>),
+	/// Query whether an `AvailableData` exists within the AV Store.
+	QueryDataAvailability(Hash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<AvailabilityChunkAndProof>),
+	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
-	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof),
+	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's 
+	/// `AvailabilityChunkAndProof`.
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
@@ -244,7 +260,7 @@ enum RuntimeApiRequest {
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
 	/// Get the global validation schedule at the state of a given block.
-	GlobalValidationSchedule(ResponseChannel<GlobalValidationSchedule>),
+	GlobalValidationData(ResponseChannel<GlobalValidationData>),
 	/// Get the local validation data for a specific para, with the given occupied core assumption.
 	LocalValidationData(
 		ParaId,

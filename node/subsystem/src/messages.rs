@@ -25,16 +25,17 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	BlockNumber, Hash,
+	Hash, CommittedCandidateReceipt,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
-	SignedAvailabilityBitfield, SigningContext, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, HeadData, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData,
+	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
+	CoreAssignment, CoreOccupied, CandidateDescriptor,
+	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
+	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
+	CandidateEvent, SessionIndex,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
-
 use std::sync::Arc;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
@@ -220,26 +221,56 @@ impl BitfieldDistributionMessage {
 	}
 }
 
+/// Bitfield signing message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum BitfieldSigningMessage {}
+
+impl BitfieldSigningMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
-	/// Query a `PoV` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
+	/// Query a `AvailableData` from the AV store.
+	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
+
+	/// Query whether a `AvailableData` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around multiple
+	/// megabytes of data to get a single bit of information.
+	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<ErasureChunk>),
+	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Store an `ErasureChunk` in the AV store.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk),
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+
+	/// Store a `AvailableData` in the AV store.
+	/// If `ValidatorIndex` is present store corresponding chunk also.
+	///
+	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
 }
 
 impl AvailabilityStoreMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::QueryPoV(hash, _) => Some(*hash),
+			Self::QueryAvailableData(hash, _) => Some(*hash),
+			Self::QueryDataAvailability(hash, _) => Some(*hash),
 			Self::QueryChunk(hash, _, _) => Some(*hash),
-			Self::StoreChunk(hash, _, _) => Some(*hash),
+			Self::StoreChunk(hash, _, _, _) => Some(*hash),
+			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
 		}
 	}
 }
@@ -257,21 +288,39 @@ pub struct SchedulerRoster {
 	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
+/// A description of an error causing the runtime API request to be unservable.
+#[derive(Debug, Clone)]
+pub struct RuntimeApiError(String);
+
+/// A sender for the result of a runtime API request.
+pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
+
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
 pub enum RuntimeApiRequest {
 	/// Get the current validator set.
-	Validators(oneshot::Sender<Vec<ValidatorId>>),
-	/// Get the assignments of validators to cores.
-	ValidatorGroups(oneshot::Sender<SchedulerRoster>),
-	/// Get a signing context for bitfields and statements.
-	SigningContext(oneshot::Sender<SigningContext>),
-	/// Get the validation code for a specific para, assuming execution under given block number, and
-	/// an optional block number representing an intermediate parablock executed in the context of
-	/// that block.
-	ValidationCode(ParaId, BlockNumber, Option<BlockNumber>, oneshot::Sender<ValidationCode>),
-	/// Get head data for a specific para.
-	HeadData(ParaId, oneshot::Sender<HeadData>),
+	Validators(RuntimeApiSender<Vec<ValidatorId>>),
+	/// Get the validator groups and group rotation info.
+	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
+	/// Get information on all availability cores.
+	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
+	/// Get the global validation data.
+	GlobalValidationData(RuntimeApiSender<GlobalValidationData>),
+	/// Get the local validation data for a particular para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
+	LocalValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<LocalValidationData>>,
+	),
+	/// Get the session index that a child of the block will have.
+	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
+	/// Get a the candidate pending availability for a particular parachain by parachain / core index
+	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
+	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
+	/// the block in whose state this request is executed.
+	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
 }
 
 /// A message to the Runtime API subsystem.
@@ -398,6 +447,8 @@ pub enum AllMessages {
 	AvailabilityDistribution(AvailabilityDistributionMessage),
 	/// Message for the bitfield distribution subsystem.
 	BitfieldDistribution(BitfieldDistributionMessage),
+	/// Message for the bitfield signing subsystem.
+	BitfieldSigning(BitfieldSigningMessage),
 	/// Message for the Provisioner subsystem.
 	Provisioner(ProvisionerMessage),
 	/// Message for the PoV Distribution subsystem.
