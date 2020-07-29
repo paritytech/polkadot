@@ -20,7 +20,7 @@ jobs:
       - name: Cache target dir
         uses: actions/cache@v2
         with:
-          path: '/build/target'
+          path: '${{ github.workspace }}/target'
           key: srtool-target-polkadot-${{ github.sha }}
           restore-keys: |
             srtool-target-polkadot-
