@@ -84,7 +84,7 @@ pub fn polkadot_test_new_full(
 			authority_discovery_disabled,
 			slot_duration,
 			None,
-			true,
+			None,
 		)?;
 
 	Ok((task_manager, client, handles, network, rpc_handlers))
