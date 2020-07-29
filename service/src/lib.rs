@@ -41,7 +41,7 @@ pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
 pub use sp_api::{Core as CoreApi, ConstructRuntimeApi, ProvideRuntimeApi, StateBackend};
 pub use sp_runtime::traits::{HashFor, NumberFor};
-pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
+pub use consensus_common::{SelectChain, BlockImport, block_validation::{BlockAnnounceValidator, Chain}};
 pub use polkadot_primitives::v0::{Block, CollatorId, ParachainHost};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
@@ -279,6 +279,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 	authority_discovery_disabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
+	block_announce_validator: Option<Box<dyn BlockAnnounceValidator<Block> + Send + 'static>>,
 ) -> Result<(
 	TaskManager,
 	Arc<FullClient<RuntimeApi, Executor>>,
@@ -328,7 +329,11 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			on_demand: None,
-			block_announce_validator_builder: None,
+			block_announce_validator_builder: if let Some(x) = block_announce_validator {
+				Some(Box::new(move |_| x))
+			} else {
+				None
+			},
 			finality_proof_request_builder: None,
 			finality_proof_provider: Some(finality_proof_provider.clone()),
 		})?;
@@ -586,7 +591,10 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+fn new_light<Runtime, Dispatch, Extrinsic>(
+	mut config: Configuration,
+	block_announce_validator: Option<Box<dyn BlockAnnounceValidator<Block> + Send + 'static>>,
+) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -655,7 +663,11 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			on_demand: Some(on_demand.clone()),
-			block_announce_validator_builder: None,
+			block_announce_validator_builder: if let Some(x) = block_announce_validator {
+				Some(Box::new(move |_| x))
+			} else {
+				None
+			},
 			finality_proof_request_builder: Some(finality_proof_request_builder),
 			finality_proof_provider: Some(finality_proof_provider),
 		})?;
@@ -739,6 +751,7 @@ pub fn polkadot_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
+		None,
 	)?;
 
 	Ok((service, client, handles))
@@ -771,6 +784,7 @@ pub fn kusama_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
+		None,
 	)?;
 
 	Ok((service, client, handles))
@@ -803,6 +817,7 @@ pub fn westend_new_full(
 		authority_discovery_disabled,
 		slot_duration,
 		grandpa_pause,
+		None,
 	)?;
 
 	Ok((service, client, handles))
@@ -822,6 +837,7 @@ pub struct FullNodeHandles {
 /// A builder for a node.
 pub struct NodeBuilder {
 	config: Configuration,
+	block_announce_validator: Option<Box<dyn BlockAnnounceValidator<Block> + Send>>,
 }
 
 impl NodeBuilder {
@@ -829,6 +845,18 @@ impl NodeBuilder {
 	pub fn new(config: Configuration) -> Self {
 		Self {
 			config,
+			block_announce_validator: None,
+		}
+	}
+
+	/// Use a custom block announce builder
+	pub fn with_block_announce_validator(
+		self,
+		block_announce_validator: impl BlockAnnounceValidator<Block> + Send + 'static,
+	) -> Self {
+		Self {
+			block_announce_validator: Some(Box::new(block_announce_validator)),
+			..self
 		}
 	}
 
@@ -837,14 +865,17 @@ impl NodeBuilder {
 		if self.config.chain_spec.is_kusama() {
 			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
 				self.config,
+				self.block_announce_validator,
 			)
 		} else if self.config.chain_spec.is_westend() {
 			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
 				self.config,
+				self.block_announce_validator,
 			)
 		} else {
 			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
 				self.config,
+				self.block_announce_validator,
 			)
 		}
 	}
@@ -867,6 +898,7 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
+				self.block_announce_validator,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else if self.config.chain_spec.is_westend() {
 			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
@@ -876,6 +908,7 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
+				self.block_announce_validator,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else {
 			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
@@ -885,6 +918,7 @@ impl NodeBuilder {
 				authority_discovery_disabled,
 				slot_duration,
 				grandpa_pause,
+				self.block_announce_validator,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		}
 	}
