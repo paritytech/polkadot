@@ -17,6 +17,7 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
+use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
@@ -273,13 +274,40 @@ async fn send_inherent_data(
 			return false;
 		}
 
-		let (_, core) = match cores_by_id.get(&para_id) {
+		let (core_idx, core) = match cores_by_id.get(&para_id) {
 			Some(core) => core,
 			None => return false,
 		};
 
-		// TODO: this is only a first draft; see https://github.com/paritytech/polkadot/pull/1473#discussion_r461845666
-		std::matches!(core, CoreState::Scheduled(_))
+		match core {
+			CoreState::Free => false,
+			CoreState::Scheduled(_) => true,
+			CoreState::Occupied(occupied) => {
+				if let Some(ref scheduled) = occupied.next_up_on_available {
+					return scheduled.para_id == para_id
+						&& merged_bitfields_are_gte_two_thirds(
+							*core_idx,
+							&signed_bitfields,
+							&occupied.availability,
+						);
+				}
+				if let Some(ref scheduled) = occupied.next_up_on_time_out {
+					return scheduled.para_id == para_id
+						// TODO: this function currently doesn't know about what block we're building
+						//   get it from the runtime? where?
+						&& unimplemented!("occupied.time_out_at == the block we are building")
+						// REVIEW: the guide says we have to ensure that the merged bitfields are < 2/3 in this case,
+						// but intuition suggests that we'd still want it to be >=. Just want a double-check that
+						// there's no typo in the guide.
+						&& !merged_bitfields_are_gte_two_thirds(
+							*core_idx,
+							&signed_bitfields,
+							&occupied.availability,
+						);
+				}
+				false
+			}
+		}
 	});
 
 	// ensure the postcondition holds true: sorted by core index
@@ -296,4 +324,39 @@ async fn send_inherent_data(
 		.send((signed_bitfields, backed_candidates))
 		.map_err(|_| Error::OneshotSend)?;
 	Ok(())
+}
+
+// The instructions state:
+//
+// > we can only include the candidate if the bitfields we are including _and_ the availability vec of the OccupiedCore
+//
+// The natural implementation takes advantage of the fact that the availability bitfield for a given core is the transpose
+// of a set of signed availability bitfields. It goes like this:
+//
+//   - organize the incoming bitfields by validator index
+//   - construct a transverse slice along `core_idx`
+//   - bitwise-or it with the availability slice
+//   - count the 1 bits, compare to the total length
+//
+// REVIEW: is that interpretation the correct one?
+fn merged_bitfields_are_gte_two_thirds(
+	core_idx: usize,
+	bitfields: &[SignedAvailabilityBitfield],
+	availability: &BitVec<bitvec::order::Lsb0, u8>,
+) -> bool {
+	let mut transverse = availability.clone();
+	let transverse_len = transverse.len();
+
+	for bitfield in bitfields {
+		let validator_idx = bitfield.validator_index() as usize;
+		match transverse.get_mut(validator_idx) {
+			None => {
+				// REVIEW: might it be worth having this function return a `Result<bool, Error>` so that we can more clearly express this error condition?
+				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, transverse_len);
+				return false;
+			}
+			Some(mut bit_mut) => *bit_mut |= bitfield.payload().0[core_idx],
+		}
+	}
+	3 * transverse.count_ones() >= 2 * transverse.len()
 }
