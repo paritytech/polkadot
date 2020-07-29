@@ -21,7 +21,7 @@
 
 use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
 use polkadot_subsystem::{
-	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
+	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
 };
 use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ReputationChange as Rep, PeerId,
@@ -69,7 +69,10 @@ impl<C> Subsystem<C> for PoVDistribution
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
-		SpawnedSubsystem(run(ctx).map(|_| ()).boxed())
+		SpawnedSubsystem {
+			name: "pov-distribution-subsystem",
+			future: run(ctx).map(|_| ()).boxed(),
+		}
 	}
 }
 
@@ -104,26 +107,45 @@ async fn handle_signal(
 ) -> SubsystemResult<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
-		OverseerSignal::StartWork(relay_parent) => {
-			let (vals_tx, vals_rx) = oneshot::channel();
-			ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::Validators(vals_tx),
-			))).await?;
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+			for relay_parent in activated {
+				let (vals_tx, vals_rx) = oneshot::channel();
+				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(vals_tx),
+				))).await?;
 
-			state.relay_parent_state.insert(relay_parent, BlockBasedState {
-				known: HashMap::new(),
-				fetching: HashMap::new(),
-				n_validators: vals_rx.await?.len(),
-			});
+				let n_validators = match vals_rx.await? {
+					Ok(v) => v.len(),
+					Err(e) => {
+						log::warn!(target: "pov_distribution",
+							"Error fetching validators from runtime API for active leaf: {:?}",
+							e
+						);
+
+						// Not adding bookkeeping here might make us behave funny, but we
+						// shouldn't take down the node on spurious runtime API errors.
+						//
+						// and this is "behave funny" as in be bad at our job, but not in any
+						// slashable or security-related way.
+						continue;
+					}
+				};
+
+				state.relay_parent_state.insert(relay_parent, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: n_validators,
+				});
+			}
+
+			for relay_parent in deactivated {
+				state.relay_parent_state.remove(&relay_parent);
+			}
 
 			Ok(false)
 		}
-		OverseerSignal::StopWork(relay_parent) => {
-			state.relay_parent_state.remove(&relay_parent);
-
-			Ok(false)
-		}
+		OverseerSignal::BlockFinalized(_) => Ok(false),
 	}
 }
 
@@ -548,7 +570,7 @@ async fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::executor::{self, ThreadPool};
+	use futures::executor;
 	use polkadot_primitives::v1::BlockData;
 	use assert_matches::assert_matches;
 
@@ -616,8 +638,8 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -696,8 +718,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -774,8 +796,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -846,8 +868,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request before peer B.
@@ -934,8 +956,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -997,8 +1019,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1058,8 +1080,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1116,8 +1138,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let max_plausibly_awaited = n_validators * 2;
@@ -1201,8 +1223,8 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1263,8 +1285,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1340,8 +1362,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -1383,7 +1405,6 @@ mod tests {
 		});
 	}
 
-	// TODO [now] awaiting peer sending us something is no longer awaiting.
 	#[test]
 	fn peer_completing_request_no_longer_awaiting() {
 		let hash_a: Hash = [0; 32].into();
@@ -1424,8 +1445,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = ThreadPool::new().unwrap();
-		let (mut ctx, mut handle) = subsystem_test::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(

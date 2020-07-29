@@ -80,6 +80,36 @@ impl From<u32> for Id {
 	fn from(x: u32) -> Self { Id(x) }
 }
 
+impl From<usize> for Id {
+	fn from(x: usize) -> Self {
+		use sp_std::convert::TryInto;
+		// can't panic, so need to truncate
+		let x = x.try_into().unwrap_or(u32::MAX);
+		Id(x)
+	}
+}
+
+// When we added a second From impl for Id, type inference could no longer
+// determine which impl should apply for things like `5.into()`. It therefore
+// raised a bunch of errors in our test code, scattered throughout the
+// various modules' tests, that there is no impl of `From<i32>` (`i32` being
+// the default numeric type).
+//
+// We can't use `cfg(test)` here, because that configuration directive does not
+// propagate between crates, which would fail to fix tests in crates other than
+// this one.
+//
+// Instead, let's take advantage of the observation that what really matters for a
+// ParaId within a test context is that it is unique and constant. I believe that
+// there is no case where someone does `(-1).into()` anyway, but if they do, it
+// never matters whether the actual contained ID is `-1` or `4294967295`. Nobody
+// does arithmetic on a `ParaId`; doing so would be a bug.
+impl From<i32> for Id {
+	fn from(x: i32) -> Self {
+		Id(x as u32)
+	}
+}
+
 const USER_INDEX_START: u32 = 1000;
 
 /// The ID of the first user (non-system) parachain.

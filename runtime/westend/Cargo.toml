@@ -1,13 +1,13 @@
 [package]
 name = "westend-runtime"
-version = "0.8.15"
+version = "0.8.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
 
 [dependencies]
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
 log = { version = "0.3.9", optional = true }
 rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
@@ -70,7 +70,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.2.1", optional = true }
+hex-literal = { version = "0.2.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
@@ -172,7 +172,8 @@ runtime-benchmarks = [
 	"vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
-	"hex-literal",
+	# uncomment when it is made optional again
+	# "hex-literal",
 ]
 # When enabled, the runtime api will not be build.
 #

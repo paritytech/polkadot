@@ -7,6 +7,14 @@ In a way, this entire guide is about these candidates: how they are scheduled, c
 
 This section will describe the base candidate type, its components, and variants that contain extra data.
 
+## Para Id
+
+A unique 32-bit identifier referring to a specific para (chain or thread). The relay-chain runtime guarantees that `ParaId`s are unique for the duration of any session, but recycling and reuse over a longer period of time is permitted.
+
+```rust
+struct ParaId(u32);
+```
+
 ## Candidate Receipt
 
 Much info in a [`FullCandidateReceipt`](#full-candidate-receipt) is duplicated from the relay-chain state. When the corresponding relay-chain state is considered widely available, the Candidate Receipt should be favored over the `FullCandidateReceipt`.
@@ -25,7 +33,7 @@ struct CandidateReceipt {
 
 ## Full Candidate Receipt
 
-This is the full receipt type. The `GlobalValidationSchedule` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
+This is the full receipt type. The `GlobalValidationData` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
 
 However, the Full Candidate Receipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
@@ -34,7 +42,7 @@ However, the Full Candidate Receipt type is useful as a means of avoiding the im
 struct FullCandidateReceipt {
 	inner: CandidateReceipt,
 	/// The global validation schedule.
-	global_validation: GlobalValidationSchedule,
+	global_validation: GlobalValidationData,
 	/// The local validation data.
 	local_validation: LocalValidationData,
 }
@@ -64,32 +72,33 @@ This struct is pure description of the candidate, in a lightweight format.
 /// A unique descriptor of the candidate receipt.
 struct CandidateDescriptor {
 	/// The ID of the para this is a candidate for.
-	para_id: Id,
+	para_id: ParaId,
 	/// The hash of the relay-chain block this is executed in the context of.
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
-	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, and the pov_hash.
-	signature: CollatorSignature,
+	/// The blake2-256 hash of the validation data. These are extra parameters
+	/// derived from relay-chain state that influence the validity of the block.
+	validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
+	signature: CollatorSignature,
 }
 ```
 
 
-## GlobalValidationSchedule
+## GlobalValidationData
 
 The global validation schedule comprises of information describing the global environment for para execution, as derived from a particular relay-parent. These are parameters that will apply to all parablocks executed in the context of this relay-parent.
-
-> TODO: message queue watermarks (first downward messages, then XCMP channels)
 
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
 /// to fully validate the candidate.
 ///
 /// These are global parameters that apply to all candidates in a block.
-struct GlobalValidationSchedule {
+struct GlobalValidationData {
 	/// The maximum code size permitted, in bytes.
 	max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
@@ -112,6 +121,7 @@ This choice can also be expressed as a choice of which parent head of the para w
 Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
 
 > TODO: determine if balance/fees are even needed here.
+> TODO: message queue watermarks (first downward messages, then XCMP channels)
 
 ```rust
 /// Extra data that is needed along with the other fields in a `CandidateReceipt`
@@ -190,7 +200,7 @@ struct ValidationOutputs {
 	/// The head-data produced by validation.
 	head_data: HeadData,
 	/// The global validation schedule.
-	global_validation_schedule: GlobalValidationSchedule,
+	global_validation_data: GlobalValidationData,
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
 	/// Upwards messages to the relay chain.
