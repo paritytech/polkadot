@@ -32,7 +32,7 @@ use polkadot_subsystem::messages::{
 	ChainApiRequestMessage,
 };
 use polkadot_primitives::v1::{Block, BlockId, Hash};
-use sp_blockchain::{Info as BlockchainInfo, HeaderBackend};
+use sp_blockchain::HeaderBackend;
 
 use futures::prelude::*;
 
@@ -77,13 +77,18 @@ where
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiRequestMessage::BlockNumber(hash, sender) => {
-					todo!()
+					let result = client.number(hash);
+					let _ = sender.send(result.ok().flatten());
 				},
 				ChainApiRequestMessage::FinalizedBlockHash(number, sender) => {
-					todo!()
+					// TODO: verify
+					let result = client.hash(number);
+					let _ = sender.send(result.ok().flatten());
 				},
 				ChainApiRequestMessage::FinalizedBlockNumber(sender) => {
-					todo!()
+					let result = client.info().finalized_number;
+					// TODO: this is always infallible
+					let _ = sender.send(Some(result));
 				},
 			}
 		}
