@@ -155,13 +155,10 @@ impl ProvisioningJob {
 		Ok(())
 	}
 
-	// REVIEW: not async, but small; hopefully permissable
 	fn note_provisionable_data(&mut self, provisionable_data: ProvisionableData) {
-		use ProvisionableData::{Bitfield, BackedCandidate};
-
 		match provisionable_data {
-			Bitfield(_, signed_bitfield) => self.signed_bitfields.push(signed_bitfield),
-			BackedCandidate(backed_candidate) => self.backed_candidates.push(backed_candidate),
+			ProvisionableData::Bitfield(_, signed_bitfield) => self.signed_bitfields.push(signed_bitfield),
+			ProvisionableData::BackedCandidate(backed_candidate) => self.backed_candidates.push(backed_candidate),
 			_ => {}
 		}
 	}
