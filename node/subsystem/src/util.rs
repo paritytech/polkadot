@@ -39,7 +39,7 @@ use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
-	EncodeAs, Hash, Signed, SigningContext, SessionIndex,
+	CoreState, EncodeAs, Hash, Signed, SigningContext, SessionIndex,
 	ValidatorId, ValidatorIndex, ValidatorPair, GroupRotationInfo,
 };
 use sp_core::{
@@ -150,6 +150,20 @@ where
 {
 	request_from_runtime(parent, s, |tx| {
 		RuntimeApiRequest::SessionIndexForChild(tx)
+	}).await
+}
+
+/// Request all availability cores
+pub async fn request_availability_cores<FromJob>(
+	parent: Hash,
+	s: &mut mpsc::Sender<FromJob>,
+) -> Result<RuntimeApiReceiver<Vec<CoreState>>, Error>
+where
+	FromJob: TryFrom<AllMessages>,
+	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+{
+	request_from_runtime(parent, s, |tx| {
+		RuntimeApiRequest::AvailabilityCores(tx)
 	}).await
 }
 

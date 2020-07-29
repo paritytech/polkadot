@@ -22,15 +22,14 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	messages::{self, AllMessages, ProvisionableData, ProvisionerInherentData, ProvisionerMessage, RuntimeApiMessage},
-	util::{JobTrait, ToJobTrait},
+	messages::{
+		self, AllMessages, ProvisionableData, ProvisionerInherentData, ProvisionerMessage,
+		RuntimeApiMessage,
+	},
+	util::{self, request_availability_cores, JobTrait, ToJobTrait},
 };
 use polkadot_primitives::v1::{BackedCandidate, CoreState, Hash, SignedAvailabilityBitfield};
-use std::{
-	collections::HashSet,
-	convert::TryFrom,
-	pin::Pin,
-};
+use std::{collections::HashSet, convert::TryFrom, pin::Pin};
 
 pub struct ProvisioningJob {
 	relay_parent: Hash,
@@ -86,11 +85,26 @@ impl From<FromJob> for AllMessages {
 	}
 }
 
+impl TryFrom<AllMessages> for FromJob {
+	type Error = ();
+
+	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
+		match msg {
+			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
+			_ => Err(()),
+		}
+	}
+}
+
 #[derive(Debug, derive_more::From)]
 pub enum Error {
 	#[from]
 	Sending(mpsc::SendError),
-	OneshotReceiverDropped,
+	#[from]
+	Util(util::Error),
+	#[from]
+	OneshotRecv(oneshot::Canceled),
+	OneshotSend,
 }
 
 impl JobTrait for ProvisioningJob {
@@ -122,7 +136,11 @@ impl JobTrait for ProvisioningJob {
 }
 
 impl ProvisioningJob {
-	pub fn new(relay_parent: Hash, sender: mpsc::Sender<FromJob>, receiver: mpsc::Receiver<ToJob>) -> Self {
+	pub fn new(
+		relay_parent: Hash,
+		sender: mpsc::Sender<FromJob>,
+		receiver: mpsc::Receiver<ToJob>,
+	) -> Self {
 		Self {
 			relay_parent,
 			sender,
@@ -135,11 +153,17 @@ impl ProvisioningJob {
 
 	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.receiver.next().await {
-			use ProvisionerMessage::{RequestBlockAuthorshipData, RequestInherentData, ProvisionableData};
+			use ProvisionerMessage::{
+				ProvisionableData, RequestBlockAuthorshipData, RequestInherentData,
+			};
 
 			match msg {
-				ToJob::Provisioner(RequestInherentData(_, sender)) => self.send_inherent_data(sender).await?,
-				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => self.provisionable_data_channels.push(sender),
+				ToJob::Provisioner(RequestInherentData(_, sender)) => {
+					self.send_inherent_data(sender).await?
+				}
+				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
+					self.provisionable_data_channels.push(sender)
+				}
 				ToJob::Provisioner(ProvisionableData(data)) => {
 					for channel in self.provisionable_data_channels.iter_mut() {
 						// REVIEW: the try operator here breaks the run loop if any receiver ever unexpectedly
@@ -157,8 +181,12 @@ impl ProvisioningJob {
 
 	fn note_provisionable_data(&mut self, provisionable_data: ProvisionableData) {
 		match provisionable_data {
-			ProvisionableData::Bitfield(_, signed_bitfield) => self.signed_bitfields.push(signed_bitfield),
-			ProvisionableData::BackedCandidate(backed_candidate) => self.backed_candidates.push(backed_candidate),
+			ProvisionableData::Bitfield(_, signed_bitfield) => {
+				self.signed_bitfields.push(signed_bitfield)
+			}
+			ProvisionableData::BackedCandidate(backed_candidate) => {
+				self.backed_candidates.push(backed_candidate)
+			}
 			_ => {}
 		}
 	}
@@ -180,40 +208,46 @@ impl ProvisioningJob {
 	// When we're choosing bitfields to include, the rule should be simple:
 	// maximize availability. So basically, include all bitfields. And then
 	// choose a coherent set of candidates along with that.
-	async fn send_inherent_data(&mut self, sender: oneshot::Sender<ProvisionerInherentData>) -> Result<(), Error> {
-
+	async fn send_inherent_data(
+		&mut self,
+		sender: oneshot::Sender<ProvisionerInherentData>,
+	) -> Result<(), Error> {
 		// coherency rules for backed candidates, recap:
 		//
 		// - [x] only one per parachain
 		// - [ ] candidate is available (2/3+ of validators have set the 1 bit)
 		// - [ ] not expired (how can we tell?)
 
-		let availability_cores = self.get_availability_cores().await?;
+		let availability_cores = match request_availability_cores(
+			self.relay_parent,
+			&mut self.sender,
+		)
+		.await?
+		.await?
+		{
+			Ok(cores) => cores,
+			Err(runtime_err) => {
+				// Don't take down the node on runtime API errors.
+				log::warn!(target: "bitfield_signing", "Encountered a runtime API error: {:?}", runtime_err);
+				return Ok(());
+			}
+		};
 		let mut coherent_candidates = Vec::new();
 		let mut parachains_represented = HashSet::new();
 		for candidate in self.backed_candidates.iter() {
 			// only allow the first candidate per parachain
 			// this sequence reliance is _entirely arbitrary_
 			if !parachains_represented.insert(candidate.candidate.descriptor.para_id) {
-				continue
+				continue;
 			}
-
-			// figure out which availability core corresponds to this candidate, then
-			// update its `availability` bitfield with our list of bitfields to include.
-			// then, if it's < 2/3 full, don't include it.
 
 			unimplemented!()
 		}
 
 		// type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
-		sender.send((self.signed_bitfields.clone(), coherent_candidates)).map_err(|_| Error::OneshotReceiverDropped)?;
+		sender
+			.send((self.signed_bitfields.clone(), coherent_candidates))
+			.map_err(|_| Error::OneshotSend)?;
 		Ok(())
-	}
-
-	async fn get_availability_cores(&mut self) -> Result<Vec<CoreState>, Error> {
-		use RuntimeApiMessage::Request;
-		// we need to bring this into this PR
-		// use message::RuntimeApiRequest::AvailabilityCores;
-		unimplemented!()
 	}
 }
