@@ -4,6 +4,22 @@ on:
     types: [labeled]
 
 jobs:
+  build-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notify devops
+        if: github.event.label.name == 'A1-needsburnin'
+        uses: actions/checkout@v2
+      - name: rust toolchain nightly
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+      - name: rust toolchain wasm
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly
+          target: wasm32-unknown-unknown
+      - run: cargo build --release --all-features
   notify-devops:
     runs-on: ubuntu-latest
     steps:
