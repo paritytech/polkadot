@@ -162,7 +162,7 @@ check-runtime-benchmarks:          &test
   <<:                              *compiler_info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - time cargo check --features runtime-benchmarks
+    - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
 build-wasm-release:

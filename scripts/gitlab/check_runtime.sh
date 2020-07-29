@@ -206,7 +206,7 @@ EOT
       continue
     fi
 
-    failed_runtime_checks+=($RUNTIME)
+    failed_runtime_checks+=("$RUNTIME")
   fi
 done
 
