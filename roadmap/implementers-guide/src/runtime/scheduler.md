@@ -14,67 +14,73 @@ It aims to achieve these tasks with these goals in mind:
 - Validator assignments should not be gameable. Malicious cartels should not be able to manipulate the scheduler to assign themselves as desired.
 - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
 
+## Availability Cores
+
 The Scheduler manages resource allocation using the concept of "Availability Cores". There will be one availability core for each parachain, and a fixed number of cores used for multiplexing parathreads. Validators will be partitioned into groups, with the same number of groups as availability cores. Validator groups will be assigned to different availability cores over time.
 
 An availability core can exist in either one of two states at the beginning or end of a block: free or occupied. A free availability core can have a parachain or parathread assigned to it for the potential to have a backed candidate included. After backing, the core enters the occupied state as the backed candidate is pending availability. There is an important distinction: a core is not considered occupied until it is in charge of a block pending availability, although the implementation may treat scheduled cores the same as occupied ones for brevity. A core exits the occupied state when the candidate is no longer pending availability - either on timeout or on availability. A core starting in the occupied state can move to the free state and back to occupied all within a single block, as availability bitfields are processed before backed candidates. At the end of the block, there is a possible timeout on availability which can move the core back to the free state if occupied.
 
+Cores are treated as an ordered list and are typically referred to by their index in that list.
+
 ```dot process
 digraph {
-	label = "Availability Core State Machine\n\n\n";
-	labelloc = "t";
+  label = "Availability Core State Machine\n\n\n";
+  labelloc = "t";
 
-	{ rank=same vg1 vg2 }
+  { rank=same vg1 vg2 }
 
-	vg1 [label = "Free" shape=rectangle]
-	vg2 [label = "Occupied" shape=rectangle]
+  vg1 [label = "Free" shape=rectangle]
+  vg2 [label = "Occupied" shape=rectangle]
 
-	vg1 -> vg2 [label = "Assignment & Backing" ]
-	vg2 -> vg1 [label = "Availability or Timeout" ]
+  vg1 -> vg2 [label = "Assignment & Backing" ]
+  vg2 -> vg1 [label = "Availability or Timeout" ]
 }
 ```
 
 ```dot process
 digraph {
-	label = "Availability Core Transitions within Block\n\n\n";
-	labelloc = "t";
-	splines="line";
+  label = "Availability Core Transitions within Block\n\n\n";
+  labelloc = "t";
+  splines="line";
 
-	subgraph cluster_left {
-		label = "";
-		labelloc = "t";
+  subgraph cluster_left {
+    label = "";
+    labelloc = "t";
 
-		fr1 [label = "Free" shape=rectangle]
-		fr2 [label = "Free" shape=rectangle]
-		occ [label = "Occupied" shape=rectangle]
+    fr1 [label = "Free" shape=rectangle]
+    fr2 [label = "Free" shape=rectangle]
+    occ [label = "Occupied" shape=rectangle]
 
-		fr1 -> fr2 [label = "No Backing"]
-		fr1 -> occ [label = "Backing"]
+    fr1 -> fr2 [label = "No Backing"]
+    fr1 -> occ [label = "Backing"]
 
-		{ rank=same fr2 occ }
-	}
+    { rank=same fr2 occ }
+  }
 
-	subgraph cluster_right {
-		label = "";
-		labelloc = "t";
+  subgraph cluster_right {
+    label = "";
+    labelloc = "t";
 
-		occ2 [label = "Occupied" shape=rectangle]
-		fr3 [label = "Free" shape=rectangle]
-		fr4 [label = "Free" shape=rectangle]
-		occ3 [label = "Occupied" shape=rectangle]
-		occ4 [label = "Occupied" shape=rectangle]
+    occ2 [label = "Occupied" shape=rectangle]
+    fr3 [label = "Free" shape=rectangle]
+    fr4 [label = "Free" shape=rectangle]
+    occ3 [label = "Occupied" shape=rectangle]
+    occ4 [label = "Occupied" shape=rectangle]
 
-		occ2 -> fr3 [label = "Availability"]
-		occ2 -> occ3 [label = "No availability"]
-		fr3 -> fr4 [label = "No backing"]
-		fr3 -> occ4 [label = "Backing"]
-		occ3 -> occ4 [label = "(no change)"]
-		occ3 -> fr3 [label = "Availability Timeout"]
+    occ2 -> fr3 [label = "Availability"]
+    occ2 -> occ3 [label = "No availability"]
+    fr3 -> fr4 [label = "No backing"]
+    fr3 -> occ4 [label = "Backing"]
+    occ3 -> occ4 [label = "(no change)"]
+    occ3 -> fr3 [label = "Availability Timeout"]
 
-		{ rank=same; fr3[group=g1]; occ3[group=g2] }
-		{ rank=same; fr4[group=g1]; occ4[group=g2] }
-	}
+    { rank=same; fr3[group=g1]; occ3[group=g2] }
+    { rank=same; fr4[group=g1]; occ4[group=g2] }
+  }
 }
 ```
+
+## Validator Groups
 
 Validator group assignments do not need to change very quickly. The security benefits of fast rotation is redundant with the challenge mechanism in the [Validity module](validity.md). Because of this, we only divide validators into groups at the beginning of the session and do not shuffle membership during the session. However, we do take steps to ensure that no particular validator group has dominance over a single parachain or parathread-multiplexer for an entire session to provide better guarantees of liveness.
 
@@ -82,13 +88,13 @@ Validator groups rotate across availability cores in a round-robin fashion, with
 
 When a rotation occurs, validator groups are still responsible for distributing availability chunks for any previous cores that are still occupied and pending availability. In practice, rotation and availability-timeout frequencies should be set so this will only be the core they have just been rotated from. It is possible that a validator group is rotated onto a core which is currently occupied. In this case, the validator group will have nothing to do until the previously-assigned group finishes their availability work and frees the core or the availability process times out. Depending on if the core is for a parachain or parathread, a different timeout `t` from the [`HostConfiguration`](../types/runtime.md#host-configuration) will apply. Availability timeouts should only be triggered in the first `t-1` blocks after the beginning of a rotation.
 
+## Claims
+
 Parathreads operate on a system of claims. Collators participate in auctions to stake a claim on authoring the next block of a parathread, although the auction mechanism is beyond the scope of the scheduler. The scheduler guarantees that they'll be given at least a certain number of attempts to author a candidate that is backed. Attempts that fail during the availability phase are not counted, since ensuring availability at that stage is the responsibility of the backing validators, not of the collator. When a claim is accepted, it is placed into a queue of claims, and each claim is assigned to a particular parathread-multiplexing core in advance. Given that the current assignments of validator groups to cores are known, and the upcoming assignments are predictable, it is possible for parathread collators to know who they should be talking to now and how they should begin establishing connections with as a fallback.
 
 With this information, the Node-side can be aware of which parathreads have a good chance of being includable within the relay-chain block and can focus any additional resources on backing candidates from those parathreads. Furthermore, Node-side code is aware of which validator group will be responsible for that thread. If the necessary conditions are reached for core reassignment, those candidates can be backed within the same block as the core being freed.
 
 Parathread claims, when scheduled onto a free core, may not result in a block pending availability. This may be due to collator error, networking timeout, or censorship by the validator group. In this case, the claims should be retried a certain number of times to give the collator a fair shot.
-
-Cores are treated as an ordered list of cores and are typically referred to by their index in that list.
 
 ## Storage
 

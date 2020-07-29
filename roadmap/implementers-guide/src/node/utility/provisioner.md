@@ -40,7 +40,16 @@ Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorsh
 
 ## Block Production
 
-When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting means that there are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be included until the previous one either gets declared available or expired.
+When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting means that there are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be backed until the previous one either gets declared available or expired.
+
+Our goal with respect to the bitfields is simple: maximize availability. Always include all bitfields. It's a little more complicated with respect to candidates. The fundamental task there is to see which core the candidate can be included on. If its para is on a `ScheduledCore`, then it is unconditionally includable. Otherwise, we have two cases to deal with:
+
+- If it is `next_up_on_available` on an `OccupiedCore`, we can only include the candidate if the bitfields we are including, merged with the `availability` vec of the `OccupiedCore`, together comprise 2/3+ of validators.
+- If it is `next_up_on_time_out` on an `OccupiedCore`, we can only include the candidate if the bitfields we are including, merged with the `availability` vec of the `OccupiedCore` together comprise <2/3 of validators, and the `time_out_at` is the block we are building.
+
+Otherwise, the para isn't represented anywhere in the set of cores, and is therefore not scheduled, and can't be included.
+
+See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
 
 One might ask: given `ProvisionerMessage::RequestInherentData`, what's the point of `ProvisionerMessage::RequestBlockAuthorshipData`? The answer is that the block authorship data includes more information than is present in the inherent data; disputes, for example.
 
@@ -51,10 +60,10 @@ The subsystem should maintain a set of handles to Block Authorship Provisioning 
 ### On Overseer Signal
 
 - `ActiveLeavesUpdate`:
-	- For each `activated` head:
-		- spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
-	- For each `deactivated` head:
-		- terminate the Block Authorship Provisioning Job for the given relay parent, if any.
+  - For each `activated` head:
+    - spawn a Block Authorship Provisioning Job with the given relay parent, storing a bidirectional channel with that job.
+  - For each `deactivated` head:
+    - terminate the Block Authorship Provisioning Job for the given relay parent, if any.
 - `Conclude`: Forward `Conclude` to all jobs, waiting a small amount of time for them to join, and then hard-exiting.
 
 ### On `ProvisionerMessage`
