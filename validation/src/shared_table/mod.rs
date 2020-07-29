@@ -37,7 +37,7 @@ use bitvec::bitvec;
 
 use super::GroupInfo;
 use self::includable::IncludabilitySender;
-use primitives::Pair;
+use primitives::{Pair, traits::SpawnNamed};
 use sp_api::ProvideRuntimeApi;
 
 use crate::pipeline::{FullOutput, ValidationPool};
@@ -287,8 +287,11 @@ pub struct ParachainWork<Fetch> {
 impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
-	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
-		-> PrimedParachainWork<
+	pub fn prime<P: ProvideRuntimeApi<Block>>(
+		self,
+		api: Arc<P>,
+		spawner: impl SpawnNamed + Clone + Unpin + 'static,
+	) -> PrimedParachainWork<
 			Fetch,
 			impl Send + FnMut(&PoVBlock, &AbridgedCandidateReceipt)
 				-> Result<FullOutput, Error> + Unpin,
@@ -312,7 +315,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 				&expected_relay_parent,
 				max_block_data_size,
 				n_validators,
-				primitives::testing::TaskExecutor::new(),
+				spawner.clone(),
 			)?;
 
 			full_output.check_consistency(candidate)?;
