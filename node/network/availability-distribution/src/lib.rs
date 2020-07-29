@@ -82,32 +82,62 @@ struct ProtocolState {
     /// Our own view.
     view: View,
 
-    /// Track all active relay parents
-    relay_parents: HashSet<Hash>,
+    /// Caches a mapping of relay parents to live candidates
+    /// and allows fast + interaction free obtaining of active heads set by unionizing.
+    cache: HashMap<Hash, HashSet<CommittedCandidateReceipt>>,
 
-    /// Based on the relay parents we can extract the live candidates and cache them.
-    /// Maps the candidate hash to the committed candidate receipt.
-    live_candidates: HashMap<Hash, CommittedCandidateReceipt>,
+    /// Obtain the set of validators
+    // @todo clarify if this needs to be a hash map over relay parents or not? iiuc it's not necessary, but also complicates things
+    // relay parent -> validator set / our index
+    validators: HashMap<Hash, (Vec<ValidatorId>, Option<ValidatorIndex>)>,
 
-    /// Set of validators valid for a session.
-    validator_set: Vec<ValidatorId>,
-
-    /// The validator index, iff we are part of the validator set, otherwise `None`.
-    validator_index: Option<ValidatorIndex>,
-
-    /// Information specific to a candidate hash.
-    per_candidate: HashMap<Hash, PerCandidate>,
+    /// Track things per relay parent
+    per_relay_parent: HashMap<Hash, PerRelayParent>,
 }
 
-impl ProtocolState {}
+#[derive(Debug, Clone, Default)]
+struct PerRelayParent {
 
-#[derive(Default, Clone)]
-struct PerCandidate {
-    /// The relay parent is backed but only
-    backed_candidate: HashSet<ValidatorId>,
+    /// Track received candidate hashes and chunk indices from peers.
+    received_candidates: HashMap<PeerId, HashSet<(Hash, u32)>>,
 
-    /// All erasure chunks
-    erasure_chunks: HashMap<ValidatorIndex, ErasureChunk>,
+    /// Track already sent candidate hashes and the erasure chunk index to the peers.
+    sent_candidates: HashMap<PeerId, HashSet<(Hash, u32)>>,
+
+    /// A Candidate and a set of known erasure chunks in form of messages to be gossiped / distributed if the peer view wants that.
+    /// This is _across_ peers and not specific to a particular one.
+    /// candidate hash + erasure chunk index -> gossip message
+    message_vault: HashMap<(Hash, u32), AvailabilityGossipMessage>,
+}
+
+impl ProtocolState {
+
+    fn add_relay_parent(&mut self, relay_parent: Hash) {
+        // @todo
+    }
+
+
+    fn remove_relay_parent(&mut self, relay_parent: Hash) {
+        // @todo
+    }
+
+    /// Obtain an iterator over the actively processed relay parents.
+    fn relay_parents<'a> (&'a self) -> impl Iterator<Item=&'a Hash> + 'a {
+        self.cache.keys()
+    }
+
+    /// Unionize all cached entries for the given relay parents
+    /// Ignores all non existant relay parents, so this can be used directly with a peers view.
+    fn cached_relay_parents_to_live_candidates_unioned<'a>(&'a self, relay_parents: impl IntoIterator<Item = &Hash> + 'a) -> HashSet<CommittedCandidateReceipt> {
+        relay_parents
+            .into_iter()
+            .filter_map(|relay_parent| {
+                self.cache.get(relay_parent)
+            })
+            .map(|x| x.into_iter())
+            .flatten()
+            .collect::<HashSet<_>>()
+    }
 }
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
@@ -168,67 +198,163 @@ where
 {
     let old_view = std::mem::replace(&mut (state.view), view);
 
-    for added in state.view.difference(&old_view).cloned() {
-        if !state.per_relay_parent.contains_key(&added) {}
+    let added = state.view.difference(&old_view).collect::<Vec<_>>();
 
-        let validator_set = &state.validator_set;
+    // cache the pre relay parent
+    for added in added.iter().cloned() {
+        let candidates = live_candidates(ctx, std::iter::once(added.clone())).await?;
 
-        // @todo for all live candidates
-        for (candidate_hash, receipt) in state.live_candidates.iter() {
-            let desc = receipt.descriptor();
-            let para = desc.para_id;
+        if cfg!(debug_assert) {
+            for receipt in candidates.iter() {
+                debug_assert!(receipt.desc().relay_parent, added);
+            }
+        }
 
-            debug_assert!(desc.relay_parent, added);
+        state.cache.insert(added, candidates);
+    }
 
-            if let Some(pov) = query_proof_of_validity(ctx, added).await? {
-                // perform erasure encoding
+    for candidate_receipt in state.cached_relay_parents_to_live_candidates_unioned(added) {
+        let desc = candidate_receipt.descriptor();
+        let para = desc.para_id;
 
-                let head_data = query_head_data(ctx, added, para).await?;
+        debug_assert!(desc.relay_parent, added);
 
-                let available_data = AvailableData {
-                    pov,
-                    omitted_validation: OmittedValidationData::default(), // @todo sane? correct?
-                };
-                let erasure_chunks: Vec<Vec<u8>> = obtain_chunks(validator_set.len(), &available_data)?;
+        if let Some(pov) = query_proof_of_validity(ctx, added).await? {
 
-                // create proofs for each erasure chunk
-                let branches = branches(erasure_chunks.as_ref());
-                let root = branches.root();
+            let per_relay_parent = state.per_relay_parent.get(&desc.relay_parent).expect("Must exist QED");
 
-                let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+            // perform erasure encoding
+            let head_data = query_head_data(ctx, added, para).await?;
 
-                // @todo use `branch_hash(root, )` to verify
+            let available_data = AvailableData {
+                pov,
+                omitted_validation: OmittedValidationData::default(), // @todo sane? probably not, need two more runtime calls I guess
+            };
+            let erasure_chunks: Vec<Vec<u8>> = obtain_chunks(per_relay_parent.validator_set.len(), &available_data)?;
 
-                let candidate_hash = ; // @todo
+            // create proofs for each erasure chunk
+            let branches = branches(erasure_chunks.as_ref());
 
-                let validator_index = ValidatorIndex::default(); // @todo FIXME
+            let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+
+            let candidate_hash = pov.commitments().commitments_hash; // @todo is this correct?
+
+            // we are a validator
+            if let Some(validator_index) = state.validator_index {
 
                 if let Some(erasure_chunk) = erasure_chunks.get(validator_index) {
                     if let Err(e) =
                         store_chunk(ctx, candidate_hash, validator_index, erasure_chunk).await?
                     {
-                        warn!("Failed to store our own erasure chunk");
+                        warn!(target: TARGET, "Failed to store our own erasure chunk");
                     }
+                } else {
+                    warn!(target: TARGET, "Our validation index is out of bounds, no associated message");
                 }
             }
-			// @todo distribute all
+
+            // obtain interested pHashMapeers in the candidate hash
+            let peers: Vec<PeerId> = state.peer_views
+                .iter()
+                .filter(|(peer, view)| view.contains(desc.relay_parent))
+                .map(|(peer, _view)| peer.clone())
+                .collect();
+
+            // distribute all erasure messages to interested peers
+            for (erasure_chunk, merkle_proof) in erasure_chunks.zip(proofs) {
+                // @todo construct messages and derive hashes
+
+                // only the peers which did not receive this particular erasure chunk
+                let peers = peers.iter().filter(|peer| {
+                        !per_relay_parent.sent_candidates.contains(&(candidate_hash.clone(), erasure_chunk.index))
+                    }).collect::<Vec<_>>();
+                let message = AvailabilityGossipMessage {
+                    candidate_hash,
+                    erasure_chunk,
+                    merkle_proof,
+                };
+                send_tracked_gossip_message_to_peers(ctx, &mut state, peers, message).await?;
+            }
         }
     }
+
     for removed in old_view.difference(&state.view) {
         // cleanup relay parents we are not interested in any more
-        let _ = state.per_relay_parent.remove(&removed);
+        // and drop their associated
+        if let Some(candidates) =HashMap state.cache.remove(&removed) {
+            for candidate in candidates {
+                // @todo use the candidates to cleanup data associated to them
+            }
+        }
     }
     Ok(())
 }
 
-async fn send_gossip_messages_to_peer<Context>(
+
+
+async fn send_tracked_gossip_message_to_peers<Context>(
     ctx: &mut Context,
-    peer: PeerId,
-    messages: Vec<AvailabilityGossipMessage>,
+    state: &mut ProtocolState,
+    peer: Vec<PeerId>,
+    message: AvailabilityGossipMessage,
 ) -> SubsystemResult<()>
 where
     Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+    // @todo properly track
+	// let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
+	// 	job_data
+	// } else {
+	// 	return Ok(());
+	// };
+
+	// let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
+	// state.message_sent_to_peer
+	// 	.entry(dest.clone())
+	// 	.or_default()
+	// 	.insert(validator.clone());
+
+    ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+        vec![dest],
+        AvailabilityDistribution::PROTOCOL_ID,
+        message.encode()
+    ))).await?;
+
+
+
+    Ok(())
+}
+
+
+async fn send_tracked_gossip_messages_to_peers<Context>(
+    ctx: &mut Context,
+    state: &mut ProtocolState,
+    peers: Vec<PeerId>,
+    message_iter: IntoIterator<Item=AvailabilityGossipMessage>,
+) -> SubsystemResult<()>
+where
+    Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+{
+    // @todo properly track
+    // let job_data = if let Some(job_data) = state.per_relay_parent.get_mut(&message.relay_parent) {
+	// 	job_data
+	// } else {
+	// 	return Ok(());
+	// };
+
+	// let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
+	// state.message_sent_to_peer
+	// 	.entry(dest.clone())
+	// 	.or_default()
+	// 	.insert(validator.clone());
+
+    ctx.send_messages(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+        peers,
+        AvailabilityDistribution::PROTOCOL_ID,
+        message_iter.map(|message| message.encode())
+    ))).await?;
+
+    Ok(())
 }
 
 // Send the difference between two views which were not sent
@@ -248,47 +374,45 @@ where
 
     *current = view;
 
+    // only contains the intersection of what we are interested and
+    // the union of all relay parent's candidates.
+    let delta_candidates = state.cached_relay_parents_to_live_candidates_unioned(delta_vec.clone());
+
+
     // Send all messages we've seen before and the peer is now interested
     // in to that peer.
+    let messages: Vec<_> = delta_candidates
+        .into_iter()
+        .filter_map(|receipt: CommittedCandidateReceipt| -> Option<HashSet<AvailabilityGossipMessage>> {
+            let candidate_hash = receipt.commitments().commitments_hash; // @todo verify this is correct
+            state
+                .per_relay_parent
+                .get(receipt.descriptor().relay_parent)
+                .map(|per_relay_parent: PerRelayParent| {
+                    // obtain the relevant chunk indices not sent yet
+                    (0..per_relay_parent.validator_set.len())
+                        .into_iter()
+                        .filter(|erasure_chunk_index| {
+                            // check if that erasure chunk was already sent before
+                            if let Some(sent_set) = per_relay_parent.sent_candidates.get(origin) {
+                                !sent_set.contains(&(candidate_hash, erasure_chunk_index))
+                            } else {
+                                true
+                            }
+                        })
+                        .filter_map(|erasure_chunk_index| {
+                            // try to pick up the message from the message vault
+                            per_relay_parent
+                                .message_vault
+                                .get(&(candidate_hash, erasure_chunk_index))
+                                .cloned()
+                        })
+                })
+        })
+        .flatten()
+        .collect(); // must collect, since we need to borrow state mutabliy for tracking sends
 
-    // let delta_set: Vec<(ValidatorId, AvailabilityGossipMessage)> = delta_vec
-    //     .into_iter()
-    //     .filter_map(|new_relay_parent_interest| {
-    //         if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
-    //             // Send all jointly known messages for a validator (given the current relay parent)
-    // 			// to the peer `origin`...
-
-    // 			// @todo
-    //             // let one_per_validator = job_data.one_per_validator.clone();
-    //             // let origin = origin.clone();
-    //             // Some(
-    //             //     one_per_validator
-    //             //         .into_iter()
-    //             //         .filter(move |(validator, _message)| {
-    //             //             // ..except for the ones the peer already has
-    //             //             job_data.message_from_validator_needed_by_peer(&origin, validator)
-    //             //         }),
-    // 			// )
-    // 			Som(())
-    //         } else {
-    //             // A relay parent is in the peers view, which is not in ours, ignore those.
-    //             None
-    //         }
-    //     })
-    //     .flatten()
-    //     .collect();
-
-    // for (validator, message) in delta_set.into_iter() {
-    //     send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await?;
-    // }
-
-    unimplemented!("peer view change");
-
-    // @todo obtain the added difference
-
-    // @todo check if we have messages, that we did not send to the peer just yet
-
-    // @todo send those messages to the peer
+    send_tracked_gossip_messages_to_peers(ctx, state, origin.clone(), messages).await?;
 
     Ok(())
 }
@@ -356,8 +480,10 @@ where
         return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
     }
 
+    let live_candidates = state.cached_relay_parents_to_live_candidates_unioned(state.relay_parents());
+
     // check the message
-    let live_candidate = if let Some(live_candidate) = state.live_candidates.get(&message.candidate_hash) {
+    let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash) {
         live_candidate
     } else {
         return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
@@ -375,7 +501,10 @@ where
     if anticipated_hash != erasure_chunk_hash {
         return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
     }
-    // @todo store/redistribute
+
+    // @todo add messages to message vault
+    // @todo select all peers with a view covering this candidate
+    // @todo send message to all peers
 }
 
 /// The bitfield distribution subsystem.
@@ -432,11 +561,16 @@ impl AvailabilityDistribution {
                 })) => {
                     for relay_parent in activated {
                         trace!(target: TARGET, "Start {:?}", relay_parent);
+                        let validators = query_validators(ctx, added).await?;
+                        let validator_index = obtain_our_validator_index(&validators, keystore);
+                        state.validators.insert(relay_parent, (validators, validator_index));
                     }
                     for relay_parent in deactivated {
                         trace!(target: TARGET, "Stop {:?}", relay_parent);
+                        state.validators.remove(&relay_parent);
                     }
                 }
+                FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
                 FromOverseer::Signal(OverseerSignal::Conclude) => {
                     trace!(target: TARGET, "Conclude");
                     return Ok(());
@@ -617,31 +751,23 @@ where
     Ok(x)
 }
 
-/// Query basic information from the runtime we need to operate.
-async fn query_basics<Context>(
+/// Query the validator set.
+async fn query_validators<Context>(
     ctx: &mut Context,
     relay_parent: Hash,
-) -> SubsystemResult<(Vec<ValidatorId>, SigningContext)>
+) -> SubsystemResult<Vec<ValidatorId>>
 where
     Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
     let (validators_tx, validators_rx) = oneshot::channel();
-    let (signing_tx, signing_rx) = oneshot::channel();
-
     let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
         relay_parent.clone(),
         RuntimeApiRequest::Validators(validators_tx),
     ));
 
-    let query_signing = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-        relay_parent.clone(),
-        RuntimeApiRequest::SigningContext(signing_tx),
-    ));
+    ctx.send_message(query_validators).await?;
 
-    ctx.send_messages(std::iter::once(query_validators).chain(std::iter::once(query_signing)))
-        .await?;
-
-    Ok((validators_rx.await?, signing_rx.await?))
+    validators_rx.await
 }
 
 #[cfg(test)]
