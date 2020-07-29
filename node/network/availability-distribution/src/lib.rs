@@ -63,11 +63,12 @@ const BENEFIT_VALID_MESSAGE: ReputationChange = ReputationChange::new(10, "Valid
 /// to other peers.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct AvailabilityGossipMessage {
-    /// The relay parent this message is relative to.
-    pub relay_parent: Hash,
+    /// Ankor hash of the candidate this is associated to.
+    pub candidate_hash: Hash,
     /// The actual signed availability bitfield.
     pub erasure_chunk: ErasureChunk,
-    // @todo incomplete!
+    // The accompanying merkle proof of the erasure chunk.
+    pub merkle_proof: Vec<Vec<u8>>,
 }
 
 /// Data used to track information of peers and relay parents the
@@ -81,21 +82,31 @@ struct ProtocolState {
     /// Our own view.
     view: View,
 
-    /// Data specific to one relay parent.
-    per_relay_parent: HashMap<Hash, PerRelayParent>,
+    /// Track all active relay parents
+    relay_parents: HashSet<Hash>,
+
+    /// Based on the relay parents we can extract the live candidates and cache them.
+    /// Maps the candidate hash to the committed candidate receipt.
+    live_candidates: HashMap<Hash, CommittedCandidateReceipt>,
 
     /// Set of validators valid for a session.
     validator_set: Vec<ValidatorId>,
+
+    /// The validator index, iff we are part of the validator set, otherwise `None`.
+    validator_index: Option<ValidatorIndex>,
+
+    /// Information specific to a candidate hash.
+    per_candidate: HashMap<Hash, PerCandidate>,
 }
 
 impl ProtocolState {}
 
 #[derive(Default, Clone)]
-struct PerRelayParent {
+struct PerCandidate {
     /// The relay parent is backed but only
     backed_candidate: HashSet<ValidatorId>,
 
-    ///
+    /// All erasure chunks
     erasure_chunks: HashMap<ValidatorIndex, ErasureChunk>,
 }
 
@@ -163,40 +174,44 @@ where
         let validator_set = &state.validator_set;
 
         // @todo for all live candidates
-        if let Some(pov) = query_proof_of_validity(ctx, added).await? {
-            // perform erasure encoding
-            // @todo is this only the `PoV` or more? must this not also contain
+        for (candidate_hash, receipt) in state.live_candidates.iter() {
+            let desc = receipt.descriptor();
+            let para = desc.para_id;
 
-            let para = Default::default();
-            let head_data = query_head_data(ctx, added, para).await?;
+            debug_assert!(desc.relay_parent, added);
 
-            let available_data = AvailableData {
-                pov,
-                omitted_validation: OmittedValidationData::default(), // @todo sane? correct?
-            };
-            let erasure_chunks: Vec<Vec<u8>> = obtain_chunks(validator_set.len(), &available_data)?;
-            // create proofs for each erasure chunk
+            if let Some(pov) = query_proof_of_validity(ctx, added).await? {
+                // perform erasure encoding
 
-            let branches = branches(erasure_chunks.as_ref());
-            let root = branches.root();
+                let head_data = query_head_data(ctx, added, para).await?;
 
-            let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
+                let available_data = AvailableData {
+                    pov,
+                    omitted_validation: OmittedValidationData::default(), // @todo sane? correct?
+                };
+                let erasure_chunks: Vec<Vec<u8>> = obtain_chunks(validator_set.len(), &available_data)?;
 
-            // use `branch_hash(root, )` to verify
+                // create proofs for each erasure chunk
+                let branches = branches(erasure_chunks.as_ref());
+                let root = branches.root();
 
-            let candidate_hash = unimplemented!(); // @todo
+                let proofs: Vec<_> = branches.map(|(proof, _)| proof).collect();
 
-            let validator_index = ValidatorIndex::default(); // @todo FIXME
+                // @todo use `branch_hash(root, )` to verify
 
-            if let Some(erasure_chunk) = erasure_chunks.get(validator_index) {
-                if let Err(e) =
-                    store_chunk(ctx, candidate_hash, validator_index, erasure_chunk).await?
-                {
-                    warn!("Failed to store our own erasure chunk");
+                let candidate_hash = ; // @todo
+
+                let validator_index = ValidatorIndex::default(); // @todo FIXME
+
+                if let Some(erasure_chunk) = erasure_chunks.get(validator_index) {
+                    if let Err(e) =
+                        store_chunk(ctx, candidate_hash, validator_index, erasure_chunk).await?
+                    {
+                        warn!("Failed to store our own erasure chunk");
+                    }
                 }
-			}
-
-			// @ todo distribute all
+            }
+			// @todo distribute all
         }
     }
     for removed in old_view.difference(&state.view) {
@@ -316,15 +331,14 @@ where
 
 
 /// Obtain the first key with a signing key, which must be ours. We obtain the index as `ValidatorIndex`
-fn obtain_our_validator_index<Context>(validators: &[ValidatorId], keystore: &KeyStorePtr) -> SubsystemResult<ValidatorIndex> {
+/// If we cannot find a key in the validator set, which we could use.
+fn obtain_our_validator_index<Context>(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorIndex> {
 	let keystore = keystore.read();
-	let opt = validators.iter()
+	validators.iter()
 		.enumerate()
 		.find_map(|(idx, v)| {
 			keystore.key_pair::<ValidatorPair>(&v).ok().map(|_| idx)
 		});
-
-    Ok(opt)
 }
 
 /// Handle an incoming message from a peer.
@@ -342,15 +356,26 @@ where
         return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
     }
 
-    // Ignore anything the overseer did not tell this subsystem to work on
-    let mut job_data = state.per_relay_parent.get_mut(&message.relay_parent);
-    let job_data: &mut _ = if let Some(ref mut job_data) = job_data {
-        job_data
+    // check the message
+    let live_candidate = if let Some(live_candidate) = state.live_candidates.get(&message.candidate_hash) {
+        live_candidate
     } else {
-        return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
+        return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
     };
 
-    // @todo !?
+    // check the merkle proof
+    let root = live_candidates.commitments().erasure_root;
+    let anticipated_hash = if let Ok(hash) = branch_hash(root, &message.proof, message.erasure_chunk.index) {
+        hash
+    } else {
+        return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+    };
+
+    let erasure_chunk_hash = BlakeTwo256::hash(&message.erasure_chunk);
+    if anticipated_hash != erasure_chunk_hash {
+        return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
+    }
+    // @todo store/redistribute
 }
 
 /// The bitfield distribution subsystem.
@@ -433,7 +458,7 @@ where
     }
 }
 
-/// Based on a iterator of relay heads.
+/// Obtain all live candidates based on a iterator of relay heads.
 async fn live_candidates(
     ctx: &mut Context,
     relay_parents: impl IntoIterator<Item = Hash>,

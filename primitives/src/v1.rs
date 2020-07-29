@@ -189,6 +189,10 @@ impl<H> CommittedCandidateReceipt<H> {
 	pub fn descriptor(&self) -> &CandidateDescriptor<H> {
 		&self.descriptor
 	}
+	/// Get a reference to the candidate descriptor.
+	pub fn commitments(&self) -> &CandidateCommitments {
+		&self.commitments
+	}
 }
 
 impl<H: Clone> CommittedCandidateReceipt<H> {
