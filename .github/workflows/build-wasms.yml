@@ -23,7 +23,7 @@ jobs:
           restore-keys: |
             srtool-target-polkadot-
             srtool-target
-      - name: Build polkadot runtime  
+      - name: Build polkadot runtime
         id: build-runtime
         shell: bash
         run: |
@@ -38,4 +38,39 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: polkadot-runtime
+          path: "${{ steps.build-runtime.outputs.wasm }}"
+  build-kusama-runtime:
+    runs-on: ubuntu-latest
+    container:
+      image: chevdor/srtool:nightly-2020-07-20
+      volumes:
+        - ${{ github.workspace }}:/build
+      env:
+        PACKAGE: kusama-runtime
+        RUSTC_VERSION: nightly-2020-07-20
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache target dir
+        uses: actions/cache@v2
+        with:
+          path: '${{ github.workspace }}/target'
+          key: srtool-target-kusama-${{ github.sha }}
+          restore-keys: |
+            srtool-target-kusama-
+            srtool-target
+      - name: Build kusama runtime
+        id: build-runtime
+        shell: bash
+        run: |
+          cd /build
+          pwd
+          ls -la
+          build --json | tee srtool_output.json
+          while IFS= read -r line; do
+            echo "::set-output name=$line::$(jq -r ".$line" < srtool_output.json)"
+          done <<< "$(jq -r 'keys[]' < srtool_output.json)"
+      - name: Upload kusama runtime
+        uses: actions/upload-artifact@v2
+        with:
+          name: kusama-runtime
           path: "${{ steps.build-runtime.outputs.wasm }}"
