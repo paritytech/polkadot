@@ -14,7 +14,9 @@ jobs:
         PACKAGE: polkadot-runtime
         RUSTC_VERSION: nightly-2020-07-20
     steps:
-      - uses: actions/checkout@v2
+      # Force use of checkout@v1 due to srtool not having git v2.18
+      # https://github.com/actions/checkout/issues/238
+      - uses: actions/checkout@v1
       - name: Cache target dir
         uses: actions/cache@v2
         with:
