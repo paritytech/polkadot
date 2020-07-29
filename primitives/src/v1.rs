@@ -614,6 +614,17 @@ pub enum CoreState<N = BlockNumber> {
 	Free,
 }
 
+impl<N> CoreState<N> {
+	/// If this core state has a `para_id`, return it.
+	pub fn para_id(&self) -> Option<Id> {
+		match self {
+			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Free => None,
+		}
+	}
+}
+
 /// An assumption being made about the state of an occupied core.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
