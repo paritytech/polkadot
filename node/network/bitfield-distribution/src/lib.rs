@@ -28,7 +28,7 @@ use node_primitives::{ProtocolId, View};
 use log::{trace, warn};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
+	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use sc_network::ReputationChange;
@@ -157,24 +157,36 @@ impl BitfieldDistribution {
 						warn!(target: "bitd", "Failed to handle incomming network messages: {:?}", e);
 					}
 				}
-				FromOverseer::Signal(OverseerSignal::StartWork(relay_parent)) => {
-					trace!(target: "bitd", "Start {:?}", relay_parent);
-					// query basic system parameters once
-					let (validator_set, signing_context) =
-						query_basics(&mut ctx, relay_parent).await?;
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
+					for relay_parent in activated {
+						trace!(target: "bitd", "Start {:?}", relay_parent);
+						// query basic system parameters once
+						if let Some((validator_set, signing_context)) =
+							query_basics(&mut ctx, relay_parent).await?
+						{
+							// If our runtime API fails, we don't take down the node,
+							// but we might alter peers' reputations erroneously as a result
+							// of not having the correct bookkeeping. If we have lost a race
+							// with state pruning, it is unlikely that peers will be sending
+							// us anything to do with this relay-parent anyway.
+							let _ = state.per_relay_parent.insert(
+								relay_parent,
+								PerRelayParentData {
+									signing_context,
+									validator_set,
+									..Default::default()
+								},
+							);
+						}
+					}
 
-					let _ = state.per_relay_parent.insert(
-						relay_parent,
-						PerRelayParentData {
-							signing_context,
-							validator_set,
-							..Default::default()
-						},
-					);
+					for relay_parent in deactivated {
+						trace!(target: "bitd", "Stop {:?}", relay_parent);
+						// defer the cleanup to the view change
+					}
 				}
-				FromOverseer::Signal(OverseerSignal::StopWork(relay_parent)) => {
-					trace!(target: "bitd", "Stop {:?}", relay_parent);
-					// defer the cleanup to the view change
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
+					trace!(target: "bitd", "Block finalized {:?}", hash);
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					trace!(target: "bitd", "Conclude");
@@ -556,12 +568,12 @@ where
 async fn query_basics<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
-) -> SubsystemResult<(Vec<ValidatorId>, SigningContext)>
+) -> SubsystemResult<Option<(Vec<ValidatorId>, SigningContext)>>
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
 	let (validators_tx, validators_rx) = oneshot::channel();
-	let (signing_tx, signing_rx) = oneshot::channel();
+	let (session_tx, session_rx) = oneshot::channel();
 
 	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent.clone(),
@@ -570,13 +582,22 @@ where
 
 	let query_signing = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent.clone(),
-		RuntimeApiRequest::SigningContext(signing_tx),
+		RuntimeApiRequest::SessionIndexForChild(session_tx),
 	));
 
 	ctx.send_messages(std::iter::once(query_validators).chain(std::iter::once(query_signing)))
 		.await?;
 
-	Ok((validators_rx.await?, signing_rx.await?))
+	match (validators_rx.await?, session_rx.await?) {
+		(Ok(v), Ok(s)) => Ok(Some((
+			v,
+			SigningContext { parent_hash: relay_parent, session_index: s },
+		))),
+		(Err(e), _) | (_, Err(e)) => {
+			warn!(target: "bitd", "Failed to fetch basics from runtime API: {:?}", e);
+			Ok(None)
+		}
+	}
 }
 
 #[cfg(test)]
@@ -706,7 +727,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -766,7 +787,7 @@ mod test {
 			signed_availability: signed.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -818,7 +839,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -915,7 +936,7 @@ mod test {
 			signed_availability: signed_bitfield.clone(),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 
@@ -1052,7 +1073,7 @@ mod test {
 		// validator 0 key pair
 		let (mut state, _signing_context, _validator_pair) = state_with_view(view![], hash_a.clone());
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) =
 			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
 

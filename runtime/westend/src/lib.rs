@@ -78,12 +78,12 @@ use constants::{time::*, currency::*, fee::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/// Runtime version (Kusama).
+/// Runtime version (Westend).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 39,
+	spec_version: 42,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -897,8 +897,8 @@ sp_api::impl_runtime_apis! {
 		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
 			Registrar::active_paras()
 		}
-		fn global_validation_schedule() -> parachain::GlobalValidationSchedule {
-			Parachains::global_validation_schedule()
+		fn global_validation_data() -> parachain::GlobalValidationData {
+			Parachains::global_validation_data()
 		}
 		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
 			Parachains::current_local_validation_data(&id)

@@ -19,12 +19,13 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::ValidatorId;
+use primitives::v1::{ValidatorId, GlobalValidationData};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	dispatch::DispatchResult,
 	weights::{DispatchClass, Weight},
 };
+use sp_runtime::traits::One;
 use codec::{Encode, Decode};
 use system::ensure_root;
 
@@ -217,6 +218,16 @@ impl<T: Trait> Module<T> {
 
 		if updater(&mut prev) {
 			<Self as Store>::PendingConfig::set(Some(prev));
+		}
+	}
+
+	/// Computes the global validation-data, assuming the context of the parent block.
+	pub(crate) fn global_validation_data() -> GlobalValidationData<T::BlockNumber> {
+		let config = Self::config();
+		GlobalValidationData {
+			max_code_size: config.max_code_size,
+			max_head_data_size: config.max_head_data_size,
+			block_number: <system::Module<T>>::block_number() - One::one(),
 		}
 	}
 }

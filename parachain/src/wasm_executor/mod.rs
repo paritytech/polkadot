@@ -23,8 +23,7 @@
 use std::any::{TypeId, Any};
 use crate::primitives::{ValidationParams, ValidationResult};
 use codec::{Decode, Encode};
-use sp_core::storage::ChildInfo;
-use sp_core::traits::CallInWasm;
+use sp_core::{storage::ChildInfo, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
@@ -119,10 +118,11 @@ pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
 	options: ExecutionMode<'_>,
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, Error> {
 	match options {
 		ExecutionMode::Local => {
-			validate_candidate_internal(validation_code, &params.encode())
+			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::Remote(pool) => {
@@ -154,9 +154,10 @@ type HostFunctions = sp_io::SubstrateHostFunctions;
 pub fn validate_candidate_internal(
 	validation_code: &[u8],
 	encoded_call_data: &[u8],
+	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, Error> {
 	let mut extensions = Extensions::new();
-	extensions.register(sp_core::traits::TaskExecutorExt(sp_core::tasks::executor()));
+	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
 
 	let mut ext = ValidationExternalities(extensions);
 
