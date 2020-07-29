@@ -17,6 +17,7 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
+use sp_std::prelude::*;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
 	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
@@ -24,12 +25,24 @@ use primitives::v1::{
 	GroupIndex, CandidateEvent,
 };
 use sp_runtime::traits::Zero;
-use frame_support::debug;
+use frame_support::{
+	debug,
+	traits::Get,
+};
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
 	<inclusion::Module<T>>::validators()
+}
+
+/// Interface to the persistent (stash) identities of the current validators.
+pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
+ 
+impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
+	fn get() -> Vec<T::ValidatorId> {
+		<session::Module<T>>::validators()
+	}
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
