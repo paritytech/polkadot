@@ -32,7 +32,7 @@ jobs:
     - name: Set up Ruby 2.7
       uses: actions/setup-ruby@v1
       with:
-        ruby-version: 2.6
+        ruby-version: 2.7
     - name: Generate release text
       env:
         RUSTC_STABLE: ${{ needs.get-rust-versions.outputs.rustc-stable }}

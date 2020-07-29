@@ -61,13 +61,14 @@ release_priority = Changelog.highest_priority_for_changes(all_changes)
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
 
-polkadot_runtime = File.open(polkadot_path + '/runtime/polkadot/src/lib.rs')
-                       .find { |l| l =~ /spec_version/ }
-                       .match(/[0-9]+/)[0]
-kusama_runtime = File.open(polkadot_path + '/runtime/kusama/src/lib.rs')
-                       .find { |l| l =~ /spec_version/ }
-                       .match(/[0-9]+/)[0]
-westend_runtime = File.open(polkadot_path + '/runtime/westend/src/lib.rs')
-                       .find { |l| l =~ /spec_version/ }
-                       .match(/[0-9]+/)[0]
+polkadot_runtime = File.open(polkadot_path + '/runtime/polkadot/src/lib.rs') do |f|
+  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
+end
+kusama_runtime = File.open(polkadot_path + '/runtime/kusama/src/lib.rs') do |f|
+  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
+end
+westend_runtime = File.open(polkadot_path + '/runtime/westend/src/lib.rs') do |f|
+  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
+end
+
 puts renderer.result
