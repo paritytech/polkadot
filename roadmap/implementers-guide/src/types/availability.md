@@ -20,7 +20,7 @@ A `SignedAvailabilityBitfield` represents the view from a particular validator's
 
 - the availability core is occupied
 - there exists a [`CommittedCandidateReceipt`](candidate.html#committed-candidate-receipt) corresponding to that core. In other words, that para has a block in progress.
-- the validator's [Availability Store](../utility/availability-store.md) contains a chunk of that parablock's PoV.
+- the validator's [Availability Store](../node/utility/availability-store.md) contains a chunk of that parablock's PoV.
 
 In other words, it is the transpose of [`OccupiedCore::availability`](../runtime-api/availability-cores.md).
 
