@@ -11,12 +11,13 @@ jobs:
       volumes:
         - ${{ github.workspace }}:/build
       env:
-        PACKAGE: release
+        PACKAGE: polkadot-runtime
         RUSTC_VERSION: nightly-2020-07-20
     steps:
       - uses: actions/checkout@v2
       - id: build-runtime
         run: |
+          cd /build
           pwd
           ls
           build
