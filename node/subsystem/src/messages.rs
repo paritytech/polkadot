@@ -281,7 +281,7 @@ pub type ChainApiResponseChannel<T> = oneshot::Sender<Option<T>>;
 
 /// Chain API request subsystem message.
 #[derive(Debug)]
-pub enum ChainApiRequestMessage {
+pub enum ChainApiMessage {
 	/// Request the block number by hash.
 	BlockNumber(Hash, ChainApiResponseChannel<BlockNumber>),
 	/// Request the finalized block hash by number.
@@ -290,7 +290,7 @@ pub enum ChainApiRequestMessage {
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
 }
 
-impl ChainApiRequestMessage {
+impl ChainApiMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		None

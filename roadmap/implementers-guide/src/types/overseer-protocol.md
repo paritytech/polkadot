@@ -133,7 +133,7 @@ All the requests are fallible and may return `None`.
 // TODO (now): Result?
 
 ```rust
-enum ChainApiRequestMessage {
+enum ChainApiMessage {
 	/// Get the block number by hash.
 	BlockNumber(Hash, ResponseChannel<Option<BlockNumber>>),
 	/// Get the finalized block hash by number.

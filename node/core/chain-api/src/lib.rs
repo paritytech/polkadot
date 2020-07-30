@@ -27,7 +27,7 @@
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
-	messages::ChainApiRequestMessage,
+	messages::ChainApiMessage,
 };
 use polkadot_primitives::v1::Block;
 use sp_blockchain::HeaderBackend;
@@ -50,7 +50,7 @@ impl<Client> ChainApiSubsystem<Client> {
 
 impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
-	Context: SubsystemContext<Message = ChainApiRequestMessage>
+	Context: SubsystemContext<Message = ChainApiMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
@@ -61,7 +61,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 }
 
 async fn run<Client>(
-	mut ctx: impl SubsystemContext<Message = ChainApiRequestMessage>,
+	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
 	client: Client,
 ) -> SubsystemResult<()>
 where
@@ -73,16 +73,16 @@ where
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				ChainApiRequestMessage::BlockNumber(hash, sender) => {
+				ChainApiMessage::BlockNumber(hash, sender) => {
 					let result = client.number(hash);
 					let _ = sender.send(result.ok().flatten());
 				},
-				ChainApiRequestMessage::FinalizedBlockHash(number, sender) => {
+				ChainApiMessage::FinalizedBlockHash(number, sender) => {
 					// TODO: do we need to verify it's finalized?
 					let result = client.hash(number);
 					let _ = sender.send(result.ok().flatten());
 				},
-				ChainApiRequestMessage::FinalizedBlockNumber(sender) => {
+				ChainApiMessage::FinalizedBlockNumber(sender) => {
 					let result = client.info().finalized_number;
 					// TODO: this is always infallible
 					let _ = sender.send(Some(result));
@@ -166,7 +166,7 @@ mod tests {
 
 	// TODO: avoid using generics here to reduce compile times
 	fn test_harness(
-		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiRequestMessage>)
+		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiMessage>)
 			-> BoxFuture<'static, ()>,
 	) {
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
@@ -192,7 +192,7 @@ mod tests {
 					let (tx, rx) = oneshot::channel();
 
 					sender.send(FromOverseer::Communication {
-						msg: ChainApiRequestMessage::BlockNumber(*hash, tx),
+						msg: ChainApiMessage::BlockNumber(*hash, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap(), *expected);
@@ -215,7 +215,7 @@ mod tests {
 					let (tx, rx) = oneshot::channel();
 
 					sender.send(FromOverseer::Communication {
-						msg: ChainApiRequestMessage::FinalizedBlockHash(*number, tx),
+						msg: ChainApiMessage::FinalizedBlockHash(*number, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap(), *expected);
@@ -234,7 +234,7 @@ mod tests {
 
 				let expected = client.info().finalized_number;
 				sender.send(FromOverseer::Communication {
-					msg: ChainApiRequestMessage::FinalizedBlockNumber(tx),
+					msg: ChainApiMessage::FinalizedBlockNumber(tx),
 				}).await;
 
 				assert_eq!(rx.await.unwrap().unwrap(), expected);
