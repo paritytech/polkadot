@@ -63,8 +63,12 @@ struct HrmpChannel {
 HRMP related storage layout
 
 ```rust,ignore
-HrmpOpenChannelRequestCount: map ParaId => u32;
+
 HrmpOpenChannelRequests: Vec<HrmpOpenChannelRequest>;
+/// This mapping tracks how many open channel requests are inititated by a given sender para.
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `_.sender == X`
+/// as the number of `HrmpOpenChannelRequestCount` for `X`.
+HrmpOpenChannelRequestCount: map ParaId => u32;
 HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
 
 HrmpWatermarks: map ParaId => Option<BlockNumber>'
