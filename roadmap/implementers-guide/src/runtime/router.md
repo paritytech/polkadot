@@ -163,6 +163,7 @@ TODO: What happens with the deposits in channels or open requests?
         1. increment `R.age` by 1.
         1. if `R.age` reached a preconfigured time-to-live limit `config.hrmp_open_request_ttl`, then:
             1. refund `R.sender_deposit` to the sender
+			1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
             1. remove `R`
     2. if `R.confirmed = true`,
         1. check that `R.sender` and `R.recipient` are not offboarded.
@@ -170,6 +171,7 @@ TODO: What happens with the deposits in channels or open requests?
 		  1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
 		  1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
 		  1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
+		1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
         1. remove `R`
 1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`.
 
