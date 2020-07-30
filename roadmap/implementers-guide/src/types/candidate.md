@@ -178,7 +178,8 @@ struct CandidateCommitments {
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
 	/// TODO:
-	dmq_watermark: BlockNumber,
+	processed_downward_messages: u32,
+	hrmp_watermark: BlockNumber,
 }
 ```
 
@@ -216,6 +217,7 @@ struct ValidationOutputs {
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
 	/// TODO:
-	dmq_watermark: BlockNumber,
+	processed_downward_messages: u32,
+	hrmp_watermark: BlockNumber,
 }
 ```
