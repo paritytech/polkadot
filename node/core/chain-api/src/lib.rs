@@ -74,18 +74,18 @@ where
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, sender) => {
-					let result = client.number(hash);
-					let _ = sender.send(result.ok().flatten());
+					let result = client.number(hash).map_err(|e| format!("{}", e).into());
+					let _ = sender.send(result);
 				},
 				ChainApiMessage::FinalizedBlockHash(number, sender) => {
 					// TODO: do we need to verify it's finalized?
-					let result = client.hash(number);
-					let _ = sender.send(result.ok().flatten());
+					let result = client.hash(number).map_err(|e| format!("{}", e).into());
+					let _ = sender.send(result);
 				},
 				ChainApiMessage::FinalizedBlockNumber(sender) => {
+					// TODO: is this heavier than `Backend::last_finalized`?
 					let result = client.info().finalized_number;
-					// TODO: this is always infallible
-					let _ = sender.send(Some(result));
+					let _ = sender.send(Ok(result));
 				},
 			}
 		}
@@ -195,7 +195,7 @@ mod tests {
 						msg: ChainApiMessage::BlockNumber(*hash, tx),
 					}).await;
 
-					assert_eq!(rx.await.unwrap(), *expected);
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
 				}
 
 				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
@@ -218,7 +218,7 @@ mod tests {
 						msg: ChainApiMessage::FinalizedBlockHash(*number, tx),
 					}).await;
 
-					assert_eq!(rx.await.unwrap(), *expected);
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
 				}
 
 				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;

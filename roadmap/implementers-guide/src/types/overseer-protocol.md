@@ -129,17 +129,18 @@ enum CandidateSelectionMessage {
 ## Chain API Message
 
 The Chain API subsystem is responsible for providing an interface to chain data.
-All the requests are fallible and may return `None`.
-// TODO (now): Result?
 
 ```rust
 enum ChainApiMessage {
 	/// Get the block number by hash.
-	BlockNumber(Hash, ResponseChannel<Option<BlockNumber>>),
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
 	/// Get the finalized block hash by number.
-	FinalizedBlockHash(BlockNumber, ResponseChannel<Option<Hash>>),
+	/// Returns `None` if a block with the given number is not present in the db.
+	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
 	/// Get the last finalized block number.
-	FinalizedBlockNumber(ResponseChannel<Option<BlockNumber>>),
+	/// This request always succeeds.
+	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
 }
 ```
 

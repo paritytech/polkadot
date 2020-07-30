@@ -275,18 +275,44 @@ impl AvailabilityStoreMessage {
 	}
 }
 
+/// A description of an error causing the chain API request to be unservable.
+#[derive(Debug, Clone)]
+pub struct ChainApiError {
+	msg: String,
+}
+
+impl From<&str> for ChainApiError {
+	fn from(s: &str) -> Self {
+		s.to_owned().into()
+	}
+}
+
+impl From<String> for ChainApiError {
+	fn from(msg: String) -> Self {
+		Self { msg }
+	}
+}
+
+impl core::fmt::Display for ChainApiError {
+	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
+		write!(f, "{}", self.msg)
+	}
+}
+
 /// A response channel for the result of a chain API request.
-// TODO (now): use Result
-pub type ChainApiResponseChannel<T> = oneshot::Sender<Option<T>>;
+pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, ChainApiError>>;
 
 /// Chain API request subsystem message.
 #[derive(Debug)]
 pub enum ChainApiMessage {
 	/// Request the block number by hash.
-	BlockNumber(Hash, ChainApiResponseChannel<BlockNumber>),
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
 	/// Request the finalized block hash by number.
-	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Hash>),
+	/// Returns `None` if a block with the given number is not present in the db.
+	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Option<Hash>>),
 	/// Request the last finalized block number.
+	/// This request always succeeds.
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
 }
 
