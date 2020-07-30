@@ -149,15 +149,13 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 			tx.send(available_data(db, &hash).map(|d| d.data)).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryDataAvailability(hash, tx) => {
-			let result = match available_data(db, &hash) {
-				Some(_) => true,
-				None => false,
-			};
-
-			tx.send(result).map_err(|_| oneshot::Canceled)?;
+			tx.send(available_data(db, &hash).is_some()).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunk(hash, id, tx) => {
 			tx.send(get_chunk(db, &hash, id)?).map_err(|_| oneshot::Canceled)?;
+		}
+		QueryChunkAvailability(hash, id, tx) => {
+			tx.send(get_chunk(db, &hash, id)?.is_some()).map_err(|_| oneshot::Canceled)?;
 		}
 		StoreChunk(hash, id, chunk, tx) => {
 			match store_chunk(db, &hash, id, chunk) {
@@ -394,7 +392,7 @@ mod tests {
 
 			let chunk_msg = AvailabilityStoreMessage::StoreChunk(
 				relay_parent,
-				validator_index, 
+				validator_index,
 				chunk.clone(),
 				tx,
 			);
@@ -436,7 +434,7 @@ mod tests {
 				global_validation,
 				local_validation,
 			};
-				
+
 			let available_data = AvailableData {
 				pov,
 				omitted_validation,

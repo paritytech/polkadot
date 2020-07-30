@@ -15,6 +15,7 @@ polkadot-parachain = { path = "../../../parachain" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 derive_more = "0.99.9"
+log = "0.4.8"
 
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }

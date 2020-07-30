@@ -26,6 +26,7 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
+	RuntimeApiError,
 };
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs};
 use polkadot_primitives::v1::{
@@ -128,8 +129,8 @@ async fn runtime_api_request<T>(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	relay_parent: Hash,
 	request: RuntimeApiRequest,
-	receiver: oneshot::Receiver<T>,
-) -> SubsystemResult<T> {
+	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
+) -> SubsystemResult<Result<T, RuntimeApiError>> {
 	ctx.send_message(
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 			relay_parent,
@@ -167,10 +168,10 @@ async fn check_assumption_validation_data(
 		).await?;
 
 		match d {
-			None => {
+			Ok(None) | Err(_) => {
 				return Ok(AssumptionCheckOutcome::BadRequest);
 			}
-			Some(d) => d,
+			Ok(Some(d)) => d,
 		}
 	};
 
@@ -189,7 +190,7 @@ async fn check_assumption_validation_data(
 		let validation_code = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::ValidationCode_New(
+			RuntimeApiRequest::ValidationCode(
 				descriptor.para_id,
 				OccupiedCoreAssumption::Included,
 				code_tx,
@@ -198,8 +199,8 @@ async fn check_assumption_validation_data(
 		).await?;
 
 		match validation_code {
-			None => AssumptionCheckOutcome::BadRequest,
-			Some(v) => AssumptionCheckOutcome::Matches(omitted_validation, v),
+			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
+			Ok(Some(v)) => AssumptionCheckOutcome::Matches(omitted_validation, v),
 		}
 	} else {
 		AssumptionCheckOutcome::DoesNotMatch
@@ -219,12 +220,25 @@ async fn spawn_validate_from_chain_state(
 	// and both `local_validation_data` based on the different `OccupiedCoreAssumption`s.
 	let global_validation_data = {
 		let (tx, rx) = oneshot::channel();
-		runtime_api_request(
+		let res = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
 			RuntimeApiRequest::GlobalValidationData(tx),
 			rx,
-		).await?
+		).await?;
+
+		match res {
+			Ok(g) => g,
+			Err(e) => {
+				log::warn!(
+					target: "candidate_validation",
+					"Error making runtime API request: {:?}",
+					e,
+				);
+
+				return Ok(Err(ValidationFailed));
+			}
+		}
 	};
 
 	match check_assumption_validation_data(
@@ -515,7 +529,7 @@ mod tests {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(local_validation_data.clone()));
+					let _ = tx.send(Ok(Some(local_validation_data.clone())));
 				}
 			);
 
@@ -523,12 +537,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(validation_code.clone()));
+					let _ = tx.send(Ok(Some(validation_code.clone())));
 				}
 			);
 
@@ -582,7 +596,7 @@ mod tests {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(local_validation_data.clone()));
+					let _ = tx.send(Ok(Some(local_validation_data.clone())));
 				}
 			);
 
@@ -590,12 +604,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(validation_code.clone()));
+					let _ = tx.send(Ok(Some(validation_code.clone())));
 				}
 			);
 
@@ -647,7 +661,7 @@ mod tests {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(None);
+					let _ = tx.send(Ok(None));
 				}
 			);
 
@@ -692,7 +706,7 @@ mod tests {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(local_validation_data.clone()));
+					let _ = tx.send(Ok(Some(local_validation_data.clone())));
 				}
 			);
 
@@ -700,12 +714,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode_New(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(None);
+					let _ = tx.send(Ok(None));
 				}
 			);
 
@@ -749,7 +763,7 @@ mod tests {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Some(local_validation_data.clone()));
+					let _ = tx.send(Ok(Some(local_validation_data.clone())));
 				}
 			);
 

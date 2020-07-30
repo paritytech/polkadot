@@ -33,7 +33,7 @@ use sp_trie::PrefixedMemoryDB;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceComponents, TaskManager,
+	Configuration, ChainSpec, TaskManager,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -148,26 +148,25 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, test: bool) -> Result<(
-	service::ServiceParams<
-		Block,
-		FullClient<RuntimeApi, Executor>,
+pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, test: bool) -> Result<
+	service::PartialComponents<
+		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		babe::BabeImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
-		polkadot_rpc::RpcExtension,
-		FullBackend,
+		(
+			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
+			(
+				babe::BabeBlockImport<
+					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
+				>,
+				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
+				babe::BabeLink<Block>
+			),
+			grandpa::SharedVoterState,
+		)
 	>,
-	FullSelectChain,
-	(
-		babe::BabeBlockImport<
-			Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
-		>,
-		grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-		babe::BabeLink<Block>
-	),
-	inherents::InherentDataProviders,
-	grandpa::SharedVoterState,
-), Error>
+	Error
+>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
@@ -184,19 +183,14 @@ pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, t
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-
 	let (client, backend, keystore, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-	let pool_api = sc_transaction_pool::FullChainApi::new(
-		client.clone(), config.prometheus_registry(),
-	);
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
-		std::sync::Arc::new(pool_api),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -251,7 +245,7 @@ pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, t
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		Box::new(move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -269,28 +263,19 @@ pub fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration, t
 			};
 
 			polkadot_rpc::create_full(deps)
-		})
+		}
 	};
 
-	let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
-	let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider)) as _;
-
-	let params = service::ServiceParams {
-		config, backend, client, import_queue, keystore, task_manager, rpc_extensions_builder,
-		transaction_pool,
-		block_announce_validator_builder: None,
-		finality_proof_provider: Some(finality_proof_provider),
-		finality_proof_request_builder: None,
-		on_demand: None,
-		remote_blockchain: None,
-	};
-
-	Ok((params, select_chain, import_setup, inherent_data_providers, rpc_setup))
+	Ok(service::PartialComponents {
+		client, backend, task_manager, keystore, select_chain, import_queue, transaction_pool,
+		inherent_data_providers,
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
+	})
 }
 
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor, Extrinsic>(
-	config: Configuration,
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
 	authority_discovery_disabled: bool,
@@ -327,18 +312,52 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
-	let (params, select_chain, import_setup, inherent_data_providers, rpc_setup)
-		= full_params::<RuntimeApi, Executor, Extrinsic>(config, test)?;
+	let service::PartialComponents {
+		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
+		inherent_data_providers,
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
+	} = new_partial::<RuntimeApi, Executor, Extrinsic>(&mut config, test)?;
 
-	let client = params.client.clone();
-	let keystore = params.keystore.clone();
-	let transaction_pool = params.transaction_pool.clone();
-	let prometheus_registry = params.config.prometheus_registry().cloned();
+	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let ServiceComponents {
-		network,
-		task_manager, telemetry_on_connect_sinks, rpc_handlers, ..
-	} = service::build(params)?;
+	let finality_proof_provider =
+		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+
+	let (network, network_status_sinks, system_rpc_tx) =
+		service::build_network(service::BuildNetworkParams {
+			config: &config,
+			client: client.clone(),
+			transaction_pool: transaction_pool.clone(),
+			spawn_handle: task_manager.spawn_handle(),
+			import_queue,
+			on_demand: None,
+			block_announce_validator_builder: None,
+			finality_proof_request_builder: None,
+			finality_proof_provider: Some(finality_proof_provider.clone()),
+		})?;
+
+	if config.offchain_worker.enabled {
+		service::build_offchain_workers(
+			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+		);
+	}
+
+	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
+
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
+		config,
+		backend: backend.clone(),
+		client: client.clone(),
+		keystore: keystore.clone(),
+		network: network.clone(),
+		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		transaction_pool: transaction_pool.clone(),
+		task_manager: &mut task_manager,
+		on_demand: None,
+		remote_blockchain: None,
+		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
+		network_status_sinks, system_rpc_tx,
+	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
 
@@ -547,7 +566,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 			link: link_half,
 			network: network.clone(),
 			inherent_data_providers: inherent_data_providers.clone(),
-			telemetry_on_connect: Some(telemetry_on_connect_sinks.on_connect_stream()),
+			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
@@ -585,20 +604,17 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 	}
 
-	let (client, backend, keystore, task_manager, on_demand) =
+	let (client, backend, keystore, mut task_manager, on_demand) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-	let pool_api = sc_transaction_pool::LightChainApi::new(
-		client.clone(),
-		on_demand.clone(),
-	);
 	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
 		config.transaction_pool.clone(),
-		Arc::new(pool_api),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
+		client.clone(),
+		on_demand.clone(),
 	));
 
 	let grandpa_block_import = grandpa::light_block_import(
@@ -631,8 +647,27 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 		config.prometheus_registry(),
 	)?;
 
-	let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
-	let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider));
+	let finality_proof_provider =
+		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+
+	let (network, network_status_sinks, system_rpc_tx) =
+		service::build_network(service::BuildNetworkParams {
+			config: &config,
+			client: client.clone(),
+			transaction_pool: transaction_pool.clone(),
+			spawn_handle: task_manager.spawn_handle(),
+			import_queue,
+			on_demand: Some(on_demand.clone()),
+			block_announce_validator_builder: None,
+			finality_proof_request_builder: Some(finality_proof_request_builder),
+			finality_proof_provider: Some(finality_proof_provider),
+		})?;
+	
+	if config.offchain_worker.enabled {
+		service::build_offchain_workers(
+			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+		);
+	}
 
 	let light_deps = polkadot_rpc::LightDeps {
 		remote_blockchain: backend.remote_blockchain(),
@@ -643,17 +678,14 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let ServiceComponents { task_manager, rpc_handlers, .. } = service::build(service::ServiceParams {
-		config,
-		block_announce_validator_builder: None,
-		finality_proof_request_builder: Some(finality_proof_request_builder),
-		finality_proof_provider: Some(finality_proof_provider),
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {	
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
-		client: client.clone(),
-		transaction_pool: transaction_pool.clone(),
-		import_queue, keystore, backend, task_manager,
+		task_manager: &mut task_manager,
+		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
+		config, keystore, backend, transaction_pool, client, network, network_status_sinks,
+		system_rpc_tx,
 	})?;
 
 	Ok((task_manager, rpc_handlers))
@@ -678,8 +710,8 @@ where
 	Extrinsic: RuntimeExtrinsic,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	let (service::ServiceParams { client, backend, import_queue, task_manager, .. }, ..)
-		= full_params::<Runtime, Dispatch, Extrinsic>(config, false)?;
+	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+		= new_partial::<Runtime, Dispatch, Extrinsic>(&mut config, false)?;
 	Ok((client, backend, import_queue, task_manager))
 }
 

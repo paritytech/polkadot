@@ -32,7 +32,7 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CandidateCommitments,
+	CandidateCommitments, CoreState, CoreIndex,
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
@@ -44,12 +44,14 @@ use polkadot_subsystem::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
+		RuntimeApiRequest,
 	},
 	util::{
 		self,
-		request_signing_context,
+		request_session_index_for_child,
 		request_validator_groups,
 		request_validators,
+		request_from_runtime,
 		Validator,
 	},
 };
@@ -680,19 +682,56 @@ impl util::JobTrait for CandidateBackingJob {
 		mut tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let (validators, roster, signing_context) = futures::try_join!(
+			macro_rules! try_runtime_api {
+				($x: expr) => {
+					match $x {
+						Ok(x) => x,
+						Err(e) => {
+							log::warn!(
+								target: "candidate_backing",
+								"Failed to fetch runtime API data for job: {:?}",
+								e,
+							);
+
+							// We can't do candidate validation work if we don't have the
+							// requisite runtime API data. But these errors should not take
+							// down the node.
+							return Ok(());
+						}
+					}
+				}
+			}
+
+			let (validators, groups, session_index, cores) = futures::try_join!(
 				request_validators(parent, &mut tx_from).await?,
 				request_validator_groups(parent, &mut tx_from).await?,
-				request_signing_context(parent, &mut tx_from).await?,
+				request_session_index_for_child(parent, &mut tx_from).await?,
+				request_from_runtime(
+					parent,
+					&mut tx_from,
+					|tx| RuntimeApiRequest::AvailabilityCores(tx),
+				).await?,
 			)?;
 
+			let validators = try_runtime_api!(validators);
+			let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
+			let session_index = try_runtime_api!(session_index);
+			let cores = try_runtime_api!(cores);
+
+			let signing_context = SigningContext { parent_hash: parent, session_index };
 			let validator = Validator::construct(&validators, signing_context, keystore.clone())?;
 
 			let mut groups = HashMap::new();
 
-			for assignment in roster.scheduled {
-				if let Some(g) = roster.validator_groups.get(assignment.group_idx.0 as usize) {
-					groups.insert(assignment.para_id, g.clone());
+			let n_cores = cores.len();
+			for (idx, core) in cores.into_iter().enumerate() {
+				// Ignore prospective assignments on occupied cores for the time being.
+				if let CoreState::Scheduled(scheduled) = core {
+					let core_index = CoreIndex(idx as _);
+					let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+					if let Some(g) = validator_groups.get(group_index.0 as usize) {
+						groups.insert(scheduled.para_id, g.clone());
+					}
 				}
 			}
 
@@ -779,12 +818,12 @@ mod tests {
 	use assert_matches::assert_matches;
 	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
-		AssignmentKind, BlockData, CandidateCommitments, CollatorId, CoreAssignment, CoreIndex,
-		LocalValidationData, GlobalValidationData, GroupIndex, HeadData,
-		ValidatorPair, ValidityAttestation,
+		ScheduledCore, BlockData, CandidateCommitments, CollatorId,
+		LocalValidationData, GlobalValidationData, HeadData,
+		ValidatorPair, ValidityAttestation, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
-		messages::{RuntimeApiRequest, SchedulerRoster},
+		messages::RuntimeApiRequest,
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
 	use sp_keyring::Sr25519Keyring;
@@ -801,7 +840,8 @@ mod tests {
 		validator_public: Vec<ValidatorId>,
 		global_validation_data: GlobalValidationData,
 		local_validation_data: LocalValidationData,
-		roster: SchedulerRoster,
+		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
+		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
 		signing_context: SigningContext,
 		relay_parent: Hash,
@@ -830,52 +870,38 @@ mod tests {
 
 			let validator_public = validator_pubkeys(&validators);
 
-			let chain_a_assignment = CoreAssignment {
-				core: CoreIndex::from(0),
-				para_id: chain_a,
-				kind: AssignmentKind::Parachain,
-				group_idx: GroupIndex::from(0),
-			};
-
-			let chain_b_assignment = CoreAssignment {
-				core: CoreIndex::from(1),
-				para_id: chain_b,
-				kind: AssignmentKind::Parachain,
-				group_idx: GroupIndex::from(1),
+			let validator_groups = vec![vec![2, 0, 3], vec![1], vec![4]];
+			let group_rotation_info = GroupRotationInfo {
+				session_start_block: 0,
+				group_rotation_frequency: 100,
+				now: 1,
 			};
 
 			let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
-
-			let thread_a_assignment = CoreAssignment {
-				core: CoreIndex::from(2),
-				para_id: thread_a,
-				kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
-				group_idx: GroupIndex::from(2),
-			};
-
-			let validator_groups = vec![vec![2, 0, 3], vec![1], vec![4]];
-
-			let parent_hash_1 = [1; 32].into();
-
-			let roster = SchedulerRoster {
-				validator_groups,
-				scheduled: vec![
-					chain_a_assignment,
-					chain_b_assignment,
-					thread_a_assignment,
-				],
-				upcoming: vec![],
-				availability_cores: vec![],
-			};
-			let signing_context = SigningContext {
-				session_index: 1,
-				parent_hash: parent_hash_1,
-			};
+			let availability_cores = vec![
+				CoreState::Scheduled(ScheduledCore {
+					para_id: chain_a,
+					collator: None,
+				}),
+				CoreState::Scheduled(ScheduledCore {
+					para_id: chain_b,
+					collator: None,
+				}),
+				CoreState::Scheduled(ScheduledCore {
+					para_id: thread_a,
+					collator: Some(thread_collator.clone()),
+				}),
+			];
 
 			let mut head_data = HashMap::new();
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
 			let relay_parent = Hash::from([5; 32]);
+
+			let signing_context = SigningContext {
+				session_index: 1,
+				parent_hash: relay_parent,
+			};
 
 			let local_validation_data = LocalValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
@@ -895,7 +921,8 @@ mod tests {
 				keystore,
 				validators,
 				validator_public,
-				roster,
+				validator_groups: (validator_groups, group_rotation_info),
+				availability_cores,
 				head_data,
 				local_validation_data,
 				global_validation_data,
@@ -984,7 +1011,7 @@ mod tests {
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::Validators(tx))
 			) if parent == test_state.relay_parent => {
-				tx.send(test_state.validator_public.clone()).unwrap();
+				tx.send(Ok(test_state.validator_public.clone())).unwrap();
 			}
 		);
 
@@ -994,19 +1021,29 @@ mod tests {
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))
 			) if parent == test_state.relay_parent => {
-				tx.send(test_state.roster.clone()).unwrap();
+				tx.send(Ok(test_state.validator_groups.clone())).unwrap();
 			}
 		);
 
-		// Check that subsystem job issues a request for the signing context.
+		// Check that subsystem job issues a request for the session index for child.
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SigningContext(tx))
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))
 			) if parent == test_state.relay_parent => {
-				tx.send(test_state.signing_context.clone()).unwrap();
+				tx.send(Ok(test_state.signing_context.session_index)).unwrap();
 			}
 		);
+
+			// Check that subsystem job issues a request for the availability cores.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::RuntimeApi(
+					RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
+				) if parent == test_state.relay_parent => {
+					tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+				}
+			);
 	}
 
 	// Test that a `CandidateBackingMessage::Second` issues validation work
