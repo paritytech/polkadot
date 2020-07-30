@@ -116,7 +116,7 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => if let Err(e) = response_sender.send(x) {
+						Ok(x) => if let Err(_e) = response_sender.send(x) {
 							log::warn!(
 								target: "candidate_validation",
 								"Requester of candidate validation dropped",
