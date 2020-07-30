@@ -17,7 +17,6 @@
 //! A dummy module for holding place of modules in a runtime.
 
 use frame_support::{decl_module, decl_storage};
-use sp_std::prelude::*;
 
 pub trait Trait<I: Instance = DefaultInstance>: system::Trait { }
 
