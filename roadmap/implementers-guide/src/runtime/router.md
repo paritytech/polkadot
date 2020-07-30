@@ -157,6 +157,9 @@ The routines described below are for use within a session change and called by t
 * `offboard_para(P: ParaId)`:
   1. Remove all inbound channels of `P`, i.e. `(_, P)`,
   1. Remove all outbound channels of `P`, i.e. `(P, _)`,
+  1. Remove all `DownwardMessageQueues` of `P`.
+  1. Remove `RelayDispatchQueueSize` of `P`.
+  1. Remove `RelayDispatchQueues` of `P`.
   - Note that we don't remove the open/close requests since they are gon die out naturally.
 TODO: What happens with the deposits in channels or open requests?
 
