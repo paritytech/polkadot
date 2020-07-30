@@ -25,6 +25,8 @@ pub mod crowdfund;
 pub mod purchase;
 pub mod impls;
 
+pub mod dummy;
+
 use primitives::v1::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
 use frame_support::{
