@@ -74,10 +74,17 @@ HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
 
 HrmpChannels: map HrmpChannelId => Option<Channel>;
+
+/// The indexes that map all senders to their recievers and vise versa.
+/// Invariants:
+/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels` as `(I, P)`.
+/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels` as `(P, E)`.
+/// - there should be no other dangling channels in `HrmpChannels`.
 HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
+
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
