@@ -75,6 +75,10 @@ hrmp_close_ch_requests: Vec<HrmpCloseChannelRequest>;
 // TODO: We need to be able to remove all channels for a particular sender
 // TODO: We need to be able to remove all channels for a particular recipient
 channels: map (ParaId, ParaId) => Option<Channel>;
+
+/// A list of channels that have `sealed = true` and `used_places = 0`. Those will be removed at
+/// the nearest session boundary.
+condemned: Vec<(ParaId, ParaId)>;
 ```
 
 ## Initialization
@@ -128,7 +132,7 @@ Candidate Acceptance Function:
 	1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
 	1. `C.used_places + 1` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
 
-Enactment: TODO:
+Enactment:
 
 * `queue_horizontal_messages(sender: ParaId, Vec<HorizontalMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
@@ -140,6 +144,7 @@ Enactment: TODO:
   1. Prune `DownwardMessageQueues` for `recipient` up to `new_dmq_watermark`. For each pruned DMQ message of kind `HorizontalMessage` `M` with the channel `C` identified by `(M.sender, recipient)`.
 	1. Decrement `C.used_places`
 	1. Decrement `C.used_bytes` by `M`'s payload size.
+  1. If `C.used_places = 0` and `C.sealed = true`, append `C` to `condemned`.
   1. Set `DmqWatermarks` for `P` to be equal to `new_dmq_watermark`
 
 
@@ -160,7 +165,7 @@ Enactment: TODO:
 1. For each request `R` in the close channel request list. A channel `C` identified by `(R.sender, R.recipient)`:
     1. If `C.used_places` is greater than 0 then set `C.sealed = true`
     1. Otherwise, remove the channel eagerly (See below)
-1. For each channel `C` in `channels` remove if `C.sealed = true` and `C.used_places = 0`. (TODO: how to iterate? Make this efficient)
+1. Remove all channels found in the `condemned` list and clear the list.
 
 To remove a channel `C` identified with a tuple `(sender, recipient)`:
 
