@@ -648,8 +648,8 @@ where
         RuntimeApiRequest::AvailabilityCores(tx),
     )))
     .await;
-    let x = rx.await.expect("FIXME");
-    Ok(x.filter_map(|core_state| {
+    let all_para_ids = rx.await.map_err(Into::into)?;
+    Ok(all_para_ids.filter_map(|core_state| {
         if let CoreState::Occupied(occupied) = core_state {
             Some(occupied.pada_id)
         } else {
@@ -690,10 +690,8 @@ where
     ctx.send_message(AllMessages::AvailabilityStore(
         AvailabilityStoreMessage::QueryPoV(hash, tx),
     ))
-    .await
-    .expect("FIXME");
-    let x = rx.await.expect("FIXME");
-    Ok(x)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 async fn query_stored_chunk<Context>(
@@ -708,10 +706,8 @@ where
     ctx.send_message(AllMessages::AvailabilityStore(
         AvailabilityStoreMessage::QueryChunk(hash, validator_index, tx),
     ))
-    .await
-    .expect("FIXME");
-    let x = rx.await.expect("FIXME");
-    Ok(x)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 async fn store_chunk<Context>(
@@ -727,9 +723,8 @@ where
     ctx.send_message(AllMessages::AvailabilityStore(
         AvailabilityStoreMessage::StoreChunk(hash, validator_index, erasure_chunk, tx),
     ))
-    .await;
-    let x = rx.await.expect("FIXME");
-    Ok(x)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 /// Request the head data for a particular para.
@@ -746,9 +741,8 @@ where
         relay_parent,
         RuntimeApiRequest::HeadData(para, tx),
     )))
-    .await;
-    let x = rx.await.expect("FIXME");
-    Ok(x)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 /// Request the head data for a particular para.
@@ -765,9 +759,8 @@ where
         relay_parent,
         RuntimeApiRequest::CandidatePendingAvailability(para, tx),
     )))
-    .await;
-    let x = rx.await.expect("FIXME");
-    Ok(x)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 /// Query the validator set.
@@ -778,15 +771,15 @@ async fn query_validators<Context>(
 where
     Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-    let (validators_tx, validators_rx) = oneshot::channel();
+    let (tx, rx) = oneshot::channel();
     let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
         relay_parent.clone(),
-        RuntimeApiRequest::Validators(validators_tx),
+        RuntimeApiRequest::Validators(tx),
     ));
 
-    ctx.send_message(query_validators).await?;
-
-    validators_rx.await
+    ctx.send_message(query_validators)
+    .await.map_err(Into::into)?;
+    rx.await.map_err(Into::into)
 }
 
 #[cfg(test)]
