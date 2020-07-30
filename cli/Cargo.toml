@@ -34,12 +34,15 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
 browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+# this crate is used only to enable `trie-memory-tracker` feature
+# see https://github.com/paritytech/substrate/pull/6745
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = [ "wasmtime", "db", "cli", "service-old" ]
+default = [ "wasmtime", "db", "cli", "service-old", "trie-memory-tracker" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
@@ -57,3 +60,4 @@ browser = [
 ]
 runtime-benchmarks = [ "service/runtime-benchmarks" ]
 service-rewr = [ "service-new/full-node" ]
+trie-memory-tracker = [ "sp-trie/memory-tracker" ]

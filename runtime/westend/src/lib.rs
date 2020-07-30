@@ -74,6 +74,9 @@ pub use parachains::Call as ParachainsCall;
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
 
+// Weights used in the runtime
+mod weights;
+
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
@@ -201,7 +204,7 @@ impl balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = ();
+	type WeightInfo = weights::balances::WeightInfo;
 }
 
 parameter_types! {
@@ -1049,6 +1052,7 @@ sp_api::impl_runtime_apis! {
 			highest_range_values: Vec<u32>,
 			steps: Vec<u32>,
 			repeat: u32,
+			extra: bool,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
@@ -1081,7 +1085,16 @@ sp_api::impl_runtime_apis! {
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
-			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
+			let params = (
+				&pallet,
+				&benchmark,
+				&lowest_range_values,
+				&highest_range_values,
+				&steps,
+				repeat,
+				&whitelist,
+				extra,
+			);
 
 			add_benchmark!(params, batches, balances,Balances);
 			add_benchmark!(params, batches, identity,Identity);

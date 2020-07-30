@@ -1,0 +1,68 @@
+name: Publish draft release
+
+on:
+  push:
+    tags:
+      - v**.**.**
+
+jobs:
+  get-rust-versions:
+    runs-on: ubuntu-latest
+    container:
+      image: paritytech/ci-linux:production
+    outputs:
+      rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
+      rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
+    steps:
+      - id: get-rust-versions
+        run: |
+          echo "::set-output name=stable::$(rustc +stable --version)"
+          echo "::set-output name=nightly::$(rustc +nightly --version)"
+
+  publish-draft-release:
+    runs-on: ubuntu-latest
+    needs: get-rust-versions
+    outputs:
+      release_url: ${{ steps.create-release.outputs.html_url }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        path: polkadot
+    - name: Set up Ruby 2.7
+      uses: actions/setup-ruby@v1
+      with:
+        ruby-version: 2.7
+    - name: Generate release text
+      env:
+        RUSTC_STABLE: ${{ needs.get-rust-versions.outputs.rustc-stable }}
+        RUSTC_NIGHTLY: ${{ needs.get-rust-versions.outputs.rustc-nightly }}
+      run: |
+        gem install changelogerator git toml
+        ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb > release_text.md
+    - uses: actions/upload-artifact@v2
+      with:
+        name: release_text
+        path: release_text.md
+    - name: Create draft release
+      id: create-release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Polkadot ${{ github.ref }}
+        body_path: ./release_text.md
+        draft: true
+
+  post_to_matrix:
+    runs-on: ubuntu-latest
+    needs: publish-draft-release
+    steps:
+      - name: Internal polkadot channel
+        uses: s3krit/matrix-message-action@v0.0.2
+        with:
+          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Gav: Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
+          server: "matrix.parity.io"
