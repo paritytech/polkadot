@@ -50,5 +50,11 @@ struct HostConfiguration {
 
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
+
+	// TODO:
+	pub hrmp_sender_deposit: u32,
+	pub hrmp_recipient_deposit: u32,
+	pub hrmp_channel_max_places: u32,
+	pub hrmp_channel_max_size: u32,
 }
 ```

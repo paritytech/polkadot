@@ -34,14 +34,15 @@ struct HrmpOpenChannelRequest {
     recipient: ParaId,
     confirmed: bool,
     age: u32,
-	sender_deposit: Balance,
+    sender_deposit: Balance,
+    limit_used_places: u32,
+    limit_used_bytes: u32,
 }
 
 struct HrmpCloseChannelRequest {
     // invariant: equals either to sender or recipient.
     initiator: ParaId,
-    sender: ParaId,
-    recipient: ParaId,
+    id: HrmpChannelId,
 }
 
 struct HrmpChannel {
@@ -50,45 +51,32 @@ struct HrmpChannel {
     sender_deposit: Balance,
     recipient_deposit: Balance,
 
+    limit_used_places: u32,
+    limit_used_bytes: u32,
+
     // The number of messages placed in the channel by the sender and the total number of bytes
     // the occupy.
     used_places: u32,
     used_bytes: u32,
-
-    // if a channel is sealed, then it doesn't accept new messages.
-    // If it is sealed and `used_places` reaches 0 then the channel
-    // can be removed at the next session boundary.
-    sealed: bool,
 }
 ```
 HRMP related storage layout
 
 ```rust,ignore
-// TODO: Proposal: place the primary information into a map `(sender, recipient)`.
-// then add indexes?
-
-// TODO: Number of open requests per sender.
-// TODO: We need to iterate over all open requests.
-// TODO: We need to iterate over all close requests.
-// TODO: There should be a set for quickly checking if a close request for `(sender, reciever)` exists.
+HrmpOpenChannelRequestCount: map ParaId => u32;
 HrmpOpenChannelRequests: Vec<HrmpOpenChannelRequest>;
 HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
 
 HrmpWatermarks: map ParaId => Option<BlockNumber>'
 
-// TODO: Number of opened channels per sender.
-// TODO: We need to be able to remove all channels for a particular sender
-// TODO: We need to be able to remove all channels for a particular recipient
 HrmpChannels: map HrmpChannelId => Option<Channel>;
+HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
+HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 
 HrmpChannelContents: map HrmpChannelId => Vec<(BlockNumber, Vec<u8>)>;
 /// Maintains a mapping that can be used to answer a question:
 /// What paras sent a message at the given block number for a given reciever.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
-
-/// A list of channels that have `sealed = true` and `used_places = 0`. Those will be removed at
-/// the nearest session boundary.
-HrmpCondemnedChannels: Vec<HrmpChannelId>;
 ```
 
 ## Initialization
@@ -103,23 +91,25 @@ The following routines are intended to be invoked by paras' upward messages.
   1. Check that the origin of this message is a para. We say that the origin of this message is the `sender`.
   1. Check that the `sender` is not `recipient`.
   1. Check that the `recipient` para exists.
-  1. Check that there is no existing intention to open a channel between sender and recipient. TODO: Be more specific
-  1. Check that the sum of the number of already opened HRMP channels by the `sender` (TODO: be more specific) and the number of open requests by the `sender` (TODO: be more specific) doesn't exceed the limit of channels minus 1.
-  1. Reserve the deposit for the `sender`.
-  1. Add a new entry to `HrmpOpenChannelRequests` and all other auxilary structures (TODO: be more specific)
+  1. Check that there is no existing intention to open a channel between sender and recipient.
+  1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of channels minus 1.
+  1. Reserve the deposit for the `sender` according to `config.hrmp_sender_deposit`
+  1. Add a new entry to `HrmpOpenChannelRequests` and increase `HrmpOpenChannelRequestCount` by 1 for the `sender`.
+    1. Set `sender_deposit` to `config.hrmp_sender_deposit`
+	1. Set `limit_used_places` to `config.hrmp_channel_max_places`
+	1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
 
-* `accept_open_channel(i)`, `i` - is the index of open channel request: (TODO: consider specifying the pair directly)
+* `accept_open_channel(i)`, `i` - is the index of open channel request:
   1. Check that the designated open channel request exists
   1. Check that the request's `recipient` corresponds to the origin of this message.
-  1. Reserve the deposit for the `recipient`.
+  1. Reserve the deposit for the `recipient` according to `config.hrmp_recipient_deposit`
   1. Set the request's `confirmed` flag to `true`.
 
 * `close_channel(sender, recipient)`:
   1. Check that the channel between `sender` and `recipient` exists
-  1. Check that the channel between `sender` and `recipient` is not already sealed
   1. Check that the origin of the message is either `sender` or `recipient`
-  1. Check that there is no existing intention to close the channel between `sender` and `recipient`. (TODO: be more specific)
-  1. Add a new entry to `HrmpCloseChannelRequests`.
+  1. Check that there is no existing intention to close the channel between `sender` and `recipient`.
+  1. Add a new entry to `HrmpCloseChannelRequests` with initiator set to the origin of this message.
 
 Candidate Acceptance Function:
 
@@ -133,26 +123,24 @@ Candidate Acceptance Function:
 * `verify_outbound_hrmp(sender: ParaId, Vec<HorizontalMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
     1. exists
-	1. `C.sealed = false`
-	1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
-	1. `C.used_places + 1` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
+    1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `Climit_used_bytes`.
+    1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
 
 Candidate Enactment:
 
 * `queue_horizontal_messages(sender: ParaId, Vec<HorizontalMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
-	1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
-	1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
+    1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
+    1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
     1. Increment `C.used_places`
-	1. Increment `C.used_bytes` by `HM`'s payload size
+    1. Increment `C.used_bytes` by `HM`'s payload size
 * `prune_hrmp(recipient, new_hrmp_watermark)`:
   1. From ``HrmpChannelDigests`` for `recipient` remove all entries up to an entry with block number equal to `new_hrmp_watermark`.
   1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
   1. For each channel `C` identified by `(sender, recipient)` for each `sender` coming from the set, prune messages up to the `new_hrmp_watermark`.
   1. For each pruned message `M` from channel `C`:
-	1. Decrement `C.used_places`
-	1. Decrement `C.used_bytes` by `M`'s payload size.
-  1. If `C.used_places = 0` and `C.sealed = true`, append `C` to `HrmpCondemnedChannels`.
+    1. Decrement `C.used_places`
+    1. Decrement `C.used_bytes` by `M`'s payload size.
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
   1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
@@ -166,31 +154,33 @@ The routines described below are for use within a session change and called by t
   1. Remove all inbound channels of `P`, i.e. `(_, P)`,
   1. Remove all outbound channels of `P`, i.e. `(P, _)`,
   - Note that we don't remove the open/close requests since they are gon die out naturally.
-TODO: What happens with the deposit?
+TODO: What happens with the deposits in channels or open requests?
 
 ## Session Change
 
-1. For each request `R` in the open channel request list: (TODO: Be more specific)
+1. For each request `R` in `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
-        1. if `R.age` reached a preconfigured time-to-live limit, then (TODO: what preconfigured limit? global or local to para?)
+        1. if `R.age` reached a preconfigured time-to-live limit `config.hrmp_open_request_ttl`, then:
             1. refund `R.sender_deposit` to the sender
             1. remove `R`
     2. if `R.confirmed = true`,
-		1. check that `R.sender` and `R.recipient` are not offboarded.
-        1. create a new channel `C` between `(R.sender, R.recipient)`. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration. (TODO: be more specific about the configuration)
+        1. check that `R.sender` and `R.recipient` are not offboarded.
+        1. create a new channel `C` between `(R.sender, R.recipient)`.
+		  1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
+		  1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
+		  1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
         1. remove `R`
-1. For each request `R` in the close channel request list. A channel `C` identified by `(R.sender, R.recipient)`:
-    1. If `C.used_places` is greater than 0 then set `C.sealed = true`
-    1. Otherwise, remove the channel eagerly (See below)
-1. Remove all channels found in the `HrmpCondemnedChannels` list and clear the list.
+1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`.
 
 To remove a channel `C` identified with a tuple `(sender, recipient)`:
 
 1. Return `C.sender_deposit` to the `sender`.
 1. Return `C.recipient_deposit` to the `recipient`.
 1. Remove `C` from `HrmpChannels`.
-
+1. Remove `C` from `HrmpChannelContents`.
+1. Remove `recipient` from the set `HrmpEgressChannelsIndex` for `sender`.
+1. Remove `sender` from the set `HrmpIngressChannelsIndex` for `recipient`.
 
 ## Finalization
 
