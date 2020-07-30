@@ -96,7 +96,7 @@ The following routines are intended to be invoked by paras' upward messages.
   1. Check that the `sender` is not `recipient`.
   1. Check that the `recipient` para exists.
   1. Check that there is no existing open channel request from sender to recipient.
-  1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of channels minus 1.
+  1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of channels (`config.hrmp_max_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
   1. Reserve the deposit for the `sender` according to `config.hrmp_sender_deposit`
   1. Add a new entry to `HrmpOpenChannelRequests` and increase `HrmpOpenChannelRequestCount` by 1 for the `sender`.
     1. Set `sender_deposit` to `config.hrmp_sender_deposit`
