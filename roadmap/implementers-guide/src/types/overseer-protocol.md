@@ -138,7 +138,7 @@ enum ChainApiRequestMessage {
 	BlockNumber(Hash, ResponseChannel<Option<BlockNumber>>),
 	/// Get the finalized block hash by number.
 	FinalizedBlockHash(BlockNumber, ResponseChannel<Option<Hash>>),
-	/// Get the finalized block number.
+	/// Get the last finalized block number.
 	FinalizedBlockNumber(ResponseChannel<Option<BlockNumber>>),
 }
 ```

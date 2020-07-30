@@ -22,16 +22,14 @@
 //! * Block hash to number
 //! * Finalized block number to hash
 //! * Last finalized block number
-//! * TODO (now) complete the list
+//! * TODO (now): ancestors
 
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
+	messages::ChainApiRequestMessage,
 };
-use polkadot_subsystem::messages::{
-	ChainApiRequestMessage,
-};
-use polkadot_primitives::v1::{Block, BlockId, Hash};
+use polkadot_primitives::v1::Block;
 use sp_blockchain::HeaderBackend;
 
 use futures::prelude::*;
@@ -81,7 +79,7 @@ where
 					let _ = sender.send(result.ok().flatten());
 				},
 				ChainApiRequestMessage::FinalizedBlockHash(number, sender) => {
-					// TODO: verify
+					// TODO: do we need to verify it's finalized?
 					let result = client.hash(number);
 					let _ = sender.send(result.ok().flatten());
 				},
@@ -98,6 +96,34 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
+	use sp_blockchain::Info as BlockInfo;
+	use std::collections::HashMap;
+
+	struct TestClient {
+		blocks_by_hash: HashMap<Hash, BlockNumber>,
+		finalized_block_hashes: HashMap<BlockNumber, Hash>,
+		last_finalized_block: Option<BlockNumber>,
+	}
+
+	impl HeaderBackend<Block> for TestClient {
+		fn info(&self) -> BlockInfo<Block> {
+			todo!()
+		}
+		fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
+			todo!()
+		}
+		fn hash(&self, number: BlockNumber) -> sp_blockchain::Result<Option<Hash>> {
+			todo!()
+		}
+		fn header(&self, id: BlockId) -> sp_blockchain::Result<Option<Header>> {
+			unimplemented!()
+		}
+		fn status(&self, id: BlockId) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+			unimplemented!()
+		}
+	}
+
 	#[test]
 	fn it_works() {
 		todo!()

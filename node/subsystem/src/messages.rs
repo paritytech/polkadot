@@ -286,7 +286,7 @@ pub enum ChainApiRequestMessage {
 	BlockNumber(Hash, ChainApiResponseChannel<BlockNumber>),
 	/// Request the finalized block hash by number.
 	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Hash>),
-	/// Request the finalized block number.
+	/// Request the last finalized block number.
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
 }
 
