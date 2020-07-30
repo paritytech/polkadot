@@ -86,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 42,
+	spec_version: 43,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -294,8 +294,8 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: staking::EraIndex = 28;
-	// 28 eras in which slashes can be cancelled (7 days).
-	pub const SlashDeferDuration: staking::EraIndex = 28;
+	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
+	pub const SlashDeferDuration: staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
@@ -1111,5 +1111,18 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Runtime;
+
+	#[test]
+	fn slash_defer_less_than_bonding_duration() {
+		assert!(
+			<Runtime as staking::Trait>::SlashDeferDuration::get()
+				< <Runtime as staking::Trait>::BondingDuration::get()
+		);
 	}
 }

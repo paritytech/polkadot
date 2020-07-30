@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 22,
+	spec_version: 23,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -329,7 +329,7 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (28 days).
 	pub const BondingDuration: staking::EraIndex = 28;
-	pub const SlashDeferDuration: staking::EraIndex = 28;
+	pub const SlashDeferDuration: staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// last 15 minutes of the last session will be for election.
@@ -1473,5 +1473,18 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::Runtime;
+
+	#[test]
+	fn slash_defer_less_than_bonding_duration() {
+		assert!(
+			<Runtime as staking::Trait>::SlashDeferDuration::get()
+				< <Runtime as staking::Trait>::BondingDuration::get()
+		);
 	}
 }
