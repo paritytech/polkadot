@@ -338,12 +338,6 @@ pub enum RuntimeApiRequest {
 	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
-	/// Get the validation code.
-	ValidationCode(
-		ParaId,
-		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<ValidationCode>>,
-	),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
