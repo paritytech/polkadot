@@ -222,7 +222,7 @@ pub fn start<C, Api, SP>(
 	C: ChainContext + 'static,
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	SP: SpawnNamed + Clone + Send + 'static,
+	SP: SpawnNamed + Clone + Send + Unpin + 'static,
 {
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
@@ -830,7 +830,7 @@ struct Worker<Api, Sp, Gossip> {
 impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	Sp: SpawnNamed + Clone,
+	Sp: SpawnNamed + Clone + Unpin + 'static,
 	Gossip: GossipOps,
 {
 	// spawns a background task to spawn consensus networking.
@@ -882,6 +882,7 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 				self.gossip_handle.clone(),
 				self.background_to_main_sender.clone(),
 				exit,
+				self.executor.clone(),
 			).boxed(),
 		);
 	}
@@ -1062,7 +1063,7 @@ async fn worker_loop<Api, Sp>(
 ) where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	Sp: SpawnNamed + Clone,
+	Sp: SpawnNamed + Clone + Unpin + 'static,
 {
 	const BACKGROUND_TO_MAIN_BUF: usize = 16;
 
@@ -1149,6 +1150,7 @@ async fn statement_import_loop<Api>(
 	gossip_handle: impl GossipOps,
 	mut to_worker: mpsc::Sender<BackgroundToWorkerMsg>,
 	mut exit: exit_future::Exit,
+	spawner: impl SpawnNamed + Clone + Unpin + 'static,
 ) where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -1221,7 +1223,7 @@ async fn statement_import_loop<Api>(
 					let table = table.clone();
 					let gossip_handle = gossip_handle.clone();
 
-					let work = producer.prime(api.clone()).validate().map(move |res| {
+					let work = producer.prime(api.clone(), spawner.clone()).validate().map(move |res| {
 						let validated = match res {
 							Err(e) => {
 								debug!(target: "p_net", "Failed to act on statement: {}", e);

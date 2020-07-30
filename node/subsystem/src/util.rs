@@ -21,7 +21,9 @@
 //! this module.
 
 use crate::{
-	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, SchedulerRoster},
+	messages::{
+		AllMessages, RuntimeApiError, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
+	},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use futures::{
@@ -37,8 +39,8 @@ use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
-	EncodeAs, Hash, HeadData, Id as ParaId, Signed, SigningContext,
-	ValidatorId, ValidatorIndex, ValidatorPair,
+	EncodeAs, Hash, Signed, SigningContext, SessionIndex,
+	ValidatorId, ValidatorIndex, ValidatorPair, GroupRotationInfo,
 };
 use sp_core::{
 	Pair,
@@ -70,6 +72,9 @@ pub enum Error {
 	/// A subsystem error
 	#[from]
 	Subsystem(SubsystemError),
+	/// An error in the runtime API.
+	#[from]
+	RuntimeApi(RuntimeApiError),
 	/// The type system wants this even though it doesn't make sense
 	#[from]
 	Infallible(std::convert::Infallible),
@@ -83,14 +88,17 @@ pub enum Error {
 	AlreadyForwarding,
 }
 
+/// A type alias for Runtime API receivers.
+pub type RuntimeApiReceiver<T> = oneshot::Receiver<Result<T, RuntimeApiError>>;
+
 /// Request some data from the `RuntimeApi`.
 pub async fn request_from_runtime<RequestBuilder, Response, FromJob>(
 	parent: Hash,
 	sender: &mut mpsc::Sender<FromJob>,
 	request_builder: RequestBuilder,
-) -> Result<oneshot::Receiver<Response>, Error>
+) -> Result<RuntimeApiReceiver<Response>, Error>
 where
-	RequestBuilder: FnOnce(oneshot::Sender<Response>) -> RuntimeApiRequest,
+	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
 	FromJob: TryFrom<AllMessages>,
 	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
@@ -111,7 +119,7 @@ where
 pub async fn request_validators<FromJob>(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<Vec<ValidatorId>>, Error>
+) -> Result<RuntimeApiReceiver<Vec<ValidatorId>>, Error>
 where
 	FromJob: TryFrom<AllMessages>,
 	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
@@ -119,11 +127,11 @@ where
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::Validators(tx)).await
 }
 
-/// Request the scheduler roster from `RuntimeApi`.
+/// Request the validator groups.
 pub async fn request_validator_groups<FromJob>(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<SchedulerRoster>, Error>
+) -> Result<RuntimeApiReceiver<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>, Error>
 where
 	FromJob: TryFrom<AllMessages>,
 	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
@@ -131,29 +139,18 @@ where
 	request_from_runtime(parent, s, |tx| RuntimeApiRequest::ValidatorGroups(tx)).await
 }
 
-/// Request a `SigningContext` from the `RuntimeApi`.
-pub async fn request_signing_context<FromJob>(
+/// Request the session index of the child block.
+pub async fn request_session_index_for_child<FromJob>(
 	parent: Hash,
 	s: &mut mpsc::Sender<FromJob>,
-) -> Result<oneshot::Receiver<SigningContext>, Error>
+) -> Result<RuntimeApiReceiver<SessionIndex>, Error>
 where
 	FromJob: TryFrom<AllMessages>,
 	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 {
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::SigningContext(tx)).await
-}
-
-/// Request `HeadData` for some `ParaId` from `RuntimeApi`.
-pub async fn request_head_data<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-	id: ParaId,
-) -> Result<oneshot::Receiver<HeadData>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::HeadData(id, tx)).await
+	request_from_runtime(parent, s, |tx| {
+		RuntimeApiRequest::SessionIndexForChild(tx)
+	}).await
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -185,13 +182,20 @@ impl Validator {
 		FromJob: TryFrom<AllMessages>,
 		<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
 	{
-		// Note: request_validators and request_signing_context do not and cannot run concurrently: they both
-		// have a mutable handle to the same sender.
+		// Note: request_validators and request_session_index_for_child do not and cannot
+		// run concurrently: they both have a mutable handle to the same sender.
 		// However, each of them returns a oneshot::Receiver, and those are resolved concurrently.
-		let (validators, signing_context) = futures::try_join!(
+		let (validators, session_index) = futures::try_join!(
 			request_validators(parent, &mut sender).await?,
-			request_signing_context(parent, &mut sender).await?,
+			request_session_index_for_child(parent, &mut sender).await?,
 		)?;
+
+		let signing_context = SigningContext {
+			session_index: session_index?,
+			parent_hash: parent,
+		};
+
+		let validators = validators?;
 
 		Self::construct(&validators, signing_context, keystore)
 	}
@@ -602,21 +606,25 @@ where
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
-		use crate::OverseerSignal::{Conclude, StartWork, StopWork};
+		use crate::ActiveLeavesUpdate;
+		use crate::OverseerSignal::{BlockFinalized, Conclude, ActiveLeaves};
 
 		match incoming {
-			Ok(Signal(StartWork(hash))) => {
-				if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
-					log::error!("Failed to spawn a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }))) => {
+				for hash in activated {
+					if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+						log::error!("Failed to spawn a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
-			}
-			Ok(Signal(StopWork(hash))) => {
-				if let Err(e) = jobs.stop_job(hash).await {
-					log::error!("Failed to stop a job: {:?}", e);
-					Self::fwd_err(Some(hash), e.into(), err_tx).await;
-					return true;
+
+				for hash in deactivated {
+					if let Err(e) = jobs.stop_job(hash).await {
+						log::error!("Failed to stop a job: {:?}", e);
+						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						return true;
+					}
 				}
 			}
 			Ok(Signal(Conclude)) => {
@@ -663,6 +671,7 @@ where
 					}
 				}
 			}
+			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
 				Self::fwd_err(None, Error::from(err).into(), err_tx).await;
@@ -706,7 +715,7 @@ where
 		});
 
 		SpawnedSubsystem {
-			name: "JobManager",
+			name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME),
 			future,
 		}
 	}
@@ -725,8 +734,11 @@ mod tests {
 			JobTrait,
 			ToJobTrait,
 		},
+		ActiveLeavesUpdate,
 		FromOverseer,
 		OverseerSignal,
+		SpawnedSubsystem,
+		Subsystem,
 	};
 	use futures::{
 		channel::mpsc,
@@ -891,7 +903,7 @@ mod tests {
 	type OverseerHandle = test_helpers::TestSubsystemContextHandle<CandidateSelectionMessage>;
 
 	fn test_harness<T: Future<Output=()>>(run_args: HashMap<Hash, Vec<FromJob>>, test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T) {
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 
@@ -920,12 +932,12 @@ mod tests {
 		run_args.insert(relay_parent.clone(), vec![FromJob::Test(test_message.clone())]);
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StartWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(relay_parent)))).await;
 			assert_matches!(
 				overseer_handle.recv().await,
 				AllMessages::Test(msg) if msg == test_message
 			);
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
@@ -938,7 +950,7 @@ mod tests {
 		let run_args = HashMap::new();
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
-			overseer_handle.send(FromOverseer::Signal(OverseerSignal::StopWork(relay_parent))).await;
+			overseer_handle.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(relay_parent)))).await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 1);
@@ -948,5 +960,17 @@ mod tests {
 				JobsError::Utility(util::Error::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
 			);
 		});
+	}
+
+	#[test]
+	fn test_subsystem_impl_and_name_derivation() {
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
+
+		let SpawnedSubsystem { name, .. } = FakeCandidateSelectionSubsystem::new(
+			pool,
+			HashMap::new(),
+		).start(context);
+		assert_eq!(name, "FakeCandidateSelection");
 	}
 }

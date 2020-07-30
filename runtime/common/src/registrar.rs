@@ -205,7 +205,7 @@ decl_storage! {
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
 	let mut p = config.parachains.clone();
-	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.sort_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();
@@ -1070,7 +1070,7 @@ mod tests {
 			collator: collator.public(),
 			signature: pov_block_hash.using_encoded(|d| collator.sign(d)),
 			pov_block_hash,
-			global_validation: Parachains::global_validation_schedule(),
+			global_validation: Parachains::global_validation_data(),
 			local_validation: Parachains::current_local_validation_data(&id).unwrap(),
 			commitments: CandidateCommitments {
 				fees: 0,

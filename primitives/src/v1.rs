@@ -60,14 +60,16 @@ pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
+	validation_data_hash: &Hash,
 	pov_hash: &Hash,
-) -> [u8; 68] {
+) -> [u8; 100] {
 	// 32-byte hash length is protected in a test below.
-	let mut payload = [0u8; 68];
+	let mut payload = [0u8; 100];
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
 	u32::from(*para_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
-	payload[36..68].copy_from_slice(pov_hash.as_ref());
+	payload[36..68].copy_from_slice(validation_data_hash.as_ref());
+	payload[68..100].copy_from_slice(pov_hash.as_ref());
 
 	payload
 }
@@ -75,16 +77,31 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 fn check_collator_signature<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
+	validation_data_hash: &Hash,
 	pov_hash: &Hash,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
-	let payload = collator_signature_payload(relay_parent, para_id, pov_hash);
+	let payload = collator_signature_payload(
+		relay_parent,
+		para_id,
+		validation_data_hash,
+		pov_hash,
+	);
+
 	if signature.verify(&payload[..], collator) {
 		Ok(())
 	} else {
 		Err(())
 	}
+}
+
+/// Compute the `validation_data_hash` from global & local validation data.
+pub fn validation_data_hash<N: Encode>(
+	global: &GlobalValidationData<N>,
+	local: &LocalValidationData<N>,
+) -> Hash {
+	BlakeTwo256::hash_of(&(global, local))
 }
 
 /// A unique descriptor of the candidate receipt.
@@ -97,11 +114,16 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub relay_parent: H,
 	/// The collator's sr25519 public key.
 	pub collator: CollatorId,
-	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, and the pov_hash.
-	pub signature: CollatorSignature,
+	/// The blake2-256 hash of the validation data. This is extra data derived from
+	/// relay-chain state which may vary based on bitfields included before the candidate.
+	/// Thus it cannot be derived entirely from the relay-parent.
+	pub validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
+	pub signature: CollatorSignature,
+
 }
 
 impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
@@ -110,6 +132,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.para_id,
+			&self.validation_data_hash,
 			&self.pov_hash,
 			&self.collator,
 			&self.signature,
@@ -146,7 +169,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule<N>,
+	pub global_validation: GlobalValidationData<N>,
 	/// The local validation data.
 	pub local_validation: LocalValidationData<N>,
 }
@@ -232,7 +255,7 @@ pub struct LocalValidationData<N = BlockNumber> {
 /// These are global parameters that apply to all candidates in a block.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule<N = BlockNumber> {
+pub struct GlobalValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
@@ -465,7 +488,7 @@ impl CoreAssignment {
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct OmittedValidationData {
 	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
+	pub global_validation: GlobalValidationData,
 	/// The local validation data.
 	pub local_validation: LocalValidationData,
 }
@@ -636,9 +659,9 @@ sp_api::decl_runtime_apis! {
 		/// cores can have paras assigned to them.
 		fn availability_cores() -> Vec<CoreState<N>>;
 
-		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
+		/// Yields the GlobalValidationData. This applies to all para candidates with the
 		/// relay-parent equal to the block in which context this is invoked in.
-		fn global_validation_schedule() -> GlobalValidationSchedule<N>;
+		fn global_validation_data() -> GlobalValidationData<N>;
 
 		/// Yields the LocalValidationData for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.
@@ -695,5 +718,19 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 0);
 		assert_eq!(info.last_rotation_at(), 0);
+	}
+
+	#[test]
+	fn collator_signature_payload_is_valid() {
+		// if this fails, collator signature verification code has to be updated.
+		let h = Hash::default();
+		assert_eq!(h.as_ref().len(), 32);
+
+		let _payload = collator_signature_payload(
+			&Hash::from([1; 32]),
+			&5u32.into(),
+			&Hash::from([2; 32]),
+			&Hash::from([3; 32]),
+		);
 	}
 }

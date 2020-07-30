@@ -21,7 +21,7 @@
 
 use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
 use polkadot_subsystem::{
-	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
+	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
 };
 use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ReputationChange as Rep, PeerId,
@@ -107,26 +107,45 @@ async fn handle_signal(
 ) -> SubsystemResult<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
-		OverseerSignal::StartWork(relay_parent) => {
-			let (vals_tx, vals_rx) = oneshot::channel();
-			ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::Validators(vals_tx),
-			))).await?;
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+			for relay_parent in activated {
+				let (vals_tx, vals_rx) = oneshot::channel();
+				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(vals_tx),
+				))).await?;
 
-			state.relay_parent_state.insert(relay_parent, BlockBasedState {
-				known: HashMap::new(),
-				fetching: HashMap::new(),
-				n_validators: vals_rx.await?.len(),
-			});
+				let n_validators = match vals_rx.await? {
+					Ok(v) => v.len(),
+					Err(e) => {
+						log::warn!(target: "pov_distribution",
+							"Error fetching validators from runtime API for active leaf: {:?}",
+							e
+						);
+
+						// Not adding bookkeeping here might make us behave funny, but we
+						// shouldn't take down the node on spurious runtime API errors.
+						//
+						// and this is "behave funny" as in be bad at our job, but not in any
+						// slashable or security-related way.
+						continue;
+					}
+				};
+
+				state.relay_parent_state.insert(relay_parent, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: n_validators,
+				});
+			}
+
+			for relay_parent in deactivated {
+				state.relay_parent_state.remove(&relay_parent);
+			}
 
 			Ok(false)
 		}
-		OverseerSignal::StopWork(relay_parent) => {
-			state.relay_parent_state.remove(&relay_parent);
-
-			Ok(false)
-		}
+		OverseerSignal::BlockFinalized(_) => Ok(false),
 	}
 }
 
@@ -619,7 +638,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -699,7 +718,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
@@ -777,7 +796,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -849,7 +868,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -937,7 +956,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1000,7 +1019,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1061,7 +1080,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1119,7 +1138,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1204,7 +1223,7 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1266,7 +1285,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1343,7 +1362,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
@@ -1426,7 +1445,7 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
+		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
