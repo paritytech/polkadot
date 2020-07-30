@@ -715,7 +715,7 @@ where
 		});
 
 		SpawnedSubsystem {
-			name: "JobManager",
+			name: Job::NAME.strip_suffix("Job").unwrap_or(Job::NAME),
 			future,
 		}
 	}
@@ -737,6 +737,8 @@ mod tests {
 		ActiveLeavesUpdate,
 		FromOverseer,
 		OverseerSignal,
+		SpawnedSubsystem,
+		Subsystem,
 	};
 	use futures::{
 		channel::mpsc,
@@ -958,5 +960,17 @@ mod tests {
 				JobsError::Utility(util::Error::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
 			);
 		});
+	}
+
+	#[test]
+	fn test_subsystem_impl_and_name_derivation() {
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
+
+		let SpawnedSubsystem { name, .. } = FakeCandidateSelectionSubsystem::new(
+			pool,
+			HashMap::new(),
+		).start(context);
+		assert_eq!(name, "FakeCandidateSelection");
 	}
 }
