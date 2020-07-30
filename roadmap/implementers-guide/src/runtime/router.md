@@ -71,7 +71,7 @@ HrmpOpenChannelRequests: Vec<HrmpOpenChannelRequest>;
 HrmpOpenChannelRequestCount: map ParaId => u32;
 HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
 
-HrmpWatermarks: map ParaId => Option<BlockNumber>'
+HrmpWatermarks: map ParaId => Option<BlockNumber>;
 
 HrmpChannels: map HrmpChannelId => Option<Channel>;
 HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
