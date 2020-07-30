@@ -205,7 +205,7 @@ decl_storage! {
 #[cfg(feature = "std")]
 fn build<T: Trait>(config: &GenesisConfig<T>) {
 	let mut p = config.parachains.clone();
-	p.sort_unstable_by_key(|&(ref id, _, _)| *id);
+	p.sort_by_key(|&(ref id, _, _)| *id);
 	p.dedup_by_key(|&mut (ref id, _, _)| *id);
 
 	let only_ids: Vec<ParaId> = p.iter().map(|&(ref id, _, _)| id).cloned().collect();

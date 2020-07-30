@@ -223,7 +223,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		.cloned()
 		.collect();
 
-	parachains.sort_unstable();
+	parachains.sort();
 	parachains.dedup();
 
 	Parachains::put(&parachains);
