@@ -568,14 +568,14 @@ mod tests {
 	};
 	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
-	use primitives::v0::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
+	use primitives::v1::{Id as ParaId, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
 		Perbill, Permill, Percent, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::registrar::Registrar;
+	use crate::slots::Registrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test where system = system {}
@@ -701,7 +701,7 @@ mod tests {
 
 		fn register_para(
 			id: ParaId,
-			_info: ParaInfo,
+			_parachain: bool,
 			code: ValidationCode,
 			initial_head_data: HeadData,
 		) -> DispatchResult {

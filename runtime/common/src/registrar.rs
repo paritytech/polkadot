@@ -106,36 +106,12 @@ pub trait Trait: parachains::Trait {
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
-		// Vector of all parachain IDs, in ascending order.
-		Parachains: Vec<ParaId>;
-
-		/// The number of threads to schedule per block.
-		ThreadCount: u32;
-
-		/// An array of the queue of set of threads scheduled for the coming blocks; ordered by
-		/// ascending para ID. There can be no duplicates of para ID in each list item.
-		SelectedThreads: Vec<Vec<(ParaId, CollatorId)>>;
-
-		/// Parathreads/chains scheduled for execution this block. If the collator ID is set, then
-		/// a particular collator has already been chosen for the next block, and no other collator
-		/// may provide the block. In this case we allow the possibility of the combination being
-		/// retried in a later block, expressed by `Retriable`.
-		///
-		/// Ordered by ParaId.
-		Active: Vec<(ParaId, Option<(CollatorId, Retriable)>)>;
-
 		/// The next unused ParaId value. Start this high in order to keep low numbers for
 		/// system-level chains.
 		NextFreeId: ParaId = LOWEST_USER_ID;
 
 		/// Pending swap operations.
 		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
-
-		/// Map of all registered parathreads/chains.
-		Paras get(fn paras): map hasher(twox_64_concat) ParaId => Option<ParaInfo>;
-
-		/// The current queue for parathreads that should be retried.
-		RetryQueue get(fn retry_queue): Vec<Vec<(ParaId, CollatorId)>>;
 
 		/// Users who have paid a parathread's deposit
 		Debtors: map hasher(twox_64_concat) ParaId => T::AccountId;
@@ -240,17 +216,6 @@ decl_module! {
 			<Self as Registrar<T::AccountId>>::deregister_para(id)
 		}
 
-		/// Reset the number of parathreads that can pay to be scheduled in a single block.
-		///
-		/// - `count`: The number of parathreads.
-		///
-		/// Must be called from Root origin.
-		#[weight = 0]
-		fn set_thread_count(origin, count: u32) {
-			ensure_root(origin)?;
-			ThreadCount::put(count);
-		}
-
 		/// Register a parathread for immediate use.
 		///
 		/// Must be sent from a Signed origin that is able to have ParathreadDeposit reserved.
@@ -342,7 +307,8 @@ decl_module! {
 		/// and the auction deposit are switched.
 		#[weight = 0]
 		fn swap(origin, #[compact] other: ParaId) {
-			let id = parachains::ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			// TODO [now]: check that the `origin` is a parachain origin.
+			let id: ParaId = unimplemented!();
 
 			if PendingSwap::get(other) == Some(id) {
 				// actually do the swap.
@@ -351,12 +317,6 @@ decl_module! {
 				// Remove intention to swap.
 				PendingSwap::remove(other);
 				Self::force_unschedule(|i| i == id || i == other);
-				Parachains::mutate(|ids| swap_ordered_existence(ids, id, other));
-				Paras::mutate(id, |i|
-					Paras::mutate(other, |j|
-						sp_std::mem::swap(i, j)
-					)
-				);
 
 				<Debtors<T>>::mutate(id, |i|
 					<Debtors<T>>::mutate(other, |j|
@@ -368,132 +328,6 @@ decl_module! {
 				PendingSwap::insert(id, other);
 			}
 		}
-
-		/// Block initializer. Clears SelectedThreads and constructs/replaces Active.
-		fn on_initialize() -> Weight {
-			let next_up = SelectedThreads::mutate(|t| {
-				let r = if t.len() >= T::QueueSize::get() {
-					// Take the first set of parathreads in queue
-					t.remove(0)
-				} else {
-					vec![]
-				};
-				while t.len() < T::QueueSize::get() {
-					t.push(vec![]);
-				}
-				r
-			});
-			// mutable so that we can replace with `None` if parathread appears in new schedule.
-			let mut retrying = Self::take_next_retry();
-			if let Some(((para, _), _)) = retrying {
-				// this isn't really ideal: better would be if there were an earlier pass that set
-				// retrying to the first item in the Missed queue that isn't already scheduled, but
-				// this is potentially O(m*n) in terms of missed queue size and parathread pool size.
-				if next_up.iter().any(|x| x.0 == para) {
-					retrying = None
-				}
-			}
-
-			let mut paras = Parachains::get().into_iter()
-				.map(|id| (id, None))
-				.chain(next_up.into_iter()
-					.map(|(para, collator)|
-						(para, Some((collator, Retriable::WithRetries(0))))
-					)
-				).chain(retrying.into_iter()
-					.map(|((para, collator), retries)|
-						(para, Some((collator, Retriable::WithRetries(retries + 1))))
-					)
-				).collect::<Vec<_>>();
-			// for Rust's timsort algorithm, sorting a concatenation of two sorted ranges is near
-			// O(N).
-			paras.sort_by_key(|&(ref id, _)| *id);
-
-			Active::put(paras);
-
-			0
-		}
-
-		fn on_finalize() {
-			// a block without this will panic, but let's not panic here.
-			if let Some(proceeded_vec) = parachains::DidUpdate::get() {
-				// Active is sorted and DidUpdate is a sorted subset of its elements.
-				//
-				// We just go through the contents of active and find any items that don't appear in
-				// DidUpdate *and* which are enabled for retry.
-				let mut proceeded = proceeded_vec.into_iter();
-				let mut i = proceeded.next();
-				for sched in Active::get().into_iter() {
-					match i {
-						// Scheduled parachain proceeded properly. Move onto next item.
-						Some(para) if para == sched.0 => i = proceeded.next(),
-						// Scheduled `sched` missed their block.
-						// Queue for retry if it's allowed.
-						_ => if let (i, Some((c, Retriable::WithRetries(n)))) = sched {
-							Self::retry_later((i, c), n)
-						},
-					}
-				}
-			}
-		}
-	}
-}
-
-decl_event!{
-	pub enum Event {
-		/// A parathread was registered; its new ID is supplied.
-		ParathreadRegistered(ParaId),
-
-		/// The parathread of the supplied ID was de-registered.
-		ParathreadDeregistered(ParaId),
-	}
-}
-
-impl<T: Trait> Module<T> {
-	/// Ensures that the given `ParaId` corresponds to a registered parathread, and returns a descriptor if so.
-	pub fn ensure_thread_id(id: ParaId) -> Option<ParaInfo> {
-		Paras::get(id).and_then(|info| if let Scheduling::Dynamic = info.scheduling {
-			Some(info)
-		} else {
-			None
-		})
-	}
-
-	fn retry_later(sched: (ParaId, CollatorId), retries: u32) {
-		if retries < T::MaxRetries::get() {
-			RetryQueue::mutate(|q| {
-				q.resize(T::MaxRetries::get() as usize, vec![]);
-				q[retries as usize].push(sched);
-			});
-		}
-	}
-
-	fn take_next_retry() -> Option<((ParaId, CollatorId), u32)> {
-		RetryQueue::mutate(|q| {
-			for (i, q) in q.iter_mut().enumerate() {
-				if !q.is_empty() {
-					return Some((q.remove(0), i as u32));
-				}
-			}
-			None
-		})
-	}
-
-	/// Forcibly remove the threads matching `m` from all current and future scheduling.
-	fn force_unschedule(m: impl Fn(ParaId) -> bool) {
-		RetryQueue::mutate(|qs| for q in qs.iter_mut() {
-			q.retain(|i| !m(i.0))
-		});
-		SelectedThreads::mutate(|qs| for q in qs.iter_mut() {
-			q.retain(|i| !m(i.0))
-		});
-		Active::mutate(|a| for i in a.iter_mut() {
-			if m(i.0) {
-				if let Some((_, ref mut r)) = i.1 {
-					*r = Retriable::Never;
-				}
-			}
-		});
 	}
 }
 

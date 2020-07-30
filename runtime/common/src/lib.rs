@@ -20,7 +20,7 @@
 
 pub mod claims;
 pub mod slot_range;
-pub mod registrar;
+//pub mod registrar;
 pub mod slots;
 pub mod crowdfund;
 pub mod purchase;
@@ -42,7 +42,6 @@ pub use staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
-pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};
