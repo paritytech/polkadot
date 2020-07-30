@@ -160,7 +160,7 @@ type LightClient<RuntimeApi, Executor> =
 fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
-		babe::BabeImportQueue<Block, FullClient<RuntimeApi, Executor>>,
+		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
 			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
