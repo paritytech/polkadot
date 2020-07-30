@@ -552,7 +552,7 @@ where
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			name: "bitfield-distribution",
+			name: "bitfield-distribution-subsystem",
 			future: Box::pin(async move { Self::run(ctx) }.map(|_| ())),
 		}
 	}

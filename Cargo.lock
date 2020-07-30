@@ -4513,6 +4513,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
+ "sc-keystore",
  "sc-network",
  "smol 0.3.3",
  "smol-timeout",
