@@ -324,7 +324,9 @@ enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. This will implicitly attempt to gather the
 	/// `OmittedValidationData` and `ValidationCode` from the runtime API of the chain,
 	/// based on the `relay_parent` of the `CandidateDescriptor`.
-	/// If there is no state available which can provide this data, an error is returned.
+	///
+	/// If there is no state available which can provide this data or the core for
+	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
 
 	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
