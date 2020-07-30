@@ -7,7 +7,7 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Backed Candidate: A Backable Candidate noted in a relay-chain block
 - Backing: A set of statements proving that a Parachain Candidate is backable.
 - Collator: A node who generates Proofs-of-Validity (PoV) for blocks of a specific parachain.
-- DMP: Downward Message Passing. Message passing from the relay-chain to a parachain.
+- DMP: (Downward Message Passing). Message passing from the relay-chain to a parachain.
 - Extrinsic: An element of a relay-chain block which triggers a specific entry-point of a runtime module with given arguments.
 - GRANDPA: (Ghost-based Recursive ANcestor Deriving Prefix Agreement). The algorithm validators use to guarantee finality of the Relay Chain.
 - HRMP: (Horizontally Relay-routed Message Passing). A mechanism for message passing between parachains (hence horizontal) that leverages the relay-chain storage. Predates XCMP.
@@ -29,7 +29,6 @@ Here you can find definitions of a bunch of jargon, usually specific to the Polk
 - Secondary Checker: A validator who has been randomly selected to perform secondary approval checks on a parablock which is pending approval.
 - Subsystem: A long-running task which is responsible for carrying out a particular category of work.
 - UMP: (Upward Message Passing) A vertical message passing mechanism from a parachain to the relay chain.
-- DMP: (Downward Message Passing) A vertical message passing mechanism from the relay chain to a parachain.
 - Validator: Specially-selected node in the network who is responsible for validating parachain blocks and issuing attestations about their validity.
 - Validation Function: A piece of Wasm code that describes the state-transition function of a parachain.
 - VMP: (Vertical Message Passing) A family of mechanisms that are responsible for message exchange between the relay chain and parachains.
