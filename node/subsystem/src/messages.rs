@@ -290,7 +290,13 @@ pub struct SchedulerRoster {
 
 /// A description of an error causing the runtime API request to be unservable.
 #[derive(Debug, Clone)]
-pub struct RuntimeApiError(pub String);
+pub struct RuntimeApiError(String);
+
+impl From<String> for RuntimeApiError {
+	fn from(s: String) -> Self {
+		RuntimeApiError(s)
+	}
+}
 
 /// A sender for the result of a runtime API request.
 pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;

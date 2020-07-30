@@ -91,7 +91,7 @@ fn make_runtime_api_request<Client>(
 			let sender = $sender;
 			let api = client.runtime_api();
 			let res = api.$api_name(&BlockId::Hash(relay_parent), $($param),*)
-				.map_err(|e| RuntimeApiError(format!("{:?}", e)));
+				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
 
 			let _ = sender.send(res);
 		}}
