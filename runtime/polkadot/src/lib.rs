@@ -21,11 +21,11 @@
 #![recursion_limit="256"]
 
 use runtime_common::{
-	dummy, claims, slots, SlowAdjustingFeeUpdate,
+	dummy, claims, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, purchase,
+	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
@@ -276,7 +276,7 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: Parachains, // TODO [now]: leave something here.
+		pub parachain_validator: ParachainSessionKeyPlaceholder<Runtime>,
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -743,7 +743,7 @@ parameter_types! {
 	pub const MaxProxies: u16 = 32;
 }
 
-impl<I> dummy::Trait<I> for Runtime { }
+impl<I: dummy::Instance> dummy::Trait<I> for Runtime { }
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -1012,7 +1012,7 @@ impl purchase::Trait for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v0::Block,
+		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1050,8 +1050,8 @@ construct_runtime! {
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::{Module, Call},
-		DummyRegistrar: dummy::{Module, Call},
+		DummySlots: dummy::<Instance2>::{Module, Call},
+		DummyRegistrar: dummy::<Instance3>::{Module, Call},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -1175,10 +1175,18 @@ sp_api::impl_runtime_apis! {
 	// Dummy implementation to continue supporting old parachains runtime temporarily.
 	impl p_v0::ParachainHost<Block> for Runtime {
 		fn validators() -> Vec<p_v0::ValidatorId> {
+			// this is a compile-time check of size equality. note that we don't invoke
+			// the function and nothing here is unsafe.
+			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
+
 			// Yes, these aren't actually the parachain session keys.
+			// It doesn't matter, but we shouldn't return a zero-sized vector here.
+			// As there are no parachains
 			Session::validators()
 				.into_iter()
-				.map(|k| p_v0::ValidatorId::from_raw(k.as_array_ref()))
+				.map(|k| k.using_encoded(|s| Decode::decode(&mut &s[..]))
+					.expect("correct size and raw-bytes; qed"))
+				.collect()
 		}
 		fn duty_roster() -> p_v0::DutyRoster {
 			let v = Session::validators();
@@ -1188,15 +1196,19 @@ sp_api::impl_runtime_apis! {
 			Vec::new()
 		}
 		fn global_validation_data() -> p_v0::GlobalValidationData {
-			Default::default()
+			p_v0::GlobalValidationData {
+				max_code_size: 1,
+				max_head_data_size: 1,
+				block_number: System::block_number().saturating_sub(1),
+			}
 		}
-		fn local_validation_data(id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
+		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
 			None
 		}
-		fn parachain_code(id: p_v0::Id) -> Option<p_v0::ValidationCode> {
+		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
 			None
 		}
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
+		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
 			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
 		{
 			None
@@ -1207,7 +1219,7 @@ sp_api::impl_runtime_apis! {
 				session_index: Session::current_index(),
 			}
 		}
-		fn downward_messages(id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
+		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
 			Vec::new()
 		}
 	}

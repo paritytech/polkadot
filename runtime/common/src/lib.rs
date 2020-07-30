@@ -27,7 +27,7 @@ pub mod impls;
 
 pub mod dummy;
 
-use primitives::v1::BlockNumber;
+use primitives::v1::{BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
 use frame_support::{
 	parameter_types, traits::{Currency},
@@ -87,6 +87,35 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	AdjustmentVariable,
 	MinimumMultiplier
 >;
+
+/// A placeholder since there is currently no provided session key handler for parachain validator
+/// keys.
+pub struct ParachainSessionKeyPlaceholder<T>(sp_std::marker::PhantomData<T>);
+impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T> {
+	type Public = ValidatorId;
+}
+
+impl<T: session::Trait>
+	session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+{
+	type Key = ValidatorId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_disabled(_: usize) { }
+}
 
 #[cfg(test)]
 mod multiplier_tests {
