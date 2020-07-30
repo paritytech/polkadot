@@ -99,9 +99,9 @@ The following routines are intended to be invoked by paras' upward messages.
   1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of channels (`config.hrmp_max_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
   1. Reserve the deposit for the `sender` according to `config.hrmp_sender_deposit`
   1. Add a new entry to `HrmpOpenChannelRequests` and increase `HrmpOpenChannelRequestCount` by 1 for the `sender`.
-    1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-	1. Set `limit_used_places` to `config.hrmp_channel_max_places`
-	1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
+      1. Set `sender_deposit` to `config.hrmp_sender_deposit`
+	  1. Set `limit_used_places` to `config.hrmp_channel_max_places`
+	  1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
 
 * `accept_open_channel(i)`, `i` - is the index of open channel request:
   1. Check that the designated open channel request exists
@@ -126,9 +126,9 @@ Candidate Acceptance Function:
   1. in ``HrmpChannelDigests`` for `P` an entry with the block number equal to `new_hrmp_watermark` should exist.
 * `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
-    1. exists
-    1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
-    1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
+      1. exists
+      1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
+      1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
 
 Candidate Enactment:
 
@@ -143,8 +143,8 @@ Candidate Enactment:
   1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
   1. For each channel `C` identified by `(sender, recipient)` for each `sender` coming from the set, prune messages up to the `new_hrmp_watermark`.
   1. For each pruned message `M` from channel `C`:
-    1. Decrement `C.used_places`
-    1. Decrement `C.used_bytes` by `M`'s payload size.
+      1. Decrement `C.used_places`
+      1. Decrement `C.used_bytes` by `M`'s payload size.
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
   1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
@@ -172,9 +172,9 @@ TODO: What happens with the deposits in channels or open requests?
     2. if `R.confirmed = true`,
         1. check that `R.sender` and `R.recipient` are not offboarded.
         1. create a new channel `C` between `(R.sender, R.recipient)`.
-		  1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
-		  1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
-		  1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
+		    1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
+		    1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
+		    1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
 		1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
         1. remove `R`
 1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`.
