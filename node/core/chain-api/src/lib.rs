@@ -95,10 +95,16 @@ where
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
-	use sp_blockchain::Info as BlockInfo;
-	use std::collections::BTreeMap;
 
+	use std::collections::BTreeMap;
+	use futures::{future::BoxFuture, channel::oneshot};
+
+	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
+	use polkadot_subsystem::test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+	use sp_blockchain::Info as BlockInfo;
+	use sp_core::testing::TaskExecutor;
+
+	#[derive(Clone)]
 	struct TestClient {
 		blocks: BTreeMap<Hash, BlockNumber>,
 		finalized_blocks: BTreeMap<BlockNumber, Hash>,
@@ -127,7 +133,7 @@ mod tests {
 			.last()
 			.map(|(k, v)| (k.clone(), v.clone()))
 			.unwrap()
-	} 
+	}
 
 	impl HeaderBackend<Block> for TestClient {
 		fn info(&self) -> BlockInfo<Block> {
@@ -158,8 +164,83 @@ mod tests {
 		}
 	}
 
+	// TODO: avoid using generics here to reduce compile times
+	fn test_harness(
+		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiRequestMessage>)
+			-> BoxFuture<'static, ()>,
+	) {
+		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let client = TestClient::default();
+
+		let chain_api_task = run(ctx, client.clone()).map(|x| x.unwrap());
+		let test_task = test(client, ctx_handle);
+
+		futures::executor::block_on(future::join(chain_api_task, test_task));
+	}
+
 	#[test]
-	fn it_works() {
-		todo!()
+	fn request_block_number() {
+		test_harness(|client, mut sender| {
+			async move {
+				let zero = Hash::zero();
+				let two = Hash::repeat_byte(0x02);
+				let test_cases = [
+					(two, client.number(two).unwrap()),
+					(zero, client.number(zero).unwrap()), // not here
+				];
+				for (hash, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiRequestMessage::BlockNumber(*hash, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_finalized_hash() {
+		test_harness(|client, mut sender| {
+			async move {
+				let test_cases = [
+					(1, client.hash(1).unwrap()), // not here
+					(2, client.hash(2).unwrap()),
+				];
+				for (number, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiRequestMessage::FinalizedBlockHash(*number, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_last_finalized_number() {
+		test_harness(|client, mut sender| {
+			async move {
+				let (tx, rx) = oneshot::channel();
+
+				let expected = client.info().finalized_number;
+				sender.send(FromOverseer::Communication {
+					msg: ChainApiRequestMessage::FinalizedBlockNumber(tx),
+				}).await;
+
+				assert_eq!(rx.await.unwrap().unwrap(), expected);
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
 	}
 }

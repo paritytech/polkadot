@@ -4643,6 +4643,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-primitives",
  "sp-blockchain",
+ "sp-core",
 ]
 
 [[package]]
