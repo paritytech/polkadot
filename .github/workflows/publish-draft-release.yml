@@ -126,11 +126,10 @@ jobs:
         uses: actions/setup-ruby@v1
         with:
           ruby-version: 2.7
-      - name: Set filename
-        id: set-filename
+      - name: Get runtime version
+        id: get-runtime-ver
         run: |
           runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
-          mv ./${{ matrix.runtime }}_runtime.compact.wasm ./${{ matrix.runtime }}_runtime-v$runtime_ver.compact.wasm
           echo "::set-output name=runtime_ver::$runtime_ver"
       - name: Upload ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
@@ -138,6 +137,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
-          asset_path: ./${{ matrix.runtime }}_runtime-v${{ steps.set-filename.outputs.runtime_ver }}.compact.wasm
-          asset_name: ${{ matrix.runtime }} runtime
+          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
           asset_content_type: application/wasm
