@@ -78,7 +78,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
   1. call `Router::queue_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
-  1. call `Router::queue_horizontal_messages` with the para id of the candidate and the list of horizontal messages taken from the commitment,
+  1. call `Router::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. call `Router::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
 * `collect_pending`:

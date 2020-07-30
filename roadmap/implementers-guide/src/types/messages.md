@@ -37,9 +37,15 @@ This message ends up in the recipient's mailbox. A size of a horizontal message 
 `data` payload.
 
 ```rust,ignore
-struct HorizontalMessage {
+struct OutboundHrmpMessage {
 	/// The para that will get this message in its downward message queue.
 	pub recipient: ParaId,
+	/// The message payload.
+	pub data: Vec<u8>,
+}
+
+struct InboundHrmpMessage {
+	pub sent_at: BlockNumber,
 	/// The message payload.
 	pub data: Vec<u8>,
 }

@@ -73,7 +73,7 @@ HrmpChannels: map HrmpChannelId => Option<Channel>;
 HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 
-HrmpChannelContents: map HrmpChannelId => Vec<(BlockNumber, Vec<u8>)>;
+HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer a question:
 /// What paras sent a message at the given block number for a given reciever.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
@@ -120,7 +120,7 @@ Candidate Acceptance Function:
   1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
   1. `new_hrmp_watermark` must not be greater than the context's block number.
   1. in ``HrmpChannelDigests`` for `P` an entry with the block number equal to `new_hrmp_watermark` should exist.
-* `verify_outbound_hrmp(sender: ParaId, Vec<HorizontalMessage>)`:
+* `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
     1. exists
     1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `Climit_used_bytes`.
@@ -128,7 +128,7 @@ Candidate Acceptance Function:
 
 Candidate Enactment:
 
-* `queue_horizontal_messages(sender: ParaId, Vec<HorizontalMessage>)`:
+* `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
     1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
     1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.

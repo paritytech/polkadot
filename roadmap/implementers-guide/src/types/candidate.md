@@ -145,6 +145,9 @@ struct LocalValidationData {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	code_upgrade_allowed: Option<BlockNumber>,
+
+	// TODO: Does this look sensible?
+	hrmp_ingress: BTreeMap<ParaId /* sender */, Vec<InboundHrmpMessage>>,
 }
 ```
 
@@ -168,7 +171,7 @@ struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	fees: Balance,
 	/// Messages directed to other paras routed via the relay chain.
-	horizontal_messages: Vec<HorizontalMessage>,
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
@@ -209,7 +212,7 @@ struct ValidationOutputs {
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
 	/// Messages directed to other paras routed via the relay chain.
-	horizontal_messages: Vec<HorizontalMessage>,
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
 	/// Fees paid to the validators of the relay-chain.
