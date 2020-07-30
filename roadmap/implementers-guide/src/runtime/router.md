@@ -78,7 +78,7 @@ HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
-/// Maintains a mapping that can be used to answer a question:
+/// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
@@ -100,8 +100,8 @@ The following routines are intended to be invoked by paras' upward messages.
   1. Reserve the deposit for the `sender` according to `config.hrmp_sender_deposit`
   1. Add a new entry to `HrmpOpenChannelRequests` and increase `HrmpOpenChannelRequestCount` by 1 for the `sender`.
       1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-	  1. Set `limit_used_places` to `config.hrmp_channel_max_places`
-	  1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
+      1. Set `limit_used_places` to `config.hrmp_channel_max_places`
+      1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
 
 * `accept_open_channel(i)`, `i` - is the index of open channel request:
   1. Check that the designated open channel request exists
@@ -167,15 +167,15 @@ TODO: What happens with the deposits in channels or open requests?
         1. increment `R.age` by 1.
         1. if `R.age` reached a preconfigured time-to-live limit `config.hrmp_open_request_ttl`, then:
             1. refund `R.sender_deposit` to the sender
-			1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
+            1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
             1. remove `R`
     2. if `R.confirmed = true`,
         1. check that `R.sender` and `R.recipient` are not offboarded.
         1. create a new channel `C` between `(R.sender, R.recipient)`.
-		    1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
-		    1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
-		    1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
-		1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
+            1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
+            1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
+            1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
+        1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
         1. remove `R`
 1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`.
 
