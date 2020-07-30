@@ -24,6 +24,7 @@ jobs:
     needs: get-rust-versions
     outputs:
       release_url: ${{ steps.create-release.outputs.html_url }}
+      asset_upload_url: ${{ steps.create-release.outputs.upload_url }}
     steps:
     - uses: actions/checkout@v2
       with:
@@ -66,3 +67,66 @@ jobs:
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
           message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Gav: Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
           server: "matrix.parity.io"
+
+  build-runtimes:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runtime: ['polkadot', 'kusama']
+    container:
+      image: chevdor/srtool:nightly-2020-07-20
+      volumes:
+        - ${{ github.workspace }}:/build
+      env:
+        PACKAGE: ${{ matrix.runtime }}-runtime
+        RUSTC_VERSION: nightly-2020-07-20
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache target dir
+        uses: actions/cache@v2
+        with:
+          path: '${{ github.workspace }}/target'
+          key: srtool-target-${{ matrix.runtime }}-${{ github.sha }}
+          restore-keys: |
+            srtool-target-${{ matrix.runtime }}-
+            srtool-target-
+      - name: Build ${{ matrix.runtime }} runtime
+        id: build-runtime
+        shell: bash
+        run: |
+          cd /build
+          pwd
+          ls -la
+          build --json | tee srtool_output.json
+          while IFS= read -r line; do
+            echo "::set-output name=$line::$(jq -r ".$line" < srtool_output.json)"
+          done <<< "$(jq -r 'keys[]' < srtool_output.json)"
+      - name: Upload ${{ matrix.runtime }} runtime
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.runtime }}-runtime
+          path: "${{ steps.build-runtime.outputs.wasm }}"
+
+  # Have publishing the runtimes to the release as a separate job for 2 reasons
+  # 1. It allows us to start building the runtimes before the draft release is created
+  # 2. We don't have to run it in the srtool container, thus avoiding compatibility issues
+  # Sadly it means we need to recreate the same matrix as the build-runtimes job
+  publish-runtimes:
+    runs-on: ubuntu-latest
+    needs: ['build-runtimes', 'publish-draft-release']
+    strategy:
+      matrix:
+        runtime: ['polkadot', 'kusama']
+    steps:
+      - uses: actions/download-artifact@v2
+        with:
+          name: ${{ matrix.runtime }}-runtime
+      - name: Upload ${{ matrix.runtime }} wasm
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
+          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_name: ${{ matrix.runtime }} runtime
+          asset_content_type: application/wasm
