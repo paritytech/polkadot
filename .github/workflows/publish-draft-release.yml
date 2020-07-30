@@ -40,7 +40,7 @@ jobs:
         RUSTC_NIGHTLY: ${{ needs.get-rust-versions.outputs.rustc-nightly }}
       run: |
         gem install changelogerator git toml
-        ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb > release_text.md
+        ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb | tee release_text.md
     - uses: actions/upload-artifact@v2
       with:
         name: release_text
@@ -118,15 +118,26 @@ jobs:
       matrix:
         runtime: ['polkadot', 'kusama']
     steps:
+      - uses: actions/checkout@v2
       - uses: actions/download-artifact@v2
         with:
           name: ${{ matrix.runtime }}-runtime
+      - name: Set up Ruby 2.7
+        uses: actions/setup-ruby@v1
+        with:
+          ruby-version: 2.7
+      - name: Set filename
+        id: set-filename
+        run: |
+          runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
+          mv ./${{ matrix.runtime }}_runtime.compact.wasm ./${{ matrix.runtime }}_runtime-v$runtime_ver.compact.wasm
+          echo "::set-output name=runtime_ver::$runtime_ver"
       - name: Upload ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
-          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_path: ./${{ matrix.runtime }}_runtime-v${{ steps.set-filename.outputs.runtime_ver }}.compact.wasm
           asset_name: ${{ matrix.runtime }} runtime
           asset_content_type: application/wasm
