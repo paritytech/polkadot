@@ -685,20 +685,6 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const LeasePeriod: BlockNumber = 100_000;
-	pub const EndingPeriod: BlockNumber = 1000;
-}
-
-impl slots::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Parachains = ();
-	type EndingPeriod = EndingPeriod;
-	type LeasePeriod = LeasePeriod;
-	type Randomness = RandomnessCollectiveFlip;
-}
-
-parameter_types! {
 	pub Prefix: &'static [u8] = b"Pay DOTs to the Polkadot account:";
 }
 
