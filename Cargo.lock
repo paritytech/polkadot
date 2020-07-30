@@ -4666,11 +4666,9 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "futures 0.3.5",
- "log 0.4.8",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-primitives",
- "sc-client-api",
  "sp-api",
  "sp-blockchain",
  "sp-core",
