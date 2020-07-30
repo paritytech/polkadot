@@ -294,7 +294,7 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: staking::EraIndex = 28;
-	// 28 eras in which slashes can be cancelled (7 days).
+	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
