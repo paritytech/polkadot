@@ -4,6 +4,7 @@ require 'changelogerator'
 require 'git'
 require 'erb'
 require 'toml'
+require 'json'
 require_relative './lib.rb'
 
 version = ENV['GITHUB_REF']
@@ -65,5 +66,20 @@ rustc_nightly = ENV['RUSTC_NIGHTLY']
 polkadot_runtime = get_runtime('polkadot', polkadot_path)
 kusama_runtime = get_runtime('kusama', polkadot_path)
 westend_runtime = get_runtime('westend', polkadot_path)
+
+# These json files should have been downloaded as part of the build-runtimes
+# github action
+
+polkadot_json = JSON.parse(
+  File.read(
+    ENV['GITHUB_WORKSPACE'] + '/polkadot-srtool-json/srtool_output.json'
+  )
+)
+
+kusama_json = JSON.parse(
+  File.read(
+    ENV['GITHUB_WORKSPACE'] + '/kusama-srtool-json/srtool_output.json'
+  )
+)
 
 puts renderer.result
