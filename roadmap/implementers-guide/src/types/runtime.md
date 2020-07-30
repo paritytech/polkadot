@@ -40,14 +40,15 @@ struct HostConfiguration {
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
 	pub watermark_upward_queue_size: u32,
-	/// The maximum number of downward messages originated from the relay chain in a downward message
-	/// queue.
-	pub max_relay_chain_downward_messages: u32,
+
 	/// The maximum number of horizontal messages allowed in a downward message queue per one sender
 	/// para at the same time.
 	pub max_hrmp_queue_count_per_sender: u32,
 	/// The maximum total size of messages in bytes allowed in a downward message queue per one
 	/// sender para at the same time.
 	pub max_hrmp_queue_size_per_sender: u32,
+
+	/// Number of sessions after which an HRMP open channel request expires.
+	pub hrmp_open_request_ttl: u32,
 }
 ```

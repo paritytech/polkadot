@@ -17,17 +17,64 @@ RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
 RelayDispatchQueueSize: map ParaId => (u32, u32);
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 NeedsDispatch: Vec<ParaId>;
-/// The mapping that tracks how many bytes / messages are sent by a certain sender - recipient pair.
-///
-/// First item in the tuple is the count of messages for the (sender, recipient) pair and the second
-/// item is the total length (in bytes) of the message payloads.
-HorizontalMessagesResourceUsage: map (ParaId, ParaId) => (u32, u32);
-/// The downward messages addressed for a certain para. These vectors are not bounded directly, but
-/// rather each possible sender can put only a limited amount of messages in the downward queue.
-DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
-/// The number of downward messages originated from the relay chain to a certain para. This is subject
-/// to the `max_relay_chain_downward_messages` limit found in `HostConfiguration`.
-RelayChainDownwardMessages: map ParaId => u32;
+/// The downward messages addressed for a certain para.
+DownwardMessageQueues: map ParaId => Vec<DownwardMessage>; // TODO: augment this with a block number
+DmqWatermarks: map ParaId => Option<BlockNumber>'
+```
+
+### HRMP
+
+HRMP related structs:
+
+```rust,ignore
+struct HrmpOpenChannelRequest {
+    sender: ParaId,
+    recipient: ParaId,
+    confirmed: bool,
+    age: u32,
+}
+
+struct HrmpCloseChannelRequest {
+    // invariant: equals either to sender or recipient.
+    initiator: ParaId,
+    sender: ParaId,
+    recipient: ParaId,
+}
+
+struct HrmpChannel {
+    // deposits taken from both sides.
+    // consider merging if symmetrical.
+    sender_deposit: Balance,
+    recipient_deposit: Balance,
+
+    // The number of messages placed in the channel by the sender and the total number of bytes
+    // the occupy.
+    used_places: u32,
+    used_bytes: u32,
+
+    // if a channel is sealed, then it doesn't accept new messages.
+    // If it is sealed and `used_places` reaches 0 then the channel
+    // can be removed at the next session boundary.
+    sealed: bool,
+}
+```
+HRMP related storage layout
+
+```rust,ignore
+// TODO: Proposal: place the primary information into a map `(sender, recipient)`.
+// then add indexes?
+
+// TODO: Number of open requests per sender.
+// TODO: We need to iterate over all open requests.
+// TODO: We need to iterate over all close requests.
+// TODO: There should be a set for quickly checking if a close request for `(sender, reciever)` exists.
+hrmp_open_ch_requests: Vec<HrmpOpenChannelRequest>;
+hrmp_close_ch_requests: Vec<HrmpCloseChannelRequest>;
+
+// TODO: Number of opened channels per sender.
+// TODO: We need to be able to remove all channels for a particular sender
+// TODO: We need to be able to remove all channels for a particular recipient
+channels: map (ParaId, ParaId) => Option<Channel>;
 ```
 
 ## Initialization
@@ -36,63 +83,91 @@ No initialization routine runs for this module.
 
 ## Routines
 
-There are situations when actions that took place within the relay chain could lead to a downward message
-sent to a para. For example, if an entry-point to transfer some funds to a para was called.
+The following routines are intended to be invoked by paras' upward messages.
 
-For these cases, there are two routines, `has_dmq_capacity_for_relay_chain` and `send_downward_messages`,
-intended for use by the relay chain.
+* `init_open_channel(recipient)`:
+  1. Check that the origin of this message is a para. We say that the origin of this message is the `sender`.
+  1. Check that the `sender` is not `recipient`.
+  1. Check that the `recipient` para exists.
+  1. Check that there is no existing intention to open a channel between sender and recipient. TODO: Be more specific
+  1. Check that the sum of the number of already opened HRMP channels by the `sender` (TODO: be more specific) and the number of open requests by the `sender` (TODO: be more specific) doesn't exceed the limit of channels minus 1.
+  1. Reserve the deposit for the `sender`.
+  1. Add a new entry to `hrmp_open_ch_requests` and all other auxilary structures (TODO: be more specific)
 
-`send_downward_messages` is used for enqueuing one or more downward messages for a certain recipient. Since downward
-message queues can hold only so many messages per one sender (and the relay chain is not an exception),
-`send_downward_messages` can fail refusing enqueuing a message that would have exceeded the limit. In those cases
-`has_dmq_capacity_for_relay_chain` can be used for checking in advance if there is enough space for a given
-number of messages.
+* `accept_open_channel(i)`, `i` - is the index of open channel request: (TODO: consider specifying the pair directly)
+  1. Check that the designated open channel request exists
+  1. Check that the request's `recipient` corresponds to the origin of this message.
+  1. Reserve the deposit for the `recipient`.
+  1. Set the request's `confirmed` flag to `true`.
 
-Note that an HRMP message can only be sent by para candidates.
+* `close_channel(sender, recipient)`:
+  1. Check that the channel between `sender` and `recipient` exists
+  1. Check that the channel between `sender` and `recipient` is not already sealed
+  1. Check that the origin of the message is either `sender` or `recipient`
+  1. Check that there is no existing intention to close the channel between `sender` and `recipient`. (TODO: be more specific)
+  1. Add a new entry to `hrmp_close_ch_requests`.
 
-* `has_dmq_capacity_for_relay_chain(recipient: ParaId, n: u32)`.
-  1. Checks that the sum of the number `RelayChainDownwardMessages` for `recipient` and `n` is less
-  than or equal to `config.max_relay_chain_downward_messages`.
-* `send_downward_messages(recipient: ParaId, Vec<DownwardMessage>)`.
-  1. Checks that there is enough capacity in the receipient's downward queue using `has_dmq_capacity_for_relay_chain`.
-  1. For each downward message `DM`:
-    1. Checks that `DM` is not of type `HorizontalMessage`.
-    1. Appends `DM` into the `DownwardMessageQueues` corresponding to `recipient`.
-  1. Increments `RelayChainDownwardMessages` for the `recipient` according to the number of messages sent.
+The routines described below are for use within a session change and called by the `Paras` module.
 
-The following routines are intended for use during the course of inclusion or enactment of para candidates.
-For checking the validity of message passing within a candidate the `ensure_processed_downward_messages`
-and `ensure_horizontal_messages_fit` routines are called. When a candidate is enacted the
-`drain_downward_messages`, `queue_horizontal_messages` and `queue_upward_messages` are called.
+* `offboard_para(P: ParaId)`:
+  1. Remove all inbound channels of `P`, i.e. `(_, P)`,
+  1. Remove all outbound channels of `P`, i.e. `(P, _)`,
+  - Note that we don't remove the open/close requests since they are gon die out naturally.
+TODO: What happens with the deposit?
 
-* `ensure_processed_downward_messages(recipient: ParaId, processed_downward_messages: u32)`:
-  1. Checks that `DownwardMessageQueues` for `recipient` is at least `processed_downward_messages` long.
-  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `recipient` is not empty.
-* `ensure_horizontal_messages_fit(sender, Vec<HorizontalMessage>)`:
-  1. For each horizontal message `HM`, with recipient `R`:
-    1. Fetches the current usage level for the pair `(sender, R)`. The usage level is defined by
-    a tuple of `(msg_count, total_byte_size)`.
-    1. Checks that `msg_count + 1` is less or equal than `config.max_hrmp_queue_count_per_sender`.
-    1. Checks that the sum of the payload size occupied by `HM` and `total_byte_size` is less than or
-    equal to `config.max_hrmp_queue_size_per_sender`.
-* `drain_downward_messages(recipient: ParaId, processed_downward_messages)`:
-  1. Prunes `processed_downward_messages` from the beginning of the downward message queue. For each pruned message `DM`:
-    1. If `DM` is a horizontal message sent from a sender `S`,
-      1. With the mapping from `HorizontalMessagesResourceUsage` that corresponds to `(S, recipient)` represented by
-      `(msg_count, total_byte_size)`.
-          1. Decrements `msg_count` by 1.
-          1. Decrements `total_byte_size` according to the payload size of `DM`.
-    1. Otherwise, decrements `RelayChainDownwardMessages` for the `recipient`.
+Candidate Acceptance Function:
+
+* `check_dmq_watermark(P: ParaId, new_dmq_watermark)`:
+  1. `new_dmq_watermark` should be strictly greater than the value of `DmqWatermarks` for `P` (if any).
+  1. `new_dmq_watermark` must not be greater than the context's block number.
+  1. TODO: new_dmq_watermark should point either to the context's block number or to a block number such that a message exist with that block number in DMQ.
+* `verify_outbound_hrmp(sender: ParaId, Vec<HorizontalMessage>)`:
+  1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
+    1. exists
+	1. `C.sealed = false`
+	1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
+	1. `C.used_places + 1` doesn't exceed a preconfigured limit (TODO: be more specific about the limit)
+
+Enactment: TODO:
+
 * `queue_horizontal_messages(sender: ParaId, Vec<HorizontalMessage>)`:
-  1. For each horizontal message `HM`, with recipient `R`:
-    1. Using the payload from `HM` and the `sender` creates a downward message `DM`.
-    1. Appends `DM` into the `DownwardMessageQueues` corresponding to `R`.
-    1. With the mapping from `HorizontalMessagesResourceUsage` that corresponds to `(sender, R)` represented by
-      `(msg_count, total_byte_size)`.
-        1. Increment `msg_count` by 1.
-        1. Increment `total_byte_size` according to the payload size of `DM`.
+  1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
+	1. Using the payload from `HM` and the `sender` creates a downward message `DM` of the kind `HorizontalMessage`.
+    1. Appends `DM` into the `DownwardMessageQueues` corresponding to `HM.recipient`.
+    1. Increment `C.used_places`
+	1. Increment `C.used_bytes` by `HM`'s payload size
+* `prune_dmq(recipient, new_dmq_watermark)`:
+  1. Prune `DownwardMessageQueues` for `recipient` up to `new_dmq_watermark`. For each pruned DMQ message of kind `HorizontalMessage` `M` with the channel `C` identified by `(M.sender, recipient)`.
+	1. Decrement `C.used_places`
+	1. Decrement `C.used_bytes` by `M`'s payload size.
+  1. Set `DmqWatermarks` for `P` to be equal to `new_dmq_watermark`
+
+
 * `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
+
+## Session Change
+
+1. For each request `R` in the open channel request list: (TODO: Be more specific)
+    1. if `R.confirmed = false`:
+        1. increment `R.age` by 1.
+        2. if `R.age` reached a preconfigured time-to-live limit, then (TODO: what preconfigured limit? global or local to para?)
+            1. refund `R.sender_deposit` to the sender
+            2. remove `R`
+    2. if `R.confirmed = true`,
+        1. create a new channel between sender → recipient (TODO: Be more specific) (TODO: ensure that neither of the participants were offboarded?)
+        2. remove `R`
+1. For each request `R` in the close channel request list. A channel `C` identified by `(R.sender, R.recipient)`:
+    1. If `C.used_places` is greater than 0 then set `C.sealed = true`
+    1. Otherwise, remove the channel eagerly (See below)
+1. For each channel `C` in `channels` remove if `C.sealed = true` and `C.used_places = 0`. (TODO: how to iterate? Make this efficient)
+
+To remove a channel `C` identified with a tuple `(sender, recipient)`:
+
+1. Return `C.sender_deposit` to the `sender`.
+1. Return `C.recipient_deposit` to the `recipient`.
+1. Remove `C` from `channels`.
+
 
 ## Finalization
 

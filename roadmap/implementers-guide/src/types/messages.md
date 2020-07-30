@@ -51,16 +51,25 @@ A message that go down from the relay chain to a parachain. Such a message could
 as a result of an operation took place on the relay chain or sent using a horizontal message.
 
 ```rust,ignore
-enum DownwardMessage {
+enum DownwardMessageKind {
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
 	TransferInto(AccountId, Balance, Remark),
 	/// This downward message is a result of a horizontal message represented as opaque bytes sent
 	/// by the specified sender.
-	HorizontalMessage(ParaId, Vec<u8>),
+	HorizontalMessage {
+		sender: ParaId,
+		payload: Vec<u8>,
+	},
 	/// An opaque message which interpretation is up to the recipient para. This variant ought
 	/// to be used as a basis for special protocols between the relay chain and, typically system,
 	/// paras.
 	ParachainSpecific(Vec<u8>),
+}
+
+struct DownwardMessage {
+	/// TODO: what is this block number? context? enactment?
+	sent_at: BlockNumber,
+	kind: DownwardMessageKind,
 }
 ```
