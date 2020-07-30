@@ -22,11 +22,11 @@
 
 use sp_std::prelude::*;
 use codec::Encode;
-use primitives::v0::{
+use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 };
 use runtime_common::{
-	attestations, SlowAdjustingFeeUpdate,
+	SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
@@ -626,12 +626,6 @@ impl indices::Trait for Runtime {
 
 parameter_types! {
 	pub const AttestationPeriod: BlockNumber = 50;
-}
-
-impl attestations::Trait for Runtime {
-	type AttestationPeriod = AttestationPeriod;
-	type ValidatorIdentities = runtime_parachains::runtime_api_impl::v1::ValidatorIdentities<Runtime>;
-	type RewardAttestation = Staking;
 }
 
 impl grandpa::Trait for Runtime {
