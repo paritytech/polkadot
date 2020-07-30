@@ -300,6 +300,12 @@ pub struct SchedulerRoster {
 #[derive(Debug, Clone)]
 pub struct RuntimeApiError(String);
 
+impl From<String> for RuntimeApiError {
+	fn from(s: String) -> Self {
+		RuntimeApiError(s)
+	}
+}
+
 /// A sender for the result of a runtime API request.
 pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
 
@@ -324,6 +330,10 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
+	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently
+	/// occupies a core.
+	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
