@@ -106,7 +106,7 @@ pub fn validation_data_hash<N: Encode>(
 
 /// A unique descriptor of the candidate receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -176,7 +176,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 
 /// A candidate-receipt with commitments directly included.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -270,7 +270,7 @@ pub struct GlobalValidationData<N = BlockNumber> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
