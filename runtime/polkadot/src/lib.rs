@@ -21,7 +21,7 @@
 #![recursion_limit="256"]
 
 use runtime_common::{
-	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	dummy, claims, slots, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
@@ -31,11 +31,10 @@ use runtime_common::{
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
-use primitives::v0::{
-	self as parachain,
+use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
+use primitives::v0 as p_v0;
 use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, transaction_validity::{
 	TransactionValidity, TransactionSource, TransactionPriority,
 }, curve::PiecewiseLinear, traits::{
@@ -68,8 +67,6 @@ pub use staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
-pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -108,10 +105,8 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			Call::Parachains(parachains::Call::set_heads(..)) => true,
-
 			// Parachains stuff
-			Call::Parachains(_) | Call::Attestations(_) | Call::Slots(_) | Call::Registrar(_) =>
+			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
@@ -278,7 +273,7 @@ impl_opaque_keys! {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
-		pub parachain_validator: Parachains,
+		pub parachain_validator: Parachains, // TODO [now]: leave something here.
 		pub authority_discovery: AuthorityDiscovery,
 	}
 }
@@ -629,48 +624,6 @@ impl finality_tracker::Trait for Runtime {
 	type ReportLatency = ReportLatency;
 }
 
-parameter_types! {
-	pub const AttestationPeriod: BlockNumber = 50;
-}
-
-impl attestations::Trait for Runtime {
-	type AttestationPeriod = AttestationPeriod;
-	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
-	type RewardAttestation = Staking;
-}
-
-parameter_types! {
-	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
-
-	pub const ValidationUpgradeFrequency: BlockNumber = 7 * DAYS;
-	pub const ValidationUpgradeDelay: BlockNumber = 1 * DAYS;
-	pub const SlashPeriod: BlockNumber = 28 * DAYS;
-}
-
-impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
-	type Origin = Origin;
-	type Call = Call;
-	type ParachainCurrency = Balances;
-	type BlockNumberConversion = sp_runtime::traits::Identity;
-	type Randomness = RandomnessCollectiveFlip;
-	type ActiveParachains = Registrar;
-	type Registrar = Registrar;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadDataSize = MaxHeadDataSize;
-
-	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
-	type ValidationUpgradeDelay = ValidationUpgradeDelay;
-	type SlashPeriod = SlashPeriod;
-
-	type Proof = sp_session::MembershipProof;
-	type KeyOwnerProofSystem = session::historical::Module<Self>;
-	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
-	type ReportOffence = Offences;
-	type BlockHashConversion = sp_runtime::traits::Identity;
-}
-
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
 impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
@@ -702,8 +655,6 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			system::CheckNonce::<Runtime>::from(nonce),
 			system::CheckWeight::<Runtime>::new(),
 			transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 			claims::PrevalidateAttests::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
@@ -733,16 +684,6 @@ parameter_types! {
 	pub const MaxRetries: u32 = 3;
 }
 
-impl registrar::Trait for Runtime {
-	type Event = Event;
-	type Origin = Origin;
-	type Currency = Balances;
-	type ParathreadDeposit = ParathreadDeposit;
-	type SwapAux = Slots;
-	type QueueSize = QueueSize;
-	type MaxRetries = MaxRetries;
-}
-
 parameter_types! {
 	pub const LeasePeriod: BlockNumber = 100_000;
 	pub const EndingPeriod: BlockNumber = 1000;
@@ -751,7 +692,7 @@ parameter_types! {
 impl slots::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
-	type Parachains = Registrar;
+	type Parachains = ();
 	type EndingPeriod = EndingPeriod;
 	type LeasePeriod = LeasePeriod;
 	type Randomness = RandomnessCollectiveFlip;
@@ -812,6 +753,8 @@ parameter_types! {
 	pub const ProxyDepositFactor: Balance = deposit(0, 33);
 	pub const MaxProxies: u16 = 32;
 }
+
+impl<I> dummy::Trait<I> for Runtime { }
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -882,10 +825,10 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ElectionsPhragmen(..) |
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
-				Call::Parachains(..) |
-				Call::Attestations(..) |
-				Call::Slots(..) |
-				Call::Registrar(..) |
+				Call::DummyParachains(..) |
+				Call::DummyAttestations(..) |
+				Call::DummySlots(..) |
+				Call::DummyRegistrar(..) |
 				Call::Claims(..) |
 				Call::Vesting(vesting::Call::vest(..)) |
 				Call::Vesting(vesting::Call::vest_other(..)) |
@@ -1115,13 +1058,11 @@ construct_runtime! {
 		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
 		Treasury: treasury::{Module, Call, Storage, Event<T>},
 
-		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
-		// have no public dispatchables. Disabled `Call` on all of them, but this should be
-		// uncommented once we're ready to start parachains.
-		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
-		Attestations: attestations::{Module, Call, Storage},
-		Slots: slots::{Module, Call, Storage, Event<T>},
-		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
+		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
+		DummyParachains: dummy::<Instance0>::{Module, Call},
+		DummyAttestations: dummy::<Instance1>::{Module, Call},
+		DummySlots: dummy::{Module, Call},
+		DummyRegistrar: dummy::{Module, Call},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -1163,8 +1104,6 @@ pub type SignedExtra = (
 	system::CheckNonce<Runtime>,
 	system::CheckWeight<Runtime>,
 	transaction_payment::ChargeTransactionPayment<Runtime>,
-	registrar::LimitParathreadCommits<Runtime>,
-	parachains::ValidateDoubleVoteReports<Runtime>,
 	claims::PrevalidateAttests<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1244,46 +1183,43 @@ sp_api::impl_runtime_apis! {
 			Executive::offchain_worker(header)
 		}
 	}
-
-	impl parachain::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<parachain::ValidatorId> {
-			Parachains::authorities()
+	// Dummy implementation to continue supporting old parachains runtime temporarily.
+	impl p_v0::ParachainHost<Block> for Runtime {
+		fn validators() -> Vec<p_v0::ValidatorId> {
+			// Yes, these aren't actually the parachain session keys.
+			Session::validators()
+				.into_iter()
+				.map(|k| p_v0::ValidatorId::from_raw(k.as_array_ref()))
 		}
-		fn duty_roster() -> parachain::DutyRoster {
-			Parachains::calculate_duty_roster().0
+		fn duty_roster() -> p_v0::DutyRoster {
+			let v = Session::validators();
+			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
 		}
-		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
-			Registrar::active_paras()
+		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
+			Vec::new()
 		}
-		fn global_validation_data() -> parachain::GlobalValidationData {
-			Parachains::global_validation_data()
+		fn global_validation_data() -> p_v0::GlobalValidationData {
+			Default::default()
 		}
-		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
-			Parachains::current_local_validation_data(&id)
+		fn local_validation_data(id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
+			None
 		}
-		fn parachain_code(id: parachain::Id) -> Option<parachain::ValidationCode> {
-			Parachains::parachain_code(&id)
+		fn parachain_code(id: p_v0::Id) -> Option<p_v0::ValidationCode> {
+			None
 		}
 		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<AbridgedCandidateReceipt>>
+			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
 		{
-			extrinsics
-				.into_iter()
-				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
-					Ok(ex) => match ex.function {
-						Call::Parachains(ParachainsCall::set_heads(heads)) => {
-							Some(heads.into_iter().map(|c| c.candidate).collect())
-						}
-						_ => None,
-					}
-					Err(_) => None,
-				})
+			None
 		}
-		fn signing_context() -> SigningContext {
-			Parachains::signing_context()
+		fn signing_context() -> p_v0::SigningContext {
+			p_v0::SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: Session::current_index(),
+			}
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
-			Parachains::downward_messages(id)
+		fn downward_messages(id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
+			Vec::new()
 		}
 	}
 
