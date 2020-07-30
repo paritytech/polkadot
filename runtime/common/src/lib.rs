@@ -20,7 +20,6 @@
 
 pub mod claims;
 pub mod slot_range;
-//pub mod registrar;
 pub mod slots;
 pub mod crowdfund;
 pub mod purchase;
