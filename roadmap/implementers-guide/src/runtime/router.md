@@ -123,7 +123,7 @@ Candidate Acceptance Function:
 * `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
     1. exists
-    1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `Climit_used_bytes`.
+    1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
     1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
 
 Candidate Enactment:
