@@ -37,7 +37,6 @@ use futures::prelude::*;
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
 	client: Client,
-	// TODO cache?
 }
 
 impl<Client> ChainApiSubsystem<Client> {
@@ -98,28 +97,63 @@ mod tests {
 	use super::*;
 	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
 	use sp_blockchain::Info as BlockInfo;
-	use std::collections::HashMap;
+	use std::collections::BTreeMap;
 
 	struct TestClient {
-		blocks_by_hash: HashMap<Hash, BlockNumber>,
-		finalized_block_hashes: HashMap<BlockNumber, Hash>,
-		last_finalized_block: Option<BlockNumber>,
+		blocks: BTreeMap<Hash, BlockNumber>,
+		finalized_blocks: BTreeMap<BlockNumber, Hash>,
 	}
+
+	impl Default for TestClient {
+		fn default() -> Self {
+			Self {
+				blocks: maplit::btreemap! {
+					Hash::repeat_byte(0x01) => 1,
+					Hash::repeat_byte(0x02) => 2,
+					Hash::repeat_byte(0x03) => 3,
+					Hash::repeat_byte(0x04) => 4,
+				},
+				finalized_blocks: maplit::btreemap! {
+					1 => Hash::repeat_byte(0x01),
+					3 => Hash::repeat_byte(0x03),
+				},
+			}
+		}
+	}
+
+	fn last_key_value<K: Clone, V: Clone>(map: &BTreeMap<K, V>) -> (K, V) {
+		assert!(!map.is_empty());
+		map.iter()
+			.last()
+			.map(|(k, v)| (k.clone(), v.clone()))
+			.unwrap()
+	} 
 
 	impl HeaderBackend<Block> for TestClient {
 		fn info(&self) -> BlockInfo<Block> {
-			todo!()
+			let genesis_hash = self.blocks.iter().next().map(|(h, _)| *h).unwrap();
+			let (best_hash, best_number) = last_key_value(&self.blocks);
+			let (finalized_number, finalized_hash) = last_key_value(&self.finalized_blocks);
+
+			BlockInfo {
+				best_hash,
+				best_number,
+				genesis_hash,
+				finalized_hash,
+				finalized_number,
+				number_leaves: 0,
+			}
 		}
 		fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
-			todo!()
+			Ok(self.blocks.get(&hash).copied())
 		}
 		fn hash(&self, number: BlockNumber) -> sp_blockchain::Result<Option<Hash>> {
-			todo!()
+			Ok(self.finalized_blocks.get(&number).copied())
 		}
-		fn header(&self, id: BlockId) -> sp_blockchain::Result<Option<Header>> {
+		fn header(&self, _id: BlockId) -> sp_blockchain::Result<Option<Header>> {
 			unimplemented!()
 		}
-		fn status(&self, id: BlockId) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+		fn status(&self, _id: BlockId) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 			unimplemented!()
 		}
 	}
