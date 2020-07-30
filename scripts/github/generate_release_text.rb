@@ -64,11 +64,17 @@ rustc_nightly = ENV['RUSTC_NIGHTLY']
 polkadot_runtime = File.open(polkadot_path + '/runtime/polkadot/src/lib.rs') do |f|
   f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
 end
+puts "::set-output name=polkadot_runtime::#{polkadot_runtime}"
 kusama_runtime = File.open(polkadot_path + '/runtime/kusama/src/lib.rs') do |f|
   f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
 end
+puts "::set-output name=kusama_runtime::#{kusama_runtime}"
 westend_runtime = File.open(polkadot_path + '/runtime/westend/src/lib.rs') do |f|
   f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
 end
+puts "::set-output name=westend_runtime::#{westend_runtime}"
 
+puts '========'
 puts renderer.result
+
+File.open('release_text.md', 'w') { |f| f.write(renderer.result) }
