@@ -18,9 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod attestations;
 pub mod claims;
-pub mod parachains;
 pub mod slot_range;
 pub mod registrar;
 pub mod slots;
@@ -28,7 +26,7 @@ pub mod crowdfund;
 pub mod purchase;
 pub mod impls;
 
-use primitives::v0::BlockNumber;
+use primitives::v1::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
 use frame_support::{
 	parameter_types, traits::{Currency},
@@ -45,7 +43,6 @@ pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::Call as ParachainsCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};

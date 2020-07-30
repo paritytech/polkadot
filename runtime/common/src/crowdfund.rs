@@ -79,7 +79,7 @@ use sp_runtime::{ModuleId,
 use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
-use primitives::v0::{Id as ParaId, HeadData};
+use primitives::v1::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
@@ -697,10 +697,6 @@ mod tests {
 
 		fn code_size_allowed(code_size: u32) -> bool {
 			code_size <= MAX_CODE_SIZE
-		}
-
-		fn para_info(_id: ParaId) -> Option<ParaInfo> {
-			Some(ParaInfo { scheduling: Scheduling::Always })
 		}
 
 		fn register_para(

@@ -34,12 +34,15 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 };
 use system::{self, ensure_root, ensure_signed};
-use primitives::v0::{
-	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
+use primitives::v1::{
+	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo,
 	Retriable, ValidationCode, HeadData,
 };
-use crate::parachains;
 use sp_runtime::transaction_validity::InvalidTransaction;
+
+pub trait ParachainsMock {
+	// TODO [now]
+}
 
 /// Parachain registration API.
 pub trait Registrar<AccountId> {
@@ -51,9 +54,6 @@ pub trait Registrar<AccountId> {
 
 	/// Checks whether the given validation code falls within the limit.
 	fn code_size_allowed(code_size: u32) -> bool;
-
-	/// Fetches metadata for a para by ID, if any.
-	fn para_info(id: ParaId) -> Option<ParaInfo>;
 
 	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
 	/// result in a error.
@@ -71,61 +71,6 @@ pub trait Registrar<AccountId> {
 
 	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
 	fn deregister_para(id: ParaId) -> DispatchResult;
-}
-
-impl<T: Trait> Registrar<T::AccountId> for Module<T> {
-	fn new_id() -> ParaId {
-		<NextFreeId>::mutate(|n| { let r = *n; *n = ParaId::from(u32::from(*n) + 1); r })
-	}
-
-	fn head_data_size_allowed(head_data_size: u32) -> bool {
-		head_data_size <= <T as parachains::Trait>::MaxHeadDataSize::get()
-	}
-
-	fn code_size_allowed(code_size: u32) -> bool {
-		code_size <= <T as parachains::Trait>::MaxCodeSize::get()
-	}
-
-	fn para_info(id: ParaId) -> Option<ParaInfo> {
-		Self::paras(&id)
-	}
-
-	fn register_para(
-		id: ParaId,
-		info: ParaInfo,
-		code: ValidationCode,
-		initial_head_data: HeadData,
-	) -> DispatchResult {
-		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
-		if let Scheduling::Always = info.scheduling {
-			Parachains::mutate(|parachains|
-				match parachains.binary_search(&id) {
-					Ok(_) => Err(Error::<T>::ParaAlreadyExists),
-					Err(idx) => {
-						parachains.insert(idx, id);
-						Ok(())
-					}
-				}
-			)?;
-		}
-		<parachains::Module<T>>::initialize_para(id, code, initial_head_data);
-		Paras::insert(id, info);
-		Ok(())
-	}
-
-	fn deregister_para(id: ParaId) -> DispatchResult {
-		let info = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
-		if let Scheduling::Always = info.scheduling {
-			Parachains::mutate(|parachains|
-				parachains.binary_search(&id)
-					.map(|index| parachains.remove(index))
-					.map_err(|_| Error::<T>::InvalidChainId)
-			)?;
-		}
-		<parachains::Module<T>>::cleanup_para(id);
-		Paras::remove(id);
-		Ok(())
-	}
 }
 
 type BalanceOf<T> =
@@ -213,7 +158,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 	Parachains::put(&only_ids);
 
 	for (id, code, genesis) in p {
-		Paras::insert(id, &primitives::v0::PARACHAIN_INFO);
+		Paras::insert(id, &primitives::v1::PARACHAIN_INFO);
 		// no ingress -- a chain cannot be routed to until it is live.
 		<parachains::Code>::insert(&id, &code);
 		<parachains::Heads>::insert(&id, &genesis);
@@ -552,12 +497,6 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> ActiveParas for Module<T> {
-	fn active_paras() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> {
-		Active::get()
-	}
-}
-
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
@@ -670,11 +609,10 @@ mod tests {
 			AccountIdConversion, Extrinsic as ExtrinsicT,
 		}, testing::{UintAuthorityId, TestXt}, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	};
-	use primitives::v0::{
+	use primitives::v1::{
 		ValidatorId, Info as ParaInfo, Scheduling, LOWEST_USER_ID, AttestedCandidate,
 		CandidateReceipt, HeadData, ValidityAttestation, CompactStatement as Statement, Chain,
-		CollatorPair, CandidateCommitments,
-		Balance, BlockNumber, Header, Signature,
+		CollatorPair, CandidateCommitments, Balance, BlockNumber, Header, Signature,
 	};
 	use frame_support::{
 		traits::{KeyOwnerProofSystem, OnInitialize, OnFinalize},

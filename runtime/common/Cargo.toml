@@ -35,6 +35,7 @@ transaction-payment = { package = "pallet-transaction-payment", git = "https://g
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -75,6 +76,7 @@ std = [
 	"session/std",
 	"staking/std",
 	"system/std",
+	"runtime-parachains/std",
 	"timestamp/std",
 	"vesting/std",
 	"transaction-payment/std",

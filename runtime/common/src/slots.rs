@@ -28,7 +28,7 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
-use primitives::v0::{
+use primitives::v1::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
 };
 use system::{ensure_signed, ensure_root};
@@ -890,7 +890,7 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use balances;
-	use primitives::v0::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
+	use primitives::v1::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
 
 	impl_outer_origin! {
 		pub enum Origin for Test where system = system {}
@@ -972,10 +972,6 @@ mod tests {
 
 		fn code_size_allowed(code_size: u32) -> bool {
 			code_size <= MAX_CODE_SIZE
-		}
-
-		fn para_info(_id: ParaId) -> Option<ParaInfo> {
-			Some(ParaInfo { scheduling: Scheduling::Always })
 		}
 
 		fn register_para(
