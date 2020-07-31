@@ -77,18 +77,18 @@ struct HrmpChannel {
 HRMP related storage layout
 
 ```rust,ignore
-
+/// Pending HRMP open channel requests.
 HrmpOpenChannelRequests: Vec<HrmpOpenChannelRequest>;
 /// This mapping tracks how many open channel requests are inititated by a given sender para.
 /// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `_.sender == X`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
 HrmpOpenChannelRequestCount: map ParaId => u32;
+/// Pending HRMP close channel requests.
 HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
-
+/// The HRMP watermark associated with each para.
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
-
+/// HRMP channel data associated with each para.
 HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
-
 /// The indexes that map all senders to their recievers and vise versa.
 /// Invariants:
 /// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels` as `(I, P)`.
@@ -96,9 +96,9 @@ HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
 /// - there should be no other dangling channels in `HrmpChannels`.
 HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
-
+/// Storage for the messages for each channel.
+/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
-
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
