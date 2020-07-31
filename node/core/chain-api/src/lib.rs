@@ -80,7 +80,7 @@ where
 					let _ = response_channel.send(result);
 				},
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
-					// TODO: do we need to verify it's finalized?
+					// Note: we don't verify it's finalized
 					let result = client.hash(number).map_err(|e| e.to_string().into());
 					let _ = response_channel.send(result);
 				},

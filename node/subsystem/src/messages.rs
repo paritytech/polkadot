@@ -320,6 +320,7 @@ pub enum ChainApiMessage {
 	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
 	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Option<Hash>>),
 	/// Request the last finalized block number.
 	/// This request always succeeds.

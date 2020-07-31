@@ -137,6 +137,7 @@ enum ChainApiMessage {
 	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
 	/// Get the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
 	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
 	/// Get the last finalized block number.
 	/// This request always succeeds.
