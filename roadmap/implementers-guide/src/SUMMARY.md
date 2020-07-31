@@ -39,6 +39,7 @@
     - [Misbehavior Arbitration](node/utility/misbehavior-arbitration.md)
     - [Peer Set Manager](node/utility/peer-set-manager.md)
     - [Runtime API Requests](node/utility/runtime-api.md)
+    - [Chain API Requests](node/utility/chain-api.md)
 - [Data Structures and Types](types/README.md)
     - [Candidate](types/candidate.md)
     - [Backing](types/backing.md)

@@ -26,8 +26,8 @@ use polkadot_subsystem::{
 };
 use polkadot_subsystem::messages::{
 	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
-	RuntimeApiError,
 };
+use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs};
 use polkadot_primitives::v1::{
 	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,

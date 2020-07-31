@@ -47,6 +47,7 @@ members = [
 	"node/core/backing",
 	"node/core/bitfield-signing",
 	"node/core/candidate-validation",
+	"node/core/chain-api",
 	"node/core/proposer",
 	"node/core/runtime-api",
 	"node/network/bridge",

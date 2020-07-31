@@ -69,7 +69,7 @@ enum AvailabilityStoreMessage {
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
 	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
-	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's 
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
 	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
@@ -123,6 +123,37 @@ These messages are sent to the [Candidate Selection subsystem](../node/backing/c
 enum CandidateSelectionMessage {
   /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
   Invalid(CandidateReceipt),
+}
+```
+
+## Chain API Message
+
+The Chain API subsystem is responsible for providing an interface to chain data.
+
+```rust
+enum ChainApiMessage {
+	/// Get the block number by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
+	/// Get the finalized block hash by number.
+	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
+	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
+	/// Get the last finalized block number.
+	/// This request always succeeds.
+	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel.
+		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
+	}
 }
 ```
 

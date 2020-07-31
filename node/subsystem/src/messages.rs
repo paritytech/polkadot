@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
 	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex,
+	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -285,6 +285,43 @@ impl AvailabilityStoreMessage {
 	}
 }
 
+/// A response channel for the result of a chain API request.
+pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, crate::errors::ChainApiError>>;
+
+/// Chain API request subsystem message.
+#[derive(Debug)]
+pub enum ChainApiMessage {
+	/// Request the block number by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
+	/// Request the finalized block hash by number.
+	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
+	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Option<Hash>>),
+	/// Request the last finalized block number.
+	/// This request always succeeds.
+	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel. 
+		response_channel: ChainApiResponseChannel<Vec<Hash>>,
+	},
+}
+
+impl ChainApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// The information on scheduler assignments that some somesystems may be querying.
 #[derive(Debug, Clone)]
 pub struct SchedulerRoster {
@@ -298,18 +335,8 @@ pub struct SchedulerRoster {
 	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
-/// A description of an error causing the runtime API request to be unservable.
-#[derive(Debug, Clone)]
-pub struct RuntimeApiError(String);
-
-impl From<String> for RuntimeApiError {
-	fn from(s: String) -> Self {
-		RuntimeApiError(s)
-	}
-}
-
 /// A sender for the result of a runtime API request.
-pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
+pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeApiError>>;
 
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
