@@ -50,7 +50,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self.0).map(|_| ()).boxed(),
-			name: "RuntimeApiSubsystem",
+			name: "runtime-api-subsystem",
 		}
 	}
 }

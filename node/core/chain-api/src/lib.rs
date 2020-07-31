@@ -57,7 +57,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self.client).map(|_| ()).boxed(),
-			name: "ChainApiSubsystem",
+			name: "chain-api-subsystem",
 		}
 	}
 }
