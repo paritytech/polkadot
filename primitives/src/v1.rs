@@ -646,7 +646,7 @@ pub enum CandidateEvent<H = Hash> {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode, N: Decode> {
+	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
