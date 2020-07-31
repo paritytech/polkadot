@@ -29,34 +29,48 @@ HRMP related structs:
 /// A type used to designate a HRMP channel between a (sender, recipient).
 type HrmpChannelId = (ParaId, ParaId);
 
+/// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
+	/// The sender and the initiator of this request.
     sender: ParaId,
+	/// The recipient of the opened request.
     recipient: ParaId,
+	/// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
+	/// How many session boundaries this request has seen.
     age: u32,
+	/// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
+	/// The maximum number of messages that can be pending in the channel at once.
     limit_used_places: u32,
+	/// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
 }
 
+/// A description of a request to close an opened HRMP channel.
 struct HrmpCloseChannelRequest {
-    // invariant: equals either to sender or recipient.
+	/// The para which initiated closing an existing channel.
+    /// invariant: equals either to sender or recipient.
     initiator: ParaId,
+	/// The identifier of an HRMP channel to be closed.
     id: HrmpChannelId,
 }
 
+/// A metadata of an HRMP channel.
 struct HrmpChannel {
-    // deposits taken from both sides.
-    // consider merging if symmetrical.
+    /// The amount that the sender supplied as a deposit when opening this channel.
     sender_deposit: Balance,
+	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
     recipient_deposit: Balance,
-
+	/// The maximum number of messages that can be pending in the channel at once.
     limit_used_places: u32,
+	/// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
-
-    // The number of messages placed in the channel by the sender and the total number of bytes
-    // the occupy.
+    /// The current number of messages pending in the channel.
+	/// Invariant: should be less or equal to `limit_used_places`.
     used_places: u32,
+	/// The total size in bytes of all message payloads in the channel.
+	/// Invariant: should be less or equal to `limit_used_bytes`.
     used_bytes: u32,
 }
 ```
@@ -73,7 +87,7 @@ HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
 
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
 
-HrmpChannels: map HrmpChannelId => Option<Channel>;
+HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
 
 /// The indexes that map all senders to their recievers and vise versa.
 /// Invariants:
@@ -187,7 +201,7 @@ TODO: What happens with the deposits in channels or open requests?
             1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
         1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
         1. remove `R`
-1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`.
+1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`, if exists.
 
 To remove a channel `C` identified with a tuple `(sender, recipient)`:
 
