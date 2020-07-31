@@ -198,8 +198,14 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			// TODO: [now] `candidate_events` has to be sorted out.
-			unimplemented!();
+			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
+				match ev {
+					Event::parachains_inclusion(ev) => {
+						Some(ev)
+					}
+					_ => None,
+				}
+			})
 		}
 	}
 
