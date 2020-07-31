@@ -149,15 +149,19 @@ pub fn validate_candidate(
 			pool.validate_candidate(validation_code, params, true)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::Remote(pool) =>
-			Err(ValidationError::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::Remote(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::RemoteTest(pool) =>
-			Err(ValidationError::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::RemoteTest(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 	}
 }
 
