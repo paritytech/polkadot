@@ -76,12 +76,12 @@ where
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
-					let result = client.number(hash).map_err(|e| format!("{}", e).into());
+					let result = client.number(hash).map_err(|e| e.to_string().into());
 					let _ = response_channel.send(result);
 				},
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					// TODO: do we need to verify it's finalized?
-					let result = client.hash(number).map_err(|e| format!("{}", e).into());
+					let result = client.hash(number).map_err(|e| e.to_string().into());
 					let _ = response_channel.send(result);
 				},
 				ChainApiMessage::FinalizedBlockNumber(response_channel) => {
@@ -95,7 +95,7 @@ where
 						let maybe_header = client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
-							Err(e) => Some(Err(format!("{}", e).into())),
+							Err(e) => Some(Err(e.to_string().into())),
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {
