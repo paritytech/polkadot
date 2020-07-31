@@ -25,7 +25,7 @@ last_version = pg
               .tags
               .map(&:name)
               .grep(/^v\d+\.\d+\.\d+$/)
-              .sort_by { |v| Gem::Version.new(v.slice(1...)) }[-2]
+              .max_by { |v| Gem::Version.new(v.slice(1...)) }
 
 polkadot_cl = Changelog.new(
   'paritytech/polkadot', version, last_version, token: token
