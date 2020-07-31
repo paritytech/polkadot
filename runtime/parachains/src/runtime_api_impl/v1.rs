@@ -25,24 +25,12 @@ use primitives::v1::{
 	GroupIndex, CandidateEvent,
 };
 use sp_runtime::traits::Zero;
-use frame_support::{
-	debug,
-	traits::Get,
-};
+use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
 	<inclusion::Module<T>>::validators()
-}
-
-/// Interface to the persistent (stash) identities of the current validators.
-pub struct ValidatorIdentities<T>(sp_std::marker::PhantomData<T>);
- 
-impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
-	fn get() -> Vec<T::ValidatorId> {
-		<session::Module<T>>::validators()
-	}
 }
 
 /// Implementation for the `validator_groups` function of the runtime API.
