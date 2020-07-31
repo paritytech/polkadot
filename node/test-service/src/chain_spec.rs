@@ -155,13 +155,6 @@ fn polkadot_testnet_genesis(
 		babe: Some(Default::default()),
 		grandpa: Some(Default::default()),
 		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig { keys: vec![] }),
-		parachains: Some(polkadot::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(polkadot::RegistrarConfig {
-			parachains: vec![],
-			_phdata: Default::default(),
-		}),
 		claims: Some(polkadot::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
