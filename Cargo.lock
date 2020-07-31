@@ -4695,7 +4695,6 @@ dependencies = [
 name = "polkadot-node-core-runtime-api"
 version = "0.1.0"
 dependencies = [
- "assert_matches",
  "futures 0.3.5",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
