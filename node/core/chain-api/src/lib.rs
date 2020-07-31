@@ -97,7 +97,7 @@ where
 							// propagate the error
 							Err(e) => Some(Err(format!("{}", e).into())),
 							// fewer than `k` ancestors are available
-							Ok(None) => None, 
+							Ok(None) => None,
 							Ok(Some(header)) => {
 								hash = header.parent_hash;
 								Some(Ok(hash))

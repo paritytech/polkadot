@@ -69,7 +69,7 @@ enum AvailabilityStoreMessage {
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
 	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
-	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's 
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
 	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
@@ -141,7 +141,7 @@ enum ChainApiMessage {
 	/// Get the last finalized block number.
 	/// This request always succeeds.
 	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
-		/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// Request the `k` ancestors block hashes of a block with the given hash.
 	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
 	/// `parent`, `grandparent`, ...
@@ -150,7 +150,7 @@ enum ChainApiMessage {
 		hash: Hash,
 		/// The number of ancestors to request.
 		k: usize,
-		/// The response channel. 
+		/// The response channel.
 		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
 	}
 }
