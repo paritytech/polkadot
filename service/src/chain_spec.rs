@@ -25,6 +25,7 @@ use rococo_runtime as rococo;
 use polkadot::constants::currency::DOTS;
 use kusama::constants::currency::DOTS as KSM;
 use westend::constants::currency::DOTS as WND;
+use rococo_runtime::constants::currency::DOTS as ROC;
 use sc_chain_spec::{ChainSpecExtension, ChainType};
 use sp_runtime::{traits::IdentifyAccount, Perbill};
 use serde::{Serialize, Deserialize};
@@ -503,8 +504,8 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		hex!["4e262811acdfe94528bfc3c65036080426a0e1301b9ada8d687a70ffcae99c26"].unchecked_into(),
 	)];
 
-	const ENDOWMENT: u128 = 1_000_000 * WND;
-	const STASH: u128 = 100 * WND;
+	const ENDOWMENT: u128 = 1_000_000 * ROC;
+	const STASH: u128 = 100 * ROC;
 
 	rococo_runtime::GenesisConfig {
 		system: Some(rococo_runtime::SystemConfig {
