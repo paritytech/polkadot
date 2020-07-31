@@ -29,7 +29,7 @@
     - [Bitfield Signing](node/availability/bitfield-signing.md)
   - [Collators](node/collators/README.md)
     - [Collation Generation](node/collators/collation-generation.md)
-    - [Collation Distribution](node/collators/collation-distribution.md)
+    - [Collator Protocol](node/collators/collator-protocol.md)
   - [Validity](node/validity/README.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)

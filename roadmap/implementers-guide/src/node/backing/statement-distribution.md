@@ -4,7 +4,7 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 ## Protocol
 
-`ProtocolId`: `b"stmd"`
+`ProtocolId`: `b"stmd"`, `PeerSet`: `Validation`
 
 Input:
 
