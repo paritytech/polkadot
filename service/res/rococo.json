@@ -27,7 +27,6 @@
     "tokenDecimals": 12,
     "tokenSymbol": "ROC"
   },
-  "properties": null,
   "forkBlocks": null,
   "badBlocks": null,
   "consensusEngine": null,
