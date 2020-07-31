@@ -1,10 +1,10 @@
 name: Publish draft release
 
-on:
-  push:
-    tags:
-      # Catches v1.2.3 and v1.2.3-rc1
-      - v[0-9]+.[0-9]+.[0-9]+*
+on: push
+#push:
+#    tags:
+#      # Catches v1.2.3 and v1.2.3-rc1
+#      - v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
   build-runtimes:
