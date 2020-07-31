@@ -489,7 +489,7 @@ impl CoreAssignment {
 /// Validation data omitted from most candidate descriptor structs, as it can be derived from the
 /// relay-parent.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
 pub struct OmittedValidationData {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationData,

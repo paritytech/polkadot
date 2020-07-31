@@ -394,7 +394,7 @@ mod tests {
 
 			let chunk_msg = AvailabilityStoreMessage::StoreChunk(
 				relay_parent,
-				validator_index, 
+				validator_index,
 				chunk.clone(),
 				tx,
 			);
@@ -436,7 +436,7 @@ mod tests {
 				global_validation,
 				local_validation,
 			};
-				
+
 			let available_data = AvailableData {
 				pov,
 				omitted_validation,

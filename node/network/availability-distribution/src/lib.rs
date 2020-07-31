@@ -59,6 +59,8 @@ enum Error {
 	Oneshot(oneshot::Canceled),
 	#[from]
 	Subsystem(SubsystemError),
+
+	Logic,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -208,6 +210,34 @@ fn candidate_hash_of(receipt: &CommittedCandidateReceipt) -> H256 {
 	receipt.descriptor().validation_data_hash.clone()
 }
 
+
+fn derive_erasure_chunks_with_proofs(n_validators: usize, validator_index: ValidatorIndex, available_data: &AvailableData) -> Result<Vec<ErasureChunk>> {
+	if n_validators <= validator_index as usize {
+		warn!("Validator index is outside the validator set range");
+		return Err(Error::Logic)
+	}
+	let chunks: Vec<Vec<u8>> =
+	if let Ok(chunks) = obtain_chunks(n_validators, available_data) {
+		chunks
+	} else {
+		warn!("Failed to create erasure chunks");
+		return Err(Error::Logic)
+	};
+
+	// create proofs for each erasure chunk
+	let branches = branches(chunks.as_ref());
+
+	let erasure_chunks = branches
+		.map(|(proof, chunk)| ErasureChunk {
+			chunk: chunk.to_vec(),
+			index: validator_index,
+			proof,
+		})
+		.collect::<Vec<ErasureChunk>>();
+
+	Ok(erasure_chunks)
+}
+
 /// Handle the changes necassary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
@@ -279,24 +309,11 @@ where
 			omitted_validation,
 		};
 
-		let chunks: Vec<Vec<u8>> =
-			if let Ok(chunks) = obtain_chunks(per_relay_parent.validators.len(), &available_data) {
-				chunks
-			} else {
-				warn!("Failed to create erasure chunks");
-				return Ok(());
-			};
-
-		// create proofs for each erasure chunk
-		let branches = branches(chunks.as_ref());
-
-		let erasure_chunks: Vec<ErasureChunk> = branches
-			.map(|(proof, chunk)| ErasureChunk {
-				chunk: chunk.to_vec(),
-				index: validator_index,
-				proof,
-			})
-			.collect();
+		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(per_relay_parent.validators.len(), validator_index, &available_data) {
+			erasure_chunks
+		} else {
+			return Ok(())
+		};
 
 		if let Some(erasure_chunk) = erasure_chunks.get(validator_index as usize) {
 			match store_chunk(ctx, candidate_hash, validator_index, erasure_chunk.clone()).await {
@@ -952,7 +969,7 @@ mod test {
 		AvailableData, BlockData, CandidateDescriptor, GlobalValidationData, GroupIndex, HeadData,
 		LocalValidationData, OccupiedCore, OmittedValidationData, PoV, Signed, ValidatorPair,
 	};
-	use polkadot_subsystem::test_helpers::{self, make_subsystem_context};
+	use polkadot_subsystem::test_helpers;
 
 	use futures::{channel::oneshot, executor, future, Future};
 	use smol_timeout::TimeoutExt;
@@ -965,50 +982,8 @@ mod test {
 		];
 	}
 
-	macro_rules! peers {
-		( $( $peer:expr ),* $(,)? ) => [
-			vec![ $( $peer.clone() ),* ]
-		];
-	}
-
-	macro_rules! launch {
-		($fut:expr) => {
-			$fut.timeout(Duration::from_millis(10))
-				.await
-				.expect("10ms is more than enough for sending messages.")
-				.expect("Launching a message to the overseer must never fail.")
-		};
-	}
-
 	struct TestHarness {
 		virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
-	}
-
-	struct TestState {
-		global_validation_schedule: GlobalValidationData,
-		local_validation_data: LocalValidationData,
-	}
-
-	impl Default for TestState {
-		fn default() -> Self {
-			let local_validation_data = LocalValidationData {
-				parent_head: HeadData(vec![7, 8, 9]),
-				balance: Default::default(),
-				code_upgrade_allowed: None,
-				validation_code_hash: Default::default(),
-			};
-
-			let global_validation_schedule = GlobalValidationData {
-				max_code_size: 1000,
-				max_head_data_size: 1000,
-				block_number: Default::default(),
-			};
-
-			Self {
-				local_validation_data,
-				global_validation_schedule,
-			}
-		}
 	}
 
 	fn test_harness<T: Future<Output = ()>>(
@@ -1058,6 +1033,7 @@ mod test {
 
 	fn generate_n_validators(n: usize) -> Vec<ValidatorId> {
 		iter::repeat(n)
+			.take(dbg!(n))
 			.map(|_| {
 				let validator_pair = ValidatorPair::generate();
 				validator_pair.0.public()
@@ -1065,12 +1041,28 @@ mod test {
 			.collect()
 	}
 
-	fn valid_availability_gossip(validator_count: usize) -> AvailabilityGossipMessage {
-		unimplemented!("noty yet, not just yet")
+	fn valid_availability_gossip(validator_count: usize, validator_index: ValidatorIndex, erasure_chunk_index: u32) -> AvailabilityGossipMessage {
+		let candidate_hash = H256::from_slice(&[0x07u8;32]);
+		let available_data = AvailableData {
+			pov: PoV{ block_data: BlockData(vec![0x77; 453])},
+			omitted_validation: OmittedValidationData {
+				global_validation: GlobalValidationData::default(),
+				local_validation: LocalValidationData {
+					validation_code_hash: candidate_hash.clone(),
+					.. Default::default()
+				},
+			},
+		};
+		let erasure_chunks = derive_erasure_chunks_with_proofs(validator_count, validator_index, &available_data).expect("Generated must work");
+		let erasure_chunk: ErasureChunk = erasure_chunks.get(erasure_chunk_index as usize).expect("Must be valid or input is oob").clone();
+		AvailabilityGossipMessage {
+			candidate_hash,
+			erasure_chunk,
+		}
 	}
 
 	#[test]
-	fn magic_mike() {
+	fn reputation_verification() {
 		let keystore = keystore::Store::new_in_memory();
 
 		// @todo fails with invalid seed
@@ -1087,22 +1079,20 @@ mod test {
 			let TestHarness {
 				mut virtual_overseer,
 			} = test_harness;
-			let validator_index = 5;
+			let validator_index: ValidatorIndex = validators.len() as ValidatorIndex - 1u32;
 
 			let relay_parent_x = H256::repeat_byte(0x01);
 			let relay_parent_y = H256::repeat_byte(0x02);
 
-			let chunk = ErasureChunk {
-				chunk: vec![1, 2, 3],
-				index: validator_index,
-				proof: vec![vec![3, 4, 5]],
-			};
-
-			let peer_a = PeerId::from_bytes(vec!['a' as u8]).unwrap();
-			let peer_b = PeerId::from_bytes(vec!['b' as u8]).unwrap();
+			let peer_a = PeerId::random();
+			let peer_b = PeerId::random();
 
 			let para_27 = ParaId::from(27);
 			let para_81 = ParaId::from(81);
+
+			// ignore event producer registration
+			let _ = overseer_recv(&mut virtual_overseer).await;
+
 
 			// make us interested in parents x and y
 			overseer_send(
@@ -1117,28 +1107,6 @@ mod test {
 					)
 			).await;
 
-			// obtain the validators per relay parent
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					let _ = tx.send(validators.clone());
-				}
-			);
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
-					let _ = tx.send(validators.clone());
-				}
-			);
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1183,7 +1151,7 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, para_81);
 					let _ = tx.send(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
@@ -1195,6 +1163,32 @@ mod test {
 					}));
 				}
 			);
+
+			// obtain the validators per relay parent
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, relay_parent_x);
+					let _ = tx.send(validators.clone());
+				}
+			);
+
+
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, relay_parent_y);
+					let _ = tx.send(validators.clone());
+				}
+			);
+
 
 			// setup peer a with interest in parent x
 			overseer_send(
@@ -1260,9 +1254,9 @@ mod test {
 				}
 			);
 
-			let valid: AvailabilityGossipMessage = valid_availability_gossip(validators.len());
+			let valid: AvailabilityGossipMessage = valid_availability_gossip(validators.len(), validator_index, 2);
 
-			// valid (first)
+			// valid (first, from b)
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
@@ -1284,6 +1278,57 @@ mod test {
 					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
 				}
 			);
+
+
+			// valid (duplicate, from b)
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						valid.encode()
+					))
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
+				}
+			);
+
+			// valid (second, from a)
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						valid.encode()
+					))
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
+				}
+			);
+
+
+
+			// @todo expand here
 		});
 	}
 }
