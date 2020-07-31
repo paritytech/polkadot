@@ -325,9 +325,9 @@ pub enum ChainApiMessage {
 	/// This request always succeeds.
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
 	/// Request the `k` ancestors block hashes of a block with the given hash.
-	/// The response channel may return a `k`-length `Vec` 
+	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
-	/// parent, grandparent, ..., k-th parent.
+	/// `parent`, `grandparent`, ...
 	Ancestors {
 		/// The hash of the block in question.
 		hash: Hash,
