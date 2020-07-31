@@ -1,0 +1,106 @@
+[package]
+name = "rococo-runtime"
+version = "0.8.19"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+build = "build.rs"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
+serde = { version = "1.0.102", default-features = false }
+serde_derive = { version = "1.0.102", optional = true }
+smallvec = "1.4.1"
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+version = { package = "sp-version", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+authority-discovery = { package = "pallet-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+authorship = { package = "pallet-authorship", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+babe = { package = "pallet-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+balances = { package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+session = { package = "pallet-session", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+indices = { package = "pallet-indices", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+transaction-payment-rpc-runtime-api = { package = "pallet-transaction-payment-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
+executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
+runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
+primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.6" }
+
+[features]
+default = ["std"]
+no_std = []
+std = [
+	"authority-discovery-primitives/std",
+	"authority-discovery/std",
+	"authorship/std",
+	"babe/std",
+	"babe-primitives/std",
+	"balances/std",
+	"codec/std",
+	"executive/std",
+	"grandpa/std",
+	"indices/std",
+	"im-online/std",
+	"inherents/std",
+	"frame-support/std",
+	"polkadot-parachain/std",
+	"primitives/std",
+	"runtime-common/std",
+	"runtime-parachains/std",
+	"session/std",
+	"sp-api/std",
+	"sp-core/std",
+	"sp-io/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-staking/std",
+	"sp-std/std",
+	"staking/std",
+	"system/std",
+	"system_rpc_runtime_api/std",
+	"offchain-primitives/std",
+	"offences/std",
+	"timestamp/std",
+	"transaction-payment/std",
+	"transaction-payment-rpc-runtime-api/std",
+	"block-builder-api/std",
+	"tx-pool-api/std",
+	"version/std",
+	"serde_derive",
+	"serde/std",
+]
+# When enabled, the runtime api will not be build.
+#
+# This is required by Cumulus to access certain types of the
+# runtime without clashing with the runtime api exported functions
+# in WASM.
+disable-runtime-api = []

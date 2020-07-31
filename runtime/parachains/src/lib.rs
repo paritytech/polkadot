@@ -20,13 +20,16 @@
 //! particular the `Initializer` module, as it is responsible for initializing the state
 //! of the other modules.
 
-mod configuration;
-mod inclusion;
-mod inclusion_inherent;
-mod initializer;
-mod paras;
-mod scheduler;
-mod validity;
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+pub mod configuration;
+pub mod inclusion;
+pub mod inclusion_inherent;
+pub mod initializer;
+pub mod paras;
+pub mod scheduler;
+pub mod validity;
 
 pub mod runtime_api_impl;
 
