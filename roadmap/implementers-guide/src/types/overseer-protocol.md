@@ -151,7 +151,7 @@ enum ChainApiMessage {
 		/// The number of ancestors to request.
 		k: usize,
 		/// The response channel. 
-		response_channel: ResponseChannel<Vec<Hash>>,
+		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
 	}
 }
 ```
