@@ -42,8 +42,9 @@ struct HostConfiguration {
 	pub watermark_upward_queue_size: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
-	// TODO:
+	/// The deposit that the sender should provide for opening an HRMP channel.
 	pub hrmp_sender_deposit: u32,
+	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
 	pub hrmp_recipient_deposit: u32,
 	/// The maximum number of messages allowed in an HRMP channel at once.
 	pub hrmp_channel_max_places: u32,
