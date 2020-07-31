@@ -1034,7 +1034,7 @@ mod tests {
 
 		fn register_para(
 			id: ParaId,
-			parachain: bool,
+			_parachain: bool,
 			code: ValidationCode,
 			initial_head_data: HeadData,
 		) -> DispatchResult {
