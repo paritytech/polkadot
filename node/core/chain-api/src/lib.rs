@@ -231,7 +231,6 @@ mod tests {
 		}
 	}
 
-	// TODO: avoid using generics here to reduce compile times
 	fn test_harness(
 		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiMessage>)
 			-> BoxFuture<'static, ()>,
