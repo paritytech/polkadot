@@ -324,6 +324,18 @@ pub enum ChainApiMessage {
 	/// Request the last finalized block number.
 	/// This request always succeeds.
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `k`-length `Vec` 
+	/// filled with ancestors hashes with the following order:
+	/// parent, grandparent, ..., k-th parent.
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel. 
+		response_channel: ChainApiResponseChannel<Vec<Hash>>,
+	},
 }
 
 impl ChainApiMessage {

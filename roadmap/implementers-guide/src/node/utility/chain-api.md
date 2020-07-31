@@ -16,5 +16,6 @@ Currently, the following requests are supported:
 * Block hash to number
 * Finalized block number to hash
 * Last finalized block number
+* Ancestors
 
 > TODO Do we need caching at this layer or is it already done on a lower level?

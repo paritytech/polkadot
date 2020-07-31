@@ -17,19 +17,21 @@
 //! Implements the Chain API Subsystem
 //!
 //! Provides access to the chain data. Every request may return an error.
+//! At the moment, the implementation requires `Client` to implement `HeaderBackend`,
+//! we may add more bounds in the future if we will need e.g. block bodies.
 //!
 //! Supported requests:
 //! * Block hash to number
 //! * Finalized block number to hash
 //! * Last finalized block number
-//! * TODO (now): ancestors
+//! * Ancestors
 
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
 	messages::ChainApiMessage,
 };
-use polkadot_primitives::v1::Block;
+use polkadot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
 
 use futures::prelude::*;
@@ -73,19 +75,38 @@ where
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
-				ChainApiMessage::BlockNumber(hash, sender) => {
+				ChainApiMessage::BlockNumber(hash, response_channel) => {
 					let result = client.number(hash).map_err(|e| format!("{}", e).into());
-					let _ = sender.send(result);
+					let _ = response_channel.send(result);
 				},
-				ChainApiMessage::FinalizedBlockHash(number, sender) => {
+				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					// TODO: do we need to verify it's finalized?
 					let result = client.hash(number).map_err(|e| format!("{}", e).into());
-					let _ = sender.send(result);
+					let _ = response_channel.send(result);
 				},
-				ChainApiMessage::FinalizedBlockNumber(sender) => {
-					// TODO: is this heavier than `Backend::last_finalized`?
+				ChainApiMessage::FinalizedBlockNumber(response_channel) => {
 					let result = client.info().finalized_number;
-					let _ = sender.send(Ok(result));
+					let _ = response_channel.send(Ok(result));
+				},
+				ChainApiMessage::Ancestors { hash, k, response_channel } => {
+					let mut hash = hash;
+
+					let next_parent = core::iter::from_fn(|| {
+						let maybe_header = client.header(BlockId::Hash(hash));
+						match maybe_header {
+							// propagate the error
+							Err(e) => Some(Err(format!("{}", e).into())),
+							// fewer than `k` ancestors are available
+							Ok(None) => None, 
+							Ok(Some(header)) => {
+								hash = header.parent_hash;
+								Some(Ok(hash))
+							}
+						}
+					});
+
+					let result = next_parent.take(k).collect::<Result<Vec<_>, _>>();
+					let _ = response_channel.send(result);
 				},
 			}
 		}

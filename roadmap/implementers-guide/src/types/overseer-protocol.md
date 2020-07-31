@@ -141,6 +141,18 @@ enum ChainApiMessage {
 	/// Get the last finalized block number.
 	/// This request always succeeds.
 	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
+		/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel. 
+		response_channel: ResponseChannel<Vec<Hash>>,
+	}
 }
 ```
 
