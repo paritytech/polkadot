@@ -975,6 +975,7 @@ mod test {
 	use smol_timeout::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
+	use smallvec::smallvec;
 
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -1004,6 +1005,13 @@ mod test {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
+
+	async fn overseer_signal(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, signal: OverseerSignal) {
+		overseer.send(FromOverseer::Signal(signal))
+			.timeout(Duration::from_millis(10_000))
+					.await
+					.expect("10ms is more than enough for sending messages.");
+	}
 
 	async fn overseer_send(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, msg: AvailabilityDistributionMessage) {
 		overseer.send(FromOverseer::Communication { msg })
@@ -1063,6 +1071,7 @@ mod test {
 
 	#[test]
 	fn reputation_verification() {
+		let _ = env_logger::builder().is_test(true).filter(None, log::LevelFilter::Trace).try_init();
 		let keystore = keystore::Store::new_in_memory();
 
 		// @todo fails with invalid seed
@@ -1090,23 +1099,40 @@ mod test {
 			let para_27 = ParaId::from(27);
 			let para_81 = ParaId::from(81);
 
+			overseer_signal(
+				&mut virtual_overseer,
+					OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+						activated: smallvec![relay_parent_x.clone(), relay_parent_y.clone()],
+						deactivated: smallvec![],
+					})
+			).await;
+
+
 			// ignore event producer registration
 			let _ = overseer_recv(&mut virtual_overseer).await;
 
+			// obtain the validators per relay parent
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, relay_parent_x);
+					let _ = tx.send(validators.clone());
+				}
+			);
 
-			// make us interested in parents x and y
-			overseer_send(
-				&mut virtual_overseer,
-					AvailabilityDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::OurViewChange(
-							view![
-								relay_parent_x,
-								relay_parent_y
-							]
-						)
-					)
-			).await;
-
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, relay_parent_y);
+					let _ = tx.send(validators.clone());
+				}
+			);
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1161,31 +1187,6 @@ mod test {
 						},
 						.. Default::default()
 					}));
-				}
-			);
-
-			// obtain the validators per relay parent
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					let _ = tx.send(validators.clone());
-				}
-			);
-
-
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
-					let _ = tx.send(validators.clone());
 				}
 			);
 
