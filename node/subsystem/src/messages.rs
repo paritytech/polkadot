@@ -285,32 +285,8 @@ impl AvailabilityStoreMessage {
 	}
 }
 
-/// A description of an error causing the chain API request to be unservable.
-#[derive(Debug, Clone)]
-pub struct ChainApiError {
-	msg: String,
-}
-
-impl From<&str> for ChainApiError {
-	fn from(s: &str) -> Self {
-		s.to_owned().into()
-	}
-}
-
-impl From<String> for ChainApiError {
-	fn from(msg: String) -> Self {
-		Self { msg }
-	}
-}
-
-impl core::fmt::Display for ChainApiError {
-	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-		write!(f, "{}", self.msg)
-	}
-}
-
 /// A response channel for the result of a chain API request.
-pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, ChainApiError>>;
+pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, crate::errors::ChainApiError>>;
 
 /// Chain API request subsystem message.
 #[derive(Debug)]
@@ -359,18 +335,8 @@ pub struct SchedulerRoster {
 	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
-/// A description of an error causing the runtime API request to be unservable.
-#[derive(Debug, Clone)]
-pub struct RuntimeApiError(String);
-
-impl From<String> for RuntimeApiError {
-	fn from(s: String) -> Self {
-		RuntimeApiError(s)
-	}
-}
-
 /// A sender for the result of a runtime API request.
-pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
+pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeApiError>>;
 
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
