@@ -25,7 +25,7 @@ pub enum Error {
 	Client(sp_blockchain::Error),
 	/// Consensus error
 	Consensus(consensus::error::Error),
-	/// An wasm-validation error.
+	/// A wasm-validation error.
 	WasmValidation(parachain::wasm_executor::ValidationError),
 	/// An I/O error.
 	Io(std::io::Error),
