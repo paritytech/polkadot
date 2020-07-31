@@ -38,9 +38,7 @@ transaction-payment = { package = "pallet-transaction-payment", git = "https://g
 transaction-payment-rpc-runtime-api = { package = "pallet-transaction-payment-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 staking = { package = "pallet-staking", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
-randomness-collective-flip = { package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 executive = { package = "frame-executive", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-finality-tracker = { package = "pallet-finality-tracker", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 grandpa = { package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 timestamp = { package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offences = { package = "pallet-offences", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -69,7 +67,6 @@ std = [
 	"balances/std",
 	"codec/std",
 	"executive/std",
-	"finality-tracker/std",
 	"grandpa/std",
 	"indices/std",
 	"im-online/std",
@@ -77,7 +74,6 @@ std = [
 	"frame-support/std",
 	"polkadot-parachain/std",
 	"primitives/std",
-	"randomness-collective-flip/std",
 	"runtime-common/std",
 	"runtime-parachains/std",
 	"session/std",

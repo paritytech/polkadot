@@ -24,6 +24,9 @@ use sp_std::prelude::*;
 use codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
+	GroupRotationInfo, CoreState, Id, GlobalValidationData, ValidationCode, CandidateEvent,
+	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
+	LocalValidationData,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -31,10 +34,13 @@ use runtime_common::{
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
-use runtime_parachains;
+use runtime_parachains::{
+	self,
+	runtime_api_impl::v1 as runtime_api_impl,
+};
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter},
+	traits::{KeyOwnerProofSystem, Filter},
 	weights::Weight,
 };
 use sp_runtime::{
@@ -137,7 +143,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn random_seed() -> <Block as BlockT>::Hash {
-			RandomnessCollectiveFlip::random_seed()
+			Babe::randomness().into()
 		}
 	}
 
@@ -153,6 +159,47 @@ sp_api::impl_runtime_apis! {
 	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
 		fn offchain_worker(header: &<Block as BlockT>::Header) {
 			Executive::offchain_worker(header)
+		}
+	}
+
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<ValidatorId> {
+			runtime_api_impl::validators::<Runtime>()
+		}
+
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
+			runtime_api_impl::validator_groups::<Runtime>()
+		}
+
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+			runtime_api_impl::availability_cores::<Runtime>()
+		}
+
+		fn global_validation_data() -> GlobalValidationData<BlockNumber> {
+			runtime_api_impl::global_validation_data::<Runtime>()
+		}
+
+		fn local_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<LocalValidationData<BlockNumber>> {
+			runtime_api_impl::local_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn session_index_for_child() -> SessionIndex {
+			runtime_api_impl::session_index_for_child::<Runtime>()
+		}
+
+		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode> {
+			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
+		}
+
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
+			// TODO: [now] `candidate_events` has to be sorted out.
+			unimplemented!();
 		}
 	}
 
@@ -287,11 +334,10 @@ impl_opaque_keys! {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v0::Block,
+		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		System: system::{Module, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
@@ -306,7 +352,6 @@ construct_runtime! {
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
-		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
 		Session: session::{Module, Call, Storage, Event, Config<T>},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
@@ -452,8 +497,8 @@ parameter_types! {
 	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: staking::EraIndex = 28;
-	// 28 eras in which slashes can be cancelled (7 days).
-	pub const SlashDeferDuration: staking::EraIndex = 28;
+	// 27 eras in which slashes can be cancelled (~7 days).
+	pub const SlashDeferDuration: staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	// quarter of the last session will be for election.
@@ -646,16 +691,6 @@ impl grandpa::Trait for Runtime {
 }
 
 parameter_types! {
-	pub WindowSize: BlockNumber = finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub ReportLatency: BlockNumber = finality_tracker::DEFAULT_REPORT_LATENCY.into();
-}
-
-impl finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = ();
-	type WindowSize = WindowSize;
-	type ReportLatency = ReportLatency;
-}
-parameter_types! {
 	pub const UncleGenerations: u32 = 0;
 }
 
@@ -680,5 +715,5 @@ impl parachains_inclusion_inherent::Trait for Runtime { }
 impl parachains_scheduler::Trait for Runtime { }
 
 impl parachains_initializer::Trait for Runtime {
-	type Randomness = RandomnessCollectiveFlip;
+	type Randomness = Babe;
 }
