@@ -129,21 +129,58 @@ mod tests {
 	struct TestClient {
 		blocks: BTreeMap<Hash, BlockNumber>,
 		finalized_blocks: BTreeMap<BlockNumber, Hash>,
+		headers: BTreeMap<Hash, Header>,
+	}
+
+	const ONE: Hash = Hash::repeat_byte(0x01);
+	const TWO: Hash = Hash::repeat_byte(0x02);
+	const THREE: Hash = Hash::repeat_byte(0x03);
+	const FOUR: Hash = Hash::repeat_byte(0x04);
+	const ERROR_PATH: Hash = Hash::repeat_byte(0xFF);
+
+	fn default_header() -> Header {
+		Header {
+			parent_hash: Hash::zero(),
+			number: 100500,
+		    state_root: Hash::zero(),
+		    extrinsics_root: Hash::zero(),
+		    digest: Default::default(),
+		}
 	}
 
 	impl Default for TestClient {
 		fn default() -> Self {
 			Self {
 				blocks: maplit::btreemap! {
-					Hash::repeat_byte(0x01) => 1,
-					Hash::repeat_byte(0x02) => 2,
-					Hash::repeat_byte(0x03) => 3,
-					Hash::repeat_byte(0x04) => 4,
+					ONE => 1,
+					TWO => 2,
+					THREE => 3,
+					FOUR => 4,
 				},
 				finalized_blocks: maplit::btreemap! {
-					1 => Hash::repeat_byte(0x01),
-					3 => Hash::repeat_byte(0x03),
+					1 => ONE,
+					3 => THREE,
 				},
+				headers: maplit::btreemap! {
+					TWO => Header {
+						parent_hash: ONE,
+						number: 2,
+						..default_header()
+					},
+					THREE => Header {
+						parent_hash: TWO,
+						number: 3,
+						..default_header()
+					},
+					FOUR => Header {
+						parent_hash: THREE,
+						number: 4,
+						..default_header()
+					},
+					ERROR_PATH => Header {
+						..default_header()
+					}
+				}
 			}
 		}
 	}
@@ -177,8 +214,17 @@ mod tests {
 		fn hash(&self, number: BlockNumber) -> sp_blockchain::Result<Option<Hash>> {
 			Ok(self.finalized_blocks.get(&number).copied())
 		}
-		fn header(&self, _id: BlockId) -> sp_blockchain::Result<Option<Header>> {
-			unimplemented!()
+		fn header(&self, id: BlockId) -> sp_blockchain::Result<Option<Header>> {
+			match id {
+				// for error path testing
+				BlockId::Hash(hash) if hash.is_zero()  => {
+					Err(sp_blockchain::Error::Backend("Zero hashes are illegal!".into()))
+				}
+				BlockId::Hash(hash) => {
+					Ok(self.headers.get(&hash).cloned())
+				}
+				_ => unreachable!(),
+			}
 		}
 		fn status(&self, _id: BlockId) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 			unimplemented!()
@@ -204,9 +250,8 @@ mod tests {
 		test_harness(|client, mut sender| {
 			async move {
 				let zero = Hash::zero();
-				let two = Hash::repeat_byte(0x02);
 				let test_cases = [
-					(two, client.number(two).unwrap()),
+					(TWO, client.number(TWO).unwrap()),
 					(zero, client.number(zero).unwrap()), // not here
 				];
 				for (hash, expected) in &test_cases {
@@ -259,6 +304,33 @@ mod tests {
 				}).await;
 
 				assert_eq!(rx.await.unwrap().unwrap(), expected);
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_ancestors() {
+		test_harness(|_client, mut sender| {
+			async move {
+				let (tx, rx) = oneshot::channel();
+				sender.send(FromOverseer::Communication {
+					msg: ChainApiMessage::Ancestors { hash: THREE, k: 4, response_channel: tx },
+				}).await;
+				assert_eq!(rx.await.unwrap().unwrap(), vec![TWO, ONE]);
+
+				let (tx, rx) = oneshot::channel();
+				sender.send(FromOverseer::Communication {
+					msg: ChainApiMessage::Ancestors { hash: TWO, k: 1, response_channel: tx },
+				}).await;
+				assert_eq!(rx.await.unwrap().unwrap(), vec![ONE]);
+
+				let (tx, rx) = oneshot::channel();
+				sender.send(FromOverseer::Communication {
+					msg: ChainApiMessage::Ancestors { hash: ERROR_PATH, k: 2, response_channel: tx },
+				}).await;
+				assert!(rx.await.unwrap().is_err());
 
 				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 			}.boxed()
