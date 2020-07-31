@@ -4636,6 +4636,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-candidate-validation"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-parachain",
+ "polkadot-primitives",
+ "sp-blockchain",
+ "sp-core",
+ "sp-keyring",
+]
+
+[[package]]
 name = "polkadot-node-core-proposer"
 version = "0.1.0"
 dependencies = [

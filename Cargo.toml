@@ -44,7 +44,9 @@ members = [
 	"validation",
 
 	"node/core/av-store",
+	"node/core/backing",
 	"node/core/bitfield-signing",
+	"node/core/candidate-validation",
 	"node/core/proposer",
 	"node/core/runtime-api",
 	"node/network/bridge",
@@ -54,7 +56,6 @@ members = [
 	"node/overseer",
 	"node/primitives",
 	"node/service",
-	"node/core/backing",
 	"node/subsystem",
 	"node/test-service",
 
