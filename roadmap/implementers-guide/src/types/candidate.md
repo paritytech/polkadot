@@ -180,8 +180,9 @@ struct CandidateCommitments {
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
-	/// TODO:
+	/// The number of messages processed from the DMQ.
 	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	hrmp_watermark: BlockNumber,
 }
 ```
@@ -219,8 +220,9 @@ struct ValidationOutputs {
 	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
-	/// TODO:
+	/// The number of messages processed from the DMQ.
 	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	hrmp_watermark: BlockNumber,
 }
 ```
