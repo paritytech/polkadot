@@ -105,7 +105,9 @@ pub enum CandidateValidationMessage {
 	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
-	/// If there is no state available which can provide this data, an error is returned.
+	///
+	/// If there is no state available which can provide this data or the core for
+	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -242,13 +244,20 @@ pub enum AvailabilityStoreMessage {
 
 	/// Query whether a `AvailableData` exists within the AV Store.
 	///
-	/// This is useful in cases like bitfield signing, when existence
+	/// This is useful in cases when existence
 	/// matters, but we don't want to necessarily pass around multiple
 	/// megabytes of data to get a single bit of information.
 	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+
+	/// Query whether an `ErasureChunk` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around large
+	/// quantities of data to get a single bit of information.
+	QueryChunkAvailability(Hash, ValidatorIndex, oneshot::Sender<bool>),
 
 	/// Store an `ErasureChunk` in the AV store.
 	///
@@ -269,6 +278,7 @@ impl AvailabilityStoreMessage {
 			Self::QueryAvailableData(hash, _) => Some(*hash),
 			Self::QueryDataAvailability(hash, _) => Some(*hash),
 			Self::QueryChunk(hash, _, _) => Some(*hash),
+			Self::QueryChunkAvailability(hash, _, _) => Some(*hash),
 			Self::StoreChunk(hash, _, _, _) => Some(*hash),
 			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
 		}
@@ -340,6 +350,12 @@ pub struct SchedulerRoster {
 #[derive(Debug, Clone)]
 pub struct RuntimeApiError(String);
 
+impl From<String> for RuntimeApiError {
+	fn from(s: String) -> Self {
+		RuntimeApiError(s)
+	}
+}
+
 /// A sender for the result of a runtime API request.
 pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
 
@@ -364,6 +380,10 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
+	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently
+	/// occupies a core.
+	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
