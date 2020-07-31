@@ -1,0 +1,37 @@
+name: Release-candidate automation
+on:
+  push:
+    branches:
+      - v[0-9]+.[0-9]+.[0-9+]
+jobs:
+  tag_rc:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - id: compute_tag
+        name: Compute next rc tag
+        shell: bash
+        run: |
+          # Get last rc tag if exists, else set it to {branch-name}-rc1
+          branch=${GITHUB_REF#refs/heads/}
+          echo "$branch"
+          git tag -l
+          last_rc=$(git tag -l "$branch-rc*" | sort -V | tail -n 1)
+          if [ -n "$last_rc" ]; then
+            suffix=$(echo "$last_rc" | grep -Eo '[0-9]+$')
+            echo $suffix
+            ((suffix++))
+            echo $suffix
+            echo "##[set-output name=new_tag;]$branch-rc$suffix"
+          else
+            echo "##[set-output name=new_tag;]$branch-rc1"
+          fi
+      - name: Apply new tag
+        uses: tvdias/github-tagger@v0.0.2
+        with:
+          # We can't use the normal GITHUB_TOKEN for the following reason:
+          # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token
+          repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
+          tag: ${{ steps.compute_tag.outputs.new_tag }}

@@ -19,11 +19,12 @@ renderer = ERB.new(
   trim_mode: '<>'
 )
 
-# get last polkadot version. Use handy Gem::Version for sorting by version
+# get last full polkadot version. Use handy Gem::Version for sorting by version
+# Note: This means ^v1.2.3$, explicitly ignoring -rc versions
 last_version = pg
               .tags
               .map(&:name)
-              .grep(/^v\d+\.\d+\.\d+.*$/)
+              .grep(/^v\d+\.\d+\.\d+$/)
               .sort_by { |v| Gem::Version.new(v.slice(1...)) }[-2]
 
 polkadot_cl = Changelog.new(

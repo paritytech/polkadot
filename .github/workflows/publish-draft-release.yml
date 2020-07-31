@@ -3,7 +3,8 @@ name: Publish draft release
 on:
   push:
     tags:
-      - v**.**.**
+      # Catches v1.2.3 and v1.2.3-rc1
+      - v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
   build-runtimes:
