@@ -337,10 +337,6 @@ pub fn needed_extrinsics(
 
 	vec![
 		polkadot_test_runtime::UncheckedExtrinsic {
-			function: polkadot_test_runtime::Call::Parachains(parachains::Call::set_heads(heads)),
-			signature: None,
-		},
-		polkadot_test_runtime::UncheckedExtrinsic {
 			function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set(
 				u64::try_from(timestamp).expect("unexpected big timestamp"),
 			)),
