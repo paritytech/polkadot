@@ -121,7 +121,7 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<Client, SP, Extrinsic>(
+	fn build<Client, SP>(
 		self,
 		client: Arc<Client>,
 		spawner: SP,
@@ -129,9 +129,8 @@ pub trait BuildParachainContext {
 	) -> Result<Self::ParachainContext, ()>
 		where
 			Client: ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockchainEvents<Block> + Send + Sync + 'static,
-			Client::Api: RuntimeApiCollection<Extrinsic>,
+			Client::Api: RuntimeApiCollection,
 			<Client::Api as ApiExt<Block>>::StateBackend: StateBackend<HashFor<Block>>,
-			Extrinsic: codec::Codec + Send + Sync + 'static,
 			SP: SpawnNamed + Clone + Send + Sync + 'static;
 }
 
@@ -203,7 +202,7 @@ pub async fn collate<P>(
 }
 
 #[cfg(feature = "service-rewr")]
-fn build_collator_service<SP, P, C, R, Extrinsic>(
+fn build_collator_service<SP, P, C, R>(
 	_spawner: SP,
 	_handles: FullNodeHandles,
 	_client: Arc<C>,
@@ -224,14 +223,12 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ RuntimeApiCollection<
-				Extrinsic,
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ Sync + Send,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-		Extrinsic: service::Codec + Send + Sync + 'static,
 		SP: SpawnNamed + Clone + Send + Sync + 'static,
 {
 	Err("Collator is not functional with the new service yet".into())
@@ -239,7 +236,7 @@ fn build_collator_service<SP, P, C, R, Extrinsic>(
 
 
 #[cfg(not(feature = "service-rewr"))]
-fn build_collator_service<P, C, R, Extrinsic>(
+fn build_collator_service<P, C, R>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
 	client: Arc<C>,
@@ -260,14 +257,12 @@ fn build_collator_service<P, C, R, Extrinsic>(
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ RuntimeApiCollection<
-				Extrinsic,
 				StateBackend = <service::TFullBackend<service::Block> as service::Backend<service::Block>>::State,
 			>
 			+ Sync + Send,
 		P: BuildParachainContext,
 		P::ParachainContext: Send + 'static,
 		<P::ParachainContext as ParachainContext>::ProduceCandidate: Send,
-		Extrinsic: service::Codec + Send + Sync + 'static,
 {
 	let polkadot_network = handles.polkadot_network
 		.ok_or_else(|| "Collator cannot run when Polkadot-specific networking has not been started")?;
@@ -497,7 +492,7 @@ mod tests {
 	impl BuildParachainContext for BuildDummyParachainContext {
 		type ParachainContext = DummyParachainContext;
 
-		fn build<C, SP, Extrinsic>(
+		fn build<C, SP>(
 			self,
 			_: Arc<C>,
 			_: SP,
