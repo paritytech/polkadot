@@ -1,5 +1,5 @@
 [package]
-name = "rococo-runtime"
+name = "rococo-v1-runtime"
 version = "0.8.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
