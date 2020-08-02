@@ -329,8 +329,6 @@ pub fn needed_extrinsics(
 	heads: Vec<polkadot_primitives::v0::AttestedCandidate>,
 	i: u64,
 ) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
-	use polkadot_runtime_common::parachains;
-
 	let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
 		.as_millis() + (i * polkadot_test_runtime::constants::time::SLOT_DURATION / 2) as u128;
