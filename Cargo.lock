@@ -5994,7 +5994,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "rococo-runtime"
+name = "rococo-v1-runtime"
 version = "0.8.19"
 dependencies = [
  "frame-executive",
