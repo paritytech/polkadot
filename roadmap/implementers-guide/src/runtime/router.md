@@ -31,28 +31,28 @@ type HrmpChannelId = (ParaId, ParaId);
 
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
-	/// The sender and the initiator of this request.
+    /// The sender and the initiator of this request.
     sender: ParaId,
-	/// The recipient of the opened request.
+    /// The recipient of the opened request.
     recipient: ParaId,
-	/// Indicates if this request was confirmed by the recipient.
+    /// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
-	/// How many session boundaries this request has seen.
+    /// How many session boundaries this request has seen.
     age: u32,
-	/// The amount that the sender supplied at the time of creation of this request.
+    /// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
-	/// The maximum number of messages that can be pending in the channel at once.
+    /// The maximum number of messages that can be pending in the channel at once.
     limit_used_places: u32,
-	/// The maximum total size of the messages that can be pending in the channel at once.
+    /// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
 }
 
 /// A description of a request to close an opened HRMP channel.
 struct HrmpCloseChannelRequest {
-	/// The para which initiated closing an existing channel.
+    /// The para which initiated closing an existing channel.
     /// invariant: equals either to sender or recipient.
     initiator: ParaId,
-	/// The identifier of an HRMP channel to be closed.
+    /// The identifier of an HRMP channel to be closed.
     id: HrmpChannelId,
 }
 
@@ -60,17 +60,17 @@ struct HrmpCloseChannelRequest {
 struct HrmpChannel {
     /// The amount that the sender supplied as a deposit when opening this channel.
     sender_deposit: Balance,
-	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
+    /// The amount that the recipient supplied as a deposit when accepting opening this channel.
     recipient_deposit: Balance,
-	/// The maximum number of messages that can be pending in the channel at once.
+    /// The maximum number of messages that can be pending in the channel at once.
     limit_used_places: u32,
-	/// The maximum total size of the messages that can be pending in the channel at once.
+    /// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
     /// The current number of messages pending in the channel.
-	/// Invariant: should be less or equal to `limit_used_places`.
+    /// Invariant: should be less or equal to `limit_used_places`.
     used_places: u32,
-	/// The total size in bytes of all message payloads in the channel.
-	/// Invariant: should be less or equal to `limit_used_bytes`.
+    /// The total size in bytes of all message payloads in the channel.
+    /// Invariant: should be less or equal to `limit_used_bytes`.
     used_bytes: u32,
 }
 ```
