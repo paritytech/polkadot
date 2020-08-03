@@ -232,7 +232,7 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	}
 }
 
-impl<T:pallet_session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
+impl<T: pallet_session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	fn get() -> Vec<T::ValidatorId> {
 		<pallet_session::Module<T>>::validators()
 	}
@@ -249,7 +249,7 @@ impl GetSessionNumber for sp_session::MembershipProof {
 	}
 }
 
-pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait +pallet_session::historical::Trait {
+pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + pallet_session::historical::Trait {
 	// The transaction signing authority
 	type AuthorityId: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>;
 
@@ -1506,7 +1506,7 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: Trait>pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(validators: I)
@@ -1788,9 +1788,9 @@ mod tests {
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = pallet_staking::StashOf<Self>;
-		type ShouldEndSession =pallet_session::PeriodicSessions<Period, Offset>;
-		type NextSessionRotation =pallet_session::PeriodicSessions<Period, Offset>;
-		type SessionManager =pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
+		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+		type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -1958,7 +1958,7 @@ mod tests {
 
 	impl pallet_offences::Trait for Test {
 		type Event = ();
-		type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
+		type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 		type OnOffenceHandler = Staking;
 		type WeightSoftLimit = OffencesWeightSoftLimit;
 		type WeightInfo = ();
@@ -2050,11 +2050,11 @@ mod tests {
 	type System = frame_system::Module<Test>;
 	type Offences = pallet_offences::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
-	type Session =pallet_session::Module<Test>;
+	type Session = pallet_session::Module<Test>;
 	type Timestamp = pallet_timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
-	type Historical =pallet_session::historical::Module<Test>;
+	type Historical = pallet_session::historical::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
 		use pallet_staking::StakerStatus;

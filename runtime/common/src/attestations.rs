@@ -94,7 +94,7 @@ impl<T: pallet_staking::Trait> RewardAttestation for pallet_staking::Module<T> {
 	}
 }
 
-pub trait Trait:pallet_session::Trait {
+pub trait Trait: pallet_session::Trait {
 	/// How many blocks ago we're willing to accept attestations for.
 	type AttestationPeriod: Get<Self::BlockNumber>;
 

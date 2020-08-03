@@ -807,9 +807,9 @@ mod tests {
 	impl pallet_session::Trait for Test {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
-		type ShouldEndSession =pallet_session::PeriodicSessions<Period, Offset>;
-		type NextSessionRotation =pallet_session::PeriodicSessions<Period, Offset>;
-		type SessionHandler =pallet_session::TestSessionHandler;
+		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+		type SessionHandler = pallet_session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
@@ -911,7 +911,7 @@ mod tests {
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
 		type Proof = sp_session::MembershipProof;
-		type KeyOwnerProofSystem =pallet_session::historical::Module<Test>;
+		type KeyOwnerProofSystem = pallet_session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
 			Vec<u8>,
@@ -962,7 +962,7 @@ mod tests {
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
-	type Session =pallet_session::Module<Test>;
+	type Session = pallet_session::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
@@ -1082,7 +1082,7 @@ mod tests {
 		};
 		let (candidate, _) = candidate.abridge();
 		let candidate_hash = candidate.hash();
-		let payload = (Statement::Valid(candidate_hash),pallet_session::Module::<Test>::current_index(), System::parent_hash()).encode();
+		let payload = (Statement::Valid(candidate_hash), pallet_session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
