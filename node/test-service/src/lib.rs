@@ -77,7 +77,7 @@ pub fn polkadot_test_new_full(
 	ServiceError,
 > {
 	let (task_manager, client, handles, network, rpc_handlers) =
-		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor, _>(
+		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 			config,
 			collating_for,
 			max_block_data_size,

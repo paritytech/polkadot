@@ -5,6 +5,7 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 ## Protocol
 
 `NetworkCapability`: `b"stmd"`
+`PeerSet`: `Validation`
 
 Input:
 

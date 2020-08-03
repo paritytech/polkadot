@@ -36,6 +36,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
+use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -155,7 +156,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
@@ -387,8 +388,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -410,9 +410,20 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
-		OutgoingParas::mutate(|v| {
+	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+		let upcoming_weight = UpcomingParas::mutate(|v| {
+			match v.binary_search(&id) {
+				Ok(i) => {
+					v.remove(i);
+					UpcomingParasGenesis::remove(id);
+					// If a para was only in the pending state it should not be moved to `Outgoing`
+					return T::DbWeight::get().reads_writes(2, 2);
+				}
+				Err(_) => T::DbWeight::get().reads_writes(1, 0),
+			}
+		});
+
+		let outgoing_weight = OutgoingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
 				Err(i) => {
@@ -420,7 +431,9 @@ impl<T: Trait> Module<T> {
 					T::DbWeight::get().reads_writes(1, 1)
 				}
 			}
-		})
+		});
+
+		outgoing_weight + upcoming_weight
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
@@ -1148,6 +1161,70 @@ mod tests {
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
 			assert_eq!(Paras::current_code(&c), Some(vec![3].into()));
 		})
+	}
+
+	#[test]
+	fn para_cleanup_removes_upcoming() {
+		new_test_ext(Default::default()).execute_with(|| {
+			run_to_block(1, None);
+
+			let b = ParaId::from(525);
+			let a = ParaId::from(999);
+			let c = ParaId::from(333);
+
+			Paras::schedule_para_initialize(
+				b,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![1].into(),
+					validation_code: vec![1].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				a,
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: vec![2].into(),
+					validation_code: vec![2].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				c,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![3].into(),
+					validation_code: vec![3].into(),
+				},
+			);
+
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
+
+			// run to block without session change.
+			run_to_block(2, None);
+
+			assert_eq!(Paras::parachains(), Vec::new());
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
+			Paras::schedule_para_cleanup(c);
+
+			run_to_block(3, Some(vec![3]));
+
+			assert_eq!(Paras::parachains(), vec![b]);
+			assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![]);
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
+
+			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
+
+			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
+			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
+			assert!(Paras::current_code(&c).is_none());
+		});
 	}
 
 	#[test]

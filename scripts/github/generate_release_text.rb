@@ -4,6 +4,8 @@ require 'changelogerator'
 require 'git'
 require 'erb'
 require 'toml'
+require 'json'
+require_relative './lib.rb'
 
 version = ENV['GITHUB_REF']
 token = ENV['GITHUB_TOKEN']
@@ -61,14 +63,23 @@ release_priority = Changelog.highest_priority_for_changes(all_changes)
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
 
-polkadot_runtime = File.open(polkadot_path + '/runtime/polkadot/src/lib.rs') do |f|
-  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
-end
-kusama_runtime = File.open(polkadot_path + '/runtime/kusama/src/lib.rs') do |f|
-  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
-end
-westend_runtime = File.open(polkadot_path + '/runtime/westend/src/lib.rs') do |f|
-  f.find { |l| l =~ /spec_version/ }.match(/[0-9]+/)[0]
-end
+polkadot_runtime = get_runtime('polkadot', polkadot_path)
+kusama_runtime = get_runtime('kusama', polkadot_path)
+westend_runtime = get_runtime('westend', polkadot_path)
+
+# These json files should have been downloaded as part of the build-runtimes
+# github action
+
+polkadot_json = JSON.parse(
+  File.read(
+    ENV['GITHUB_WORKSPACE'] + '/polkadot-srtool-json/srtool_output.json'
+  )
+)
+
+kusama_json = JSON.parse(
+  File.read(
+    ENV['GITHUB_WORKSPACE'] + '/kusama-srtool-json/srtool_output.json'
+  )
+)
 
 puts renderer.result

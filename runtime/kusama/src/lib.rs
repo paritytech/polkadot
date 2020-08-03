@@ -1254,9 +1254,8 @@ sp_api::impl_runtime_apis! {
 	impl transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
-		UncheckedExtrinsic,
 	> for Runtime {
-		fn query_info(uxt: UncheckedExtrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
+		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
 		}
 	}
@@ -1335,18 +1334,5 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::Runtime;
-
-	#[test]
-	fn slash_defer_less_than_bonding_duration() {
-		assert!(
-			<Runtime as staking::Trait>::SlashDeferDuration::get()
-				< <Runtime as staking::Trait>::BondingDuration::get()
-		);
 	}
 }
