@@ -948,7 +948,7 @@ mod tests {
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
-			let vest_call = Call::Vesting(vesting::Call::<Test>::vest());
+			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest());
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));

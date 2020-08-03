@@ -61,7 +61,7 @@ use frame_support::{
 use frame_system::{EnsureRoot, EnsureOneOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
+use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::{historical as session_historical};
 use static_assertions::const_assert;
 
@@ -119,7 +119,7 @@ impl Filter<Call> for BaseFilter {
 type MoreThanHalfCouncil = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
-	collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
+	pallet_collective::EnsureProportionMoreThan<_1, _2, AccountId, CouncilCollective>
 >;
 
 parameter_types! {
@@ -180,16 +180,16 @@ impl pallet_babe::Trait for Runtime {
 
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		babe::AuthorityId,
+		pallet_babe::AuthorityId,
 	)>>::Proof;
 
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
-		babe::AuthorityId,
+		pallet_babe::AuthorityId,
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-		babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -330,7 +330,7 @@ parameter_types! {
 type SlashCancelOrigin = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
-	collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
+	pallet_collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>
 >;
 
 impl pallet_staking::Trait for Runtime {
@@ -467,7 +467,7 @@ impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type WeightInfo = ();
 }
 
-impl pallet_membership::Trait<membership::Instance1> for Runtime {
+impl pallet_membership::Trait<pallet_membership::Instance1> for Runtime {
 	type Event = Event;
 	type AddOrigin = MoreThanHalfCouncil;
 	type RemoveOrigin = MoreThanHalfCouncil;
@@ -494,7 +494,7 @@ parameter_types! {
 type ApproveOrigin = EnsureOneOf<
 	AccountId,
 	EnsureRoot<AccountId>,
-	collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
+	pallet_collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 >;
 
 impl pallet_treasury::Trait for Runtime {
@@ -848,9 +848,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::System(..) |
 				Call::Babe(..) |
 				Call::Timestamp(..) |
-				Call::Indices(indices::Call::claim(..)) |
-				Call::Indices(indices::Call::free(..)) |
-				Call::Indices(indices::Call::freeze(..)) |
+				Call::Indices(pallet_indices::Call::claim(..)) |
+				Call::Indices(pallet_indices::Call::free(..)) |
+				Call::Indices(pallet_indices::Call::freeze(..)) |
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
@@ -875,15 +875,15 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Utility(..) |
 				Call::Identity(..) |
 				Call::Society(..) |
-				Call::Recovery(recovery::Call::as_recovered(..)) |
-				Call::Recovery(recovery::Call::vouch_recovery(..)) |
-				Call::Recovery(recovery::Call::claim_recovery(..)) |
-				Call::Recovery(recovery::Call::close_recovery(..)) |
-				Call::Recovery(recovery::Call::remove_recovery(..)) |
-				Call::Recovery(recovery::Call::cancel_recovered(..)) |
+				Call::Recovery(pallet_recovery::Call::as_recovered(..)) |
+				Call::Recovery(pallet_recovery::Call::vouch_recovery(..)) |
+				Call::Recovery(pallet_recovery::Call::claim_recovery(..)) |
+				Call::Recovery(pallet_recovery::Call::close_recovery(..)) |
+				Call::Recovery(pallet_recovery::Call::remove_recovery(..)) |
+				Call::Recovery(pallet_recovery::Call::cancel_recovered(..)) |
 				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
-				Call::Vesting(vesting::Call::vest(..)) |
-				Call::Vesting(vesting::Call::vest_other(..)) |
+				Call::Vesting(pallet_vesting::Call::vest(..)) |
+				Call::Vesting(pallet_vesting::Call::vest_other(..)) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
 				Call::Scheduler(..) |
 				Call::Proxy(..) |
@@ -1035,7 +1035,7 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<
+pub type Executive = frame_executive::Executive<
 	Runtime,
 	Block,
 	frame_system::ChainContext<Runtime>,
@@ -1245,13 +1245,13 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
 		fn account_nonce(account: AccountId) -> Nonce {
 			System::account_nonce(account)
 		}
 	}
 
-	impl transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
 	> for Runtime {

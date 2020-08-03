@@ -1836,12 +1836,12 @@ mod tests {
 
 		type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
-			babe::AuthorityId,
+			pallet_babe::AuthorityId,
 		)>>::Proof;
 
 		type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
-			babe::AuthorityId,
+			pallet_babe::AuthorityId,
 		)>>::IdentificationTuple;
 
 		type HandleEquivocation = ();
@@ -2109,7 +2109,7 @@ mod tests {
 			keys: session_keys,
 		}.assimilate_storage(&mut t).unwrap();
 
-		babe::GenesisConfig {
+		pallet_babe::GenesisConfig {
 			authorities: babe_authorities,
 		}.assimilate_storage::<Test>(&mut t).unwrap();
 

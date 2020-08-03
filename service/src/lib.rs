@@ -83,7 +83,7 @@ pub trait RuntimeApiCollection:
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -102,7 +102,7 @@ where
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -150,11 +150,11 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		(
 			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
 			(
-				babe::BabeBlockImport<
+				pallet_babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-				babe::BabeLink<Block>
+				pallet_babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
 		)
@@ -206,7 +206,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 	let justification_import = grandpa_block_import.clone();
 
 	let (block_import, babe_link) = pallet_babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
+		pallet_babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
@@ -618,7 +618,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		finality_proof_import.create_finality_proof_request_builder();
 
 	let (babe_block_import, babe_link) = pallet_babe::block_import(
-		babe::Config::get_or_compute(&*client)?,
+		pallet_babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
