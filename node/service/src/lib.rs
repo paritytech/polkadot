@@ -287,6 +287,7 @@ fn real_overseer<S: SpawnNamed>(
 		runtime_api: DummySubsystem,
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,
+		chain_api: DummySubsystem,
 	};
 	Overseer::new(
 		leaves,

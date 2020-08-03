@@ -124,7 +124,7 @@ where
 			// this call completes. IMO it's not worth the hassle or overhead of spawning a
 			// distinct task for that kind of miniscule efficiency improvement.
 			overseer.send_msg(AllMessages::Provisioner(
-				ProvisionerMessage::RequestInherentData(parent_header_hash, 0, sender),
+				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
 			)).await?;
 
 			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
