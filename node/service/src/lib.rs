@@ -209,13 +209,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (block_import, babe_link) = babe::block_import(
+	let (block_import, babe_link) = pallet_babe::block_import(
 		babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
-	let import_queue = babe::import_queue(
+	let import_queue = pallet_babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -425,7 +425,7 @@ fn new_full<RuntimeApi, Executor>(
 			handler_clone,
 		);
 
-		let babe_config = babe::BabeParams {
+		let babe_config = pallet_babe::BabeParams {
 			keystore: keystore.clone(),
 			client: client.clone(),
 			select_chain,
@@ -438,7 +438,7 @@ fn new_full<RuntimeApi, Executor>(
 			can_author_with,
 		};
 
-		let babe = babe::start_babe(babe_config)?;
+		let babe = pallet_babe::start_babe(babe_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
@@ -549,7 +549,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let finality_proof_request_builder =
 		finality_proof_import.create_finality_proof_request_builder();
 
-	let (babe_block_import, babe_link) = babe::block_import(
+	let (babe_block_import, babe_link) = pallet_babe::block_import(
 		babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
@@ -558,7 +558,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
 	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-	let import_queue = babe::import_queue(
+	let import_queue = pallet_babe::import_queue(
 		babe_link,
 		babe_block_import,
 		None,

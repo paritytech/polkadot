@@ -1825,12 +1825,12 @@ mod tests {
 		pub const ExpectedBlockTime: u64 = time::MILLISECS_PER_BLOCK;
 	}
 
-	impl babe::Trait for Test {
+	impl pallet_babe::Trait for Test {
 		type EpochDuration = EpochDuration;
 		type ExpectedBlockTime = ExpectedBlockTime;
 
 		// session module is the trigger
-		type EpochChangeTrigger = babe::ExternalTrigger;
+		type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
 		type KeyOwnerProofSystem = ();
 
@@ -2058,7 +2058,7 @@ mod tests {
 
 	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
 		use pallet_staking::StakerStatus;
-		use babe::AuthorityId as BabeAuthorityId;
+		use pallet_babe::AuthorityId as BabeAuthorityId;
 
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
