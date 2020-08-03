@@ -18,7 +18,7 @@
 use frame_support::weights::{Weight, constants::RocksDbWeight as DbWeight};
 
 pub struct WeightInfo;
-impl pallet_collective::WeightInfo for WeightInfo {
+impl collective::WeightInfo for WeightInfo {
 	fn set_members(m: u32, n: u32, p: u32, ) -> Weight {
 		(0 as Weight)
 			.saturating_add((20267000 as Weight).saturating_mul(m as Weight))
