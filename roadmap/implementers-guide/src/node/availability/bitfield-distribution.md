@@ -4,7 +4,7 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 ## Protocol
 
-`ProtocolId`: `b"bitd"`
+`ProtocolId`: `b"bitd"`: `PeerSet`: `Validation`
 
 Input:
 [`BitfieldDistributionMessage`](../../types/overseer-protocol.md#bitfield-distribution-message) which are gossiped to all peers, no matter if validator or not.

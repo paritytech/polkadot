@@ -24,8 +24,9 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 };
 use polkadot_subsystem::messages::{
-	RuntimeApiMessage, RuntimeApiRequest as Request, RuntimeApiError,
+	RuntimeApiMessage, RuntimeApiRequest as Request,
 };
+use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::{ProvideRuntimeApi};
@@ -50,7 +51,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self.0).map(|_| ()).boxed(),
-			name: "RuntimeApiSubsystem",
+			name: "runtime-api-subsystem",
 		}
 	}
 }

@@ -22,8 +22,9 @@
 
 use crate::{
 	messages::{
-		AllMessages, RuntimeApiError, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
+		AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender,
 	},
+	errors::{ChainApiError, RuntimeApiError},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
 use futures::{
@@ -72,7 +73,10 @@ pub enum Error {
 	/// A subsystem error
 	#[from]
 	Subsystem(SubsystemError),
-	/// An error in the runtime API.
+	/// An error in the Chain API.
+	#[from]
+	ChainApi(ChainApiError),
+	/// An error in the Runtime API.
 	#[from]
 	RuntimeApi(RuntimeApiError),
 	/// The type system wants this even though it doesn't make sense

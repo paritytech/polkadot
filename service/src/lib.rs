@@ -83,7 +83,7 @@ native_executor_instance!(
 );
 
 /// A set of APIs that polkadot-like runtimes must implement.
-pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
+pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
@@ -91,17 +91,16 @@ pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
-	Extrinsic: RuntimeExtrinsic,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
-impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
+impl<Api> RuntimeApiCollection for Api
 where
 	Api:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -111,18 +110,13 @@ where
 	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
-	Extrinsic: RuntimeExtrinsic,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
-
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
-
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
@@ -163,7 +157,7 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, test: bool) -> Result<
+pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -185,9 +179,8 @@ pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, 
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
 	if !test {
 		// If we're using prometheus, use a registry with a prefix of `polkadot`.
@@ -289,7 +282,7 @@ pub fn new_partial<RuntimeApi, Executor, Extrinsic>(config: &mut Configuration, 
 }
 
 #[cfg(feature = "full-node")]
-pub fn new_full<RuntimeApi, Executor, Extrinsic>(
+pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
@@ -307,9 +300,8 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
 	use sc_network::Event;
 	use sc_client_api::ExecutorProvider;
@@ -331,7 +323,7 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
-	} = new_partial::<RuntimeApi, Executor, Extrinsic>(&mut config, test)?;
+	} = new_partial::<RuntimeApi, Executor>(&mut config, test)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
@@ -604,13 +596,12 @@ pub fn new_full<RuntimeApi, Executor, Extrinsic>(
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
 	use sc_client_api::backend::RemoteBackend;
 
@@ -677,7 +668,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 			finality_proof_request_builder: Some(finality_proof_request_builder),
 			finality_proof_provider: Some(finality_proof_provider),
 		})?;
-	
+
 	if config.offchain_worker.enabled {
 		service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
@@ -693,7 +684,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {	
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
@@ -708,7 +699,7 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
+pub fn new_chain_ops<Runtime, Dispatch>(mut config: Configuration) -> Result<
 	(
 		Arc<FullClient<Runtime, Dispatch>>,
 		Arc<FullBackend>,
@@ -720,13 +711,12 @@ pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) ->
 where
 	Runtime: ConstructRuntimeApi<Block, FullClient<Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
-	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+	RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
-	Extrinsic: RuntimeExtrinsic,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch, Extrinsic>(&mut config, false)?;
+		= new_partial::<Runtime, Dispatch>(&mut config, false)?;
 	Ok((client, backend, import_queue, task_manager))
 }
 
@@ -750,7 +740,7 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+	let (service, client, handles, _, _) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -783,7 +773,7 @@ pub fn kusama_new_full(
 		FullNodeHandles
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+	let (service, client, handles, _, _) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -816,7 +806,7 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+	let (service, client, handles, _, _) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -889,11 +879,11 @@ impl NodeBuilder {
 	/// Build a new light node.
 	pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
 		if self.config.chain_spec.is_kusama() {
-			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 				self.config,
 			)
 		} else if self.config.chain_spec.is_westend() {
-			new_light::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+			new_light::<westend_runtime::RuntimeApi, WestendExecutor>(
 				self.config,
 			)
 		} else if self.config.chain_spec.is_rococo() {
@@ -901,7 +891,7 @@ impl NodeBuilder {
 				self.config,
 			)
 		} else {
-			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 				self.config,
 			)
 		}
@@ -918,7 +908,7 @@ impl NodeBuilder {
 		grandpa_pause: Option<(u32, u32)>,
 	) -> Result<TaskManager, ServiceError> {
 		if self.config.chain_spec.is_kusama() {
-			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 				self.config,
 				collating_for,
 				max_block_data_size,
@@ -928,7 +918,7 @@ impl NodeBuilder {
 				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else if self.config.chain_spec.is_westend() {
-			new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+			new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 				self.config,
 				collating_for,
 				max_block_data_size,
@@ -948,7 +938,7 @@ impl NodeBuilder {
 				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else {
-			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 				self.config,
 				collating_for,
 				max_block_data_size,

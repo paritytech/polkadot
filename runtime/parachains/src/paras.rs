@@ -36,6 +36,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
+use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
@@ -155,7 +156,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
@@ -387,8 +388,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -410,8 +410,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
 		OutgoingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => T::DbWeight::get().reads_writes(1, 0),

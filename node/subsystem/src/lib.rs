@@ -34,6 +34,7 @@ use smallvec::SmallVec;
 
 use crate::messages::AllMessages;
 
+pub mod errors;
 pub mod messages;
 pub mod util;
 #[cfg(any(test, feature = "test-helpers"))]

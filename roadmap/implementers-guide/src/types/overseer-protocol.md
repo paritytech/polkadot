@@ -69,7 +69,7 @@ enum AvailabilityStoreMessage {
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
 	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
-	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's 
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
 	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
@@ -126,20 +126,91 @@ enum CandidateSelectionMessage {
 }
 ```
 
+## Chain API Message
+
+The Chain API subsystem is responsible for providing an interface to chain data.
+
+```rust
+enum ChainApiMessage {
+	/// Get the block number by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
+	/// Get the finalized block hash by number.
+	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
+	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
+	/// Get the last finalized block number.
+	/// This request always succeeds.
+	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel.
+		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
+	}
+}
+```
+
+## Collator Protocol Message
+
+Messages received by the [Collator Protocol subsystem](../node/collators/collator-protocol.md)
+
+```rust
+enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	DistributeCollation(CandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
 to the low-level networking code.
 
 ```rust
+/// Peer-sets handled by the network bridge.
+enum PeerSet {
+	/// The collation peer-set is used to distribute collations from collators to validators.
+	Collation,
+	/// The validation peer-set is used to distribute information relevant to parachain
+	/// validation among validators. This may include nodes which are not validators,
+	/// as some protocols on this peer-set are expected to be gossip.
+	Validation,
+}
+
 enum NetworkBridgeMessage {
 	/// Register an event producer with the network bridge. This should be done early and cannot
 	/// be de-registered.
-	RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
+	RegisterEventProducer(PeerSet, ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
 	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-	ReportPeer(PeerId, cost_benefit: i32),
+	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
 	/// Send a message to one or more peers on the given protocol ID.
-	SendMessage([PeerId], ProtocolId, Bytes),
+	SendMessage(PeerSet, [PeerId], ProtocolId, Bytes),
+	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	///
+	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
+	/// validators.
+	ConnectToValidators(PeerSet, [ValidatorId], ResponseChannel<[(ValidatorId, PeerId)]>>),
 }
 ```
 
