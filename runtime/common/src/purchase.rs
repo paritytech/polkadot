@@ -388,7 +388,7 @@ mod tests {
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
 	use frame_support::traits::Currency;
-	use balances::Error as BalancesError;
+	use pallet_balances::Error as BalancesError;
 
 	impl_outer_origin! {
 		pub enum Origin for Test where system = system {}
@@ -436,7 +436,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -446,7 +446,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -491,7 +491,7 @@ mod tests {
 	}
 
 	type System = frame_system::Module<Test>;
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type Vesting = vesting::Module<Test>;
 	type Purchase = Module<Test>;
 
@@ -510,7 +510,7 @@ mod tests {
 		Purchase::set_statement(Origin::signed(configuration_origin()), statement).unwrap();
 		Purchase::set_unlock_block(Origin::signed(configuration_origin()), unlock_block).unwrap();
 		Purchase::set_payment_account(Origin::signed(configuration_origin()), payment_account()).unwrap();
-		Balances::make_free_balance_be(&payment_account(), 100_000);
+		pallet_balances::make_free_balance_be(&payment_account(), 100_000);
 	}
 
 	type AccountPublic = <MultiSignature as Verify>::Signer;

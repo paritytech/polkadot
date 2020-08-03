@@ -43,15 +43,15 @@ pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseW
 pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use timestamp::Call as TimestampCall;
-pub use balances::Call as BalancesCall;
+pub use pallet_timestamp::Call as TimestampCall;
+pub use pallet_balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::Call as ParachainsCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};
 
-pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
+pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
 /// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 10%`.

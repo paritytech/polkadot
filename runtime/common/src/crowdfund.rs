@@ -614,7 +614,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -622,7 +622,7 @@ mod tests {
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 	}
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -654,7 +654,7 @@ mod tests {
 		fn max_len() -> usize { 0 }
 	}
 	impl treasury::Trait for Test {
-		type Currency = balances::Module<Test>;
+		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
 		type RejectOrigin = frame_system::EnsureRoot<u64>;
 		type Event = ();
@@ -757,19 +757,19 @@ mod tests {
 	}
 
 	type System = frame_system::Module<Test>;
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type Slots = slots::Module<Test>;
 	type Treasury = treasury::Module<Test>;
 	type Crowdfund = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
-	use balances::Error as BalancesError;
+	use pallet_balances::Error as BalancesError;
 	use slots::Error as SlotsError;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-		balances::GenesisConfig::<Test>{
+		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 1000), (2, 2000), (3, 3000), (4, 4000)],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
@@ -780,11 +780,11 @@ mod tests {
 			Crowdfund::on_finalize(frame_system::block_number());
 			Treasury::on_finalize(frame_system::block_number());
 			Slots::on_finalize(frame_system::block_number());
-			Balances::on_finalize(frame_system::block_number());
+			pallet_balances::on_finalize(frame_system::block_number());
 			System::on_finalize(frame_system::block_number());
 			System::set_block_number(frame_system::block_number() + 1);
 			System::on_initialize(frame_system::block_number());
-			Balances::on_initialize(frame_system::block_number());
+			pallet_balances::on_initialize(frame_system::block_number());
 			Slots::on_initialize(frame_system::block_number());
 			Treasury::on_initialize(frame_system::block_number());
 			Crowdfund::on_initialize(frame_system::block_number());

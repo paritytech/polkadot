@@ -19,7 +19,7 @@
 //!
 //! These test are not meant to be exhaustive, as it is inevitable that
 //! weights in Substrate will change. Instead they are supposed to provide
-//! some sort of indicator that calls we consider important (e.g Balances::transfer)
+//! some sort of indicator that calls we consider important (e.g pallet_balances::transfer)
 //! have not suddenly changed from under us.
 
 use frame_support::{

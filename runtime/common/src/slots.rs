@@ -929,7 +929,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -939,7 +939,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -1026,7 +1026,7 @@ mod tests {
 	}
 
 	type System = frame_system::Module<Test>;
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type Slots = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 
@@ -1034,7 +1034,7 @@ mod tests {
 	// our desired mock up.
 	fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
-		balances::GenesisConfig::<Test>{
+		pallet_balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
@@ -1043,11 +1043,11 @@ mod tests {
 	fn run_to_block(n: BlockNumber) {
 		while frame_system::block_number() < n {
 			Slots::on_finalize(frame_system::block_number());
-			Balances::on_finalize(frame_system::block_number());
+			pallet_balances::on_finalize(frame_system::block_number());
 			System::on_finalize(frame_system::block_number());
 			System::set_block_number(frame_system::block_number() + 1);
 			System::on_initialize(frame_system::block_number());
-			Balances::on_initialize(frame_system::block_number());
+			pallet_balances::on_initialize(frame_system::block_number());
 			Slots::on_initialize(frame_system::block_number());
 		}
 	}

@@ -1751,7 +1751,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u128>;
+		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
@@ -1805,7 +1805,7 @@ mod tests {
 	parameter_types! {
 		pub const MinimumPeriod: u64 = 3;
 	}
-	impl timestamp::Trait for Test {
+	impl pallet_timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
@@ -1851,7 +1851,7 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u128;
 		type DustRemoval = ();
 		type Event = ();
@@ -1904,7 +1904,7 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type UnixTime = timestamp::Module<Test>;
+		type UnixTime = pallet_timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 		type NextNewSession = Session;
@@ -2046,12 +2046,12 @@ mod tests {
 	}
 
 	type Parachains = Module<Test>;
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type System = frame_system::Module<Test>;
 	type Offences = offences::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
 	type Session =pallet_session::Module<Test>;
-	type Timestamp = timestamp::Module<Test>;
+	type Timestamp = pallet_timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
 	type Historical =pallet_session::historical::Module<Test>;
@@ -2113,7 +2113,7 @@ mod tests {
 			authorities: babe_authorities,
 		}.assimilate_storage::<Test>(&mut t).unwrap();
 
-		balances::GenesisConfig::<Test> {
+		pallet_balances::GenesisConfig::<Test> {
 			balances,
 		}.assimilate_storage(&mut t).unwrap();
 

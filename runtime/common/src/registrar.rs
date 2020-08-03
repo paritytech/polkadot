@@ -742,7 +742,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u128>;
+		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -759,7 +759,7 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u128;
 		type DustRemoval = ();
 		type Event = ();
@@ -775,7 +775,7 @@ mod tests {
 
 	impl slots::Trait for Test {
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = pallet_balances::Module<Test>;
 		type Parachains = Registrar;
 		type EndingPeriod = EndingPeriod;
 		type LeasePeriod = LeasePeriod;
@@ -832,7 +832,7 @@ mod tests {
 		type RewardRemainder = ();
 		type CurrencyToVote = ();
 		type Event = ();
-		type Currency = balances::Module<Test>;
+		type Currency = pallet_balances::Module<Test>;
 		type Slash = ();
 		type Reward = ();
 		type SessionsPerEra = SessionsPerEra;
@@ -840,7 +840,7 @@ mod tests {
 		type SlashDeferDuration = SlashDeferDuration;
 		type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type UnixTime = timestamp::Module<Test>;
+		type UnixTime = pallet_timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 		type NextNewSession = Session;
@@ -852,7 +852,7 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl timestamp::Trait for Test {
+	impl pallet_timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
@@ -900,7 +900,7 @@ mod tests {
 		type AuthorityId = test_keys::ReporterAuthorityId;
 		type Origin = Origin;
 		type Call = Call;
-		type ParachainCurrency = balances::Module<Test>;
+		type ParachainCurrency = pallet_balances::Module<Test>;
 		type BlockNumberConversion = sp_runtime::traits::Identity;
 		type ActiveParachains = Registrar;
 		type Registrar = Registrar;
@@ -949,14 +949,14 @@ mod tests {
 	impl Trait for Test {
 		type Event = ();
 		type Origin = Origin;
-		type Currency = balances::Module<Test>;
+		type Currency = pallet_balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
 		type SwapAux = slots::Module<Test>;
 		type QueueSize = QueueSize;
 		type MaxRetries = MaxRetries;
 	}
 
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type Parachains = parachains::Module<Test>;
 	type System = frame_system::Module<Test>;
 	type Slots = slots::Module<Test>;
@@ -1012,7 +1012,7 @@ mod tests {
 			keys: session_keys,
 		}.assimilate_storage(&mut t).unwrap();
 
-		balances::GenesisConfig::<Test> {
+		pallet_balances::GenesisConfig::<Test> {
 			balances,
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -1222,8 +1222,8 @@ mod tests {
 			// Need to trigger on_initialize
 			run_to_block(2);
 
-			let initial_1_balance = Balances::free_balance(1);
-			let initial_2_balance = Balances::free_balance(2);
+			let initial_1_balance = pallet_balances::free_balance(1);
+			let initial_2_balance = pallet_balances::free_balance(2);
 
 			// User 1 register a new parathread
 			assert_ok!(Registrar::register_parathread(
@@ -1281,7 +1281,7 @@ mod tests {
 				vec![2; 3].into(),
 			));
 
-			let orig_bal = Balances::free_balance(&3u64);
+			let orig_bal = pallet_balances::free_balance(&3u64);
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),

@@ -687,7 +687,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -699,7 +699,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -730,7 +730,7 @@ mod tests {
 		type MoveClaimOrigin = frame_system::EnsureSignedBy<Six, u64>;
 	}
 	type System = frame_system::Module<Test>;
-	type Balances = balances::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
 	type Vesting = vesting::Module<Test>;
 	type Claims = Module<Test>;
 
@@ -755,7 +755,7 @@ mod tests {
 	pub fn new_test_ext() -> sp_io::TestExternalities {
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
-		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
+		pallet_balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
 		GenesisConfig::<Test>{
 			claims: vec![
 				(eth(&alice()), 100, None, None),
@@ -982,7 +982,7 @@ mod tests {
 			// Make sure we can not transfer the vested balance.
 			assert_err!(
 				<Balances as Currency<_>>::transfer(&69, &80, 180, ExistenceRequirement::AllowDeath),
-				balances::Error::<Test, _>::LiquidityRestrictions,
+				pallet_balances::Error::<Test, _>::LiquidityRestrictions,
 			);
 		});
 	}
