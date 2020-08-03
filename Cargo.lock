@@ -4945,6 +4945,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "polkadot-primitives",
+ "polkadot-runtime-parachains",
  "rustc-hex",
  "serde",
  "serde_derive",
