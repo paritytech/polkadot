@@ -310,7 +310,7 @@ pub enum ChainApiMessage {
 		hash: Hash,
 		/// The number of ancestors to request.
 		k: usize,
-		/// The response channel. 
+		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
 }
@@ -438,7 +438,9 @@ pub enum ProvisionerMessage {
 	///
 	/// This is expected to be used by a proposer, to inject that information into the InherentData
 	/// where it can be assembled into the InclusionInherent.
-	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
+	///
+	/// The block number is of the relay chain block under construction.
+	RequestInherentData(Hash, BlockNumber, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
 	ProvisionableData(ProvisionableData),
 }
@@ -448,7 +450,7 @@ impl ProvisionerMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
-			Self::RequestInherentData(hash, _) => Some(*hash),
+			Self::RequestInherentData(hash, _, _) => Some(*hash),
 			Self::ProvisionableData(_) => None,
 		}
 	}
