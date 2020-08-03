@@ -108,7 +108,7 @@ HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 
 No initialization routine runs for this module.
 
-## Routines
+## Entry points
 
 The following routines are intended to be invoked by paras' upward messages.
 
@@ -135,6 +135,8 @@ The following routines are intended to be invoked by paras' upward messages.
   1. Check that the origin of the message is either `sender` or `recipient`
   1. Check that there is no existing intention to close the channel between `sender` and `recipient`.
   1. Add a new entry to `HrmpCloseChannelRequests` with initiator set to the origin of this message.
+
+## Routines
 
 Candidate Acceptance Function:
 
