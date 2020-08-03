@@ -404,7 +404,7 @@ impl democracy::Trait for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
-	type WeightInfo = ();
+	type WeightInfo = weights::democracy::WeightInfo;
 }
 
 parameter_types! {

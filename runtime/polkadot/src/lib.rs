@@ -458,7 +458,7 @@ impl democracy::Trait for Runtime {
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
-	type WeightInfo = ();
+	type WeightInfo = weights::democracy::WeightInfo;
 }
 
 parameter_types! {
