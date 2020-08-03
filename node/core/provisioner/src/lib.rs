@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 	},
 	util::{self, request_availability_cores, JobTrait, ToJobTrait},
 };
-use polkadot_primitives::v1::{BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield};
+use polkadot_primitives::v1::{BackedCandidate, CoreState, Hash, SignedAvailabilityBitfield};
 use std::{
 	collections::{HashMap, HashSet},
 	convert::TryFrom,
@@ -163,7 +163,7 @@ impl ProvisioningJob {
 			};
 
 			match msg {
-				ToJob::Provisioner(RequestInherentData(_, block_number, sender)) => {
+				ToJob::Provisioner(RequestInherentData(_, sender)) => {
 					// Note the cloning here: we have to clone the vectors of signed bitfields and backed candidates
 					// so that we can respond to more than a single request for inherent data; we can't just move them.
 					// It would be legal, however, to set up `from_job` as `&mut _` instead of a clone. We clone it instead
@@ -174,7 +174,6 @@ impl ProvisioningJob {
 						self.backed_candidates.clone(),
 						sender,
 						self.sender.clone(),
-						block_number,
 					)
 					.await?
 				}
@@ -232,7 +231,6 @@ async fn send_inherent_data(
 	mut backed_candidates: Vec<BackedCandidate>,
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
-	block_number: BlockNumber,
 ) -> Result<(), Error> {
 	let availability_cores = match request_availability_cores(relay_parent, &mut from_job)
 		.await?
@@ -295,7 +293,9 @@ async fn send_inherent_data(
 				}
 				if let Some(ref scheduled) = occupied.next_up_on_time_out {
 					return scheduled.para_id == para_id
-						&& occupied.time_out_at == block_number
+						// TODO: this function currently doesn't know about what block we're building
+						//   get it from the runtime? where?
+						&& unimplemented!("occupied.time_out_at == the block we are building")
 						// REVIEW: the guide says we have to ensure that the merged bitfields are < 2/3 in this case,
 						// but intuition suggests that we'd still want it to be >=. Just want a double-check that
 						// there's no typo in the guide.
