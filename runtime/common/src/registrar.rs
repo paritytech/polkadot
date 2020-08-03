@@ -33,7 +33,7 @@ use frame_support::{
 	dispatch::{DispatchResult, IsSubType}, traits::{Get, Currency, ReservableCurrency},
 	weights::{DispatchClass, Weight},
 };
-use system::{self, ensure_root, ensure_signed};
+use frame_system::{self, ensure_root, ensure_signed};
 use primitives::v0::{
 	Id as ParaId, CollatorId, Scheduling, LOWEST_USER_ID, SwapAux, Info as ParaInfo, ActiveParas,
 	Retriable, ValidationCode, HeadData,
@@ -129,17 +129,17 @@ impl<T: Trait> Registrar<T::AccountId> for Module<T> {
 }
 
 type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 pub trait Trait: parachains::Trait {
 	/// The overarching event type.
-	type Event: From<Event> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event> + Into<<Self as frame_system::Trait>::Event>;
 
 	/// The aggregated origin type must support the parachains origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
 	/// clause everywhere.
-	type Origin: From<<Self as system::Trait>::Origin>
+	type Origin: From<<Self as frame_system::Trait>::Origin>
 		+ Into<result::Result<parachains::Origin, <Self as Trait>::Origin>>;
 
 	/// The system's currency for parathread payment.
@@ -254,7 +254,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -561,10 +561,10 @@ impl<T: Trait> ActiveParas for Module<T> {
 /// Ensure that parathread selections happen prioritized by fees.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct LimitParathreadCommits<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Call<T>>;
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create a new `LimitParathreadCommits` struct.
 	pub fn new() -> Self {
@@ -573,7 +573,7 @@ impl<T: Trait + Send + Sync> LimitParathreadCommits<T> where
 }
 
 impl<T: Trait + Send + Sync> sp_std::fmt::Debug for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
 		write!(f, "LimitParathreadCommits<T>")
@@ -590,11 +590,11 @@ pub enum ValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for LimitParathreadCommits<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "LimitParathreadCommits";
 	type AccountId = T::AccountId;
-	type Call = <T as system::Trait>::Call;
+	type Call = <T as frame_system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 
@@ -720,7 +720,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl system::Trait for Test {
+	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -748,7 +748,7 @@ mod tests {
 		type SystemWeightInfo = ();
 	}
 
-	impl<C> system::offchain::SendTransactionTypes<C> for Test where
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
 		Call: From<C>,
 	{
 		type OverarchingCall = Call;
@@ -804,12 +804,12 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
-	impl session::Trait for Test {
+	implpallet_session::Trait for Test {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
-		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
-		type SessionHandler = session::TestSessionHandler;
+		type ShouldEndSession =pallet_session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation =pallet_session::PeriodicSessions<Period, Offset>;
+		type SessionHandler =pallet_session::TestSessionHandler;
 		type Event = ();
 		type ValidatorId = u64;
 		type ValidatorIdOf = ();
@@ -838,7 +838,7 @@ mod tests {
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
 		type SlashDeferDuration = SlashDeferDuration;
-		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
+		type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
 		type UnixTime = timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
@@ -859,7 +859,7 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl session::historical::Trait for Test {
+	implpallet_session::historical::Trait for Test {
 		type FullIdentification = staking::Exposure<u64, Balance>;
 		type FullIdentificationOf = staking::ExposureOf<Self>;
 	}
@@ -889,7 +889,7 @@ mod tests {
 
 		pub type ReporterId = app::Public;
 		pub struct ReporterAuthorityId;
-		impl system::offchain::AppCrypto<ReporterId, Signature> for ReporterAuthorityId {
+		impl frame_system::offchain::AppCrypto<ReporterId, Signature> for ReporterAuthorityId {
 			type RuntimeAppPublic = ReporterId;
 			type GenericSignature = sr25519::Signature;
 			type GenericPublic = sr25519::Public;
@@ -911,7 +911,7 @@ mod tests {
 		type ValidationUpgradeDelay = ValidationUpgradeDelay;
 		type SlashPeriod = SlashPeriod;
 		type Proof = sp_session::MembershipProof;
-		type KeyOwnerProofSystem = session::historical::Module<Test>;
+		type KeyOwnerProofSystem =pallet_session::historical::Module<Test>;
 		type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
 			Vec<u8>,
@@ -922,20 +922,20 @@ mod tests {
 
 	type Extrinsic = TestXt<Call, ()>;
 
-	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
+	impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test where
 		Call: From<LocalCall>,
 	{
-		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
 			_public: test_keys::ReporterId,
-			_account: <Test as system::Trait>::AccountId,
-			nonce: <Test as system::Trait>::Index,
+			_account: <Test as frame_system::Trait>::AccountId,
+			nonce: <Test as frame_system::Trait>::Index,
 		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
 	}
 
-	impl system::offchain::SigningTypes for Test {
+	impl frame_system::offchain::SigningTypes for Test {
 		type Public = test_keys::ReporterId;
 		type Signature = Signature;
 	}
@@ -958,11 +958,11 @@ mod tests {
 
 	type Balances = balances::Module<Test>;
 	type Parachains = parachains::Module<Test>;
-	type System = system::Module<Test>;
+	type System = frame_system::Module<Test>;
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
-	type Session = session::Module<Test>;
+	type Session =pallet_session::Module<Test>;
 	type Staking = staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
@@ -977,7 +977,7 @@ mod tests {
 	];
 
 	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
 			Sr25519Keyring::Alice,
@@ -1020,28 +1020,28 @@ mod tests {
 	}
 
 	fn init_block() {
-		println!("Initializing {}", System::block_number());
-		System::on_initialize(System::block_number());
-		Registrar::on_initialize(System::block_number());
-		Parachains::on_initialize(System::block_number());
-		Slots::on_initialize(System::block_number());
+		println!("Initializing {}", frame_system::block_number());
+		System::on_initialize(frame_system::block_number());
+		Registrar::on_initialize(frame_system::block_number());
+		Parachains::on_initialize(frame_system::block_number());
+		Slots::on_initialize(frame_system::block_number());
 	}
 
 	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
-		while System::block_number() < n {
-			if System::block_number() > 1 {
-				println!("Finalizing {}", System::block_number());
+		while frame_system::block_number() < n {
+			if frame_system::block_number() > 1 {
+				println!("Finalizing {}", frame_system::block_number());
 				if !parachains::DidUpdate::exists() {
 					println!("Null heads update");
-					assert_ok!(Parachains::set_heads(system::RawOrigin::None.into(), vec![]));
+					assert_ok!(Parachains::set_heads(frame_system::RawOrigin::None.into(), vec![]));
 				}
-				Slots::on_finalize(System::block_number());
-				Parachains::on_finalize(System::block_number());
-				Registrar::on_finalize(System::block_number());
-				System::on_finalize(System::block_number());
+				Slots::on_finalize(frame_system::block_number());
+				Parachains::on_finalize(frame_system::block_number());
+				Registrar::on_finalize(frame_system::block_number());
+				System::on_finalize(frame_system::block_number());
 			}
-			System::set_block_number(System::block_number() + 1);
+			System::set_block_number(frame_system::block_number() + 1);
 			init_block();
 		}
 	}
@@ -1062,7 +1062,7 @@ mod tests {
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
 		let pov_block_hash = BlakeTwo256::hash(block_data);
-		let relay_parent = System::parent_hash();
+		let relay_parent = frame_system::parent_hash();
 		let candidate = CandidateReceipt {
 			parachain_index: id,
 			relay_parent,
@@ -1082,7 +1082,7 @@ mod tests {
 		};
 		let (candidate, _) = candidate.abridge();
 		let candidate_hash = candidate.hash();
-		let payload = (Statement::Valid(candidate_hash), session::Module::<Test>::current_index(), System::parent_hash()).encode();
+		let payload = (Statement::Valid(candidate_hash),pallet_session::Module::<Test>::current_index(), frame_system::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
@@ -1498,8 +1498,8 @@ mod tests {
 
 			let good_para_id = user_id(0);
 			let bad_para_id = user_id(1);
-			let bad_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 2, 1]);
-			let good_head_hash = <Test as system::Trait>::Hashing::hash(&vec![1, 1, 1]);
+			let bad_head_hash = <Test as frame_system::Trait>::Hashing::hash(&vec![1, 2, 1]);
+			let good_head_hash = <Test as frame_system::Trait>::Hashing::hash(&vec![1, 1, 1]);
 			let info = &DispatchInfo::default();
 
 			// Allow for threads
@@ -1562,7 +1562,7 @@ mod tests {
 			for x in 0..5 {
 				let para_id = user_id(x as u32);
 				let collator_id = CollatorId::default();
-				let head_hash = <Test as system::Trait>::Hashing::hash(&vec![x; 3]);
+				let head_hash = <Test as frame_system::Trait>::Hashing::hash(&vec![x; 3]);
 				let inner = super::Call::select_parathread(para_id, collator_id, head_hash);
 				let call = Call::Registrar(inner);
 				let info = &DispatchInfo::default();

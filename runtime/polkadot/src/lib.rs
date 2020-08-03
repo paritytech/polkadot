@@ -55,11 +55,11 @@ use frame_support::{
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
+use frame_system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::historical as session_historical;
+usepallet_session::historical as session_historical;
 use static_assertions::const_assert;
 
 #[cfg(feature = "std")]
@@ -143,7 +143,7 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl system::Trait for Runtime {
+impl frame_system::Trait for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
@@ -270,7 +270,7 @@ parameter_types! {
 
 // TODO: substrate#2986 implement this properly
 impl authorship::Trait for Runtime {
-	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FindAuthor =pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
@@ -290,20 +290,20 @@ parameter_types! {
 	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-impl session::Trait for Runtime {
+implpallet_session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
+	type SessionManager =pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 	type WeightInfo = ();
 }
 
-impl session::historical::Trait for Runtime {
+implpallet_session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
@@ -416,35 +416,35 @@ impl democracy::Trait for Runtime {
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
 	/// A straight majority of the council can decide what their next motion is.
-	type ExternalOrigin = system::EnsureOneOf<AccountId,
+	type ExternalOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_1, _2, AccountId, CouncilCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
 	/// A 60% super-majority can have the next scheduled referendum be a straight majority-carries vote.
-	type ExternalMajorityOrigin = system::EnsureOneOf<AccountId,
+	type ExternalMajorityOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
 	/// A unanimous council can have the next scheduled referendum be a straight default-carries
 	/// (NTB) vote.
-	type ExternalDefaultOrigin = system::EnsureOneOf<AccountId,
+	type ExternalDefaultOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_1, _1, AccountId, CouncilCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
 	/// Two thirds of the technical committee can have an ExternalMajority/ExternalDefault vote
 	/// be tabled immediately and with a shorter voting/enactment period.
-	type FastTrackOrigin = system::EnsureOneOf<AccountId,
+	type FastTrackOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_2, _3, AccountId, TechnicalCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
-	type InstantOrigin = system::EnsureOneOf<AccountId,
+	type InstantOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_1, _1, AccountId, TechnicalCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
 	type InstantAllowed = InstantAllowed;
 	type FastTrackVotingPeriod = FastTrackVotingPeriod;
 	// To cancel a proposal which has been passed, 2/3 of the council must agree to it.
-	type CancellationOrigin = system::EnsureOneOf<AccountId,
+	type CancellationOrigin = frame_system::EnsureOneOf<AccountId,
 		collective::EnsureProportionAtLeast<_2, _3, AccountId, CouncilCollective>,
 		system::EnsureRoot<AccountId>,
 	>;
@@ -578,7 +578,7 @@ parameter_types! {
 
 impl offences::Trait for Runtime {
 	type Event = Event;
-	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 	type WeightInfo = ();
@@ -668,7 +668,7 @@ impl parachains::Trait for Runtime {
 	type SlashPeriod = SlashPeriod;
 
 	type Proof = sp_session::MembershipProof;
-	type KeyOwnerProofSystem = session::historical::Module<Self>;
+	type KeyOwnerProofSystem =pallet_session::historical::Module<Self>;
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
@@ -676,14 +676,14 @@ impl parachains::Trait for Runtime {
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
-impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
 	Call: From<LocalCall>,
 {
-	fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as system::Trait>::Index,
+		nonce: <Runtime as frame_system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		// take the biggest period possible.
 		let period = BlockHashCount::get()
@@ -691,7 +691,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			.map(|c| c / 2)
 			.unwrap_or(2) as u64;
 
-		let current_block = System::block_number()
+		let current_block = frame_system::block_number()
 			.saturated_into::<u64>()
 			// The `System::block_number` is initialized with `n+1`,
 			// so the actual block number is `n`.
@@ -720,12 +720,12 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 	}
 }
 
-impl system::offchain::SigningTypes for Runtime {
+impl frame_system::offchain::SigningTypes for Runtime {
 	type Public = <Signature as Verify>::Signer;
 	type Signature = Signature;
 }
 
-impl<C> system::offchain::SendTransactionTypes<C> for Runtime where Call: From<C> {
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where Call: From<C> {
 	type Extrinsic = UncheckedExtrinsic;
 	type OverarchingCall = Call;
 }
@@ -949,7 +949,7 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 			VotingOf::<Runtime>::insert(who, voting);
 		}
 
-		<Runtime as system::Trait>::MaximumBlockWeight::get()
+		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
 	}
 }
 
@@ -959,7 +959,7 @@ fn test_rm_ref_0() {
 	use frame_support::{traits::OnRuntimeUpgrade, storage::StorageMap};
 	use democracy::{VotingOf, Vote, Voting::{Direct, Delegating}, AccountVote::{Standard, Split}};
 	use democracy::Conviction::{Locked1x, Locked2x, Locked3x, None as NoConviction};
-	let t = system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
+	let t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| {
 		let a = |i| AccountId32::from([i; 32]);
@@ -1087,7 +1087,7 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: system::{Module, Call, Storage, Config, Event<T>},
+		System: frame_system::{Module, Call, Storage, Config, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
 
@@ -1104,7 +1104,7 @@ construct_runtime! {
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
-		Session: session::{Module, Call, Storage, Event, Config<T>},
+		Session:pallet_session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},

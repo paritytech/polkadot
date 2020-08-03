@@ -59,8 +59,8 @@ use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use grandpa::{AuthorityId as GrandpaId, fg_primitives};
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
-use session::historical as session_historical;
-use system::EnsureRoot;
+usepallet_session::historical as session_historical;
+use frame_system::EnsureRoot;
 use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
 
 use runtime_parachains::configuration as parachains_configuration;
@@ -325,7 +325,7 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
@@ -343,7 +343,7 @@ construct_runtime! {
 		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
-		System: system::{Module, Call, Storage, Config, Event<T>},
+		System: frame_system::{Module, Call, Storage, Config, Event<T>},
 
 		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
@@ -358,7 +358,7 @@ construct_runtime! {
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
-		Session: session::{Module, Call, Storage, Event, Config<T>},
+		Session:pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
 		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
@@ -400,7 +400,7 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl system::Trait for Runtime {
+impl frame_system::Trait for Runtime {
 	type BaseCallFilter = BaseFilter;
 	type Origin = Origin;
 	type Call = Call;
@@ -438,14 +438,14 @@ parameter_types! {
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
-impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
 	Call: From<LocalCall>,
 {
-	fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as system::Trait>::Index,
+		nonce: <Runtime as frame_system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		// take the biggest period possible.
 		let period = BlockHashCount::get()
@@ -453,7 +453,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 			.map(|c| c / 2)
 			.unwrap_or(2) as u64;
 
-		let current_block = System::block_number()
+		let current_block = frame_system::block_number()
 			.saturated_into::<u64>()
 			// The `System::block_number` is initialized with `n+1`,
 			// so the actual block number is `n`.
@@ -479,12 +479,12 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 	}
 }
 
-impl system::offchain::SigningTypes for Runtime {
+impl frame_system::offchain::SigningTypes for Runtime {
 	type Public = <Signature as Verify>::Signer;
 	type Signature = Signature;
 }
 
-impl session::historical::Trait for Runtime {
+implpallet_session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
@@ -571,7 +571,7 @@ impl balances::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 	Call: From<C>,
 {
 	type OverarchingCall = Call;
@@ -590,7 +590,7 @@ parameter_types! {
 
 impl offences::Trait for Runtime {
 	type Event = Event;
-	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 	type WeightInfo = ();
@@ -624,13 +624,13 @@ parameter_types! {
 	pub const DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-impl session::Trait for Runtime {
+implpallet_session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
+	type SessionManager =pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -704,7 +704,7 @@ parameter_types! {
 
 // TODO: substrate#2986 implement this properly
 impl authorship::Trait for Runtime {
-	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FindAuthor =pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);

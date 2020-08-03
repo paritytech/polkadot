@@ -51,7 +51,7 @@ pub use parachains::Call as ParachainsCall;
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};
 
-pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
 /// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 10%`.
@@ -118,7 +118,7 @@ mod multiplier_tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
 	}
 
-	impl system::Trait for Runtime {
+	impl frame_system::Trait for Runtime {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Index = u64;
@@ -146,7 +146,7 @@ mod multiplier_tests {
 		type SystemWeightInfo = ();
 	}
 
-	type System = system::Module<Runtime>;
+	type System = frame_system::Module<Runtime>;
 
 	fn run_with_system_weight<F>(w: Weight, assertions: F) where F: Fn() -> () {
 		let mut t: sp_io::TestExternalities =

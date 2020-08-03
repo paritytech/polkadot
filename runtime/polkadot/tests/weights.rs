@@ -34,12 +34,12 @@ use runtime_common::MaximumBlockWeight;
 
 use democracy::Call as DemocracyCall;
 use elections_phragmen::Call as PhragmenCall;
-use session::Call as SessionCall;
+usepallet_session::Call as SessionCall;
 use staking::Call as StakingCall;
-use system::Call as SystemCall;
+use frame_system::Call as SystemCall;
 use treasury::Call as TreasuryCall;
 
-type DbWeight = <Runtime as system::Trait>::DbWeight;
+type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
 
 #[test]
 fn sanity_check_weight_per_time_constants_are_as_expected() {

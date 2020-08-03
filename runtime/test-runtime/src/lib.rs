@@ -58,7 +58,7 @@ use frame_support::{
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-use session::historical as session_historical;
+usepallet_session::historical as session_historical;
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -130,7 +130,7 @@ parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
 
-impl system::Trait for Runtime {
+impl frame_system::Trait for Runtime {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -158,7 +158,7 @@ impl system::Trait for Runtime {
 	type SystemWeightInfo = ();
 }
 
-impl<C> system::offchain::SendTransactionTypes<C> for Runtime where
+impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime where
 	Call: From<C>,
 {
 	type OverarchingCall = Call;
@@ -246,7 +246,7 @@ parameter_types! {
 
 // TODO: substrate#2986 implement this properly
 impl authorship::Trait for Runtime {
-	type FindAuthor = session::FindAccountFromAuthorIndex<Self, Babe>;
+	type FindAuthor =pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
 	type EventHandler = Staking;
@@ -269,7 +269,7 @@ parameter_types! {
 	pub storage DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-impl session::Trait for Runtime {
+implpallet_session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = staking::StashOf<Self>;
@@ -282,7 +282,7 @@ impl session::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl session::historical::Trait for Runtime {
+implpallet_session::historical::Trait for Runtime {
 	type FullIdentification = staking::Exposure<AccountId, Balance>;
 	type FullIdentificationOf = staking::ExposureOf<Runtime>;
 }
@@ -325,7 +325,7 @@ impl staking::Trait for Runtime {
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = system::EnsureNever<()>;
+	type SlashCancelOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -392,7 +392,7 @@ impl parachains::Trait for Runtime {
 	type SlashPeriod = SlashPeriod;
 
 	type Proof = sp_session::MembershipProof;
-	type KeyOwnerProofSystem = session::historical::Module<Self>;
+	type KeyOwnerProofSystem =pallet_session::historical::Module<Self>;
 	type IdentificationTuple = <
 			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
 		>::IdentificationTuple;
@@ -400,21 +400,21 @@ impl parachains::Trait for Runtime {
 	type BlockHashConversion = sp_runtime::traits::Identity;
 }
 
-impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
+impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
 	Call: From<LocalCall>,
 {
-	fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 		call: Call,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
-		nonce: <Runtime as system::Trait>::Index,
+		nonce: <Runtime as frame_system::Trait>::Index,
 	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		let period = BlockHashCount::get()
 			.checked_next_power_of_two()
 			.map(|c| c / 2)
 			.unwrap_or(2) as u64;
 
-		let current_block = System::block_number()
+		let current_block = frame_system::block_number()
 			.saturated_into::<u64>()
 			.saturating_sub(1);
 		let tip = 0;
@@ -442,7 +442,7 @@ impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 	}
 }
 
-impl system::offchain::SigningTypes for Runtime {
+impl frame_system::offchain::SigningTypes for Runtime {
 	type Public = <Signature as Verify>::Signer;
 	type Signature = Signature;
 }
@@ -453,7 +453,7 @@ parameter_types! {
 
 impl offences::Trait for Runtime {
 	type Event = Event;
-	type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+	type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 	type WeightInfo = ();
@@ -499,7 +499,7 @@ impl claims::Trait for Runtime {
 	type Event = Event;
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
-	type MoveClaimOrigin = system::EnsureRoot<AccountId>;
+	type MoveClaimOrigin = frame_system::EnsureRoot<AccountId>;
 }
 
 parameter_types! {
@@ -526,7 +526,7 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: system::{Module, Call, Storage, Config, Event<T>},
+		System: frame_system::{Module, Call, Storage, Config, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
 
 		// Must be before session.
@@ -542,7 +542,7 @@ construct_runtime! {
 		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
-		Session: session::{Module, Call, Storage, Event, Config<T>},
+		Session:pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Grandpa: grandpa::{Module, Call, Storage, Config, Event},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
@@ -592,7 +592,7 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = executive::Executive<Runtime, Block, system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 

@@ -87,9 +87,9 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + configuration::Trait
 {
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
 
 decl_storage! {
@@ -154,7 +154,7 @@ decl_error! {
 }
 
 decl_event! {
-	pub enum Event<T> where <T as system::Trait>::Hash {
+	pub enum Event<T> where <T as frame_system::Trait>::Hash {
 		/// A candidate was backed.
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included.
@@ -167,7 +167,7 @@ decl_event! {
 decl_module! {
 	/// The parachain-candidate inclusion module.
 	pub struct Module<T: Trait>
-		for enum Call where origin: <T as system::Trait>::Origin, system = system
+		for enum Call where origin: <T as frame_system::Trait>::Origin
 	{
 		type Error = Error<T>;
 
@@ -230,7 +230,7 @@ impl<T: Trait> Module<T> {
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
-				parent_hash: <system::Module<T>>::parent_hash(),
+				parent_hash: <frame_system::Module<T>>::parent_hash(),
 				session_index,
 			};
 
@@ -266,7 +266,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
@@ -356,9 +356,9 @@ impl<T: Trait> Module<T> {
 		}
 
 		let validators = Validators::get();
-		let parent_hash = <system::Module<T>>::parent_hash();
+		let parent_hash = <frame_system::Module<T>>::parent_hash();
 		let config = <configuration::Module<T>>::config();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let relay_parent_number = now - One::one();
 
 		// do all checks before writing storage.
@@ -794,8 +794,8 @@ mod tests {
 		to: BlockNumber,
 		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
 	) {
-		while System::block_number() < to {
-			let b = System::block_number();
+		while frame_system::block_number() < to {
+			let b = frame_system::block_number();
 
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
@@ -944,7 +944,7 @@ mod tests {
 			CurrentSessionIndex::set(5);
 
 			let signing_context = SigningContext {
-				parent_hash: System::parent_hash(),
+				parent_hash: frame_system::parent_hash(),
 				session_index: 5,
 			};
 
@@ -1133,7 +1133,7 @@ mod tests {
 			CurrentSessionIndex::set(5);
 
 			let signing_context = SigningContext {
-				parent_hash: System::parent_hash(),
+				parent_hash: frame_system::parent_hash(),
 				session_index: 5,
 			};
 
@@ -1266,7 +1266,7 @@ mod tests {
 			run_to_block(5, |_| None);
 
 			let signing_context = SigningContext {
-				parent_hash: System::parent_hash(),
+				parent_hash: frame_system::parent_hash(),
 				session_index: 5,
 			};
 
@@ -1304,7 +1304,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
@@ -1336,14 +1336,14 @@ mod tests {
 			{
 				let mut candidate_a = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
 					validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					..Default::default()
@@ -1390,7 +1390,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
@@ -1421,7 +1421,7 @@ mod tests {
 			// candidate not in parent context.
 			{
 				let wrong_parent_hash = Hash::from([222; 32]);
-				assert!(System::parent_hash() != wrong_parent_hash);
+				assert!(frame_system::parent_hash() != wrong_parent_hash);
 
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
@@ -1457,7 +1457,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
@@ -1495,7 +1495,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: thread_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
@@ -1532,7 +1532,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
@@ -1578,7 +1578,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
@@ -1616,7 +1616,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
@@ -1658,7 +1658,7 @@ mod tests {
 			{
 				let mut candidate = TestCandidateBuilder {
 					para_id: chain_a,
-					relay_parent: System::parent_hash(),
+					relay_parent: frame_system::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					validation_data_hash: [42u8; 32].into(),
 					..Default::default()
@@ -1712,7 +1712,7 @@ mod tests {
 			run_to_block(5, |_| None);
 
 			let signing_context = SigningContext {
-				parent_hash: System::parent_hash(),
+				parent_hash: frame_system::parent_hash(),
 				session_index: 5,
 			};
 
@@ -1748,7 +1748,7 @@ mod tests {
 
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
-				relay_parent: System::parent_hash(),
+				relay_parent: frame_system::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
 				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				..Default::default()
@@ -1760,7 +1760,7 @@ mod tests {
 
 			let mut candidate_b = TestCandidateBuilder {
 				para_id: chain_b,
-				relay_parent: System::parent_hash(),
+				relay_parent: frame_system::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
 				validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				..Default::default()
@@ -1772,7 +1772,7 @@ mod tests {
 
 			let mut candidate_c = TestCandidateBuilder {
 				para_id: thread_a,
-				relay_parent: System::parent_hash(),
+				relay_parent: frame_system::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
 				validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				..Default::default()
@@ -1824,8 +1824,8 @@ mod tests {
 					core: CoreIndex::from(0),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: System::block_number() - 1,
-					backed_in_number: System::block_number(),
+					relay_parent_number: frame_system::block_number() - 1,
+					backed_in_number: frame_system::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1839,8 +1839,8 @@ mod tests {
 					core: CoreIndex::from(1),
 					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: System::block_number() - 1,
-					backed_in_number: System::block_number(),
+					relay_parent_number: frame_system::block_number() - 1,
+					backed_in_number: frame_system::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1854,8 +1854,8 @@ mod tests {
 					core: CoreIndex::from(2),
 					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: System::block_number() - 1,
-					backed_in_number: System::block_number(),
+					relay_parent_number: frame_system::block_number() - 1,
+					backed_in_number: frame_system::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1886,7 +1886,7 @@ mod tests {
 			run_to_block(5, |_| None);
 
 			let signing_context = SigningContext {
-				parent_hash: System::parent_hash(),
+				parent_hash: frame_system::parent_hash(),
 				session_index: 5,
 			};
 
@@ -1904,7 +1904,7 @@ mod tests {
 
 			let mut candidate_a = TestCandidateBuilder {
 				para_id: chain_a,
-				relay_parent: System::parent_hash(),
+				relay_parent: frame_system::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
 				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
@@ -1939,8 +1939,8 @@ mod tests {
 					core: CoreIndex::from(0),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: System::block_number() - 1,
-					backed_in_number: System::block_number(),
+					relay_parent_number: frame_system::block_number() - 1,
+					backed_in_number: frame_system::block_number(),
 				})
 			);
 			assert_eq!(

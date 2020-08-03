@@ -31,16 +31,16 @@ use frame_support::{
 use primitives::v0::{
 	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
 };
-use system::{ensure_signed, ensure_root};
+use frame_system::{ensure_signed, ensure_root};
 use crate::registrar::{Registrar, swap_ordered_existence};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 /// The module's configuration trait.
-pub trait Trait: system::Trait {
+pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 
 	/// The currency type used for bidding.
 	type Currency: ReservableCurrency<Self::AccountId>;
@@ -118,14 +118,14 @@ pub enum IncomingParachain<AccountId, Hash> {
 	Deploy { code: ValidationCode, initial_head_data: HeadData },
 }
 
-type LeasePeriodOf<T> = <T as system::Trait>::BlockNumber;
+type LeasePeriodOf<T> = <T as frame_system::Trait>::BlockNumber;
 // Winning data type. This encodes the top bidders of each range together with their bid.
 type WinningData<T> =
-	[Option<(Bidder<<T as system::Trait>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
+	[Option<(Bidder<<T as frame_system::Trait>::AccountId>, BalanceOf<T>)>; SLOT_RANGE_COUNT];
 // Winners data type. This encodes each of the final winners of a parachain auction, the parachain
 // index assigned to them, their winning bid and the range that they won.
 type WinnersData<T> =
-	Vec<(Option<NewBidder<<T as system::Trait>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
+	Vec<(Option<NewBidder<<T as frame_system::Trait>::AccountId>>, ParaId, BalanceOf<T>, SlotRange)>;
 
 // This module's storage items.
 decl_storage! {
@@ -204,8 +204,8 @@ impl<T: Trait> SwapAux for Module<T> {
 
 decl_event!(
 	pub enum Event<T> where
-		AccountId = <T as system::Trait>::AccountId,
-		BlockNumber = <T as system::Trait>::BlockNumber,
+		AccountId = <T as frame_system::Trait>::AccountId,
+		BlockNumber = <T as frame_system::Trait>::BlockNumber,
 		LeasePeriod = LeasePeriodOf<T>,
 		ParaId = ParaId,
 		Balance = BalanceOf<T>,
@@ -262,7 +262,7 @@ decl_error! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		fn deposit_event() = default;
@@ -322,7 +322,7 @@ decl_module! {
 			let n = <AuctionCounter>::mutate(|n| { *n += 1; *n });
 
 			// Set the information.
-			let ending = <system::Module<T>>::block_number() + duration;
+			let ending = <frame_system::Module<T>>::block_number() + duration;
 			<AuctionInfo<T>>::put((lease_period_index, ending));
 
 			Self::deposit_event(RawEvent::AuctionStarted(n, lease_period_index, ending))
@@ -459,7 +459,7 @@ decl_module! {
 				.ok_or(Error::<T>::ParaNotOnboarding)?;
 			if let IncomingParachain::Fixed{code_hash, code_size, initial_head_data} = details {
 				ensure!(code.0.len() as u32 == code_size, Error::<T>::InvalidCode);
-				ensure!(<T as system::Trait>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
+				ensure!(<T as frame_system::Trait>::Hashing::hash(&code.0) == code_hash, Error::<T>::InvalidCode);
 
 				if starts > Self::lease_period_index() {
 					// Hasn't yet begun. Replace the on-boarding entry with the new information.
@@ -507,7 +507,7 @@ impl<T: Trait> Module<T> {
 
 	/// Returns the current lease period.
 	fn lease_period_index() -> LeasePeriodOf<T> {
-		(<system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
+		(<frame_system::Module<T>>::block_number() / T::LeasePeriod::get()).into()
 	}
 
 	/// Some when the auction's end is known (with the end block number). None if it is unknown.
@@ -751,7 +751,7 @@ impl<T: Trait> Module<T> {
 		// Range as an array index.
 		let range_index = range as u8 as usize;
 		// The offset into the auction ending set.
-		let offset = Self::is_ending(<system::Module<T>>::block_number()).unwrap_or_default();
+		let offset = Self::is_ending(<frame_system::Module<T>>::block_number()).unwrap_or_default();
 		// The current winning ranges.
 		let mut current_winning = <Winning<T>>::get(offset)
 			.or_else(|| offset.checked_sub(&One::one()).and_then(<Winning<T>>::get))
@@ -907,7 +907,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl system::Trait for Test {
+	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = ();
@@ -1025,7 +1025,7 @@ mod tests {
 		type Randomness = RandomnessCollectiveFlip;
 	}
 
-	type System = system::Module<Test>;
+	type System = frame_system::Module<Test>;
 	type Balances = balances::Module<Test>;
 	type Slots = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
@@ -1033,7 +1033,7 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.
 	fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		balances::GenesisConfig::<Test>{
 			balances: vec![(1, 10), (2, 20), (3, 30), (4, 40), (5, 50), (6, 60)],
 		}.assimilate_storage(&mut t).unwrap();
@@ -1041,14 +1041,14 @@ mod tests {
 	}
 
 	fn run_to_block(n: BlockNumber) {
-		while System::block_number() < n {
-			Slots::on_finalize(System::block_number());
-			Balances::on_finalize(System::block_number());
-			System::on_finalize(System::block_number());
-			System::set_block_number(System::block_number() + 1);
-			System::on_initialize(System::block_number());
-			Balances::on_initialize(System::block_number());
-			Slots::on_initialize(System::block_number());
+		while frame_system::block_number() < n {
+			Slots::on_finalize(frame_system::block_number());
+			Balances::on_finalize(frame_system::block_number());
+			System::on_finalize(frame_system::block_number());
+			System::set_block_number(frame_system::block_number() + 1);
+			System::on_initialize(frame_system::block_number());
+			Balances::on_initialize(frame_system::block_number());
+			Slots::on_initialize(frame_system::block_number());
 		}
 	}
 
@@ -1058,14 +1058,14 @@ mod tests {
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(10);
 
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 		});
 	}
 
@@ -1078,7 +1078,7 @@ mod tests {
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 		});
 	}
 
@@ -1091,39 +1091,39 @@ mod tests {
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(2);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(3);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(4);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(5);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 
 			run_to_block(6);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(0));
+			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(0));
 
 			run_to_block(7);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(1));
+			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(1));
 
 			run_to_block(8);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(System::block_number()), Some(2));
+			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(2));
 
 			run_to_block(9);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(System::block_number()), None);
+			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
 		});
 	}
 

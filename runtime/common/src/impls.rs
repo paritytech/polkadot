@@ -26,10 +26,10 @@ pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
 	R: balances::Trait + authorship::Trait,
-	<R as system::Trait>::AccountId: From<primitives::v0::AccountId>,
-	<R as system::Trait>::AccountId: Into<primitives::v0::AccountId>,
-	<R as system::Trait>::Event: From<balances::RawEvent<
-		<R as system::Trait>::AccountId,
+	<R as frame_system::Trait>::AccountId: From<primitives::v0::AccountId>,
+	<R as frame_system::Trait>::AccountId: Into<primitives::v0::AccountId>,
+	<R as frame_system::Trait>::Event: From<balances::RawEvent<
+		<R as frame_system::Trait>::AccountId,
 		<R as balances::Trait>::Balance,
 		balances::DefaultInstance>
 	>,
@@ -38,7 +38,7 @@ where
 		let numeric_amount = amount.peek();
 		let author = <authorship::Module<R>>::author();
 		<balances::Module<R>>::resolve_creating(&<authorship::Module<R>>::author(), amount);
-		<system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
+		<frame_system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
