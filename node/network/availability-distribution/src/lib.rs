@@ -102,12 +102,20 @@ struct ProtocolState {
 
 	/// Caches a mapping of relay parents to live candidates
 	/// and allows fast + intersection free obtaining of active heads set by unionizing.
-	// relay parent -> live candidates
-	cache: HashMap<H256, HashSet<CommittedCandidateReceipt>>,
+	/// Includes the `K` ancestors too.
+	/// Maps relay parent / ancestor -> live candidate receipts.
+	receipts: HashMap<H256, HashSet<CommittedCandidateReceipt>>,
 
-	/// allow reverse caching of view checks
-	/// candidate hash -> relay parent
+	/// Allow reverse caching of view checks.
+	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
+	/// Note that the presence of this is not sufficient to determine if deletion is ok, i.e.
+	/// two histories could cover this.
 	reverse: HashMap<H256, H256>,
+
+	/// Keeps track of which candidate receipts are required due to ancestors of which relay parents
+	/// of our view.
+	/// Maps ancestor -> relay parents in view
+	ancestry: HashMap<H256, HashSet<H256>>,
 
 	/// Track things per relay parent
 	per_relay_parent: HashMap<H256, PerRelayParent>,
@@ -115,6 +123,9 @@ struct ProtocolState {
 
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
+	/// Set of `K` ancestors for this relay parent.
+	ancestors: HashSet<H256>,
+
 	/// Track received candidate hashes and chunk indices from peers.
 	received_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
 
@@ -137,24 +148,91 @@ impl ProtocolState {
 	/// Obtain an iterator over the actively processed relay parents.
 	/// Should be equivalent to the set of relay parents stored in view View
 	fn cached_relay_parents<'a>(&'a self) -> impl Iterator<Item = &'a H256> + 'a {
-		debug_assert_eq!(self.cache.len(), self.view.0.len());
-		self.cache.keys()
+		debug_assert_eq!(self.receipts.len(), self.view.0.len());
+		self.receipts.keys()
 	}
 
-	/// Unionize all cached entries for the given relay parents
+	/// Unionize all cached entries for the given relay parents / ancestors.
 	/// Ignores all non existant relay parents, so this can be used directly with a peers view.
-	/// Returns a map from candidate_hash -> receipt
-	fn cached_relay_parents_to_live_candidates_unioned<'a>(
+	/// Returns a map from candidate hash -> receipt
+	fn cached_live_candidates_unioned<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a H256> + 'a,
 	) -> HashMap<H256, CommittedCandidateReceipt> {
 		relay_parents
 			.into_iter()
-			.filter_map(|relay_parent| self.cache.get(relay_parent))
+			.filter_map(|relay_parent| self.receipts.get(relay_parent))
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
 			.map(|receipt| (candidate_hash_of(receipt), receipt.clone()))
 			.collect::<HashMap<H256, CommittedCandidateReceipt>>()
+	}
+
+	async fn add_relay_parent<Context>(&mut self, ctx: &mut Context, relay_parent: H256) -> Result<()>
+		where
+			Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	{
+		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
+
+		// register the relation of relay_parent to candidate..
+		for (relay_parent_or_ancestor, receipt) in candidates.clone() {
+			self.receipts.entry(relay_parent_or_ancestor).or_default().insert(receipt);
+		}
+
+		// ..and the reverse association.
+		for (relay_parent_or_ancestor, candidate) in candidates.iter() {
+			self
+				.reverse
+				.insert(candidate_hash_of(candidate), relay_parent_or_ancestor.clone());
+		}
+
+		// collect the ancestors again from the hash map
+		let ancestors = candidates.iter().filter_map(|(ancestor_or_relay_parent, receipt)| {
+			if ancestor_or_relay_parent == &relay_parent {
+				None
+			} else {
+				Some(ancestor_or_relay_parent.clone())
+			}
+		}).collect::<HashSet<H256>>();
+
+		// mark all the ancestors as "needed" by this newly added relay parent
+		for ancestor in ancestors.iter() {
+			self.ancestry
+				.entry(ancestor.clone())
+				.or_default()
+				.insert(relay_parent.clone());
+		}
+
+		self.per_relay_parent.get_mut(&relay_parent)
+			.expect("Relay parent is initialized on overseer signal. qed")
+			.ancestors = ancestors;
+
+		Ok(())
+	}
+
+
+	fn remove_relay_parent(&mut self, relay_parent: &H256) -> Result<()> {
+
+		if let Some(mut per_relay_parent) = self.per_relay_parent.remove(relay_parent) {
+			// remove all "references" from the hash maps and sets for all ancestors
+			for ancestor in per_relay_parent.ancestors {
+				// we might be ancestor of some other relay_parent
+				if let Some(ref mut descendants) = self.ancestry.get_mut(&ancestor) {
+					// we do not need this descendant anymore
+					descendants.remove(&relay_parent);
+					// if we were the last user, and it is
+					// not explicitly set to be worked on by the overseer
+					if descendants.is_empty() && !self.per_relay_parent.contains_key(&ancestor) {
+						// remove from the ancestry index
+						self.ancestry.remove(&ancestor);
+						// and also remove the actual receipt
+						self.receipts.remove(&ancestor);
+					}
+				}
+			}
+
+		}
+		Ok(())
 	}
 }
 
@@ -249,32 +327,20 @@ where
 {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
-	let added = state.view.difference(&old_view).collect::<Vec<_>>();
+	// needed due to borrow rules
+	let view = state.view.clone();
+	let added =
+		view.difference(&old_view)
+		.collect::<Vec<&'_ H256>>();
 
-	// @todo iterate over added and query their `::K` ancestors, combine them into one hashset
-
-	// extract all candidates by their hash
-	for added in added.iter().cloned() {
-		let candidates = live_candidates(ctx, std::iter::once(added.clone())).await?;
-
-		if cfg!(debug_assert) {
-			for receipt in candidates.iter() {
-				debug_assert_eq!(receipt.descriptor().relay_parent, added.clone());
-			}
-		}
-
-		state.cache.insert(added.clone(), candidates.clone());
-
-		for candidate in candidates {
-			state
-				.reverse
-				.insert(candidate_hash_of(&candidate), added.clone());
-		}
+	// add all the relay parents and fill the cache
+	for added in added.clone() {
+		state.add_relay_parent(ctx, added.clone()).await?;
 	}
 
 	// handle all candidates
 	for (candidate_hash, candidate_receipt) in
-		state.cached_relay_parents_to_live_candidates_unioned(added)
+		state.cached_live_candidates_unioned(added)
 	{
 		let added = candidate_receipt.descriptor().relay_parent;
 		let desc = candidate_receipt.descriptor();
@@ -329,7 +395,7 @@ where
 			return Ok(());
 		}
 
-		// obtain interested pHashMapeers in the candidate hash
+		// obtain interested peers in the candidate hash
 		let peers: Vec<PeerId> = state
 			.peer_views
 			.iter()
@@ -363,15 +429,9 @@ where
 	}
 
 	// cleanup the removed relay parents and their states
-	let removed = old_view.difference(&state.view).collect::<Vec<_>>();
+	let removed = old_view.difference(&view).collect::<Vec<_>>();
 	for removed in removed {
-		// cleanup relay parents we are not interested in any more
-		// and drop their associated
-		if let Some(candidates) = state.cache.remove(&removed) {
-			for candidate in candidates {
-				state.reverse.remove(&candidate_hash_of(&candidate));
-			}
-		}
+		state.remove_relay_parent(&removed)?;
 	}
 	Ok(())
 }
@@ -411,12 +471,6 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// let message_sent_to_peer = &mut (job_data.message_sent_to_peer);
-	// state.message_sent_to_peer
-	// 	.entry(dest.clone())
-	// 	.or_default()
-	// 	.insert(validator.clone());
-
 	for message in message_iter {
 		let message_id = (message.candidate_hash.clone(), message.erasure_chunk.index);
 		for peer in peers.clone() {
@@ -464,7 +518,7 @@ where
 
 	// only contains the intersection of what we are interested and
 	// the union of all relay parent's candidates.
-	let delta_candidates = state.cached_relay_parents_to_live_candidates_unioned(delta_vec.iter());
+	let delta_candidates = state.cached_live_candidates_unioned(delta_vec.iter());
 
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
@@ -491,14 +545,13 @@ where
 					per_relay_parent
 						.message_vault
 						.get(&(candidate_hash, erasure_chunk_index))
-						.cloned()
 				})
+				.cloned()
 				.collect::<HashSet<_>>();
 			send_tracked_gossip_messages_to_peer(ctx, per_relay_parent, origin.clone(), messages)
 				.await?;
 		}
 	}
-
 	Ok(())
 }
 
@@ -543,7 +596,7 @@ where
 
 	// obtain the set of candidates we are interested in based on our current view
 	let live_candidates =
-		state.cached_relay_parents_to_live_candidates_unioned(state.view.0.iter());
+		state.cached_live_candidates_unioned(state.view.0.iter());
 
 	// check if the candidate is of interest
 	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash)
@@ -731,8 +784,8 @@ where
 	}
 }
 
-/// Obtain all live candidates based on a iterator of relay heads.
-async fn live_candidates<Context>(
+/// Obtain all live candidates based on an iterator of relay heads.
+async fn query_live_candidates_without_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parents: impl IntoIterator<Item = H256>,
 ) -> Result<HashSet<CommittedCandidateReceipt>>
@@ -754,8 +807,50 @@ where
 	Ok(live_candidates)
 }
 
-// @todo move these into util.rs
+/// Obtain all live canddidates based on an iterator or relay heads including `k` ancestors.
+///
+/// Relay parent.
+async fn query_live_candidates<Context>(ctx: &mut Context, state: &mut ProtocolState, relay_parents: impl IntoIterator<Item = H256>,)
+-> Result<HashMap<H256, CommittedCandidateReceipt>>
+where
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+{
+	let iter = relay_parents.into_iter();
+	let hint = iter.size_hint();
 
+	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
+	let mut live_candidates = HashMap::<H256, CommittedCandidateReceipt>::with_capacity(capacity);
+
+	for relay_parent in iter {
+		// direct candidates for one relay parent
+		let candidate = query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
+
+		// register one of relay parents (not the ancestors)
+		let ancestors = query_k_ancestors(ctx, relay_parent, AvailabilityDistributionSubsystem::K).await?;
+
+		// ancestors might overlap, so check t	he cache too
+		let unknown = ancestors
+			.into_iter()
+			.filter(|relay_parent| {
+				// use the ones which we pulled before
+				// but keep the unknown relay parents
+				state.receipts.get(relay_parent)
+				.and_then(|receipts| {
+					// directly extend the live_candidates with the cached value
+					live_candidates.extend(receipts.into_iter().map(|receipt| (relay_parent.clone(), receipt.clone()) ));
+					Some(())
+				}).is_none()
+			}).collect::<Vec<_>>();
+
+		// query the ones that were not present in the receipts cache
+		let receipts = query_live_candidates_without_ancestors(ctx, unknown.clone()).await?;
+		live_candidates.extend(unknown.into_iter().zip(receipts.into_iter()));
+	}
+
+	Ok(live_candidates)
+}
+
+/// Query all para IDs.
 async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: H256) -> Result<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -805,6 +900,7 @@ where
 	.map_err::<Error, _>(Into::into)
 }
 
+/// Query the proof of validity for a particular candidate hash.
 async fn query_proof_of_validity<Context>(
 	ctx: &mut Context,
 	candidate_hash: H256,
@@ -931,6 +1027,22 @@ where
 	})
 }
 
+/// Query the hash of the `K` ancestors
+// @todo stub
+#[cfg(feature = "std")]
+async fn query_k_ancestors<Context>(
+	ctx: &mut Context,
+	relay_parent: H256,
+	k: usize
+) -> Result<Vec<H256>>
+where
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+{
+	// @todo
+	Ok(vec![])
+}
+
+
 /// Query omitted validation data.
 // @todo stub
 #[cfg(feature = "std")]
@@ -1015,7 +1127,7 @@ mod test {
 
 	async fn overseer_send(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, msg: AvailabilityDistributionMessage) {
 		overseer.send(FromOverseer::Communication { msg })
-			.timeout(Duration::from_millis(10))
+			.timeout(Duration::from_millis(7_000))
 					.await
 					.expect("10ms is more than enough for sending messages.");
 	}
