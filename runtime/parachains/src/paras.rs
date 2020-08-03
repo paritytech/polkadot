@@ -416,8 +416,9 @@ impl<T: Trait> Module<T> {
 			match v.binary_search(&id) {
 				Ok(i) => {
 					v.remove(i);
+					UpcomingParasGenesis::remove(id);
 					// If a para was only in the pending state it should not be moved to `Outgoing`
-					return T::DbWeight::get().reads_writes(1, 1);
+					return T::DbWeight::get().reads_writes(2, 2);
 				}
 				Err(_) => T::DbWeight::get().reads_writes(1, 0),
 			}
@@ -1154,6 +1155,7 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
 
 			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
