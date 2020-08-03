@@ -87,7 +87,7 @@ pub enum FromJob {
 impl From<FromJob> for AllMessages {
 	fn from(from_job: FromJob) -> AllMessages {
 		match from_job {
-			FromJob::ChainApi(cam) => unimplemented!("ChainApiMessage is not a variant of AllMessages yet"),
+			FromJob::ChainApi(cam) => AllMessages::ChainApi(cam),
 			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
 		}
 	}
@@ -98,8 +98,7 @@ impl TryFrom<AllMessages> for FromJob {
 
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
-			// TODO: resolve this as well as the above unimplemented! section
-			// AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
+			AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
 			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
 			_ => Err(()),
 		}

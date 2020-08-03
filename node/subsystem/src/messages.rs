@@ -310,7 +310,7 @@ pub enum ChainApiMessage {
 		hash: Hash,
 		/// The number of ancestors to request.
 		k: usize,
-		/// The response channel. 
+		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
 }
@@ -507,6 +507,8 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Message for the Chain API subsystem
+	ChainApi(ChainApiMessage),
 	/// Test message
 	///
 	/// This variant is only valid while testing, but makes the process of testing the
