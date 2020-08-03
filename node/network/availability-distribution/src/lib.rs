@@ -1120,22 +1120,25 @@ mod test {
 
 	async fn overseer_signal(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, signal: OverseerSignal) {
 		overseer.send(FromOverseer::Signal(signal))
-			.timeout(Duration::from_millis(10_000))
+			.timeout(Duration::from_millis(100_000))
 					.await
 					.expect("10ms is more than enough for sending messages.");
 	}
 
 	async fn overseer_send(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, msg: AvailabilityDistributionMessage) {
+		log::trace!("Sending message:\n{:?}", &msg);
 		overseer.send(FromOverseer::Communication { msg })
-			.timeout(Duration::from_millis(7_000))
+			.timeout(Duration::from_millis(5_000))
 					.await
 					.expect("10ms is more than enough for sending messages.");
 	}
 
 	async fn overseer_recv(overseer:  &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage> ) -> AllMessages {
+		log::trace!("Waiting for message ...");
 		let msg = overseer
 			.recv()
 			.await;
+		log::trace!("Received message:\n{:?}", &msg);
 		msg
 	}
 
@@ -1214,7 +1217,7 @@ mod test {
 			overseer_signal(
 				&mut virtual_overseer,
 					OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-						activated: smallvec![relay_parent_x.clone(), relay_parent_y.clone()],
+						activated: smallvec![relay_parent_x.clone()],
 						deactivated: smallvec![],
 					})
 			).await;
@@ -1231,19 +1234,18 @@ mod test {
 					RuntimeApiRequest::Validators(tx),
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					let _ = tx.send(validators.clone());
+					tx.send(dbg!(validators.clone())).expect("must sent");
 				}
 			);
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::Validators(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
-					let _ = tx.send(validators.clone());
-				}
+			overseer_send(&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::OurViewChange(
+						view![
+							relay_parent_x,
+						]
+					)
+				)
 			);
 
 			// subsystem peer id collection
@@ -1263,7 +1265,8 @@ mod test {
 				}
 			);
 
-			// now each of those will be queried for candidate pending availability
+			// now each of the relay parents in the view (1) will
+			// be queried for candidate pending availability
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
