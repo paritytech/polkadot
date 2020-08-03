@@ -2238,9 +2238,9 @@ mod tests {
 
 		for i in pallet_session::current_index()..session_index {
 			println!("session index {}", i);
-			Staking::on_finalize(frame_system::block_number());
+			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
-			Timestamp::set_timestamp(frame_system::block_number() as primitives::v0::Moment * 6000);
+			Timestamp::set_timestamp(System::block_number() as primitives::v0::Moment * 6000);
 
 			// In order to be able to use `System::parent_hash()` in the tests
 			// we need to first get it via `System::finalize` and then set it
@@ -2248,7 +2248,7 @@ mod tests {
 			// consideration that finalizing will prune some data in `System`
 			// storage including old values `BlockHash` if that reaches above
 			// `BlockHashCount` capacity.
-			if frame_system::block_number() > 1 {
+			if System::block_number() > 1 {
 				let hdr = frame_system::finalize();
 				parent_hash = hdr.hash();
 			}
@@ -2272,27 +2272,27 @@ mod tests {
 	}
 
 	fn init_block() {
-		println!("Initializing {}", frame_system::block_number());
-		Session::on_initialize(frame_system::block_number());
-		System::on_initialize(frame_system::block_number());
-		Registrar::on_initialize(frame_system::block_number());
-		Parachains::on_initialize(frame_system::block_number());
+		println!("Initializing {}", System::block_number());
+		Session::on_initialize(System::block_number());
+		System::on_initialize(System::block_number());
+		Registrar::on_initialize(System::block_number());
+		Parachains::on_initialize(System::block_number());
 	}
 	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
-		while frame_system::block_number() < n {
-			if frame_system::block_number() > 1 {
-				println!("Finalizing {}", frame_system::block_number());
+		while System::block_number() < n {
+			if System::block_number() > 1 {
+				println!("Finalizing {}", System::block_number());
 				if !DidUpdate::get().is_some() {
 					Parachains::set_heads(Origin::none(), vec![]).unwrap();
 				}
 
-				Parachains::on_finalize(frame_system::block_number());
-				Registrar::on_finalize(frame_system::block_number());
-				System::on_finalize(frame_system::block_number());
+				Parachains::on_finalize(System::block_number());
+				Registrar::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
 			}
-			Staking::new_session(frame_system::block_number() as u32);
-			System::set_block_number(frame_system::block_number() + 1);
+			Staking::new_session(System::block_number() as u32);
+			System::set_block_number(System::block_number() + 1);
 			init_block();
 		}
 	}

@@ -238,7 +238,7 @@ mod tests {
 				Some(Vec::new().into_iter()),
 			);
 
-			let now = frame_system::block_number();
+			let now = System::block_number();
 			Initializer::on_initialize(now);
 
 			let v = <BufferedSessionChanges<Test>>::get();
@@ -254,7 +254,7 @@ mod tests {
 		new_test_ext(Default::default()).execute_with(|| {
 			Initializer::on_initialize(1);
 
-			let now = frame_system::block_number();
+			let now = System::block_number();
 			Initializer::on_new_session(
 				false,
 				1,

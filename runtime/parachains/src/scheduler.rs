@@ -691,8 +691,8 @@ mod tests {
 		to: BlockNumber,
 		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
 	) {
-		while frame_system::block_number() < to {
-			let b = frame_system::block_number();
+		while System::block_number() < to {
+			let b = System::block_number();
 
 			Scheduler::initializer_finalize();
 			Paras::initializer_finalize();
@@ -1496,7 +1496,7 @@ mod tests {
 				let pred = Scheduler::availability_timeout_predicate()
 					.expect("predicate exists recently after rotation");
 
-				let now = frame_system::block_number();
+				let now = System::block_number();
 				let would_be_timed_out = now - thread_availability_period;
 				for i in 0..AvailabilityCores::get().len() {
 					// returns true for unoccupied cores.
@@ -1523,7 +1523,7 @@ mod tests {
 				let pred = Scheduler::availability_timeout_predicate()
 					.expect("predicate exists recently after rotation");
 
-				let would_be_timed_out = frame_system::block_number() - thread_availability_period;
+				let would_be_timed_out = System::block_number() - thread_availability_period;
 
 				assert!(!pred(CoreIndex(0), would_be_timed_out)); // chains can't be timed out now.
 				assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
@@ -1604,7 +1604,7 @@ mod tests {
 				let pred = Scheduler::availability_timeout_predicate()
 					.expect("predicate exists with no rotation");
 
-				let now = frame_system::block_number();
+				let now = System::block_number();
 
 				assert!(!pred(CoreIndex(0), now)); // assigned: chain
 				assert!(!pred(CoreIndex(1), now)); // assigned: thread

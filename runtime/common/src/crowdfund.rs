@@ -776,25 +776,25 @@ mod tests {
 	}
 
 	fn run_to_block(n: u64) {
-		while frame_system::block_number() < n {
-			Crowdfund::on_finalize(frame_system::block_number());
-			Treasury::on_finalize(frame_system::block_number());
-			Slots::on_finalize(frame_system::block_number());
-			pallet_balances::on_finalize(frame_system::block_number());
-			System::on_finalize(frame_system::block_number());
-			System::set_block_number(frame_system::block_number() + 1);
-			System::on_initialize(frame_system::block_number());
-			pallet_balances::on_initialize(frame_system::block_number());
-			Slots::on_initialize(frame_system::block_number());
-			Treasury::on_initialize(frame_system::block_number());
-			Crowdfund::on_initialize(frame_system::block_number());
+		while System::block_number() < n {
+			Crowdfund::on_finalize(System::block_number());
+			Treasury::on_finalize(System::block_number());
+			Slots::on_finalize(System::block_number());
+			pallet_balances::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			pallet_balances::on_initialize(System::block_number());
+			Slots::on_initialize(System::block_number());
+			Treasury::on_initialize(System::block_number());
+			Crowdfund::on_initialize(System::block_number());
 		}
 	}
 
 	#[test]
 	fn basic_setup_works() {
 		new_test_ext().execute_with(|| {
-			assert_eq!(frame_system::block_number(), 0);
+			assert_eq!(System::block_number(), 0);
 			assert_eq!(Crowdfund::fund_count(), 0);
 			assert_eq!(Crowdfund::funds(0), None);
 			let empty: Vec<FundIndex> = Vec::new();

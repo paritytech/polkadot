@@ -1041,14 +1041,14 @@ mod tests {
 	}
 
 	fn run_to_block(n: BlockNumber) {
-		while frame_system::block_number() < n {
-			Slots::on_finalize(frame_system::block_number());
-			pallet_balances::on_finalize(frame_system::block_number());
-			System::on_finalize(frame_system::block_number());
-			System::set_block_number(frame_system::block_number() + 1);
-			System::on_initialize(frame_system::block_number());
-			pallet_balances::on_initialize(frame_system::block_number());
-			Slots::on_initialize(frame_system::block_number());
+		while System::block_number() < n {
+			Slots::on_finalize(System::block_number());
+			pallet_balances::on_finalize(System::block_number());
+			System::on_finalize(System::block_number());
+			System::set_block_number(System::block_number() + 1);
+			System::on_initialize(System::block_number());
+			pallet_balances::on_initialize(System::block_number());
+			Slots::on_initialize(System::block_number());
 		}
 	}
 
@@ -1058,14 +1058,14 @@ mod tests {
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(10);
 
 			assert_eq!(Slots::auction_counter(), 0);
 			assert_eq!(Slots::deposit_held(&0u32.into()), 0);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
 
@@ -1078,7 +1078,7 @@ mod tests {
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
 
@@ -1091,39 +1091,39 @@ mod tests {
 
 			assert_eq!(Slots::auction_counter(), 1);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(2);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(3);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(4);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(5);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 
 			run_to_block(6);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(0));
+			assert_eq!(Slots::is_ending(System::block_number()), Some(0));
 
 			run_to_block(7);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(1));
+			assert_eq!(Slots::is_ending(System::block_number()), Some(1));
 
 			run_to_block(8);
 			assert_eq!(Slots::is_in_progress(), true);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), Some(2));
+			assert_eq!(Slots::is_ending(System::block_number()), Some(2));
 
 			run_to_block(9);
 			assert_eq!(Slots::is_in_progress(), false);
-			assert_eq!(Slots::is_ending(frame_system::block_number()), None);
+			assert_eq!(Slots::is_ending(System::block_number()), None);
 		});
 	}
 

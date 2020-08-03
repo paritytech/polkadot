@@ -1020,28 +1020,28 @@ mod tests {
 	}
 
 	fn init_block() {
-		println!("Initializing {}", frame_system::block_number());
-		System::on_initialize(frame_system::block_number());
-		Registrar::on_initialize(frame_system::block_number());
-		Parachains::on_initialize(frame_system::block_number());
-		Slots::on_initialize(frame_system::block_number());
+		println!("Initializing {}", System::block_number());
+		System::on_initialize(System::block_number());
+		Registrar::on_initialize(System::block_number());
+		Parachains::on_initialize(System::block_number());
+		Slots::on_initialize(System::block_number());
 	}
 
 	fn run_to_block(n: BlockNumber) {
 		println!("Running until block {}", n);
-		while frame_system::block_number() < n {
-			if frame_system::block_number() > 1 {
-				println!("Finalizing {}", frame_system::block_number());
+		while System::block_number() < n {
+			if System::block_number() > 1 {
+				println!("Finalizing {}", System::block_number());
 				if !parachains::DidUpdate::exists() {
 					println!("Null heads update");
 					assert_ok!(Parachains::set_heads(frame_system::RawOrigin::None.into(), vec![]));
 				}
-				Slots::on_finalize(frame_system::block_number());
-				Parachains::on_finalize(frame_system::block_number());
-				Registrar::on_finalize(frame_system::block_number());
-				System::on_finalize(frame_system::block_number());
+				Slots::on_finalize(System::block_number());
+				Parachains::on_finalize(System::block_number());
+				Registrar::on_finalize(System::block_number());
+				System::on_finalize(System::block_number());
 			}
-			System::set_block_number(frame_system::block_number() + 1);
+			System::set_block_number(System::block_number() + 1);
 			init_block();
 		}
 	}

@@ -592,8 +592,8 @@ mod tests {
 	use crate::configuration::HostConfiguration;
 
 	fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
-		while frame_system::block_number() < to {
-			let b = frame_system::block_number();
+		while System::block_number() < to {
+			let b = System::block_number();
 			Paras::initializer_finalize();
 			System::on_finalize(b);
 

@@ -25,7 +25,7 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 /// `N` + `M`, the voter will keep voting for block `N`.
 pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 
-impl<Block, B> pallet_grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
+impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
 	Block: BlockT,
 	B: sp_blockchain::HeaderBackend<Block>,
 {
@@ -236,7 +236,7 @@ mod tests {
 	use polkadot_test_runtime_client::prelude::*;
 	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
 	use sc_block_builder::BlockBuilderProvider;
-	use pallet_grandpa::VotingRule;
+	use grandpa::VotingRule;
 	use sp_blockchain::HeaderBackend;
 	use sp_runtime::generic::BlockId;
 	use sp_runtime::traits::Header;

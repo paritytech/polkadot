@@ -414,7 +414,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			.map(|c| c / 2)
 			.unwrap_or(2) as u64;
 
-		let current_block = frame_system::block_number()
+		let current_block = System::block_number()
 			.saturated_into::<u64>()
 			.saturating_sub(1);
 		let tip = 0;

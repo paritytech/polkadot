@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use babe_primitives::AuthorityId as BabeId;
-use pallet_grandpa::AuthorityId as GrandpaId;
+use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
 use polkadot_primitives::v0::{ValidatorId, AccountId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};

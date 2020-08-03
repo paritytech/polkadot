@@ -794,8 +794,8 @@ mod tests {
 		to: BlockNumber,
 		new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
 	) {
-		while frame_system::block_number() < to {
-			let b = frame_system::block_number();
+		while System::block_number() < to {
+			let b = System::block_number();
 
 			Inclusion::initializer_finalize();
 			Paras::initializer_finalize();
@@ -1824,8 +1824,8 @@ mod tests {
 					core: CoreIndex::from(0),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: frame_system::block_number() - 1,
-					backed_in_number: frame_system::block_number(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1839,8 +1839,8 @@ mod tests {
 					core: CoreIndex::from(1),
 					descriptor: candidate_b.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: frame_system::block_number() - 1,
-					backed_in_number: frame_system::block_number(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1854,8 +1854,8 @@ mod tests {
 					core: CoreIndex::from(2),
 					descriptor: candidate_c.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: frame_system::block_number() - 1,
-					backed_in_number: frame_system::block_number(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
 				})
 			);
 			assert_eq!(
@@ -1939,8 +1939,8 @@ mod tests {
 					core: CoreIndex::from(0),
 					descriptor: candidate_a.descriptor,
 					availability_votes: default_availability_votes(),
-					relay_parent_number: frame_system::block_number() - 1,
-					backed_in_number: frame_system::block_number(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
 				})
 			);
 			assert_eq!(

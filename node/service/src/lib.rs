@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::v1::{AccountId, Nonce, Balance};
 use service::{error::Error as ServiceError};
-use pallet_grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
@@ -141,7 +141,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 type FullBackend = service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
-type FullGrandpaBlockImport<RuntimeApi, Executor> = pallet_grandpa::GrandpaBlockImport<
+type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
 
@@ -159,11 +159,11 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		(
 			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
 			(
-				pallet_babe::BabeBlockImport<
+				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-				pallet_babe::BabeLink<Block>
+				babe::BabeLink<Block>
 			),
 			grandpa::SharedVoterState,
 		)
@@ -209,13 +209,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let justification_import = grandpa_block_import.clone();
 
-	let (block_import, babe_link) = pallet_babe::block_import(
-		pallet_babe::Config::get_or_compute(&*client)?,
+	let (block_import, babe_link) = babe::block_import(
+		babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
 
-	let import_queue = pallet_babe::import_queue(
+	let import_queue = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -228,7 +228,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	)?;
 
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
-	let shared_voter_state = pallet_grandpa::SharedVoterState::empty();
+	let shared_voter_state = grandpa::SharedVoterState::empty();
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
 	let rpc_setup = shared_voter_state.clone();
@@ -425,7 +425,7 @@ fn new_full<RuntimeApi, Executor>(
 			handler_clone,
 		);
 
-		let babe_config = pallet_babe::BabeParams {
+		let babe_config = babe::BabeParams {
 			keystore: keystore.clone(),
 			client: client.clone(),
 			select_chain,
@@ -438,7 +438,7 @@ fn new_full<RuntimeApi, Executor>(
 			can_author_with,
 		};
 
-		let babe = pallet_babe::start_babe(babe_config)?;
+		let babe = babe::start_babe(babe_config)?;
 		task_manager.spawn_essential_handle().spawn_blocking("babe", babe);
 	}
 
@@ -450,7 +450,7 @@ fn new_full<RuntimeApi, Executor>(
 		None
 	};
 
-	let config = pallet_grandpa::Config {
+	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
@@ -488,7 +488,7 @@ fn new_full<RuntimeApi, Executor>(
 					.build(),
 		};
 
-		let grandpa_config = pallet_grandpa::GrandpaParams {
+		let grandpa_config = grandpa::GrandpaParams {
 			config,
 			link: link_half,
 			network: network.clone(),
@@ -540,7 +540,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		on_demand.clone(),
 	));
 
-	let grandpa_block_import = pallet_grandpa::light_block_import(
+	let grandpa_block_import = grandpa::light_block_import(
 		client.clone(), backend.clone(), &(client.clone() as Arc<_>),
 		Arc::new(on_demand.checker().clone()),
 	)?;
@@ -549,8 +549,8 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let finality_proof_request_builder =
 		finality_proof_import.create_finality_proof_request_builder();
 
-	let (babe_block_import, babe_link) = pallet_babe::block_import(
-		pallet_babe::Config::get_or_compute(&*client)?,
+	let (babe_block_import, babe_link) = babe::block_import(
+		babe::Config::get_or_compute(&*client)?,
 		grandpa_block_import,
 		client.clone(),
 	)?;
@@ -558,7 +558,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
 	// FIXME: pruning task isn't started since light client doesn't do `AuthoritySetup`.
-	let import_queue = pallet_babe::import_queue(
+	let import_queue = babe::import_queue(
 		babe_link,
 		babe_block_import,
 		None,
