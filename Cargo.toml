@@ -35,7 +35,7 @@ members = [
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
-	"runtime/rococo",
+	"runtime/rococo-v1",
 	"runtime/westend",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
