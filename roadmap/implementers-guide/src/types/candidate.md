@@ -124,7 +124,7 @@ Design-wise we should maintain two properties about this data structure:
 
 1. The `LocalValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate.
 1. To make contextual execution possible, `LocalValidationData` should be constructable only having access to the latest relay-chain state for the past `k` blocks. That implies
-that the relay-chain should maintain all the required data accessible.
+either that the relay-chain should maintain all the required data accessible or somehow provided indirectly with a header-chain proof and a state proof from there.
 
 > TODO: determine if balance/fees are even needed here.
 > TODO: message queue watermarks (first downward messages, then XCMP channels)
