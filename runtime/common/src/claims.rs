@@ -642,11 +642,11 @@ mod tests {
 		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
 		dispatch::DispatchError::BadOrigin,
 	};
-	use balances;
+	use pallet_balances;
 	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {}
+		pub enum Origin for Test {}
 	}
 
 	impl_outer_dispatch! {

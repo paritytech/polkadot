@@ -391,7 +391,7 @@ mod tests {
 	use pallet_balances::Error as BalancesError;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {}
+		pub enum Origin for Test {}
 	}
 
 	impl_outer_dispatch! {
@@ -510,7 +510,7 @@ mod tests {
 		Purchase::set_statement(Origin::signed(configuration_origin()), statement).unwrap();
 		Purchase::set_unlock_block(Origin::signed(configuration_origin()), unlock_block).unwrap();
 		Purchase::set_payment_account(Origin::signed(configuration_origin()), payment_account()).unwrap();
-		pallet_balances::make_free_balance_be(&payment_account(), 100_000);
+		Balances::make_free_balance_be(&payment_account(), 100_000);
 	}
 
 	type AccountPublic = <MultiSignature as Verify>::Signer;

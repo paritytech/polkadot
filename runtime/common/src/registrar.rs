@@ -688,7 +688,7 @@ mod tests {
 	use crate::attestations;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {
+		pub enum Origin for Test {
 			parachains,
 		}
 	}
@@ -1008,7 +1008,7 @@ mod tests {
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t).unwrap();
 
-		session::GenesisConfig::<Test> {
+		pallet_session::GenesisConfig::<Test> {
 			keys: session_keys,
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -1062,7 +1062,7 @@ mod tests {
 
 	fn attest(id: ParaId, collator: &CollatorPair, head_data: &[u8], block_data: &[u8]) -> AttestedCandidate {
 		let pov_block_hash = BlakeTwo256::hash(block_data);
-		let relay_parent = frame_system::parent_hash();
+		let relay_parent = System::parent_hash();
 		let candidate = CandidateReceipt {
 			parachain_index: id,
 			relay_parent,
@@ -1082,7 +1082,7 @@ mod tests {
 		};
 		let (candidate, _) = candidate.abridge();
 		let candidate_hash = candidate.hash();
-		let payload = (Statement::Valid(candidate_hash),pallet_session::Module::<Test>::current_index(), frame_system::parent_hash()).encode();
+		let payload = (Statement::Valid(candidate_hash),pallet_session::Module::<Test>::current_index(), System::parent_hash()).encode();
 		let roster = Parachains::calculate_duty_roster().0.validator_duty;
 		AttestedCandidate {
 			candidate,
@@ -1222,8 +1222,8 @@ mod tests {
 			// Need to trigger on_initialize
 			run_to_block(2);
 
-			let initial_1_balance = pallet_balances::free_balance(1);
-			let initial_2_balance = pallet_balances::free_balance(2);
+			let initial_1_balance = Balances::free_balance(1);
+			let initial_2_balance = Balances::free_balance(2);
 
 			// User 1 register a new parathread
 			assert_ok!(Registrar::register_parathread(
@@ -1281,7 +1281,7 @@ mod tests {
 				vec![2; 3].into(),
 			));
 
-			let orig_bal = pallet_balances::free_balance(&3u64);
+			let orig_bal = Balances::free_balance(&3u64);
 			// Register a new parathread
 			assert_ok!(Registrar::register_parathread(
 				Origin::signed(3u64),

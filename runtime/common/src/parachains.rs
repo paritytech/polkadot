@@ -1702,7 +1702,7 @@ mod tests {
 	];
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {
+		pub enum Origin for Test {
 			parachains
 		}
 	}
@@ -2105,7 +2105,7 @@ mod tests {
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t).unwrap();
 
-		session::GenesisConfig::<Test> {
+		pallet_session::GenesisConfig::<Test> {
 			keys: session_keys,
 		}.assimilate_storage(&mut t).unwrap();
 
@@ -2117,7 +2117,7 @@ mod tests {
 			balances,
 		}.assimilate_storage(&mut t).unwrap();
 
-		staking::GenesisConfig::<Test> {
+		pallet_staking::GenesisConfig::<Test> {
 			stakers,
 			validator_count: 8,
 			force_era: pallet_staking::Forcing::ForceNew,
@@ -2152,7 +2152,7 @@ mod tests {
 
 		CandidateReceipt {
 			parachain_index: para_id,
-			relay_parent: frame_system::parent_hash(),
+			relay_parent: System::parent_hash(),
 			head_data,
 			collator: Default::default(),
 			signature: Default::default(),
@@ -2234,9 +2234,9 @@ mod tests {
 	}
 
 	fn start_session(session_index: SessionIndex) {
-		let mut parent_hash = frame_system::parent_hash();
+		let mut parent_hash = System::parent_hash();
 
-		for i in pallet_session::current_index()..session_index {
+		for i in Session::current_index()..session_index {
 			println!("session index {}", i);
 			Staking::on_finalize(System::block_number());
 			System::set_block_number((i + 1).into());
@@ -2249,7 +2249,7 @@ mod tests {
 			// storage including old values `BlockHash` if that reaches above
 			// `BlockHashCount` capacity.
 			if System::block_number() > 1 {
-				let hdr = frame_system::finalize();
+				let hdr = System::finalize();
 				parent_hash = hdr.hash();
 			}
 
@@ -3161,7 +3161,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3192,7 +3192,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3206,7 +3206,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3256,7 +3256,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3285,7 +3285,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(Staking::current_era().unwrap(), 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3299,7 +3299,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3350,7 +3350,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3379,7 +3379,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3393,7 +3393,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3447,7 +3447,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3479,7 +3479,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3493,7 +3493,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3592,10 +3592,10 @@ mod tests {
 
 			let statement_candidate = Statement::Candidate(candidate_hash.clone());
 			let statement_valid = Statement::Valid(candidate_hash.clone());
-			let parent_hash = frame_system::parent_hash();
+			let parent_hash = System::parent_hash();
 
 			let signing_context = SigningContext {
-				session_index:pallet_session::current_index() - 1,
+				session_index: Session::current_index() - 1,
 				parent_hash,
 			};
 			let payload_1 = localized_payload(statement_candidate.clone(), &signing_context);
@@ -3611,7 +3611,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3643,7 +3643,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],

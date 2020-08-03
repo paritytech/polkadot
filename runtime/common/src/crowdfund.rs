@@ -578,7 +578,7 @@ mod tests {
 	use crate::registrar::Registrar;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {}
+		pub enum Origin for Test {}
 	}
 
 	// For testing the module, we construct most of a mock runtime. This means
@@ -780,11 +780,11 @@ mod tests {
 			Crowdfund::on_finalize(System::block_number());
 			Treasury::on_finalize(System::block_number());
 			Slots::on_finalize(System::block_number());
-			pallet_balances::on_finalize(System::block_number());
+			Balances::on_finalize(System::block_number());
 			System::on_finalize(System::block_number());
 			System::set_block_number(System::block_number() + 1);
 			System::on_initialize(System::block_number());
-			pallet_balances::on_initialize(System::block_number());
+			Balances::on_initialize(System::block_number());
 			Slots::on_initialize(System::block_number());
 			Treasury::on_initialize(System::block_number());
 			Crowdfund::on_initialize(System::block_number());

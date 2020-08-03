@@ -36,7 +36,7 @@ use crate::inclusion;
 pub struct Test;
 
 impl_outer_origin! {
-	pub enum Origin for Test where system = system { }
+	pub enum Origin for Test { }
 }
 
 impl_outer_dispatch! {
