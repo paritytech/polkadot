@@ -1692,8 +1692,8 @@ mod tests {
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
-	usepallet_session::{SessionHandler, SessionManager};
-	use staking::EraIndex;
+	use pallet_session::{SessionHandler, SessionManager};
+	use pallet_staking::EraIndex;
 
 	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
 	const EMPTY_TRIE_ROOT: [u8; 32] = [
@@ -1784,10 +1784,10 @@ mod tests {
 		fn on_disabled(_: usize) {}
 	}
 
-	implpallet_session::Trait for Test {
+	impl pallet_session::Trait for Test {
 		type Event = ();
 		type ValidatorId = u64;
-		type ValidatorIdOf = staking::StashOf<Self>;
+		type ValidatorIdOf = pallet_staking::StashOf<Self>;
 		type ShouldEndSession =pallet_session::PeriodicSessions<Period, Offset>;
 		type NextSessionRotation =pallet_session::PeriodicSessions<Period, Offset>;
 		type SessionManager =pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
@@ -1797,9 +1797,9 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	implpallet_session::historical::Trait for Test {
-		type FullIdentification = staking::Exposure<u64, Balance>;
-		type FullIdentificationOf = staking::ExposureOf<Self>;
+	impl pallet_session::historical::Trait for Test {
+		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
 	}
 
 	parameter_types! {
@@ -1873,8 +1873,8 @@ mod tests {
 
 	parameter_types! {
 		pub const SessionsPerEra: sp_staking::SessionIndex = 3;
-		pub const BondingDuration: staking::EraIndex = 3;
-		pub const SlashDeferDuration: staking::EraIndex = 0;
+		pub const BondingDuration: pallet_staking::EraIndex = 3;
+		pub const SlashDeferDuration: pallet_staking::EraIndex = 0;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
@@ -1892,7 +1892,7 @@ mod tests {
 		fn convert(x: u128) -> u64 { x.saturated_into() }
 	}
 
-	impl staking::Trait for Test {
+	impl pallet_staking::Trait for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = CurrencyToVoteHandler;
 		type Event = ();
@@ -2049,7 +2049,7 @@ mod tests {
 	type Balances = balances::Module<Test>;
 	type System = frame_system::Module<Test>;
 	type Offences = offences::Module<Test>;
-	type Staking = staking::Module<Test>;
+	type Staking = pallet_staking::Module<Test>;
 	type Session =pallet_session::Module<Test>;
 	type Timestamp = timestamp::Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
@@ -2057,7 +2057,7 @@ mod tests {
 	type Historical =pallet_session::historical::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
-		use staking::StakerStatus;
+		use pallet_staking::StakerStatus;
 		use babe::AuthorityId as BabeAuthorityId;
 
 		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
@@ -2120,7 +2120,7 @@ mod tests {
 		staking::GenesisConfig::<Test> {
 			stakers,
 			validator_count: 8,
-			force_era: staking::Forcing::ForceNew,
+			force_era: pallet_staking::Forcing::ForceNew,
 			minimum_validator_count: 0,
 			invulnerables: vec![],
 			.. Default::default()
@@ -2236,7 +2236,7 @@ mod tests {
 	fn start_session(session_index: SessionIndex) {
 		let mut parent_hash = frame_system::parent_hash();
 
-		for i inpallet_session::current_index()..session_index {
+		for i in pallet_session::current_index()..session_index {
 			println!("session index {}", i);
 			Staking::on_finalize(frame_system::block_number());
 			System::set_block_number((i + 1).into());

@@ -35,12 +35,12 @@ use frame_support::{
 	parameter_types, traits::{Currency},
 	weights::{Weight, constants::WEIGHT_PER_SECOND},
 };
-use transaction_payment::{TargetedFeeAdjustment, Multiplier};
+use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
 use static_assertions::const_assert;
 pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 
 #[cfg(feature = "std")]
-pub use staking::StakerStatus;
+pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;

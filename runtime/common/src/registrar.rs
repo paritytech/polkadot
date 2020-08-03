@@ -783,11 +783,11 @@ mod tests {
 	}
 
 	parameter_types!{
-		pub const SlashDeferDuration: staking::EraIndex = 7;
+		pub const SlashDeferDuration: pallet_staking::EraIndex = 7;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const MinimumPeriod: u64 = 3;
 		pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-		pub const BondingDuration: staking::EraIndex = 28;
+		pub const BondingDuration: pallet_staking::EraIndex = 28;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	}
 
@@ -804,7 +804,7 @@ mod tests {
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	}
 
-	implpallet_session::Trait for Test {
+	impl pallet_session::Trait for Test {
 		type SessionManager = ();
 		type Keys = UintAuthorityId;
 		type ShouldEndSession =pallet_session::PeriodicSessions<Period, Offset>;
@@ -828,7 +828,7 @@ mod tests {
 		pub const StakingUnsignedPriority: u64 = u64::max_value() / 2;
 	}
 
-	impl staking::Trait for Test {
+	impl pallet_staking::Trait for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = ();
 		type Event = ();
@@ -859,9 +859,9 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	implpallet_session::historical::Trait for Test {
-		type FullIdentification = staking::Exposure<u64, Balance>;
-		type FullIdentificationOf = staking::ExposureOf<Self>;
+	impl pallet_session::historical::Trait for Test {
+		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
 	}
 
 	// This is needed for a custom `AccountId` type which is `u64` in testing here.
@@ -963,7 +963,7 @@ mod tests {
 	type Registrar = Module<Test>;
 	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
 	type Session =pallet_session::Module<Test>;
-	type Staking = staking::Module<Test>;
+	type Staking = pallet_staking::Module<Test>;
 
 	const AUTHORITY_KEYS: [Sr25519Keyring; 8] = [
 		Sr25519Keyring::Alice,

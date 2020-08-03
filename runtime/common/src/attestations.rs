@@ -76,9 +76,9 @@ impl RewardAttestation for () {
 	}
 }
 
-impl<T: staking::Trait> RewardAttestation for staking::Module<T> {
+impl<T: pallet_staking::Trait> RewardAttestation for pallet_staking::Module<T> {
 	fn reward_immediate(validator_indices: impl IntoIterator<Item=u32>) {
-		use staking::SessionInterface;
+		use pallet_staking::SessionInterface;
 
 		// The number of points to reward for a validity statement.
 		// https://research.web3.foundation/en/latest/polkadot/Token%20Economics/#payment-details

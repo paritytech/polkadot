@@ -58,10 +58,10 @@ use frame_support::{
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
-usepallet_session::historical as session_historical;
+use pallet_session::historical as session_historical;
 
 #[cfg(feature = "std")]
-pub use staking::StakerStatus;
+pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
@@ -221,7 +221,7 @@ parameter_types! {
 	pub storage TransactionByteFee: Balance = 10 * MILLICENTS;
 }
 
-impl transaction_payment::Trait for Runtime {
+impl pallet_transaction_payment::Trait for Runtime {
 	type Currency = Balances;
 	type OnTransactionPayment = ();
 	type TransactionByteFee = TransactionByteFee;
@@ -269,10 +269,10 @@ parameter_types! {
 	pub storage DisabledValidatorsThreshold: Perbill = Perbill::from_percent(17);
 }
 
-implpallet_session::Trait for Runtime {
+impl pallet_session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
-	type ValidatorIdOf = staking::StashOf<Self>;
+	type ValidatorIdOf = pallet_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
 	type SessionManager = Staking;
@@ -282,9 +282,9 @@ implpallet_session::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-implpallet_session::historical::Trait for Runtime {
-	type FullIdentification = staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = staking::ExposureOf<Runtime>;
+impl pallet_session::historical::Trait for Runtime {
+	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
+	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
 }
 
 pallet_staking_reward_curve::build! {
@@ -302,9 +302,9 @@ parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub storage SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
-	pub storage BondingDuration: staking::EraIndex = 28;
+	pub storage BondingDuration: pallet_staking::EraIndex = 28;
 	// 27 eras in which slashes can be cancelled (a bit less than 7 days).
-	pub storage SlashDeferDuration: staking::EraIndex = 27;
+	pub storage SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage ElectionLookahead: BlockNumber = 0;
@@ -313,7 +313,7 @@ parameter_types! {
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
 }
 
-impl staking::Trait for Runtime {
+impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
@@ -535,11 +535,11 @@ construct_runtime! {
 		Timestamp: timestamp::{Module, Call, Storage, Inherent},
 		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
 		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: transaction_payment::{Module, Storage},
+		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: authorship::{Module, Call, Storage},
-		Staking: staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
+		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session:pallet_session::{Module, Call, Storage, Event, Config<T>},

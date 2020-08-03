@@ -34,8 +34,8 @@ use runtime_common::MaximumBlockWeight;
 
 use democracy::Call as DemocracyCall;
 use elections_phragmen::Call as PhragmenCall;
-usepallet_session::Call as SessionCall;
-use staking::Call as StakingCall;
+use pallet_session::Call as SessionCall;
+use pallet_staking::Call as StakingCall;
 use frame_system::Call as SystemCall;
 use treasury::Call as TreasuryCall;
 
