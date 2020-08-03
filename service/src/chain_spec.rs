@@ -30,8 +30,8 @@ use serde::{Serialize, Deserialize};
 use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;
-use grandpa::AuthorityId as GrandpaId;
-use im_online::sr25519::{AuthorityId as ImOnlineId};
+use pallet_grandpa::AuthorityId as GrandpaId;
+use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_staking::Forcing;
 

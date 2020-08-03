@@ -24,7 +24,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use polkadot_primitives::v1::{AccountId, Nonce, Balance};
 use service::{error::Error as ServiceError};
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use pallet_grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
@@ -141,7 +141,7 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 type FullBackend = service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
-type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
+type FullGrandpaBlockImport<RuntimeApi, Executor> = pallet_grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
 
@@ -228,7 +228,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	)?;
 
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
-	let shared_voter_state = grandpa::SharedVoterState::empty();
+	let shared_voter_state = pallet_grandpa::SharedVoterState::empty();
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
 	let rpc_setup = shared_voter_state.clone();
@@ -450,7 +450,7 @@ fn new_full<RuntimeApi, Executor>(
 		None
 	};
 
-	let config = grandpa::Config {
+	let config = pallet_grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
@@ -488,7 +488,7 @@ fn new_full<RuntimeApi, Executor>(
 					.build(),
 		};
 
-		let grandpa_config = grandpa::GrandpaParams {
+		let grandpa_config = pallet_grandpa::GrandpaParams {
 			config,
 			link: link_half,
 			network: network.clone(),
@@ -540,7 +540,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		on_demand.clone(),
 	));
 
-	let grandpa_block_import = grandpa::light_block_import(
+	let grandpa_block_import = pallet_grandpa::light_block_import(
 		client.clone(), backend.clone(), &(client.clone() as Arc<_>),
 		Arc::new(on_demand.checker().clone()),
 	)?;

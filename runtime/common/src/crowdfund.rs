@@ -653,7 +653,7 @@ mod tests {
 		fn min_len() -> usize { 0 }
 		fn max_len() -> usize { 0 }
 	}
-	impl treasury::Trait for Test {
+	impl pallet_treasury::Trait for Test {
 		type Currency = pallet_balances::Module<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
 		type RejectOrigin = frame_system::EnsureRoot<u64>;
@@ -759,9 +759,9 @@ mod tests {
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
 	type Slots = slots::Module<Test>;
-	type Treasury = treasury::Module<Test>;
+	type Treasury = pallet_treasury::Module<Test>;
 	type Crowdfund = Module<Test>;
-	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	use pallet_balances::Error as BalancesError;
 	use slots::Error as SlotsError;
 

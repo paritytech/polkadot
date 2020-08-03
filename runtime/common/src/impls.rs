@@ -38,7 +38,7 @@ where
 		let numeric_amount = amount.peek();
 		let author = <pallet_authorship::Module<R>>::author();
 		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
-		<frame_system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
+		<frame_system::Module<R>>::deposit_event(pallet_balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 

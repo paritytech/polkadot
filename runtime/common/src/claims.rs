@@ -708,7 +708,7 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl vesting::Trait for Test {
+	impl pallet_vesting::Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -731,7 +731,7 @@ mod tests {
 	}
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
-	type Vesting = vesting::Module<Test>;
+	type Vesting = pallet_vesting::Module<Test>;
 	type Claims = Module<Test>;
 
 	fn alice() -> secp256k1::SecretKey {

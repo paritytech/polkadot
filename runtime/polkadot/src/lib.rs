@@ -44,10 +44,10 @@ use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyE
 }};
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
-use version::RuntimeVersion;
-use grandpa::{AuthorityId as GrandpaId, fg_primitives};
+use sp_version::RuntimeVersion;
+use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
-use version::NativeVersion;
+use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
@@ -56,7 +56,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
-use im_online::sr25519::AuthorityId as ImOnlineId;
+use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
@@ -94,7 +94,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
+	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 4,
 };
 
@@ -171,7 +171,7 @@ impl frame_system::Trait for Runtime {
 	type SystemWeightInfo = ();
 }
 
-impl scheduler::Trait for Runtime {
+impl pallet_scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type PalletsOrigin = OriginCaller;
@@ -213,7 +213,7 @@ parameter_types! {
 	pub const IndexDeposit: Balance = 10 * DOLLARS;
 }
 
-impl indices::Trait for Runtime {
+impl pallet_indices::Trait for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
@@ -379,7 +379,7 @@ parameter_types! {
 	pub const MaxRegistrars: u32 = 20;
 }
 
-impl identity::Trait for Runtime {
+impl pallet_identity::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type BasicDeposit = BasicDeposit;
@@ -407,7 +407,7 @@ parameter_types! {
 	pub const MaxVotes: u32 = 100;
 }
 
-impl democracy::Trait for Runtime {
+impl pallet_democracy::Trait for Runtime {
 	type Proposal = Call;
 	type Event = Event;
 	type Currency = Balances;
@@ -450,10 +450,10 @@ impl democracy::Trait for Runtime {
 	>;
 	// Any single technical committee member may veto a coming council proposal, however they can
 	// only do it once and it lasts only for the cooloff period.
-	type VetoOrigin = collective::EnsureMember<AccountId, TechnicalCollective>;
+	type VetoOrigin = pallet_collective::EnsureMember<AccountId, TechnicalCollective>;
 	type CooloffPeriod = CooloffPeriod;
 	type PreimageByteDeposit = PreimageByteDeposit;
-	type OperationalPreimageOrigin = collective::EnsureMember<AccountId, CouncilCollective>;
+	type OperationalPreimageOrigin = pallet_collective::EnsureMember<AccountId, CouncilCollective>;
 	type Slash = Treasury;
 	type Scheduler = Scheduler;
 	type PalletsOrigin = OriginCaller;
@@ -466,8 +466,8 @@ parameter_types! {
 	pub const CouncilMaxProposals: u32 = 100;
 }
 
-type CouncilCollective = collective::Instance1;
-impl collective::Trait<CouncilCollective> for Runtime {
+type CouncilCollective = pallet_collective::Instance1;
+impl pallet_collective::Trait<CouncilCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
@@ -487,9 +487,9 @@ parameter_types! {
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than MAX_MEMBERS members elected via phragmen.
-const_assert!(DesiredMembers::get() <= collective::MAX_MEMBERS);
+const_assert!(DesiredMembers::get() <= pallet_collective::MAX_MEMBERS);
 
-impl elections_phragmen::Trait for Runtime {
+impl pallet_elections_phragmen::Trait for Runtime {
 	type Event = Event;
 	type ModuleId = ElectionsPhragmenModuleId;
 	type Currency = Balances;
@@ -512,8 +512,8 @@ parameter_types! {
 	pub const TechnicalMaxProposals: u32 = 100;
 }
 
-type TechnicalCollective = collective::Instance2;
-impl collective::Trait<TechnicalCollective> for Runtime {
+type TechnicalCollective = pallet_collective::Instance2;
+impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type Origin = Origin;
 	type Proposal = Call;
 	type Event = Event;
@@ -522,7 +522,7 @@ impl collective::Trait<TechnicalCollective> for Runtime {
 	type WeightInfo = ();
 }
 
-impl membership::Trait<membership::Instance1> for Runtime {
+impl pallet_membership::Trait<membership::Instance1> for Runtime {
 	type Event = Event;
 	type AddOrigin = MoreThanHalfCouncil;
 	type RemoveOrigin = MoreThanHalfCouncil;
@@ -552,7 +552,7 @@ type ApproveOrigin = EnsureOneOf<
 	collective::EnsureProportionAtLeast<_3, _5, AccountId, CouncilCollective>
 >;
 
-impl treasury::Trait for Runtime {
+impl pallet_treasury::Trait for Runtime {
 	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
@@ -576,7 +576,7 @@ parameter_types! {
 	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 }
 
-impl offences::Trait for Runtime {
+impl pallet_offences::Trait for Runtime {
 	type Event = Event;
 	type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
@@ -595,7 +595,7 @@ parameter_types! {
 	pub const ImOnlineUnsignedPriority: TransactionPriority = TransactionPriority::max_value();
 }
 
-impl im_online::Trait for Runtime {
+impl pallet_im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
 	type SessionDuration = SessionDuration;
@@ -604,7 +604,7 @@ impl im_online::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl grandpa::Trait for Runtime {
+impl pallet_grandpa::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 
@@ -618,7 +618,7 @@ impl grandpa::Trait for Runtime {
 
 	type KeyOwnerProofSystem = Historical;
 
-	type HandleEquivocation = grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+	type HandleEquivocation = pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 }
 
 parameter_types! {
@@ -769,14 +769,14 @@ impl claims::Trait for Runtime {
 	type VestingSchedule = Vesting;
 	type Prefix = Prefix;
 	/// At least 3/4 of the council must agree to a claim move before it can happen.
-	type MoveClaimOrigin = collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
+	type MoveClaimOrigin = pallet_collective::EnsureProportionAtLeast<_3, _4, AccountId, CouncilCollective>;
 }
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
 }
 
-impl vesting::Trait for Runtime {
+impl pallet_vesting::Trait for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
@@ -784,7 +784,7 @@ impl vesting::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl utility::Trait for Runtime {
+impl pallet_utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type WeightInfo = ();
@@ -798,7 +798,7 @@ parameter_types! {
 	pub const MaxSignatories: u16 = 100;
 }
 
-impl multisig::Trait for Runtime {
+impl pallet_multisig::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
@@ -922,7 +922,7 @@ impl InstanceFilter<Call> for ProxyType {
 	}
 }
 
-impl proxy::Trait for Runtime {
+impl pallet_proxy::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
@@ -937,7 +937,7 @@ pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		use frame_support::storage::{StorageMap, IterableStorageMap};
-		use democracy::{VotingOf, Conviction, Voting::Direct, AccountVote::Standard};
+		use pallet_democracy::{VotingOf, Conviction, Voting::Direct, AccountVote::Standard};
 		// Cancel convictions for Referendum Zero (for removing Sudo - this is something we would
 		// have done anyway).
 		for (who, mut voting) in VotingOf::<Runtime>::iter() {
@@ -957,8 +957,8 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 fn test_rm_ref_0() {
 	use sp_runtime::AccountId32;
 	use frame_support::{traits::OnRuntimeUpgrade, storage::StorageMap};
-	use democracy::{VotingOf, Vote, Voting::{Direct, Delegating}, AccountVote::{Standard, Split}};
-	use democracy::Conviction::{Locked1x, Locked2x, Locked3x, None as NoConviction};
+	use pallet_democracy::{VotingOf, Vote, Voting::{Direct, Delegating}, AccountVote::{Standard, Split}};
+	use pallet_democracy::Conviction::{Locked1x, Locked2x, Locked3x, None as NoConviction};
 	let t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| {
@@ -1088,35 +1088,35 @@ construct_runtime! {
 	{
 		// Basic stuff; balances is uncallable initially.
 		System: frame_system::{Module, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Storage},
-		Scheduler: scheduler::{Module, Call, Storage, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage},
+		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 
 		// Must be before session.
 		Babe: babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
 
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Indices: indices::{Module, Call, Storage, Config<T>, Event<T>},
+		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Module, Call, Storage},
 		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
-		Offences: offences::{Module, Call, Storage, Event},
+		Offences: pallet_offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session:pallet_session::{Module, Call, Storage, Event, Config<T>},
 		FinalityTracker: finality_tracker::{Module, Call, Storage, Inherent},
-		Grandpa: grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
-		ImOnline: im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
+		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
+		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: authority_discovery::{Module, Call, Config},
 
 		// Governance stuff.
-		Democracy: democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
-		TechnicalMembership: membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
-		Treasury: treasury::{Module, Call, Storage, Event<T>},
+		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>},
+		Council: pallet_collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
+		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
+		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
+		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>},
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables. Disabled `Call` on all of them, but this should be
@@ -1129,21 +1129,21 @@ construct_runtime! {
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 		// Cunning utilities. Usable initially.
-		Utility: utility::{Module, Call, Event},
+		Utility: pallet_utility::{Module, Call, Event},
 
 		// DOT Purchase module. Late addition; this is in place of Sudo.
 		Purchase: purchase::{Module, Call, Storage, Event<T>},
 
 		// Identity. Late addition.
-		Identity: identity::{Module, Call, Storage, Event<T>},
+		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
 
 		// Proxy module. Late addition.
-		Proxy: proxy::{Module, Call, Storage, Event<T>},
+		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 
 		// Multisig dispatch. Late addition.
-		Multisig: multisig::{Module, Call, Storage, Event<T>},
+		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
 	}
 }
 

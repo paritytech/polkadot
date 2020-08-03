@@ -961,7 +961,7 @@ mod tests {
 	type System = frame_system::Module<Test>;
 	type Slots = slots::Module<Test>;
 	type Registrar = Module<Test>;
-	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	type Session =pallet_session::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
 

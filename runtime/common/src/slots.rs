@@ -1028,7 +1028,7 @@ mod tests {
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
 	type Slots = Module<Test>;
-	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mock up.

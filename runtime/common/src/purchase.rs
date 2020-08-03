@@ -459,7 +459,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl vesting::Trait for Test {
+	impl pallet_vesting::Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -492,7 +492,7 @@ mod tests {
 
 	type System = frame_system::Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
-	type Vesting = vesting::Module<Test>;
+	type Vesting = pallet_vesting::Module<Test>;
 	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to

@@ -1956,7 +1956,7 @@ mod tests {
 		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 	}
 
-	impl offences::Trait for Test {
+	impl pallet_offences::Trait for Test {
 		type Event = ();
 		type IdentificationTuple =pallet_session::historical::IdentificationTuple<Self>;
 		type OnOffenceHandler = Staking;
@@ -2048,11 +2048,11 @@ mod tests {
 	type Parachains = Module<Test>;
 	type Balances = pallet_balances::Module<Test>;
 	type System = frame_system::Module<Test>;
-	type Offences = offences::Module<Test>;
+	type Offences = pallet_offences::Module<Test>;
 	type Staking = pallet_staking::Module<Test>;
 	type Session =pallet_session::Module<Test>;
 	type Timestamp = pallet_timestamp::Module<Test>;
-	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
 	type Historical =pallet_session::historical::Module<Test>;
 
