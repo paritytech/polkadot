@@ -819,7 +819,7 @@ pub fn westend_new_full(
 	Ok((service, client, handles))
 }
 
-/// Create a new Westend service for a full node.
+/// Create a new Rococo service for a full node.
 #[cfg(feature = "full-node")]
 pub fn rococo_new_full(
 	config: Configuration,
