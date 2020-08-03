@@ -23,13 +23,14 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
+	errors::ChainApiError,
 	messages::{
-		AllMessages, ProvisionableData, ProvisionerInherentData, ProvisionerMessage,
+		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData, ProvisionerMessage,
 		RuntimeApiMessage,
 	},
 	util::{self, request_availability_cores, JobTrait, ToJobTrait},
 };
-use polkadot_primitives::v1::{BackedCandidate, CoreState, Hash, SignedAvailabilityBitfield};
+use polkadot_primitives::v1::{BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield};
 use std::{
 	collections::{HashMap, HashSet},
 	convert::TryFrom,
@@ -79,12 +80,14 @@ impl From<ProvisionerMessage> for ToJob {
 }
 
 pub enum FromJob {
+	ChainApi(ChainApiMessage),
 	Runtime(RuntimeApiMessage),
 }
 
 impl From<FromJob> for AllMessages {
 	fn from(from_job: FromJob) -> AllMessages {
 		match from_job {
+			FromJob::ChainApi(cam) => unimplemented!("ChainApiMessage is not a variant of AllMessages yet"),
 			FromJob::Runtime(ram) => AllMessages::RuntimeApi(ram),
 		}
 	}
@@ -95,6 +98,8 @@ impl TryFrom<AllMessages> for FromJob {
 
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
+			// TODO: resolve this as well as the above unimplemented! section
+			// AllMessages::ChainApi(chain) => Ok(FromJob::ChainApi(chain)),
 			AllMessages::RuntimeApi(runtime) => Ok(FromJob::Runtime(runtime)),
 			_ => Err(()),
 		}
@@ -109,6 +114,8 @@ pub enum Error {
 	Util(util::Error),
 	#[from]
 	OneshotRecv(oneshot::Canceled),
+	#[from]
+	ChainApi(ChainApiError),
 	OneshotSend,
 }
 
@@ -254,6 +261,19 @@ async fn send_inherent_data(
 	// utility
 	let mut parachains_represented = HashSet::new();
 
+	// ideally, we wouldn't calculate this unconditionally, but only if we have to use it in the
+	// `if let Some(ref scheduled) = occupied.next_up_on_time_out {` case. In all other cases, it's
+	// irrelevant. However, that's challenging: that whole thing happens within a `.retain` closure,
+	// which is _not_ async.
+	// We can leave the optimization for another day.
+	let block_number = match get_block_number_under_construction(relay_parent, &mut from_job).await {
+		Ok(n) => n,
+		Err(err) => {
+			log::warn!(target: "Provisioner", "failed to get number of block under construction: {:?}", err);
+			0
+		}
+	};
+
 	// coherent candidates fulfill these conditions:
 	//
 	// - only one per parachain
@@ -293,12 +313,7 @@ async fn send_inherent_data(
 				}
 				if let Some(ref scheduled) = occupied.next_up_on_time_out {
 					return scheduled.para_id == para_id
-						// TODO: this function currently doesn't know about what block we're building
-						//   get it from the runtime? where?
-						&& unimplemented!("occupied.time_out_at == the block we are building")
-						// REVIEW: the guide says we have to ensure that the merged bitfields are < 2/3 in this case,
-						// but intuition suggests that we'd still want it to be >=. Just want a double-check that
-						// there's no typo in the guide.
+						&& occupied.time_out_at == block_number
 						&& !merged_bitfields_are_gte_two_thirds(
 							*core_idx,
 							&signed_bitfields,
@@ -326,6 +341,18 @@ async fn send_inherent_data(
 	Ok(())
 }
 
+// produces a block number 1 higher than that of the relay parent
+// in the event of an invalid `relay_parent`, returns `Ok(0)`
+async fn get_block_number_under_construction(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<BlockNumber, Error> {
+	let (tx, rx) = oneshot::channel();
+	sender.send(FromJob::ChainApi(ChainApiMessage::BlockNumber(relay_parent, tx))).await.map_err(|_| Error::OneshotSend)?;
+	match rx.await? {
+		Ok(Some(n)) => Ok(n + 1),
+		Ok(None) => Ok(0),
+		Err(err) => Err(err.into()),
+	}
+}
+
 // The instructions state:
 //
 // > we can only include the candidate if the bitfields we are including _and_ the availability vec of the OccupiedCore
@@ -337,8 +364,6 @@ async fn send_inherent_data(
 //   - construct a transverse slice along `core_idx`
 //   - bitwise-or it with the availability slice
 //   - count the 1 bits, compare to the total length
-//
-// REVIEW: is that interpretation the correct one?
 fn merged_bitfields_are_gte_two_thirds(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -351,7 +376,9 @@ fn merged_bitfields_are_gte_two_thirds(
 		let validator_idx = bitfield.validator_index() as usize;
 		match transverse.get_mut(validator_idx) {
 			None => {
-				// REVIEW: might it be worth having this function return a `Result<bool, Error>` so that we can more clearly express this error condition?
+				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
+				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
+				// simpler to just handle the error internally here.
 				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, transverse_len);
 				return false;
 			}
