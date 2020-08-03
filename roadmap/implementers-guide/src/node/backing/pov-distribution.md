@@ -4,15 +4,15 @@ This subsystem is responsible for distributing PoV blocks. For now, unified with
 
 ## Protocol
 
-`ProtocolId`: `b"povd"`
+`NetworkCapability`: `b"povd"`
 
 Input: [`PoVDistributionMessage`](../../types/overseer-protocol.md#pov-distribution-message)
 
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`ProtocolId`)
-- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+- NetworkBridge::RegisterEventProducer(`NetworkCapability`)
+- NetworkBridge::SendMessage(`[PeerId]`, `NetworkCapability`, `Bytes`)
 - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 
 

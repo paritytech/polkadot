@@ -4,7 +4,7 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 ## Protocol
 
-`ProtocolId`: `b"stmd"`
+`NetworkCapability`: `b"stmd"`
 
 Input:
 
@@ -12,8 +12,8 @@ Input:
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`ProtocolId`)
-- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+- NetworkBridge::RegisterEventProducer(`NetworkCapability`)
+- NetworkBridge::SendMessage(`[PeerId]`, `NetworkCapability`, `Bytes`)
 - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 
 ## Functionality

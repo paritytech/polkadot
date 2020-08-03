@@ -69,7 +69,7 @@ enum AvailabilityStoreMessage {
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
 	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
-	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's 
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
 	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
@@ -135,11 +135,11 @@ to the low-level networking code.
 enum NetworkBridgeMessage {
 	/// Register an event producer with the network bridge. This should be done early and cannot
 	/// be de-registered.
-	RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
+	RegisterEventProducer(NetworkCapability, Fn(NetworkBridgeEvent) -> AllMessages),
 	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
 	ReportPeer(PeerId, cost_benefit: i32),
 	/// Send a message to one or more peers on the given protocol ID.
-	SendMessage([PeerId], ProtocolId, Bytes),
+	SendMessage([PeerId], NetworkCapability, Bytes),
 }
 ```
 

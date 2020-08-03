@@ -4,15 +4,15 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 ## Protocol
 
-`ProtocolId`: `b"bitd"`
+`NetworkCapability`: `b"bitd"`
 
 Input:
 [`BitfieldDistributionMessage`](../../types/overseer-protocol.md#bitfield-distribution-message) which are gossiped to all peers, no matter if validator or not.
 
 Output:
 
-- `NetworkBridge::RegisterEventProducer(ProtocolId)` in order to register ourself as an event provider for the protocol.
-- `NetworkBridge::SendMessage([PeerId], ProtocolId, Bytes)` gossip a verified incoming bitfield on to interested subsystems within this validator node.
+- `NetworkBridge::RegisterEventProducer(NetworkCapability)` in order to register ourself as an event provider for the protocol.
+- `NetworkBridge::SendMessage([PeerId], NetworkCapability, Bytes)` gossip a verified incoming bitfield on to interested subsystems within this validator node.
 - `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)` improve or penalize the reputation of peers based on the messages that are received relative to the current view.
 - `ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(relay_parent, SignedAvailabilityBitfield))` pass
   on the bitfield to the other submodules via the overseer.
