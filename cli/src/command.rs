@@ -153,7 +153,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
-						service::kusama_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else if chain_spec.is_westend() {
@@ -161,7 +160,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
 						service::WestendExecutor,
-						service::westend_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else {
@@ -169,7 +167,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::polkadot_runtime::RuntimeApi,
 						service::PolkadotExecutor,
-						service::polkadot_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			}

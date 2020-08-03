@@ -69,9 +69,18 @@ pub enum ExecutionMode<'a> {
 	RemoteTest(&'a ValidationPool),
 }
 
-/// Error type for the wasm executor
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum Error {
+/// Candidate validation error.
+pub enum ValidationError {
+	/// Validation failed due to internal reasons. The candidate might still be valid.
+	Internal(InternalError),
+	/// Candidate is invalid.
+	InvalidCandidate(InvalidCandidate),
+}
+
+/// Error type that indicates invalid candidate.
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum InvalidCandidate {
 	/// Wasm executor error.
 	#[display(fmt = "WASM executor error: {:?}", _0)]
 	WasmExecutor(sc_executor::error::Error),
@@ -82,30 +91,37 @@ pub enum Error {
 	/// Code size it too large.
 	#[display(fmt = "WASM code is {} bytes, max allowed is {}", _0, MAX_CODE_MEM)]
 	CodeTooLarge(usize),
-	/// Bad return data or type.
+	/// Error decoding returned data.
 	#[display(fmt = "Validation function returned invalid data.")]
 	BadReturn,
 	#[display(fmt = "Validation function timeout.")]
 	Timeout,
+	#[display(fmt = "External WASM execution error: {}", _0)]
+	ExternalWasmExecutor(String),
+}
+
+/// Host error during candidate validation. This does not indicate an invalid candidate.
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum InternalError {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
 	System(Box<dyn std::error::Error + Send>),
-	#[display(fmt = "WASM worker error: {}", _0)]
-	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	SharedMem(shared_memory::SharedMemError),
+	#[display(fmt = "WASM worker error: {}", _0)]
+	WasmWorker(String),
 }
 
-impl std::error::Error for Error {
+impl std::error::Error for ValidationError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
-			Error::WasmExecutor(ref err) => Some(err),
-			Error::Io(ref err) => Some(err),
-			Error::System(ref err) => Some(&**err),
+			ValidationError::Internal(InternalError::Io(ref err)) => Some(err),
+			ValidationError::Internal(InternalError::System(ref err)) => Some(&**err),
 			#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-			Error::SharedMem(ref err) => Some(err),
+			ValidationError::Internal(InternalError::SharedMem(ref err)) => Some(err),
+			ValidationError::InvalidCandidate(InvalidCandidate::WasmExecutor(ref err)) => Some(err),
 			_ => None,
 		}
 	}
@@ -119,7 +135,7 @@ pub fn validate_candidate(
 	params: ValidationParams,
 	options: ExecutionMode<'_>,
 	spawner: impl SpawnNamed + 'static,
-) -> Result<ValidationResult, Error> {
+) -> Result<ValidationResult, ValidationError> {
 	match options {
 		ExecutionMode::Local => {
 			validate_candidate_internal(validation_code, &params.encode(), spawner)
@@ -133,15 +149,19 @@ pub fn validate_candidate(
 			pool.validate_candidate(validation_code, params, true)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::Remote(pool) =>
-			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::Remote(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::RemoteTest(pool) =>
-			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::RemoteTest(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 	}
 }
 
@@ -155,7 +175,7 @@ pub fn validate_candidate_internal(
 	validation_code: &[u8],
 	encoded_call_data: &[u8],
 	spawner: impl SpawnNamed + 'static,
-) -> Result<ValidationResult, Error> {
+) -> Result<ValidationResult, ValidationError> {
 	let mut extensions = Extensions::new();
 	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
 
@@ -175,9 +195,10 @@ pub fn validate_candidate_internal(
 		encoded_call_data,
 		&mut ext,
 		sp_core::traits::MissingHostFunctions::Allow,
-	)?;
+	).map_err(|e| ValidationError::InvalidCandidate(e.into()))?;
 
-	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
+	ValidationResult::decode(&mut &res[..])
+		.map_err(|_| ValidationError::InvalidCandidate(InvalidCandidate::BadReturn).into())
 }
 
 /// The validation externalities that will panic on any storage related access. They just provide

@@ -100,7 +100,7 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<Client, SP, Extrinsic>(
+	fn build<Client, SP>(
 		self,
 		_: Arc<Client>,
 		_: SP,

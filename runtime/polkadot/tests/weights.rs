@@ -52,29 +52,6 @@ fn sanity_check_weight_per_time_constants_are_as_expected() {
 }
 
 #[test]
-fn weight_of_balances_transfer_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 70_000_000]
-	let expected_weight = DbWeight::get().read + DbWeight::get().write + 70_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(Default::default(), Default::default())
-		.get_dispatch_info()
-		.weight;
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_balances_transfer_keep_alive_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 50_000_000]
-	let expected_weight = DbWeight::get().read + DbWeight::get().write + 50_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(Default::default(), Default::default())
-		.get_dispatch_info()
-		.weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_timestamp_set_is_correct() {
 	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 8_000_000]
 	let expected_weight = (2 * DbWeight::get().read) + DbWeight::get().write + 8_000_000;
