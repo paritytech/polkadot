@@ -473,7 +473,7 @@ impl collective::Trait<CouncilCollective> for Runtime {
 	type Event = Event;
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
-	type WeightInfo = ();
+	type WeightInfo = weights::collective::WeightInfo;
 }
 
 parameter_types! {
