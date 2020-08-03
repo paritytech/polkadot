@@ -112,7 +112,7 @@ No initialization routine runs for this module.
 
 The following routines are intended to be invoked by paras' upward messages.
 
-* `init_open_channel(recipient)`:
+* `hrmp_init_open_channel(recipient)`:
   1. Check that the origin of this message is a para. We say that the origin of this message is the `sender`.
   1. Check that the `sender` is not `recipient`.
   1. Check that the `recipient` para exists.
@@ -124,13 +124,13 @@ The following routines are intended to be invoked by paras' upward messages.
       1. Set `limit_used_places` to `config.hrmp_channel_max_places`
       1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
 
-* `accept_open_channel(i)`, `i` - is the index of open channel request:
+* `hrmp_accept_open_channel(i)`, `i` - is the index of open channel request:
   1. Check that the designated open channel request exists
   1. Check that the request's `recipient` corresponds to the origin of this message.
   1. Reserve the deposit for the `recipient` according to `config.hrmp_recipient_deposit`
   1. Set the request's `confirmed` flag to `true`.
 
-* `close_channel(sender, recipient)`:
+* `hrmp_close_channel(sender, recipient)`:
   1. Check that the channel between `sender` and `recipient` exists
   1. Check that the origin of the message is either `sender` or `recipient`
   1. Check that there is no existing intention to close the channel between `sender` and `recipient`.
