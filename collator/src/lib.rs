@@ -51,7 +51,6 @@ use std::time::Duration;
 use std::pin::Pin;
 
 use futures::{future, Future, Stream, FutureExt, StreamExt};
-use log::warn;
 use sc_client_api::{StateBackend, BlockchainEvents};
 use sp_blockchain::HeaderBackend;
 use sp_core::Pair;
@@ -357,8 +356,12 @@ fn build_collator_service<P, C, R, Extrinsic>(
 
 			let silenced = deadlined
 				.map(|either| {
-					if let future::Either::Right(_) = either {
-						warn!("Collation failure: timeout");
+					match either {
+						future::Either::Right(_) => log::warn!("Collation failure: timeout"),
+						future::Either::Left((Err(e), _)) => {
+							log::error!("Collation failed: {:?}", e)
+						}
+						future::Either::Left((Ok(()), _)) => {},
 					}
 				});
 

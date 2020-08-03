@@ -6,7 +6,7 @@ After a candidate is backed, the availability of the PoV block must be confirmed
 
 ## Protocol
 
-`ProtocolId`:`b"avad"`
+`ProtocolId`:`b"avad"`: `PeerSet`: `Validation`
 
 Input:
 

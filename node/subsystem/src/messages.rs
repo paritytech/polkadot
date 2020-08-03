@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
 	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex,
+	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -105,7 +105,9 @@ pub enum CandidateValidationMessage {
 	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
-	/// If there is no state available which can provide this data, an error is returned.
+	///
+	/// If there is no state available which can provide this data or the core for
+	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -242,13 +244,20 @@ pub enum AvailabilityStoreMessage {
 
 	/// Query whether a `AvailableData` exists within the AV Store.
 	///
-	/// This is useful in cases like bitfield signing, when existence
+	/// This is useful in cases when existence
 	/// matters, but we don't want to necessarily pass around multiple
 	/// megabytes of data to get a single bit of information.
 	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+
+	/// Query whether an `ErasureChunk` exists within the AV Store.
+	///
+	/// This is useful in cases like bitfield signing, when existence
+	/// matters, but we don't want to necessarily pass around large
+	/// quantities of data to get a single bit of information.
+	QueryChunkAvailability(Hash, ValidatorIndex, oneshot::Sender<bool>),
 
 	/// Store an `ErasureChunk` in the AV store.
 	///
@@ -269,9 +278,47 @@ impl AvailabilityStoreMessage {
 			Self::QueryAvailableData(hash, _) => Some(*hash),
 			Self::QueryDataAvailability(hash, _) => Some(*hash),
 			Self::QueryChunk(hash, _, _) => Some(*hash),
+			Self::QueryChunkAvailability(hash, _, _) => Some(*hash),
 			Self::StoreChunk(hash, _, _, _) => Some(*hash),
 			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
 		}
+	}
+}
+
+/// A response channel for the result of a chain API request.
+pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, crate::errors::ChainApiError>>;
+
+/// Chain API request subsystem message.
+#[derive(Debug)]
+pub enum ChainApiMessage {
+	/// Request the block number by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
+	/// Request the finalized block hash by number.
+	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
+	FinalizedBlockHash(BlockNumber, ChainApiResponseChannel<Option<Hash>>),
+	/// Request the last finalized block number.
+	/// This request always succeeds.
+	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel. 
+		response_channel: ChainApiResponseChannel<Vec<Hash>>,
+	},
+}
+
+impl ChainApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
 	}
 }
 
@@ -288,12 +335,8 @@ pub struct SchedulerRoster {
 	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
-/// A description of an error causing the runtime API request to be unservable.
-#[derive(Debug, Clone)]
-pub struct RuntimeApiError(String);
-
 /// A sender for the result of a runtime API request.
-pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, RuntimeApiError>>;
+pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeApiError>>;
 
 /// A request to the Runtime API subsystem.
 #[derive(Debug)]
@@ -316,6 +359,10 @@ pub enum RuntimeApiRequest {
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
+	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
+	/// will inform on how the validation data should be computed if the para currently
+	/// occupies a core.
+	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of

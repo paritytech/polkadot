@@ -815,7 +815,7 @@ impl<T: Encode> EncodeAs<T> for T {
 ///
 /// Note that the internal fields are not public; they are all accessable by immutable getters.
 /// This reduces the chance that they are accidentally mutated, invalidating the signature.
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
+#[derive(Clone, PartialEq, Eq, Encode, Decode, RuntimeDebug)]
 pub struct Signed<Payload, RealPayload = Payload> {
 	/// The payload is part of the signed data. The rest is the signing context,
 	/// which is known both at signing and at validation.

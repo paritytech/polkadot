@@ -304,8 +304,7 @@ impl PoV {
 }
 
 /// A bitfield concerning availability of backed candidates.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
 impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
@@ -657,7 +656,7 @@ pub enum CandidateEvent<H = Hash> {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode, N: Decode> {
+	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 

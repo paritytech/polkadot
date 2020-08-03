@@ -8,18 +8,23 @@ One other piece of shared state to track is peer reputation. When peers are foun
 
 So in short, this Subsystem acts as a bridge between an actual network component and a subsystem's protocol.
 
+The other component of the network bridge is which peer-set to use. Different peer-sets can be connected for different purposes. The network bridge is not generic over peer-set, but instead exposes two peer-sets that event producers can attach to: `Validation` and `Collation`. More information can be found on the documentation of the [`NetworkBridgeMessage`][NBM].
+
 ## Protocol
 
-Input: [`NetworkBridgeMessage`](../../types/overseer-protocol.md#network-bridge-message)
+Input: [`NetworkBridgeMessage`][NBM]
 Output: Varying, based on registered event producers.
 
 ## Functionality
 
-Track a set of all Event Producers, each associated with a 4-byte protocol ID.
+Track a set of all Event Producers, each associated with a 4-byte protocol ID and the `PeerSet` it is associated on.
+
 There are two types of network messages this sends and receives:
 
 - ProtocolMessage(ProtocolId, Bytes)
 - ViewUpdate(View)
+
+Each of these network messages is associated with a particular peer-set. If we are connected to the same peer on both peer-sets, we will receive two `ViewUpdate`s from them every time they change their view.
 
 `ActiveLeavesUpdate`'s `activated` and `deactivated` lists determine the evolution of our local view over time. A `ViewUpdate` is issued to each connected peer after each update, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
 
@@ -44,3 +49,12 @@ On `ReportPeer` message:
 On `SendMessage` message:
 
 - Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.
+
+[NBM]: ../../types/overseer-protocol.md#network-bridge-message
+
+On `ConnectToValidators` message:
+
+- Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
+- Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
+- Accumulate all `(ValidatorId, PeerId)` pairs and send on the response channel.
+- Feed all Peer IDs to the discovery utility the underlying network provides.
