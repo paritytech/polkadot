@@ -47,7 +47,7 @@ impl_outer_dispatch! {
 
 impl_outer_event! {
 	pub enum TestEvent for Test {
-		system<T>,
+		frame_system<T>,
 		inclusion<T>,
 	}
 }
