@@ -1455,19 +1455,19 @@ sp_api::impl_runtime_apis! {
 			// Polkadot
 			add_benchmark!(params, batches, claims, Claims);
 			// Substrate
-			add_benchmark!(params, batches, balances, Balances);
-			add_benchmark!(params, batches, collective, Council);
-			add_benchmark!(params, batches, democracy, Democracy);
-			add_benchmark!(params, batches, elections_phragmen, ElectionsPhragmen);
-			add_benchmark!(params, batches, im_online, ImOnline);
-			add_benchmark!(params, batches, offences, OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, scheduler, Scheduler);
-			add_benchmark!(params, batches, session, SessionBench::<Runtime>);
-			add_benchmark!(params, batches, staking, Staking);
-			add_benchmark!(params, batches, system, SystemBench::<Runtime>);
-			add_benchmark!(params, batches, timestamp, Timestamp);
-			add_benchmark!(params, batches, treasury, Treasury);
-			add_benchmark!(params, batches, vesting, Vesting);
+			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_collective, Council);
+			add_benchmark!(params, batches, pallet_democracy, Democracy);
+			add_benchmark!(params, batches, pallet_elections_phragmen, ElectionsPhragmen);
+			add_benchmark!(params, batches, pallet_im_online, ImOnline);
+			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
+			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_staking, Staking);
+			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+			add_benchmark!(params, batches, pallet_treasury, Treasury);
+			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

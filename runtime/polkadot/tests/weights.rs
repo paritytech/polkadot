@@ -213,7 +213,7 @@ fn weight_of_phragmen_submit_candidacy_is_correct() {
 #[test]
 fn weight_of_phragmen_renounce_candidacy_is_correct() {
 	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
-	let weight = PhragmenCall::renounce_candidacy::<Runtime>(elections_phragmen::Renouncing::Member)
+	let weight = PhragmenCall::renounce_candidacy::<Runtime>(pallet_elections_phragmen::Renouncing::Member)
 		.get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
