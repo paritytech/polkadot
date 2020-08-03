@@ -120,6 +120,12 @@ This choice can also be expressed as a choice of which parent head of the para w
 
 Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
 
+Design-wise we should maintain two properties about this data structure:
+
+1. The `LocalValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate.
+1. To make contextual execution possible, `LocalValidationData` should be constructable only having access to the latest relay-chain state for the past `k` blocks. That implies
+that the relay-chain should maintain all the required data accessible.
+
 > TODO: determine if balance/fees are even needed here.
 > TODO: message queue watermarks (first downward messages, then XCMP channels)
 
