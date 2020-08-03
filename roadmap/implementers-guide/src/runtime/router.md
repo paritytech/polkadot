@@ -27,7 +27,10 @@ HRMP related structs:
 
 ```rust,ignore
 /// A type used to designate a HRMP channel between a (sender, recipient).
-type HrmpChannelId = (ParaId, ParaId);
+struct HrmpChannelId {
+    sender: ParaId,
+    recipient: ParaId,
+}
 
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
