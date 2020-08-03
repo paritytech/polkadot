@@ -28,7 +28,7 @@ use polkadot_subsystem::messages::{
 	PeerId, ReputationChange as Rep, CandidateBackingMessage, RuntimeApiMessage,
 	RuntimeApiRequest,
 };
-use node_primitives::{ProtocolId, View, SignedFullStatement};
+use node_primitives::{NetworkCapability, View, SignedFullStatement};
 use polkadot_primitives::v1::{
 	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature,
 };
@@ -40,7 +40,7 @@ use indexmap::IndexSet;
 
 use std::collections::{HashMap, HashSet};
 
-const PROTOCOL_V1: ProtocolId = *b"sdn1";
+const CAPABILITY_V1: NetworkCapability = *b"sdn1";
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::new(-100, "Unexpected Statement");
 const COST_INVALID_SIGNATURE: Rep = Rep::new(-500, "Invalid Statement Signature");
@@ -557,7 +557,7 @@ async fn circulate_statement(
 		let payload = WireMessage::Statement(relay_parent, stored.statement.clone()).encode();
 		ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 			peers_to_send.keys().cloned().collect(),
-			PROTOCOL_V1,
+			CAPABILITY_V1,
 			payload,
 		))).await?;
 	}
@@ -587,7 +587,7 @@ async fn send_statements_about(
 
 			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 				vec![peer.clone()],
-				PROTOCOL_V1,
+				CAPABILITY_V1,
 				payload,
 			))).await?;
 		}
@@ -613,7 +613,7 @@ async fn send_statements(
 
 			ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 				vec![peer.clone()],
-				PROTOCOL_V1,
+				CAPABILITY_V1,
 				payload,
 			))).await?;
 		}
@@ -829,7 +829,7 @@ async fn run(
 ) -> SubsystemResult<()> {
 	// startup: register the network protocol with the bridge.
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::RegisterEventProducer(
-		PROTOCOL_V1,
+		CAPABILITY_V1,
 		network_update_message,
 	))).await?;
 
@@ -1272,7 +1272,7 @@ mod tests {
 			for statement in active_head.statements_about(candidate_hash) {
 				let message = handle.recv().await;
 				let expected_to = vec![peer.clone()];
-				let expected_protocol = PROTOCOL_V1;
+				let expected_protocol = CAPABILITY_V1;
 				let expected_payload
 					= WireMessage::Statement(hash_c, statement.statement.clone()).encode();
 
@@ -1392,7 +1392,7 @@ mod tests {
 					assert!(to.contains(&peer_b));
 					assert!(to.contains(&peer_c));
 
-					assert_eq!(protocol, PROTOCOL_V1);
+					assert_eq!(protocol, CAPABILITY_V1);
 					assert_eq!(
 						payload,
 						WireMessage::Statement(hash_b, statement.statement.clone()).encode(),

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
+//! The Network Bridge Subsystem - capability multiplexer for Polkadot.
 
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
@@ -32,7 +32,7 @@ use polkadot_subsystem::{
 	SubsystemResult,
 };
 use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
-use node_primitives::{ProtocolId, View};
+use node_primitives::{NetworkCapability, View};
 use polkadot_primitives::v1::{Block, Hash};
 
 use std::collections::btree_map::{BTreeMap, Entry as BEntry};
@@ -45,15 +45,15 @@ use std::sync::Arc;
 /// We use the same limit to compute the view sent to peers locally.
 const MAX_VIEW_HEADS: usize = 5;
 
-/// The engine ID of the polkadot network protocol.
+/// The engine ID of the polkadot network capability.
 pub const POLKADOT_ENGINE_ID: ConsensusEngineId = *b"dot2";
-/// The protocol name.
+/// The capability name.
 pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/2";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
 const UNKNOWN_PROTO_COST: ReputationChange
-	= ReputationChange::new(-50, "Message sent to unknown protocol");
+	= ReputationChange::new(-50, "Message sent to unknown capability");
 const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
@@ -63,9 +63,9 @@ const TARGET: &'static str = "network_bridge";
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
 pub enum WireMessage {
-	/// A message from a peer on a specific protocol.
+	/// A message from a peer on a specific capability.
 	#[codec(index = "1")]
-	ProtocolMessage(ProtocolId, Vec<u8>),
+	ProtocolMessage(NetworkCapability, Vec<u8>),
 	/// A view update from a peer.
 	#[codec(index = "2")]
 	ViewUpdate(View),
@@ -172,7 +172,7 @@ pub struct NetworkBridge<N>(N);
 impl<N> NetworkBridge<N> {
 	/// Create a new network bridge subsystem with underlying network service.
 	///
-	/// This assumes that the network service has had the notifications protocol for the network
+	/// This assumes that the network service has had the notifications capability for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
 	pub fn new(net_service: N) -> Self {
 		NetworkBridge(net_service)
@@ -203,8 +203,8 @@ struct PeerData {
 
 #[derive(Debug)]
 enum Action {
-	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
-	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	RegisterEventProducer(NetworkCapability, fn(NetworkBridgeEvent) -> AllMessages),
+	SendMessage(Vec<PeerId>, NetworkCapability, Vec<u8>),
 	ReportPeer(PeerId, ReputationChange),
 	ActiveLeaves(ActiveLeavesUpdate),
 
@@ -224,11 +224,11 @@ fn action_from_overseer_message(
 			=> Action::ActiveLeaves(active_leaves),
 		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
 		Ok(FromOverseer::Communication { msg }) => match msg {
-			NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer)
-				=>  Action::RegisterEventProducer(protocol_id, message_producer),
+			NetworkBridgeMessage::RegisterEventProducer(capability, message_producer)
+				=>  Action::RegisterEventProducer(capability, message_producer),
 			NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
-			NetworkBridgeMessage::SendMessage(peers, protocol, message)
-				=> Action::SendMessage(peers, protocol, message),
+			NetworkBridgeMessage::SendMessage(peers, capability, message)
+				=> Action::SendMessage(peers, capability, message),
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -346,9 +346,9 @@ async fn run_network<N: Network>(
 		};
 
 		match action {
-			Action::RegisterEventProducer(protocol_id, event_producer) => {
+			Action::RegisterEventProducer(capability, event_producer) => {
 				// insert only if none present.
-				if let BEntry::Vacant(entry) = event_producers.entry(protocol_id) {
+				if let BEntry::Vacant(entry) = event_producers.entry(capability) {
 					let event_producer = entry.insert(event_producer);
 
 					// send the event producer information on all connected peers.
@@ -366,11 +366,11 @@ async fn run_network<N: Network>(
 					ctx.send_messages(messages).await?;
 				}
 			}
-			Action::SendMessage(peers, protocol, message) => {
+			Action::SendMessage(peers, capability, message) => {
 				let mut message_producer = stream::iter({
 					let n_peers = peers.len();
 					let mut message = Some(
-						WireMessage::ProtocolMessage(protocol, message).encode()
+						WireMessage::ProtocolMessage(capability, message).encode()
 					);
 
 					peers.iter().cloned().enumerate().map(move |(i, peer)| {
@@ -475,8 +475,8 @@ async fn run_network<N: Network>(
 								event_producers.values().map(|producer| producer(update.clone()))
 							);
 						}
-						WireMessage::ProtocolMessage(protocol, message) => {
-							let message = match event_producers.get(&protocol) {
+						WireMessage::ProtocolMessage(capability, message) => {
+							let message = match event_producers.get(&capability) {
 								Some(producer) => Some(producer(
 									NetworkBridgeEvent::PeerMessage(peer.clone(), message)
 								)),
@@ -756,7 +756,7 @@ mod tests {
 			).await;
 
 			// statement distribution message comes first because handlers are ordered by
-			// protocol ID.
+			// capability ID.
 
 			assert_matches!(
 				virtual_overseer.recv().await,
@@ -866,8 +866,8 @@ mod tests {
 			network_handle.disconnect_peer(peer.clone()).await;
 
 			// statement distribution message comes first because handlers are ordered by
-			// protocol ID, and then a disconnection event comes - indicating that the message
-			// was only sent to the correct protocol.
+			// capability ID, and then a disconnection event comes - indicating that the message
+			// was only sent to the correct capability.
 
 			assert_matches!(
 				virtual_overseer.recv().await,

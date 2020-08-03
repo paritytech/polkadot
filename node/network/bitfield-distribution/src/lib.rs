@@ -23,7 +23,7 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use node_primitives::{ProtocolId, View};
+use node_primitives::{NetworkCapability, View};
 
 use log::{trace, warn};
 use polkadot_subsystem::messages::*;
@@ -122,8 +122,8 @@ fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
 pub struct BitfieldDistribution;
 
 impl BitfieldDistribution {
-	/// The protocol identifier for bitfield distribution.
-	const PROTOCOL_ID: ProtocolId = *b"bitd";
+	/// The network capability provided by this subsystem.
+	const NETWORK_CAPABILITY: NetworkCapability = *b"bitd";
 
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
@@ -132,7 +132,7 @@ impl BitfieldDistribution {
 	{
 		// startup: register the network protocol with the bridge.
 		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::RegisterEventProducer(Self::PROTOCOL_ID, network_update_message),
+			NetworkBridgeMessage::RegisterEventProducer(Self::NETWORK_CAPABILITY, network_update_message),
 		))
 		.await?;
 
@@ -316,7 +316,7 @@ where
 		ctx.send_message(AllMessages::NetworkBridge(
 			NetworkBridgeMessage::SendMessage(
 				interested_peers,
-				BitfieldDistribution::PROTOCOL_ID,
+				BitfieldDistribution::NETWORK_CAPABILITY,
 				message.encode(),
 			),
 		))
@@ -543,7 +543,7 @@ where
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::SendMessage(
 			vec![dest],
-			BitfieldDistribution::PROTOCOL_ID,
+			BitfieldDistribution::NETWORK_CAPABILITY,
 			message.encode(),
 		),
 	))
@@ -981,7 +981,7 @@ mod test {
 					peers, proto, bytes
 				)) => {
 					assert_eq!(peers, peers![peer_b]);
-					assert_eq!(proto, BitfieldDistribution::PROTOCOL_ID);
+					assert_eq!(proto, BitfieldDistribution::NETWORK_CAPABILITY);
 					assert_eq!(bytes, msg.encode());
 				}
 			);

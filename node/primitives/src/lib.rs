@@ -234,8 +234,8 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 	}
 }
 
-/// A unique identifier for a network protocol.
-pub type ProtocolId = [u8; 4];
+/// A capability provided by a networking subsystem.
+pub type NetworkCapability = [u8; 4];
 
 /// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
 ///
