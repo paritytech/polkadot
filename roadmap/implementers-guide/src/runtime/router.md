@@ -37,7 +37,7 @@ struct HrmpOpenChannelRequest {
     recipient: ParaId,
     /// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
-    /// How many session boundaries this request has seen.
+    /// How many session boundaries ago this request was seen.
     age: u32,
     /// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
