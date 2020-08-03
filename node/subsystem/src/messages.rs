@@ -87,9 +87,9 @@ impl CandidateBackingMessage {
 	}
 }
 
-/// Blanket error for validation failing.
+/// Blanket error for validation failing for internal reasons.
 #[derive(Debug)]
-pub struct ValidationFailed;
+pub struct ValidationFailed(pub String);
 
 /// Messages received by the Validation subsystem.
 ///
