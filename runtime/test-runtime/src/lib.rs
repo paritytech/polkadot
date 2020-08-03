@@ -514,7 +514,7 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl sudo::Trait for Runtime {
+impl pallet_sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
@@ -560,7 +560,7 @@ construct_runtime! {
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Sudo. Last module.
-		Sudo: sudo::{Module, Call, Storage, Config<T>, Event<T>},
+		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
 

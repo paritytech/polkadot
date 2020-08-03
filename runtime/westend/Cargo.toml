@@ -58,7 +58,7 @@ pallet-society = { git = "https://github.com/paritytech/substrate", branch = "ma
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
-sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -133,7 +133,7 @@ std = [
 	"pallet-session/std",
 	"pallet-society/std",
 	"pallet-staking/std",
-	"sudo/std",
+	"pallet-sudo/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-timestamp/std",

@@ -593,7 +593,7 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-impl sudo::Trait for Runtime {
+impl pallet_sudo::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
 }
@@ -661,7 +661,7 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) | Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
-				Call::Sudo(sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
+				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
 				Call::Utility(..) => true,
 				_ => false,
 			},
@@ -784,7 +784,7 @@ construct_runtime! {
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 
 		// Sudo.
-		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
+		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Proxy module. Late addition.
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},

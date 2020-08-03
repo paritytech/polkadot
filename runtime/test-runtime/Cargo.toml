@@ -49,7 +49,7 @@ pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate",
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sudo = { package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
