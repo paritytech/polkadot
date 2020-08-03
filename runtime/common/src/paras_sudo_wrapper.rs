@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! A simple wrapper allowing `Sudo` to call into `paras` routines.
+
 use frame_support::{
 	decl_error, decl_module,
 	dispatch::DispatchResult,
@@ -26,6 +28,7 @@ use runtime_parachains::paras::{
 };
 use primitives::v1::Id as ParaId;
 
+/// The module's configuration trait.
 pub trait Trait: paras::Trait { }
 
 decl_error! {
