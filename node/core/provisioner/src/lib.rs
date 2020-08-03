@@ -172,14 +172,10 @@ impl ProvisioningJob {
 
 			match msg {
 				ToJob::Provisioner(RequestInherentData(_, sender)) => {
-					// Note the cloning here: we have to clone the vectors of signed bitfields and backed candidates
-					// so that we can respond to more than a single request for inherent data; we can't just move them.
-					// It would be legal, however, to set up `from_job` as `&mut _` instead of a clone. We clone it instead
-					// of borrowing it so that this async function doesn't depend at all on the lifetime of `&self`.
 					send_inherent_data(
 						self.relay_parent,
-						self.signed_bitfields.clone(),
-						self.backed_candidates.clone(),
+						&self.signed_bitfields,
+						&self.backed_candidates,
 						sender,
 						self.sender.clone(),
 					)
@@ -260,8 +256,8 @@ impl ProvisioningJob {
 // choose a coherent set of candidates along with that.
 async fn send_inherent_data(
 	relay_parent: Hash,
-	signed_bitfields: Vec<SignedAvailabilityBitfield>,
-	mut backed_candidates: Vec<BackedCandidate>,
+	signed_bitfields: &[SignedAvailabilityBitfield],
+	backed_candidates: &[BackedCandidate],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
@@ -314,43 +310,47 @@ async fn send_inherent_data(
 	//       the block we are building.
 	//
 	// postcondition: they are sorted by core index
-	backed_candidates.retain(|candidate| {
-		// only allow the first candidate per parachain
-		let para_id = candidate.candidate.descriptor.para_id;
-		if !parachains_represented.insert(para_id) {
-			return false;
-		}
-
-		let (core_idx, core) = match cores_by_id.get(&para_id) {
-			Some(core) => core,
-			None => return false,
-		};
-
-		match core {
-			CoreState::Free => false,
-			CoreState::Scheduled(_) => true,
-			CoreState::Occupied(occupied) => {
-				if let Some(ref scheduled) = occupied.next_up_on_available {
-					return scheduled.para_id == para_id
-						&& merged_bitfields_are_gte_two_thirds(
-							*core_idx,
-							&signed_bitfields,
-							&occupied.availability,
-						);
-				}
-				if let Some(ref scheduled) = occupied.next_up_on_time_out {
-					return scheduled.para_id == para_id
-						&& occupied.time_out_at == block_number
-						&& !merged_bitfields_are_gte_two_thirds(
-							*core_idx,
-							&signed_bitfields,
-							&occupied.availability,
-						);
-				}
-				false
+	let mut backed_candidates: Vec<_> = backed_candidates
+		.iter()
+		.filter(|candidate| {
+			// only allow the first candidate per parachain
+			let para_id = candidate.candidate.descriptor.para_id;
+			if !parachains_represented.insert(para_id) {
+				return false;
 			}
-		}
-	});
+
+			let (core_idx, core) = match cores_by_id.get(&para_id) {
+				Some(core) => core,
+				None => return false,
+			};
+
+			match core {
+				CoreState::Free => false,
+				CoreState::Scheduled(_) => true,
+				CoreState::Occupied(occupied) => {
+					if let Some(ref scheduled) = occupied.next_up_on_available {
+						return scheduled.para_id == para_id
+							&& merged_bitfields_are_gte_two_thirds(
+								*core_idx,
+								&signed_bitfields,
+								&occupied.availability,
+							);
+					}
+					if let Some(ref scheduled) = occupied.next_up_on_time_out {
+						return scheduled.para_id == para_id
+							&& occupied.time_out_at == block_number
+							&& !merged_bitfields_are_gte_two_thirds(
+								*core_idx,
+								&signed_bitfields,
+								&occupied.availability,
+							);
+					}
+					false
+				}
+			}
+		})
+		.cloned()
+		.collect();
 
 	// ensure the postcondition holds true: sorted by core index
 	// note: unstable sort is still deterministic becuase we know (by means of `parachains_represented`) that
@@ -363,7 +363,7 @@ async fn send_inherent_data(
 
 	// type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 	return_sender
-		.send((signed_bitfields, backed_candidates))
+		.send((signed_bitfields.to_vec(), backed_candidates))
 		.map_err(|_| Error::OneshotSend)?;
 	Ok(())
 }
