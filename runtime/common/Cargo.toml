@@ -36,6 +36,7 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
+runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"

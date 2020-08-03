@@ -61,6 +61,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use session::historical as session_historical;
 use system::EnsureRoot;
+use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
 
 use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
@@ -369,6 +370,8 @@ construct_runtime! {
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		Paras: parachains_paras::{Module, Call, Storage},
 		Initializer: parachains_initializer::{Module, Call, Storage},
+
+		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 	}
 }
 
@@ -722,3 +725,5 @@ impl parachains_scheduler::Trait for Runtime { }
 impl parachains_initializer::Trait for Runtime {
 	type Randomness = Babe;
 }
+
+impl paras_sudo_wrapper::Trait for Runtime { }
