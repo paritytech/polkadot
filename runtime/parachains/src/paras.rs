@@ -32,11 +32,9 @@ use primitives::v1::{
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	traits::Get,
-	dispatch::DispatchResult,
-	weights::{DispatchClass, Weight},
+	weights::Weight,
 };
 use codec::{Encode, Decode};
-use system::ensure_root;
 use crate::{configuration, initializer::SessionChangeNotification};
 use sp_core::RuntimeDebug;
 
@@ -245,26 +243,6 @@ decl_module! {
 	/// The parachains configuration module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
-
-		/// Schedule a para to be initialized at the start of the next session.
-		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn sudo_schedule_para_initialize(
-			origin,
-			id: ParaId,
-			genesis: ParaGenesisArgs,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_para_initialize(id, genesis);
-			Ok(())
-		}
-
-		/// Schedule a para to be cleaned up at the start of the next session.
-		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn sudo_schedule_para_cleanup(origin, id: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_para_cleanup(id);
-			Ok(())
-		}
 	}
 }
 
@@ -410,7 +388,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -432,7 +410,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
+	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
 		OutgoingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
