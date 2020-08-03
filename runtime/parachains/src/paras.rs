@@ -1155,7 +1155,6 @@ mod tests {
 
 			assert_eq!(Paras::parachains(), vec![c, b]);
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
-			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
 
 			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
@@ -1219,6 +1218,7 @@ mod tests {
 			assert_eq!(Paras::parachains(), vec![b]);
 			assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![]);
 			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
 
 			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
 
