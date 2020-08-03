@@ -38,7 +38,7 @@ struct HrmpOpenChannelRequest {
     /// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
     /// How many session boundaries ago this request was seen.
-    age: u32,
+    age: SessionIndex,
     /// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
     /// The maximum number of messages that can be pending in the channel at once.
