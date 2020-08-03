@@ -25,12 +25,14 @@ use futures::{
 use polkadot_node_subsystem::{
 	errors::ChainApiError,
 	messages::{
-		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData, ProvisionerMessage,
-		RuntimeApiMessage,
+		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
+		ProvisionerMessage, RuntimeApiMessage,
 	},
 	util::{self, request_availability_cores, JobTrait, ToJobTrait},
 };
-use polkadot_primitives::v1::{BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield};
+use polkadot_primitives::v1::{
+	BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield,
+};
 use std::{
 	collections::{HashMap, HashSet},
 	convert::TryFrom,
@@ -187,12 +189,37 @@ impl ProvisioningJob {
 					self.provisionable_data_channels.push(sender)
 				}
 				ToJob::Provisioner(ProvisionableData(data)) => {
-					for channel in self.provisionable_data_channels.iter_mut() {
-						// REVIEW: the try operator here breaks the run loop if any receiver ever unexpectedly
-						// closes their channel. Is that desired?
-						channel.send(data.clone()).await?;
+					let mut bad_indices = Vec::new();
+					for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
+						match channel.send(data.clone()).await {
+							Ok(_) => {}
+							Err(_) => bad_indices.push(idx),
+						}
 					}
 					self.note_provisionable_data(data);
+
+					// clean up our list of channels by removing the bad indices
+					// start by reversing it for efficient pop
+					bad_indices.reverse();
+					// Vec::retain would be nicer here, but it doesn't provide
+					// an easy API for retaining by index, so we re-collect instead.
+					self.provisionable_data_channels = self
+						.provisionable_data_channels
+						.into_iter()
+						.enumerate()
+						.filter(|(idx, _)| {
+							if bad_indices.is_empty() {
+								return true;
+							}
+							let tail = bad_indices[bad_indices.len() - 1];
+							let retain = *idx != tail;
+							if *idx >= tail {
+								bad_indices.pop();
+							}
+							retain
+						})
+						.map(|(_, item)| item)
+						.collect();
 				}
 				ToJob::Stop => break,
 			}
@@ -265,7 +292,8 @@ async fn send_inherent_data(
 	// irrelevant. However, that's challenging: that whole thing happens within a `.retain` closure,
 	// which is _not_ async.
 	// We can leave the optimization for another day.
-	let block_number = match get_block_number_under_construction(relay_parent, &mut from_job).await {
+	let block_number = match get_block_number_under_construction(relay_parent, &mut from_job).await
+	{
 		Ok(n) => n,
 		Err(err) => {
 			log::warn!(target: "Provisioner", "failed to get number of block under construction: {:?}", err);
@@ -342,9 +370,18 @@ async fn send_inherent_data(
 
 // produces a block number 1 higher than that of the relay parent
 // in the event of an invalid `relay_parent`, returns `Ok(0)`
-async fn get_block_number_under_construction(relay_parent: Hash, sender: &mut mpsc::Sender<FromJob>) -> Result<BlockNumber, Error> {
+async fn get_block_number_under_construction(
+	relay_parent: Hash,
+	sender: &mut mpsc::Sender<FromJob>,
+) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
-	sender.send(FromJob::ChainApi(ChainApiMessage::BlockNumber(relay_parent, tx))).await.map_err(|_| Error::OneshotSend)?;
+	sender
+		.send(FromJob::ChainApi(ChainApiMessage::BlockNumber(
+			relay_parent,
+			tx,
+		)))
+		.await
+		.map_err(|_| Error::OneshotSend)?;
 	match rx.await? {
 		Ok(Some(n)) => Ok(n + 1),
 		Ok(None) => Ok(0),
