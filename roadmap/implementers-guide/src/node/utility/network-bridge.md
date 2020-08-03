@@ -15,17 +15,12 @@ Output: Varying, based on registered event producers.
 
 ## Functionality
 
-Track a set of all Event Producers, each associated with a 4-byte protocol ID.
 There are two types of network messages this sends and receives:
 
 - ProtocolMessage(NetworkCapability, Bytes)
 - ViewUpdate(View)
 
 `ActiveLeavesUpdate`'s `activated` and `deactivated` lists determine the evolution of our local view over time. A `ViewUpdate` is issued to each connected peer after each update, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
-
-On `RegisterEventProducer`:
-
-- Add the event producer to the set of event producers. If there is a competing entry, ignore the request.
 
 On `ProtocolMessage` arrival:
 
