@@ -5304,7 +5304,6 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 2.0.2",
  "log 0.4.8",
- "pallet-babe",
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "polkadot-availability-store",
@@ -5997,7 +5996,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-runtime"
-version = "0.8.14"
+version = "0.8.22"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -6032,7 +6031,6 @@ dependencies = [
  "pallet-scheduler",
  "pallet-session",
  "pallet-session-benchmarking",
- "pallet-society",
  "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
@@ -6073,7 +6071,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-v1-runtime"
-version = "0.8.19"
+version = "0.8.22"
 dependencies = [
  "frame-executive",
  "frame-support",

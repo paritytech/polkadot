@@ -105,7 +105,7 @@ pub enum FreedReason {
 	TimedOut,
 }
 
-pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait { }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaScheduler {
@@ -147,7 +147,7 @@ decl_error! {
 
 decl_module! {
 	/// The scheduler module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 	}
 }
@@ -195,7 +195,7 @@ impl<T: Trait> Module<T> {
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 		let n_cores = n_parachains + config.parathread_cores;
 
-		<SessionStartBlock<T>>::set(<system::Module<T>>::block_number());
+		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
 		AvailabilityCores::mutate(|cores| {
 			// clear all occupied cores.
 			for maybe_occupied in cores.iter_mut() {
@@ -355,7 +355,7 @@ impl<T: Trait> Module<T> {
 		let parachains = <paras::Module<T>>::parachains();
 		let mut scheduled = Scheduled::get();
 		let mut parathread_queue = ParathreadQueue::get();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 
 		if ValidatorGroups::get().is_empty() { return }
 
@@ -548,7 +548,7 @@ impl<T: Trait> Module<T> {
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		let session_start = <SessionStartBlock<T>>::get();
@@ -596,7 +596,7 @@ impl<T: Trait> Module<T> {
 	/// Returns a helper for determining group rotation.
 	pub(crate) fn group_rotation_info() -> GroupRotationInfo<T::BlockNumber> {
 		let session_start_block = Self::session_start_block();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let group_rotation_frequency = <configuration::Module<T>>::config()
 			.group_rotation_frequency;
 
@@ -1539,8 +1539,8 @@ mod tests {
 	fn availability_predicate_no_rotation() {
 		let genesis_config = MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
-				config: HostConfiguration { 
-					group_rotation_frequency: 0, // no rotation 
+				config: HostConfiguration {
+					group_rotation_frequency: 0, // no rotation
 					..default_config()
 				},
 				..Default::default()
@@ -1571,7 +1571,7 @@ mod tests {
 			run_to_block(1, |number| match number {
 				1 => Some(SessionChangeNotification {
 					new_config: HostConfiguration{
-						// Note: the `group_rotation_frequency` config change 
+						// Note: the `group_rotation_frequency` config change
 						// is not accounted for on session change
 						// group_rotation_frequency: 0,
 						..default_config()

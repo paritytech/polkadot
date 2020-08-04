@@ -21,7 +21,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	weights::DispatchClass,
 };
-use system::ensure_root;
+use frame_system::ensure_root;
 use runtime_parachains::paras::{
 	self,
 	ParaGenesisArgs,
@@ -37,7 +37,7 @@ decl_error! {
 
 decl_module! {
 	/// A sudo wrapper to call into v1 paras module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		/// Schedule a para to be initialized at the start of the next session.
