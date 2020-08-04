@@ -7,7 +7,7 @@ license = "GPL-3.0"
 
 [dependencies]
 futures = "0.3.1"
-codec = { package = "parity-scale-codec", version = "1.0.0" }
+codec = { package = "parity-scale-codec", version = "1.3.4" }
 
 # Polkadot dependencies
 polkadot-primitives = { path = "../../../primitives" }

@@ -4,7 +4,7 @@ This subsystem is responsible for distributing PoV blocks. For now, unified with
 
 ## Protocol
 
-`ProtocolId`: `b"povd"`
+`ProtocolId`: `b"povd"`, `PeerSet`: `Validation`
 
 Input: [`PoVDistributionMessage`](../../types/overseer-protocol.md#pov-distribution-message)
 
@@ -18,7 +18,7 @@ Output:
 
 ## Functionality
 
-This network protocol is responsible for distributing [`PoV`s](../../types/availability.md#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly. This protocol is descrbied
+This network protocol is responsible for distributing [`PoV`s](../../types/availability.md#proof-of-validity) by gossip. Since PoVs are heavy in practice, gossip is far from the most efficient way to distribute them. In the future, this should be replaced by a better network protocol that finds validators who have validated the block and connects to them directly. This protocol is descrbied.
 
 This protocol is described in terms of "us" and our peers, with the understanding that this is the procedure that any honest node will run. It has the following goals:
   - We never have to buffer an unbounded amount of data

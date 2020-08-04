@@ -28,8 +28,9 @@ use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
-use sc_rpc::DenyUnsafe;
 use sp_block_builder::BlockBuilder;
+pub use sc_rpc::DenyUnsafe;
+pub use jsonrpc_pubsub::manager::SubscriptionManager;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
@@ -63,7 +64,7 @@ pub struct GrandpaDeps {
 	/// Authority set info.
 	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
 	/// Receives notifications about justification events from Grandpa.
-	pub justification_receiver: sc_finality_grandpa::GrandpaJustifications<Block>,
+	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
 	/// Subscription manager to keep track of pubsub subscribers.
 	pub subscriptions: jsonrpc_pubsub::manager::SubscriptionManager,
 }
@@ -85,16 +86,15 @@ pub struct FullDeps<C, P, SC> {
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
+pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block>,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error=BlockChainError>,
 	C: Send + Sync + 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UE>,
+	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,
 	P: TransactionPool + Sync + Send + 'static,
-	UE: codec::Codec + Send + Sync + 'static,
 	SC: SelectChain<Block> + 'static,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
@@ -119,7 +119,7 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
-		justification_receiver,
+		justification_stream,
 		subscriptions,
 	} = grandpa;
 
@@ -145,7 +145,7 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
 			shared_authority_set,
 			shared_voter_state,
-			justification_receiver,
+			justification_stream,
 			subscriptions,
 		))
 	);
@@ -153,16 +153,15 @@ pub fn create_full<C, P, UE, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 }
 
 /// Instantiate all RPC extensions for light node.
-pub fn create_light<C, P, F, UE>(deps: LightDeps<C, F, P>) -> RpcExtension
+pub fn create_light<C, P, F>(deps: LightDeps<C, F, P>) -> RpcExtension
 	where
 		C: ProvideRuntimeApi<Block>,
 		C: HeaderBackend<Block>,
 		C: Send + Sync + 'static,
 		C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
-		C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance, UE>,
+		C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 		P: TransactionPool + Sync + Send + 'static,
 		F: Fetcher<Block> + 'static,
-		UE: codec::Codec + Send + Sync + 'static,
 {
 	use frame_rpc_system::{LightSystem, SystemApi};
 
