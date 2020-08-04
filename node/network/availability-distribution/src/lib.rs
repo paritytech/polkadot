@@ -117,8 +117,25 @@ struct ProtocolState {
 	/// Maps ancestor -> relay parents in view
 	ancestry: HashMap<H256, HashSet<H256>>,
 
-	/// Track things per relay parent
+	/// Track things needed to start and stop work on a particular relay parent.
 	per_relay_parent: HashMap<H256, PerRelayParent>,
+
+	/// Track data that is specific to a candidate.
+	per_candidate: HashMap<H256, PerCandidate>,
+}
+
+#[derive(Debug, Clone, Default)]
+struct PerCandidate {
+	/// A Candidate and a set of known erasure chunks in form of messages to be gossiped / distributed if the peer view wants that.
+	/// This is _across_ peers and not specific to a particular one.
+	/// candidate hash + erasure chunk index -> gossip message
+	message_vault: HashMap<u32, AvailabilityGossipMessage>,
+
+	/// Track received candidate hashes and chunk indices from peers.
+	received_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
+
+	/// Track already sent candidate hashes and the erasure chunk index to the peers.
+	sent_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -126,22 +143,11 @@ struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
 	ancestors: HashSet<H256>,
 
-	/// Track received candidate hashes and chunk indices from peers.
-	received_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
-
-	/// Track already sent candidate hashes and the erasure chunk index to the peers.
-	sent_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
-
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
 
 	/// If this node is a validator, note the index in the validator set.
 	validator_index: Option<ValidatorIndex>,
-
-	/// A Candidate and a set of known erasure chunks in form of messages to be gossiped / distributed if the peer view wants that.
-	/// This is _across_ peers and not specific to a particular one.
-	/// candidate hash + erasure chunk index -> gossip message
-	message_vault: HashMap<(H256, ValidatorIndex), AvailabilityGossipMessage>,
 }
 
 impl ProtocolState {
@@ -175,19 +181,20 @@ impl ProtocolState {
 		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
 
 		// register the relation of relay_parent to candidate..
+		// ..and the reverse association.
 		for (relay_parent_or_ancestor, receipt) in candidates.clone() {
+			self
+				.reverse
+				.insert(candidate_hash_of(&receipt), relay_parent_or_ancestor.clone());
+			self
+				.per_candidate
+				.entry(candidate_hash_of(&receipt))
+				.or_default();
 			self.receipts.entry(relay_parent_or_ancestor).or_default().insert(receipt);
 		}
 
-		// ..and the reverse association.
-		for (relay_parent_or_ancestor, candidate) in candidates.iter() {
-			self
-				.reverse
-				.insert(candidate_hash_of(candidate), relay_parent_or_ancestor.clone());
-		}
-
 		// collect the ancestors again from the hash map
-		let ancestors = candidates.iter().filter_map(|(ancestor_or_relay_parent, receipt)| {
+		let ancestors = candidates.iter().filter_map(|(ancestor_or_relay_parent, _receipt)| {
 			if ancestor_or_relay_parent == &relay_parent {
 				None
 			} else {
@@ -212,11 +219,22 @@ impl ProtocolState {
 
 
 	fn remove_relay_parent(&mut self, relay_parent: &H256) -> Result<()> {
-
-		if let Some(mut per_relay_parent) = self.per_relay_parent.remove(relay_parent) {
+		// we might be ancestor of some other relay_parent
+		if let Some(ref mut descendants) = self.ancestry.get_mut(relay_parent) {
+			// if we were the last user, and it is
+			// not explicitly set to be worked on by the overseer
+			if descendants.is_empty() {
+				// remove from the ancestry index
+				self.ancestry.remove(relay_parent);
+				// and also remove the actual receipt
+				self.receipts.remove(relay_parent);
+				self.per_candidate.remove(relay_parent);
+			}
+		}
+		if let Some(per_relay_parent) = self.per_relay_parent.remove(relay_parent) {
 			// remove all "references" from the hash maps and sets for all ancestors
 			for ancestor in per_relay_parent.ancestors {
-				// we might be ancestor of some other relay_parent
+				// one of our decendants might be ancestor of some other relay_parent
 				if let Some(ref mut descendants) = self.ancestry.get_mut(&ancestor) {
 					// we do not need this descendant anymore
 					descendants.remove(&relay_parent);
@@ -227,6 +245,7 @@ impl ProtocolState {
 						self.ancestry.remove(&ancestor);
 						// and also remove the actual receipt
 						self.receipts.remove(&ancestor);
+						self.per_candidate.remove(&ancestor);
 					}
 				}
 			}
@@ -347,9 +366,9 @@ where
 		let para = desc.para_id;
 
 		let per_relay_parent = state
-		.per_relay_parent
-		.get_mut(&desc.relay_parent)
-		.expect("View update message comes after overseer start work, hence must have a relay parent. qed");
+			.per_relay_parent
+			.get_mut(&desc.relay_parent)
+			.expect("View update message comes after overseer start work, hence must have a relay parent. qed");
 
 		// we are a validator
 		let validator_index = if let Some(validator_index) = per_relay_parent.validator_index {
@@ -366,8 +385,6 @@ where
 		};
 
 		// perform erasure encoding
-		let head_data = query_head_data(ctx, added, para).await?;
-
 		let omitted_validation = query_omitted_validation_data(ctx, added.clone()).await?;
 
 		let available_data = AvailableData {
@@ -383,7 +400,7 @@ where
 
 		if let Some(erasure_chunk) = erasure_chunks.get(validator_index as usize) {
 			match store_chunk(ctx, candidate_hash, validator_index, erasure_chunk.clone()).await {
-				Err(e) => warn!(target: TARGET, "Failed to send store message to overseer"),
+				Err(_e) => warn!(target: TARGET, "Failed to send store message to overseer"),
 				Ok(Err(())) => warn!(target: TARGET, "Failed to store our own erasure chunk"),
 				Ok(Ok(())) => {}
 			}
@@ -398,18 +415,24 @@ where
 		// obtain interested peers in the candidate hash
 		let peers: Vec<PeerId> = state
 			.peer_views
-			.iter()
-			.filter(|(peer, view)| view.contains(&desc.relay_parent))
+			.clone()
+			.into_iter()
+			.filter(|(_peer, view)| {
+				state.cached_live_candidates_unioned(view.0.iter()).contains_key(&candidate_hash)
+			})
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
+
 		// distribute all erasure messages to interested peers
 		for erasure_chunk in erasure_chunks {
+
 			// only the peers which did not receive this particular erasure chunk
+			let per_candidate = state.per_candidate.entry(candidate_hash.clone()).or_default();
 			let peers = peers
 				.iter()
 				.filter(|peer| {
-					!per_relay_parent
+					!per_candidate
 						.sent_messages
 						.get(*peer)
 						.filter(|set| {
@@ -424,7 +447,9 @@ where
 				candidate_hash,
 				erasure_chunk,
 			};
-			send_tracked_gossip_message_to_peers(ctx, per_relay_parent, peers, message).await?;
+
+			// let per_candidate = state.per_candidate.entry(candidate_hash.clone()).or_default();
+			send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await?;
 		}
 	}
 
@@ -439,32 +464,32 @@ where
 #[inline(always)]
 async fn send_tracked_gossip_message_to_peers<Context>(
 	ctx: &mut Context,
-	per_relay_parent: &mut PerRelayParent,
+	per_candidate: &mut PerCandidate,
 	peers: Vec<PeerId>,
 	message: AvailabilityGossipMessage,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_relay_parent, peers, iter::once(message)).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, peers, iter::once(message)).await
 }
 
 #[inline(always)]
 async fn send_tracked_gossip_messages_to_peer<Context>(
 	ctx: &mut Context,
-	per_relay_parent: &mut PerRelayParent,
+	per_candidate: &mut PerCandidate,
 	peer: PeerId,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_relay_parent, vec![peer], message_iter).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, vec![peer], message_iter).await
 }
 
 async fn send_tracked_gossip_messages_to_peers<Context>(
 	ctx: &mut Context,
-	per_relay_parent: &mut PerRelayParent,
+	per_candidate: &mut PerCandidate,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
@@ -472,17 +497,17 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	for message in message_iter {
-		let message_id = (message.candidate_hash.clone(), message.erasure_chunk.index);
 		for peer in peers.clone() {
-			per_relay_parent
+			let message_id = (message.candidate_hash, message.erasure_chunk.index);
+			per_candidate
 				.sent_messages
 				.entry(peer)
 				.or_default()
-				.insert(message_id.clone());
+				.insert(message_id);
 		}
 
 		let encoded = message.encode();
-		per_relay_parent.message_vault.insert(message_id, message);
+		per_candidate.message_vault.insert(message.erasure_chunk.index, message);
 
 		ctx.send_message(
 			AllMessages::NetworkBridge(
@@ -524,7 +549,9 @@ where
 	// in to that peer.
 
 	for (candidate_hash, receipt) in delta_candidates {
-		if let Some(per_relay_parent) = state
+		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
+
+		let messages = if let Some(per_relay_parent) = state
 			.per_relay_parent
 			.get_mut(&receipt.descriptor().relay_parent)
 		{
@@ -534,7 +561,7 @@ where
 				.into_iter()
 				.filter(|erasure_chunk_index: &ValidatorIndex| {
 					// check if that erasure chunk was already sent before
-					if let Some(sent_set) = per_relay_parent.sent_messages.get(&origin) {
+					if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
 						!sent_set.contains(&(candidate_hash, *erasure_chunk_index))
 					} else {
 						true
@@ -542,15 +569,20 @@ where
 				})
 				.filter_map(|erasure_chunk_index: ValidatorIndex| {
 					// try to pick up the message from the message vault
-					per_relay_parent
+					per_candidate
 						.message_vault
-						.get(&(candidate_hash, erasure_chunk_index))
+						.get(&erasure_chunk_index)
 				})
 				.cloned()
 				.collect::<HashSet<_>>();
-			send_tracked_gossip_messages_to_peer(ctx, per_relay_parent, origin.clone(), messages)
-				.await?;
-		}
+			messages
+		} else {
+			continue;
+		};
+
+		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages)
+			.await?;
+
 	}
 	Ok(())
 }
@@ -580,20 +612,6 @@ async fn process_incoming_peer_message<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// reverse lookup of the relay parent
-	let relay_parent = if let Some(relay_parent) = state.reverse.get(&message.candidate_hash) {
-		relay_parent
-	} else {
-		// not in reverse lookup means nobody has it in their view
-		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
-	};
-
-	if !state.view.contains(&relay_parent) {
-		// we don't care about this, not part of our view
-		// and what is not in our view shall not be gossiped to peers
-		return modify_reputation(ctx, origin, COST_NOT_IN_VIEW).await;
-	}
-
 	// obtain the set of candidates we are interested in based on our current view
 	let live_candidates =
 		state.cached_live_candidates_unioned(state.view.0.iter());
@@ -605,6 +623,7 @@ where
 	} else {
 		return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
 	};
+
 
 	// check the merkle proof
 	let root = &live_candidate.commitments().erasure_root;
@@ -623,65 +642,66 @@ where
 		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
 	}
 
-	let mut per_relay_parent = state.per_relay_parent.get_mut(&relay_parent);
-	let per_relay_parent = if let Some(ref mut per_relay_parent) = per_relay_parent {
-		per_relay_parent
-	} else {
-		warn!(target: TARGET, "Missing relay parent data");
-		return Ok(());
-	};
 
 	// an internal unique identifier of this message
 	let message_id = (message.candidate_hash, message.erasure_chunk.index);
 
-	// check if this particular erasure chunk was already sent by that peer before
 	{
-		let received_set = per_relay_parent
-			.received_messages
-			.entry(origin.clone())
-			.or_default();
-		if received_set.contains(&message_id) {
-			return modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
-		} else {
-			received_set.insert(message_id.clone());
+		let per_candidate = state.per_candidate.entry(message_id.0.clone()).or_default();
+
+		// check if this particular erasure chunk was already sent by that peer before
+		{
+			let received_set = per_candidate
+				.received_messages
+				.entry(origin.clone())
+				.or_default();
+			if received_set.contains(&message_id) {
+				return modify_reputation(ctx, origin, COST_PEER_DUPLICATE_MESSAGE).await;
+			} else {
+				received_set.insert(message_id.clone());
+			}
 		}
+
+		// insert into known messages and change reputation
+		if per_candidate
+			.message_vault
+			.insert(message_id.1, message.clone())
+			.is_none()
+		{
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
+		} else {
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
+		};
+
 	}
-
-	// insert into known messages and change reputation
-	if per_relay_parent
-		.message_vault
-		.insert(message_id.clone(), message.clone())
-		.is_none()
-	{
-		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
-	} else {
-		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
-	};
-
 	// condense the peers to the peers with interest on the candidate
 	let peers = state
 		.peer_views
-		.iter()
+		.clone()
+		.into_iter()
 		.filter(|(_peer, view)| {
-			// peers view must contain the relay parent that is associated to the candidate hash
-			view.contains(&relay_parent)
+			// peers view must contain the candidate hash too
+			state.cached_live_candidates_unioned(view.0.iter()).contains_key(&message_id.0)
 		})
-		.filter(|(peer, view)| {
-			// quirk to make rustc quiet
-			let peer: &PeerId = peer;
+		.map(|(peer, _)| -> PeerId { peer.clone() })
+		.collect::<Vec<_>>();
+
+	let per_candidate = state.per_candidate.entry(message_id.0.clone()).or_default();
+
+	let peers = peers.into_iter()
+		.filter(|peer| {
 			let peer: PeerId = peer.clone();
 			// avoid sending duplicate messages
-			per_relay_parent
+			per_candidate
 				.sent_messages
 				.entry(peer)
 				.or_default()
 				.contains(&message_id)
 		})
-		.map(|(peer, _)| -> PeerId { peer.clone() })
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_relay_parent, peers, message).await
+	send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await
 }
 
 /// The bitfield distribution subsystem.
@@ -823,7 +843,8 @@ where
 
 	for relay_parent in iter {
 		// direct candidates for one relay parent
-		let candidate = query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
+		let receipts = query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
+		live_candidates.extend(iter::once(relay_parent.clone()).zip(receipts.into_iter()));
 
 		// register one of relay parents (not the ancestors)
 		let ancestors = query_k_ancestors(ctx, relay_parent, AvailabilityDistributionSubsystem::K).await?;
@@ -1100,7 +1121,7 @@ mod test {
 	}
 
 	fn test_harness<T: Future<Output = ()>>(
-		mut keystore: KeyStorePtr,
+		keystore: KeyStorePtr,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1216,6 +1237,8 @@ mod test {
 
 			let para_27 = ParaId::from(27);
 			let para_81 = ParaId::from(81);
+
+			log::trace!("stage0");
 
 			overseer_signal(
 				&mut virtual_overseer,
@@ -1445,9 +1468,6 @@ mod test {
 				}
 			);
 
-
-
-			// @todo expand here
 		});
 	}
 }
