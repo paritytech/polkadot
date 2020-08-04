@@ -22,7 +22,7 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::v0::{self as parachain, Hash, BlockId, AccountId, Nonce, Balance};
+use polkadot_primitives::v0::{self as parachain, Hash, BlockId};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
 use service::{error::Error as ServiceError};
@@ -52,7 +52,7 @@ pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 use prometheus_endpoint::Registry;
-pub use self::client::PolkadotClient;
+pub use self::client::*;
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -81,42 +81,6 @@ native_executor_instance!(
 	rococo_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
-
-/// A set of APIs that polkadot-like runtimes must implement.
-pub trait RuntimeApiCollection:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
-
-impl<Api> RuntimeApiCollection for Api
-where
-	Api:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
@@ -732,11 +696,7 @@ pub fn polkadot_new_full(
 )
 	-> Result<(
 		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			polkadot_runtime::RuntimeApi
-		>>,
+		Arc<impl AbstractClient<Block, FullBackend>>,
 		FullNodeHandles,
 	), ServiceError>
 {
@@ -764,12 +724,7 @@ pub fn kusama_new_full(
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			kusama_runtime::RuntimeApi
-			>
-		>,
+		Arc<impl AbstractClient<Block, FullBackend>>,
 		FullNodeHandles
 	), ServiceError>
 {
@@ -798,11 +753,7 @@ pub fn westend_new_full(
 )
 	-> Result<(
 		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			westend_runtime::RuntimeApi
-		>>,
+		Arc<impl AbstractClient<Block, FullBackend>>,
 		FullNodeHandles,
 	), ServiceError>
 {
@@ -831,11 +782,7 @@ pub fn rococo_new_full(
 )
 	-> Result<(
 		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			TFullBackend<Block>,
-			rococo_runtime::RuntimeApi
-		>>,
+		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
 		FullNodeHandles,
 	), ServiceError>
 {
@@ -863,90 +810,68 @@ pub struct FullNodeHandles {
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
 }
 
-/// A builder for a node.
-pub struct NodeBuilder {
-	config: Configuration,
+/// Build a new light node.
+pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
+	if config.chain_spec.is_kusama() {
+		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+	} else if config.chain_spec.is_westend() {
+		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
+	} else if config.chain_spec.is_rococo() {
+		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
+	} else {
+		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+	}
 }
 
-impl NodeBuilder {
-	/// Create a new node builder.
-	pub fn new(config: Configuration) -> Self {
-		Self {
+/// Build a new full node.
+#[cfg(feature = "full-node")]
+pub fn build_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_disabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
+	if config.chain_spec.is_kusama() {
+		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
-		}
-	}
-
-	/// Build a new light node.
-	pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
-		if self.config.chain_spec.is_kusama() {
-			new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(
-				self.config,
-			)
-		} else if self.config.chain_spec.is_westend() {
-			new_light::<westend_runtime::RuntimeApi, WestendExecutor>(
-				self.config,
-			)
-		} else if self.config.chain_spec.is_rococo() {
-			new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(
-				self.config,
-			)
-		} else {
-			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
-				self.config,
-			)
-		}
-	}
-
-	/// Build a new full node.
-	#[cfg(feature = "full-node")]
-	pub fn build_full(
-		self,
-		collating_for: Option<(CollatorId, parachain::Id)>,
-		max_block_data_size: Option<u64>,
-		authority_discovery_disabled: bool,
-		slot_duration: u64,
-		grandpa_pause: Option<(u32, u32)>,
-	) -> Result<TaskManager, ServiceError> {
-		if self.config.chain_spec.is_kusama() {
-			new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
-				self.config,
-				collating_for,
-				max_block_data_size,
-				authority_discovery_disabled,
-				slot_duration,
-				grandpa_pause,
-				false,
-			).map(|(task_manager, _, _, _, _)| task_manager)
-		} else if self.config.chain_spec.is_westend() {
-			new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
-				self.config,
-				collating_for,
-				max_block_data_size,
-				authority_discovery_disabled,
-				slot_duration,
-				grandpa_pause,
-				false,
-			).map(|(task_manager, _, _, _, _)| task_manager)
-		} else if self.config.chain_spec.is_rococo() {
-			new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
-				self.config,
-				collating_for,
-				max_block_data_size,
-				authority_discovery_disabled,
-				slot_duration,
-				grandpa_pause,
-				false,
-			).map(|(task_manager, _, _, _, _)| task_manager)
-		} else {
-			new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
-				self.config,
-				collating_for,
-				max_block_data_size,
-				authority_discovery_disabled,
-				slot_duration,
-				grandpa_pause,
-				false,
-			).map(|(task_manager, _, _, _, _)| task_manager)
-		}
+			collating_for,
+			max_block_data_size,
+			authority_discovery_disabled,
+			slot_duration,
+			grandpa_pause,
+			false,
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
+	} else if config.chain_spec.is_westend() {
+		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+			config,
+			collating_for,
+			max_block_data_size,
+			authority_discovery_disabled,
+			slot_duration,
+			grandpa_pause,
+			false,
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
+	} else if config.chain_spec.is_rococo() {
+		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
+			config,
+			collating_for,
+			max_block_data_size,
+			authority_discovery_disabled,
+			slot_duration,
+			grandpa_pause,
+			false,
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Rococo(client), handles))
+	} else {
+		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+			config,
+			collating_for,
+			max_block_data_size,
+			authority_discovery_disabled,
+			slot_duration,
+			grandpa_pause,
+			false,
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Polkadot(client), handles))
 	}
 }
