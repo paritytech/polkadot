@@ -764,7 +764,7 @@ where
 ///
 /// This dramatically reduces the number of public types in the crate; the only things which must be public are now
 ///
-/// - `struct ExampleSubsystem`
+/// - `struct ExampleSubsystem` (defined by this macro)
 /// - `type ToJob` (because it appears in a trait bound)
 /// - `type RunArgs` (because it appears in a function signature)
 ///
@@ -772,19 +772,15 @@ where
 /// the purpose of doing it automatically:
 ///
 /// ```ignore
-/// delegated_subsystem!(ExampleJob as ExampleSubsystem);
+/// delegated_subsystem!(ExampleJob(ExampleRunArgs) <- ExampleToJob as ExampleSubsystem);
 /// ```
-///
-/// ## Dependencies
-///
-/// This macro depends on the `sp_core` crate. That crate must therefore appear in the
 #[macro_export]
 macro_rules! delegated_subsystem {
-	($job:ident as $subsystem:ident) => {
-		delegated_subsystem!($job as $subsystem; stringify!($subsystem));
+	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident) => {
+		delegated_subsystem!($job($run_args) <- $to_job as $subsystem; stringify!($subsystem));
 	};
 
-	($job:ident as $subsystem:ident; $subsystem_name:expr) => {
+	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
 		#[doc = "Manager type for the "]
 		#[doc = $subsystem_name]
 		type Manager<Spawner, Context> = $crate::util::JobManager<Spawner, Context, $job>;
@@ -799,18 +795,18 @@ macro_rules! delegated_subsystem {
 		where
 			Spawner: Clone + $crate::util::SpawnNamed + Send + Unpin,
 			Context: $crate::SubsystemContext,
-			<Context as $crate::SubsystemContext>::Message: Into<<$job as $crate::util::JobTrait>::ToJob>,
+			<Context as $crate::SubsystemContext>::Message: Into<$to_job>,
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
-			pub fn new(spawner: Spawner, run_args: <$job as $crate::util::JobTrait>::RunArgs) -> Self {
+			pub fn new(spawner: Spawner, run_args: $run_args) -> Self {
 				$subsystem {
 					manager: $crate::util::JobManager::new(spawner, run_args)
 				}
 			}
 
 			/// Run this subsystem
-			pub async fn run(ctx: Context, run_args: <$job as $crate::util::JobTrait>::RunArgs, spawner: Spawner) {
+			pub async fn run(ctx: Context, run_args: $run_args, spawner: Spawner) {
 				<Manager<Spawner, Context>>::run(ctx, run_args, spawner, None).await
 			}
 		}
@@ -819,7 +815,7 @@ macro_rules! delegated_subsystem {
 		where
 			Spawner: $crate::util::SpawnNamed + Send + Clone + Unpin + 'static,
 			Context: $crate::SubsystemContext,
-			<Context as $crate::SubsystemContext>::Message: Into<ToJob>,
+			<Context as $crate::SubsystemContext>::Message: Into<$to_job>,
 		{
 			fn start(self, ctx: Context) -> $crate::SpawnedSubsystem {
 				self.manager.start(ctx)

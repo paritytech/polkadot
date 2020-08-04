@@ -772,7 +772,7 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob as CandidateBackingSubsystem);
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
