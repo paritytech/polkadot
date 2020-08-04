@@ -82,43 +82,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-/// A set of APIs that polkadot-like runtimes must implement.
-pub trait RuntimeApiCollection:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
-
-impl<Api> RuntimeApiCollection for Api
-where
-	Api:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
-{}
-
-======= end
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
