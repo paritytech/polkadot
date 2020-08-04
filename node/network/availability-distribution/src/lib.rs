@@ -71,12 +71,10 @@ enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Bitfield signature invalid");
-const COST_NOT_A_LIVE_CANDIDATE: Rep =
-	Rep::new(-51, "Candidate is not part of the live candidates");
+const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::new(-51, "Candidate is not live");
 const COST_NOT_IN_VIEW: Rep = Rep::new(-51, "Not interested in that parent hash");
-const COST_MESSAGE_NOT_DECODABLE: Rep = Rep::new(-100, "Not interested in that parent hash");
-const COST_PEER_DUPLICATE_MESSAGE: Rep =
-	Rep::new(-500, "Peer sent the same message multiple times");
+const COST_MESSAGE_NOT_DECODABLE: Rep = Rep::new(-100, "Message is not decodable");
+const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::new(-500, "Peer sent identical messages");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 
@@ -1236,11 +1234,11 @@ mod test {
 	}
 
 	fn valid_availability_gossip(
+		candidate_hash: H256,
 		validator_count: usize,
 		validator_index: ValidatorIndex,
 		erasure_chunk_index: u32,
 	) -> AvailabilityGossipMessage {
-		let candidate_hash = H256::from_slice(&[0x07u8; 32]);
 		let available_data = AvailableData {
 			pov: PoV {
 				block_data: BlockData(vec![0x77; 453]),
@@ -1273,6 +1271,8 @@ mod test {
 			.filter(None, log::LevelFilter::Trace)
 			.try_init();
 		let keystore = keystore::Store::new_in_memory();
+
+		let candidate_hash = H256::from_slice(&[0x07u8; 32]);;
 
 		// @todo fails with invalid seed
 		// let validator_keypair: ValidatorPair = keystore
@@ -1472,7 +1472,7 @@ mod test {
 			);
 
 			let valid: AvailabilityGossipMessage =
-				valid_availability_gossip(validators.len(), validator_index, 2);
+				valid_availability_gossip(candidate_hash, validators.len(), validator_index, 2);
 
 			// valid (first, from b)
 			overseer_send(
