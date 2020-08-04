@@ -54,7 +54,7 @@ use sp_runtime::transaction_validity::InvalidTransaction;
 
 use inherents::{ProvideInherent, InherentData, MakeFatalError, InherentIdentifier};
 
-use system::{
+use frame_system::{
 	ensure_none, ensure_signed,
 	offchain::{CreateSignedTransaction, SendSignedTransaction, Signer},
 };
@@ -232,9 +232,9 @@ impl<Proof: Parameter + GetSessionNumber> DoubleVoteReport<Proof> {
 	}
 }
 
-impl<T: session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
+impl<T: pallet_session::Trait> Get<Vec<T::ValidatorId>> for ValidatorIdentities<T> {
 	fn get() -> Vec<T::ValidatorId> {
-		<session::Module<T>>::validators()
+		<pallet_session::Module<T>>::validators()
 	}
 }
 
@@ -249,13 +249,13 @@ impl GetSessionNumber for sp_session::MembershipProof {
 	}
 }
 
-pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + session::historical::Trait {
+pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + pallet_session::historical::Trait {
 	// The transaction signing authority
-	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
+	type AuthorityId: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>;
 
 	/// The outer origin type.
 	type Origin: From<Origin>
-		+ From<<Self as system::Trait>::Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
 		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
 	/// The outer call dispatch type.
@@ -572,7 +572,7 @@ decl_error! {
 
 decl_module! {
 	/// Parachains module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -683,7 +683,7 @@ decl_module! {
 		) -> DispatchResult {
 			let reporter = ensure_signed(origin)?;
 
-			let validators = <session::Module<T>>::validators();
+			let validators = <pallet_session::Module<T>>::validators();
 			let validator_set_count = validators.len() as u32;
 
 			let session_index = report.proof.session();
@@ -845,7 +845,7 @@ impl<T: Trait> Module<T> {
 		}
 
 		if let Some(code) = code {
-			Self::note_past_code(id, <system::Module<T>>::block_number(), code);
+			Self::note_past_code(id, <frame_system::Module<T>>::block_number(), code);
 		}
 	}
 
@@ -916,8 +916,8 @@ impl<T: Trait> Module<T> {
 
 	/// Get a `SigningContext` with a current `SessionIndex` and parent hash.
 	pub fn signing_context() -> SigningContext {
-		let session_index = <session::Module<T>>::current_index();
-		let parent_hash = <system::Module<T>>::parent_hash();
+		let session_index = <pallet_session::Module<T>>::current_index();
+		let parent_hash = <frame_system::Module<T>>::parent_hash();
 
 		SigningContext {
 			session_index,
@@ -948,11 +948,11 @@ impl<T: Trait> Module<T> {
 		if let Ok(message_call) = <T as Trait>::Call::decode(&mut &data[..]) {
 			let origin: <T as Trait>::Origin = match origin {
 				ParachainDispatchOrigin::Signed =>
-					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Signed(id.into_account()))),
+					<T as Trait>::Origin::from(<T as frame_system::Trait>::Origin::from(frame_system::RawOrigin::Signed(id.into_account()))),
 				ParachainDispatchOrigin::Parachain =>
 					Origin::Parachain(id).into(),
 				ParachainDispatchOrigin::Root =>
-					<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Root)),
+					<T as Trait>::Origin::from(<T as frame_system::Trait>::Origin::from(frame_system::RawOrigin::Root)),
 			};
 			let _ok = message_call.dispatch(origin).is_ok();
 			// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -1169,7 +1169,7 @@ impl<T: Trait> Module<T> {
 
 	/// Get the global validation schedule for all parachains.
 	pub fn global_validation_data() -> GlobalValidationData {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		GlobalValidationData {
 			max_code_size: T::MaxCodeSize::get(),
 			max_head_data_size: T::MaxHeadDataSize::get(),
@@ -1185,7 +1185,7 @@ impl<T: Trait> Module<T> {
 
 	/// Get the local validation schedule for a particular parachain.
 	pub fn local_validation_data(id: &ParaId, perceived_height: T::BlockNumber) -> Option<LocalValidationData> {
-		if perceived_height + One::one() != <system::Module<T>>::block_number() {
+		if perceived_height + One::one() != <frame_system::Module<T>>::block_number() {
 			// sanity-check - no non-direct-parent blocks allowed at the moment.
 			return None
 		}
@@ -1232,7 +1232,7 @@ impl<T: Trait> Module<T> {
 	/// Get the local validation data for a particular parent w.r.t. the current
 	/// block height.
 	pub fn current_local_validation_data(id: &ParaId) -> Option<LocalValidationData> {
-		let now: T::BlockNumber = <system::Module<T>>::block_number();
+		let now: T::BlockNumber = <frame_system::Module<T>>::block_number();
 		if now >= One::one() {
 			Self::local_validation_data(id, now - One::one())
 		} else {
@@ -1353,8 +1353,8 @@ impl<T: Trait> Module<T> {
 
 		let sorted_validators = make_sorted_duties(&duty_roster.validator_duty);
 
-		let relay_height_now = <system::Module<T>>::block_number();
-		let parent_hash = <system::Module<T>>::parent_hash();
+		let relay_height_now = <frame_system::Module<T>>::block_number();
+		let parent_hash = <frame_system::Module<T>>::parent_hash();
 		let signing_context = Self::signing_context();
 		let code_upgrade_delay = T::ValidationUpgradeDelay::get();
 
@@ -1380,7 +1380,7 @@ impl<T: Trait> Module<T> {
 			);
 
 			// Since we only allow execution in context of parent hash.
-			let perceived_relay_block_height = <system::Module<T>>::block_number() - One::one();
+			let perceived_relay_block_height = <frame_system::Module<T>>::block_number() - One::one();
 
 			ensure!(
 				candidate.validity_votes.len() >= majority_of(validator_group.len()),
@@ -1452,7 +1452,7 @@ impl<T: Trait> Module<T> {
 
 		Ok(IncludedBlocks {
 			actual_number: relay_height_now,
-			session: <session::Module<T>>::current_index(),
+			session: <pallet_session::Module<T>>::current_index(),
 			random_seed,
 			active_parachains: active_parachains.iter().map(|x| x.0).collect(),
 			para_blocks: para_block_hashes,
@@ -1506,7 +1506,7 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(validators: I)
@@ -1602,11 +1602,11 @@ pub enum DoubleVoteValidityError {
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	const IDENTIFIER: &'static str = "ValidateDoubleVoteReports";
 	type AccountId = T::AccountId;
-	type Call = <T as system::Trait>::Call;
+	type Call = <T as frame_system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 
@@ -1627,7 +1627,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 
 		if let Some(local_call) = call.is_sub_type() {
 			if let Call::report_double_vote(report) = local_call {
-				let validators = <session::Module<T>>::validators();
+				let validators = <pallet_session::Module<T>>::validators();
 
 				let expected_session = report.signing_context.session_index;
 				let session = report.proof.session();
@@ -1692,8 +1692,8 @@ mod tests {
 	use crate::parachains;
 	use crate::registrar;
 	use crate::slots;
-	use session::{SessionHandler, SessionManager};
-	use staking::EraIndex;
+	use pallet_session::{SessionHandler, SessionManager};
+	use pallet_staking::EraIndex;
 
 	// result of <NodeCodec<Blake2Hasher> as trie_db::NodeCodec<Blake2Hasher>>::hashed_null_node()
 	const EMPTY_TRIE_ROOT: [u8; 32] = [
@@ -1702,7 +1702,7 @@ mod tests {
 	];
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {
+		pub enum Origin for Test {
 			parachains
 		}
 	}
@@ -1729,7 +1729,7 @@ mod tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
 
-	impl system::Trait for Test {
+	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -1751,13 +1751,13 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u128>;
+		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
 		type SystemWeightInfo = ();
 	}
 
-	impl<C> system::offchain::SendTransactionTypes<C> for Test where
+	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test where
 		Call: From<C>,
 	{
 		type OverarchingCall = Call;
@@ -1784,28 +1784,28 @@ mod tests {
 		fn on_disabled(_: usize) {}
 	}
 
-	impl session::Trait for Test {
+	impl pallet_session::Trait for Test {
 		type Event = ();
 		type ValidatorId = u64;
-		type ValidatorIdOf = staking::StashOf<Self>;
-		type ShouldEndSession = session::PeriodicSessions<Period, Offset>;
-		type NextSessionRotation = session::PeriodicSessions<Period, Offset>;
-		type SessionManager = session::historical::NoteHistoricalRoot<Self, Staking>;
+		type ValidatorIdOf = pallet_staking::StashOf<Self>;
+		type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+		type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+		type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
 		type SessionHandler = TestSessionHandler;
 		type Keys = TestSessionKeys;
 		type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
 		type WeightInfo = ();
 	}
 
-	impl session::historical::Trait for Test {
-		type FullIdentification = staking::Exposure<u64, Balance>;
-		type FullIdentificationOf = staking::ExposureOf<Self>;
+	impl pallet_session::historical::Trait for Test {
+		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
+		type FullIdentificationOf = pallet_staking::ExposureOf<Self>;
 	}
 
 	parameter_types! {
 		pub const MinimumPeriod: u64 = 3;
 	}
-	impl timestamp::Trait for Test {
+	impl pallet_timestamp::Trait for Test {
 		type Moment = u64;
 		type OnTimestampSet = ();
 		type MinimumPeriod = MinimumPeriod;
@@ -1825,23 +1825,23 @@ mod tests {
 		pub const ExpectedBlockTime: u64 = time::MILLISECS_PER_BLOCK;
 	}
 
-	impl babe::Trait for Test {
+	impl pallet_babe::Trait for Test {
 		type EpochDuration = EpochDuration;
 		type ExpectedBlockTime = ExpectedBlockTime;
 
 		// session module is the trigger
-		type EpochChangeTrigger = babe::ExternalTrigger;
+		type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 
 		type KeyOwnerProofSystem = ();
 
 		type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
-			babe::AuthorityId,
+			pallet_babe::AuthorityId,
 		)>>::Proof;
 
 		type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 			KeyTypeId,
-			babe::AuthorityId,
+			pallet_babe::AuthorityId,
 		)>>::IdentificationTuple;
 
 		type HandleEquivocation = ();
@@ -1851,7 +1851,7 @@ mod tests {
 		pub const ExistentialDeposit: Balance = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u128;
 		type DustRemoval = ();
 		type Event = ();
@@ -1873,8 +1873,8 @@ mod tests {
 
 	parameter_types! {
 		pub const SessionsPerEra: sp_staking::SessionIndex = 3;
-		pub const BondingDuration: staking::EraIndex = 3;
-		pub const SlashDeferDuration: staking::EraIndex = 0;
+		pub const BondingDuration: pallet_staking::EraIndex = 3;
+		pub const SlashDeferDuration: pallet_staking::EraIndex = 0;
 		pub const AttestationPeriod: BlockNumber = 100;
 		pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 		pub const MaxNominatorRewardedPerValidator: u32 = 64;
@@ -1892,7 +1892,7 @@ mod tests {
 		fn convert(x: u128) -> u64 { x.saturated_into() }
 	}
 
-	impl staking::Trait for Test {
+	impl pallet_staking::Trait for Test {
 		type RewardRemainder = ();
 		type CurrencyToVote = CurrencyToVoteHandler;
 		type Event = ();
@@ -1902,9 +1902,9 @@ mod tests {
 		type SessionsPerEra = SessionsPerEra;
 		type BondingDuration = BondingDuration;
 		type SlashDeferDuration = SlashDeferDuration;
-		type SlashCancelOrigin = system::EnsureRoot<Self::AccountId>;
+		type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
 		type SessionInterface = Self;
-		type UnixTime = timestamp::Module<Test>;
+		type UnixTime = pallet_timestamp::Module<Test>;
 		type RewardCurve = RewardCurve;
 		type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 		type NextNewSession = Session;
@@ -1956,9 +1956,9 @@ mod tests {
 		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
 	}
 
-	impl offences::Trait for Test {
+	impl pallet_offences::Trait for Test {
 		type Event = ();
-		type IdentificationTuple = session::historical::IdentificationTuple<Self>;
+		type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 		type OnOffenceHandler = Staking;
 		type WeightSoftLimit = OffencesWeightSoftLimit;
 		type WeightInfo = ();
@@ -1995,7 +1995,7 @@ mod tests {
 
 		pub type ReporterId = app::Public;
 		pub struct ReporterAuthorityId;
-		impl system::offchain::AppCrypto<ReporterId, sr25519::Signature> for ReporterAuthorityId {
+		impl frame_system::offchain::AppCrypto<ReporterId, sr25519::Signature> for ReporterAuthorityId {
 			type RuntimeAppPublic = ReporterId;
 			type GenericSignature = sr25519::Signature;
 			type GenericPublic = sr25519::Public;
@@ -2027,40 +2027,40 @@ mod tests {
 
 	type Extrinsic = TestXt<Call, ()>;
 
-	impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Test where
+	impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Test where
 		Call: From<LocalCall>,
 	{
-		fn create_transaction<C: system::offchain::AppCrypto<Self::Public, Self::Signature>>(
+		fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
 			call: Call,
 			_public: test_keys::ReporterId,
-			_account: <Test as system::Trait>::AccountId,
-			nonce: <Test as system::Trait>::Index,
+			_account: <Test as frame_system::Trait>::AccountId,
+			nonce: <Test as frame_system::Trait>::Index,
 		) -> Option<(Call, <Extrinsic as ExtrinsicT>::SignaturePayload)> {
 			Some((call, (nonce, ())))
 		}
 	}
 
-	impl system::offchain::SigningTypes for Test {
+	impl frame_system::offchain::SigningTypes for Test {
 		type Public = test_keys::ReporterId;
 		type Signature = sr25519::Signature;
 	}
 
 	type Parachains = Module<Test>;
-	type Balances = balances::Module<Test>;
-	type System = system::Module<Test>;
-	type Offences = offences::Module<Test>;
-	type Staking = staking::Module<Test>;
-	type Session = session::Module<Test>;
-	type Timestamp = timestamp::Module<Test>;
-	type RandomnessCollectiveFlip = randomness_collective_flip::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
+	type System = frame_system::Module<Test>;
+	type Offences = pallet_offences::Module<Test>;
+	type Staking = pallet_staking::Module<Test>;
+	type Session = pallet_session::Module<Test>;
+	type Timestamp = pallet_timestamp::Module<Test>;
+	type RandomnessCollectiveFlip = pallet_randomness_collective_flip::Module<Test>;
 	type Registrar = registrar::Module<Test>;
-	type Historical = session::historical::Module<Test>;
+	type Historical = pallet_session::historical::Module<Test>;
 
 	fn new_test_ext(parachains: Vec<(ParaId, ValidationCode, HeadData)>) -> TestExternalities {
-		use staking::StakerStatus;
-		use babe::AuthorityId as BabeAuthorityId;
+		use pallet_staking::StakerStatus;
+		use pallet_babe::AuthorityId as BabeAuthorityId;
 
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 
 		let authority_keys = [
 			Sr25519Keyring::Alice,
@@ -2105,22 +2105,22 @@ mod tests {
 			_phdata: Default::default(),
 		}.assimilate_storage(&mut t).unwrap();
 
-		session::GenesisConfig::<Test> {
+		pallet_session::GenesisConfig::<Test> {
 			keys: session_keys,
 		}.assimilate_storage(&mut t).unwrap();
 
-		babe::GenesisConfig {
+		pallet_babe::GenesisConfig {
 			authorities: babe_authorities,
 		}.assimilate_storage::<Test>(&mut t).unwrap();
 
-		balances::GenesisConfig::<Test> {
+		pallet_balances::GenesisConfig::<Test> {
 			balances,
 		}.assimilate_storage(&mut t).unwrap();
 
-		staking::GenesisConfig::<Test> {
+		pallet_staking::GenesisConfig::<Test> {
 			stakers,
 			validator_count: 8,
-			force_era: staking::Forcing::ForceNew,
+			force_era: pallet_staking::Forcing::ForceNew,
 			minimum_validator_count: 0,
 			invulnerables: vec![],
 			.. Default::default()
@@ -3161,7 +3161,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3192,7 +3192,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3206,7 +3206,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3256,7 +3256,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3285,7 +3285,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(Staking::current_era().unwrap(), 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3299,7 +3299,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3350,7 +3350,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3379,7 +3379,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3393,7 +3393,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3447,7 +3447,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3479,7 +3479,7 @@ mod tests {
 
 			assert_eq!(
 				Staking::eras_stakers(2, 0),
-				staking::Exposure {
+				pallet_staking::Exposure {
 					total: 0,
 					own: 0,
 					others: vec![],
@@ -3493,7 +3493,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(2, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3611,7 +3611,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
@@ -3643,7 +3643,7 @@ mod tests {
 
 				assert_eq!(
 					Staking::eras_stakers(1, i as u64),
-					staking::Exposure {
+					pallet_staking::Exposure {
 						total: 10_000,
 						own: 10_000,
 						others: vec![],
