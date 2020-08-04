@@ -13,6 +13,7 @@ polkadot-primitives = { path = "../../primitives" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1"
 
 [dev-dependencies]

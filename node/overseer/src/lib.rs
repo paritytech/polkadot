@@ -86,12 +86,16 @@ pub use polkadot_subsystem::{
 	SpawnedSubsystem, ActiveLeavesUpdate,
 };
 use polkadot_node_primitives::SpawnNamed;
+use substrate_prometheus_endpoint as prometheus;
 
 
 // A capacity of bounded channels inside the overseer.
 const CHANNEL_CAPACITY: usize = 1024;
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
+// Target for logs.
+const LOG_TARGET: &'static str = "overseer";
+
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -380,6 +384,11 @@ pub struct Overseer<S: SpawnNamed> {
 
 	/// The set of the "active leaves".
 	active_leaves: HashSet<(Hash, BlockNumber)>,
+
+	/// Various prometheus metrics.
+	/// `None` if `Metrics::try_register` fails for some reason
+	/// or if no registry was provided.
+	metrics: Option<Metrics>,
 }
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
@@ -418,6 +427,60 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB> {
 	pub availability_store: AS,
 	/// A network bridge subsystem.
 	pub network_bridge: NB,
+}
+
+/// Various prometheus metrics.
+struct Metrics {
+	active_heads_count: prometheus::Gauge<prometheus::U64>,
+	// TODO do these metrics live here or in subsystems?
+	// TODO should this be a CounterVec?
+	validation_requests_served_total: prometheus::Counter<prometheus::U64>,
+	validation_requests_succeeded_total: prometheus::Counter<prometheus::U64>,
+	// TODO can we derive this from served - succeeded?
+	// should this count _internal_ errors instead?
+	validation_requests_failed_total: prometheus::Counter<prometheus::U64>,
+	// Number of statements signed
+	// Number of bitfields signed
+	// Number of availability chunks received
+	// Number of candidates seconded
+	// Number of collations generated
+	// Number of Runtime API errors encountered
+}
+
+impl Metrics {
+	/// Try to register metrics in the prometheus registry.
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		Ok(Self {
+			active_heads_count: prometheus::register(
+				prometheus::Gauge::new(
+					"active_heads_count",
+					"Number of active heads."
+				)?, // TODO: should this be `.expect(PROOF)`?
+				registry,
+			)?,
+			validation_requests_served_total: prometheus::register(
+				prometheus::Counter::new(
+					"validation_requests_served_total",
+					"Total number of validation requests served.",
+				)?,
+				registry,
+			)?,
+			validation_requests_succeeded_total: prometheus::register(
+				prometheus::Counter::new(
+					"validation_requests_succeeded_total",
+					"Total number of validation requests succeeded.",
+				)?,
+				registry,
+			)?,
+			validation_requests_failed_total: prometheus::register(
+				prometheus::Counter::new(
+					"validation_requests_failed_total",
+					"Total number of validation requests failed.",
+				)?,
+				registry,
+			)?,
+		})
+	}
 }
 
 impl<S> Overseer<S>
@@ -503,6 +566,7 @@ where
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
+	///     None,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -522,6 +586,7 @@ where
 	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>,
+		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -638,6 +703,19 @@ where
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			.collect();
 
+		let metrics = match prometheus_registry {
+			Some(registry) => {
+				match Metrics::try_register(registry) {
+					Ok(metrics) => Some(metrics),
+					Err(e) => {
+						log::warn!(target: LOG_TARGET, "Failed to register metrics: {:?}", e);
+						None
+					},
+				}
+			},
+			None => None,
+		};
+
 		let this = Self {
 			candidate_validation_subsystem,
 			candidate_backing_subsystem,
@@ -657,6 +735,7 @@ where
 			events_rx,
 			leaves,
 			active_leaves,
+			metrics,
 		};
 
 		Ok((this, handler))
@@ -767,7 +846,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				log::error!("Subsystem finished unexpectedly {:?}", finished);
+				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
 				self.stop().await;
 				return Err(SubsystemError);
 			}
@@ -1088,6 +1167,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1151,6 +1231,7 @@ mod tests {
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1267,6 +1348,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 
@@ -1369,6 +1451,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 

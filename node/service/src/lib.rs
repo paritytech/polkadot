@@ -272,6 +272,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
+	prometheus_registry: Option<&Registry>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
 	let all_subsystems = AllSubsystems {
@@ -291,6 +292,7 @@ fn real_overseer<S: SpawnNamed>(
 	Overseer::new(
 		leaves,
 		all_subsystems,
+		prometheus_registry,
 		s,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
@@ -392,7 +394,7 @@ fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(leaves, spawner)?;
+	let (overseer, handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
 	let handler_clone = handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {

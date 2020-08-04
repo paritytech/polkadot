@@ -158,6 +158,7 @@ fn main() {
 		let (overseer, _handler) = Overseer::new(
 			vec![],
 			all_subsystems,
+			None,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();
