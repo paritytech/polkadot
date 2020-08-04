@@ -131,17 +131,17 @@ pub fn run() -> Result<()> {
 
 			runner.run_node_until_exit(|config| {
 				let role = config.role.clone();
-				let builder = service::NodeBuilder::new(config);
 
 				match role {
-					Role::Light => builder.build_light().map(|(task_manager, _)| task_manager),
-					_ => builder.build_full(
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					_ => service::build_full(
+						config,
 						None,
 						None,
 						authority_discovery_disabled,
 						6000,
 						grandpa_pause,
-					),
+					).map(|r| r.0),
 				}
 			})
 		},

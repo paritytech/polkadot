@@ -6111,7 +6111,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-runtime"
-version = "0.8.14"
+version = "0.8.22"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -6187,7 +6187,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-v1-runtime"
-version = "0.8.19"
+version = "0.8.22"
 dependencies = [
  "frame-executive",
  "frame-support",
