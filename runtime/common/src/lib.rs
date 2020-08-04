@@ -35,23 +35,23 @@ use frame_support::{
 	parameter_types, traits::{Currency},
 	weights::{Weight, constants::WEIGHT_PER_SECOND},
 };
-use transaction_payment::{TargetedFeeAdjustment, Multiplier};
+use pallet_transaction_payment::{TargetedFeeAdjustment, Multiplier};
 use static_assertions::const_assert;
 pub use frame_support::weights::constants::{BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight};
 
 #[cfg(feature = "std")]
-pub use staking::StakerStatus;
+pub use pallet_staking::StakerStatus;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-pub use timestamp::Call as TimestampCall;
-pub use balances::Call as BalancesCall;
+pub use pallet_timestamp::Call as TimestampCall;
+pub use pallet_balances::Call as BalancesCall;
 pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
 pub use parachains::Call as ParachainsCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};
 
-pub type NegativeImbalance<T> = <balances::Module<T> as Currency<<T as system::Trait>::AccountId>>::NegativeImbalance;
+pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
 /// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 10%`.
@@ -107,7 +107,7 @@ mod multiplier_tests {
 	pub struct Runtime;
 
 	impl_outer_origin!{
-		pub enum Origin for Runtime where system = system {}
+		pub enum Origin for Runtime {}
 	}
 
 	parameter_types! {
@@ -118,7 +118,7 @@ mod multiplier_tests {
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
 	}
 
-	impl system::Trait for Runtime {
+	impl frame_system::Trait for Runtime {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Index = u64;
@@ -146,11 +146,11 @@ mod multiplier_tests {
 		type SystemWeightInfo = ();
 	}
 
-	type System = system::Module<Runtime>;
+	type System = frame_system::Module<Runtime>;
 
 	fn run_with_system_weight<F>(w: Weight, assertions: F) where F: Fn() -> () {
 		let mut t: sp_io::TestExternalities =
-			system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
+			frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap().into();
 		t.execute_with(|| {
 			System::set_block_limits(w, 0);
 			assertions()

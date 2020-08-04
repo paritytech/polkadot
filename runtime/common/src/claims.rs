@@ -22,7 +22,7 @@ use frame_support::{
 	decl_event, decl_storage, decl_module, decl_error, ensure, dispatch::IsSubType,
 	traits::{Currency, Get, VestingSchedule, EnsureOrigin}, weights::{Pays, DispatchClass}
 };
-use system::{ensure_signed, ensure_root, ensure_none};
+use frame_system::{ensure_signed, ensure_root, ensure_none};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
@@ -37,13 +37,13 @@ use sp_runtime::{
 };
 use primitives::v0::ValidityError;
 
-type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as system::Trait>::AccountId>>::Currency;
-type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as system::Trait>::AccountId>>::Balance;
+type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Trait>::AccountId>>::Currency;
+type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 /// Configuration trait.
-pub trait Trait: system::Trait {
+pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 	type VestingSchedule: VestingSchedule<Self::AccountId, Moment=Self::BlockNumber>;
 	type Prefix: Get<&'static [u8]>;
 	type MoveClaimOrigin: EnsureOrigin<Self::Origin>;
@@ -130,7 +130,7 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 decl_event!(
 	pub enum Event<T> where
 		Balance = BalanceOf<T>,
-		AccountId = <T as system::Trait>::AccountId
+		AccountId = <T as frame_system::Trait>::AccountId
 	{
 		/// Someone claimed some DOTs.
 		Claimed(AccountId, EthereumAddress, Balance),
@@ -194,7 +194,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		/// The Prefix that is used in signed Ethereum messages for this network
@@ -539,10 +539,10 @@ impl<T: Trait> sp_runtime::traits::ValidateUnsigned for Module<T> {
 /// otherwise free to place on chain.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct PrevalidateAttests<T: Trait + Send + Sync>(sp_std::marker::PhantomData<T>) where
-	<T as system::Trait>::Call: IsSubType<Call<T>>;
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>;
 
 impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	#[cfg(feature = "std")]
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter) -> sp_std::fmt::Result {
@@ -556,7 +556,7 @@ impl<T: Trait + Send + Sync> Debug for PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	/// Create new `SignedExtension` to check runtime version.
 	pub fn new() -> Self {
@@ -565,10 +565,10 @@ impl<T: Trait + Send + Sync> PrevalidateAttests<T> where
 }
 
 impl<T: Trait + Send + Sync> SignedExtension for PrevalidateAttests<T> where
-	<T as system::Trait>::Call: IsSubType<Call<T>>
+	<T as frame_system::Trait>::Call: IsSubType<Call<T>>
 {
 	type AccountId = T::AccountId;
-	type Call = <T as system::Trait>::Call;
+	type Call = <T as frame_system::Trait>::Call;
 	type AdditionalSigned = ();
 	type Pre = ();
 	const IDENTIFIER: &'static str = "PrevalidateAttests";
@@ -642,11 +642,11 @@ mod tests {
 		ord_parameter_types, weights::{Pays, GetDispatchInfo}, traits::ExistenceRequirement,
 		dispatch::DispatchError::BadOrigin,
 	};
-	use balances;
+	use pallet_balances;
 	use super::Call as ClaimsCall;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {}
+		pub enum Origin for Test {}
 	}
 
 	impl_outer_dispatch! {
@@ -665,7 +665,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl system::Trait for Test {
+	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -687,7 +687,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -699,7 +699,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -708,7 +708,7 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl vesting::Trait for Test {
+	impl pallet_vesting::Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -727,11 +727,11 @@ mod tests {
 		type Event = ();
 		type VestingSchedule = Vesting;
 		type Prefix = Prefix;
-		type MoveClaimOrigin = system::EnsureSignedBy<Six, u64>;
+		type MoveClaimOrigin = frame_system::EnsureSignedBy<Six, u64>;
 	}
-	type System = system::Module<Test>;
-	type Balances = balances::Module<Test>;
-	type Vesting = vesting::Module<Test>;
+	type System = frame_system::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
+	type Vesting = pallet_vesting::Module<Test>;
 	type Claims = Module<Test>;
 
 	fn alice() -> secp256k1::SecretKey {
@@ -753,9 +753,9 @@ mod tests {
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let mut t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		// We use default for brevity, but you can configure as desired if needed.
-		balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
+		pallet_balances::GenesisConfig::<Test>::default().assimilate_storage(&mut t).unwrap();
 		GenesisConfig::<Test>{
 			claims: vec![
 				(eth(&alice()), 100, None, None),
@@ -982,7 +982,7 @@ mod tests {
 			// Make sure we can not transfer the vested balance.
 			assert_err!(
 				<Balances as Currency<_>>::transfer(&69, &80, 180, ExistenceRequirement::AllowDeath),
-				balances::Error::<Test, _>::LiquidityRestrictions,
+				pallet_balances::Error::<Test, _>::LiquidityRestrictions,
 			);
 		});
 	}
@@ -1167,8 +1167,7 @@ mod tests {
 mod benchmarking {
 	use super::*;
 	use secp_utils::*;
-	use system::RawOrigin;
-	use system as frame_system; // NOTE: required for the benchmarks! macro
+	use frame_system::RawOrigin;
 	use frame_benchmarking::{benchmarks, account};
 	use sp_runtime::DispatchResult;
 	use sp_runtime::traits::ValidateUnsigned;
