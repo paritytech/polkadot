@@ -75,8 +75,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-<<<<<<< variant A
->>>>>>> variant B
 native_executor_instance!(
 	pub RococoExecutor,
 	rococo_runtime::api::dispatch,
