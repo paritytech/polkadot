@@ -818,9 +818,9 @@ pub struct FullNodeHandles {
 pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
-	} else if self.config.chain_spec.is_westend() {
+	} else if config.chain_spec.is_westend() {
 		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
-	} else if self.config.chain_spec.is_rococo() {
+	} else if config.chain_spec.is_rococo() {
 		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else {
 		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
@@ -837,7 +837,7 @@ pub fn build_full(
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
-	if self.config.chain_spec.is_kusama() {
+	if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
 			collating_for,
@@ -847,7 +847,7 @@ pub fn build_full(
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
-	} else if self.config.chain_spec.is_westend() {
+	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
 			collating_for,
@@ -857,7 +857,7 @@ pub fn build_full(
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
-	} else if self.config.chain_spec.is_rococo() {
+	} else if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			collating_for,
