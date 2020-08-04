@@ -495,7 +495,7 @@ fn new_full<RuntimeApi, Executor>(
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
-			prometheus_registry: prometheus_registry,
+			prometheus_registry,
 			shared_voter_state,
 		};
 
@@ -524,7 +524,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
 {
-	crate::set_prometheus_registry(&mut config)?;
+	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
 	let (client, backend, keystore, mut task_manager, on_demand) =
