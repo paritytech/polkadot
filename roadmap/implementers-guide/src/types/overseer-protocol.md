@@ -41,6 +41,8 @@ struct ActiveLeavesUpdate {
 
 Messages received by the availability distribution subsystem.
 
+This is a network protocol that receives messages of type [`AvailabilityDistributionV1Message`][AvailabilityDistributionV1NetworkMessage].
+
 ```rust
 enum AvailabilityDistributionMessage {
 	/// Distribute an availability chunk to other validators.
@@ -49,7 +51,7 @@ enum AvailabilityDistributionMessage {
 	FetchChunk(Hash, u32),
 	/// Event from the network.
 	/// An update on network state from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
 }
 ```
 
@@ -78,6 +80,7 @@ enum AvailabilityStoreMessage {
 ## Bitfield Distribution Message
 
 Messages received by the bitfield distribution subsystem.
+This is a network protocol that receives messages of type [`BitfieldDistributionV1Message`][BitfieldDistributionV1NetworkMessage].
 
 ```rust
 enum BitfieldDistributionMessage {
@@ -85,7 +88,7 @@ enum BitfieldDistributionMessage {
 	/// The bitfield distribution subsystem will assume this is indeed correctly signed.
 	DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
 	/// Receive a network bridge update.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
 }
 ```
 
@@ -161,6 +164,8 @@ enum ChainApiMessage {
 
 Messages received by the [Collator Protocol subsystem](../node/collators/collator-protocol.md)
 
+This is a network protocol that receives messages of type [`CollatorProtocolV1Message`][CollatorProtocolV1NetworkMessage].
+
 ```rust
 enum CollatorProtocolMessage {
 	/// Signal to the collator protocol that it should connect to validators with the expectation
@@ -211,27 +216,7 @@ enum NetworkBridgeMessage {
 }
 ```
 
-## Network Bridge Update
-
-These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.md) to other subsystems based on registered listeners.
-
-```rust
-struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
-
-enum NetworkBridgeEvent {
-	/// A peer with given ID is now connected.
-	PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
-	/// A peer with given ID is now disconnected.
-	PeerDisconnected(PeerId),
-	/// We received a message from the given peer. Protocol ID should be apparent from context.
-	PeerMessage(PeerId, Bytes),
-	/// The given peer has updated its description of its view.
-	PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
-	/// We have posted the given view update to all connected peers.
-	OurViewChange(View),
-}
-```
-
+## Misbehavior Report
 
 ```rust
 enum MisbehaviorReport {
@@ -255,6 +240,8 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ## PoV Distribution Message
 
+This is a network protocol that receives messages of type [`PoVDistributionV1Message`][PoVDistributionV1NetworkMessage].
+
 ```rust
 enum PoVDistributionMessage {
 	/// Fetch a PoV from the network.
@@ -266,7 +253,7 @@ enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, PoV),
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
 }
 ```
 
@@ -354,10 +341,12 @@ enum RuntimeApiMessage {
 The Statement Distribution subsystem distributes signed statements and candidates from validators to other validators. It does this by distributing full statements, which embed the candidate receipt, as opposed to compact statements which don't.
 It receives updates from the network bridge and signed statements to share with other validators.
 
+This is a network protocol that receives messages of type [`StatementDistributionV1Message`][StatementDistributionV1NetworkMessage].
+
 ```rust
 enum StatementDistributionMessage {
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
 	/// We have validated a candidate and want to share our judgment with our peers.
 	/// The hash is the relay parent.
 	///
@@ -409,3 +398,10 @@ enum CandidateValidationMessage {
 	),
 }
 ```
+
+[NBE]: ../network.md#network-bridge-event
+[AvailabilityDistributionV1NetworkMessage]: network.md#availability-distribution-v1
+[BitfieldDistributionV1NetworkMessage]: network.md#bitfield-distribution-v1
+[PoVDistributionV1NetworkMessage]: network.md#pov-distribution-v1
+[StatementDistributionV1NetworkMessage]: network.md#statement-distribution-v1
+[CollatorProtocolV1NetworkMessage]: network.md#collator-protocol-v1

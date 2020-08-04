@@ -57,18 +57,7 @@ struct PeerState {
 }
 ```
 
-We also assume the following network messages, which are sent and received by the [Network Bridge](../utility/network-bridge.md)
-
-```rust
-enum NetworkMessage {
-	/// Notification that we are awaiting the given PoVs (by hash) against a
-	/// specific relay-parent hash.
-	Awaiting(Hash, Vec<Hash>),
-	/// Notification of an awaited PoV, in a given relay-parent context.
-	/// (relay_parent, pov_hash, pov)
-	SendPoV(Hash, Hash, PoV),
-}
-```
+We also use the [`PoVDistributionV1Message`](../../types/network.md#pov-distribution) as our `NetworkMessage`, which are sent and received by the [Network Bridge](../utility/network-bridge.md)
 
 Here is the logic of the state machine:
 

@@ -24,21 +24,7 @@ Output:
 
 This network protocol uses the `Collation` peer-set of the [`NetworkBridge`][NB].
 
-```rust
-type RequestId = u64;
-
-enum WireMessage {
-	/// Declare the intent to advertise collations under a collator ID.
-	Declare(CollatorId),
-	/// Advertise a collation to a validator. Can only be sent once the peer has declared
-	/// that they are a collator with given ID.
-	AdvertiseCollation(Hash, ParaId),
-	/// Request the advertised collation at that relay-parent.
-	RequestCollation(RequestId, Hash, ParaId),
-	/// A requested collation.
-	Collation(RequestId, CandidateReceipt, PoV),
-}
-```
+It uses the [`CollatorProtocolV1Message`](../../types/network.md#collator-protocol) as its `WireMessage`
 
 Since this protocol functions both for validators and collators, it is easiest to go through the protocol actions for each of them separately.
 
