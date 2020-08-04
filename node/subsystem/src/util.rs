@@ -43,10 +43,7 @@ use polkadot_primitives::v1::{
 	CoreState, EncodeAs, Hash, Signed, SigningContext, SessionIndex,
 	ValidatorId, ValidatorIndex, ValidatorPair, GroupRotationInfo,
 };
-use sp_core::{
-	Pair,
-	traits::SpawnNamed,
-};
+use sp_core::Pair;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -55,6 +52,11 @@ use std::{
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+
+/// This reexport is required so that external crates can use the `delegated_subsystem` macro properly.
+///
+/// Otherwise, downstream crates might have to modify their `Cargo.toml` to ensure `sp-core` appeared there.
+pub use sp_core::traits::SpawnNamed;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -737,6 +739,93 @@ where
 			future,
 		}
 	}
+}
+
+/// Create a delegated subsystem
+///
+/// It is possible to create a type which implements `Subsystem` by simply doing:
+///
+/// ```ignore
+/// pub type ExampleSubsystem<Spawner, Context> = util::JobManager<Spawner, Context, ExampleJob>;
+/// ```
+///
+/// However, doing this requires that job itself and all types which comprise it (i.e. `ToJob`, `FromJob`, `Error`, `RunArgs`)
+/// are public, to avoid exposing private types in public interfaces. It's possible to delegate instead, which
+/// can reduce the total number of public types exposed, i.e.
+///
+/// ```ignore
+/// type Manager<Spawner, Context> = util::JobManager<Spawner, Context, ExampleJob>;
+/// pub struct ExampleSubsystem {
+/// 	manager: Manager<Spawner, Context>,
+/// }
+///
+/// impl<Spawner, Context> Subsystem<Context> for ExampleSubsystem<Spawner, Context> { ... }
+/// ```
+///
+/// This dramatically reduces the number of public types in the crate; the only things which must be public are now
+///
+/// - `struct ExampleSubsystem`
+/// - `type ToJob` (because it appears in a trait bound)
+/// - `type RunArgs` (because it appears in a function signature)
+///
+/// Implementing this all manually is of course possible, but it's tedious; why bother? This macro exists for
+/// the purpose of doing it automatically:
+///
+/// ```ignore
+/// delegated_subsystem!(ExampleJob as ExampleSubsystem);
+/// ```
+///
+/// ## Dependencies
+///
+/// This macro depends on the `sp_core` crate. That crate must therefore appear in the
+#[macro_export]
+macro_rules! delegated_subsystem {
+	($job:ident as $subsystem:ident) => {
+		delegated_subsystem!($job as $subsystem; stringify!($subsystem));
+	};
+
+	($job:ident as $subsystem:ident; $subsystem_name:expr) => {
+		#[doc = "Manager type for the "]
+		#[doc = $subsystem_name]
+		type Manager<Spawner, Context> = $crate::util::JobManager<Spawner, Context, $job>;
+
+		#[doc = "An implementation of the "]
+		#[doc = $subsystem_name]
+		pub struct $subsystem<Spawner, Context> {
+			manager: Manager<Spawner, Context>,
+		}
+
+		impl<Spawner, Context> $subsystem<Spawner, Context>
+		where
+			Spawner: Clone + $crate::util::SpawnNamed + Send + Unpin,
+			Context: $crate::SubsystemContext,
+			<Context as $crate::SubsystemContext>::Message: Into<<$job as $crate::util::JobTrait>::ToJob>,
+		{
+			#[doc = "Creates a new "]
+			#[doc = $subsystem_name]
+			pub fn new(spawner: Spawner, run_args: <$job as $crate::util::JobTrait>::RunArgs) -> Self {
+				$subsystem {
+					manager: $crate::util::JobManager::new(spawner, run_args)
+				}
+			}
+
+			/// Run this subsystem
+			pub async fn run(ctx: Context, run_args: <$job as $crate::util::JobTrait>::RunArgs, spawner: Spawner) {
+				<Manager<Spawner, Context>>::run(ctx, run_args, spawner, None).await
+			}
+		}
+
+		impl<Spawner, Context> $crate::Subsystem<Context> for $subsystem<Spawner, Context>
+		where
+			Spawner: $crate::util::SpawnNamed + Send + Clone + Unpin + 'static,
+			Context: $crate::SubsystemContext,
+			<Context as $crate::SubsystemContext>::Message: Into<ToJob>,
+		{
+			fn start(self, ctx: Context) -> $crate::SpawnedSubsystem {
+				self.manager.start(ctx)
+			}
+		}
+	};
 }
 
 #[cfg(test)]
