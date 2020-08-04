@@ -35,7 +35,8 @@ use polkadot_erasure_coding::{
 use polkadot_primitives::v1::{
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GlobalValidationData, Hash as H256, HashT, HeadData, Id as ParaId, LocalValidationData,
-	OmittedValidationData, PoV, SigningContext, ValidatorId, ValidatorIndex, ValidatorPair,
+	OccupiedCoreAssumption, OmittedValidationData, PoV, SigningContext, ValidatorId,
+	ValidatorIndex, ValidatorPair,
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
@@ -141,6 +142,9 @@ struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
 	ancestors: HashSet<H256>,
 
+	/// Global validation data
+	global_validation_data: GlobalValidationData,
+
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
 
@@ -219,10 +223,14 @@ impl ProtocolState {
 				.insert(relay_parent.clone());
 		}
 
-		self.per_relay_parent
+		let per_relay_parent = self
+			.per_relay_parent
 			.get_mut(&relay_parent)
-			.expect("Relay parent is initialized on overseer signal. qed")
-			.ancestors = ancestors;
+			.expect("Relay parent is initialized on overseer signal. qed");
+		per_relay_parent.ancestors = ancestors;
+		per_relay_parent.global_validation_data = query_global_validation_data(ctx, relay_parent)
+			.await?
+			.expect("Must have global validation data available. qed");
 
 		Ok(())
 	}
@@ -391,11 +399,21 @@ where
 		};
 
 		// perform erasure encoding
-		let omitted_validation = query_omitted_validation_data(ctx, added.clone()).await?;
+		let local_validation = if let Some(local_validation) =
+			query_local_validation_data(ctx, added.clone(), para).await?
+		{
+			local_validation
+		} else {
+			continue;
+		};
 
+		let global_validation = per_relay_parent.global_validation_data.clone();
 		let available_data = AvailableData {
 			pov,
-			omitted_validation,
+			omitted_validation: OmittedValidationData {
+				local_validation,
+				global_validation,
+			},
 		};
 
 		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(
@@ -969,13 +987,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-			AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-		))
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx
-		.await
-		.map_err::<Error, _>(Into::into)
+		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
+	))
+	.await
+	.map_err::<Error, _>(Into::into)?;
+	rx.await.map_err::<Error, _>(Into::into)
 }
 
 async fn store_chunk<Context>(
@@ -989,12 +1005,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-			AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
-		))
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)
+		AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
+	))
+	.await
+	.map_err::<Error, _>(Into::into)?;
+	rx.await.map_err::<Error, _>(Into::into)
 }
 
 /// Request the head data for a particular para.
@@ -1040,25 +1055,8 @@ where
 		.map_err::<Error, _>(Into::into)
 }
 
-/// Query omitted validation data.
-#[cfg(feature = "std")]
-async fn query_omitted_validation_data<Context>(
-	ctx: &mut Context,
-	relay_parent: H256,
-) -> Result<OmittedValidationData>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let global_validation = query_global_validation_data(ctx, relay_parent.clone()).await?;
-	let local_validation = query_local_validation_data(ctx, relay_parent).await?;
-	Ok(OmittedValidationData {
-		global_validation,
-		local_validation,
-	})
-}
 
 /// Query the hash of the `K` ancestors
-// @todo stub
 #[cfg(feature = "std")]
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
@@ -1068,36 +1066,66 @@ async fn query_k_ancestors<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// @todo
-	Ok(vec![])
+	let (tx, rx) = oneshot::channel();
+	let query_ancestors = AllMessages::ChainApi(ChainApiMessage::Ancestors {
+		hash: relay_parent,
+		k,
+		response_channel: tx,
+	});
+
+	ctx.send_message(query_validators)
+		.await
+		.map_err::<Error, _>(Into::into)?;
+	rx.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)
 }
 
 /// Query omitted validation data.
-// @todo stub
 #[cfg(feature = "std")]
 async fn query_global_validation_data<Context>(
 	ctx: &mut Context,
 	relay_parent: H256,
-) -> Result<GlobalValidationData>
+) -> Result<Option<GlobalValidationData>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// @todo
-	Ok(GlobalValidationData::default())
+	let (tx, rx) = oneshot::channel();
+	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		relay_parent,
+		RuntimeApiRequest::GlobalValidationData(tx),
+	));
+
+	ctx.send_message(query_validators)
+		.await
+		.map_err::<Error, _>(Into::into)?;
+	rx.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)
 }
 
 /// Query local validation data.
-// @todo stub
 #[cfg(feature = "std")]
 async fn query_local_validation_data<Context>(
 	ctx: &mut Context,
 	relay_parent: H256,
-) -> Result<LocalValidationData>
+	paraid: ParaId,
+) -> Result<Option<LocalValidationData>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	// @todo
-	Ok(LocalValidationData::default())
+	let (tx, rx) = oneshot::channel();
+	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+		relay_parent,
+		RuntimeApiRequest::LocalValidationData(paraid, OccupiedCoreAssumption::Free, tx),
+	));
+
+	ctx.send_message(query_validators)
+		.await
+		.map_err::<Error, _>(Into::into)?;
+	rx.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)
 }
 
 #[cfg(test)]
