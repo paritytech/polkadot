@@ -10,5 +10,6 @@ jobs:
         uses: devmasx/merge-branch@v1.3.0
         with:
           type: now
+          head_to_merge: ${{ github.ref }}
           target_branch: release
           github_token: ${{ secrets.RELEASE_BRANCH_TOKEN }}
