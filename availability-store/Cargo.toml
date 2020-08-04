@@ -15,14 +15,14 @@ futures = "0.3.4"
 tokio = { version = "0.2.13", features = ["rt-core"] }
 exit-future = "0.2.0"
 codec = { package = "parity-scale-codec", version = "1.3.4", features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch", version = "2.0.0-rc5" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "cumulus-branch" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", version = "2.0.0-rc5" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 kvdb = "0.7.0"
 kvdb-memorydb = "0.7.0"
 
