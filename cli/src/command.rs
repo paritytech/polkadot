@@ -47,7 +47,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend"].iter()
+			["polkadot", "kusama", "westend", "rococo"].iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
 				.unwrap_or("polkadot")
@@ -65,6 +65,9 @@ impl SubstrateCli for Cli {
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			path if self.run.force_kusama => {
 				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
 			},
@@ -128,17 +131,17 @@ pub fn run() -> Result<()> {
 
 			runner.run_node_until_exit(|config| {
 				let role = config.role.clone();
-				let builder = service::NodeBuilder::new(config);
 
 				match role {
-					Role::Light => builder.build_light().map(|(task_manager, _)| task_manager),
-					_ => builder.build_full(
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					_ => service::build_full(
+						config,
 						None,
 						None,
 						authority_discovery_enabled,
 						6000,
 						grandpa_pause,
-					),
+					).map(|r| r.0),
 				}
 			})
 		},

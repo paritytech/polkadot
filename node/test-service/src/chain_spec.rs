@@ -106,18 +106,18 @@ fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	polkadot::GenesisConfig {
-		system: Some(polkadot::SystemConfig {
+		frame_system: Some(polkadot::SystemConfig {
 			code: polkadot::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
 			changes_trie_config,
 		}),
-		indices: Some(polkadot::IndicesConfig { indices: vec![] }),
-		balances: Some(polkadot::BalancesConfig {
+		pallet_indices: Some(polkadot::IndicesConfig { indices: vec![] }),
+		pallet_balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts
 				.iter()
 				.map(|k| (k.clone(), ENDOWMENT))
 				.collect(),
 		}),
-		session: Some(polkadot::SessionConfig {
+		pallet_session: Some(polkadot::SessionConfig {
 			keys: initial_authorities
 				.iter()
 				.map(|x| {
@@ -133,7 +133,7 @@ fn polkadot_testnet_genesis(
 				})
 				.collect::<Vec<_>>(),
 		}),
-		staking: Some(polkadot::StakingConfig {
+		pallet_staking: Some(polkadot::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities
@@ -152,9 +152,9 @@ fn polkadot_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		}),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig { keys: vec![] }),
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_authority_discovery: Some(polkadot::AuthorityDiscoveryConfig { keys: vec![] }),
 		parachains: Some(polkadot::ParachainsConfig {
 			authorities: vec![],
 		}),
@@ -166,8 +166,8 @@ fn polkadot_testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
-		sudo: Some(polkadot::SudoConfig { key: root_key }),
+		pallet_vesting: Some(polkadot::VestingConfig { vesting: vec![] }),
+		pallet_sudo: Some(polkadot::SudoConfig { key: root_key }),
 	}
 }
 

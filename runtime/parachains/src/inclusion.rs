@@ -87,9 +87,9 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + configuration::Trait
 {
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
 
 decl_storage! {
@@ -154,7 +154,7 @@ decl_error! {
 }
 
 decl_event! {
-	pub enum Event<T> where <T as system::Trait>::Hash {
+	pub enum Event<T> where <T as frame_system::Trait>::Hash {
 		/// A candidate was backed.
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included.
@@ -167,7 +167,7 @@ decl_event! {
 decl_module! {
 	/// The parachain-candidate inclusion module.
 	pub struct Module<T: Trait>
-		for enum Call where origin: <T as system::Trait>::Origin, system = system
+		for enum Call where origin: <T as frame_system::Trait>::Origin
 	{
 		type Error = Error<T>;
 
@@ -230,7 +230,7 @@ impl<T: Trait> Module<T> {
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
-				parent_hash: <system::Module<T>>::parent_hash(),
+				parent_hash: <frame_system::Module<T>>::parent_hash(),
 				session_index,
 			};
 
@@ -266,7 +266,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
@@ -356,9 +356,9 @@ impl<T: Trait> Module<T> {
 		}
 
 		let validators = Validators::get();
-		let parent_hash = <system::Module<T>>::parent_hash();
+		let parent_hash = <frame_system::Module<T>>::parent_hash();
 		let config = <configuration::Module<T>>::config();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let relay_parent_number = now - One::one();
 
 		// do all checks before writing storage.

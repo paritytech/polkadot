@@ -31,7 +31,7 @@ use telemetry::TelemetryEndpoints;
 use hex_literal::hex;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
-use im_online::sr25519::{AuthorityId as ImOnlineId};
+use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_staking::Forcing;
 
@@ -131,27 +131,27 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 	const STASH: u128 = 100 * DOTS;
 
 	polkadot::GenesisConfig {
-		system: Some(polkadot::SystemConfig {
+		frame_system: Some(polkadot::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		balances: Some(polkadot::BalancesConfig {
+		pallet_balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		indices: Some(polkadot::IndicesConfig {
+		pallet_indices: Some(polkadot::IndicesConfig {
 			indices: vec![],
 		}),
-		session: Some(polkadot::SessionConfig {
+		pallet_session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				polkadot_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(polkadot::StakingConfig {
+		pallet_staking: Some(polkadot::StakingConfig {
 			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities
@@ -163,21 +163,21 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
-		elections_phragmen: Some(Default::default()),
-		democracy: Some(Default::default()),
-		collective_Instance1: Some(polkadot::CouncilConfig {
+		pallet_elections_phragmen: Some(Default::default()),
+		pallet_democracy: Some(Default::default()),
+		pallet_collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
+		pallet_collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		membership_Instance1: Some(Default::default()),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
+		pallet_membership_Instance1: Some(Default::default()),
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(polkadot::ParachainsConfig {
@@ -191,7 +191,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(polkadot::VestingConfig {
+		pallet_vesting: Some(polkadot::VestingConfig {
 			vesting: vec![],
 		}),
 	}
@@ -283,27 +283,27 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 	const STASH: u128 = 100 * WND;
 
 	westend::GenesisConfig {
-		system: Some(westend::SystemConfig {
+		frame_system: Some(westend::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		balances: Some(westend::BalancesConfig {
+		pallet_balances: Some(westend::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		indices: Some(westend::IndicesConfig {
+		pallet_indices: Some(westend::IndicesConfig {
 			indices: vec![],
 		}),
-		session: Some(westend::SessionConfig {
+		pallet_session: Some(westend::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				westend_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(westend::StakingConfig {
+		pallet_staking: Some(westend::StakingConfig {
 			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities
@@ -315,10 +315,10 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(westend::AuthorityDiscoveryConfig {
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(westend::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(westend::ParachainsConfig {
@@ -328,10 +328,10 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		vesting: Some(westend::VestingConfig {
+		pallet_vesting: Some(westend::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(westend::SudoConfig {
+		pallet_sudo: Some(westend::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
 	}
@@ -423,27 +423,27 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 	const STASH: u128 = 100 * KSM;
 
 	kusama::GenesisConfig {
-		system: Some(kusama::SystemConfig {
+		frame_system: Some(kusama::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		balances: Some(kusama::BalancesConfig {
+		pallet_balances: Some(kusama::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		indices: Some(kusama::IndicesConfig {
+		pallet_indices: Some(kusama::IndicesConfig {
 			indices: vec![],
 		}),
-		session: Some(kusama::SessionConfig {
+		pallet_session: Some(kusama::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 						  x.0.clone(),
 						  x.0.clone(),
 						  kusama_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 				  )).collect::<Vec<_>>(),
 		}),
-		staking: Some(kusama::StakingConfig {
+		pallet_staking: Some(kusama::StakingConfig {
 			validator_count: 50,
 			minimum_validator_count: 4,
 			stakers: initial_authorities
@@ -455,21 +455,21 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 				slash_reward_fraction: Perbill::from_percent(10),
 				.. Default::default()
 		}),
-		elections_phragmen: Some(Default::default()),
-		democracy: Some(Default::default()),
-		collective_Instance1: Some(kusama::CouncilConfig {
+		pallet_elections_phragmen: Some(Default::default()),
+		pallet_democracy: Some(Default::default()),
+		pallet_collective_Instance1: Some(kusama::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(kusama::TechnicalCommitteeConfig {
+		pallet_collective_Instance2: Some(kusama::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		membership_Instance1: Some(Default::default()),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
+		pallet_membership_Instance1: Some(Default::default()),
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(kusama::ParachainsConfig {
@@ -483,7 +483,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(kusama::VestingConfig {
+		pallet_vesting: Some(kusama::VestingConfig {
 			vesting: vec![],
 		}),
 	}
@@ -612,24 +612,24 @@ pub fn polkadot_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	polkadot::GenesisConfig {
-		system: Some(polkadot::SystemConfig {
+		frame_system: Some(polkadot::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(polkadot::IndicesConfig {
+		pallet_indices: Some(polkadot::IndicesConfig {
 			indices: vec![],
 		}),
-		balances: Some(polkadot::BalancesConfig {
+		pallet_balances: Some(polkadot::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		}),
-		session: Some(polkadot::SessionConfig {
+		pallet_session: Some(polkadot::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 						  x.0.clone(),
 						  x.0.clone(),
 						  polkadot_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 				  )).collect::<Vec<_>>(),
 		}),
-		staking: Some(polkadot::StakingConfig {
+		pallet_staking: Some(polkadot::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()
@@ -640,21 +640,21 @@ pub fn polkadot_testnet_genesis(
 				slash_reward_fraction: Perbill::from_percent(10),
 				.. Default::default()
 		}),
-		elections_phragmen: Some(Default::default()),
-		democracy: Some(polkadot::DemocracyConfig::default()),
-		collective_Instance1: Some(polkadot::CouncilConfig {
+		pallet_elections_phragmen: Some(Default::default()),
+		pallet_democracy: Some(polkadot::DemocracyConfig::default()),
+		pallet_collective_Instance1: Some(polkadot::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
+		pallet_collective_Instance2: Some(polkadot::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		membership_Instance1: Some(Default::default()),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
+		pallet_membership_Instance1: Some(Default::default()),
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(polkadot::ParachainsConfig {
@@ -668,7 +668,7 @@ pub fn polkadot_testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(polkadot::VestingConfig {
+		pallet_vesting: Some(polkadot::VestingConfig {
 			vesting: vec![],
 		}),
 	}
@@ -687,24 +687,24 @@ pub fn kusama_testnet_genesis(
 	const STASH: u128 = 100 * KSM;
 
 	kusama::GenesisConfig {
-		system: Some(kusama::SystemConfig {
+		frame_system: Some(kusama::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(kusama::IndicesConfig {
+		pallet_indices: Some(kusama::IndicesConfig {
 			indices: vec![],
 		}),
-		balances: Some(kusama::BalancesConfig {
+		pallet_balances: Some(kusama::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		}),
-		session: Some(kusama::SessionConfig {
+		pallet_session: Some(kusama::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				kusama_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(kusama::StakingConfig {
+		pallet_staking: Some(kusama::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()
@@ -715,21 +715,21 @@ pub fn kusama_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
-		elections_phragmen: Some(Default::default()),
-		democracy: Some(kusama::DemocracyConfig::default()),
-		collective_Instance1: Some(kusama::CouncilConfig {
+		pallet_elections_phragmen: Some(Default::default()),
+		pallet_democracy: Some(kusama::DemocracyConfig::default()),
+		pallet_collective_Instance1: Some(kusama::CouncilConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		collective_Instance2: Some(kusama::TechnicalCommitteeConfig {
+		pallet_collective_Instance2: Some(kusama::TechnicalCommitteeConfig {
 			members: vec![],
 			phantom: Default::default(),
 		}),
-		membership_Instance1: Some(Default::default()),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
+		pallet_membership_Instance1: Some(Default::default()),
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(kusama::ParachainsConfig {
@@ -743,7 +743,7 @@ pub fn kusama_testnet_genesis(
 			claims: vec![],
 			vesting: vec![],
 		}),
-		vesting: Some(kusama::VestingConfig {
+		pallet_vesting: Some(kusama::VestingConfig {
 			vesting: vec![],
 		}),
 	}
@@ -762,24 +762,24 @@ pub fn westend_testnet_genesis(
 	const STASH: u128 = 100 * DOTS;
 
 	westend::GenesisConfig {
-		system: Some(westend::SystemConfig {
+		frame_system: Some(westend::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(westend::IndicesConfig {
+		pallet_indices: Some(westend::IndicesConfig {
 			indices: vec![],
 		}),
-		balances: Some(westend::BalancesConfig {
+		pallet_balances: Some(westend::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		}),
-		session: Some(westend::SessionConfig {
+		pallet_session: Some(westend::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				westend_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		staking: Some(westend::StakingConfig {
+		pallet_staking: Some(westend::StakingConfig {
 			minimum_validator_count: 1,
 			validator_count: 2,
 			stakers: initial_authorities.iter()
@@ -790,10 +790,10 @@ pub fn westend_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		}),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(westend::AuthorityDiscoveryConfig {
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(westend::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(westend::ParachainsConfig {
@@ -803,10 +803,10 @@ pub fn westend_testnet_genesis(
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		vesting: Some(westend::VestingConfig {
+		pallet_vesting: Some(westend::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(westend::SudoConfig {
+		pallet_sudo: Some(westend::SudoConfig {
 			key: root_key,
 		}),
 	}

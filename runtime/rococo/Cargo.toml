@@ -1,5 +1,5 @@
 [package]
-name = "polkadot-runtime"
+name = "rococo-runtime"
 version = "0.8.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -23,7 +23,6 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -50,12 +49,14 @@ pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-recovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -71,6 +72,7 @@ hex-literal = { version = "0.2.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -78,7 +80,6 @@ libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.22.0"
 serde_json = "1.0.41"
 
 [build-dependencies]
@@ -97,11 +98,13 @@ std = [
 	"codec/std",
 	"inherents/std",
 	"sp-core/std",
+	"polkadot-parachain/std",
 	"sp-api/std",
 	"tx-pool-api/std",
 	"block-builder-api/std",
 	"offchain-primitives/std",
 	"sp-std/std",
+	"sp-io/std",
 	"frame-support/std",
 	"pallet-authorship/std",
 	"pallet-balances/std",
@@ -121,11 +124,12 @@ std = [
 	"pallet-nicks/std",
 	"pallet-offences/std",
 	"pallet-proxy/std",
+	"pallet-recovery/std",
 	"sp-runtime/std",
-	"sp-staking/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-sudo/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"pallet-timestamp/std",
@@ -161,7 +165,7 @@ runtime-benchmarks = [
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
-	# renable when optional
+	# uncomment when it is made optional again
 	# "hex-literal",
 ]
 # When enabled, the runtime api will not be build.

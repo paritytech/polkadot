@@ -26,9 +26,7 @@ use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
-use polkadot_service::{
-	new_full, FullNodeHandles, PolkadotClient,
-};
+use polkadot_service::{new_full, FullNodeHandles, AbstractClient};
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
@@ -69,7 +67,7 @@ pub fn polkadot_test_new_full(
 ) -> Result<
 	(
 		TaskManager,
-		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
+		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
@@ -196,7 +194,7 @@ pub fn run_test_node(
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> PolkadotTestNode<
 	TaskManager,
-	impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
+	impl AbstractClient<Block, TFullBackend<Block>>,
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
