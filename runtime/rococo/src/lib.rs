@@ -1005,17 +1005,17 @@ sp_api::impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
 
-			add_benchmark!(params, batches, balances,Balances);
-			add_benchmark!(params, batches, identity,Identity);
-			add_benchmark!(params, batches, im_online,ImOnline);
-			add_benchmark!(params, batches, offences,OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, scheduler, Scheduler);
-			add_benchmark!(params, batches, session, SessionBench::<Runtime>);
-			add_benchmark!(params, batches, staking, Staking);
-			add_benchmark!(params, batches, system, SystemBench::<Runtime>);
-			add_benchmark!(params, batches, timestamp, Timestamp);
-			add_benchmark!(params, batches, utility, Utility);
-			add_benchmark!(params, batches, vesting, Vesting);
+			add_benchmark!(params, batches, pallet_balances, Balances);
+			add_benchmark!(params, batches, pallet_identity, Identity);
+			add_benchmark!(params, batches, pallet_im_online, ImOnline);
+			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
+			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_staking, Staking);
+			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
+			add_benchmark!(params, batches, pallet_utility, Utility);
+			add_benchmark!(params, batches, pallet_vesting, Vesting);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
