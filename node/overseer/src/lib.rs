@@ -437,12 +437,7 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
 struct Metrics {
 	active_heads_count: prometheus::Gauge<prometheus::U64>,
 	// TODO do these metrics live here or in subsystems?
-	// TODO should this be a CounterVec?
-	validation_requests_served_total: prometheus::Counter<prometheus::U64>,
-	validation_requests_succeeded_total: prometheus::Counter<prometheus::U64>,
-	// TODO can we derive this from served - succeeded?
-	// should this count _internal_ errors instead?
-	validation_requests_failed_total: prometheus::Counter<prometheus::U64>,
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
 	// Number of statements signed
 	// Number of bitfields signed
 	// Number of availability chunks received
@@ -462,24 +457,13 @@ impl Metrics {
 				)?, // TODO: should this be `.expect(PROOF)`?
 				registry,
 			)?,
-			validation_requests_served_total: prometheus::register(
-				prometheus::Counter::new(
-					"validation_requests_served_total",
-					"Total number of validation requests served.",
-				)?,
-				registry,
-			)?,
-			validation_requests_succeeded_total: prometheus::register(
-				prometheus::Counter::new(
-					"validation_requests_succeeded_total",
-					"Total number of validation requests succeeded.",
-				)?,
-				registry,
-			)?,
-			validation_requests_failed_total: prometheus::register(
-				prometheus::Counter::new(
-					"validation_requests_failed_total",
-					"Total number of validation requests failed.",
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"validation_requests",
+						"Number of validation requests.",
+					),
+					&["total", "succeeded", "failed"],
 				)?,
 				registry,
 			)?,
@@ -709,12 +693,12 @@ where
 			all_subsystems.chain_api,
 		)?;
 
-		let active_leaves = HashSet::new();
-
 		let leaves = leaves
 			.into_iter()
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			.collect();
+
+		let active_leaves = HashSet::new();
 
 		let metrics = match prometheus_registry {
 			Some(registry) => {
@@ -828,6 +812,9 @@ where
 		for leaf in leaves.into_iter() {
 			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
+			if let Some(metrics) = &self.metrics {
+				metrics.active_heads_count.inc();
+			}
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -879,11 +866,17 @@ where
 
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
 			update.deactivated.push(parent.0);
+			if let Some(metrics) = &self.metrics {
+				metrics.active_heads_count.dec();
+			}
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
 			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
+			if let Some(metrics) = &self.metrics {
+				metrics.active_heads_count.inc();
+			}
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -893,10 +886,14 @@ where
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
+		let metrics = &self.metrics;
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
 				update.deactivated.push(*h);
+				if let Some(metrics) = metrics {
+					metrics.active_heads_count.dec();
+				}
 				false
 			} else {
 				true
