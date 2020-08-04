@@ -877,7 +877,7 @@ where
 		}
 
 		if let Some(ref mut s) = self.chain_api_subsystem.instance {
-			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+			s.tx.send(FromOverseer::Signal(signal)).await?;
 		}
 
 		Ok(())
