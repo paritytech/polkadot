@@ -7,6 +7,9 @@ The Router module is responsible for all messaging mechanisms supported between 
 Storage layout:
 
 ```rust,ignore
+/// Paras that are to be cleaned up at the end of the session.
+/// The entries are sorted ascending by the para id.
+OutgoingParas: Vec<ParaId>;
 /// Messages ready to be dispatched onto the relay chain.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
@@ -191,9 +194,14 @@ Candidate Enactment:
 * `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
 
-The routines described below are for use within a session change and called by the `Paras` module.
+The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
-* `offboard_para(P: ParaId)`:
+`schedule_para_cleanup(ParaId)`:
+    1. Add the para into the `OutgoingParas` vector maintaining the sorted order.
+
+## Session Change
+
+1. Drain `OutgoingParas`. For each `P` happened to be in the list:
   1. Remove all inbound channels of `P`, i.e. `(_, P)`,
   1. Remove all outbound channels of `P`, i.e. `(P, _)`,
   1. Remove all `DownwardMessageQueues` of `P`.
@@ -201,9 +209,6 @@ The routines described below are for use within a session change and called by t
   1. Remove `RelayDispatchQueues` of `P`.
   - Note that we don't remove the open/close requests since they are gon die out naturally.
 TODO: What happens with the deposits in channels or open requests?
-
-## Session Change
-
 1. For each request `R` in `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
