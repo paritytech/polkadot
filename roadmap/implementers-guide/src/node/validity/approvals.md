@@ -24,6 +24,18 @@ There are rewards computations on-chain too, which runs the assignments code to 
 
 ...
 
+### Approval keys
+
+We need two separate keys for the approval subsystem
+
+- **Approval assignment keys** are sr25519/schnorrkel keys used only for the assignment criteria VRF.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.  
+
+- **Approval vote keys** would only sign off on candidate parblock validity.  
+
+Approval vote keys could easily be handled by some hardened signer tooling, perhaps even HSMs if we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but they represent only minimal slashing risk for validator operator.  
+
+In future, we shall determine which among the several hardening techniques best benefits the netwrok as a whole.  We could provide a multi-process multi-machine architecture for validators, perhaps even reminiscent of GNUNet, or perhaps more resembling smart HSM tooling.  We might instead design a system that more resembled full systems, like like Cosmos' sentry nodes.  In either case, approval assignments might be handled by a slightly hardened machine, but not necessarily nearly as hardened as approval votes, but approval votes machines must similarly run foreign WASM code, which increases their risk, so assignments being separate sounds helpful.  
+
 ### Gossip
 
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
