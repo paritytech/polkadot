@@ -36,7 +36,7 @@ use crate::inclusion;
 pub struct Test;
 
 impl_outer_origin! {
-	pub enum Origin for Test where system = system { }
+	pub enum Origin for Test { }
 }
 
 impl_outer_dispatch! {
@@ -47,7 +47,7 @@ impl_outer_dispatch! {
 
 impl_outer_event! {
 	pub enum TestEvent for Test {
-		system<T>,
+		frame_system<T>,
 		inclusion<T>,
 	}
 }
@@ -67,7 +67,7 @@ parameter_types! {
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 }
 
-impl system::Trait for Test {
+impl frame_system::Trait for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -89,7 +89,7 @@ impl system::Trait for Test {
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type ModuleToIndex = ();
-	type AccountData = balances::AccountData<u128>;
+	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
@@ -109,7 +109,7 @@ impl crate::inclusion::Trait for Test {
 	type Event = TestEvent;
 }
 
-pub type System = system::Module<Test>;
+pub type System = frame_system::Module<Test>;
 
 /// Mocked initializer.
 pub type Initializer = crate::initializer::Module<Test>;
@@ -137,7 +137,7 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 
 #[derive(Default)]
 pub struct GenesisConfig {
-	pub system: system::GenesisConfig,
+	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig<Test>,
 }

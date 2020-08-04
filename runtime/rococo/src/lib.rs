@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2020 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,14 +28,14 @@ use primitives::v0::{
 	ActiveParas, AbridgedCandidateReceipt, SigningContext,
 };
 use runtime_common::{
-	attestations, parachains, registrar, purchase, SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Permill, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -49,9 +49,8 @@ use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
-use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -59,7 +58,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureSignedBy, EnsureOneOf};
+use frame_system::EnsureRoot;
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -74,25 +73,22 @@ pub use parachains::Call as ParachainsCall;
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
 
-// Weights used in the runtime
-mod weights;
-
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-/// Runtime version (Westend).
+/// Runtime version (Kusama).
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("westend"),
-	impl_name: create_runtime_str!("parity-westend"),
+	spec_name: create_runtime_str!("rococo"),
+	impl_name: create_runtime_str!("parity-rococo"),
 	authoring_version: 2,
-	spec_version: 43,
+	spec_version: 0,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 2,
+	apis: version::create_apis_vec![[]],
+	transaction_version: 0,
 };
 
 /// Native version.
@@ -204,7 +200,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = weights::pallet_balances::WeightInfo;
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -238,7 +234,7 @@ impl pallet_authorship::Trait for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
 	type UncleGenerations = UncleGenerations;
 	type FilterUncle = ();
-	type EventHandler = (Staking, ImOnline);
+	type EventHandler = ImOnline;
 }
 
 parameter_types! {
@@ -263,10 +259,10 @@ parameter_types! {
 impl pallet_session::Trait for Runtime {
 	type Event = Event;
 	type ValidatorId = AccountId;
-	type ValidatorIdOf = pallet_staking::StashOf<Self>;
+	type ValidatorIdOf = ();
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Self, Staking>;
+	type SessionManager = ();
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -274,8 +270,8 @@ impl pallet_session::Trait for Runtime {
 }
 
 impl pallet_session::historical::Trait for Runtime {
-	type FullIdentification = pallet_staking::Exposure<AccountId, Balance>;
-	type FullIdentificationOf = pallet_staking::ExposureOf<Runtime>;
+	type FullIdentification = ();
+	type FullIdentificationOf = ();
 }
 
 pallet_staking_reward_curve::build! {
@@ -290,11 +286,9 @@ pallet_staking_reward_curve::build! {
 }
 
 parameter_types! {
-	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
 	// 28 eras for unbonding (7 days).
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
-	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
+	// 28 eras in which slashes can be cancelled (7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
@@ -302,31 +296,6 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-}
-
-impl pallet_staking::Trait for Runtime {
-	type Currency = Balances;
-	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
-	type RewardRemainder = ();
-	type Event = Event;
-	type Slash = ();
-	type Reward = ();
-	type SessionsPerEra = SessionsPerEra;
-	type BondingDuration = BondingDuration;
-	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = EnsureRoot<AccountId>;
-	type SessionInterface = Self;
-	type RewardCurve = RewardCurve;
-	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
-	type NextNewSession = Session;
-	type ElectionLookahead = ElectionLookahead;
-	type Call = Call;
-	type UnsignedPriority = StakingUnsignedPriority;
-	type MaxIterations = MaxIterations;
-	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -348,7 +317,7 @@ parameter_types! {
 impl pallet_offences::Trait for Runtime {
 	type Event = Event;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
-	type OnOffenceHandler = Staking;
+	type OnOffenceHandler = ();
 	type WeightSoftLimit = OffencesWeightSoftLimit;
 	type WeightInfo = ();
 }
@@ -408,7 +377,7 @@ parameter_types! {
 impl attestations::Trait for Runtime {
 	type AttestationPeriod = AttestationPeriod;
 	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
-	type RewardAttestation = Staking;
+	type RewardAttestation = ();
 }
 
 parameter_types! {
@@ -611,7 +580,6 @@ parameter_types! {
 pub enum ProxyType {
 	Any,
 	NonTransfer,
-	Staking,
 	SudoBalances,
 	IdentityJudgement,
 }
@@ -630,7 +598,6 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
 				Call::Authorship(..) |
-				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
 				Call::FinalityTracker(..) |
@@ -656,9 +623,6 @@ impl InstanceFilter<Call> for ProxyType {
 				// Specifically omitting Sudo pallet
 				Call::Proxy(..) |
 				Call::Multisig(..)
-			),
-			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
@@ -693,46 +657,6 @@ impl pallet_proxy::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-parameter_types! {
-	pub const MaxStatementLength: usize = 1_000;
-	pub const UnlockedProportion: Permill = Permill::zero();
-	pub const MaxUnlocked: Balance = 0;
-}
-
-ord_parameter_types! {
-	pub const PurchaseValidity: AccountId = AccountId::from(
-		// 5CqSB6zNHcp3mvTAyh5Vr2MbSdb7DgLi9yWoAppHRveGcYQh
-		hex_literal::hex!("221d409ba60508368d4448ccda40182aca2744bcdfa0881944c08108a9fd966d")
-	);
-	pub const PurchaseConfiguration: AccountId = AccountId::from(
-		// 5FUP4BwQzi8F5WBTmaHsoobGbMSUTiX7Exwb7QzTjgNQypo1
-		hex_literal::hex!("96c34c8c60b3690701176bdbc9b16aced2898d754385a84ee0cfe7fb015db800")
-	);
-}
-
-type ValidityOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseValidity, AccountId>,
->;
-
-type ConfigurationOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseConfiguration, AccountId>,
->;
-
-impl purchase::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type VestingSchedule = Vesting;
-	type ValidityOrigin = ValidityOrigin;
-	type ConfigurationOrigin = ConfigurationOrigin;
-	type MaxStatementLength = MaxStatementLength;
-	type UnlockedProportion = UnlockedProportion;
-	type MaxUnlocked = MaxUnlocked;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -753,7 +677,6 @@ construct_runtime! {
 
 		// Consensus support.
 		Authorship: pallet_authorship::{Module, Call, Storage},
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
 		Offences: pallet_offences::{Module, Call, Storage, Event},
 		Historical: session_historical::{Module},
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
@@ -791,9 +714,6 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
-
-		// Purchase module. Late addition.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -1051,7 +971,6 @@ sp_api::impl_runtime_apis! {
 			highest_range_values: Vec<u32>,
 			steps: Vec<u32>,
 			repeat: u32,
-			extra: bool,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
@@ -1084,16 +1003,7 @@ sp_api::impl_runtime_apis! {
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
-			let params = (
-				&pallet,
-				&benchmark,
-				&lowest_range_values,
-				&highest_range_values,
-				&steps,
-				repeat,
-				&whitelist,
-				extra,
-			);
+			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
 
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_identity, Identity);
