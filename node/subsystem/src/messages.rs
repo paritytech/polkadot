@@ -489,8 +489,6 @@ pub enum AllMessages {
 	CandidateBacking(CandidateBackingMessage),
 	/// Message for the candidate selection subsystem.
 	CandidateSelection(CandidateSelectionMessage),
-	/// Message for the Chain API subsystem.
-	ChainApi(ChainApiMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
