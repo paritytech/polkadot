@@ -4741,6 +4741,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "pin-project",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-primitives",
  "polkadot-statement-table",

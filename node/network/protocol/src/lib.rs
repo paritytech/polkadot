@@ -19,7 +19,7 @@
 use polkadot_primitives::v1::Hash;
 use parity_scale_codec::{Encode, Decode};
 
-pub use sc_network::{ObservedRole, PeerId};
+pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A unique identifier of a request.
 pub type RequestId = u64;
@@ -28,6 +28,7 @@ pub type RequestId = u64;
 pub type ProtocolVersion = u32;
 
 /// The peer-sets that the network manages. Different subsystems will use different peer-sets.
+#[derive(Debug, Clone, Copy)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
 	Validation,
@@ -37,7 +38,7 @@ pub enum PeerSet {
 
 /// Events from network.
 #[derive(Debug, Clone)]
-pub enum NetworkBridgeEvent {
+pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
 	PeerConnected(PeerId, ObservedRole),
 
@@ -45,7 +46,7 @@ pub enum NetworkBridgeEvent {
 	PeerDisconnected(PeerId),
 
 	/// Peer has sent a message.
-	PeerMessage(PeerId, Vec<u8>),
+	PeerMessage(PeerId, M),
 
 	/// Peer's `View` has changed.
 	PeerViewChange(PeerId, View),
@@ -136,6 +137,7 @@ pub mod v1 {
 	}
 
 	/// All network messages on the validation peer-set.
+	#[derive(Debug, Clone, Encode, Decode)]
 	pub enum ValidationProtocol {
 		/// Availability distribution messages
 		AvailabilityDistribution(AvailabilityDistributionMessage),
@@ -148,6 +150,7 @@ pub mod v1 {
 	}
 
 	/// All network messages on the collation peer-set.
+	#[derive(Debug, Clone, Encode, Decode)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
 		CollatorProtocol(CollatorProtocolMessage),

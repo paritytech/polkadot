@@ -34,11 +34,12 @@ use polkadot_primitives::v1::{
 	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
+	MisbehaviorReport, SignedFullStatement, ValidationResult,
+};
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId, PeerSet,
 };
 use std::sync::Arc;
-
-pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -136,45 +137,34 @@ impl CandidateValidationMessage {
 	}
 }
 
-/// Events from network.
-#[derive(Debug, Clone)]
-pub enum NetworkBridgeEvent {
-	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole),
-
-	/// A peer has disconnected.
-	PeerDisconnected(PeerId),
-
-	/// Peer has sent a message.
-	PeerMessage(PeerId, Vec<u8>),
-
-	/// Peer's `View` has changed.
-	PeerViewChange(PeerId, View),
-
-	/// Our `View` has changed.
-	OurViewChange(View),
-}
-
 /// Messages received by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
-	/// Register an event producer on startup.
-	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
-
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, ReputationChange),
 
-	/// Send a message to multiple peers.
-	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	/// Send a message to one or more peers on the validation peer-set.
+	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
+
+	/// Send a message to one or more peers on the collation peer-set.
+	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+
+	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	///
+	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
+	/// validators.
+	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
+
 }
 
 impl NetworkBridgeMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::RegisterEventProducer(_, _) => None,
 			Self::ReportPeer(_, _) => None,
-			Self::SendMessage(_, _, _) => None,
+			Self::SendValidationMessage(_, _) => None,
+			Self::SendCollationMessage(_, _) => None,
+			Self::ConnectToValidators(_, _, _) => None,
 		}
 	}
 }
@@ -189,7 +179,7 @@ pub enum AvailabilityDistributionMessage {
 	FetchChunk(Hash, u32),
 
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
 }
 
 impl AvailabilityDistributionMessage {
@@ -198,7 +188,7 @@ impl AvailabilityDistributionMessage {
 		match self {
 			Self::DistributeChunk(hash, _) => Some(*hash),
 			Self::FetchChunk(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -210,7 +200,7 @@ pub enum BitfieldDistributionMessage {
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
 }
 
 impl BitfieldDistributionMessage {
@@ -218,7 +208,7 @@ impl BitfieldDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -393,7 +383,7 @@ pub enum StatementDistributionMessage {
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
 }
 
 impl StatementDistributionMessage {
@@ -401,7 +391,7 @@ impl StatementDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -465,7 +455,7 @@ pub enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
 }
 
 impl PoVDistributionMessage {
@@ -474,7 +464,7 @@ impl PoVDistributionMessage {
 		match self {
 			Self::FetchPoV(hash, _, _) => Some(*hash),
 			Self::DistributePoV(hash, _, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
