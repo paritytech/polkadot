@@ -126,6 +126,7 @@ pub enum Client {
 	Polkadot(Arc<crate::FullClient<polkadot_runtime::RuntimeApi, crate::PolkadotExecutor>>),
 	Westend(Arc<crate::FullClient<westend_runtime::RuntimeApi, crate::WestendExecutor>>),
 	Kusama(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::KusamaExecutor>>),
+	Rococo(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::RococoExecutor>>),
 }
 
 impl Client {
@@ -139,6 +140,9 @@ impl Client {
 				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
 			},
 			Self::Kusama(client) => {
+				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
+			},
+			Self::Rococo(client) => {
 				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
 			}
 		}
