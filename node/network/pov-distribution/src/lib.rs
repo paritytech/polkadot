@@ -27,7 +27,7 @@ use polkadot_subsystem::messages::{
 	PoVDistributionMessage, NetworkBridgeEvent, ReputationChange as Rep, PeerId,
 	RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 };
-use node_primitives::{View, NetworkCapability};
+use node_primitives::{View, ProtocolId};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
@@ -46,7 +46,7 @@ const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited Po
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
-const CAPABILITY_V1: NetworkCapability = *b"pvd1";
+const PROTOCOL_V1: ProtocolId = *b"pvd1";
 
 #[derive(Encode, Decode)]
 enum WireMessage {
@@ -173,7 +173,7 @@ async fn notify_all_we_are_awaiting(
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 		peers_to_send,
-		CAPABILITY_V1,
+		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -198,7 +198,7 @@ async fn notify_one_we_are_awaiting_many(
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 		vec![peer.clone()],
-		CAPABILITY_V1,
+		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -230,7 +230,7 @@ async fn distribute_to_awaiting(
 
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 		peers_to_send,
-		CAPABILITY_V1,
+		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -363,7 +363,7 @@ async fn handle_awaiting(
 			if let Some(pov) = relay_parent_state.known.get(&pov_hash) {
 				ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
 					vec![peer.clone()],
-					CAPABILITY_V1,
+					PROTOCOL_V1,
 					WireMessage::SendPoV(relay_parent, pov_hash, (&**pov).clone()).encode(),
 				))).await?;
 			} else {
@@ -524,7 +524,7 @@ async fn run(
 ) -> SubsystemResult<()> {
 	// startup: register the network protocol with the bridge.
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::RegisterEventProducer(
-		CAPABILITY_V1,
+		PROTOCOL_V1,
 		network_update_message,
 	))).await?;
 
@@ -664,7 +664,7 @@ mod tests {
 					NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, CAPABILITY_V1);
+					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
 						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
@@ -740,7 +740,7 @@ mod tests {
 					NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, CAPABILITY_V1);
+					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
 						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
@@ -812,7 +812,7 @@ mod tests {
 					NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, CAPABILITY_V1);
+					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
 						WireMessage::Awaiting(hash_a, vec![pov_a_hash]).encode(),
@@ -1393,7 +1393,7 @@ mod tests {
 					NetworkBridgeMessage::SendMessage(peers, protocol, message)
 				) => {
 					assert_eq!(peers, vec![peer_b.clone()]);
-					assert_eq!(protocol, CAPABILITY_V1);
+					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
 						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),

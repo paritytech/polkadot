@@ -34,7 +34,7 @@ use polkadot_primitives::v1::{
 	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, NetworkCapability, ValidationResult,
+	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
 };
 use std::sync::Arc;
 
@@ -159,13 +159,13 @@ pub enum NetworkBridgeEvent {
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
 	/// Register an event producer on startup.
-	RegisterEventProducer(NetworkCapability, fn(NetworkBridgeEvent) -> AllMessages),
+	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
 
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, ReputationChange),
 
 	/// Send a message to multiple peers.
-	SendMessage(Vec<PeerId>, NetworkCapability, Vec<u8>),
+	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
 }
 
 impl NetworkBridgeMessage {
