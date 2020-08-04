@@ -145,9 +145,10 @@ struct LocalValidationData {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	code_upgrade_allowed: Option<BlockNumber>,
-
-	// TODO: Does this look sensible?
-	hrmp_ingress: BTreeMap<ParaId /* sender */, Vec<InboundHrmpMessage>>,
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
 
