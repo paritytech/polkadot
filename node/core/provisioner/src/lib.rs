@@ -17,6 +17,8 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
+#![deny(missing_docs)]
+
 use bitvec::vec::BitVec;
 use futures::{
 	channel::{mpsc, oneshot},
@@ -49,8 +51,11 @@ struct ProvisioningJob {
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 }
 
+/// This enum defines the messages that the provisioner is prepared to receive.
 pub enum ToJob {
+	/// The provisioner message is the main input to the provisioner.
 	Provisioner(ProvisionerMessage),
+	/// This message indicates that the provisioner should shut itself down.
 	Stop,
 }
 
