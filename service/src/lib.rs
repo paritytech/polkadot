@@ -75,6 +75,13 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
+native_executor_instance!(
+	pub RococoExecutor,
+	rococo_runtime::api::dispatch,
+	rococo_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -118,14 +125,22 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Westend` network.
 	fn is_westend(&self) -> bool;
+
+	/// Returns if this is a configuration for the `Rococo` network.
+	fn is_rococo(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_kusama(&self) -> bool {
 		self.id().starts_with("kusama") || self.id().starts_with("ksm")
 	}
+
 	fn is_westend(&self) -> bool {
 		self.id().starts_with("westend") || self.id().starts_with("wnd")
+	}
+
+	fn is_rococo(&self) -> bool {
+		self.id().starts_with("rococo") || self.id().starts_with("roc")
 	}
 }
 
@@ -771,7 +786,7 @@ pub fn kusama_new_full(
 	Ok((service, client, handles))
 }
 
-/// Create a new Kusama service for a full node.
+/// Create a new Westend service for a full node.
 #[cfg(feature = "full-node")]
 pub fn westend_new_full(
 	config: Configuration,
@@ -792,6 +807,39 @@ pub fn westend_new_full(
 	), ServiceError>
 {
 	let (service, client, handles, _, _) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_disabled,
+		slot_duration,
+		grandpa_pause,
+		false,
+	)?;
+
+	Ok((service, client, handles))
+}
+
+/// Create a new Rococo service for a full node.
+#[cfg(feature = "full-node")]
+pub fn rococo_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_disabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+)
+	-> Result<(
+		TaskManager,
+		Arc<impl PolkadotClient<
+			Block,
+			TFullBackend<Block>,
+			rococo_runtime::RuntimeApi
+		>>,
+		FullNodeHandles,
+	), ServiceError>
+{
+	let (service, client, handles, _, _) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -838,6 +886,10 @@ impl NodeBuilder {
 			new_light::<westend_runtime::RuntimeApi, WestendExecutor>(
 				self.config,
 			)
+		} else if self.config.chain_spec.is_rococo() {
+			new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(
+				self.config,
+			)
 		} else {
 			new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 				self.config,
@@ -867,6 +919,16 @@ impl NodeBuilder {
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else if self.config.chain_spec.is_westend() {
 			new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+				self.config,
+				collating_for,
+				max_block_data_size,
+				authority_discovery_disabled,
+				slot_duration,
+				grandpa_pause,
+				false,
+			).map(|(task_manager, _, _, _, _)| task_manager)
+		} else if self.config.chain_spec.is_rococo() {
+			new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 				self.config,
 				collating_for,
 				max_block_data_size,

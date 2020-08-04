@@ -37,6 +37,7 @@ members = [
 	"runtime/kusama",
 	"runtime/rococo-v1",
 	"runtime/westend",
+	"runtime/rococo",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -65,12 +66,6 @@ members = [
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
 	"parachain/test-parachains/code-upgrader",
-]
-exclude = [
-	"runtime/polkadot/wasm",
-	"runtime/kusama/wasm",
-	"runtime/westend/wasm",
-	"parachain/test-parachains/adder/wasm",
 ]
 
 [badges]
