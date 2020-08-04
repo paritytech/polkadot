@@ -25,22 +25,19 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
+	delegated_subsystem,
 	errors::ChainApiError,
 	messages::{
 		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
 	util::{self, request_availability_cores, JobTrait, ToJobTrait},
-	delegated_subsystem,
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield,
+	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCore, OccupiedCoreAssumption,
+	ScheduledCore, SignedAvailabilityBitfield,
 };
-use std::{
-	collections::{HashMap, HashSet},
-	convert::TryFrom,
-	pin::Pin,
-};
+use std::{collections::HashMap, convert::TryFrom, pin::Pin};
 
 struct ProvisioningJob {
 	relay_parent: Hash,
@@ -243,6 +240,110 @@ impl ProvisioningJob {
 	}
 }
 
+type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+
+// preprocessing the cores involves a bit more data than is comfortable in a tuple, so let's make a struct of it
+struct PreprocessedCore {
+	assumption: OccupiedCoreAssumption,
+	scheduled_core: ScheduledCore,
+	availability: Option<CoreAvailability>,
+	timeout: Option<BlockNumber>,
+	idx: usize,
+}
+
+impl PreprocessedCore {
+	fn new(idx: usize, core: CoreState) -> Option<Self> {
+		match core {
+			CoreState::Occupied(OccupiedCore {
+				availability,
+				next_up_on_available: Some(scheduled_core),
+				..
+			}) => Some(Self {
+				assumption: OccupiedCoreAssumption::Included,
+				scheduled_core,
+				availability: Some(availability),
+				timeout: None,
+				idx,
+			}),
+			CoreState::Occupied(OccupiedCore {
+				availability,
+				next_up_on_time_out: Some(scheduled_core),
+				time_out_at,
+				..
+			}) => Some(Self {
+				assumption: OccupiedCoreAssumption::TimedOut,
+				scheduled_core,
+				availability: Some(availability),
+				timeout: Some(time_out_at),
+				idx,
+			}),
+			CoreState::Scheduled(scheduled_core) => Some(Self {
+				assumption: OccupiedCoreAssumption::Free,
+				scheduled_core,
+				availability: None,
+				timeout: None,
+				idx,
+			}),
+			_ => None,
+		}
+	}
+
+	// coherent candidates fulfill these conditions:
+	//
+	// - only one per parachain
+	// - any of:
+	//   - this para is assigned to a `Scheduled` core (OccupiedCoreAssumption::Free)
+	//   - this para is assigned to an `Occupied` core, and any of:
+	//     - it is `next_up_on_available` (OccupiedCoreAssumption::Included),
+	//       and the bitfields we are including, merged with the `availability` vec, form 2/3+ of validators
+	//     - it is `next_up_on_time_out` (OccupiedCoreAssumption::TimedOut),
+	//       and `time_out_at` is the block we are building,
+	//       and the bitfields we are including, merged with the `availability_ vec, form <2/3 of validators
+	fn choose_candidate(
+		&self,
+		bitfields: &[SignedAvailabilityBitfield],
+		candidates: &[BackedCandidate],
+		block_number: BlockNumber,
+	) -> Option<BackedCandidate> {
+		// choose only one per parachain
+		candidates
+			.iter()
+			.find(|candidate| candidate.candidate.descriptor.para_id == self.scheduled_core.para_id)
+			.map(|candidate| {
+				match (self.assumption, self.availability.as_ref(), self.timeout) {
+					(OccupiedCoreAssumption::Free, _, _) => {
+						// core was already scheduled
+						Some(candidate.clone())
+					}
+					(OccupiedCoreAssumption::Included, Some(availability), _) => {
+						// core became available
+						if merged_bitfields_are_gte_two_thirds(self.idx, &bitfields, availability) {
+							Some(candidate.clone())
+						} else {
+							None
+						}
+					}
+					(OccupiedCoreAssumption::TimedOut, Some(availability), Some(timeout)) => {
+						// core timed out
+						if timeout == block_number
+							&& !merged_bitfields_are_gte_two_thirds(
+								self.idx,
+								&bitfields,
+								availability,
+							)
+						{
+							Some(candidate.clone())
+						} else {
+							None
+						}
+					}
+					_ => None,
+				}
+			})
+			.flatten()
+	}
+}
+
 // The provisioner is the subsystem best suited to choosing which specific
 // backed candidates and availability bitfields should be assembled into the
 // block. To engage this functionality, a
@@ -279,21 +380,17 @@ async fn send_inherent_data(
 		}
 	};
 
-	// availability cores indexed by their para_id for ease of use
-	let cores_by_id: HashMap<_, _> = availability_cores
-		.iter()
+	// select those bitfields which match our constraints
+	let signed_bitfields = select_availability_bitfields(&availability_cores, signed_bitfields);
+
+	// preprocess the availability cores: replace occupied cores with scheduled cores, if possible
+	// also tag each core with an `OccupiedCoreAssumption`
+	let scheduled_cores: Vec<_> = availability_cores
+		.into_iter()
 		.enumerate()
-		.filter_map(|(idx, core_state)| Some((core_state.para_id()?, (idx, core_state))))
+		.filter_map(|(idx, core)| PreprocessedCore::new(idx, core))
 		.collect();
 
-	// utility
-	let mut parachains_represented = HashSet::new();
-
-	// ideally, we wouldn't calculate this unconditionally, but only if we have to use it in the
-	// `if let Some(ref scheduled) = occupied.next_up_on_time_out {` case. In all other cases, it's
-	// irrelevant. However, that's challenging: that whole thing happens within a `.retain` closure,
-	// which is _not_ async.
-	// We can leave the optimization for another day.
 	let block_number = match get_block_number_under_construction(relay_parent, &mut from_job).await
 	{
 		Ok(n) => n,
@@ -303,75 +400,58 @@ async fn send_inherent_data(
 		}
 	};
 
-	// coherent candidates fulfill these conditions:
-	//
-	// - only one per parachain
-	// - any of:
-	//   - this para is assigned to a `Scheduled` core
-	//   - this para is assigned to an `Occupied` core, and any of:
-	//     - it is `next_up_on_available` and the bitfields we are including, merged with
-	//       the `availability` vec, form 2/3+ of validators
-	//     - it is `next_up_on_time_out` and the bitfields we are including, merged with
-	//       the `availability_ vec, for <2/3 of validators, and `time_out_at` is
-	//       the block we are building.
-	//
-	// postcondition: they are sorted by core index
-	let mut backed_candidates: Vec<_> = backed_candidates
-		.iter()
-		.filter(|candidate| {
-			// only allow the first candidate per parachain
-			let para_id = candidate.candidate.descriptor.para_id;
-			if !parachains_represented.insert(para_id) {
-				return false;
-			}
-
-			let (core_idx, core) = match cores_by_id.get(&para_id) {
-				Some(core) => core,
-				None => return false,
-			};
-
-			match core {
-				CoreState::Free => false,
-				CoreState::Scheduled(_) => true,
-				CoreState::Occupied(occupied) => {
-					if let Some(ref scheduled) = occupied.next_up_on_available {
-						return scheduled.para_id == para_id
-							&& merged_bitfields_are_gte_two_thirds(
-								*core_idx,
-								&signed_bitfields,
-								&occupied.availability,
-							);
-					}
-					if let Some(ref scheduled) = occupied.next_up_on_time_out {
-						return scheduled.para_id == para_id
-							&& occupied.time_out_at == block_number
-							&& !merged_bitfields_are_gte_two_thirds(
-								*core_idx,
-								&signed_bitfields,
-								&occupied.availability,
-							);
-					}
-					false
-				}
-			}
+	// postcondition: they are sorted by core index, but that's free, since we're iterating in order of cores anyway
+	let selected_candidates: Vec<_> = scheduled_cores
+		.into_iter()
+		.filter_map(|core| {
+			core.choose_candidate(&signed_bitfields, backed_candidates, block_number)
 		})
-		.cloned()
 		.collect();
-
-	// ensure the postcondition holds true: sorted by core index
-	// note: unstable sort is still deterministic becuase we know (by means of `parachains_represented`) that
-	// no two backed candidates remain, both of which are assigned to the same core.
-	backed_candidates.sort_unstable_by_key(|candidate| {
-		let para_id = candidate.candidate.descriptor.para_id;
-		let (core_idx, _) = cores_by_id.get(&para_id).expect("paras not assigned to a core have already been eliminated from the backed_candidates list; qed");
-		core_idx
-	});
 
 	// type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 	return_sender
-		.send((signed_bitfields.to_vec(), backed_candidates))
+		.send((signed_bitfields, selected_candidates))
 		.map_err(|_| Error::OneshotSend)?;
 	Ok(())
+}
+
+// in general, we want to pick all the bitfields. However, we have the following constraints:
+//
+// - not more than one per validator
+// - each must correspond to an occupied core
+//
+// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
+// we pick the one with the greatest number of 1 bits.
+//
+// note: this does not enforce any sorting precondition on the output; the ordering there will be unrelated
+// to the sorting of the input.
+fn select_availability_bitfields(
+	cores: &[CoreState],
+	bitfields: &[SignedAvailabilityBitfield],
+) -> Vec<SignedAvailabilityBitfield> {
+	let mut fields_by_core: HashMap<_, Vec<_>> = HashMap::new();
+	for bitfield in bitfields.iter() {
+		let core_idx = bitfield.validator_index() as usize;
+		if let CoreState::Occupied(_) = cores[core_idx] {
+			fields_by_core
+				.entry(core_idx)
+				.or_default()
+				.push(bitfield.clone());
+		}
+	}
+
+	// there cannot be a value list in field_by_core with len < 1
+	let mut out = Vec::with_capacity(fields_by_core.len());
+	for (_, core_bitfields) in fields_by_core.iter_mut() {
+		core_bitfields.sort_by_key(|bitfield| bitfield.payload().0.count_ones());
+		out.push(
+			core_bitfields
+				.pop()
+				.expect("every core bitfield has at least 1 member; qed"),
+		);
+	}
+
+	out
 }
 
 // produces a block number 1 higher than that of the relay parent
@@ -409,7 +489,7 @@ async fn get_block_number_under_construction(
 fn merged_bitfields_are_gte_two_thirds(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
-	availability: &BitVec<bitvec::order::Lsb0, u8>,
+	availability: &CoreAvailability,
 ) -> bool {
 	let mut transverse = availability.clone();
 	let transverse_len = transverse.len();
