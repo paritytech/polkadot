@@ -4,7 +4,6 @@ The Statement Distribution Subsystem is responsible for distributing statements 
 
 ## Protocol
 
-`NetworkCapability`: `b"stmd"`
 `PeerSet`: `Validation`
 
 Input:
@@ -13,13 +12,12 @@ Input:
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`NetworkCapability`)
-- NetworkBridge::SendMessage(`[PeerId]`, `NetworkCapability`, `Bytes`)
+- NetworkBridge::SendMessage(`[PeerId]`, message)
 - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 
 ## Functionality
 
-Implemented as a gossip protocol. Register a network event producer on startup. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
+Implemented as a gossip protocol. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
 
 Statement Distribution is the only backing subsystem which has any notion of peer nodes, who are any full nodes on the network. Validators will also act as peer nodes.
 

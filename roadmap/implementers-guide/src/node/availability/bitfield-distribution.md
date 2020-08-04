@@ -4,7 +4,6 @@ Validators vote on the availability of a backed candidate by issuing signed bitf
 
 ## Protocol
 
-`NetworkCapability`: `b"bitd"`
 `PeerSet`: `Validation`
 
 Input:
@@ -12,15 +11,14 @@ Input:
 
 Output:
 
-- `NetworkBridge::RegisterEventProducer(NetworkCapability)` in order to register ourself as an event provider for the protocol.
-- `NetworkBridge::SendMessage([PeerId], NetworkCapability, Bytes)` gossip a verified incoming bitfield on to interested subsystems within this validator node.
+- `NetworkBridge::SendValidationMessage([PeerId], message)` gossip a verified incoming bitfield on to interested subsystems within this validator node.
 - `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)` improve or penalize the reputation of peers based on the messages that are received relative to the current view.
 - `ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(relay_parent, SignedAvailabilityBitfield))` pass
   on the bitfield to the other submodules via the overseer.
 
 ## Functionality
 
-This is implemented as a gossip system. Register a [network bridge](../utility/network-bridge.md) event producer on startup.
+This is implemented as a gossip system.
 
 It is necessary to track peer connection, view change, and disconnection events, in order to maintain an index of which peers are interested in which relay parent bitfields.
 
