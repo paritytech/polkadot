@@ -39,8 +39,8 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
-	SubsystemContext, SubsystemError,
+	errors::RuntimeApiError, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	Subsystem, SubsystemContext, SubsystemError,
 };
 use sc_network::ReputationChange as Rep;
 use std::collections::{HashMap, HashSet};
@@ -59,24 +59,22 @@ enum Error {
 	Oneshot(oneshot::Canceled),
 	#[from]
 	Subsystem(SubsystemError),
+	#[from]
+	RuntimeApi(RuntimeApiError),
 
 	Logic,
 }
 
 type Result<T> = std::result::Result<T, Error>;
 
-const COST_MERKLE_PROOF_INVALID: Rep =
-	Rep::new(-100, "Bitfield signature invalid");
+const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Bitfield signature invalid");
 const COST_NOT_A_LIVE_CANDIDATE: Rep =
 	Rep::new(-51, "Candidate is not part of the live candidates");
-const COST_NOT_IN_VIEW: Rep =
-	Rep::new(-51, "Not interested in that parent hash");
-const COST_MESSAGE_NOT_DECODABLE: Rep =
-	Rep::new(-100, "Not interested in that parent hash");
+const COST_NOT_IN_VIEW: Rep = Rep::new(-51, "Not interested in that parent hash");
+const COST_MESSAGE_NOT_DECODABLE: Rep = Rep::new(-100, "Not interested in that parent hash");
 const COST_PEER_DUPLICATE_MESSAGE: Rep =
 	Rep::new(-500, "Peer sent the same message multiple times");
-const BENEFIT_VALID_MESSAGE_FIRST: Rep =
-	Rep::new(15, "Valid message with new information");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 
 /// Checked signed availability bitfield that is distributed
@@ -174,33 +172,44 @@ impl ProtocolState {
 			.collect::<HashMap<H256, CommittedCandidateReceipt>>()
 	}
 
-	async fn add_relay_parent<Context>(&mut self, ctx: &mut Context, relay_parent: H256) -> Result<()>
-		where
-			Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+	async fn add_relay_parent<Context>(
+		&mut self,
+		ctx: &mut Context,
+		relay_parent: H256,
+	) -> Result<()>
+	where
+		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
-		let candidates = query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
+		let candidates =
+			query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
 
 		// register the relation of relay_parent to candidate..
 		// ..and the reverse association.
 		for (relay_parent_or_ancestor, receipt) in candidates.clone() {
-			self
-				.reverse
-				.insert(candidate_hash_of(&receipt), relay_parent_or_ancestor.clone());
-			self
-				.per_candidate
+			self.reverse.insert(
+				candidate_hash_of(&receipt),
+				relay_parent_or_ancestor.clone(),
+			);
+			self.per_candidate
 				.entry(candidate_hash_of(&receipt))
 				.or_default();
-			self.receipts.entry(relay_parent_or_ancestor).or_default().insert(receipt);
+			self.receipts
+				.entry(relay_parent_or_ancestor)
+				.or_default()
+				.insert(receipt);
 		}
 
 		// collect the ancestors again from the hash map
-		let ancestors = candidates.iter().filter_map(|(ancestor_or_relay_parent, _receipt)| {
-			if ancestor_or_relay_parent == &relay_parent {
-				None
-			} else {
-				Some(ancestor_or_relay_parent.clone())
-			}
-		}).collect::<HashSet<H256>>();
+		let ancestors = candidates
+			.iter()
+			.filter_map(|(ancestor_or_relay_parent, _receipt)| {
+				if ancestor_or_relay_parent == &relay_parent {
+					None
+				} else {
+					Some(ancestor_or_relay_parent.clone())
+				}
+			})
+			.collect::<HashSet<H256>>();
 
 		// mark all the ancestors as "needed" by this newly added relay parent
 		for ancestor in ancestors.iter() {
@@ -210,13 +219,13 @@ impl ProtocolState {
 				.insert(relay_parent.clone());
 		}
 
-		self.per_relay_parent.get_mut(&relay_parent)
+		self.per_relay_parent
+			.get_mut(&relay_parent)
 			.expect("Relay parent is initialized on overseer signal. qed")
 			.ancestors = ancestors;
 
 		Ok(())
 	}
-
 
 	fn remove_relay_parent(&mut self, relay_parent: &H256) -> Result<()> {
 		// we might be ancestor of some other relay_parent
@@ -249,14 +258,13 @@ impl ProtocolState {
 					}
 				}
 			}
-
 		}
 		Ok(())
 	}
 }
 
 fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
-    AllMessages::AvailabilityDistribution(AvailabilityDistributionMessage::NetworkBridgeUpdate(n))
+	AllMessages::AvailabilityDistribution(AvailabilityDistributionMessage::NetworkBridgeUpdate(n))
 }
 
 /// Deal with network bridge updates and track what needs to be tracked
@@ -307,18 +315,20 @@ fn candidate_hash_of(receipt: &CommittedCandidateReceipt) -> H256 {
 	receipt.descriptor().validation_data_hash.clone()
 }
 
-
-fn derive_erasure_chunks_with_proofs(n_validators: usize, validator_index: ValidatorIndex, available_data: &AvailableData) -> Result<Vec<ErasureChunk>> {
+fn derive_erasure_chunks_with_proofs(
+	n_validators: usize,
+	validator_index: ValidatorIndex,
+	available_data: &AvailableData,
+) -> Result<Vec<ErasureChunk>> {
 	if n_validators <= validator_index as usize {
 		warn!("Validator index is outside the validator set range");
-		return Err(Error::Logic)
+		return Err(Error::Logic);
 	}
-	let chunks: Vec<Vec<u8>> =
-	if let Ok(chunks) = obtain_chunks(n_validators, available_data) {
+	let chunks: Vec<Vec<u8>> = if let Ok(chunks) = obtain_chunks(n_validators, available_data) {
 		chunks
 	} else {
 		warn!("Failed to create erasure chunks");
-		return Err(Error::Logic)
+		return Err(Error::Logic);
 	};
 
 	// create proofs for each erasure chunk
@@ -348,9 +358,7 @@ where
 
 	// needed due to borrow rules
 	let view = state.view.clone();
-	let added =
-		view.difference(&old_view)
-		.collect::<Vec<&'_ H256>>();
+	let added = view.difference(&old_view).collect::<Vec<&'_ H256>>();
 
 	// add all the relay parents and fill the cache
 	for added in added.clone() {
@@ -358,9 +366,7 @@ where
 	}
 
 	// handle all candidates
-	for (candidate_hash, candidate_receipt) in
-		state.cached_live_candidates_unioned(added)
-	{
+	for (candidate_hash, candidate_receipt) in state.cached_live_candidates_unioned(added) {
 		let added = candidate_receipt.descriptor().relay_parent;
 		let desc = candidate_receipt.descriptor();
 		let para = desc.para_id;
@@ -392,10 +398,14 @@ where
 			omitted_validation,
 		};
 
-		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(per_relay_parent.validators.len(), validator_index, &available_data) {
+		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(
+			per_relay_parent.validators.len(),
+			validator_index,
+			&available_data,
+		) {
 			erasure_chunks
 		} else {
-			return Ok(())
+			return Ok(());
 		};
 
 		if let Some(erasure_chunk) = erasure_chunks.get(validator_index as usize) {
@@ -418,17 +428,20 @@ where
 			.clone()
 			.into_iter()
 			.filter(|(_peer, view)| {
-				state.cached_live_candidates_unioned(view.0.iter()).contains_key(&candidate_hash)
+				state
+					.cached_live_candidates_unioned(view.0.iter())
+					.contains_key(&candidate_hash)
 			})
 			.map(|(peer, _view)| peer.clone())
 			.collect();
 
-
 		// distribute all erasure messages to interested peers
 		for erasure_chunk in erasure_chunks {
-
 			// only the peers which did not receive this particular erasure chunk
-			let per_candidate = state.per_candidate.entry(candidate_hash.clone()).or_default();
+			let per_candidate = state
+				.per_candidate
+				.entry(candidate_hash.clone())
+				.or_default();
 			let peers = peers
 				.iter()
 				.filter(|peer| {
@@ -507,11 +520,12 @@ where
 		}
 
 		let encoded = message.encode();
-		per_candidate.message_vault.insert(message.erasure_chunk.index, message);
+		per_candidate
+			.message_vault
+			.insert(message.erasure_chunk.index, message);
 
-		ctx.send_message(
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::SendMessage(
+		ctx.send_message(AllMessages::NetworkBridge(
+			NetworkBridgeMessage::SendMessage(
 				peers.clone(),
 				AvailabilityDistributionSubsystem::PROTOCOL_ID,
 				encoded,
@@ -569,9 +583,7 @@ where
 				})
 				.filter_map(|erasure_chunk_index: ValidatorIndex| {
 					// try to pick up the message from the message vault
-					per_candidate
-						.message_vault
-						.get(&erasure_chunk_index)
+					per_candidate.message_vault.get(&erasure_chunk_index)
 				})
 				.cloned()
 				.collect::<HashSet<_>>();
@@ -580,9 +592,7 @@ where
 			continue;
 		};
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages)
-			.await?;
-
+		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages).await?;
 	}
 	Ok(())
 }
@@ -613,8 +623,7 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	// obtain the set of candidates we are interested in based on our current view
-	let live_candidates =
-		state.cached_live_candidates_unioned(state.view.0.iter());
+	let live_candidates = state.cached_live_candidates_unioned(state.view.0.iter());
 
 	// check if the candidate is of interest
 	let live_candidate = if let Some(live_candidate) = live_candidates.get(&message.candidate_hash)
@@ -623,7 +632,6 @@ where
 	} else {
 		return modify_reputation(ctx, origin, COST_NOT_A_LIVE_CANDIDATE).await;
 	};
-
 
 	// check the merkle proof
 	let root = &live_candidate.commitments().erasure_root;
@@ -641,7 +649,6 @@ where
 	if anticipated_hash != erasure_chunk_hash {
 		return modify_reputation(ctx, origin, COST_MERKLE_PROOF_INVALID).await;
 	}
-
 
 	// an internal unique identifier of this message
 	let message_id = (message.candidate_hash, message.erasure_chunk.index);
@@ -672,7 +679,6 @@ where
 		} else {
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
 		};
-
 	}
 	// condense the peers to the peers with interest on the candidate
 	let peers = state
@@ -681,14 +687,17 @@ where
 		.into_iter()
 		.filter(|(_peer, view)| {
 			// peers view must contain the candidate hash too
-			state.cached_live_candidates_unioned(view.0.iter()).contains_key(&message_id.0)
+			state
+				.cached_live_candidates_unioned(view.0.iter())
+				.contains_key(&message_id.0)
 		})
 		.map(|(peer, _)| -> PeerId { peer.clone() })
 		.collect::<Vec<_>>();
 
 	let per_candidate = state.per_candidate.entry(message_id.0.clone()).or_default();
 
-	let peers = peers.into_iter()
+	let peers = peers
+		.into_iter()
 		.filter(|peer| {
 			let peer: PeerId = peer.clone();
 			// avoid sending duplicate messages
@@ -830,8 +839,11 @@ where
 /// Obtain all live canddidates based on an iterator or relay heads including `k` ancestors.
 ///
 /// Relay parent.
-async fn query_live_candidates<Context>(ctx: &mut Context, state: &mut ProtocolState, relay_parents: impl IntoIterator<Item = H256>,)
--> Result<HashMap<H256, CommittedCandidateReceipt>>
+async fn query_live_candidates<Context>(
+	ctx: &mut Context,
+	state: &mut ProtocolState,
+	relay_parents: impl IntoIterator<Item = H256>,
+) -> Result<HashMap<H256, CommittedCandidateReceipt>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -843,11 +855,13 @@ where
 
 	for relay_parent in iter {
 		// direct candidates for one relay parent
-		let receipts = query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
+		let receipts =
+			query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
 		live_candidates.extend(iter::once(relay_parent.clone()).zip(receipts.into_iter()));
 
 		// register one of relay parents (not the ancestors)
-		let ancestors = query_k_ancestors(ctx, relay_parent, AvailabilityDistributionSubsystem::K).await?;
+		let ancestors =
+			query_k_ancestors(ctx, relay_parent, AvailabilityDistributionSubsystem::K).await?;
 
 		// ancestors might overlap, so check t	he cache too
 		let unknown = ancestors
@@ -855,13 +869,21 @@ where
 			.filter(|relay_parent| {
 				// use the ones which we pulled before
 				// but keep the unknown relay parents
-				state.receipts.get(relay_parent)
-				.and_then(|receipts| {
-					// directly extend the live_candidates with the cached value
-					live_candidates.extend(receipts.into_iter().map(|receipt| (relay_parent.clone(), receipt.clone()) ));
-					Some(())
-				}).is_none()
-			}).collect::<Vec<_>>();
+				state
+					.receipts
+					.get(relay_parent)
+					.and_then(|receipts| {
+						// directly extend the live_candidates with the cached value
+						live_candidates.extend(
+							receipts
+								.into_iter()
+								.map(|receipt| (relay_parent.clone(), receipt.clone())),
+						);
+						Some(())
+					})
+					.is_none()
+			})
+			.collect::<Vec<_>>();
 
 		// query the ones that were not present in the receipts cache
 		let receipts = query_live_candidates_without_ancestors(ctx, unknown.clone()).await?;
@@ -884,7 +906,10 @@ where
 	.await
 	.map_err::<Error, _>(Into::into)?;
 
-	let all_para_ids = rx.await.map_err::<Error, _>(Into::into)?;
+	let all_para_ids: Vec<_> = rx
+		.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)?;
 
 	let occupied_para_ids = all_para_ids
 		.into_iter()
@@ -900,11 +925,7 @@ where
 }
 
 /// Modify the reputation of a peer based on its behaviour.
-async fn modify_reputation<Context>(
-	ctx: &mut Context,
-	peer: PeerId,
-	rep: Rep,
-) -> Result<()>
+async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -948,11 +969,13 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
-	))
-	.await
-	.map_err::<Error, _>(Into::into)?;
-	rx.await.map_err::<Error, _>(Into::into)
+			AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
+		))
+		.await
+		.map_err::<Error, _>(Into::into)?;
+	rx
+		.await
+		.map_err::<Error, _>(Into::into)
 }
 
 async fn store_chunk<Context>(
@@ -966,30 +989,12 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
-	))
-	.await
-	.map_err::<Error, _>(Into::into)?;
-	rx.await.map_err::<Error, _>(Into::into)
-}
-
-/// Request the head data for a particular para.
-async fn query_head_data<Context>(
-	ctx: &mut Context,
-	relay_parent: H256,
-	para: ParaId,
-) -> Result<HeadData>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::HeadData(para, tx),
-	)))
-	.await
-	.map_err::<Error, _>(Into::into)?;
-	rx.await.map_err::<Error, _>(Into::into)
+			AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
+		))
+		.await
+		.map_err::<Error, _>(Into::into)?;
+	rx.await
+		.map_err::<Error, _>(Into::into)
 }
 
 /// Request the head data for a particular para.
@@ -1008,7 +1013,9 @@ where
 	)))
 	.await
 	.map_err::<Error, _>(Into::into)?;
-	rx.await.map_err::<Error, _>(Into::into)
+	rx.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)
 }
 
 /// Query the validator set.
@@ -1028,7 +1035,9 @@ where
 	ctx.send_message(query_validators)
 		.await
 		.map_err::<Error, _>(Into::into)?;
-	rx.await.map_err::<Error, _>(Into::into)
+	rx.await
+		.map_err::<Error, _>(Into::into)?
+		.map_err::<Error, _>(Into::into)
 }
 
 /// Query omitted validation data.
@@ -1054,7 +1063,7 @@ where
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parent: H256,
-	k: usize
+	k: usize,
 ) -> Result<Vec<H256>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -1062,7 +1071,6 @@ where
 	// @todo
 	Ok(vec![])
 }
-
 
 /// Query omitted validation data.
 // @todo stub
@@ -1105,10 +1113,10 @@ mod test {
 	use polkadot_subsystem::test_helpers;
 
 	use futures::{channel::oneshot, executor, future, Future};
+	use smallvec::smallvec;
 	use smol_timeout::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
-	use smallvec::smallvec;
 
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -1140,22 +1148,32 @@ mod test {
 
 	const TIMEOUT: Duration = Duration::from_millis(100_000);
 
-	async fn overseer_signal(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, signal: OverseerSignal) {
-		overseer.send(FromOverseer::Signal(signal))
+	async fn overseer_signal(
+		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+		signal: OverseerSignal,
+	) {
+		overseer
+			.send(FromOverseer::Signal(signal))
 			.timeout(TIMEOUT)
-					.await
-					.expect("10ms is more than enough for sending signals.");
+			.await
+			.expect("10ms is more than enough for sending signals.");
 	}
 
-	async fn overseer_send(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, msg: AvailabilityDistributionMessage) {
+	async fn overseer_send(
+		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+		msg: AvailabilityDistributionMessage,
+	) {
 		log::trace!("Sending message:\n{:?}", &msg);
-		overseer.send(FromOverseer::Communication { msg })
+		overseer
+			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
-					.await
-					.expect("10ms is more than enough for sending messages.");
+			.await
+			.expect("10ms is more than enough for sending messages.");
 	}
 
-	async fn overseer_recv(overseer:  &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage> ) -> AllMessages {
+	async fn overseer_recv(
+		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
+	) -> AllMessages {
 		log::trace!("Waiting for message ...");
 		let msg = overseer
 			.recv()
@@ -1188,20 +1206,31 @@ mod test {
 			.collect()
 	}
 
-	fn valid_availability_gossip(validator_count: usize, validator_index: ValidatorIndex, erasure_chunk_index: u32) -> AvailabilityGossipMessage {
-		let candidate_hash = H256::from_slice(&[0x07u8;32]);
+	fn valid_availability_gossip(
+		validator_count: usize,
+		validator_index: ValidatorIndex,
+		erasure_chunk_index: u32,
+	) -> AvailabilityGossipMessage {
+		let candidate_hash = H256::from_slice(&[0x07u8; 32]);
 		let available_data = AvailableData {
-			pov: PoV{ block_data: BlockData(vec![0x77; 453])},
+			pov: PoV {
+				block_data: BlockData(vec![0x77; 453]),
+			},
 			omitted_validation: OmittedValidationData {
 				global_validation: GlobalValidationData::default(),
 				local_validation: LocalValidationData {
 					validation_code_hash: candidate_hash.clone(),
-					.. Default::default()
+					..Default::default()
 				},
 			},
 		};
-		let erasure_chunks = derive_erasure_chunks_with_proofs(validator_count, validator_index, &available_data).expect("Generated must work");
-		let erasure_chunk: ErasureChunk = erasure_chunks.get(erasure_chunk_index as usize).expect("Must be valid or input is oob").clone();
+		let erasure_chunks =
+			derive_erasure_chunks_with_proofs(validator_count, validator_index, &available_data)
+				.expect("Generated must work");
+		let erasure_chunk: ErasureChunk = erasure_chunks
+			.get(erasure_chunk_index as usize)
+			.expect("Must be valid or input is oob")
+			.clone();
 		AvailabilityGossipMessage {
 			candidate_hash,
 			erasure_chunk,
@@ -1210,7 +1239,10 @@ mod test {
 
 	#[test]
 	fn reputation_verification() {
-		let _ = env_logger::builder().is_test(true).filter(None, log::LevelFilter::Trace).try_init();
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(None, log::LevelFilter::Trace)
+			.try_init();
 		let keystore = keystore::Store::new_in_memory();
 
 		// @todo fails with invalid seed
@@ -1242,12 +1274,12 @@ mod test {
 
 			overseer_signal(
 				&mut virtual_overseer,
-					OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-						activated: smallvec![relay_parent_x.clone()],
-						deactivated: smallvec![],
-					})
-			).await;
-
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: smallvec![relay_parent_x.clone()],
+					deactivated: smallvec![],
+				}),
+			)
+			.await;
 
 			// ignore event producer registration
 			let _ = overseer_recv(&mut virtual_overseer).await;
@@ -1260,19 +1292,17 @@ mod test {
 					RuntimeApiRequest::Validators(tx),
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					tx.send(dbg!(validators.clone())).expect("must sent");
+					tx.send(Ok(validators.clone())).expect("must sent");
 				}
 			);
 
-			overseer_send(&mut virtual_overseer,
+			overseer_send(
+				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::OurViewChange(
-						view![
-							relay_parent_x,
-						]
-					)
-				)
-			).await;
+					NetworkBridgeEvent::OurViewChange(view![relay_parent_x,]),
+				),
+			)
+			.await;
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1284,10 +1314,10 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					// respond with a set of availability core states
-					tx.send(vec![
+					tx.send(Ok(vec![
 						dummy_occupied_core(para_27),
 						dummy_occupied_core(para_81)
-					]).expect("Must sent");
+					])).expect("Must sent");
 				}
 			);
 
@@ -1301,14 +1331,14 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, para_27);
-					tx.send(Some(CommittedCandidateReceipt {
+					tx.send(Ok(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
 							relay_parent,
 							.. Default::default()
 						},
 						.. Default::default()
-					})).expect("must sent");
+					}))).expect("must sent");
 				}
 			);
 
@@ -1320,51 +1350,50 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, para_81);
-					tx.send(Some(CommittedCandidateReceipt {
+					tx.send(Ok(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
 							relay_parent,
 							.. Default::default()
 						},
 						.. Default::default()
-					})).expect("Must");
+					}))).expect("Must");
 				}
 			);
-
 
 			// setup peer a with interest in parent x
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-						peer_a.clone(),
-						ObservedRole::Full
-					))
-			).await;
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
+				),
+			)
+			.await;
 
 			overseer_send(
 				&mut virtual_overseer,
-					AvailabilityDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-						peer_a.clone(),
-						view![relay_parent_x]
-					))
-			).await;
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_x]),
+				),
+			)
+			.await;
 
 			// setup peer b with interest in parent y
 			overseer_send(
 				&mut virtual_overseer,
-					AvailabilityDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-						peer_b.clone(),
-						ObservedRole::Full
-					))
-			).await;
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+				),
+			)
+			.await;
 
 			overseer_send(
 				&mut virtual_overseer,
-					AvailabilityDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(
-						peer_b.clone(),
-						view![relay_parent_y]
-					))
-			).await;
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_y]),
+				),
+			)
+			.await;
 
 			/////////////////////////////////////////////////////////
 			// ready for action
@@ -1378,10 +1407,11 @@ mod test {
 					NetworkBridgeEvent::PeerMessage(
 						peer_b.clone(),
 						// AvailabilityDistributionSubsystem::PROTOCOL_ID,
-						garbage.to_vec()
-					)
-				)
-			).await;
+						garbage.to_vec(),
+					),
+				),
+			)
+			.await;
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1396,17 +1426,17 @@ mod test {
 				}
 			);
 
-			let valid: AvailabilityGossipMessage = valid_availability_gossip(validators.len(), validator_index, 2);
+			let valid: AvailabilityGossipMessage =
+				valid_availability_gossip(validators.len(), validator_index, 2);
 
 			// valid (first, from b)
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
-						valid.encode()
-					))
-			).await;
+					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+				),
+			)
+			.await;
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1421,16 +1451,14 @@ mod test {
 				}
 			);
 
-
 			// valid (duplicate, from b)
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(
-						peer_b.clone(),
-						valid.encode()
-					))
-			).await;
+					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+				),
+			)
+			.await;
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1449,11 +1477,10 @@ mod test {
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
-						valid.encode()
-					))
-			).await;
+					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+				),
+			)
+			.await;
 
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1467,7 +1494,6 @@ mod test {
 					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
 				}
 			);
-
 		});
 	}
 }

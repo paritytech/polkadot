@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	BlockNumber, Hash, CommittedCandidateReceipt, CoreState,
+	Hash, CommittedCandidateReceipt,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
@@ -374,8 +374,6 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-	/// Query the state of all availability cores.
-	AvailabilityCores(oneshot::Sender<Vec<CoreState>>),
 }
 
 /// A message to the Runtime API subsystem.
