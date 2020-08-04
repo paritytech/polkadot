@@ -4705,6 +4705,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-network-protocol"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-primitives",
+ "sc-network",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
