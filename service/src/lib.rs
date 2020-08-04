@@ -782,11 +782,7 @@ pub fn rococo_new_full(
 )
 	-> Result<(
 		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			TFullBackend<Block>,
-			rococo_runtime::RuntimeApi
-		>>,
+		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
 		FullNodeHandles,
 	), ServiceError>
 {
@@ -815,7 +811,7 @@ pub struct FullNodeHandles {
 }
 
 /// Build a new light node.
-pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
+pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 	} else if config.chain_spec.is_westend() {
