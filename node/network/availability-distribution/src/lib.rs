@@ -1321,7 +1321,7 @@ mod test {
 					RuntimeApiRequest::Validators(tx),
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					tx.send(Ok(validators.clone())).expect("must sent");
+					tx.send(Ok(validators.clone())).unwrap();
 				}
 			);
 
@@ -1346,7 +1346,7 @@ mod test {
 					tx.send(Ok(vec![
 						dummy_occupied_core(para_27),
 						dummy_occupied_core(para_81)
-					])).expect("Must sent");
+					])).unwrap();
 				}
 			);
 
@@ -1367,7 +1367,7 @@ mod test {
 							.. Default::default()
 						},
 						.. Default::default()
-					}))).expect("must sent");
+					}))).unwrap();
 				}
 			);
 
@@ -1386,9 +1386,25 @@ mod test {
 							.. Default::default()
 						},
 						.. Default::default()
-					}))).expect("Must");
+					}))).unwrap();
 				}
 			);
+
+			// the ancestors request
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: relay_parent,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(relay_parent, relay_parent_x);
+					assert_eq!(k, AvailabilityDistributionSubsystem::K);
+					tx.send(Ok(vec![relay_parent_y.clone()])).unwrap();
+				}
+			);
+
+			let _ = dbg!(overseer_recv(&mut virtual_overseer).await);
 
 			// setup peer a with interest in parent x
 			overseer_send(
