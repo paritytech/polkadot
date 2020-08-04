@@ -53,8 +53,12 @@ struct HrmpOpenChannelRequest {
 /// A description of a request to close an opened HRMP channel.
 struct HrmpCloseChannelRequest {
     /// The para which initiated closing an existing channel.
-    /// invariant: equals either to sender or recipient.
-    initiator: ParaId,
+	///
+	/// Invariant: it should be equal to one of the following
+	/// - `Some(sender)`
+	/// - `Some(recipient)`
+	/// - `None` in case the request initiated by the runtime (including governance, migration, etc)
+    initiator: Option<ParaId>,
     /// The identifier of an HRMP channel to be closed.
     id: HrmpChannelId,
 }
