@@ -95,8 +95,8 @@ impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 
 /// Execute something with the client instance.
 ///
-/// As there exists multiple chains inside Polkadot, like Polkadot itself, Kusama, Westend etc,
-/// there can exists different kinds of client types. As these client types differ in the generics
+/// As there exist multiple chains inside Polkadot, like Polkadot itself, Kusama, Westend etc,
+/// there can exist different kinds of client types. As these client types differ in the generics
 /// that are being used, we can not easily return them from a function. For returning them from a
 /// function there exists [`Client`]. However, the problem on how to use this client instance still
 /// exists. This trait "solves" it in a dirty way. It requires a type to implement this trait and
