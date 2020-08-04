@@ -816,22 +816,14 @@ pub struct FullNodeHandles {
 
 /// Build a new light node.
 pub fn build_light(self) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
-	if self.config.chain_spec.is_kusama() {
-		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(
-			self.config,
-		)
+	if config.chain_spec.is_kusama() {
+		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 	} else if self.config.chain_spec.is_westend() {
-		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(
-			self.config,
-		)
+		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
 	} else if self.config.chain_spec.is_rococo() {
-		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(
-			self.config,
-		)
+		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else {
-		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
-			self.config,
-		)
+		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
 	}
 }
 
