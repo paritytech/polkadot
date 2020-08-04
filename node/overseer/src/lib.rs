@@ -76,7 +76,7 @@ use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
-	CandidateSelectionMessage, StatementDistributionMessage,
+	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
 	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
 	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages,
@@ -360,6 +360,8 @@ pub struct Overseer<S: SpawnNamed> {
 	/// A network bridge subsystem.
 	network_bridge_subsystem: OverseenSubsystem<NetworkBridgeMessage>,
 
+	/// A Chain API subsystem
+	chain_api_subsystem: OverseenSubsystem<ChainApiMessage>,
 
 	/// Spawner to spawn tasks to.
 	s: S,
@@ -393,7 +395,7 @@ pub struct Overseer<S: SpawnNamed> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB> {
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
@@ -418,6 +420,8 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB> {
 	pub availability_store: AS,
 	/// A network bridge subsystem.
 	pub network_bridge: NB,
+	/// A Chain API subsystem.
+	pub chain_api: CA,
 }
 
 impl<S> Overseer<S>
@@ -499,6 +503,7 @@ where
 	///     runtime_api: DummySubsystem,
 	///     availability_store: DummySubsystem,
 	///     network_bridge: DummySubsystem,
+	///     chain_api: DummySubsystem,
 	/// };
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
@@ -519,9 +524,9 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>(
+	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -537,6 +542,7 @@ where
 		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
 		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
 		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
 	{
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
@@ -631,6 +637,13 @@ where
 			all_subsystems.network_bridge,
 		)?;
 
+		let chain_api_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.chain_api,
+		)?;
+
 		let active_leaves = HashSet::new();
 
 		let leaves = leaves
@@ -651,6 +664,7 @@ where
 			runtime_api_subsystem,
 			availability_store_subsystem,
 			network_bridge_subsystem,
+			chain_api_subsystem,
 			s,
 			running_subsystems,
 			running_subsystems_rx,
@@ -705,6 +719,10 @@ where
 		}
 
 		if let Some(ref mut s) = self.network_bridge_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.chain_api_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -855,6 +873,10 @@ where
 		}
 
 		if let Some(ref mut s) = self.network_bridge_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.chain_api_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal)).await?;
 		}
 
@@ -920,6 +942,11 @@ where
 			}
 			AllMessages::NetworkBridge(msg) => {
 				if let Some(ref mut s) = self.network_bridge_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::ChainApi(msg) => {
+				if let Some(ref mut s) = self.chain_api_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
@@ -1084,6 +1111,7 @@ mod tests {
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
@@ -1147,6 +1175,7 @@ mod tests {
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
 			};
 			let (overseer, _handle) = Overseer::new(
 				vec![],
@@ -1263,6 +1292,7 @@ mod tests {
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
@@ -1364,6 +1394,7 @@ mod tests {
 				runtime_api: DummySubsystem,
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
 			};
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
