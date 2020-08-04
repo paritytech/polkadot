@@ -508,30 +508,30 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 	const STASH: u128 = 100 * ROC;
 
 	rococo_runtime::GenesisConfig {
-		system: Some(rococo_runtime::SystemConfig {
+		frame_system: Some(rococo_runtime::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		balances: Some(rococo_runtime::BalancesConfig {
+		pallet_balances: Some(rococo_runtime::BalancesConfig {
 			balances: endowed_accounts.iter()
 				.map(|k: &AccountId| (k.clone(), ENDOWMENT))
 				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
-		indices: Some(rococo_runtime::IndicesConfig {
+		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),
-		session: Some(rococo_runtime::SessionConfig {
+		pallet_session: Some(rococo_runtime::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(rococo_runtime::ParachainsConfig {
@@ -541,10 +541,10 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		vesting: Some(rococo_runtime::VestingConfig {
+		pallet_vesting: Some(rococo_runtime::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(rococo_runtime::SudoConfig {
+		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
 	}
@@ -1056,27 +1056,27 @@ pub fn rococo_testnet_genesis(
 	const ENDOWMENT: u128 = 1_000_000 * DOTS;
 
 	rococo_runtime::GenesisConfig {
-		system: Some(rococo_runtime::SystemConfig {
+		frame_system: Some(rococo_runtime::SystemConfig {
 			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
-		indices: Some(rococo_runtime::IndicesConfig {
+		pallet_indices: Some(rococo_runtime::IndicesConfig {
 			indices: vec![],
 		}),
-		balances: Some(rococo_runtime::BalancesConfig {
+		pallet_balances: Some(rococo_runtime::BalancesConfig {
 			balances: endowed_accounts.iter().map(|k| (k.clone(), ENDOWMENT)).collect(),
 		}),
-		session: Some(rococo_runtime::SessionConfig {
+		pallet_session: Some(rococo_runtime::SessionConfig {
 			keys: initial_authorities.iter().map(|x| (
 				x.0.clone(),
 				x.0.clone(),
 				rococo_session_keys(x.2.clone(), x.3.clone(), x.4.clone(), x.5.clone(), x.6.clone()),
 			)).collect::<Vec<_>>(),
 		}),
-		babe: Some(Default::default()),
-		grandpa: Some(Default::default()),
-		im_online: Some(Default::default()),
-		authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
+		pallet_babe: Some(Default::default()),
+		pallet_grandpa: Some(Default::default()),
+		pallet_im_online: Some(Default::default()),
+		pallet_authority_discovery: Some(rococo_runtime::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
 		parachains: Some(rococo_runtime::ParachainsConfig {
@@ -1086,10 +1086,10 @@ pub fn rococo_testnet_genesis(
 			parachains: vec![],
 			_phdata: Default::default(),
 		}),
-		vesting: Some(rococo_runtime::VestingConfig {
+		pallet_vesting: Some(rococo_runtime::VestingConfig {
 			vesting: vec![],
 		}),
-		sudo: Some(rococo_runtime::SudoConfig {
+		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: root_key,
 		}),
 	}
