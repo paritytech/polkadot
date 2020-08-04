@@ -23,14 +23,14 @@ use frame_support::{decl_event, decl_storage, decl_module, decl_error, ensure};
 use frame_support::traits::{
 	EnsureOrigin, Currency, ExistenceRequirement, VestingSchedule, Get
 };
-use system::ensure_signed;
+use frame_system::ensure_signed;
 use sp_core::sr25519;
 use sp_std::prelude::*;
 
 /// Configuration trait.
-pub trait Trait: system::Trait {
+pub trait Trait: frame_system::Trait {
 	/// The overarching event type.
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 	/// Balances Pallet
 	type Currency: Currency<Self::AccountId>;
 	/// Vesting Pallet
@@ -47,7 +47,7 @@ pub trait Trait: system::Trait {
 	type MaxUnlocked: Get<BalanceOf<Self>>;
 }
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 /// The kind of a statement an account needs to make for a claim to be valid.
 #[derive(Encode, Decode, Clone, Copy, Eq, PartialEq, RuntimeDebug)]
@@ -103,9 +103,9 @@ pub struct AccountStatus<Balance> {
 
 decl_event!(
 	pub enum Event<T> where
-		AccountId = <T as system::Trait>::AccountId,
+		AccountId = <T as frame_system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
-		BlockNumber = <T as system::Trait>::BlockNumber,
+		BlockNumber = <T as frame_system::Trait>::BlockNumber,
 	{
 		/// A new account was created
 		AccountCreated(AccountId),
@@ -159,7 +159,7 @@ decl_storage! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 
 		/// The maximum statement length for the statement users to sign when creating an account.
@@ -332,7 +332,7 @@ decl_module! {
 		#[weight = T::DbWeight::get().writes(1)]
 		fn set_unlock_block(origin, unlock_block: T::BlockNumber) {
 			T::ConfigurationOrigin::ensure_origin(origin)?;
-			ensure!(unlock_block > system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
+			ensure!(unlock_block > frame_system::Module::<T>::block_number(), Error::<T>::InvalidUnlockBlock);
 			// Possibly this is worse than having the caller account be the payment account?
 			UnlockBlock::<T>::set(unlock_block);
 			Self::deposit_event(RawEvent::UnlockBlockUpdated(unlock_block));
@@ -388,10 +388,10 @@ mod tests {
 		ord_parameter_types, dispatch::DispatchError::BadOrigin,
 	};
 	use frame_support::traits::Currency;
-	use balances::Error as BalancesError;
+	use pallet_balances::Error as BalancesError;
 
 	impl_outer_origin! {
-		pub enum Origin for Test where system = system {}
+		pub enum Origin for Test {}
 	}
 
 	impl_outer_dispatch! {
@@ -414,7 +414,7 @@ mod tests {
 		pub const MaximumBlockLength: u32 = 4 * 1024 * 1024;
 		pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	}
-	impl system::Trait for Test {
+	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
 		type Origin = Origin;
 		type Call = Call;
@@ -436,7 +436,7 @@ mod tests {
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
 		type ModuleToIndex = ();
-		type AccountData = balances::AccountData<u64>;
+		type AccountData = pallet_balances::AccountData<u64>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
 		type SystemWeightInfo = ();
@@ -446,7 +446,7 @@ mod tests {
 		pub const ExistentialDeposit: u64 = 1;
 	}
 
-	impl balances::Trait for Test {
+	impl pallet_balances::Trait for Test {
 		type Balance = u64;
 		type Event = ();
 		type DustRemoval = ();
@@ -459,7 +459,7 @@ mod tests {
 		pub const MinVestedTransfer: u64 = 0;
 	}
 
-	impl vesting::Trait for Test {
+	impl pallet_vesting::Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
@@ -483,22 +483,22 @@ mod tests {
 		type Event = ();
 		type Currency = Balances;
 		type VestingSchedule = Vesting;
-		type ValidityOrigin = system::EnsureSignedBy<ValidityOrigin, AccountId>;
-		type ConfigurationOrigin = system::EnsureSignedBy<ConfigurationOrigin, AccountId>;
+		type ValidityOrigin = frame_system::EnsureSignedBy<ValidityOrigin, AccountId>;
+		type ConfigurationOrigin = frame_system::EnsureSignedBy<ConfigurationOrigin, AccountId>;
 		type MaxStatementLength = MaxStatementLength;
 		type UnlockedProportion = UnlockedProportion;
 		type MaxUnlocked = MaxUnlocked;
 	}
 
-	type System = system::Module<Test>;
-	type Balances = balances::Module<Test>;
-	type Vesting = vesting::Module<Test>;
+	type System = frame_system::Module<Test>;
+	type Balances = pallet_balances::Module<Test>;
+	type Vesting = pallet_vesting::Module<Test>;
 	type Purchase = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup. It also executes our `setup` function which sets up this pallet for use.
 	pub fn new_test_ext() -> sp_io::TestExternalities {
-		let t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+		let t = frame_system::GenesisConfig::default().build_storage::<Test>().unwrap();
 		let mut ext = sp_io::TestExternalities::new(t);
 		ext.execute_with(|| setup());
 		ext
@@ -948,7 +948,7 @@ mod tests {
 			);
 			// Vesting lock is removed in whole on block 101 (100 blocks after block 1)
 			System::set_block_number(100);
-			let vest_call = Call::Vesting(vesting::Call::<Test>::vest());
+			let vest_call = Call::Vesting(pallet_vesting::Call::<Test>::vest());
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(alice())));
 			assert_ok!(vest_call.clone().dispatch(Origin::signed(bob())));
 			assert_eq!(<Test as Trait>::VestingSchedule::vesting_balance(&alice()), Some(45));

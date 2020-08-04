@@ -142,9 +142,9 @@ mod tests {
 		Header {
 			parent_hash: Hash::zero(),
 			number: 100500,
-		    state_root: Hash::zero(),
-		    extrinsics_root: Hash::zero(),
-		    digest: Default::default(),
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
 		}
 	}
 

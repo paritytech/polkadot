@@ -154,6 +154,7 @@ fn main() {
 			runtime_api: DummySubsystem,
 			availability_store: DummySubsystem,
 			network_bridge: DummySubsystem,
+			chain_api: DummySubsystem,
 		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],

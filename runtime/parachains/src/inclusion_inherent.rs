@@ -31,7 +31,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 	traits::Get,
 };
-use system::ensure_none;
+use frame_system::ensure_none;
 use crate::{
 	inclusion,
 	scheduler::{self, FreedReason},
@@ -61,7 +61,7 @@ decl_error! {
 
 decl_module! {
 	/// The inclusion inherent module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize() -> Weight {
@@ -134,7 +134,7 @@ impl<T: Trait> ProvideInherent for Module<T> {
 			.map(|(signed_bitfields, backed_candidates): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>)| {
 				// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 				// See github.com/paritytech/polkadot/issues/1327
-				if Self::inclusion(system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone()).is_ok() {
+				if Self::inclusion(frame_system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone()).is_ok() {
 					Call::inclusion(signed_bitfields, backed_candidates)
 				} else {
 					Call::inclusion(Vec::new().into(), Vec::new())

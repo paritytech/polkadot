@@ -305,7 +305,7 @@ impl CandidateBackingJob {
 					}
 				}
 			}
-			ValidationResult::Invalid => {
+			ValidationResult::Invalid(_reason) => {
 				// no need to issue a statement about this if we aren't seconding it.
 				//
 				// there's an infinite amount of garbage out there. no need to acknowledge
@@ -497,7 +497,7 @@ impl CandidateBackingJob {
 					Err(()) => Statement::Invalid(candidate_hash),
 				}
 			}
-			ValidationResult::Invalid => {
+			ValidationResult::Invalid(_reason) => {
 				Statement::Invalid(candidate_hash)
 			}
 		};
@@ -826,6 +826,7 @@ mod tests {
 		messages::RuntimeApiRequest,
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
+	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::HashMap;
 
@@ -1461,7 +1462,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate_a.descriptor() => {
-					tx.send(Ok(ValidationResult::Invalid)).unwrap();
+					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 				}
 			);
 
@@ -1597,7 +1598,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
-					tx.send(Ok(ValidationResult::Invalid)).unwrap();
+					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 				}
 			);
 
@@ -1729,7 +1730,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
-					tx.send(Err(ValidationFailed)).unwrap();
+					tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 				}
 			);
 

@@ -87,9 +87,9 @@ impl CandidateBackingMessage {
 	}
 }
 
-/// Blanket error for validation failing.
+/// Blanket error for validation failing for internal reasons.
 #[derive(Debug)]
-pub struct ValidationFailed;
+pub struct ValidationFailed(pub String);
 
 /// Messages received by the Validation subsystem.
 ///
@@ -310,7 +310,7 @@ pub enum ChainApiMessage {
 		hash: Hash,
 		/// The number of ancestors to request.
 		k: usize,
-		/// The response channel. 
+		/// The response channel.
 		response_channel: ChainApiResponseChannel<Vec<Hash>>,
 	},
 }
@@ -488,6 +488,8 @@ pub enum AllMessages {
 	CandidateBacking(CandidateBackingMessage),
 	/// Message for the candidate selection subsystem.
 	CandidateSelection(CandidateSelectionMessage),
+	/// Message for the Chain API subsystem.
+	ChainApi(ChainApiMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.

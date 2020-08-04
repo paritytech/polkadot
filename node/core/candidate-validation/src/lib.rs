@@ -28,12 +28,13 @@ use polkadot_subsystem::messages::{
 	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
 };
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, ValidationOutputs};
+use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,
 	GlobalValidationData, OccupiedCoreAssumption, Hash, validation_data_hash,
 };
-use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode};
+use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode, ValidationError,
+	InvalidCandidate as WasmInvalidCandidate};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
@@ -241,7 +242,7 @@ async fn spawn_validate_from_chain_state(
 					e,
 				);
 
-				return Ok(Err(ValidationFailed));
+				return Ok(Err(ValidationFailed("Error making API request".into())));
 			}
 		}
 	};
@@ -264,7 +265,7 @@ async fn spawn_validate_from_chain_state(
 			).await;
 		}
 		AssumptionCheckOutcome::DoesNotMatch => {},
-		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed)),
+		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed("Bad request".into()))),
 	}
 
 	match check_assumption_validation_data(
@@ -285,13 +286,13 @@ async fn spawn_validate_from_chain_state(
 			).await;
 		}
 		AssumptionCheckOutcome::DoesNotMatch => {},
-		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed)),
+		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed("Bad request".into()))),
 	}
 
 	// If neither the assumption of the occupied core having the para included or the assumption
 	// of the occupied core timing out are valid, then the validation_data_hash in the descriptor
 	// is not based on the relay parent and is thus invalid.
-	Ok(Ok(ValidationResult::Invalid))
+	Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
 }
 
 async fn spawn_validate_exhaustive(
@@ -321,52 +322,52 @@ async fn spawn_validate_exhaustive(
 	rx.await.map_err(Into::into)
 }
 
-/// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `true` if basic checks
-/// are passed, false otherwise.
-fn passes_basic_checks(
+/// Does basic checks of a candidate. Provide the encoded PoV-block. Returns `Ok` if basic checks
+/// are passed, `Err` otherwise.
+fn perform_basic_checks(
 	candidate: &CandidateDescriptor,
 	max_block_data_size: Option<u64>,
 	pov: &PoV,
-) -> bool {
+) -> Result<(), InvalidCandidate> {
 	let encoded_pov = pov.encode();
 	let hash = pov.hash();
 
 	if let Some(max_size) = max_block_data_size {
 		if encoded_pov.len() as u64 > max_size {
-			return false;
+			return Err(InvalidCandidate::ParamsTooLarge(encoded_pov.len() as u64));
 		}
 	}
 
 	if hash != candidate.pov_hash {
-		return false;
+		return Err(InvalidCandidate::HashMismatch);
 	}
 
 	if let Err(()) = candidate.check_collator_signature() {
-		return false;
+		return Err(InvalidCandidate::BadSignature);
 	}
 
-	true
+	Ok(())
 }
 
 /// Check the result of Wasm execution against the constraints given by the relay-chain.
 ///
-/// Returns `true` if checks pass, false otherwise.
+/// Returns `Ok(())` if checks pass, error otherwise.
 fn check_wasm_result_against_constraints(
 	global_validation_data: &GlobalValidationData,
 	_local_validation_data: &LocalValidationData,
 	result: &WasmValidationResult,
-) -> bool {
+) -> Result<(), InvalidCandidate> {
 	if result.head_data.0.len() > global_validation_data.max_head_data_size as _ {
-		return false
+		return Err(InvalidCandidate::HeadDataTooLarge(result.head_data.0.len() as u64))
 	}
 
 	if let Some(ref code) = result.new_validation_code {
 		if code.0.len() > global_validation_data.max_code_size as _ {
-			return false
+			return Err(InvalidCandidate::NewCodeTooLarge(code.0.len() as u64))
 		}
 	}
 
-	true
+	Ok(())
 }
 
 trait ValidationBackend {
@@ -377,7 +378,7 @@ trait ValidationBackend {
 		validation_code: &ValidationCode,
 		params: ValidationParams,
 		spawn: S,
-	) -> Result<WasmValidationResult, wasm_executor::Error>;
+	) -> Result<WasmValidationResult, ValidationError>;
 }
 
 struct RealValidationBackend;
@@ -390,7 +391,7 @@ impl ValidationBackend for RealValidationBackend {
 		validation_code: &ValidationCode,
 		params: ValidationParams,
 		spawn: S,
-	) -> Result<WasmValidationResult, wasm_executor::Error> {
+	) -> Result<WasmValidationResult, ValidationError> {
 		let execution_mode = pool.as_ref()
 			.map(ExecutionMode::Remote)
 			.unwrap_or(ExecutionMode::Local);
@@ -415,8 +416,8 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	pov: Arc<PoV>,
 	spawn: S,
 ) -> Result<ValidationResult, ValidationFailed> {
-	if !passes_basic_checks(&descriptor, None, &*pov) {
-		return Ok(ValidationResult::Invalid);
+	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
+		return Ok(ValidationResult::Invalid(e))
 	}
 
 	let OmittedValidationData { global_validation, local_validation } = omitted_validation;
@@ -431,26 +432,36 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
-		Err(wasm_executor::Error::BadReturn) => Ok(ValidationResult::Invalid),
-		Err(_) => Err(ValidationFailed),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::Timeout)) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ParamsTooLarge(l))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ParamsTooLarge(l as u64))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::CodeTooLarge(l))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::CodeTooLarge(l as u64))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::BadReturn)) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn)),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WasmExecutor(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::ExternalWasmExecutor(e))) =>
+			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
+		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let passes_post_checks = check_wasm_result_against_constraints(
+			let post_check_result = check_wasm_result_against_constraints(
 				&global_validation,
 				&local_validation,
 				&res,
 			);
 
-			Ok(if passes_post_checks {
-				ValidationResult::Valid(ValidationOutputs {
+			Ok(match post_check_result {
+				Ok(()) => ValidationResult::Valid(ValidationOutputs {
 					head_data: res.head_data,
 					global_validation_data: global_validation,
 					local_validation_data: local_validation,
 					upward_messages: res.upward_messages,
 					fees: 0,
 					new_validation_code: res.new_validation_code,
-				})
-			} else {
-				ValidationResult::Invalid
+				}),
+				Err(e) => ValidationResult::Invalid(e),
 			})
 		}
 	}
@@ -469,7 +480,7 @@ mod tests {
 	struct MockValidationBackend;
 
 	struct MockValidationArg {
-		result: Result<WasmValidationResult, wasm_executor::Error>,
+		result: Result<WasmValidationResult, ValidationError>,
 	}
 
 	impl ValidationBackend for MockValidationBackend {
@@ -480,7 +491,7 @@ mod tests {
 			_validation_code: &ValidationCode,
 			_params: ValidationParams,
 			_spawn: S,
-		) -> Result<WasmValidationResult, wasm_executor::Error> {
+		) -> Result<WasmValidationResult, ValidationError> {
 			arg.result
 		}
 	}
@@ -795,7 +806,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -808,7 +819,7 @@ mod tests {
 			&omitted_validation.global_validation,
 			&omitted_validation.local_validation,
 			&validation_result,
-		));
+		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
@@ -845,7 +856,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -858,10 +869,14 @@ mod tests {
 			&omitted_validation.global_validation,
 			&omitted_validation.local_validation,
 			&validation_result,
-		));
+		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
-			MockValidationArg { result: Err(wasm_executor::Error::BadReturn) },
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::BadReturn
+				))
+			},
 			omitted_validation.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
@@ -869,7 +884,7 @@ mod tests {
 			TaskExecutor::new(),
 		).unwrap();
 
-		assert_matches!(v, ValidationResult::Invalid);
+		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
 	}
 
 
@@ -889,7 +904,7 @@ mod tests {
 		descriptor.pov_hash = pov.hash();
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
-		assert!(passes_basic_checks(&descriptor, Some(1024), &pov));
+		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
 
 		let validation_result = WasmValidationResult {
 			head_data: HeadData(vec![1, 1, 1]),
@@ -902,10 +917,14 @@ mod tests {
 			&omitted_validation.global_validation,
 			&omitted_validation.local_validation,
 			&validation_result,
-		));
+		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
-			MockValidationArg { result: Err(wasm_executor::Error::Timeout) },
+			MockValidationArg {
+				result: Err(ValidationError::InvalidCandidate(
+					WasmInvalidCandidate::Timeout
+				))
+			},
 			omitted_validation.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
@@ -913,6 +932,6 @@ mod tests {
 			TaskExecutor::new(),
 		);
 
-		assert_matches!(v, Err(ValidationFailed));
+		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 	}
 }
