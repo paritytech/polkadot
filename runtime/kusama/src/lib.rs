@@ -222,7 +222,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
-	type WeightInfo = weights::balances::WeightInfo;
+	type WeightInfo = weights::pallet_balances::WeightInfo;
 }
 
 parameter_types! {
