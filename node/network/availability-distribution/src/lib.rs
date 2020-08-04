@@ -40,7 +40,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
-	errors::RuntimeApiError, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
+	errors::{ChainApiError, RuntimeApiError}, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem,
 	Subsystem, SubsystemContext, SubsystemError,
 };
 use sc_network::ReputationChange as Rep;
@@ -62,6 +62,8 @@ enum Error {
 	Subsystem(SubsystemError),
 	#[from]
 	RuntimeApi(RuntimeApiError),
+	#[from]
+	ChainApi(ChainApiError),
 
 	Logic,
 }
@@ -143,7 +145,7 @@ struct PerRelayParent {
 	ancestors: HashSet<H256>,
 
 	/// Global validation data
-	global_validation_data: GlobalValidationData,
+	global_validation: GlobalValidationData,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
@@ -228,9 +230,8 @@ impl ProtocolState {
 			.get_mut(&relay_parent)
 			.expect("Relay parent is initialized on overseer signal. qed");
 		per_relay_parent.ancestors = ancestors;
-		per_relay_parent.global_validation_data = query_global_validation_data(ctx, relay_parent)
-			.await?
-			.expect("Must have global validation data available. qed");
+		per_relay_parent.global_validation = query_global_validation_data(ctx, relay_parent)
+			.await?;
 
 		Ok(())
 	}
@@ -407,7 +408,7 @@ where
 			continue;
 		};
 
-		let global_validation = per_relay_parent.global_validation_data.clone();
+		let global_validation = per_relay_parent.global_validation.clone();
 		let available_data = AvailableData {
 			pov,
 			omitted_validation: OmittedValidationData {
@@ -1073,7 +1074,7 @@ where
 		response_channel: tx,
 	});
 
-	ctx.send_message(query_validators)
+	ctx.send_message(query_ancestors)
 		.await
 		.map_err::<Error, _>(Into::into)?;
 	rx.await
@@ -1086,17 +1087,17 @@ where
 async fn query_global_validation_data<Context>(
 	ctx: &mut Context,
 	relay_parent: H256,
-) -> Result<Option<GlobalValidationData>>
+) -> Result<GlobalValidationData>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+	let quary_global_validation = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent,
 		RuntimeApiRequest::GlobalValidationData(tx),
 	));
 
-	ctx.send_message(query_validators)
+	ctx.send_message(quary_global_validation)
 		.await
 		.map_err::<Error, _>(Into::into)?;
 	rx.await
@@ -1115,12 +1116,12 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
-	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+	let query_local_validation = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 		relay_parent,
 		RuntimeApiRequest::LocalValidationData(paraid, OccupiedCoreAssumption::Free, tx),
 	));
 
-	ctx.send_message(query_validators)
+	ctx.send_message(query_local_validation)
 		.await
 		.map_err::<Error, _>(Into::into)?;
 	rx.await
