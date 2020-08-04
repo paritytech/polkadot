@@ -29,6 +29,7 @@ use polkadot_node_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage,
 	},
 	util::{self, request_availability_cores, JobTrait, ToJobTrait},
+	delegated_subsystem,
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, SignedAvailabilityBitfield,
@@ -39,7 +40,7 @@ use std::{
 	pin::Pin,
 };
 
-pub struct ProvisioningJob {
+struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
@@ -81,7 +82,7 @@ impl From<ProvisionerMessage> for ToJob {
 	}
 }
 
-pub enum FromJob {
+enum FromJob {
 	ChainApi(ChainApiMessage),
 	Runtime(RuntimeApiMessage),
 }
@@ -108,7 +109,7 @@ impl TryFrom<AllMessages> for FromJob {
 }
 
 #[derive(Debug, derive_more::From)]
-pub enum Error {
+enum Error {
 	#[from]
 	Sending(mpsc::SendError),
 	#[from]
@@ -423,3 +424,5 @@ fn merged_bitfields_are_gte_two_thirds(
 	}
 	3 * transverse.count_ones() >= 2 * transverse.len()
 }
+
+delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
