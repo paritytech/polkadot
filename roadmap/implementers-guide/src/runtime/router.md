@@ -53,11 +53,11 @@ struct HrmpOpenChannelRequest {
 /// A description of a request to close an opened HRMP channel.
 struct HrmpCloseChannelRequest {
     /// The para which initiated closing an existing channel.
-	///
-	/// Invariant: it should be equal to one of the following
-	/// - `Some(sender)`
-	/// - `Some(recipient)`
-	/// - `None` in case the request initiated by the runtime (including governance, migration, etc)
+    ///
+    /// Invariant: it should be equal to one of the following
+    /// - `Some(sender)`
+    /// - `Some(recipient)`
+    /// - `None` in case the request initiated by the runtime (including governance, migration, etc)
     initiator: Option<ParaId>,
     /// The identifier of an HRMP channel to be closed.
     id: HrmpChannelId,
@@ -80,12 +80,12 @@ struct HrmpChannel {
     /// Invariant: should be less or equal to `limit_used_bytes`.
     used_bytes: u32,
     /// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
-	/// `(prev_head, B, H(M))`, where
-	/// - `prev_head`: is the previous value of `mqc_head`.
-	/// - `B`: is the [relay-chain] block number in which a message was appended
-	/// - `H(M)`: is the hash of the message being appended.
-	/// This value is initialized to a special value that consists of all zeroes which indicates
-	/// that no messages were previously added.
+    /// `(prev_head, B, H(M))`, where
+    /// - `prev_head`: is the previous value of `mqc_head`.
+    /// - `B`: is the [relay-chain] block number in which a message was appended
+    /// - `H(M)`: is the hash of the message being appended.
+    /// This value is initialized to a special value that consists of all zeroes which indicates
+    /// that no messages were previously added.
     mqc_head: Hash,
 }
 ```
@@ -176,7 +176,7 @@ Candidate Enactment:
     1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
     1. Increment `C.used_places`
     1. Increment `C.used_bytes` by `HM`'s payload size
-	1. Append a new link to the MQC and save the new head in `C.mqc_head`. Note that the current block number as of enactment is used for the link.
+    1. Append a new link to the MQC and save the new head in `C.mqc_head`. Note that the current block number as of enactment is used for the link.
 * `prune_hrmp(recipient, new_hrmp_watermark)`:
   1. From ``HrmpChannelDigests`` for `recipient` remove all entries up to an entry with block number equal to `new_hrmp_watermark`.
   1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
