@@ -42,7 +42,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
 };
-use sc_network::ReputationChange;
+use sc_network::ReputationChange as Rep;
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::iter;
@@ -65,19 +65,19 @@ enum Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-const COST_MERKLE_PROOF_INVALID: ReputationChange =
-	ReputationChange::new(-100, "Bitfield signature invalid");
-const COST_NOT_A_LIVE_CANDIDATE: ReputationChange =
-	ReputationChange::new(-51, "Candidate is not part of the live candidates");
-const COST_NOT_IN_VIEW: ReputationChange =
-	ReputationChange::new(-51, "Not interested in that parent hash");
-const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
-	ReputationChange::new(-100, "Not interested in that parent hash");
-const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
-	ReputationChange::new(-500, "Peer sent the same message multiple times");
-const BENEFIT_VALID_MESSAGE_FIRST: ReputationChange =
-	ReputationChange::new(15, "Valid message with new information");
-const BENEFIT_VALID_MESSAGE: ReputationChange = ReputationChange::new(10, "Valid message");
+const COST_MERKLE_PROOF_INVALID: Rep =
+	Rep::new(-100, "Bitfield signature invalid");
+const COST_NOT_A_LIVE_CANDIDATE: Rep =
+	Rep::new(-51, "Candidate is not part of the live candidates");
+const COST_NOT_IN_VIEW: Rep =
+	Rep::new(-51, "Not interested in that parent hash");
+const COST_MESSAGE_NOT_DECODABLE: Rep =
+	Rep::new(-100, "Not interested in that parent hash");
+const COST_PEER_DUPLICATE_MESSAGE: Rep =
+	Rep::new(-500, "Peer sent the same message multiple times");
+const BENEFIT_VALID_MESSAGE_FIRST: Rep =
+	Rep::new(15, "Valid message with new information");
+const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
@@ -882,7 +882,7 @@ where
 async fn modify_reputation<Context>(
 	ctx: &mut Context,
 	peer: PeerId,
-	rep: ReputationChange,
+	rep: Rep,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -1117,18 +1117,19 @@ mod test {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
+	const TIMEOUT: Duration = Duration::from_millis(100_000);
 
 	async fn overseer_signal(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, signal: OverseerSignal) {
 		overseer.send(FromOverseer::Signal(signal))
-			.timeout(Duration::from_millis(100_000))
+			.timeout(TIMEOUT)
 					.await
-					.expect("10ms is more than enough for sending messages.");
+					.expect("10ms is more than enough for sending signals.");
 	}
 
 	async fn overseer_send(overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>, msg: AvailabilityDistributionMessage) {
 		log::trace!("Sending message:\n{:?}", &msg);
 		overseer.send(FromOverseer::Communication { msg })
-			.timeout(Duration::from_millis(5_000))
+			.timeout(TIMEOUT)
 					.await
 					.expect("10ms is more than enough for sending messages.");
 	}
@@ -1137,7 +1138,9 @@ mod test {
 		log::trace!("Waiting for message ...");
 		let msg = overseer
 			.recv()
-			.await;
+			.timeout(TIMEOUT)
+			.await
+			.expect("TIMEOUT is enough to recv.");
 		log::trace!("Received message:\n{:?}", &msg);
 		msg
 	}
@@ -1246,7 +1249,7 @@ mod test {
 						]
 					)
 				)
-			);
+			).await;
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1258,10 +1261,10 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					// respond with a set of availability core states
-					let _ = tx.send(vec![
+					tx.send(vec![
 						dummy_occupied_core(para_27),
 						dummy_occupied_core(para_81)
-					]);
+					]).expect("Must sent");
 				}
 			);
 
@@ -1275,14 +1278,14 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, para_27);
-					let _ = tx.send(Some(CommittedCandidateReceipt {
+					tx.send(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
 							relay_parent,
 							.. Default::default()
 						},
 						.. Default::default()
-					}));
+					})).expect("must sent");
 				}
 			);
 
@@ -1294,14 +1297,14 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, para_81);
-					let _ = tx.send(Some(CommittedCandidateReceipt {
+					tx.send(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
 							relay_parent,
 							.. Default::default()
 						},
 						.. Default::default()
-					}));
+					})).expect("Must");
 				}
 			);
 
