@@ -76,7 +76,7 @@ enum CollatorProtocolV1Message {
 
 ## V1 Wire Protocols
 
-### Validation
+### Validation V1
 
 These are the messages for the protocol on the validation peer-set.
 
@@ -89,7 +89,7 @@ enum ValidationProtocolV1 {
 }
 ```
 
-### Collation
+### Collation V1
 
 These are the messages for the protocol on the collation peer-set
 

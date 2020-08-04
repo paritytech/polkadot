@@ -206,8 +206,10 @@ enum PeerSet {
 enum NetworkBridgeMessage {
 	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
 	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
-	/// Send a message to one or more peers on the given protocol ID.
-	SendMessage(PeerSet, [PeerId], NetworkCapability, Bytes),
+	/// Send a message to one or more peers on the validation peerset.
+	SendValidationMessage([PeerId], NetworkCapability, ValidationProtocolV1),
+	/// Send a message to one or more peers on the validation peerset.
+	SendCollationMessage([PeerId], NetworkCapability, ValidationProtocolV1),
 	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
 	///
 	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
