@@ -36,7 +36,7 @@ use sp_core::traits::SpawnNamed;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, ServiceComponents, TaskManager,
+	Configuration, ChainSpec, TaskManager,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -78,24 +78,23 @@ native_executor_instance!(
 );
 
 /// A set of APIs that polkadot-like runtimes must implement.
-pub trait RuntimeApiCollection<Extrinsic: codec::Codec + Send + Sync + 'static>:
+pub trait RuntimeApiCollection:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
 where
-	Extrinsic: RuntimeExtrinsic,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
 {}
 
-impl<Api, Extrinsic> RuntimeApiCollection<Extrinsic> for Api
+impl<Api> RuntimeApiCollection for Api
 where
 	Api:
 	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
@@ -104,18 +103,13 @@ where
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance, Extrinsic>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
-	Extrinsic: RuntimeExtrinsic,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
 {}
-
-pub trait RuntimeExtrinsic: codec::Codec + Send + Sync + 'static {}
-
-impl<E> RuntimeExtrinsic for E where E: codec::Codec + Send + Sync + 'static {}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
@@ -157,37 +151,34 @@ type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Result<(
-	service::ServiceParams<
-		Block,
-		FullClient<RuntimeApi, Executor>,
-		babe::BabeImportQueue<Block, FullClient<RuntimeApi, Executor>>,
+fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
+	service::PartialComponents<
+		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
+		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
-		polkadot_rpc::RpcExtension,
-		FullBackend,
+		(
+			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
+			(
+				babe::BabeBlockImport<
+					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
+				>,
+				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
+				babe::BabeLink<Block>
+			),
+			grandpa::SharedVoterState,
+		)
 	>,
-	FullSelectChain,
-	(
-		babe::BabeBlockImport<
-			Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
-		>,
-		grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
-		babe::BabeLink<Block>
-	),
-	inherents::InherentDataProviders,
-	grandpa::SharedVoterState,
-), Error>
+	Error
+>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
-	set_prometheus_registry(&mut config)?;
+	set_prometheus_registry(config)?;
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
-
 
 	let (client, backend, keystore, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
@@ -195,12 +186,8 @@ fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Re
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-	let pool_api = sc_transaction_pool::FullChainApi::new(
-		client.clone(), config.prometheus_registry(),
-	);
 	let transaction_pool = sc_transaction_pool::BasicPool::new_full(
 		config.transaction_pool.clone(),
-		std::sync::Arc::new(pool_api),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
 		client.clone(),
@@ -255,7 +242,7 @@ fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Re
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		Box::new(move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -273,23 +260,14 @@ fn full_params<RuntimeApi, Executor, Extrinsic>(mut config: Configuration) -> Re
 			};
 
 			polkadot_rpc::create_full(deps)
-		})
+		}
 	};
 
-	let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
-	let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider)) as _;
-
-	let params = service::ServiceParams {
-		config, backend, client, import_queue, keystore, task_manager, rpc_extensions_builder,
-		transaction_pool,
-		block_announce_validator_builder: None,
-		finality_proof_provider: Some(finality_proof_provider),
-		finality_proof_request_builder: None,
-		on_demand: None,
-		remote_blockchain: None,
-	};
-
-	Ok((params, select_chain, import_setup, inherent_data_providers, rpc_setup))
+	Ok(service::PartialComponents {
+		client, backend, task_manager, keystore, select_chain, import_queue, transaction_pool,
+		inherent_data_providers,
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
+	})
 }
 
 fn real_overseer<S: SpawnNamed>(
@@ -318,8 +296,8 @@ fn real_overseer<S: SpawnNamed>(
 }
 
 #[cfg(feature = "full-node")]
-fn new_full<RuntimeApi, Executor, Extrinsic>(
-	config: Configuration,
+fn new_full<RuntimeApi, Executor>(
+	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
 	_authority_discovery_disabled: bool,
@@ -332,9 +310,8 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
 	use sc_client_api::ExecutorProvider;
 	use sp_core::traits::BareCryptoStorePtr;
@@ -346,17 +323,52 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
-	let (params, select_chain, import_setup, inherent_data_providers, rpc_setup)
-		= full_params::<RuntimeApi, Executor, Extrinsic>(config)?;
+	let service::PartialComponents {
+		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
+		inherent_data_providers,
+		other: (rpc_extensions_builder, import_setup, rpc_setup)
+	} = new_partial::<RuntimeApi, Executor>(&mut config)?;
 
-	let client = params.client.clone();
-	let keystore = params.keystore.clone();
-	let transaction_pool = params.transaction_pool.clone();
-	let prometheus_registry = params.config.prometheus_registry().cloned();
+	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let ServiceComponents {
-		network, task_manager, telemetry_on_connect_sinks, ..
-	} = service::build(params)?;
+	let finality_proof_provider =
+		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+
+	let (network, network_status_sinks, system_rpc_tx) =
+		service::build_network(service::BuildNetworkParams {
+			config: &config,
+			client: client.clone(),
+			transaction_pool: transaction_pool.clone(),
+			spawn_handle: task_manager.spawn_handle(),
+			import_queue,
+			on_demand: None,
+			block_announce_validator_builder: None,
+			finality_proof_request_builder: None,
+			finality_proof_provider: Some(finality_proof_provider.clone()),
+		})?;
+
+	if config.offchain_worker.enabled {
+		service::build_offchain_workers(
+			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+		);
+	}
+
+	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
+
+	service::spawn_tasks(service::SpawnTasksParams {
+		config,
+		backend: backend.clone(),
+		client: client.clone(),
+		keystore: keystore.clone(),
+		network: network.clone(),
+		rpc_extensions_builder: Box::new(rpc_extensions_builder),
+		transaction_pool: transaction_pool.clone(),
+		task_manager: &mut task_manager,
+		on_demand: None,
+		remote_blockchain: None,
+		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
+		network_status_sinks, system_rpc_tx,
+	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
 
@@ -481,7 +493,7 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 			link: link_half,
 			network: network.clone(),
 			inherent_data_providers: inherent_data_providers.clone(),
-			telemetry_on_connect: Some(telemetry_on_connect_sinks.on_connect_stream()),
+			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
 			prometheus_registry: prometheus_registry,
 			shared_voter_state,
@@ -505,31 +517,27 @@ fn new_full<RuntimeApi, Executor, Extrinsic>(
 pub struct FullNodeHandles;
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<TaskManager, Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager, Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
-		RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
-		Extrinsic: RuntimeExtrinsic,
 {
 	crate::set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
-	let (client, backend, keystore, task_manager, on_demand) =
+	let (client, backend, keystore, mut task_manager, on_demand) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
 
-	let pool_api = sc_transaction_pool::LightChainApi::new(
-		client.clone(),
-		on_demand.clone(),
-	);
 	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
 		config.transaction_pool.clone(),
-		Arc::new(pool_api),
 		config.prometheus_registry(),
 		task_manager.spawn_handle(),
+		client.clone(),
+		on_demand.clone(),
 	));
 
 	let grandpa_block_import = grandpa::light_block_import(
@@ -562,8 +570,27 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 		config.prometheus_registry(),
 	)?;
 
-	let provider = client.clone() as Arc<dyn grandpa::StorageAndProofProvider<_, _>>;
-	let finality_proof_provider = Arc::new(GrandpaFinalityProofProvider::new(backend.clone(), provider));
+	let finality_proof_provider =
+		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+
+	let (network, network_status_sinks, system_rpc_tx) =
+		service::build_network(service::BuildNetworkParams {
+			config: &config,
+			client: client.clone(),
+			transaction_pool: transaction_pool.clone(),
+			spawn_handle: task_manager.spawn_handle(),
+			import_queue,
+			on_demand: Some(on_demand.clone()),
+			block_announce_validator_builder: None,
+			finality_proof_request_builder: Some(finality_proof_request_builder),
+			finality_proof_provider: Some(finality_proof_provider),
+		})?;
+
+	if config.offchain_worker.enabled {
+		service::build_offchain_workers(
+			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
+		);
+	}
 
 	let light_deps = polkadot_rpc::LightDeps {
 		remote_blockchain: backend.remote_blockchain(),
@@ -574,25 +601,22 @@ fn new_light<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	let ServiceComponents { task_manager, .. } = service::build(service::ServiceParams {	
-		config,
-		block_announce_validator_builder: None,
-		finality_proof_request_builder: Some(finality_proof_request_builder),
-		finality_proof_provider: Some(finality_proof_provider),
+	service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
-		client: client.clone(),
-		transaction_pool: transaction_pool.clone(),
-		import_queue, keystore, backend, task_manager,
+		task_manager: &mut task_manager,
+		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
+		config, keystore, backend, transaction_pool, client, network, network_status_sinks,
+		system_rpc_tx,
 	})?;
-	
+
 	Ok(task_manager)
 }
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) -> Result<
+pub fn new_chain_ops<Runtime, Dispatch>(mut config: Configuration) -> Result<
 	(
 		Arc<FullClient<Runtime, Dispatch>>,
 		Arc<FullBackend>,
@@ -604,13 +628,12 @@ pub fn new_chain_ops<Runtime, Dispatch, Extrinsic>(mut config: Configuration) ->
 where
 	Runtime: ConstructRuntimeApi<Block, FullClient<Runtime, Dispatch>> + Send + Sync + 'static,
 	Runtime::RuntimeApi:
-	RuntimeApiCollection<Extrinsic, StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
+	RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 	Dispatch: NativeExecutionDispatch + 'static,
-	Extrinsic: RuntimeExtrinsic,
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	let (service::ServiceParams { client, backend, import_queue, task_manager, .. }, ..)
-		= full_params::<Runtime, Dispatch, Extrinsic>(config)?;
+	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+		= new_partial::<Runtime, Dispatch>(&mut config)?;
 	Ok((client, backend, import_queue, task_manager))
 }
 
@@ -634,7 +657,7 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (components, client) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(
+	let (components, client) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -666,7 +689,7 @@ pub fn kusama_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (components, client) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(
+	let (components, client) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -698,7 +721,7 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (components, client) = new_full::<westend_runtime::RuntimeApi, WestendExecutor, _>(
+	let (components, client) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -713,17 +736,17 @@ pub fn westend_new_full(
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor, _>(config)
+	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
 }
 
 /// Create a new Kusama service for a light client.
 pub fn kusama_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor, _>(config)
+	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 }
 
 /// Create a new Westend service for a light client.
 pub fn westend_new_light(config: Configuration, ) -> Result<TaskManager, ServiceError>
 {
-	new_light::<westend_runtime::RuntimeApi, KusamaExecutor, _>(config)
+	new_light::<westend_runtime::RuntimeApi, KusamaExecutor>(config)
 }

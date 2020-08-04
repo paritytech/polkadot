@@ -847,17 +847,37 @@ async fn run(
 						let (session_tx, session_rx) = oneshot::channel();
 
 						let val_message = AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Validators(val_tx)),
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::Validators(val_tx),
+							),
 						);
 						let session_message = AllMessages::RuntimeApi(
-							RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::SigningContext(session_tx)),
+							RuntimeApiMessage::Request(
+								relay_parent,
+								RuntimeApiRequest::SessionIndexForChild(session_tx),
+							),
 						);
 
 						ctx.send_messages(
 							std::iter::once(val_message).chain(std::iter::once(session_message))
 						).await?;
 
-						(val_rx.await?, session_rx.await?.session_index)
+						match (val_rx.await?, session_rx.await?) {
+							(Ok(v), Ok(s)) => (v, s),
+							(Err(e), _) | (_, Err(e)) => {
+								log::warn!(
+									target: "statement_distribution",
+									"Failed to fetch runtime API data for active leaf: {:?}",
+									e,
+								);
+
+								// Lacking this bookkeeping might make us behave funny, although
+								// not in any slashable way. But we shouldn't take down the node
+								// on what are likely spurious runtime API errors.
+								continue;
+							}
+						}
 					};
 
 					active_heads.entry(relay_parent)

@@ -1,0 +1,17 @@
+[package]
+name = "polkadot-node-core-chain-api"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = { version = "0.3.5" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+
+[dev-dependencies]
+futures = { version = "0.3.5", features = ["thread-pool"] }
+maplit = "1.0.2"
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = ["test-helpers"] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

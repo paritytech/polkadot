@@ -129,13 +129,38 @@ pub struct ValidationOutputs {
 	pub new_validation_code: Option<ValidationCode>,
 }
 
+/// Candidate invalidity details
+#[derive(Debug)]
+pub enum InvalidCandidate {
+	/// Failed to execute.`validate_block`. This includes function panicking.
+	ExecutionError(String),
+	/// Execution timeout.
+	Timeout,
+	/// Validation input is over the limit.
+	ParamsTooLarge(u64),
+	/// Code size is over the limit.
+	CodeTooLarge(u64),
+	/// Validation function returned invalid data.
+	BadReturn,
+	/// Invalid relay chain parent.
+	BadParent,
+	/// POV hash does not match.
+	HashMismatch,
+	/// Bad collator signature.
+	BadSignature,
+	/// Output code is too large
+	NewCodeTooLarge(u64),
+	/// Head-data is over the limit.
+	HeadDataTooLarge(u64),
+}
+
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
 	/// Candidate is valid. The validation process yields these outputs.
 	Valid(ValidationOutputs),
 	/// Candidate is invalid.
-	Invalid,
+	Invalid(InvalidCandidate),
 }
 
 impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {

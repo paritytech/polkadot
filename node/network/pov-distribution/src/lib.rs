@@ -115,10 +115,27 @@ async fn handle_signal(
 					RuntimeApiRequest::Validators(vals_tx),
 				))).await?;
 
+				let n_validators = match vals_rx.await? {
+					Ok(v) => v.len(),
+					Err(e) => {
+						log::warn!(target: "pov_distribution",
+							"Error fetching validators from runtime API for active leaf: {:?}",
+							e
+						);
+
+						// Not adding bookkeeping here might make us behave funny, but we
+						// shouldn't take down the node on spurious runtime API errors.
+						//
+						// and this is "behave funny" as in be bad at our job, but not in any
+						// slashable or security-related way.
+						continue;
+					}
+				};
+
 				state.relay_parent_state.insert(relay_parent, BlockBasedState {
 					known: HashMap::new(),
 					fetching: HashMap::new(),
-					n_validators: vals_rx.await?.len(),
+					n_validators: n_validators,
 				});
 			}
 

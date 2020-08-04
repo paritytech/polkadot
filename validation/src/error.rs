@@ -26,7 +26,7 @@ pub enum Error {
 	/// Consensus error
 	Consensus(consensus::error::Error),
 	/// A wasm-validation error.
-	WasmValidation(parachain::wasm_executor::Error),
+	WasmValidation(parachain::wasm_executor::ValidationError),
 	/// An I/O error.
 	Io(std::io::Error),
 	/// An error in the availability erasure-coding.
