@@ -839,7 +839,7 @@ pub fn rococo_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor, _>(
+	let (service, client, handles, _, _) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 		config,
 		collating_for,
 		max_block_data_size,
@@ -887,7 +887,7 @@ impl NodeBuilder {
 				self.config,
 			)
 		} else if self.config.chain_spec.is_rococo() {
-			new_light::<rococo_runtime::RuntimeApi, RococoExecutor, _>(
+			new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(
 				self.config,
 			)
 		} else {
@@ -928,7 +928,7 @@ impl NodeBuilder {
 				false,
 			).map(|(task_manager, _, _, _, _)| task_manager)
 		} else if self.config.chain_spec.is_rococo() {
-			new_full::<rococo_runtime::RuntimeApi, RococoExecutor, _>(
+			new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 				self.config,
 				collating_for,
 				max_block_data_size,
