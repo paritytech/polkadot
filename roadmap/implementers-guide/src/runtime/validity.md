@@ -27,7 +27,7 @@ We liberate availability cores when their candidate becomes available of course,
 
 Assignment proceeds in loosely timed rounds called `DelayTranche`s roughly 12 times faster than block production, in which validators send assignment notices until all candidates have enough checkers assigned.  Assignment tracks when approval votes arrive too and assigns more checkers if some checkers run late.
 
-Approval checks provide more security than backing checks, so polkadot becomes more efficient when validators perform more approval checks per backing check.  If validators run 4 approval checks for every backing check, and run almost one backing check per relay chain block, then validators actually check almsot 6 blocks per relay chain block.
+Approval checks provide more security than backing checks, so polkadot becomes more efficient when validators perform more approval checks per backing check.  If validators run 4 approval checks for every backing check, and run almost one backing check per relay chain block, then validators actually check almost 6 blocks per relay chain block.
 
 We should therefore reward approval checkers correctly because approval checks should actually represent our single largest workload.  It follows that both assignment notices and approval votes should be tracked on-chain.  
 
