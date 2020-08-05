@@ -406,7 +406,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));
 
 		handles.validation_service_handle = Some(validation_service_handle.clone());
-		//handles.sync_oracle = Some(Box::new(network.clone()));
 
 		Some((validation_service_handle, availability_store))
 	} else {
@@ -809,17 +808,7 @@ pub struct FullNodeHandles {
 	pub polkadot_network: Option<network_protocol::Service>,
 	/// A handle to the validation service.
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
-	// /// A handle to the `SyncOracle`
-	//pub sync_oracle: Option<Box<dyn consensus_common::SyncOracle>>,
 }
-
-/*
-impl FullNodeHandles {
-	pub fn test(&mut self) -> bool {
-		self.sync_oracle.as_mut().unwrap().is_major_syncing()
-	}
-}
-*/
 
 /// Build a new light node.
 pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
