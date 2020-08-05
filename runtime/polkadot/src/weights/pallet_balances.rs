@@ -18,7 +18,7 @@
 
 use frame_support::weights::{Weight, constants::RocksDbWeight as DbWeight};
 pub struct WeightInfo;
-impl balances::WeightInfo for WeightInfo {
+impl pallet_balances::WeightInfo for WeightInfo {
 	fn transfer() -> Weight {
 		(65949000 as Weight)
 			.saturating_add(DbWeight::get().reads(1 as Weight))

@@ -6,23 +6,20 @@ After a candidate is backed, the availability of the PoV block must be confirmed
 
 ## Protocol
 
-`ProtocolId`:`b"avad"`: `PeerSet`: `Validation`
+`PeerSet`: `Validation`
 
 Input:
 
-- NetworkBridgeUpdate(update)
+- NetworkBridgeUpdateV1(update)
 
 Output:
 
-- NetworkBridge::RegisterEventProducer(`ProtocolId`)
-- NetworkBridge::SendMessage(`[PeerId]`, `ProtocolId`, `Bytes`)
+- NetworkBridge::SendValidationMessage(`[PeerId]`, message)
 - NetworkBridge::ReportPeer(PeerId, cost_or_benefit)
 - AvailabilityStore::QueryPoV(candidate_hash, response_channel)
 - AvailabilityStore::StoreChunk(candidate_hash, chunk_index, inclusion_proof, chunk_data)
 
 ## Functionality
-
-Register on startup an event producer with  `NetworkBridge::RegisterEventProducer`.
 
 For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 

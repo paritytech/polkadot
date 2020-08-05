@@ -46,8 +46,7 @@ async fn start_inner(chain_spec: String, log_level: String) -> Result<Client, Bo
 	info!("👤 Role: {}", config.display_role());
 
 	// Create the service. This is the most heavy initialization step.
-	let builder = service::NodeBuilder::new(config);
-	let (task_manager, rpc_handlers) = builder.build_light().map_err(|e| format!("{:?}", e))?;
+	let (task_manager, rpc_handlers) = service::build_light(config).map_err(|e| format!("{:?}", e))?;
 
 	Ok(browser_utils::start_client(task_manager, rpc_handlers))
 }

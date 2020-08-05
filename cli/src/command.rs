@@ -114,7 +114,7 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
+			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -131,17 +131,17 @@ pub fn run() -> Result<()> {
 
 			runner.run_node_until_exit(|config| {
 				let role = config.role.clone();
-				let builder = service::NodeBuilder::new(config);
 
 				match role {
-					Role::Light => builder.build_light().map(|(task_manager, _)| task_manager),
-					_ => builder.build_full(
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					_ => service::build_full(
+						config,
 						None,
 						None,
-						authority_discovery_disabled,
+						authority_discovery_enabled,
 						6000,
 						grandpa_pause,
-					),
+					).map(|r| r.0),
 				}
 			})
 		},

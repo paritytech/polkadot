@@ -89,8 +89,11 @@ impl ParachainContext for AdderContext {
 		let encoded_head = HeadData(next_head.encode());
 		let encoded_body = BlockData(next_body.encode());
 
-		println!("Created collation for #{}, post-state={}",
-			next_head.number, next_body.state.overflowing_add(next_body.add).0);
+		println!(
+			"Created collation for #{}, post-state={}",
+			next_head.number,
+			next_body.state.overflowing_add(next_body.add).0,
+		);
 
 		db.insert(next_head.clone(), next_body);
 		ready(Some((encoded_body, encoded_head)))
@@ -100,9 +103,9 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<Client, SP>(
+	fn build<SP>(
 		self,
-		_: Arc<Client>,
+		_: collator::Client,
 		_: SP,
 		network: impl Network + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()> {

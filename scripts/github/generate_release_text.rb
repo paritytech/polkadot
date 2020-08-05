@@ -27,7 +27,7 @@ last_version = pg
               .sort_by { |v| Gem::Version.new(v.slice(1...)) }[-2]
 
 polkadot_cl = Changelog.new(
-  'paritytech/polkadot', version, last_version, token: token
+  'paritytech/polkadot', last_version, version, token: token
 )
 
 # Get prev and cur substrate SHAs - parse the old and current Cargo.lock for

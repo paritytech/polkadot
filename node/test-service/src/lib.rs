@@ -26,9 +26,7 @@ use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
-use polkadot_service::{
-	new_full, FullNodeHandles, PolkadotClient,
-};
+use polkadot_service::{new_full, FullNodeHandles, AbstractClient};
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
@@ -64,12 +62,12 @@ pub fn polkadot_test_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 ) -> Result<
 	(
 		TaskManager,
-		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
+		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
@@ -81,7 +79,7 @@ pub fn polkadot_test_new_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			None,
 			true,
@@ -196,13 +194,13 @@ pub fn run_test_node(
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> PolkadotTestNode<
 	TaskManager,
-	impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
+	impl AbstractClient<Block, TFullBackend<Block>>,
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_disabled = true;
+	let authority_discovery_enabled = false;
 	let (task_manager, client, handles, network, rpc_handlers) =
-		polkadot_test_new_full(config, None, None, authority_discovery_disabled, 6000)
+		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)
 			.expect("could not create Polkadot test service");
 
 	let peer_id = network.local_peer_id().clone();
