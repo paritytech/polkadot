@@ -160,7 +160,7 @@ Candidate Acceptance Function:
 
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
   1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
-  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `recipient` is not empty.
+  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 * `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
   1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
   1. `new_hrmp_watermark` must not be greater than the context's block number.
