@@ -19,6 +19,8 @@
 //! Node-side logic for Polkadot is mostly comprised of Subsystems, which are discrete components
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
+//!
+//! This crate also reexports prometheus metrics which are expected to be implemented by subsystems.
 
 #![warn(missing_docs)]
 
@@ -31,6 +33,8 @@ use futures::future::BoxFuture;
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
+
+pub use substrate_prometheus_endpoint as prometheus;
 
 use crate::messages::AllMessages;
 
@@ -222,5 +226,19 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 			name: "DummySubsystem",
 			future,
 		}
+	}
+}
+
+/// A trait to register subsystem-specific metrics in the prometheus registry.
+/// Will be called before the subsystem starts.
+pub trait RegisterMetrics {
+	/// Try to register metrics in the prometheus registry.
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError>;
+}
+
+
+impl RegisterMetrics for DummySubsystem {
+	fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		Ok(())
 	}
 }

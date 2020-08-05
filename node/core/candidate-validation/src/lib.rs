@@ -22,7 +22,7 @@
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
-	FromOverseer, OverseerSignal,
+	FromOverseer, OverseerSignal, prometheus, RegisterMetrics,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
@@ -45,13 +45,74 @@ use futures::prelude::*;
 
 use std::sync::Arc;
 
+const LOG_TARGET: &'static str = "candidate_validation";
+
 /// The candidate validation subsystem.
-pub struct CandidateValidationSubsystem<S>(S);
+pub struct CandidateValidationSubsystem<S> {
+	spawn: S,
+	metrics: MaybeMetrics,
+}
+
+/// Candidate validation metrics.
+struct Metrics {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+struct MaybeMetrics(Option<Metrics>);
+
+impl Default for MaybeMetrics {
+	fn default() -> Self {
+		Self(None)
+	}
+}
+
+impl MaybeMetrics {
+	fn update(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["failed"]).inc();
+				},
+			}
+		}
+	}
+}
+
+impl RegisterMetrics for MaybeMetrics {
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		let metrics = Metrics {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"validation_request_events",
+						"Number of validation requests served.",
+					),
+					&["valid", "invalid", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		self.0 = Some(metrics);
+		Ok(())
+	}
+}
+
+impl<S> RegisterMetrics for CandidateValidationSubsystem<S> {
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		self.metrics.try_register(registry)
+	}
+}
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
 	pub fn new(spawn: S) -> Self {
-		CandidateValidationSubsystem(spawn)
+		CandidateValidationSubsystem { spawn, metrics: Default::default() }
 	}
 }
 
@@ -62,7 +123,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx, self.0).map(|_| ()).boxed(),
+			future: run(ctx, self.spawn, self.metrics).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -70,6 +131,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
+	metrics: MaybeMetrics,
 )
 	-> SubsystemResult<()>
 {
@@ -95,8 +157,11 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => { let _ = response_sender.send(x); }
-						Err(e)=> return Err(e),
+						Ok(x) => {
+							metrics.update(&x);
+							let _ = response_sender.send(x);
+						}
+						Err(e) => return Err(e),
 					}
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
@@ -117,13 +182,16 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => if let Err(_e) = response_sender.send(x) {
-							log::warn!(
-								target: "candidate_validation",
-								"Requester of candidate validation dropped",
-							)
+						Ok(x) => {
+							metrics.update(&x);
+							if let Err(_e) = response_sender.send(x) {
+								log::warn!(
+									target: LOG_TARGET,
+									"Requester of candidate validation dropped",
+								)
+							}
 						},
-						Err(e)=> return Err(e),
+						Err(e) => return Err(e),
 					}
 				}
 			}
@@ -237,7 +305,7 @@ async fn spawn_validate_from_chain_state(
 			Ok(g) => g,
 			Err(e) => {
 				log::warn!(
-					target: "candidate_validation",
+					target: LOG_TARGET,
 					"Error making runtime API request: {:?}",
 					e,
 				);

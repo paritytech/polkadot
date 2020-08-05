@@ -22,6 +22,7 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 smallvec = "1.4.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 streamunordered = "0.5.1"
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 assert_matches = "1.3.0"

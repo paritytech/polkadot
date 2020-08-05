@@ -4736,6 +4736,7 @@ dependencies = [
  "smallvec 1.4.1",
  "sp-core",
  "streamunordered",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -4754,7 +4755,6 @@ dependencies = [
  "sc-client-api",
  "sp-core",
  "streamunordered",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]

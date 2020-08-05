@@ -83,10 +83,9 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate,
+	SpawnedSubsystem, ActiveLeavesUpdate, prometheus, RegisterMetrics,
 };
 use polkadot_node_primitives::SpawnNamed;
-use substrate_prometheus_endpoint as prometheus;
 
 
 // A capacity of bounded channels inside the overseer.
@@ -435,8 +434,6 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
 /// Various prometheus metrics.
 struct Metrics {
 	active_heads_count: prometheus::Gauge<prometheus::U64>,
-	// TODO do these metrics live here or in subsystems?
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
 	// Number of statements signed
 	// Number of bitfields signed
 	// Number of availability chunks received
@@ -461,10 +458,9 @@ impl MaybeMetrics {
 	}
 }
 
-impl Metrics {
-	/// Try to register metrics in the prometheus registry.
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		Ok(Self {
+impl RegisterMetrics for MaybeMetrics {
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		let metrics = Metrics {
 			active_heads_count: prometheus::register(
 				prometheus::Gauge::new(
 					"active_heads_count",
@@ -472,17 +468,9 @@ impl Metrics {
 				)?, // TODO: should this be `.expect(PROOF)`?
 				registry,
 			)?,
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"validation_requests",
-						"Number of validation requests served.",
-					),
-					&["succeeded", "failed"],
-				)?,
-				registry,
-			)?,
-		})
+		};
+		self.0 = Some(metrics);
+		Ok(())
 	}
 }
 
@@ -589,24 +577,24 @@ where
 	/// ```
 	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
+		mut all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
-		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + RegisterMetrics + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + RegisterMetrics + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + RegisterMetrics + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + RegisterMetrics + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + RegisterMetrics + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + RegisterMetrics + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + RegisterMetrics + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + RegisterMetrics + Send,
+		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + RegisterMetrics + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + RegisterMetrics + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + RegisterMetrics + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + RegisterMetrics + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + RegisterMetrics + Send,
 	{
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
@@ -616,6 +604,35 @@ where
 
 		let mut running_subsystems_rx = StreamUnordered::new();
 		let mut running_subsystems = FuturesUnordered::new();
+
+		fn register_metrics<S: RegisterMetrics>(s: &mut S, registry: Option<&prometheus::Registry>) {
+			if let Some(registry) = registry {
+				match RegisterMetrics::try_register(s, registry) {
+					Err(e) => {
+						log::warn!(target: LOG_TARGET, "Failed to register metrics: {:?}", e);
+					},
+					_ => {},
+				}
+			}
+		};
+
+		// subsystem metrics
+		register_metrics(&mut all_subsystems.candidate_validation, prometheus_registry);
+		register_metrics(&mut all_subsystems.candidate_backing, prometheus_registry);
+		register_metrics(&mut all_subsystems.candidate_selection, prometheus_registry);
+		register_metrics(&mut all_subsystems.statement_distribution, prometheus_registry);
+		register_metrics(&mut all_subsystems.availability_distribution, prometheus_registry);
+		register_metrics(&mut all_subsystems.bitfield_signing, prometheus_registry);
+		register_metrics(&mut all_subsystems.bitfield_distribution, prometheus_registry);
+		register_metrics(&mut all_subsystems.pov_distribution, prometheus_registry);
+		register_metrics(&mut all_subsystems.runtime_api, prometheus_registry);
+		register_metrics(&mut all_subsystems.availability_store, prometheus_registry);
+		register_metrics(&mut all_subsystems.network_bridge, prometheus_registry);
+		register_metrics(&mut all_subsystems.chain_api, prometheus_registry);
+
+		// overseer metrics
+		let mut metrics = MaybeMetrics(None);
+		register_metrics(&mut metrics, prometheus_registry);
 
 		let candidate_validation_subsystem = spawn(
 			&mut s,
@@ -714,20 +731,6 @@ where
 			.collect();
 
 		let active_leaves = HashSet::new();
-
-		let metrics = match prometheus_registry {
-			Some(registry) => {
-				match Metrics::try_register(registry) {
-					Ok(metrics) => Some(metrics),
-					Err(e) => {
-						log::warn!(target: LOG_TARGET, "Failed to register metrics: {:?}", e);
-						None
-					},
-				}
-			},
-			None => None,
-		};
-		let metrics = MaybeMetrics(metrics);
 
 		let this = Self {
 			candidate_validation_subsystem,
@@ -1112,6 +1115,12 @@ mod tests {
 		}
 	}
 
+	impl RegisterMetrics for TestSubsystem1 {
+		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
+		}
+	}
+
 	struct TestSubsystem2(mpsc::Sender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem2
@@ -1158,6 +1167,12 @@ mod tests {
 		}
 	}
 
+	impl RegisterMetrics for TestSubsystem2 {
+		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
+		}
+	}
+
 	struct TestSubsystem4;
 
 	impl<C> Subsystem<C> for TestSubsystem4
@@ -1172,6 +1187,13 @@ mod tests {
 			}
 		}
 	}
+
+	impl RegisterMetrics for TestSubsystem4 {
+		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
+		}
+	}
+
 
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
@@ -1307,6 +1329,13 @@ mod tests {
 		}
 	}
 
+	impl RegisterMetrics for TestSubsystem5 {
+		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
+		}
+	}
+
+
 	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem6
@@ -1333,6 +1362,12 @@ mod tests {
 					}
 				}),
 			}
+		}
+	}
+
+	impl RegisterMetrics for TestSubsystem6 {
+		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
 		}
 	}
 
