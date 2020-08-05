@@ -17,7 +17,7 @@
 //! The availability distribution
 //!
 //! Transforms `AvailableData` into erasure chunks, which are distributed to peers
-//! which are interested in the relevant candidates.
+//! who are interested in the relevant candidates.
 //! Gossip messages received from other peers are verified and gossiped to interested
 //! peers. Verified in this context means, the erasure chunks contained merkle proof
 //! is checked.
