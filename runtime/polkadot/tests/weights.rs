@@ -32,7 +32,6 @@ use polkadot_runtime::{self, Runtime};
 use primitives::v0::AccountId;
 use runtime_common::MaximumBlockWeight;
 
-use pallet_democracy::Call as DemocracyCall;
 use pallet_elections_phragmen::Call as PhragmenCall;
 use pallet_session::Call as SessionCall;
 use pallet_staking::Call as StakingCall;
@@ -155,40 +154,6 @@ fn weight_of_session_purge_keys_is_correct() {
 	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
 	let expected_weight = 120_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * (1 + 5));
 	let weight = SessionCall::purge_keys::<Runtime>().get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_democracy_propose_is_correct() {
-	// #[weight = 50_000_000 + T::DbWeight::get().reads_writes(2, 3)]
-	let expected_weight = 50_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * 3);
-	let weight = DemocracyCall::propose::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_democracy_vote_is_correct() {
-	use pallet_democracy::AccountVote;
-	let vote = AccountVote::Standard { vote: Default::default(), balance: Default::default() };
-
-	// #[weight = 50_000_000 + 350_000 * Weight::from(T::MaxVotes::get()) + T::DbWeight::get().reads_writes(3, 3)]
-	let expected_weight = 50_000_000
-		+ 350_000 * (Weight::from(polkadot_runtime::MaxVotes::get()))
-		+ (DbWeight::get().read * 3)
-		+ (DbWeight::get().write * 3);
-	let weight = DemocracyCall::vote::<Runtime>(Default::default(), vote).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_democracy_enact_proposal_is_correct() {
-	// #[weight = T::MaximumBlockWeight::get()]
-	let expected_weight = MaximumBlockWeight::get();
-	let weight =
-		DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }

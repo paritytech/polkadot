@@ -48,6 +48,7 @@
     - [Runtime](types/runtime.md)
     - [Chain](types/chain.md)
     - [Messages](types/messages.md)
+    - [Network](types/network.md)
 
 [Glossary](glossary.md)
 [Further Reading](further-reading.md)
