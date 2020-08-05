@@ -182,12 +182,6 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
-	/// Distribute an availability chunk to other validators.
-	DistributeChunk(Hash, ErasureChunk),
-
-	/// Fetch an erasure chunk from networking by candidate hash and chunk index.
-	FetchChunk(Hash, u32),
-
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
@@ -196,8 +190,6 @@ impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::DistributeChunk(hash, _) => Some(*hash),
-			Self::FetchChunk(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdate(_) => None,
 		}
 	}

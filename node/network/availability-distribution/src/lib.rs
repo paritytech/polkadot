@@ -755,16 +755,6 @@ impl AvailabilityDistributionSubsystem {
 						);
 					}
 				}
-				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::DistributeChunk(_hash, _erasure_chunk),
-				} => {
-					trace!(target: TARGET, "Processing incoming erasure chunk");
-				}
-				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::FetchChunk(_hash, _erasure_chunk),
-				} => {
-					trace!(target: TARGET, "Processing incoming erasure chunk");
-				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 					activated,
 					deactivated,
