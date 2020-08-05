@@ -102,8 +102,8 @@ struct ProtocolState {
 	/// Caches a mapping of relay parents to live candidates
 	/// and allows fast + intersection free obtaining of active heads set by unionizing.
 	/// Includes the `K` ancestors too.
-	/// Maps relay parent / ancestor -> live candidate receipts.
-	receipts: HashMap<H256, HashSet<CommittedCandidateReceipt>>,
+	/// Maps relay parent / ancestor -> live candidate receipts + its hash.
+	receipts: HashMap<H256, HashSet<(H256, CommittedCandidateReceipt)>>,
 
 	/// Allow reverse caching of view checks.
 	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
@@ -183,7 +183,7 @@ impl ProtocolState {
 			.filter_map(|relay_parent_or_ancestor| self.receipts.get(&relay_parent_or_ancestor))
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
-			.map(|receipt| (receipt.hash(), receipt.clone()))
+			.map(|(receipt_hash, receipt)| (receipt_hash.clone(), receipt.clone()))
 			.collect::<HashMap<H256, CommittedCandidateReceipt>>()
 	}
 
@@ -828,7 +828,7 @@ async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	relay_parents: impl IntoIterator<Item = H256>,
-) -> Result<HashMap<H256, CommittedCandidateReceipt>>
+) -> Result<HashMap<H256, (H256, CommittedCandidateReceipt)>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -836,13 +836,13 @@ where
 	let hint = iter.size_hint();
 
 	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
-	let mut live_candidates = HashMap::<H256, CommittedCandidateReceipt>::with_capacity(capacity);
+	let mut live_candidates = HashMap::<H256, (H256, CommittedCandidateReceipt)>::with_capacity(capacity);
 
 	for relay_parent in iter {
 		// direct candidates for one relay parent
 		let receipts =
 			query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
-		live_candidates.extend(receipts.into_iter().map(|receipt| (relay_parent.clone(), receipt)));
+		live_candidates.extend(receipts.into_iter().map(|receipt| (relay_parent.clone(), (receipt.hash(), receipt))));
 
 		// register one of relay parents (not the ancestors)
 		let ancestors =
@@ -862,7 +862,9 @@ where
 						live_candidates.extend(
 							receipts
 								.into_iter()
-								.map(|receipt| (relay_parent.clone(), receipt.clone())),
+								.map(|(receipt_hash, receipt)| {
+									(relay_parent.clone(), (receipt_hash.clone(), receipt.clone()))
+								}),
 						);
 						Some(())
 					})
@@ -872,24 +874,34 @@ where
 
 		// query the ones that were not present in the receipts cache
 		let receipts = query_live_candidates_without_ancestors(ctx, unknown.clone()).await?;
-		live_candidates.extend(unknown.into_iter().zip(receipts.into_iter()));
+		live_candidates.extend(
+			unknown
+				.into_iter()
+				.zip(
+					receipts
+						.into_iter()
+						.map(|receipt|
+							(receipt.hash(), receipt)
+						)
+				)
+		);
 	}
 
 
 	// register the relation of relay_parent to candidate..
 	// ..and the reverse association.
-	for (relay_parent_or_ancestor, receipt) in live_candidates.clone() {
+	for (relay_parent_or_ancestor, (receipt_hash, receipt)) in live_candidates.clone() {
 		state.reverse.insert(
-			receipt.hash(),
+			receipt_hash.clone(),
 			relay_parent_or_ancestor.clone(),
 		);
 		state.per_candidate
-			.entry(receipt.hash())
+			.entry(receipt_hash.clone())
 			.or_default();
 		state.receipts
 			.entry(relay_parent_or_ancestor)
 			.or_default()
-			.insert(receipt);
+			.insert((receipt_hash, receipt));
 	}
 
 	Ok(live_candidates)
