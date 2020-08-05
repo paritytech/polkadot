@@ -6,55 +6,118 @@ The most notable challenge is coordinating and eliminating race conditions of pe
 
 One other piece of shared state to track is peer reputation. When peers are found to have provided value or cost, we adjust their reputation accordingly.
 
-So in short, this Subsystem acts as a bridge between an actual network component and a subsystem's protocol.
+So in short, this Subsystem acts as a bridge between an actual network component and a subsystem's protocol. The implementation of the underlying network component is beyond the scope of this module. We make certain assumptions about the network component:
+  * The network allows registering of protocols and multiple versions of each protocol.
+  * The network handles version negotiation of protocols with peers and only connects the peer on the highest version of the protocol.
+  * Each protocol has its own peer-set, although there may be some overlap.
+  * The network provides peer-set management utilities for discovering the peer-IDs of validators and a means of dialing peers with given IDs.
 
-The other component of the network bridge is which peer-set to use. Different peer-sets can be connected for different purposes. The network bridge is not generic over peer-set, but instead exposes two peer-sets that event producers can attach to: `Validation` and `Collation`. More information can be found on the documentation of the [`NetworkBridgeMessage`][NBM].
+
+The network bridge makes use of the peer-set feature, but is not generic over peer-set. Instead, it exposes two peer-sets that event producers can attach to: `Validation` and `Collation`. More information can be found on the documentation of the [`NetworkBridgeMessage`][NBM].
 
 ## Protocol
 
 Input: [`NetworkBridgeMessage`][NBM]
-Output: Varying, based on registered event producers.
+
+
+Output:
+	- [`AvailabilityDistributionMessage`][AvD]`::NetworkBridgeUpdateV1`
+	- [`BitfieldDistributionMessage`][BitD]`::NetworkBridgeUpdateV1`
+	- [`PoVDistributionMessage`][PoVD]`::NetworkBridgeUpdateV1`
+	- [`StatementDistributionMessage`][StmtD]`::NetworkBridgeUpdateV1`
+	- [`CollatorProtocolMessage`][CollP]`::NetworkBridgeUpdateV1`
 
 ## Functionality
 
-Track a set of all Event Producers, each associated with a 4-byte protocol ID and the `PeerSet` it is associated on.
+This network bridge sends messages of these types over the network.
 
-There are two types of network messages this sends and receives:
+```rust
+enum ProtocolMessage<M> {
+	ProtocolMessage(M),
+	ViewUpdate(View),
+}
+```
 
-- ProtocolMessage(ProtocolId, Bytes)
-- ViewUpdate(View)
+and instantiates this type twice, once using the [`ValidationProtocolV1`][VP1] message type, and once with the [`CollationProtocolV1`][CP1] message type.
 
-Each of these network messages is associated with a particular peer-set. If we are connected to the same peer on both peer-sets, we will receive two `ViewUpdate`s from them every time they change their view.
+```rust
+type ValidationV1Message = ProtocolMessage<ValidationProtocolV1>;
+type CollationV1Message = ProtocolMessage<CollationProtocolV1>;
+```
 
-`ActiveLeavesUpdate`'s `activated` and `deactivated` lists determine the evolution of our local view over time. A `ViewUpdate` is issued to each connected peer after each update, and a `NetworkBridgeUpdate::OurViewChange` is issued for each registered event producer.
+### Startup
 
-On `RegisterEventProducer`:
+On startup, we register two protocols with the underlying network utility. One for validation and one for collation. We register only version 1 of each of these protocols.
 
-- Add the event producer to the set of event producers. If there is a competing entry, ignore the request.
+### Main Loop
 
-On `ProtocolMessage` arrival:
+The bulk of the work done by this subsystem is in responding to network events, signals from the overseer, and messages from other subsystems.
 
-- If the protocol ID matches an event producer, produce the message from the `NetworkBridgeEvent::PeerMessage(sender, bytes)`, otherwise ignore and reduce peer reputation slightly
-- dispatch message via overseer.
+Each network event is associated with a particular peer-set.
 
-On `ViewUpdate` arrival:
+### Overseer Signal: ActiveLeavesUpdate
 
-- Do validity checks and note the most recent view update of the peer.
-- For each event producer, dispatch the result of a `NetworkBridgeEvent::PeerViewChange(view)` via overseer.
+The `activated` and `deactivated` lists determine the evolution of our local view over time. A `ProtocolMessage::ViewUpdate` is issued to each connected peer on each peer-set, and a `NetworkBridgeEvent::OurViewChange` is issued to each event handler for each protocol.
 
-On `ReportPeer` message:
+If we are connected to the same peer on both peer-sets, we will send the peer two view updates as a result.
+
+### Network Event: Peer Connected
+
+Issue a `NetworkBridgeEvent::PeerConnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
+
+### Network Event: Peer Disconnected
+
+Issue a `NetworkBridgeEvent::PeerDisconnected` for each [Event Handler](#event-handlers) of the peer-set and negotiated protocol version of the peer.
+
+### Network Event: ProtocolMessage
+
+Map the message onto the corresponding [Event Handler](#event-handlers) based on the peer-set this message was received on and dispatch via overseer.
+
+### Network Event: ViewUpdate
+
+- Check that the new view is valid and note it as the most recent view update of the peer on this peer-set.
+- Map a `NetworkBridgeEvent::PeerViewChange` onto the corresponding [Event Handler](#event-handlers) based on the peer-set this message was received on and dispatch  via overseer.
+
+### ReportPeer
 
 - Adjust peer reputation according to cost or benefit provided
 
-On `SendMessage` message:
+### SendValidationMessage
 
-- Issue a corresponding `ProtocolMessage` to each listed peer with given protocol ID and bytes.
+- Issue a corresponding `ProtocolMessage` to each listed peer on the validation peer-set.
 
-[NBM]: ../../types/overseer-protocol.md#network-bridge-message
+### SendCollationMessage
 
-On `ConnectToValidators` message:
+- Issue a corresponding `ProtocolMessage` to each listed peer on the collation peer-set.
+
+### ConnectToValidators
 
 - Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
 - Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
 - Accumulate all `(ValidatorId, PeerId)` pairs and send on the response channel.
-- Feed all Peer IDs to the discovery utility the underlying network provides.
+- Feed all Peer IDs to peer set manager the underlying network provides, indicating the expected peer-set.
+
+## Event Handlers
+
+Network bridge event handlers are the intended recipients of particular network protocol messages. These are each a variant of a message to be sent via the overseer.
+
+### Validation V1
+
+* `StatementDistributionV1Message -> StatementDistributionMessage::NetworkBridgeUpdateV1`
+* `PoVDistributionV1Message -> PoVDistributionMessage::NetworkBridgeUpdateV1`
+* `AvailabilityDistributionV1Message -> AvailabilityDistributionMessage::NetworkBridgeUpdateV1`
+* `BitfieldDistributionV1Message -> BitfieldDistributionMessage::NetworkBridgeUpdateV1`
+
+### Collation V1
+
+* `CollatorProtocolV1Message -> CollatorProtocolMessage::NetworkBridgeUpdateV1`
+
+[NBM]: ../../types/overseer-protocol.md#network-bridge-message
+[AvD]: ../../types/overseer-protocol.md#availability-distribution-message
+[BitD]: ../../types/overseer-protocol.md#bitfield-distribution-message
+[PoVD]: ../../types/overseer-protocol.md#pov-distribution-message
+[StmtD]: ../../types/overseer-protocol.md#statement-distribution-message
+[CollP]: ../../types/overseer-protocol.md#collator-protocol-message
+
+[VP1]: ../../types/network.md#validation-v1
+[CP1]: ../../types/network.md#collation-v1
