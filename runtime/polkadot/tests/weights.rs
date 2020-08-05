@@ -19,7 +19,7 @@
 //!
 //! These test are not meant to be exhaustive, as it is inevitable that
 //! weights in Substrate will change. Instead they are supposed to provide
-//! some sort of indicator that calls we consider important (e.g Balances::transfer)
+//! some sort of indicator that calls we consider important (e.g pallet_balances::transfer)
 //! have not suddenly changed from under us.
 
 use frame_support::{
@@ -32,14 +32,13 @@ use polkadot_runtime::{self, Runtime};
 use primitives::v0::AccountId;
 use runtime_common::MAXIMUM_BLOCK_WEIGHT;
 
-use democracy::Call as DemocracyCall;
-use elections_phragmen::Call as PhragmenCall;
-use session::Call as SessionCall;
-use staking::Call as StakingCall;
-use system::Call as SystemCall;
-use treasury::Call as TreasuryCall;
+use pallet_elections_phragmen::Call as PhragmenCall;
+use pallet_session::Call as SessionCall;
+use pallet_staking::Call as StakingCall;
+use frame_system::Call as SystemCall;
+use pallet_treasury::Call as TreasuryCall;
 
-type DbWeight = <Runtime as system::Trait>::DbWeight;
+type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
 
 #[test]
 fn sanity_check_weight_per_time_constants_are_as_expected() {
@@ -49,29 +48,6 @@ fn sanity_check_weight_per_time_constants_are_as_expected() {
 	assert_eq!(WEIGHT_PER_MILLIS, WEIGHT_PER_SECOND / 1000);
 	assert_eq!(WEIGHT_PER_MICROS, WEIGHT_PER_MILLIS / 1000);
 	assert_eq!(WEIGHT_PER_NANOS, WEIGHT_PER_MICROS / 1000);
-}
-
-#[test]
-fn weight_of_balances_transfer_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 70_000_000]
-	let expected_weight = DbWeight::get().read + DbWeight::get().write + 70_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::transfer::<Runtime>(Default::default(), Default::default())
-		.get_dispatch_info()
-		.weight;
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_balances_transfer_keep_alive_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(1, 1) + 50_000_000]
-	let expected_weight = DbWeight::get().read + DbWeight::get().write + 50_000_000;
-
-	let weight = polkadot_runtime::BalancesCall::transfer_keep_alive::<Runtime>(Default::default(), Default::default())
-		.get_dispatch_info()
-		.weight;
-
-	assert_eq!(weight, expected_weight);
 }
 
 #[test]
@@ -183,40 +159,6 @@ fn weight_of_session_purge_keys_is_correct() {
 }
 
 #[test]
-fn weight_of_democracy_propose_is_correct() {
-	// #[weight = 50_000_000 + T::DbWeight::get().reads_writes(2, 3)]
-	let expected_weight = 50_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * 3);
-	let weight = DemocracyCall::propose::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_democracy_vote_is_correct() {
-	use democracy::AccountVote;
-	let vote = AccountVote::Standard { vote: Default::default(), balance: Default::default() };
-
-	// #[weight = 50_000_000 + 350_000 * Weight::from(T::MaxVotes::get()) + T::DbWeight::get().reads_writes(3, 3)]
-	let expected_weight = 50_000_000
-		+ 350_000 * (Weight::from(polkadot_runtime::MaxVotes::get()))
-		+ (DbWeight::get().read * 3)
-		+ (DbWeight::get().write * 3);
-	let weight = DemocracyCall::vote::<Runtime>(Default::default(), vote).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_democracy_enact_proposal_is_correct() {
-	// #[weight = T::block_weights().max_block]
-	let expected_weight = MAXIMUM_BLOCK_WEIGHT;
-	let weight =
-		DemocracyCall::enact_proposal::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_phragmen_vote_is_correct() {
 	// #[weight = 100_000_000]
 	let expected_weight = 350_000_000;
@@ -236,7 +178,7 @@ fn weight_of_phragmen_submit_candidacy_is_correct() {
 #[test]
 fn weight_of_phragmen_renounce_candidacy_is_correct() {
 	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
-	let weight = PhragmenCall::renounce_candidacy::<Runtime>(elections_phragmen::Renouncing::Member)
+	let weight = PhragmenCall::renounce_candidacy::<Runtime>(pallet_elections_phragmen::Renouncing::Member)
 		.get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -263,7 +205,7 @@ fn weight_of_treasury_approve_proposal_is_correct() {
 
 #[test]
 fn weight_of_treasury_tip_is_correct() {
-	let max_len: Weight = <Runtime as treasury::Trait>::Tippers::max_len() as Weight;
+	let max_len: Weight = <Runtime as pallet_treasury::Trait>::Tippers::max_len() as Weight;
 
 	// #[weight = 68_000_000 + 2_000_000 * T::Tippers::max_len() as Weight
 	// 	+ T::DbWeight::get().reads_writes(2, 1)]

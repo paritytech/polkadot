@@ -171,7 +171,7 @@ Actions:
 1. Set `configuration = Configuration::configuration()` (see [`HostConfiguration`](../types/runtime.md#host-configuration))
 1. Resize `AvailabilityCores` to have length `Paras::parachains().len() + configuration.parathread_cores with all`None` entries.
 1. Compute new validator groups by shuffling using a secure randomness beacon
-   - We need a total of `N = Paras::parathreads().len() + configuration.parathread_cores` validator groups.
+   - We need a total of `N = Paras::parachains().len() + configuration.parathread_cores` validator groups.
    - The total number of validators `V` in the `SessionChangeNotification`'s `validators` may not be evenly divided by `V`.
    - First, we obtain "shuffled validators" `SV` by shuffling the validators using the `SessionChangeNotification`'s random seed.
    - The groups are selected by partitioning `SV`. The first V % N groups will have (V / N) + 1 members, while the remaining groups will have (V / N) members each.

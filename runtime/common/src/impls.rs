@@ -25,20 +25,20 @@ pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
-	R: balances::Trait + authorship::Trait,
-	<R as system::Trait>::AccountId: From<primitives::v0::AccountId>,
-	<R as system::Trait>::AccountId: Into<primitives::v0::AccountId>,
-	<R as system::Trait>::Event: From<balances::RawEvent<
-		<R as system::Trait>::AccountId,
-		<R as balances::Trait>::Balance,
-		balances::DefaultInstance>
+	R: pallet_balances::Trait + pallet_authorship::Trait,
+	<R as frame_system::Trait>::AccountId: From<primitives::v0::AccountId>,
+	<R as frame_system::Trait>::AccountId: Into<primitives::v0::AccountId>,
+	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
+		<R as frame_system::Trait>::AccountId,
+		<R as pallet_balances::Trait>::Balance,
+		pallet_balances::DefaultInstance>
 	>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		let numeric_amount = amount.peek();
-		let author = <authorship::Module<R>>::author();
-		<balances::Module<R>>::resolve_creating(&<authorship::Module<R>>::author(), amount);
-		<system::Module<R>>::deposit_event(balances::RawEvent::Deposit(author, numeric_amount));
+		let author = <pallet_authorship::Module<R>>::author();
+		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
+		<frame_system::Module<R>>::deposit_event(pallet_balances::RawEvent::Deposit(author, numeric_amount));
 	}
 }
 
@@ -47,18 +47,18 @@ pub struct CurrencyToVoteHandler<R>(sp_std::marker::PhantomData<R>);
 
 impl<R> CurrencyToVoteHandler<R>
 where
-	R: balances::Trait,
+	R: pallet_balances::Trait,
 	R::Balance: Into<u128>,
 {
 	fn factor() -> u128 {
-		let issuance: u128 = <balances::Module<R>>::total_issuance().into();
+		let issuance: u128 = <pallet_balances::Module<R>>::total_issuance().into();
 		(issuance / u64::max_value() as u128).max(1)
 	}
 }
 
 impl<R> Convert<u128, u64> for CurrencyToVoteHandler<R>
 where
-	R: balances::Trait,
+	R: pallet_balances::Trait,
 	R::Balance: Into<u128>,
 {
 	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
@@ -66,7 +66,7 @@ where
 
 impl<R> Convert<u128, u128> for CurrencyToVoteHandler<R>
 where
-	R: balances::Trait,
+	R: pallet_balances::Trait,
 	R::Balance: Into<u128>,
 {
 	fn convert(x: u128) -> u128 { x * Self::factor() }
