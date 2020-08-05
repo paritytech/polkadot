@@ -134,18 +134,17 @@ struct PerCandidate {
 
 	/// Track already sent candidate hashes and the erasure chunk index to the peers.
 	sent_messages: HashMap<PeerId, HashSet<(Hash, ValidatorIndex)>>,
-}
-
-#[derive(Debug, Clone, Default)]
-struct PerRelayParent {
-	/// Set of `K` ancestors for this relay parent.
-	ancestors: Vec<Hash>,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
 
 	/// If this node is a validator, note the index in the validator set.
-	validator_index: Option<ValidatorIndex>,
+	validator_index: Option<ValidatorIndex>,}
+
+#[derive(Debug, Clone, Default)]
+struct PerRelayParent {
+	/// Set of `K` ancestors for this relay parent.
+	ancestors: Vec<Hash>,
 }
 
 impl ProtocolState {
@@ -189,12 +188,32 @@ impl ProtocolState {
 		&mut self,
 		ctx: &mut Context,
 		relay_parent: Hash,
+		validators: Vec<ValidatorId>,
+		validator_index: Option<ValidatorIndex>,
 	) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		let candidates =
 			query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
+
+		// register the relation of relay_parent to candidate..
+		// ..and the reverse association.
+		for (relay_parent_or_ancestor, (receipt_hash, receipt)) in candidates.clone() {
+			self
+				.reverse
+				.insert(receipt_hash.clone(), relay_parent_or_ancestor.clone());
+			let per_candidate = self.per_candidate.entry(receipt_hash.clone())
+				.or_default();
+			per_candidate.validator_index = validator_index.clone();
+			per_candidate.validators = validators.clone();
+
+			self
+				.receipts
+				.entry(relay_parent_or_ancestor)
+				.or_default()
+				.insert((receipt_hash, receipt));
+		}
 
 		// collect the ancestors again from the hash map
 		let ancestors = candidates
@@ -216,12 +235,11 @@ impl ProtocolState {
 				.insert(relay_parent.clone());
 		}
 
-		let per_relay_parent = self
+		self
 			.per_relay_parent
-			.get_mut(&relay_parent)
-			.expect("Relay parent is initialized on overseer signal. qed");
-
-		per_relay_parent.ancestors = ancestors;
+			.entry(relay_parent)
+			.or_default()
+			.ancestors = ancestors;
 
 		Ok(())
 	}
@@ -270,6 +288,7 @@ fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
+	keystore: KeyStorePtr,
 	state: &mut ProtocolState,
 	bridge_message: NetworkBridgeEvent,
 ) -> Result<()>
@@ -289,7 +308,7 @@ where
 			handle_peer_view_change(ctx, state, peerid, view).await?;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
-			handle_our_view_change(ctx, state, view).await?;
+			handle_our_view_change(ctx, keystore, state, view).await?;
 		}
 		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
 			if let Ok(gossiped_availability) =
@@ -342,6 +361,7 @@ fn derive_erasure_chunks_with_proofs(
 /// Handle the changes necassary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
+	keystore: KeyStorePtr,
 	state: &mut ProtocolState,
 	view: View,
 ) -> Result<()>
@@ -356,7 +376,12 @@ where
 
 	// add all the relay parents and fill the cache
 	for added in added.clone() {
-		state.add_relay_parent(ctx, added.clone()).await?;
+		let validators = query_validators(ctx, added.clone()).await?;
+		let validator_index = obtain_our_validator_index(
+			&validators,
+			keystore.clone(),
+		);
+		state.add_relay_parent(ctx, added.clone(), validators, validator_index).await?;
 	}
 
 	// handle all candidates
@@ -365,17 +390,13 @@ where
 		let desc = candidate_receipt.descriptor();
 		let para = desc.para_id;
 
-		let per_relay_parent =
-			if let Some(per_relay_parent) = state.per_relay_parent.get_mut(&desc.relay_parent) {
-				per_relay_parent
-			} else {
-				// could only happen if the candidate is related
-				// to an ancestor which is not a relay parent itself
-				continue;
-			};
+		let per_candidate = state
+			.per_candidate
+			.entry(candidate_hash.clone())
+			.or_default();
 
 		// assure the node has the validator role
-		let validator_index = if let Some(validator_index) = per_relay_parent.validator_index {
+		let validator_index = if let Some(validator_index) = per_candidate.validator_index {
 			validator_index
 		} else {
 			continue;
@@ -390,8 +411,9 @@ where
 			continue;
 		};
 
+
 		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(
-			per_relay_parent.validators.len(),
+			per_candidate.validators.len(),
 			validator_index,
 			&available_data,
 		) {
@@ -561,32 +583,24 @@ where
 	for (candidate_hash, receipt) in delta_candidates {
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
-		let messages = if let Some(per_relay_parent) = state
-			.per_relay_parent
-			.get_mut(&receipt.descriptor().relay_parent)
-		{
-			// obtain the relevant chunk indices not sent yet
-			let messages = ((0 as ValidatorIndex)
-				..(per_relay_parent.validators.len() as ValidatorIndex))
-				.into_iter()
-				.filter(|erasure_chunk_index: &ValidatorIndex| {
-					// check if that erasure chunk was already sent before
-					if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
-						!sent_set.contains(&(candidate_hash, *erasure_chunk_index))
-					} else {
-						true
-					}
-				})
-				.filter_map(|erasure_chunk_index: ValidatorIndex| {
-					// try to pick up the message from the message vault
-					per_candidate.message_vault.get(&erasure_chunk_index)
-				})
-				.cloned()
-				.collect::<HashSet<_>>();
-			messages
-		} else {
-			continue;
-		};
+		// obtain the relevant chunk indices not sent yet
+		let messages = ((0 as ValidatorIndex)
+			..(per_candidate.validators.len() as ValidatorIndex))
+			.into_iter()
+			.filter(|erasure_chunk_index: &ValidatorIndex| {
+				// check if that erasure chunk was already sent before
+				if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
+					!sent_set.contains(&(candidate_hash, *erasure_chunk_index))
+				} else {
+					true
+				}
+			})
+			.filter_map(|erasure_chunk_index: ValidatorIndex| {
+				// try to pick up the message from the message vault
+				per_candidate.message_vault.get(&erasure_chunk_index)
+			})
+			.cloned()
+			.collect::<HashSet<_>>();
 
 		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages).await?;
 	}
@@ -595,7 +609,7 @@ where
 
 /// Obtain the first key with a signing key, which must be ours. We obtain the index as `ValidatorIndex`
 /// If we cannot find a key in the validator set, which we could use.
-fn obtain_our_validator_index<Context>(
+fn obtain_our_validator_index(
 	validators: &[ValidatorId],
 	keystore: KeyStorePtr,
 ) -> Option<ValidatorIndex> {
@@ -676,12 +690,16 @@ where
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
 
 			// save the chunk for our index
-			store_chunk(
-				ctx,
-				message.candidate_hash.clone(),
-				message.erasure_chunk.index,
-				message.erasure_chunk.clone(),
-			).await?;
+			if let Some(validator_index) = per_candidate.validator_index {
+				if message.erasure_chunk.index == validator_index {
+					store_chunk(
+						ctx,
+						message.candidate_hash.clone(),
+						message.erasure_chunk.index,
+						message.erasure_chunk.clone(),
+					).await?;
+				}
+			}
 		};
 	}
 	// condense the peers to the peers with interest on the candidate
@@ -757,7 +775,12 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					trace!(target: TARGET, "Processing NetworkMessage");
 					// a network message was received
-					if let Err(e) = handle_network_msg(&mut ctx, &mut state, event).await {
+					if let Err(e) = handle_network_msg(
+						&mut ctx,
+						self.keystore.clone(),
+						&mut state,
+						event
+					).await {
 						warn!(
 							target: TARGET,
 							"Failed to handle incomming network messages: {:?}", e
@@ -770,16 +793,6 @@ impl AvailabilityDistributionSubsystem {
 				})) => {
 					for relay_parent in activated {
 						trace!(target: TARGET, "Start {:?}", relay_parent);
-						let per_relay_parent = state
-							.per_relay_parent
-							.entry(relay_parent.clone())
-							.or_default();
-						let validators = query_validators(&mut ctx, relay_parent).await?;
-						per_relay_parent.validator_index = obtain_our_validator_index::<Context>(
-							&validators,
-							self.keystore.clone(),
-						);
-						per_relay_parent.validators = validators;
 					}
 					for relay_parent in deactivated {
 						trace!(target: TARGET, "Stop {:?}", relay_parent);
@@ -896,21 +909,6 @@ where
 			),
 		);
 	}
-
-	// register the relation of relay_parent to candidate..
-	// ..and the reverse association.
-	for (relay_parent_or_ancestor, (receipt_hash, receipt)) in live_candidates.clone() {
-		state
-			.reverse
-			.insert(receipt_hash.clone(), relay_parent_or_ancestor.clone());
-		state.per_candidate.entry(receipt_hash.clone()).or_default();
-		state
-			.receipts
-			.entry(relay_parent_or_ancestor)
-			.or_default()
-			.insert((receipt_hash, receipt));
-	}
-
 	Ok(live_candidates)
 }
 

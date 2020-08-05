@@ -35,7 +35,7 @@ Each erasure chunk should be accompanied by a merkle proof that it is committed 
 
 We re-attempt to send anything live to a peer upon any view update from that peer.
 
-On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryPoV` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
+On our view change, for all live candidates, we will check if we have the PoV by issuing a `QueryAvailabileData` message and waiting for the response. If the query returns `Some`, we will perform the erasure-coding and distribute all messages to peers that will accept them.
 
 If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the [Availability Store](../utility/availability-store.md) by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`.
 
