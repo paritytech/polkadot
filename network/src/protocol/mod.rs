@@ -1488,6 +1488,19 @@ impl<N> av_store::ErasureNetworking for Service<N> {
 	}
 }
 
+/*
+impl<N: sp_consensus::SyncOracle> sp_consensus::SyncOracle for Service<N> {
+	fn is_major_syncing(&mut self) -> bool {
+		self.network_service.is_major_syncing()
+	}
+
+	fn is_offline(&mut self) -> bool {
+		//self.network_service.is_offline()
+		todo!()
+	}
+}
+*/
+
 /// Errors when interacting with the statement router.
 #[derive(Debug, derive_more::Display, derive_more::From)]
 pub enum RouterError {

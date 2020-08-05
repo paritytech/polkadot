@@ -75,7 +75,8 @@ use polkadot_service_new::{
 };
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
-use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use consensus_common::SyncOracle;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -121,6 +122,7 @@ pub trait BuildParachainContext {
 		client: polkadot_service::Client,
 		spawner: SP,
 		network: impl Network + Clone + 'static,
+		sync_oracle: impl SyncOracle + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static;
@@ -217,6 +219,7 @@ struct BuildCollationWork<P> {
 	build_parachain_context: P,
 	spawner: SpawnTaskHandle,
 	client: polkadot_service::Client,
+	network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 }
 
 impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
@@ -237,6 +240,11 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 		let polkadot_network = self.handles
 			.polkadot_network
 			.ok_or_else(|| "Collator cannot run when Polkadot-specific networking has not been started")?;
+		/*
+		let sync_oracle = self.handles
+			.sync_oracle
+			.ok_or_else(|| "Collator cannot run when Polkadot-specific networking has not been started")?;
+		*/
 
 		// We don't require this here, but we need to make sure that the validation service is started.
 		// This service makes sure the collator is joining the correct gossip topics and receives the appropiate
@@ -248,6 +256,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 			self.client,
 			self.spawner.clone(),
 			polkadot_network.clone(),
+			self.network.clone(),
 		) {
 			Ok(ctx) => ctx,
 			Err(()) => {
@@ -353,6 +362,7 @@ fn build_collator_service<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
+	network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 ) -> Result<Pin<Box<dyn Future<Output = ()> + Send + 'static>>, polkadot_service::Error>
 	where
 		P: BuildParachainContext,
@@ -366,6 +376,7 @@ fn build_collator_service<P>(
 		build_parachain_context,
 		spawner,
 		client: client.clone(),
+		network,
 	})
 }
 
@@ -391,7 +402,7 @@ where
 		.into());
 	}
 
-	let (task_manager, client, handlers) = polkadot_service::build_full(
+	let (task_manager, client, handles, network) = polkadot_service::build_full(
 		config,
 		Some((key.public(), para_id)),
 		None,
@@ -402,11 +413,12 @@ where
 
 	let future = build_collator_service(
 		task_manager.spawn_handle(),
-		handlers,
+		handles,
 		client,
 		para_id,
 		key,
-		build_parachain_context
+		build_parachain_context,
+		network,
 	)?;
 
 	Ok((future, task_manager))

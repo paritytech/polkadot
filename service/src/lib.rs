@@ -406,6 +406,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));
 
 		handles.validation_service_handle = Some(validation_service_handle.clone());
+		//handles.sync_oracle = Some(Box::new(network.clone()));
 
 		Some((validation_service_handle, availability_store))
 	} else {
@@ -808,7 +809,17 @@ pub struct FullNodeHandles {
 	pub polkadot_network: Option<network_protocol::Service>,
 	/// A handle to the validation service.
 	pub validation_service_handle: Option<consensus::ServiceHandle>,
+	// /// A handle to the `SyncOracle`
+	//pub sync_oracle: Option<Box<dyn consensus_common::SyncOracle>>,
 }
+
+/*
+impl FullNodeHandles {
+	pub fn test(&mut self) -> bool {
+		self.sync_oracle.as_mut().unwrap().is_major_syncing()
+	}
+}
+*/
 
 /// Build a new light node.
 pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
@@ -832,7 +843,7 @@ pub fn build_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
+) -> Result<(TaskManager, Client, FullNodeHandles, Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
@@ -842,7 +853,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
+		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Kusama(client), handles, network))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
@@ -852,7 +863,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
+		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Westend(client), handles, network))
 	} else if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
@@ -862,7 +873,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Rococo(client), handles))
+		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Rococo(client), handles, network))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
@@ -872,6 +883,6 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Polkadot(client), handles))
+		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Polkadot(client), handles, network))
 	}
 }
