@@ -31,7 +31,7 @@ enum AvailabilityDistributionV1Message {
 
 ```rust
 enum BitfieldDistributionV1Message {
-	/// A signed availability bifield for a given relay-parent hash.
+	/// A signed availability bitfield for a given relay-parent hash.
 	Bitfield(Hash, SignedAvailabilityBitfield),
 }
 ```
