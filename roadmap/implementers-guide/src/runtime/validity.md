@@ -37,7 +37,7 @@ We might track the assignments and approvals together as pairs in a simple rewar
 
 - We know off-chain when the approval process completes based upon all gossiped assignment notices, not just the approving ones.  We need not-yet-approved assignment notices to appear on-chain if the chain should know about the validity of recently approved blocks.  Integration with grandpa then requires only that grandpa messages identify some future relay chain block that approves the block for which they vote. 
 
-Aside from inherents for assignment notices and approval votes, we provide an "Approved" inherent that triggers the on-chain logic in a relay chain block `R1` to rerun the assignment and approval tracker logic for its ancestor `R0`, which then declares `R0` approved.  We could integrate with GRANDPA by gossiping messates that list the descendent `R1`, but then map this into the approved ancestor `R0` for GRANDPA itself.
+Aside from inherents for assignment notices and approval votes, we provide an "Approved" inherent that triggers the on-chain logic in a relay chain block `R1` to rerun the assignment and approval tracker logic for its ancestor `R0`, which then declares `R0` approved.  We could integrate with GRANDPA by gossiping messages that list the descendent `R1`, but then map this into the approved ancestor `R0` for GRANDPA itself.
 
 Assignment notices and/or approval votes should be recorded on-chain only when relevant.  Any sent too early are retained but ignore until relevant by our off-chain assignment system.  Assignments are ignored completely by the dispute system because any dispute immediately escalates into all validators checking, but disputes count existing approval votes of course.
 
