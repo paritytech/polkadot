@@ -7,9 +7,17 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: Merge release-candidate with release branch
-        uses: s3krit/merge-branch@v1.3.0
+        id: merge-to-release
+        uses: s3krit/merge-branch@master
         with:
           type: now
           head_to_merge: ${{ github.ref }}
           target_branch: release
           github_token: ${{ secrets.RELEASE_BRANCH_TOKEN }}
+      - name: Tag release branch with new version
+        uses: tvdias/github-tagger@v0.0.2
+        needs: 'merge-to-release'
+        with:
+          repo-token: ${{ secrets.RELEASE_BRANCH_TOKEN }}
+          tag: ${{ github.ref }}
+          commit-sha: ${{ steps.merge-to-release.outputs.sha }}
