@@ -671,6 +671,9 @@ where
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 		} else {
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
+
+			// save the chunk for our index
+			store_chunk(ctx, message.candidate_hash.clone(), message.erasure_chunk.index, message.erasure_chunk).await?;
 		};
 	}
 	// condense the peers to the peers with interest on the candidate
