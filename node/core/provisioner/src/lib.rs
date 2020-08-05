@@ -26,16 +26,19 @@ use futures::{
 };
 use polkadot_node_subsystem::{
 	delegated_subsystem,
-	errors::ChainApiError,
+	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
-	util::{self, request_availability_cores, JobTrait, ToJobTrait},
+	util::{
+		self, request_availability_cores, request_global_validation_data,
+		request_local_validation_data, JobTrait, ToJobTrait,
+	},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCore, OccupiedCoreAssumption,
-	ScheduledCore, SignedAvailabilityBitfield,
+	validation_data_hash, BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
 
@@ -120,6 +123,8 @@ enum Error {
 	OneshotRecv(oneshot::Canceled),
 	#[from]
 	ChainApi(ChainApiError),
+	#[from]
+	Runtime(RuntimeApiError),
 	OneshotSend,
 }
 
@@ -174,15 +179,18 @@ impl ProvisioningJob {
 			};
 
 			match msg {
-				ToJob::Provisioner(RequestInherentData(_, sender)) => {
-					send_inherent_data(
+				ToJob::Provisioner(RequestInherentData(_, return_sender)) => {
+					if let Err(err) = send_inherent_data(
 						self.relay_parent,
 						&self.signed_bitfields,
 						&self.backed_candidates,
-						sender,
+						return_sender,
 						self.sender.clone(),
 					)
-					.await?
+					.await
+					{
+						log::warn!(target: "provisioner", "failed to send inherent data: {:?}", err);
+					}
 				}
 				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
 					self.provisionable_data_channels.push(sender)
@@ -242,108 +250,6 @@ impl ProvisioningJob {
 
 type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 
-// preprocessing the cores involves a bit more data than is comfortable in a tuple, so let's make a struct of it
-struct PreprocessedCore {
-	assumption: OccupiedCoreAssumption,
-	scheduled_core: ScheduledCore,
-	availability: Option<CoreAvailability>,
-	timeout: Option<BlockNumber>,
-	idx: usize,
-}
-
-impl PreprocessedCore {
-	fn new(idx: usize, core: CoreState) -> Option<Self> {
-		match core {
-			CoreState::Occupied(OccupiedCore {
-				availability,
-				next_up_on_available: Some(scheduled_core),
-				..
-			}) => Some(Self {
-				assumption: OccupiedCoreAssumption::Included,
-				scheduled_core,
-				availability: Some(availability),
-				timeout: None,
-				idx,
-			}),
-			CoreState::Occupied(OccupiedCore {
-				availability,
-				next_up_on_time_out: Some(scheduled_core),
-				time_out_at,
-				..
-			}) => Some(Self {
-				assumption: OccupiedCoreAssumption::TimedOut,
-				scheduled_core,
-				availability: Some(availability),
-				timeout: Some(time_out_at),
-				idx,
-			}),
-			CoreState::Scheduled(scheduled_core) => Some(Self {
-				assumption: OccupiedCoreAssumption::Free,
-				scheduled_core,
-				availability: None,
-				timeout: None,
-				idx,
-			}),
-			_ => None,
-		}
-	}
-
-	// coherent candidates fulfill these conditions:
-	//
-	// - only one per parachain
-	// - any of:
-	//   - this para is assigned to a `Scheduled` core (OccupiedCoreAssumption::Free)
-	//   - this para is assigned to an `Occupied` core, and any of:
-	//     - it is `next_up_on_available` (OccupiedCoreAssumption::Included),
-	//       and the bitfields we are including, merged with the `availability` vec, form 2/3+ of validators
-	//     - it is `next_up_on_time_out` (OccupiedCoreAssumption::TimedOut),
-	//       and `time_out_at` is the block we are building,
-	//       and the bitfields we are including, merged with the `availability_ vec, form <2/3 of validators
-	fn choose_candidate(
-		&self,
-		bitfields: &[SignedAvailabilityBitfield],
-		candidates: &[BackedCandidate],
-		block_number: BlockNumber,
-	) -> Option<BackedCandidate> {
-		// choose only one per parachain
-		candidates
-			.iter()
-			.find(|candidate| candidate.candidate.descriptor.para_id == self.scheduled_core.para_id)
-			.map(|candidate| {
-				match (self.assumption, self.availability.as_ref(), self.timeout) {
-					(OccupiedCoreAssumption::Free, _, _) => {
-						// core was already scheduled
-						Some(candidate.clone())
-					}
-					(OccupiedCoreAssumption::Included, Some(availability), _) => {
-						// core became available
-						if merged_bitfields_are_gte_two_thirds(self.idx, &bitfields, availability) {
-							Some(candidate.clone())
-						} else {
-							None
-						}
-					}
-					(OccupiedCoreAssumption::TimedOut, Some(availability), Some(timeout)) => {
-						// core timed out
-						if timeout == block_number
-							&& !merged_bitfields_are_gte_two_thirds(
-								self.idx,
-								&bitfields,
-								availability,
-							)
-						{
-							Some(candidate.clone())
-						} else {
-							None
-						}
-					}
-					_ => None,
-				}
-			})
-			.flatten()
-	}
-}
-
 // The provisioner is the subsystem best suited to choosing which specific
 // backed candidates and availability bitfields should be assembled into the
 // block. To engage this functionality, a
@@ -363,8 +269,8 @@ impl PreprocessedCore {
 // choose a coherent set of candidates along with that.
 async fn send_inherent_data(
 	relay_parent: Hash,
-	signed_bitfields: &[SignedAvailabilityBitfield],
-	backed_candidates: &[BackedCandidate],
+	bitfields: &[SignedAvailabilityBitfield],
+	candidates: &[BackedCandidate],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
@@ -380,37 +286,18 @@ async fn send_inherent_data(
 		}
 	};
 
-	// select those bitfields which match our constraints
-	let signed_bitfields = select_availability_bitfields(&availability_cores, signed_bitfields);
+	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
+	let candidates = select_candidates(
+		&availability_cores,
+		&bitfields,
+		candidates,
+		relay_parent,
+		&mut from_job,
+	)
+	.await?;
 
-	// preprocess the availability cores: replace occupied cores with scheduled cores, if possible
-	// also tag each core with an `OccupiedCoreAssumption`
-	let scheduled_cores: Vec<_> = availability_cores
-		.into_iter()
-		.enumerate()
-		.filter_map(|(idx, core)| PreprocessedCore::new(idx, core))
-		.collect();
-
-	let block_number = match get_block_number_under_construction(relay_parent, &mut from_job).await
-	{
-		Ok(n) => n,
-		Err(err) => {
-			log::warn!(target: "Provisioner", "failed to get number of block under construction: {:?}", err);
-			0
-		}
-	};
-
-	// postcondition: they are sorted by core index, but that's free, since we're iterating in order of cores anyway
-	let selected_candidates: Vec<_> = scheduled_cores
-		.into_iter()
-		.filter_map(|core| {
-			core.choose_candidate(&signed_bitfields, backed_candidates, block_number)
-		})
-		.collect();
-
-	// type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
 	return_sender
-		.send((signed_bitfields, selected_candidates))
+		.send((bitfields, candidates))
 		.map_err(|_| Error::OneshotSend)?;
 	Ok(())
 }
@@ -435,12 +322,12 @@ fn select_availability_bitfields(
 		if let CoreState::Occupied(_) = cores[core_idx] {
 			fields_by_core
 				.entry(core_idx)
+				// there cannot be a value list in field_by_core with len < 1
 				.or_default()
 				.push(bitfield.clone());
 		}
 	}
 
-	// there cannot be a value list in field_by_core with len < 1
 	let mut out = Vec::with_capacity(fields_by_core.len());
 	for (_, core_bitfields) in fields_by_core.iter_mut() {
 		core_bitfields.sort_by_key(|bitfield| bitfield.payload().0.count_ones());
@@ -452,6 +339,85 @@ fn select_availability_bitfields(
 	}
 
 	out
+}
+
+// determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+//
+// follow the candidate selection algorithm from the guide
+async fn select_candidates(
+	availability_cores: &[CoreState],
+	bitfields: &[SignedAvailabilityBitfield],
+	candidates: &[BackedCandidate],
+	relay_parent: Hash,
+	sender: &mut mpsc::Sender<FromJob>,
+) -> Result<Vec<BackedCandidate>, Error> {
+	let block_number = match get_block_number_under_construction(relay_parent, sender).await {
+		Ok(n) => n,
+		Err(err) => {
+			log::warn!(target: "provisioner", "failed to get number of block under construction: {:?}", err);
+			0
+		}
+	};
+
+	let global_validation_data = request_global_validation_data(relay_parent, sender)
+		.await?
+		.await??;
+
+	let mut selected_candidates =
+		Vec::with_capacity(candidates.len().min(availability_cores.len()));
+
+	for (core_idx, core) in availability_cores.iter().enumerate() {
+		let (scheduled_core, assumption) = match core {
+			CoreState::Scheduled(scheduled_core) => (scheduled_core, OccupiedCoreAssumption::Free),
+			CoreState::Occupied(occupied_core) => {
+				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability)
+				{
+					if let Some(ref scheduled_core) = occupied_core.next_up_on_available {
+						(scheduled_core, OccupiedCoreAssumption::Included)
+					} else {
+						continue;
+					}
+				} else {
+					if occupied_core.time_out_at != block_number {
+						continue;
+					}
+					if let Some(ref scheduled_core) = occupied_core.next_up_on_time_out {
+						(scheduled_core, OccupiedCoreAssumption::TimedOut)
+					} else {
+						continue;
+					}
+				}
+			}
+			_ => continue,
+		};
+
+		let local_validation_data = match request_local_validation_data(
+			relay_parent,
+			scheduled_core.para_id,
+			assumption,
+			sender,
+		)
+		.await?
+		.await??
+		{
+			Some(local_validation_data) => local_validation_data,
+			None => continue,
+		};
+
+		let computed_validation_data_hash =
+			validation_data_hash(&global_validation_data, &local_validation_data);
+
+		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
+		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
+			let descriptor = &backed_candidate.candidate.descriptor;
+			descriptor.para_id == scheduled_core.para_id
+				&& descriptor.validation_data_hash == computed_validation_data_hash
+		}) {
+			selected_candidates.push(candidate.clone());
+		}
+	}
+
+	Ok(selected_candidates)
 }
 
 // produces a block number 1 higher than that of the relay parent
@@ -475,39 +441,35 @@ async fn get_block_number_under_construction(
 	}
 }
 
-// The instructions state:
-//
-// > we can only include the candidate if the bitfields we are including _and_ the availability vec of the OccupiedCore
-//
-// The natural implementation takes advantage of the fact that the availability bitfield for a given core is the transpose
+// the availability bitfield for a given core is the transpose
 // of a set of signed availability bitfields. It goes like this:
 //
-//   - organize the incoming bitfields by validator index
 //   - construct a transverse slice along `core_idx`
 //   - bitwise-or it with the availability slice
-//   - count the 1 bits, compare to the total length
-fn merged_bitfields_are_gte_two_thirds(
+//   - count the 1 bits, compare to the total length; true on 2/3+
+fn bitfields_indicate_availability(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
 	availability: &CoreAvailability,
 ) -> bool {
-	let mut transverse = availability.clone();
-	let transverse_len = transverse.len();
+	let mut availability = availability.clone();
+	// we need to pre-compute this to avoid a borrow-immutable-while-borrowing-mutable error in the error message
+	let availability_len = availability.len();
 
 	for bitfield in bitfields {
 		let validator_idx = bitfield.validator_index() as usize;
-		match transverse.get_mut(validator_idx) {
+		match availability.get_mut(validator_idx) {
 			None => {
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
-				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, transverse_len);
+				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, availability_len);
 				return false;
 			}
 			Some(mut bit_mut) => *bit_mut |= bitfield.payload().0[core_idx],
 		}
 	}
-	3 * transverse.count_ones() >= 2 * transverse.len()
+	3 * availability.count_ones() >= 2 * availability.len()
 }
 
 delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);

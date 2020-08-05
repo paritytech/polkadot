@@ -53,7 +53,7 @@ Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goa
 
 ### Candidate Selection
 
-The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each available core.
+The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
 
 To determine availability:
 
