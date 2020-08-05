@@ -1084,7 +1084,7 @@ mod test {
 	) {
 		let _ = env_logger::builder()
 			.is_test(true)
-			.filter(None, log::LevelFilter::Trace)
+			.filter(Some("polkadot_availability_distribution"), log::LevelFilter::Trace)
 			.try_init();
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1330,7 +1330,7 @@ mod test {
 	#[test]
 	fn reputation_verification() {
 
-		let mut test_state = TestState::default();
+		let test_state = TestState::default();
 
 		test_harness(test_state.keystore.clone(), |test_harness| async move {
 			let TestHarness {
@@ -1395,6 +1395,9 @@ mod test {
 
 			log::trace!("peer A: {:?}", peer_a);
 			log::trace!("peer B: {:?}", peer_b);
+
+			log::trace!("candidate A: {:?}", candidate_a.hash());
+			log::trace!("candidate B: {:?}", candidate_b.hash());
 
 			overseer_signal(
 				&mut virtual_overseer,
@@ -1565,26 +1568,56 @@ mod test {
 			);
 
 			// query the available data incl PoV from the availability store
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::QueryAvailableData(
-						candidate_hash,
-						tx,
-					)
-				) => {
-					assert_eq!(candidate_hash, candidate_a.hash());
-					tx.send(Some(
-						AvailableData {
-							pov: pov_block_a.clone(),
-							omitted_validation: OmittedValidationData {
-								local_validation: local_validation_data.clone(),
-								global_validation: global_validation_data.clone(),
-							},
-						}
-					)).unwrap();
+
+			for _ in 0usize..2 {
+				// query the available data incl PoV from the availability store
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::AvailabilityStore(
+						AvailabilityStoreMessage::QueryAvailableData(
+							candidate_hash,
+							tx,
+						)
+					) => {
+						// assert_eq!(candidate_hash, candidate_b.hash());
+						tx.send(Some(
+							AvailableData {
+								pov: pov_block_a.clone(),
+								omitted_validation: OmittedValidationData {
+									local_validation: local_validation_data.clone(),
+									global_validation: global_validation_data.clone(),
+								},
+							}
+						)).unwrap();
+					}
+				);
+
+
+				// query the available data incl PoV from the availability store
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::AvailabilityStore(
+						AvailabilityStoreMessage::StoreChunk(
+							candidate_hash,
+							idx,
+							chunk,
+							tx,
+						)
+					) => {
+						tx.send(
+							Ok(())
+						).unwrap();
+					}
+				);
+
+				for _ in 0usize..5 {
+					assert_matches!(
+						overseer_recv(&mut virtual_overseer).await,
+						AllMessages::NetworkBridge(_) => {}
+					);
 				}
-			);
+
+			}
 
 			// setup peer a with interest in parent x
 			overseer_send(
