@@ -4,7 +4,7 @@ Approval assignment determines on which candidate parachain blocks each validato
 
 Assignment balances several concerns:
 
-- limits adversaries foreknowledge about assignments,
+- limits adversaries' foreknowledge about assignments,
 - ensures enough checkers, and 
 - distributes assignments relatively equitably.  
 
@@ -95,7 +95,6 @@ VRFs though require adversaries wait far longer between such attacks, which also
 ## Gossip
 
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
-
 
 
 
