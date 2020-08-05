@@ -846,32 +846,27 @@ where
 		HashMap::<Hash, (Hash, CommittedCandidateReceipt)>::with_capacity(capacity);
 
 	for relay_parent in iter {
-		// direct candidates for one relay parent
-		let receipts =
-			query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
-		live_candidates.extend(
-			receipts
-				.into_iter()
-				.map(|receipt| (relay_parent.clone(), (receipt.hash(), receipt))),
-		);
 
 		// register one of relay parents (not the ancestors)
-		let ancestors = query_up_to_k_ancestors_in_same_session(
+		let mut ancestors = query_up_to_k_ancestors_in_same_session(
 			ctx,
 			relay_parent,
 			AvailabilityDistributionSubsystem::K,
 		)
 		.await?;
 
+		ancestors.push(relay_parent);
+
+
 		// ancestors might overlap, so check the cache too
 		let unknown = ancestors
 			.into_iter()
-			.filter(|relay_parent| {
+			.filter(|relay_parent_or_ancestor| {
 				// use the ones which we pulled before
 				// but keep the unknown relay parents
 				state
 					.receipts
-					.get(relay_parent)
+					.get(relay_parent_or_ancestor)
 					.and_then(|receipts| {
 						// directly extend the live_candidates with the cached value
 						live_candidates.extend(receipts.into_iter().map(
@@ -1102,7 +1097,9 @@ where
 	// ordering is [parent, grandparent, greatgrandparent, greatgreatgrandparent, ...]
 	let ancestors = query_k_ancestors(ctx, relay_parent, k + 1).await?;
 	let desired_session = query_session_index_for_child(ctx, relay_parent).await?;
-	let mut acc = Vec::with_capacity(ancestors.len() - 1);
+	// we would only need `ancestors.len() - 1`, but the one extra could avoid a re-alloc
+	// if the consumer wants to push the `relay_parent` onto it too and does not hurt otherwise
+	let mut acc = Vec::with_capacity(ancestors.len());
 
 	// iterate from oldest to youngest
 	let mut iter = ancestors.into_iter().rev();
