@@ -503,9 +503,13 @@ mod tests {
 			SignedAvailabilityBitfield::sign(field.into(), &<SigningContext<Hash>>::default(), validator_idx, validator)
 		}
 
+		fn default_bitvec() -> CoreAvailability {
+			bitvec![bitvec::order::Lsb0, u8; 0; 32]
+		}
+
 		#[test]
 		fn not_more_than_one_per_validator() {
-			let bitvec = CoreAvailability::default();
+			let bitvec = default_bitvec();
 
 			let cores = vec![
 				occupied_core(0.into(), 0.into()),
@@ -531,7 +535,7 @@ mod tests {
 
 		#[test]
 		fn each_corresponds_to_an_occupied_core() {
-			let bitvec = CoreAvailability::default();
+			let bitvec = default_bitvec();
 
 			let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
 
@@ -548,6 +552,36 @@ mod tests {
 
 			// bitfields not corresponding to occupied cores are not selected
 			assert!(selected_bitfields.is_empty());
+		}
+
+		#[test]
+		fn more_set_bits_win_conflicts() {
+			let bitvec_zero = default_bitvec();
+			let bitvec_one = {
+				let mut bitvec = bitvec_zero.clone();
+				bitvec.set(0, true);
+				bitvec
+			};
+
+			let cores = vec![
+				occupied_core(0.into(), 0.into()),
+			];
+
+			// we pass in three bitfields with two validators
+			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
+			let bitfields = vec![
+				signed_bitfield(bitvec_zero, 0),
+				signed_bitfield(bitvec_one.clone(), 0),
+			];
+
+			// this test is probablistic: chances are excellent that it does what it claims to.
+			// it cannot fail unless things are broken.
+			// however, there is a (very small) chance that it passes when things are broken.
+			for _ in 0..64 {
+				let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+				assert_eq!(selected_bitfields.len(), 1);
+				assert_eq!(selected_bitfields[0].payload().0, bitvec_one);
+			}
 		}
 	}
 }
