@@ -4521,6 +4521,7 @@ dependencies = [
  "smol-timeout",
  "sp-core",
  "sp-keyring",
+ "sp-staking",
  "streamunordered",
 ]
 

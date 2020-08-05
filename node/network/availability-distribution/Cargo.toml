@@ -19,7 +19,7 @@ polkadot-network = { path = "../../../network" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 derive_more = "0.99.9"
-
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
 
 [dev-dependencies]
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = [ "test-helpers" ] }
