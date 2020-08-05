@@ -4520,6 +4520,7 @@ dependencies = [
  "smol 0.3.3",
  "smol-timeout",
  "sp-core",
+ "sp-keyring",
  "streamunordered",
 ]
 

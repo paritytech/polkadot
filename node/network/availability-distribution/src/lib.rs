@@ -14,11 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The bitfield distribution
+//! The availability distribution
 //!
-//! In case this node is a validator, gossips its own signed availability bitfield
-//! for a particular relay parent.
-//! Independently of that, gossips on received messages from peers to other interested peers.
+//! Transforms `AvailableData` into erasure chunks, which are distributed to peers
+//! which are intereseted in the relevant candidates.
+//! Gossip messages received from other peers are verified and gossiped to interested
+//! peers. Verified in this context means, the erasure chunks contained merkle proof
+//! is checked.
 
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
@@ -138,7 +140,7 @@ struct PerCandidate {
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
-	ancestors: HashSet<H256>,
+	ancestors: Vec<H256>,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
@@ -148,14 +150,10 @@ struct PerRelayParent {
 }
 
 impl ProtocolState {
-	/// Unionize all cached entries for the given relay parents and it's ancestors ancestors.
-	/// Ignores all non existant relay parents, so this can be used directly with a peers view.
-	/// Returns a map from candidate hash -> receipt
-	fn cached_live_candidates_unioned<'a>(
-		&'a self,
-		relay_parents: impl IntoIterator<Item = &'a H256> + 'a,
-	) -> HashMap<H256, CommittedCandidateReceipt> {
-		let relay_parents_and_ancestors = relay_parents
+
+	// collects the relay_parents plus their ancestors
+	fn extend_with_ancestors<'a>(&'a self, relay_parents: impl IntoIterator<Item = &'a H256> + 'a,) -> HashSet<H256> {
+		relay_parents
 			.into_iter()
 			.map(|relay_parent| {
 				self
@@ -169,14 +167,23 @@ impl ProtocolState {
 					.chain(iter::once(relay_parent.clone()))
 			})
 			.flatten()
-			.collect::<HashSet<H256>>();
+			.collect::<HashSet<H256>>()
+	}
 
+	/// Unionize all cached entries for the given relay parents and it's ancestors ancestors.
+	/// Ignores all non existant relay parents, so this can be used directly with a peers view.
+	/// Returns a map from candidate hash -> receipt
+	fn cached_live_candidates_unioned<'a>(
+		&'a self,
+		relay_parents: impl IntoIterator<Item = &'a H256> + 'a,
+	) -> HashMap<H256, CommittedCandidateReceipt> {
+		let relay_parents_and_ancestors = self.extend_with_ancestors(relay_parents);
 		relay_parents_and_ancestors
 			.into_iter()
 			.filter_map(|relay_parent_or_ancestor| self.receipts.get(&relay_parent_or_ancestor))
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
-			.map(|receipt| (candidate_hash_of(receipt), receipt.clone()))
+			.map(|receipt| (receipt.hash(), receipt.clone()))
 			.collect::<HashMap<H256, CommittedCandidateReceipt>>()
 	}
 
@@ -191,22 +198,6 @@ impl ProtocolState {
 		let candidates =
 			query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
 
-		// register the relation of relay_parent to candidate..
-		// ..and the reverse association.
-		for (relay_parent_or_ancestor, receipt) in candidates.clone() {
-			self.reverse.insert(
-				candidate_hash_of(&receipt),
-				relay_parent_or_ancestor.clone(),
-			);
-			self.per_candidate
-				.entry(candidate_hash_of(&receipt))
-				.or_default();
-			self.receipts
-				.entry(relay_parent_or_ancestor)
-				.or_default()
-				.insert(receipt);
-		}
-
 		// collect the ancestors again from the hash map
 		let ancestors = candidates
 			.iter()
@@ -217,7 +208,7 @@ impl ProtocolState {
 					Some(ancestor_or_relay_parent.clone())
 				}
 			})
-			.collect::<HashSet<H256>>();
+			.collect::<Vec<H256>>();
 
 		// mark all the ancestors as "needed" by this newly added relay parent
 		for ancestor in ancestors.iter() {
@@ -231,7 +222,9 @@ impl ProtocolState {
 			.per_relay_parent
 			.get_mut(&relay_parent)
 			.expect("Relay parent is initialized on overseer signal. qed");
+
 		per_relay_parent.ancestors = ancestors;
+
 
 		Ok(())
 	}
@@ -319,11 +312,6 @@ where
 	Ok(())
 }
 
-fn candidate_hash_of(receipt: &CommittedCandidateReceipt) -> H256 {
-	// @todo is this correct? or is there a better candidate hash?
-	receipt.descriptor().validation_data_hash.clone()
-}
-
 fn derive_erasure_chunks_with_proofs(
 	n_validators: usize,
 	validator_index: ValidatorIndex,
@@ -385,11 +373,12 @@ where
 			.get_mut(&desc.relay_parent) {
 			per_relay_parent
 		} else {
-			// ancestor case
+			// could only happen if the candidate is related
+			// to an ancestor which is not a relay parent itself
 			continue;
 		};
 
-		// we are a validator
+		// assure the node has the validator role
 		let validator_index = if let Some(validator_index) = per_relay_parent.validator_index {
 			validator_index
 		} else {
@@ -433,6 +422,7 @@ where
 			.clone()
 			.into_iter()
 			.filter(|(_peer, view)| {
+				// collect all direct interests of a peer w/o ancestors
 				state
 					.cached_live_candidates_unioned(view.0.iter())
 					.contains_key(&candidate_hash)
@@ -862,13 +852,13 @@ where
 		// direct candidates for one relay parent
 		let receipts =
 			query_live_candidates_without_ancestors(ctx, iter::once(relay_parent.clone())).await?;
-		live_candidates.extend(iter::once(relay_parent.clone()).zip(receipts.into_iter()));
+		live_candidates.extend(receipts.into_iter().map(|receipt| (relay_parent.clone(), receipt)));
 
 		// register one of relay parents (not the ancestors)
 		let ancestors =
 			query_k_ancestors(ctx, relay_parent, AvailabilityDistributionSubsystem::K).await?;
 
-		// ancestors might overlap, so check t	he cache too
+		// ancestors might overlap, so check the cache too
 		let unknown = ancestors
 			.into_iter()
 			.filter(|relay_parent| {
@@ -893,6 +883,23 @@ where
 		// query the ones that were not present in the receipts cache
 		let receipts = query_live_candidates_without_ancestors(ctx, unknown.clone()).await?;
 		live_candidates.extend(unknown.into_iter().zip(receipts.into_iter()));
+	}
+
+
+	// register the relation of relay_parent to candidate..
+	// ..and the reverse association.
+	for (relay_parent_or_ancestor, receipt) in live_candidates.clone() {
+		state.reverse.insert(
+			receipt.hash(),
+			relay_parent_or_ancestor.clone(),
+		);
+		state.per_candidate
+			.entry(receipt.hash())
+			.or_default();
+		state.receipts
+			.entry(relay_parent_or_ancestor)
+			.or_default()
+			.insert(receipt);
 	}
 
 	Ok(live_candidates)
@@ -1027,7 +1034,6 @@ where
 
 
 /// Query the hash of the `K` ancestors
-#[cfg(feature = "std")]
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
 	relay_parent: H256,
@@ -1059,9 +1065,10 @@ mod test {
 	use maplit::hashmap;
 	use polkadot_primitives::v1::{
 		AvailableData, BlockData, CandidateCommitments, CandidateDescriptor,
-		GlobalValidationData, GroupIndex, HeadData,
+		GlobalValidationData, GroupIndex, GroupRotationInfo, HeadData,
 		LocalValidationData, OccupiedCore, OmittedValidationData,
-		PoV, ValidatorPair,
+		PoV, ScheduledCore,
+		ValidatorPair,
 	};
 	use polkadot_subsystem::test_helpers;
 
@@ -1085,6 +1092,11 @@ mod test {
 		keystore: KeyStorePtr,
 		test: impl FnOnce(TestHarness) -> T,
 	) {
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(None, log::LevelFilter::Trace)
+			.try_init();
+
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
@@ -1149,14 +1161,147 @@ mod test {
 		})
 	}
 
-	fn generate_n_validators(n: usize) -> Vec<ValidatorId> {
-		iter::repeat(n)
-			.take(n)
-			.map(|_| {
-				let validator_pair = ValidatorPair::generate();
-				validator_pair.0.public()
-			})
-			.collect()
+	use sp_keyring::Sr25519Keyring;
+
+	struct TestState {
+		chain_ids: Vec<ParaId>,
+		validators: Vec<Sr25519Keyring>,
+		validator_public: Vec<ValidatorId>,
+		validator_index: Option<ValidatorIndex>,
+		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
+		head_data: HashMap<ParaId, HeadData>,
+		keystore: KeyStorePtr,
+		relay_parent: H256,
+		ancestors: Vec<H256>,
+		availability_cores: Vec<CoreState>,
+		global_validation_data: GlobalValidationData,
+		local_validation_data: LocalValidationData,
+	}
+
+	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	impl Default for TestState {
+		fn default() -> Self {
+			let chain_a = ParaId::from(1);
+			let chain_b = ParaId::from(2);
+
+			let chain_ids = vec![chain_a, chain_b];
+
+			let validators = vec![
+				Sr25519Keyring::Ferdie, // <- this node, role: validator
+				Sr25519Keyring::Alice,
+				Sr25519Keyring::Bob,
+				Sr25519Keyring::Charlie,
+				Sr25519Keyring::Dave,
+			];
+
+			let keystore = keystore::Store::new_in_memory();
+
+			keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
+				.expect("Insert key into keystore");
+
+			let validator_public = validator_pubkeys(&validators);
+
+			let validator_groups = vec![vec![2, 0, 4], vec![1], vec![3]];
+			let group_rotation_info = GroupRotationInfo {
+				session_start_block: 0,
+				group_rotation_frequency: 100,
+				now: 1,
+			};
+			let validator_groups = (validator_groups, group_rotation_info);
+
+			let availability_cores = vec![
+				CoreState::Scheduled(ScheduledCore {
+					para_id: chain_ids[0],
+					collator: None,
+				}),
+				CoreState::Scheduled(ScheduledCore {
+					para_id: chain_ids[1],
+					collator: None,
+				}),
+			];
+
+			let mut head_data = HashMap::new();
+			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
+
+			let ancestors = vec![H256::repeat_byte(0x44), H256::repeat_byte(0x33), H256::repeat_byte(0x22)];
+			let relay_parent = H256::repeat_byte(0x05);
+
+			let local_validation_data = LocalValidationData {
+				parent_head: HeadData(vec![7, 8, 9]),
+				balance: Default::default(),
+				code_upgrade_allowed: None,
+				validation_code_hash: Default::default(),
+			};
+
+			let global_validation_data = GlobalValidationData {
+				max_code_size: 1000,
+				max_head_data_size: 1000,
+				block_number: Default::default(),
+			};
+
+			let validator_index = Some((validators.len() - 1) as ValidatorIndex);
+
+			Self {
+				chain_ids,
+				keystore,
+				validators,
+				validator_public,
+				validator_groups,
+				availability_cores,
+				head_data,
+				local_validation_data,
+				global_validation_data,
+				relay_parent,
+				ancestors,
+			    validator_index,
+			}
+		}
+	}
+
+
+	fn make_erasure_root(test: &TestState, pov: PoV) -> H256 {
+		let omitted_validation = OmittedValidationData {
+			global_validation: test.global_validation_data.clone(),
+			local_validation: test.local_validation_data.clone(),
+		};
+
+		let available_data = AvailableData {
+			omitted_validation,
+			pov,
+		};
+
+		let chunks = obtain_chunks(test.validators.len(), &available_data).unwrap();
+		branches(&chunks).root()
+	}
+
+	#[derive(Default)]
+	struct TestCandidateBuilder {
+		para_id: ParaId,
+		head_data: HeadData,
+		pov_hash: H256,
+		relay_parent: H256,
+		erasure_root: H256,
+	}
+
+	impl TestCandidateBuilder {
+		fn build(self) -> CommittedCandidateReceipt {
+			CommittedCandidateReceipt {
+				descriptor: CandidateDescriptor {
+					para_id: self.para_id,
+					pov_hash: self.pov_hash,
+					relay_parent: self.relay_parent,
+					..Default::default()
+				},
+				commitments: CandidateCommitments {
+					head_data: self.head_data,
+					erasure_root: self.erasure_root,
+					..Default::default()
+				},
+			}
+		}
 	}
 
 	fn valid_availability_gossip(
@@ -1194,34 +1339,65 @@ mod test {
 
 	#[test]
 	fn reputation_verification() {
-		let _ = env_logger::builder()
-			.is_test(true)
-			.filter(None, log::LevelFilter::Trace)
-			.try_init();
-		let keystore = keystore::Store::new_in_memory();
 
-		let candidate_hash_af = H256::from_slice(&[0x0Fu8; 32]);
-		let candidate_hash_11 = H256::from_slice(&[0x11u8; 32]);
+		let mut test_state = TestState::default();
 
-		// @todo fails with invalid seed
-		// let validator_keypair: ValidatorPair = keystore
-		// 	.write()
-		// 	.insert("seed str")
-		// 	.expect("Must be able to generate keypar internally.");
-
-		// create a validator set of 3 + us
-		let validators = generate_n_validators(3);
-		// let our_public = validator_keypair.public();
-		// validators.push(our_public);
-		test_harness(keystore, |test_harness| async move {
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
 			let TestHarness {
 				mut virtual_overseer,
 			} = test_harness;
-			let validator_index: ValidatorIndex = validators.len() as ValidatorIndex - 1u32;
 
-			let relay_parent_x = H256::repeat_byte(0x01);
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let pov_block_a = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_block_b = PoV {
+				block_data: BlockData(vec![45, 46, 47]),
+			};
+
+			let pov_hash_a = pov_block_a.hash();
+			let pov_hash_b = pov_block_b.hash();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash: pov_hash_a,
+				erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
+				..Default::default()
+			}.build();
+
+			let candidate_b = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash: pov_hash_b,
+				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
+				head_data: expected_head_data.clone(),
+				..Default::default()
+			}.build();
+
+			let TestState {
+				chain_ids,
+				keystore,
+				validators,
+				validator_public,
+				validator_groups,
+				availability_cores,
+				head_data,
+				local_validation_data,
+				global_validation_data,
+				relay_parent,
+				ancestors,
+			    validator_index,
+			} = test_state;
+
+			let validator_index: ValidatorIndex = validator_index.unwrap();
+
+			let relay_parent_x = relay_parent;
 			// y is an ancestor of x
-			let relay_parent_y = H256::repeat_byte(0x02);
+			let relay_parent_y = ancestors[0];
 
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
@@ -1229,11 +1405,6 @@ mod test {
 
 			log::trace!("peer A: {:?}", peer_a);
 			log::trace!("peer B: {:?}", peer_b);
-
-			let para_27 = ParaId::from(27);
-			let para_81 = ParaId::from(81);
-
-			log::trace!("stage0");
 
 			overseer_signal(
 				&mut virtual_overseer,
@@ -1255,7 +1426,7 @@ mod test {
 					RuntimeApiRequest::Validators(tx),
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					tx.send(Ok(validators.clone())).unwrap();
+					tx.send(Ok(validator_public.clone())).unwrap();
 				}
 			);
 
@@ -1278,8 +1449,8 @@ mod test {
 					assert_eq!(relay_parent, relay_parent_x);
 					// respond with a set of availability core states
 					tx.send(Ok(vec![
-						dummy_occupied_core(para_27),
-						dummy_occupied_core(para_81)
+						dummy_occupied_core(chain_ids[0]),
+						dummy_occupied_core(chain_ids[1])
 					])).unwrap();
 				}
 			);
@@ -1293,7 +1464,7 @@ mod test {
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, para_27);
+					assert_eq!(para, chain_ids[0]);
 					tx.send(Ok(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
@@ -1312,7 +1483,7 @@ mod test {
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
 				)) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, para_81);
+					assert_eq!(para, chain_ids[1]);
 					tx.send(Ok(Some(CommittedCandidateReceipt {
 						descriptor: CandidateDescriptor {
 							para_id: para,
@@ -1348,7 +1519,7 @@ mod test {
 					assert_eq!(relay_parent, relay_parent_y);
 					tx.send(Ok(vec![
 						CoreState::Occupied(OccupiedCore {
-							para_id: para_27.clone(),
+							para_id: chain_ids[0].clone(),
 							next_up_on_available: None,
 							occupied_since: 0,
 							time_out_at: 10,
@@ -1359,7 +1530,7 @@ mod test {
 						CoreState::Free,
 						CoreState::Free,
 						CoreState::Occupied(OccupiedCore {
-							para_id: para_81.clone(),
+							para_id: chain_ids[1].clone(),
 							next_up_on_available: None,
 							occupied_since: 1,
 							time_out_at: 7,
@@ -1383,17 +1554,9 @@ mod test {
 					)
 				) => {
 					assert_eq!(relay_parent, relay_parent_y);
-					assert_eq!(para, para_27);
+					assert_eq!(para, chain_ids[0]);
 					tx.send(Ok(Some(
-						CommittedCandidateReceipt {
-							descriptor: CandidateDescriptor {
-								para_id: para,
-								relay_parent,
-								validation_data_hash: candidate_hash_af,
-								..Default::default()
-							},
-							..Default::default()
-						}
+						candidate_a.clone()
 					))).unwrap();
 				}
 			);
@@ -1404,18 +1567,32 @@ mod test {
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 				)) => {
 					assert_eq!(relay_parent, relay_parent_y);
-					assert_eq!(para, para_81);
+					assert_eq!(para, chain_ids[1]);
 					tx.send(Ok(Some(
-						CommittedCandidateReceipt {
-							descriptor: CandidateDescriptor {
-								para_id: para,
-								relay_parent,
-								validation_data_hash: candidate_hash_11,
-								..Default::default()
-							},
-							..Default::default()
-						}
+						candidate_a.clone()
 					))).unwrap();
+				}
+			);
+
+			// query the available data incl PoV from the availability store
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::AvailabilityStore(
+					AvailabilityStoreMessage::QueryAvailableData(
+						candidate_hash,
+						tx,
+					)
+				) => {
+					assert_eq!(candidate_hash, candidate_a.hash());
+					tx.send(Some(
+						AvailableData {
+							pov: pov_block_a.clone(),
+							omitted_validation: OmittedValidationData {
+								local_validation: local_validation_data.clone(),
+								global_validation: global_validation_data.clone(),
+							},
+						}
+					)).unwrap();
 				}
 			);
 
@@ -1483,7 +1660,7 @@ mod test {
 			);
 
 			let valid: AvailabilityGossipMessage =
-				valid_availability_gossip(candidate_hash_11, validators.len(), validator_index, 2);
+				valid_availability_gossip(candidate_a.hash(), validators.len(), validator_index, 2);
 
 			// valid (first, from b)
 			overseer_send(
