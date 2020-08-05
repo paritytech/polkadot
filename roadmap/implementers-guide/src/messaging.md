@@ -21,15 +21,19 @@ Downward Message Passing (DMP) is a mechanism for delivering messages to paracha
 messages may originate not from the relay chain, but rather from another parachain via a mechanism
 called HRMP (Will be described later).
 
-Each parachain has its own queue that stores all pending messages. A parachain
+Each parachain has its own queue that stores all pending inbound downward messages. A parachain
 doesn't have to process all messages at once, however, there are rules as to how the downward message queue
 should be processed. Currently, at least one message must be consumed per candidate if the queue is not empty.
-The downward message queue doesn't have a cap on its size. Instead, each sender can send a limited number of
-messages and occupy limited space in the queue. Furthermore, there is a limit on how many messages the relay chain can enqueue.
+The downward message queue doesn't have a cap on its size and it is up to the relay-chain to put mechanisms
+that prevent spamming in place.
 
 Upward Message Passing (UMP) is a mechanism responsible for delivering messages in the opposite direction:
 from a parachain up to the relay chain. Upward messages are dispatched to Runtime entrypoints and
 typically used for invoking some actions on the relay chain on behalf of the parachain.
+
+> NOTE: It is conceivable that upward messages will be divided to more fine-grained kinds with a dispatchable upward message
+being only one kind of multiple. That would make upward messages inspectable and therefore would allow imposing additional
+validity criteria for the candidates that contain these messages.
 
 Semantically, there is a queue of upward messages queue where messages from each parachain are stored. Each parachain
 can have a limited number of messages and the total sum of pending messages is also limited. Each parachain can dispatch
@@ -80,7 +84,8 @@ messages are supplied (i.e. preimages), rest are provided as hashes.
 Further details can be found at the [W3F research website](https://research.web3.foundation/en/latest/polkadot/XCMP.html)
 and [this blogpost](https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7).
 
-HRMP (Horizontally Relay-routed Message Passing) is a stop gap that predates XCMP. A horizontal message
-is initiated by the sender parachain by placing a horizontal message in the candidate. Horizontal messages
-are not dissimilar to upward messages, with the exception that horizontal messages specify the recipient
-chain where they are routed to.
+HRMP (Horizontally Relay-routed Message Passing) is a stop gap that predates XCMP. Semantically, it mimics XCMP's interface.
+The crucial difference from XCMP though is that all the messages are stored in the relay-chain storage. That makes
+things simple but at the same time that makes HRMP more demanding in terms of resources thus making it more expensive.
+
+Once XCMP is available we expect to retire HRMP.
