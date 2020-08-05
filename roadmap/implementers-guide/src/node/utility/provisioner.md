@@ -42,12 +42,49 @@ Note that block authors must re-send a `ProvisionerMessage::RequestBlockAuthorsh
 
 When a validator is selected by BABE to author a block, it becomes a block producer. The provisioner is the subsystem best suited to choosing which specific backed candidates and availability bitfields should be assembled into the block. To engage this functionality, a `ProvisionerMessage::RequestInherentData` is sent; the response is a set of non-conflicting candidates and the appropriate bitfields. Non-conflicting means that there are never two distinct parachain candidates included for the same parachain and that new parachain candidates cannot be backed until the previous one either gets declared available or expired.
 
-Our goal with respect to the bitfields is simple: maximize availability. Always include all bitfields. It's a little more complicated with respect to candidates. The fundamental task there is to see which core the candidate can be included on. If its para is on a `ScheduledCore`, then it is unconditionally includable. Otherwise, we have two cases to deal with:
+### Bitfield Selection
 
-- If it is `next_up_on_available` on an `OccupiedCore`, we can only include the candidate if the bitfields we are including, merged with the `availability` vec of the `OccupiedCore`, together comprise 2/3+ of validators.
-- If it is `next_up_on_time_out` on an `OccupiedCore`, we can only include the candidate if the bitfields we are including, merged with the `availability` vec of the `OccupiedCore` together comprise <2/3 of validators, and the `time_out_at` is the block we are building.
+Our goal with respect to bitfields is simple: maximize availability. However, it's not quite as simple as always including all bitfields; there are constraints which still need to be met:
 
-Otherwise, the para isn't represented anywhere in the set of cores, and is therefore not scheduled, and can't be included.
+- We cannot choose more than one bitfield per validator.
+- Each bitfield must correspond to an occupied core.
+
+Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goal of maximizing availability, a heuristic of picking the bitfield with the greatest number of 1 bits set in the event of conflict is useful.
+
+### Candidate Selection
+
+The goal of candidate selection is to determine which cores are available, and then to the degree possible, pick a candidate appropriate to each available core.
+
+To determine availability:
+
+- Get the list of core states from the runtime API
+- For each core state:
+  - If the core is scheduled, then it usable; we can make an `OccupiedCoreAssumption::Free`; it is available.
+  - If the core is currently occupied, then we can make some assumptions:
+    - If there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`. This only works if the bitfields indicate availability; more on that later.
+    - If there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`. This only works if the bitfields do not indicate availability.
+  - Now compute the core's `validation_data_hash`: get the `LocalValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`; this can be combined with a cached `GlobalValidationData` to compute the hash.
+  - Find an appropriate candidate for the core.
+    - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
+    - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
+
+The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index.
+
+### Determining Bitfield Availability
+
+An occupied core has a `CoreAvailability` bitfield. We also have a list of `SignedAvailabilityBitfield`s. We need to determine from these whether or not a core at a particular index has become available.
+
+The key insight required is that `CoreAvailability` is transverse to the `SignedAvailabilityBitfield`s: if we conceptualize the list of bitfields as many rows, each bit of which is its own column, then `CoreAvailability` for a given core index is the vertical slice of bits in the set at that index.
+
+To compute bitfield availability, then:
+
+- Start with a copy of `OccupiedCore.availability`
+- For each bitfield in the list of `SignedAvailabilityBitfield`s:
+  - Get the bitfield's `validator_index`
+  - Update the availability. Conceptually, assuming bit vectors: `availability[validator_index] |= bitfield[core_idx]`
+- Availability has a 2/3 threshold. Therefore: `3 * availability.count_ones() >= 2 * availability.len()`
+
+### Notes
 
 See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
 
