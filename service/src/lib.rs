@@ -843,7 +843,7 @@ pub fn build_full(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-) -> Result<(TaskManager, Client, FullNodeHandles, Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>), ServiceError> {
+) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
@@ -853,7 +853,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Kusama(client), handles, network))
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
@@ -863,7 +863,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Westend(client), handles, network))
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
 	} else if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
@@ -873,7 +873,7 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Rococo(client), handles, network))
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Rococo(client), handles))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
@@ -883,6 +883,6 @@ pub fn build_full(
 			slot_duration,
 			grandpa_pause,
 			false,
-		).map(|(task_manager, client, handles, network, _)| (task_manager, Client::Polkadot(client), handles, network))
+		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Polkadot(client), handles))
 	}
 }

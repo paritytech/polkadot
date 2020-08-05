@@ -121,8 +121,8 @@ pub trait BuildParachainContext {
 		self,
 		client: polkadot_service::Client,
 		spawner: SP,
-		network: impl Network + Clone + 'static,
-		sync_oracle: impl SyncOracle + Clone + Send + Sync + 'static,
+		network: impl Network + SyncOracle + Clone + 'static,
+		//sync_oracle: impl SyncOracle + Clone + Send + Sync + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static;
@@ -219,7 +219,7 @@ struct BuildCollationWork<P> {
 	build_parachain_context: P,
 	spawner: SpawnTaskHandle,
 	client: polkadot_service::Client,
-	network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	//network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 }
 
 impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
@@ -256,7 +256,8 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 			self.client,
 			self.spawner.clone(),
 			polkadot_network.clone(),
-			self.network.clone(),
+			//polkadot_network.clone(),
+			//self.network.clone(),
 		) {
 			Ok(ctx) => ctx,
 			Err(()) => {
@@ -362,7 +363,7 @@ fn build_collator_service<P>(
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
-	network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	//network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 ) -> Result<Pin<Box<dyn Future<Output = ()> + Send + 'static>>, polkadot_service::Error>
 	where
 		P: BuildParachainContext,
@@ -376,7 +377,7 @@ fn build_collator_service<P>(
 		build_parachain_context,
 		spawner,
 		client: client.clone(),
-		network,
+		//network,
 	})
 }
 
@@ -402,7 +403,7 @@ where
 		.into());
 	}
 
-	let (task_manager, client, handles, network) = polkadot_service::build_full(
+	let (task_manager, client, handles) = polkadot_service::build_full(
 		config,
 		Some((key.public(), para_id)),
 		None,
@@ -418,7 +419,7 @@ where
 		para_id,
 		key,
 		build_parachain_context,
-		network,
+		//network,
 	)?;
 
 	Ok((future, task_manager))
