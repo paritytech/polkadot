@@ -502,6 +502,9 @@ async fn send_tracked_gossip_messages_to_peers<Context>(
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
+	if peers.is_empty() {
+		return Ok(())
+	}
 	for message in message_iter {
 		for peer in peers.clone() {
 			let message_id = (message.candidate_hash, message.erasure_chunk.index);
@@ -1173,7 +1176,7 @@ mod test {
 		executor::block_on(future::select(test_fut, subsystem));
 	}
 
-	const TIMEOUT: Duration = Duration::from_millis(100_000);
+	const TIMEOUT: Duration = Duration::from_millis(100);
 
 	async fn overseer_signal(
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
@@ -1551,7 +1554,6 @@ mod test {
 
 
 			// now each of the relay parents in the view (1) will
-			// be queried for candidate pending availability
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -1589,9 +1591,6 @@ mod test {
 					}))).unwrap();
 				}
 			);
-
-
-			// query para ids for that ancestor relay parent again
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -1657,8 +1656,7 @@ mod test {
 			);
 
 			// query the available data incl PoV from the availability store
-
-			for _ in 0usize..2 {
+			for _ in 0usize..1 {
 				// query the available data incl PoV from the availability store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
@@ -1681,7 +1679,7 @@ mod test {
 					}
 				);
 
-				// query the available data incl PoV from the availability store
+				// store the chunk to the av store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::AvailabilityStore(
@@ -1697,14 +1695,6 @@ mod test {
 						).unwrap();
 					}
 				);
-
-				for _ in 0usize..5 {
-					assert_matches!(
-						overseer_recv(&mut virtual_overseer).await,
-						AllMessages::NetworkBridge(_) => {}
-					);
-				}
-
 			}
 
 			// setup peer a with interest in parent x
