@@ -17,7 +17,7 @@
 //! The availability distribution
 //!
 //! Transforms `AvailableData` into erasure chunks, which are distributed to peers
-//! which are intereseted in the relevant candidates.
+//! which are interested in the relevant candidates.
 //! Gossip messages received from other peers are verified and gossiped to interested
 //! peers. Verified in this context means, the erasure chunks contained merkle proof
 //! is checked.
@@ -82,7 +82,7 @@ const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 /// to other peers.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AvailabilityGossipMessage {
-	/// Ankor hash of the candidate this is associated to.
+	/// Anchor hash of the candidate this is associated to.
 	pub candidate_hash: Hash,
 	/// The actual signed availability bitfield.
 	pub erasure_chunk: ErasureChunk,
@@ -106,7 +106,7 @@ struct ProtocolState {
 
 	/// Allow reverse caching of view checks.
 	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
-	/// Note that the presence of this is not sufficient to determine if deletion is ok, i.e.
+	/// Note that the presence of this is not sufficient to determine if deletion is OK, i.e.
 	/// two histories could cover this.
 	reverse: HashMap<Hash, Hash>,
 
@@ -168,7 +168,7 @@ impl ProtocolState {
 	}
 
 	/// Unionize all cached entries for the given relay parents and it's ancestors ancestors.
-	/// Ignores all non existant relay parents, so this can be used directly with a peers view.
+	/// Ignores all non existent relay parents, so this can be used directly with a peers view.
 	/// Returns a map from candidate hash -> receipt
 	fn cached_live_candidates_unioned<'a>(
 		&'a self,
@@ -358,7 +358,7 @@ fn derive_erasure_chunks_with_proofs(
 	Ok(erasure_chunks)
 }
 
-/// Handle the changes necassary when our view changes.
+/// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
 	keystore: KeyStorePtr,
@@ -843,7 +843,7 @@ where
 	Ok(live_candidates)
 }
 
-/// Obtain all live canddidates based on an iterator or relay heads including `k` ancestors.
+/// Obtain all live candidates based on an iterator or relay heads including `k` ancestors.
 ///
 /// Relay parent.
 async fn query_live_candidates<Context>(
@@ -943,7 +943,7 @@ where
 	Ok(occupied_para_ids)
 }
 
-/// Modify the reputation of a peer based on its behaviour.
+/// Modify the reputation of a peer based on its behavior.
 async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
