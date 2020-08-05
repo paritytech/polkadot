@@ -71,7 +71,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. call `Router::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
   1. call `Router::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
   1. check that in the commitments of each candidate the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
-  1. using `Router::verify_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate's para correctly send horizontal messages.
+  1. using `Router::verify_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate send a valid set of horizontal messages
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. create a corresponding entry in the `PendingAvailabilityCommitments` with the commitments.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
