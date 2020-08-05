@@ -242,11 +242,6 @@ pub enum AvailabilityStoreMessage {
 	/// Query a `AvailableData` from the AV store.
 	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
 
-
-	/// Query a `AvailableData` from the AV store.
-	QueryPoV(Hash, oneshot::Sender<Option<PoV>>),
-
-
 	/// Query whether a `AvailableData` exists within the AV Store.
 	///
 	/// This is useful in cases when existence
@@ -286,7 +281,6 @@ impl AvailabilityStoreMessage {
 			Self::QueryChunkAvailability(hash, _, _) => Some(*hash),
 			Self::StoreChunk(hash, _, _, _) => Some(*hash),
 			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
-			Self::QueryPoV(hash, _) => Some(*hash),
 		}
 	}
 }

@@ -34,8 +34,8 @@ use polkadot_erasure_coding::{
 use polkadot_primitives::v1::{
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GlobalValidationData, Hash as H256, HashT, Id as ParaId, LocalValidationData,
-	OccupiedCoreAssumption, OmittedValidationData, PoV, ValidatorId,
-	ValidatorIndex, ValidatorPair,
+	OccupiedCoreAssumption, OmittedValidationData, PoV,
+	ValidatorId, ValidatorIndex, ValidatorPair,
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
@@ -140,9 +140,6 @@ struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
 	ancestors: HashSet<H256>,
 
-	/// Global validation data
-	global_validation: GlobalValidationData,
-
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
 
@@ -235,8 +232,6 @@ impl ProtocolState {
 			.get_mut(&relay_parent)
 			.expect("Relay parent is initialized on overseer signal. qed");
 		per_relay_parent.ancestors = ancestors;
-		per_relay_parent.global_validation = query_global_validation_data(ctx, relay_parent)
-			.await?;
 
 		Ok(())
 	}
@@ -402,28 +397,10 @@ where
 		};
 
 		// pull the proof of validity
-		let pov = if let Some(pov) = query_proof_of_validity(ctx, candidate_hash.clone()).await? {
-			pov
+		let available_data = if let Some(available_data) = query_available_data(ctx, candidate_hash.clone()).await? {
+			available_data
 		} else {
 			continue;
-		};
-
-		// perform erasure encoding
-		let local_validation = if let Some(local_validation) =
-			query_local_validation_data(ctx, added.clone(), para).await?
-		{
-			local_validation
-		} else {
-			continue;
-		};
-
-		let global_validation = per_relay_parent.global_validation.clone();
-		let available_data = AvailableData {
-			pov,
-			omitted_validation: OmittedValidationData {
-				local_validation,
-				global_validation,
-			},
 		};
 
 		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(
@@ -971,19 +948,19 @@ where
 }
 
 /// Query the proof of validity for a particular candidate hash.
-async fn query_proof_of_validity<Context>(
+async fn query_available_data<Context>(
 	ctx: &mut Context,
 	candidate_hash: H256,
-) -> Result<Option<PoV>>
+) -> Result<Option<AvailableData>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::QueryPoV(candidate_hash, tx),
-	))
-	.await
-	.map_err::<Error, _>(Into::into)?;
+			AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
+		))
+		.await
+		.map_err::<Error, _>(Into::into)?;
 	rx.await.map_err::<Error, _>(Into::into)
 }
 
@@ -1074,53 +1051,6 @@ where
 		.map_err::<Error, _>(Into::into)
 }
 
-/// Query omitted validation data.
-#[cfg(feature = "std")]
-async fn query_global_validation_data<Context>(
-	ctx: &mut Context,
-	relay_parent: H256,
-) -> Result<GlobalValidationData>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-	let query_global_validation = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::GlobalValidationData(tx),
-	));
-
-	ctx.send_message(query_global_validation)
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
-		.map_err::<Error, _>(Into::into)
-}
-
-/// Query local validation data.
-#[cfg(feature = "std")]
-async fn query_local_validation_data<Context>(
-	ctx: &mut Context,
-	relay_parent: H256,
-	paraid: ParaId,
-) -> Result<Option<LocalValidationData>>
-where
-	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
-{
-	let (tx, rx) = oneshot::channel();
-	let query_local_validation = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::LocalValidationData(paraid, OccupiedCoreAssumption::Free, tx),
-	));
-
-	ctx.send_message(query_local_validation)
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
-		.map_err::<Error, _>(Into::into)
-}
-
 #[cfg(test)]
 mod test {
 	use super::*;
@@ -1128,8 +1058,10 @@ mod test {
 	use bitvec::bitvec;
 	use maplit::hashmap;
 	use polkadot_primitives::v1::{
-		AvailableData, BlockData, CandidateDescriptor, GlobalValidationData, GroupIndex, HeadData,
-		LocalValidationData, OccupiedCore, OmittedValidationData, PoV, ValidatorPair,
+		AvailableData, BlockData, CandidateCommitments, CandidateDescriptor,
+		GlobalValidationData, GroupIndex, HeadData,
+		LocalValidationData, OccupiedCore, OmittedValidationData,
+		PoV, ValidatorPair,
 	};
 	use polkadot_subsystem::test_helpers;
 
@@ -1293,6 +1225,8 @@ mod test {
 
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
+			assert_ne!(&peer_a, &peer_b);
+
 			log::trace!("peer A: {:?}", peer_a);
 			log::trace!("peer B: {:?}", peer_b);
 
@@ -1482,18 +1416,6 @@ mod test {
 							..Default::default()
 						}
 					))).unwrap();
-				}
-			);
-
-			// handle global validation data request
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::GlobalValidationData(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					tx.send(Ok(GlobalValidationData::default())).unwrap();
 				}
 			);
 
