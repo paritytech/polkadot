@@ -31,10 +31,10 @@ use polkadot_node_subsystem::{
 		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
-	util::{self, request_availability_cores, request_global_validation_data, request_local_validation_data, JobTrait, ToJobTrait},
+	util::{self, request_availability_cores, JobTrait, ToJobTrait},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, GlobalValidationData, LocalValidationData,Hash, OccupiedCore, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCore, OccupiedCoreAssumption,
 	ScheduledCore, SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
@@ -244,7 +244,6 @@ type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 
 // preprocessing the cores involves a bit more data than is comfortable in a tuple, so let's make a struct of it
 struct PreprocessedCore {
-	relay_parent: Hash,
 	assumption: OccupiedCoreAssumption,
 	scheduled_core: ScheduledCore,
 	availability: Option<CoreAvailability>,
@@ -253,14 +252,13 @@ struct PreprocessedCore {
 }
 
 impl PreprocessedCore {
-	fn new(relay_parent: Hash, idx: usize, core: CoreState) -> Option<Self> {
+	fn new(idx: usize, core: CoreState) -> Option<Self> {
 		match core {
 			CoreState::Occupied(OccupiedCore {
 				availability,
 				next_up_on_available: Some(scheduled_core),
 				..
 			}) => Some(Self {
-				relay_parent,
 				assumption: OccupiedCoreAssumption::Included,
 				scheduled_core,
 				availability: Some(availability),
@@ -273,7 +271,6 @@ impl PreprocessedCore {
 				time_out_at,
 				..
 			}) => Some(Self {
-				relay_parent,
 				assumption: OccupiedCoreAssumption::TimedOut,
 				scheduled_core,
 				availability: Some(availability),
@@ -281,7 +278,6 @@ impl PreprocessedCore {
 				idx,
 			}),
 			CoreState::Scheduled(scheduled_core) => Some(Self {
-				relay_parent,
 				assumption: OccupiedCoreAssumption::Free,
 				scheduled_core,
 				availability: None,
@@ -308,20 +304,11 @@ impl PreprocessedCore {
 		bitfields: &[SignedAvailabilityBitfield],
 		candidates: &[BackedCandidate],
 		block_number: BlockNumber,
-		sender: &mut mpsc::Sender<FromJob>,
 	) -> Option<BackedCandidate> {
-		// the validation data hash must match under the appropriate occupied core assumption.
-		// to compute the validation data hash, we need both global and local validation data.
-		let global_validation_data = request_global_validation_data(self.relay_parent, sender).await.ok()?.await.ok()?.ok()?;
-
 		// choose only one per parachain
 		candidates
 			.iter()
 			.find(|candidate| candidate.candidate.descriptor.para_id == self.scheduled_core.para_id)
-			.filter(|candidate| {
-				let local_validation_data = request_local_validation_data(self.relay_parent, self.scheduled_core.para_id, self.assumption).await.ok()?.await.ok()?.ok()?;
-
-			})
 			.map(|candidate| {
 				match (self.assumption, self.availability.as_ref(), self.timeout) {
 					(OccupiedCoreAssumption::Free, _, _) => {
@@ -524,44 +511,3 @@ fn merged_bitfields_are_gte_two_thirds(
 }
 
 delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
-
-#[cfg(test)]
-mod tests {
-	mod select_availability_bitfields {
-		use bitvec::bitvec;
-		use polkadot_primitives::v1::{
-			GroupIndex, Id as ParaId, ValidatorPair
-		};
-		use sp_core::crypto::Pair;
-		use super::super::*;
-
-		fn occupied_core(para_id: ParaId, group_responsible: GroupIndex) -> CoreState {
-			CoreState::Occupied(OccupiedCore {
-				para_id,
-				group_responsible,
-				next_up_on_available: None,
-				occupied_since: 100_u32,
-				time_out_at: 200_u32,
-				next_up_on_time_out: None,
-				availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
-			})
-		}
-
-		fn signed_bitfield(field: CoreAvailability, validator: &ValidatorPair, ) -> SignedAvailabilityBitfield {
-			unimplemented!()
-		}
-
-		#[test]
-		fn not_more_than_one_per_validator() {
-			let validator = ValidatorPair::generate().0;
-			let cores = vec![occupied_core(0.into(), 0.into()), occupied_core(1.into(), 1.into())];
-			let bitfields = vec![];
-			unimplemented!()
-		}
-
-		#[test]
-		fn each_corresponds_to_an_occupied_core() {
-			unimplemented!()
-		}
-	}
-}

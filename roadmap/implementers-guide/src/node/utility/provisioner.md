@@ -53,17 +53,16 @@ Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goa
 
 ### Candidate Selection
 
-The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each available core.
+The goal of candidate selection is to determine which cores are available, and then to the degree possible, pick a candidate appropriate to each available core.
 
 To determine availability:
 
 - Get the list of core states from the runtime API
 - For each core state:
-  - On `CoreState::Scheduled`, then we can make an `OccupiedCoreAssumption::Free`.
-  - On `CoreState::Occupied`, then we may be able to make an assumption:
-    - If the bitfields indicate availability and there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`.
-    - If the bitfields do not indicate availability, and there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`.
-  - If we did not make an `OccupiedCoreAssumption`, then continue on to the next core.
+  - If the core is scheduled, then it usable; we can make an `OccupiedCoreAssumption::Free`; it is available.
+  - If the core is currently occupied, then we can make some assumptions:
+    - If there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`. This only works if the bitfields indicate availability; more on that later.
+    - If there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`. This only works if the bitfields do not indicate availability.
   - Now compute the core's `validation_data_hash`: get the `LocalValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`; this can be combined with a cached `GlobalValidationData` to compute the hash.
   - Find an appropriate candidate for the core.
     - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.

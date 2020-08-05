@@ -173,36 +173,6 @@ where
 	}).await
 }
 
-/// Request global validation data.
-pub async fn request_global_validation_data<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<GlobalValidationData>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| {
-		RuntimeApiRequest::GlobalValidationData(tx)
-	}).await
-}
-
-/// Request local validation data.
-pub async fn request_local_validation_Data<FromJob>(
-	parent: Hash,
-	para_id: ParaId,
-	assumption: OccupiedCoreAssumption,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<LocalValidationData>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| {
-		RuntimeApiRequest::LocalValidationData(para_id, assumption, tx)
-	}).await
-}
-
 /// From the given set of validators, find the first key we can sign with, if any.
 pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
 	let keystore = keystore.read();
