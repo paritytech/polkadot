@@ -1,6 +1,6 @@
 # Approval assignments
 
-Approval assignment determines on which candidate parachain blocks each validator performs approval checks.  An approval session consideres only one relay chain block and assigns only those candidates that relay chain block declares available.
+Approval assignment determines on which candidate parachain blocks each validator performs approval checks.  An approval session considers only one relay chain block and assigns only those candidates that relay chain block declares available.
 
 Assignment balances several concerns:
 
@@ -95,6 +95,5 @@ VRFs though require adversaries wait far longer between such attacks, which also
 ## Gossip
 
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
-
 
 
