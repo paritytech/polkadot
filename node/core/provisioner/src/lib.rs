@@ -351,13 +351,7 @@ async fn select_candidates(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJob>,
 ) -> Result<Vec<BackedCandidate>, Error> {
-	let block_number = match get_block_number_under_construction(relay_parent, sender).await {
-		Ok(n) => n,
-		Err(err) => {
-			log::warn!(target: "provisioner", "failed to get number of block under construction: {:?}", err);
-			0
-		}
-	};
+	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let global_validation_data = request_global_validation_data(relay_parent, sender)
 		.await?
@@ -473,3 +467,65 @@ fn bitfields_indicate_availability(
 }
 
 delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
+
+#[cfg(test)]
+mod tests {
+	mod select_availability_bitfields {
+		use super::super::*;
+		use bitvec::bitvec;
+		use lazy_static::lazy_static;
+		use polkadot_primitives::v1::{GroupIndex, Id as ParaId, ValidatorIndex, ValidatorPair, OccupiedCore, SigningContext};
+		use sp_core::crypto::Pair;
+		use std::sync::Mutex;
+
+		lazy_static!{
+			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorPair>> = Mutex::new(HashMap::new());
+		}
+
+		fn occupied_core(para_id: ParaId, group_responsible: GroupIndex) -> CoreState {
+			CoreState::Occupied(OccupiedCore {
+				para_id,
+				group_responsible,
+				next_up_on_available: None,
+				occupied_since: 100_u32,
+				time_out_at: 200_u32,
+				next_up_on_time_out: None,
+				availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
+			})
+		}
+
+		fn signed_bitfield(
+			field: CoreAvailability,
+			validator_idx: ValidatorIndex,
+		) -> SignedAvailabilityBitfield {
+			let mut lock = VALIDATORS.lock().unwrap();
+			let validator = lock.entry(validator_idx).or_insert_with(|| ValidatorPair::generate().0);
+			SignedAvailabilityBitfield::sign(field.into(), &<SigningContext<Hash>>::default(), validator_idx, validator)
+		}
+
+		#[test]
+		fn not_more_than_one_per_validator() {
+			let bitvec = CoreAvailability::default();
+
+			let cores = vec![
+				occupied_core(0.into(), 0.into()),
+				occupied_core(1.into(), 1.into()),
+			];
+
+			// we pass in three bitfields with two validators
+			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
+			let bitfields = vec![
+				signed_bitfield(bitvec.clone(), 0),
+				signed_bitfield(bitvec.clone(), 1),
+				signed_bitfield(bitvec, 1),
+			];
+
+			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+			selected_bitfields.sort_by_key(|bitfield| bitfield.validator_index());
+
+			assert_eq!(selected_bitfields.len(), 2);
+			assert_eq!(selected_bitfields[0], bitfields[0]);
+			assert!(selected_bitfields[1] == bitfields[1] || selected_bitfields[1] == bitfields[2]);
+		}
+	}
+}
