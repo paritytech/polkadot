@@ -75,7 +75,7 @@ use polkadot_service_new::{
 };
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
-use sp_runtime::traits::{BlakeTwo256, Block as BlockT};
+use sp_runtime::traits::BlakeTwo256;
 use consensus_common::SyncOracle;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
