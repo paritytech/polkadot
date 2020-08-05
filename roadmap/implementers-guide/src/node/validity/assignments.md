@@ -38,7 +38,7 @@ We based assignment criteria upon two possible "stories" about the relay chain b
 
 We first have a `RelayVRFStory` that outputs the randomness from another VRF output known only to the relay chain block producer who created `R`, and unknown even to them two epochs previously.  
 
-In BABE, we create this value calling `schnorrkel::vrf::VRFInOut::make_bytes` with a context "A&V RC-VRF", with the `VRFInOut` coming from either the VRF that authorized block production for primary blocks, or else form the secondary block VRF for the secondary block type.
+In BABE, we create this value calling `schnorrkel::vrf::VRFInOut::make_bytes` with a context "A&V RC-VRF", with the `VRFInOut` coming from either the VRF that authorized block production for primary blocks, or else from the secondary block VRF for the secondary block type.
 
 In Sassafras, we shall always use the non-anonymized recycling VRF output, never the anonymized ring VRF that authorizes block production.  We do not currently know if Sassafras shall have a separate schnorrkel key, but if it reuses its ring VRF key there is an equivalent `ring_vrf::VRFInOut::make_bytes`.
 
