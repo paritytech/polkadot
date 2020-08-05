@@ -18,7 +18,7 @@ Assignment operates in loosely timed rounds determined by this `DelayTranche`s, 
 
 Assignment ensures validators check those relay chain blocks for which they have delay tranche zero aka the highest high precedence, so that adversaries always face honest checkers equal to the expected number of assignments with delay tranche zero.  
 
-Among these criteria, the BABE VRF output provides the story for two, which reduces how frequently adversaries could position their own checkers.  We have one criteria whose story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate.  It provides unforeseeable assignments when adversaries gain foreknowledge about the other two by committing an equivocation in relay chain block production.
+Among these criteria, the BABE VRF output provides the story for two, which reduces how frequently adversaries could position their own checkers.  We have one criterion whose story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate.  It provides unforeseeable assignments when adversaries gain foreknowledge about the other two by committing an equivocation in relay chain block production.
 
 ## Announcements / Notices
 
@@ -95,5 +95,4 @@ VRFs though require adversaries wait far longer between such attacks, which also
 ## Gossip
 
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
-
 
