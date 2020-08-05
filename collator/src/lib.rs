@@ -122,7 +122,6 @@ pub trait BuildParachainContext {
 		client: polkadot_service::Client,
 		spawner: SP,
 		network: impl Network + SyncOracle + Clone + 'static,
-		//sync_oracle: impl SyncOracle + Clone + Send + Sync + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static;
