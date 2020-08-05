@@ -1494,7 +1494,7 @@ impl<N> sp_consensus::SyncOracle for Service<N> where for<'r> &'r N: sp_consensu
 	}
 
 	fn is_offline(&mut self) -> bool {
-		todo!()
+		self.network_service.is_offline()
 	}
 }
 
