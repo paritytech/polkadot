@@ -34,7 +34,7 @@ use log::{trace, warn};
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
-	GlobalValidationData, Hash as H256, HashT, Id as ParaId, LocalValidationData,
+	GlobalValidationData, Hash as Hash, HashT, Id as ParaId, LocalValidationData,
 	OccupiedCoreAssumption, OmittedValidationData, PoV, ValidatorId, ValidatorIndex, ValidatorPair,
 };
 use polkadot_subsystem::messages::*;
@@ -83,7 +83,7 @@ const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AvailabilityGossipMessage {
 	/// Ankor hash of the candidate this is associated to.
-	pub candidate_hash: H256,
+	pub candidate_hash: Hash,
 	/// The actual signed availability bitfield.
 	pub erasure_chunk: ErasureChunk,
 }
@@ -102,24 +102,24 @@ struct ProtocolState {
 	/// Caches a mapping of relay parents or ancestor to live candidate receipts.
 	/// Allows fast intersection of live candidates with views and consecutive unioning.
 	/// Maps relay parent / ancestor -> live candidate receipts + its hash.
-	receipts: HashMap<H256, HashSet<(H256, CommittedCandidateReceipt)>>,
+	receipts: HashMap<Hash, HashSet<(Hash, CommittedCandidateReceipt)>>,
 
 	/// Allow reverse caching of view checks.
 	/// Maps candidate hash -> relay parent for extracting meta information from `PerRelayParent`.
 	/// Note that the presence of this is not sufficient to determine if deletion is ok, i.e.
 	/// two histories could cover this.
-	reverse: HashMap<H256, H256>,
+	reverse: HashMap<Hash, Hash>,
 
 	/// Keeps track of which candidate receipts are required due to ancestors of which relay parents
 	/// of our view.
 	/// Maps ancestor -> relay parents in view
-	ancestry: HashMap<H256, HashSet<H256>>,
+	ancestry: HashMap<Hash, HashSet<Hash>>,
 
 	/// Track things needed to start and stop work on a particular relay parent.
-	per_relay_parent: HashMap<H256, PerRelayParent>,
+	per_relay_parent: HashMap<Hash, PerRelayParent>,
 
 	/// Track data that is specific to a candidate.
-	per_candidate: HashMap<H256, PerCandidate>,
+	per_candidate: HashMap<Hash, PerCandidate>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -130,16 +130,16 @@ struct PerCandidate {
 	message_vault: HashMap<u32, AvailabilityGossipMessage>,
 
 	/// Track received candidate hashes and chunk indices from peers.
-	received_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
+	received_messages: HashMap<PeerId, HashSet<(Hash, ValidatorIndex)>>,
 
 	/// Track already sent candidate hashes and the erasure chunk index to the peers.
-	sent_messages: HashMap<PeerId, HashSet<(H256, ValidatorIndex)>>,
+	sent_messages: HashMap<PeerId, HashSet<(Hash, ValidatorIndex)>>,
 }
 
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
 	/// Set of `K` ancestors for this relay parent.
-	ancestors: Vec<H256>,
+	ancestors: Vec<Hash>,
 
 	/// The set of validators.
 	validators: Vec<ValidatorId>,
@@ -152,8 +152,8 @@ impl ProtocolState {
 	// collects the relay_parents plus their ancestors
 	fn extend_with_ancestors<'a>(
 		&'a self,
-		relay_parents: impl IntoIterator<Item = &'a H256> + 'a,
-	) -> HashSet<H256> {
+		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
+	) -> HashSet<Hash> {
 		relay_parents
 			.into_iter()
 			.map(|relay_parent| {
@@ -165,7 +165,7 @@ impl ProtocolState {
 					.chain(iter::once(relay_parent.clone()))
 			})
 			.flatten()
-			.collect::<HashSet<H256>>()
+			.collect::<HashSet<Hash>>()
 	}
 
 	/// Unionize all cached entries for the given relay parents and it's ancestors ancestors.
@@ -173,8 +173,8 @@ impl ProtocolState {
 	/// Returns a map from candidate hash -> receipt
 	fn cached_live_candidates_unioned<'a>(
 		&'a self,
-		relay_parents: impl IntoIterator<Item = &'a H256> + 'a,
-	) -> HashMap<H256, CommittedCandidateReceipt> {
+		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
+	) -> HashMap<Hash, CommittedCandidateReceipt> {
 		let relay_parents_and_ancestors = self.extend_with_ancestors(relay_parents);
 		relay_parents_and_ancestors
 			.into_iter()
@@ -182,13 +182,13 @@ impl ProtocolState {
 			.map(|receipt_set| receipt_set.into_iter())
 			.flatten()
 			.map(|(receipt_hash, receipt)| (receipt_hash.clone(), receipt.clone()))
-			.collect::<HashMap<H256, CommittedCandidateReceipt>>()
+			.collect::<HashMap<Hash, CommittedCandidateReceipt>>()
 	}
 
 	async fn add_relay_parent<Context>(
 		&mut self,
 		ctx: &mut Context,
-		relay_parent: H256,
+		relay_parent: Hash,
 	) -> Result<()>
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -206,7 +206,7 @@ impl ProtocolState {
 					Some(ancestor_or_relay_parent.clone())
 				}
 			})
-			.collect::<Vec<H256>>();
+			.collect::<Vec<Hash>>();
 
 		// mark all the ancestors as "needed" by this newly added relay parent
 		for ancestor in ancestors.iter() {
@@ -226,7 +226,7 @@ impl ProtocolState {
 		Ok(())
 	}
 
-	fn remove_relay_parent(&mut self, relay_parent: &H256) -> Result<()> {
+	fn remove_relay_parent(&mut self, relay_parent: &Hash) -> Result<()> {
 		// we might be ancestor of some other relay_parent
 		if let Some(ref mut descendants) = self.ancestry.get_mut(relay_parent) {
 			// if we were the last user, and it is
@@ -352,7 +352,7 @@ where
 
 	// needed due to borrow rules
 	let view = state.view.clone();
-	let added = view.difference(&old_view).collect::<Vec<&'_ H256>>();
+	let added = view.difference(&old_view).collect::<Vec<&'_ Hash>>();
 
 	// add all the relay parents and fill the cache
 	for added in added.clone() {
@@ -544,7 +544,7 @@ where
 {
 	let current = state.peer_views.entry(origin.clone()).or_default();
 
-	let delta_vec: Vec<H256> = (*current).difference(&view).cloned().collect();
+	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
 
 	*current = view;
 
@@ -799,7 +799,7 @@ where
 /// Obtain all live candidates based on an iterator of relay heads.
 async fn query_live_candidates_without_ancestors<Context>(
 	ctx: &mut Context,
-	relay_parents: impl IntoIterator<Item = H256>,
+	relay_parents: impl IntoIterator<Item = Hash>,
 ) -> Result<HashSet<CommittedCandidateReceipt>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -825,8 +825,8 @@ where
 async fn query_live_candidates<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
-	relay_parents: impl IntoIterator<Item = H256>,
-) -> Result<HashMap<H256, (H256, CommittedCandidateReceipt)>>
+	relay_parents: impl IntoIterator<Item = Hash>,
+) -> Result<HashMap<Hash, (Hash, CommittedCandidateReceipt)>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -835,7 +835,7 @@ where
 
 	let capacity = hint.1.unwrap_or(hint.0) * (1 + AvailabilityDistributionSubsystem::K);
 	let mut live_candidates =
-		HashMap::<H256, (H256, CommittedCandidateReceipt)>::with_capacity(capacity);
+		HashMap::<Hash, (Hash, CommittedCandidateReceipt)>::with_capacity(capacity);
 
 	for relay_parent in iter {
 		// direct candidates for one relay parent
@@ -909,7 +909,7 @@ where
 }
 
 /// Query all para IDs.
-async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: H256) -> Result<Vec<ParaId>>
+async fn query_para_ids<Context>(ctx: &mut Context, relay_parent: Hash) -> Result<Vec<ParaId>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -960,7 +960,7 @@ where
 /// Query the proof of validity for a particular candidate hash.
 async fn query_available_data<Context>(
 	ctx: &mut Context,
-	candidate_hash: H256,
+	candidate_hash: Hash,
 ) -> Result<Option<AvailableData>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -976,7 +976,7 @@ where
 
 async fn store_chunk<Context>(
 	ctx: &mut Context,
-	candidate_hash: H256,
+	candidate_hash: Hash,
 	validator_index: ValidatorIndex,
 	erasure_chunk: ErasureChunk,
 ) -> Result<std::result::Result<(), ()>>
@@ -995,7 +995,7 @@ where
 /// Request the head data for a particular para.
 async fn query_pending_availability<Context>(
 	ctx: &mut Context,
-	relay_parent: H256,
+	relay_parent: Hash,
 	para: ParaId,
 ) -> Result<Option<CommittedCandidateReceipt>>
 where
@@ -1016,7 +1016,7 @@ where
 /// Query the validator set.
 async fn query_validators<Context>(
 	ctx: &mut Context,
-	relay_parent: H256,
+	relay_parent: Hash,
 ) -> Result<Vec<ValidatorId>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -1038,9 +1038,9 @@ where
 /// Query the hash of the `K` ancestors
 async fn query_k_ancestors<Context>(
 	ctx: &mut Context,
-	relay_parent: H256,
+	relay_parent: Hash,
 	k: usize,
-) -> Result<Vec<H256>>
+) -> Result<Vec<Hash>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
@@ -1062,7 +1062,7 @@ where
 /// Query the session index of a relay parent
 async fn query_session_index_for_child<Context>(
 	ctx: &mut Context,
-	relay_parent: H256,
+	relay_parent: Hash,
 ) -> Result<SessionIndex>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -1084,20 +1084,20 @@ where
 /// Queries up to k ancestors with the constraints of equiv session
 async fn query_up_to_k_ancestors_in_same_session<Context>(
 	ctx: &mut Context,
-	relay_parent: H256,
+	relay_parent: Hash,
 	k: usize,
-) -> Result<Vec<H256>>
+) -> Result<Vec<Hash>>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	// k + 1 since we always query the child's session index
 	// ordering is [parent, grandparent, greatgrandparent, greatgreatgrandparent, ...]
 	let ancestors = query_k_ancestors(ctx, relay_parent, k + 1).await?;
-	let desired_session = query_session_index_for_child(relay_parent).await?;
-	let mut acc = Vec::with_capacity(ancestors.len());
+	let desired_session = query_session_index_for_child(ctx, relay_parent).await?;
+	let mut acc = Vec::with_capacity(ancestors.len() - 1);
 
 	// iterate from oldest to youngest
-	let iter = ancestors.into_iter().enumerate().rev();
+	let mut iter = ancestors.into_iter().rev();
 	if let Some(oldest) = iter.next() {
 		let mut child_session_index = query_session_index_for_child(ctx, oldest).await?;
 		for ancestor in iter {
@@ -1228,8 +1228,8 @@ mod test {
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		head_data: HashMap<ParaId, HeadData>,
 		keystore: KeyStorePtr,
-		relay_parent: H256,
-		ancestors: Vec<H256>,
+		relay_parent: Hash,
+		ancestors: Vec<Hash>,
 		availability_cores: Vec<CoreState>,
 		global_validation_data: GlobalValidationData,
 		local_validation_data: LocalValidationData,
@@ -1286,11 +1286,11 @@ mod test {
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
 
 			let ancestors = vec![
-				H256::repeat_byte(0x44),
-				H256::repeat_byte(0x33),
-				H256::repeat_byte(0x22),
+				Hash::repeat_byte(0x44),
+				Hash::repeat_byte(0x33),
+				Hash::repeat_byte(0x22),
 			];
-			let relay_parent = H256::repeat_byte(0x05);
+			let relay_parent = Hash::repeat_byte(0x05);
 
 			let local_validation_data = LocalValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
@@ -1324,7 +1324,7 @@ mod test {
 		}
 	}
 
-	fn make_erasure_root(test: &TestState, pov: PoV) -> H256 {
+	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let omitted_validation = OmittedValidationData {
 			global_validation: test.global_validation_data.clone(),
 			local_validation: test.local_validation_data.clone(),
@@ -1343,9 +1343,9 @@ mod test {
 	struct TestCandidateBuilder {
 		para_id: ParaId,
 		head_data: HeadData,
-		pov_hash: H256,
-		relay_parent: H256,
-		erasure_root: H256,
+		pov_hash: Hash,
+		relay_parent: Hash,
+		erasure_root: Hash,
 	}
 
 	impl TestCandidateBuilder {
@@ -1367,7 +1367,7 @@ mod test {
 	}
 
 	fn valid_availability_gossip(
-		candidate_hash: H256,
+		candidate_hash: Hash,
 		validator_count: usize,
 		validator_index: ValidatorIndex,
 		erasure_chunk_index: u32,
@@ -1567,10 +1567,23 @@ mod test {
 					response_channel: tx,
 				}) => {
 					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(k, AvailabilityDistributionSubsystem::K);
-					tx.send(Ok(vec![relay_parent_y.clone()])).unwrap();
+					assert_eq!(k, AvailabilityDistributionSubsystem::K + 1);
+					tx.send(Ok(vec![relay_parent_y.clone(), relay_parent_y.clone()])).unwrap();
 				}
 			);
+
+			for _ in 0..3 {
+				// state query for each of them
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						relay_parent,
+						RuntimeApiRequest::SessionIndexForChild(tx)
+					)) => {
+						tx.send(Ok(1 as SessionIndex)).unwrap();
+					}
+				);
+			}
 
 			// query para ids for that ancestor relay parent again
 			assert_matches!(
