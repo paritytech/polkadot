@@ -321,7 +321,6 @@ pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>>
 /// for whatever reason).
 ///
 /// [`Subsystem`]: trait.Subsystem.html
-#[allow(dead_code)]
 struct OverseenSubsystem<M> {
 	instance: Option<SubsystemInstance<M>>,
 }
@@ -390,7 +389,7 @@ pub struct Overseer<S: SpawnNamed> {
 	/// Various prometheus metrics.
 	/// `None` if `Metrics::try_register` fails for some reason
 	/// or if no registry was provided.
-	metrics: Option<Metrics>,
+	metrics: MaybeMetrics,
 }
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
@@ -444,6 +443,22 @@ struct Metrics {
 	// Number of candidates seconded
 	// Number of collations generated
 	// Number of Runtime API errors encountered
+}
+
+struct MaybeMetrics(Option<Metrics>);
+
+impl MaybeMetrics {
+	fn on_head_activated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.active_heads_count.inc();
+		}
+	}
+
+	fn on_head_deactivated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.active_heads_count.dec();
+		}
+	}
 }
 
 impl Metrics {
@@ -712,6 +727,7 @@ where
 			},
 			None => None,
 		};
+		let metrics = MaybeMetrics(metrics);
 
 		let this = Self {
 			candidate_validation_subsystem,
@@ -812,7 +828,7 @@ where
 		for leaf in leaves.into_iter() {
 			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
-			self.on_head_activated();
+			self.metrics.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -864,13 +880,13 @@ where
 
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
 			update.deactivated.push(parent.0);
-			self.on_head_deactivated();
+			self.metrics.on_head_deactivated();
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
 			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
-			self.on_head_activated();
+			self.metrics.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -880,14 +896,12 @@ where
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
-		let metrics = &self.metrics; // XXX: can't use self.on_head_deactivated
+		let metrics = &self.metrics;
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
 				update.deactivated.push(*h);
-				if let Some(metrics) = metrics {
-					metrics.active_heads_count.dec();
-				}
+				metrics.on_head_deactivated();
 				false
 			} else {
 				true
@@ -1025,20 +1039,6 @@ where
 
 	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
 		self.s.spawn(name, j);
-	}
-
-	// Metrics
-
-	fn on_head_activated(&self) {
-		if let Some(metrics) = &self.metrics {
-			metrics.active_heads_count.inc();
-		}
-	}
-
-	fn on_head_deactivated(&self) {
-		if let Some(metrics) = &self.metrics {
-			metrics.active_heads_count.dec();
-		}
 	}
 }
 
