@@ -8,7 +8,7 @@ These approval validity checks differ from the backing validity checks performed
 
 - In approvals, we randomly assign individual validators to check specific candidates without giving adversaries' foreknowledge about either which honest validators get assigned to which candidates, or even how many check.  Availability prevents adversaries from choosing which validators obtain their possibly invalid candidate.
 
-As such, approval checks provide significantly more security than backing checks, so polkadot achieves some fixed security level most efficiently when we perform more approval checks per backing check or per relay chain block.  
+As such, approval checks provide significantly more security than backing checks, so Polkadot achieves some fixed security level most efficiently when we perform more approval checks per backing check or per relay chain block.  
 
 ...
 
