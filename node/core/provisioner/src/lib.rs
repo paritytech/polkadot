@@ -539,8 +539,6 @@ mod tests {
 
 			let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
 
-			// we pass in three bitfields with two validators
-			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 			let bitfields = vec![
 				signed_bitfield(bitvec.clone(), 0),
 				signed_bitfield(bitvec.clone(), 1),
@@ -567,8 +565,6 @@ mod tests {
 				occupied_core(0.into(), 0.into()),
 			];
 
-			// we pass in three bitfields with two validators
-			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 			let bitfields = vec![
 				signed_bitfield(bitvec_zero, 0),
 				signed_bitfield(bitvec_one.clone(), 0),
@@ -582,6 +578,25 @@ mod tests {
 				assert_eq!(selected_bitfields.len(), 1);
 				assert_eq!(selected_bitfields[0].payload().0, bitvec_one);
 			}
+		}
+	}
+
+	mod select_candidates {
+		use super::super::*;
+
+		fn test_harness<MockOverseer, Test>(mock_overseer: MockOverseer, test: Test)
+		where
+			MockOverseer: FnOnce(mpsc::Receiver<FromJob>) -> Box<dyn Future<Output=()> + Unpin>,
+			Test: FnOnce(mpsc::Sender<FromJob>) -> Box<dyn Future<Output=()> + Unpin>
+		{
+			let (tx, rx) = mpsc::channel(64);
+			let overseer = mock_overseer(rx);
+			let test = test(tx);
+
+			futures::pin_mut!(overseer);
+			futures::pin_mut!(test);
+
+			futures::executor::block_on(future::select(overseer, test));
 		}
 	}
 }
