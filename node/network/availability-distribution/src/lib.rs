@@ -1475,8 +1475,7 @@ mod test {
 					activated: smallvec![relay_parent_x.clone()],
 					deactivated: smallvec![],
 				}),
-			)
-			.await;
+			).await;
 
 			// ignore event producer registration
 			let _ = overseer_recv(&mut virtual_overseer).await;
@@ -1498,8 +1497,7 @@ mod test {
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::OurViewChange(view![relay_parent_x,]),
 				),
-			)
-			.await;
+			).await;
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1707,32 +1705,29 @@ mod test {
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
 				),
-			)
-			.await;
+			).await
 
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_x]),
 				),
-			)
-			.await;
+			).await
+
 			// setup peer b with interest in parent y
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 				),
-			)
-			.await;
+			).await
 
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_y]),
 				),
-			)
-			.await;
+			).await
 
 			/////////////////////////////////////////////////////////
 			// ready for action
