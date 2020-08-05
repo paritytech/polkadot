@@ -585,7 +585,7 @@ pub struct OccupiedCore<N = BlockNumber> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,

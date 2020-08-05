@@ -525,7 +525,29 @@ mod tests {
 
 			assert_eq!(selected_bitfields.len(), 2);
 			assert_eq!(selected_bitfields[0], bitfields[0]);
+			// we don't know which of the (otherwise equal) bitfields will be selected
 			assert!(selected_bitfields[1] == bitfields[1] || selected_bitfields[1] == bitfields[2]);
+		}
+
+		#[test]
+		fn each_corresponds_to_an_occupied_core() {
+			let bitvec = CoreAvailability::default();
+
+			let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
+
+			// we pass in three bitfields with two validators
+			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
+			let bitfields = vec![
+				signed_bitfield(bitvec.clone(), 0),
+				signed_bitfield(bitvec.clone(), 1),
+				signed_bitfield(bitvec, 1),
+			];
+
+			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+			selected_bitfields.sort_by_key(|bitfield| bitfield.validator_index());
+
+			// bitfields not corresponding to occupied cores are not selected
+			assert!(selected_bitfields.is_empty());
 		}
 	}
 }
