@@ -1504,62 +1504,6 @@ mod test {
 				),
 			).await;
 
-			// subsystem peer id collection
-			// which will query the availability cores
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::AvailabilityCores(tx)
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					// respond with a set of availability core states
-					tx.send(Ok(vec![
-						dummy_occupied_core(chain_ids[0]),
-						dummy_occupied_core(chain_ids[1])
-					])).unwrap();
-				}
-			);
-
-			// now each of the relay parents in the view (1) will
-			// be queried for candidate pending availability
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, chain_ids[0]);
-					tx.send(Ok(Some(CommittedCandidateReceipt {
-						descriptor: CandidateDescriptor {
-							para_id: para,
-							relay_parent,
-							.. Default::default()
-						},
-						.. Default::default()
-					}))).unwrap();
-				}
-			);
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, chain_ids[1]);
-					tx.send(Ok(Some(CommittedCandidateReceipt {
-						descriptor: CandidateDescriptor {
-							para_id: para,
-							relay_parent,
-							.. Default::default()
-						},
-						.. Default::default()
-					}))).unwrap();
-				}
-			);
 
 			// query of k ancestors, we only provide one
 			assert_matches!(
@@ -1588,6 +1532,65 @@ mod test {
 				);
 			}
 
+			// subsystem peer id collection
+			// which will query the availability cores
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::AvailabilityCores(tx)
+				)) => {
+					assert_eq!(relay_parent, relay_parent_y);
+					// respond with a set of availability core states
+					tx.send(Ok(vec![
+						dummy_occupied_core(chain_ids[0]),
+						dummy_occupied_core(chain_ids[1])
+					])).unwrap();
+				}
+			);
+
+
+			// now each of the relay parents in the view (1) will
+			// be queried for candidate pending availability
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
+				)) => {
+					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(para, chain_ids[0]);
+					tx.send(Ok(Some(CommittedCandidateReceipt {
+						descriptor: CandidateDescriptor {
+							para_id: para,
+							relay_parent,
+							.. Default::default()
+						},
+						.. Default::default()
+					}))).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
+				)) => {
+					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(para, chain_ids[1]);
+					tx.send(Ok(Some(CommittedCandidateReceipt {
+						descriptor: CandidateDescriptor {
+							para_id: para,
+							relay_parent,
+							.. Default::default()
+						},
+						.. Default::default()
+					}))).unwrap();
+				}
+			);
+
+
 			// query para ids for that ancestor relay parent again
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1595,7 +1598,7 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::AvailabilityCores(tx),
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, relay_parent_x);
 					tx.send(Ok(vec![
 						CoreState::Occupied(OccupiedCore {
 							para_id: chain_ids[0].clone(),
@@ -1632,7 +1635,7 @@ mod test {
 						RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 					)
 				) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, chain_ids[0]);
 					tx.send(Ok(Some(
 						candidate_a.clone()
@@ -1645,7 +1648,7 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, chain_ids[1]);
 					tx.send(Ok(Some(
 						candidate_a.clone()
