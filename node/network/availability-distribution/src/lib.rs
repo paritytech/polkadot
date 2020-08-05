@@ -673,7 +673,12 @@ where
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await?;
 
 			// save the chunk for our index
-			store_chunk(ctx, message.candidate_hash.clone(), message.erasure_chunk.index, message.erasure_chunk).await?;
+			store_chunk(
+				ctx,
+				message.candidate_hash.clone(),
+				message.erasure_chunk.index,
+				message.erasure_chunk.clone(),
+			).await?;
 		};
 	}
 	// condense the peers to the peers with interest on the candidate
@@ -1573,7 +1578,7 @@ mod test {
 				}
 			);
 
-			for _ in 0..3 {
+			for _ in 0usize..3 {
 				// state query for each of them
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
@@ -1708,14 +1713,14 @@ mod test {
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
 				),
-			).await
+			).await;
 
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_x]),
 				),
-			).await
+			).await;
 
 			// setup peer b with interest in parent y
 			overseer_send(
@@ -1723,14 +1728,14 @@ mod test {
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 				),
-			).await
+			).await;
 
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
 					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_y]),
 				),
-			).await
+			).await;
 
 			/////////////////////////////////////////////////////////
 			// ready for action
