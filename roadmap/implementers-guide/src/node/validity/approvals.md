@@ -6,7 +6,7 @@ These approval validity checks differ from the backing validity checks performed
 
 - In backing, adversaries could select when they propose invalid candidates based upon when they control the parachain's backing validators who perform the checks.
 
-- In approvals, we randomly assigns individual validators to check specific candidates without giving adversaries foreknowledge about either which honest validators get assigned to which candidates, or even how many check.  Availability prevents adversaries from choosing which validators obtain their possibly invalid candidate.
+- In approvals, we randomly assign individual validators to check specific candidates without giving adversaries' foreknowledge about either which honest validators get assigned to which candidates, or even how many check.  Availability prevents adversaries from choosing which validators obtain their possibly invalid candidate.
 
 As such, approval checks provide significantly more security than backing checks, so polkadot achieves some fixed security level most efficiently when we perform more approval checks per backing check or per relay chain block.  
 
@@ -46,4 +46,3 @@ We could consider additional gossip messages with which nodes claims "slow avail
 
 We shall develop more practical experience with UDP once the availability system works using direct UDP connections.  In this, we should discover if reconstruction performs adequately with a complete graphs or  
 benefits from topology restrictions.  At this point, an assignment notices could implicitly request pieces from a random 1/3rd, perhaps topology restricted, which saves one gossip round.  If this preliminary fast reconstruction fails, then nodes' request alternative pieces directly.  There is an interesting design space in how this overlaps with "slow availability" claims.
-
