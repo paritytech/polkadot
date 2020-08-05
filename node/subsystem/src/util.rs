@@ -38,9 +38,10 @@ use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
-	CoreState, EncodeAs, GlobalValidationData, GroupRotationInfo, Hash, Id as ParaId,
-	LocalValidationData, OccupiedCoreAssumption, SessionIndex, Signed, SigningContext, ValidatorId,
-	ValidatorIndex, ValidatorPair,
+	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, GlobalValidationData,
+	GroupRotationInfo, Hash, Id as ParaId, LocalValidationData, OccupiedCoreAssumption,
+	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
+	ValidatorPair,
 };
 use sp_core::Pair;
 use std::{
@@ -120,81 +121,67 @@ where
 	Ok(rx)
 }
 
-/// Request a validator set from the `RuntimeApi`.
-pub async fn request_validators<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<Vec<ValidatorId>>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::Validators(tx)).await
+/// Construct specialized request functions for the runtime.
+///
+/// These would otherwise get pretty repetitive.
+macro_rules! specialize_requests {
+	// expand return type name for documentation purposes
+	(fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		specialize_requests!{
+			named stringify!($request_variant) ; fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant;
+		}
+	};
+
+	// create a single specialized request function
+	(named $doc_name:expr ; fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		#[doc = "Request `"]
+		#[doc = $doc_name]
+		#[doc = "` from the runtime"]
+		pub async fn $func_name<FromJob>(
+			parent: Hash,
+			$(
+				$param_name: $param_ty,
+			)*
+			sender: &mut mpsc::Sender<FromJob>,
+		) -> Result<RuntimeApiReceiver<$return_ty>, Error>
+		where
+			FromJob: TryFrom<AllMessages>,
+			<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
+		{
+			request_from_runtime(parent, sender, |tx| RuntimeApiRequest::$request_variant(
+				$( $param_name, )* tx
+			)).await
+		}
+	};
+
+	// recursive decompose
+	(
+		fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;
+		$(
+			fn $t_func_name:ident( $( $t_param_name:ident : $t_param_ty:ty ),* ) -> $t_return_ty:ty ; $t_request_variant:ident;
+		)+
+	) => {
+		specialize_requests!{
+			fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant ;
+		}
+		specialize_requests!{
+			$(
+				fn $t_func_name( $( $t_param_name : $t_param_ty ),* ) -> $t_return_ty ; $t_request_variant ;
+			)+
+		}
+	};
 }
 
-/// Request the validator groups.
-pub async fn request_validator_groups<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::ValidatorGroups(tx)).await
-}
-
-/// Request the session index of the child block.
-pub async fn request_session_index_for_child<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<SessionIndex>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::SessionIndexForChild(tx)).await
-}
-
-/// Request all availability cores
-pub async fn request_availability_cores<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<Vec<CoreState>>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::AvailabilityCores(tx)).await
-}
-
-/// Request global validation data.
-pub async fn request_global_validation_data<FromJob>(
-	parent: Hash,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<GlobalValidationData>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| RuntimeApiRequest::GlobalValidationData(tx)).await
-}
-
-/// Request local validation data.
-pub async fn request_local_validation_data<FromJob>(
-	parent: Hash,
-	para_id: ParaId,
-	assumption: OccupiedCoreAssumption,
-	s: &mut mpsc::Sender<FromJob>,
-) -> Result<RuntimeApiReceiver<Option<LocalValidationData>>, Error>
-where
-	FromJob: TryFrom<AllMessages>,
-	<FromJob as TryFrom<AllMessages>>::Error: std::fmt::Debug,
-{
-	request_from_runtime(parent, s, |tx| {
-		RuntimeApiRequest::LocalValidationData(para_id, assumption, tx)
-	})
-	.await
+specialize_requests! {
+	fn request_validators() -> Vec<ValidatorId>; Validators;
+	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
+	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
+	fn request_global_validation_data() -> GlobalValidationData; GlobalValidationData;
+	fn request_local_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<LocalValidationData>; LocalValidationData;
+	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
+	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
+	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
