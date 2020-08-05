@@ -461,9 +461,9 @@ impl Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"validation_requests",
-						"Number of validation requests.",
+						"Number of validation requests served.",
 					),
-					&["total", "succeeded", "failed"],
+					&["succeeded", "failed"],
 				)?,
 				registry,
 			)?,
@@ -812,9 +812,7 @@ where
 		for leaf in leaves.into_iter() {
 			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
-			if let Some(metrics) = &self.metrics {
-				metrics.active_heads_count.inc();
-			}
+			self.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -866,17 +864,13 @@ where
 
 		if let Some(parent) = self.active_leaves.take(&(block.parent_hash, block.number - 1)) {
 			update.deactivated.push(parent.0);
-			if let Some(metrics) = &self.metrics {
-				metrics.active_heads_count.dec();
-			}
+			self.on_head_deactivated();
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
 			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
-			if let Some(metrics) = &self.metrics {
-				metrics.active_heads_count.inc();
-			}
+			self.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -886,7 +880,7 @@ where
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
-		let metrics = &self.metrics;
+		let metrics = &self.metrics; // XXX: can't use self.on_head_deactivated
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
@@ -1031,6 +1025,20 @@ where
 
 	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
 		self.s.spawn(name, j);
+	}
+
+	// Metrics
+
+	fn on_head_activated(&self) {
+		if let Some(metrics) = &self.metrics {
+			metrics.active_heads_count.inc();
+		}
+	}
+
+	fn on_head_deactivated(&self) {
+		if let Some(metrics) = &self.metrics {
+			metrics.active_heads_count.dec();
+		}
 	}
 }
 
