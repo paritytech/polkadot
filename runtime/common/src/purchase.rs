@@ -410,12 +410,10 @@ mod tests {
 	pub struct Test;
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
-		pub BlockWeights: system::limits::BlockWeights =
-			system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 	}
 	impl frame_system::Trait for Test {
 		type BaseCallFilter = ();
-		type BlockWeights = BlockWeights;
+		type BlockWeights = ();
 		type BlockLength = ();
 		type DbWeight = ();
 		type Origin = Origin;

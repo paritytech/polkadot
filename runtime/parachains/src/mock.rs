@@ -59,8 +59,8 @@ impl RandomnessT<H256> for TestRandomness {
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
-	pub BlockWeights: system::limits::BlockWeights =
-		system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
+	pub BlockWeights: frame_system::limits::BlockWeights =
+		frame_system::limits::BlockWeights::simple_max(4 * 1024 * 1024);
 }
 
 impl frame_system::Trait for Test {

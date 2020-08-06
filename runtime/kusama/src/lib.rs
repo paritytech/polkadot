@@ -927,7 +927,7 @@ pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		if pallet_scheduler::Module::<Runtime>::migrate_v1_to_t2() {
-			<Runtime as system::Trait>::BlockWeights::get().max_block
+			<Runtime as frame_system::Trait>::BlockWeights::get().max_block
 		} else {
 			<Runtime as frame_system::Trait>::DbWeight::get().reads(1) + 500_000_000
 		}
