@@ -4532,6 +4532,7 @@ dependencies = [
  "sc-network-gossip",
  "sp-api",
  "sp-blockchain",
+ "sp-consensus",
  "sp-core",
  "sp-keyring",
  "sp-runtime",

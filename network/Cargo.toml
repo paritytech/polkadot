@@ -17,6 +17,7 @@ polkadot-erasure-coding = { path = "../erasure-coding" }
 codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-network-gossip = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 futures = "0.3.5"
