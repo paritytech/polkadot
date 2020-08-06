@@ -805,19 +805,25 @@ mod tests {
 					candidate
 				})
 				.cycle()
-				.take(mock_cores.len() * 2)
+				.take(mock_cores.len() * 3)
 				.enumerate()
 				.map(|(idx, mut candidate)| {
-					// for the second repetition of the candidates, give them the wrong hash
 					if idx < mock_cores.len() {
+						// first go-around: use candidates which should work
+						candidate
+					} else if idx < mock_cores.len() * 2 {
+						// for the second repetition of the candidates, give them the wrong hash
+						candidate.candidate.descriptor.validation_data_hash = Default::default();
 						candidate
 					} else {
-						candidate.candidate.descriptor.validation_data_hash = Default::default();
+						// third go-around: right hash, wrong para_id
+						candidate.candidate.descriptor.para_id = idx.into();
 						candidate
 					}
 				})
 				.collect();
 
+			// why those particular indices? see the comments on mock_availability_cores()
 			let expected_candidates: Vec<_> = [1, 4, 7, 8, 10]
 				.iter()
 				.map(|&idx| candidates[idx].clone())
