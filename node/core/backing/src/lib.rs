@@ -36,10 +36,9 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult, SpawnNamed,
+	ValidationOutputs, ValidationResult,
 };
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
@@ -54,6 +53,7 @@ use polkadot_subsystem::{
 		request_from_runtime,
 		Validator,
 	},
+	delegated_subsystem,
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
@@ -772,45 +772,7 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
-/// Manager type for the CandidateBackingSubsystem
-type Manager<Spawner, Context> = util::JobManager<Spawner, Context, CandidateBackingJob>;
-
-/// An implementation of the Candidate Backing subsystem.
-pub struct CandidateBackingSubsystem<Spawner, Context> {
-	manager: Manager<Spawner, Context>,
-}
-
-impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
-where
-	Spawner: Clone + SpawnNamed + Send + Unpin,
-	Context: SubsystemContext,
-	ToJob: From<<Context as SubsystemContext>::Message>,
-{
-	/// Creates a new `CandidateBackingSubsystem`.
-	pub fn new(spawner: Spawner, keystore: KeyStorePtr) -> Self {
-		CandidateBackingSubsystem {
-			manager: util::JobManager::new(spawner, keystore)
-		}
-	}
-
-	/// Run this subsystem
-	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
-		<Manager<Spawner, Context>>::run(ctx, keystore, spawner, None).await
-	}
-}
-
-impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
-where
-	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-	Context: SubsystemContext,
-	<Context as SubsystemContext>::Message: Into<ToJob>,
-{
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		self.manager.start(ctx)
-	}
-}
-
-
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {

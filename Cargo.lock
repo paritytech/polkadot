@@ -4313,7 +4313,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.8.22"
+version = "0.8.19"
 dependencies = [
  "assert_cmd",
  "futures 0.3.5",
@@ -4631,6 +4631,21 @@ dependencies = [
  "sp-transaction-pool",
  "tokio-executor 0.2.0-alpha.6",
  "wasm-timer",
+]
+
+[[package]]
+name = "polkadot-node-core-provisioner"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "lazy_static",
+ "log 0.4.8",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "sp-core",
+ "tokio 0.2.21",
 ]
 
 [[package]]
