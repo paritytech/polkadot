@@ -99,7 +99,17 @@ test-deterministic-wasm:
   <<:                              *docker-env
   except:
   script:
-    - ./scripts/gitlab/test_deterministic_wasm.sh
+    # build runtime
+    - WASM_BUILD_NO_COLOR=1 cargo build --verbose --release -p kusama-runtime -p polkadot-runtime -p westend-runtime
+    # make checksum
+    - sha256sum target/release/wbuild/target/wasm32-unknown-unknown/release/*.wasm > checksum.sha256
+    # clean up – FIXME: can we reuse some of the artifacts?
+    - cargo clean
+    # build again
+    - WASM_BUILD_NO_COLOR=1 cargo build --verbose --release -p kusama-runtime -p polkadot-runtime -p westend-runtime
+    # confirm checksum
+    - sha256sum -c checksum.sha256
+
 
 test-linux-stable:                 &test
   stage:                           test
@@ -113,7 +123,7 @@ test-linux-stable:                 &test
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
   script:
-    - ./scripts/gitlab/test_linux_stable.sh
+    - time cargo test --all --release --verbose --locked --features runtime-benchmarks
     - sccache -s
 
 check-web-wasm:                    &test
@@ -124,7 +134,14 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - ./scripts/gitlab/check_web_wasm.sh
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
+    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
     - sccache -s
 
 check-runtime-benchmarks:          &test
@@ -134,7 +151,7 @@ check-runtime-benchmarks:          &test
   <<:                              *compiler_info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - ./scripts/gitlab/check_runtime_benchmarks.sh
+    - time cargo check --features runtime-benchmarks
     - sccache -s
 
 build-wasm-release:
