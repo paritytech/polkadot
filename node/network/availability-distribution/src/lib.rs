@@ -1131,6 +1131,7 @@ mod test {
 	use futures::{executor, future, Future};
 	use smallvec::smallvec;
 	use smol_timeout::TimeoutExt;
+	use smol::Timer;
 	use std::time::Duration;
 
 	macro_rules! view {
@@ -1175,6 +1176,7 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 		signal: OverseerSignal,
 	) {
+		Timer::new(Duration::from_millis(50)).await;
 		overseer
 			.send(FromOverseer::Signal(signal))
 			.timeout(TIMEOUT)
@@ -1187,6 +1189,7 @@ mod test {
 		msg: AvailabilityDistributionMessage,
 	) {
 		log::trace!("Sending message:\n{:?}", &msg);
+		Timer::new(Duration::from_millis(50)).await;
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -1198,6 +1201,7 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	) -> AllMessages {
 		log::trace!("Waiting for message ...");
+		Timer::new(Duration::from_millis(50)).await;
 		let msg = overseer
 			.recv()
 			.timeout(TIMEOUT)
@@ -1484,6 +1488,13 @@ mod test {
 			// ignore event producer registration
 			let _ = overseer_recv(&mut virtual_overseer).await;
 
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::OurViewChange(view![relay_parent_x,]),
+				),
+			).await;
+
 			// obtain the validators per relay parent
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
@@ -1495,14 +1506,6 @@ mod test {
 					tx.send(Ok(validator_public.clone())).unwrap();
 				}
 			);
-
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::OurViewChange(view![relay_parent_x,]),
-				),
-			).await;
-
 
 			// query of k ancestors, we only provide one
 			assert_matches!(
@@ -1558,14 +1561,9 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_y);
 					assert_eq!(para, chain_ids[0]);
-					tx.send(Ok(Some(CommittedCandidateReceipt {
-						descriptor: CandidateDescriptor {
-							para_id: para,
-							relay_parent,
-							.. Default::default()
-						},
-						.. Default::default()
-					}))).unwrap();
+					tx.send(Ok(Some(
+						candidate_a.clone()
+					))).unwrap();
 				}
 			);
 
@@ -1577,14 +1575,9 @@ mod test {
 				)) => {
 					assert_eq!(relay_parent, relay_parent_y);
 					assert_eq!(para, chain_ids[1]);
-					tx.send(Ok(Some(CommittedCandidateReceipt {
-						descriptor: CandidateDescriptor {
-							para_id: para,
-							relay_parent,
-							.. Default::default()
-						},
-						.. Default::default()
-					}))).unwrap();
+					tx.send(Ok(Some(
+						candidate_b.clone()
+					))).unwrap();
 				}
 			);
 			assert_matches!(
@@ -1646,13 +1639,13 @@ mod test {
 					assert_eq!(relay_parent, relay_parent_x);
 					assert_eq!(para, chain_ids[1]);
 					tx.send(Ok(Some(
-						candidate_a.clone()
+						candidate_b.clone()
 					))).unwrap();
 				}
 			);
 
 			// query the available data incl PoV from the availability store
-			for _ in 0usize..1 {
+			for _ in 0usize..2 {
 				// query the available data incl PoV from the availability store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
@@ -1662,6 +1655,7 @@ mod test {
 							tx,
 						)
 					) => {
+						Timer::new(Duration::from_millis(100)).await;
 						// assert_eq!(candidate_hash, candidate_b.hash());
 						tx.send(Some(
 							AvailableData {
@@ -1686,6 +1680,7 @@ mod test {
 							tx,
 						)
 					) => {
+						Timer::new(Duration::from_millis(100)).await;
 						tx.send(
 							Ok(())
 						).unwrap();
@@ -1700,6 +1695,7 @@ mod test {
 					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
 				),
 			).await;
+
 
 			overseer_send(
 				&mut virtual_overseer,
