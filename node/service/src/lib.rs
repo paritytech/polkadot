@@ -29,7 +29,7 @@ use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
 use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, OverseerHandler};
-use polkadot_subsystem::DummySubsystem;
+use polkadot_subsystem::{DummySubsystem, register_metrics, RegisterMetrics};
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 use sp_core::traits::SpawnNamed;
@@ -275,7 +275,7 @@ fn real_overseer<S: SpawnNamed>(
 	prometheus_registry: Option<&Registry>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	let all_subsystems = AllSubsystems {
+	let mut all_subsystems = AllSubsystems {
 		candidate_validation: DummySubsystem,
 		candidate_backing: DummySubsystem,
 		candidate_selection: DummySubsystem,
@@ -290,6 +290,21 @@ fn real_overseer<S: SpawnNamed>(
 		network_bridge: DummySubsystem,
 		chain_api: DummySubsystem,
 	};
+
+	register_metrics(&mut all_subsystems.candidate_validation, prometheus_registry);
+	register_metrics(&mut all_subsystems.candidate_backing, prometheus_registry);
+	register_metrics(&mut all_subsystems.candidate_selection, prometheus_registry);
+	register_metrics(&mut all_subsystems.statement_distribution, prometheus_registry);
+	register_metrics(&mut all_subsystems.availability_distribution, prometheus_registry);
+	register_metrics(&mut all_subsystems.bitfield_signing, prometheus_registry);
+	register_metrics(&mut all_subsystems.bitfield_distribution, prometheus_registry);
+	register_metrics(&mut all_subsystems.provisioner, prometheus_registry);
+	register_metrics(&mut all_subsystems.pov_distribution, prometheus_registry);
+	register_metrics(&mut all_subsystems.runtime_api, prometheus_registry);
+	register_metrics(&mut all_subsystems.availability_store, prometheus_registry);
+	register_metrics(&mut all_subsystems.network_bridge, prometheus_registry);
+	register_metrics(&mut all_subsystems.chain_api, prometheus_registry);
+
 	Overseer::new(
 		leaves,
 		all_subsystems,

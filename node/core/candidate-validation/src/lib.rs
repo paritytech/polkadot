@@ -67,7 +67,7 @@ impl Default for MaybeMetrics {
 }
 
 impl MaybeMetrics {
-	fn update(&self, event: &Result<ValidationResult, ValidationFailed>) {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
 		if let Some(metrics) = &self.0 {
 			match event {
 				Ok(ValidationResult::Valid(_)) => {
@@ -158,7 +158,7 @@ async fn run(
 
 					match res {
 						Ok(x) => {
-							metrics.update(&x);
+							metrics.on_validation_event(&x);
 							let _ = response_sender.send(x);
 						}
 						Err(e) => return Err(e),
@@ -183,7 +183,7 @@ async fn run(
 
 					match res {
 						Ok(x) => {
-							metrics.update(&x);
+							metrics.on_validation_event(&x);
 							if let Err(_e) = response_sender.send(x) {
 								log::warn!(
 									target: LOG_TARGET,

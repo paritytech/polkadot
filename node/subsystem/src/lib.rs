@@ -206,6 +206,26 @@ pub trait Subsystem<C: SubsystemContext> {
 	fn start(self, ctx: C) -> SpawnedSubsystem;
 }
 
+/// Register subsystem-specific metrics in the prometheus registry.
+/// Will be called before a subsystem starts.
+pub trait RegisterMetrics {
+	/// Try to register metrics in the prometheus registry.
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError>;
+}
+
+
+/// A helper function to register metrics in the prometheus registry.
+pub fn register_metrics<S: RegisterMetrics>(s: &mut S, registry: Option<&prometheus::Registry>) {
+	if let Some(registry) = registry {
+		match RegisterMetrics::try_register(s, registry) {
+			Err(e) => {
+				log::warn!("Failed to register metrics: {:?}", e);
+			},
+			_ => {},
+		}
+	}
+}
+
 /// A dummy subsystem that implements [`Subsystem`] for all
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
@@ -228,14 +248,6 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 		}
 	}
 }
-
-/// A trait to register subsystem-specific metrics in the prometheus registry.
-/// Will be called before the subsystem starts.
-pub trait RegisterMetrics {
-	/// Try to register metrics in the prometheus registry.
-	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError>;
-}
-
 
 impl RegisterMetrics for DummySubsystem {
 	fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {

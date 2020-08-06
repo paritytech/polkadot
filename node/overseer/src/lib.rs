@@ -83,7 +83,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, prometheus, RegisterMetrics,
+	SpawnedSubsystem, ActiveLeavesUpdate, prometheus, RegisterMetrics, register_metrics,
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -431,15 +431,9 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
 	pub chain_api: CA,
 }
 
-/// Various prometheus metrics.
+/// Overseer prometheus metrics.
 struct Metrics {
 	active_heads_count: prometheus::Gauge<prometheus::U64>,
-	// Number of statements signed
-	// Number of bitfields signed
-	// Number of availability chunks received
-	// Number of candidates seconded
-	// Number of collations generated
-	// Number of Runtime API errors encountered
 }
 
 struct MaybeMetrics(Option<Metrics>);
@@ -577,7 +571,7 @@ where
 	/// ```
 	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		mut all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
 		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
@@ -604,35 +598,6 @@ where
 
 		let mut running_subsystems_rx = StreamUnordered::new();
 		let mut running_subsystems = FuturesUnordered::new();
-
-		fn register_metrics<S: RegisterMetrics>(s: &mut S, registry: Option<&prometheus::Registry>) {
-			if let Some(registry) = registry {
-				match RegisterMetrics::try_register(s, registry) {
-					Err(e) => {
-						log::warn!(target: LOG_TARGET, "Failed to register metrics: {:?}", e);
-					},
-					_ => {},
-				}
-			}
-		};
-
-		// subsystem metrics
-		register_metrics(&mut all_subsystems.candidate_validation, prometheus_registry);
-		register_metrics(&mut all_subsystems.candidate_backing, prometheus_registry);
-		register_metrics(&mut all_subsystems.candidate_selection, prometheus_registry);
-		register_metrics(&mut all_subsystems.statement_distribution, prometheus_registry);
-		register_metrics(&mut all_subsystems.availability_distribution, prometheus_registry);
-		register_metrics(&mut all_subsystems.bitfield_signing, prometheus_registry);
-		register_metrics(&mut all_subsystems.bitfield_distribution, prometheus_registry);
-		register_metrics(&mut all_subsystems.pov_distribution, prometheus_registry);
-		register_metrics(&mut all_subsystems.runtime_api, prometheus_registry);
-		register_metrics(&mut all_subsystems.availability_store, prometheus_registry);
-		register_metrics(&mut all_subsystems.network_bridge, prometheus_registry);
-		register_metrics(&mut all_subsystems.chain_api, prometheus_registry);
-
-		// overseer metrics
-		let mut metrics = MaybeMetrics(None);
-		register_metrics(&mut metrics, prometheus_registry);
 
 		let candidate_validation_subsystem = spawn(
 			&mut s,
@@ -731,6 +696,9 @@ where
 			.collect();
 
 		let active_leaves = HashSet::new();
+
+		let mut metrics = MaybeMetrics(None);
+		register_metrics(&mut metrics, prometheus_registry);
 
 		let this = Self {
 			candidate_validation_subsystem,
