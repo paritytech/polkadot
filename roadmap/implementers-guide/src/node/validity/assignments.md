@@ -94,4 +94,9 @@ VRFs though require adversaries wait far longer between such attacks, which also
 
 ## Gossip
 
-Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
+Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We retain but delay gossiping the assignment notices until they agree with our local clock.  
+
+Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploite the relative time scheme that synchronises our clocks, which conceivably permits just dropoing excessively early assignments. 
+
+
+
