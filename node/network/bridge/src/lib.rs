@@ -29,14 +29,18 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
-use polkadot_subsystem::messages::{NetworkBridgeMessage, AllMessages};
+use polkadot_subsystem::messages::{
+	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
+	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
+	CollatorProtocolMessage,
+};
 use polkadot_primitives::v1::{Block, Hash, ValidatorId};
 use polkadot_node_network_protocol::{
 	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
 };
 
-use std::collections::btree_map::{BTreeMap, Entry as BEntry};
 use std::collections::hash_map::{HashMap, Entry as HEntry};
+use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -321,38 +325,84 @@ fn construct_view(live_heads: &[Hash]) -> View {
 	View(live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect())
 }
 
-async fn update_view<M: Encode>(
-	peers: &HashMap<PeerId, PeerData>,
-	peer_set: PeerSet,
-	live_heads: &[Hash],
+async fn update_view(
 	net: &mut impl Network,
+	ctx: &mut impl SubsystemContext<Message = NetworkBridgeMessage>,
+	live_heads: &[Hash],
 	local_view: &mut View,
-) -> SubsystemResult<Option<NetworkBridgeEvent<M>>> {
+	validation_peers: &HashMap<PeerId, PeerData>,
+	collation_peers: &HashMap<PeerId, PeerData>,
+) -> SubsystemResult<()> {
 	let new_view = construct_view(live_heads);
-	if *local_view == new_view { return Ok(None) }
+	if *local_view == new_view { return Ok(())  }
+
 	*local_view = new_view.clone();
 
-	let message = WireMessage::<M>::ViewUpdate(new_view.clone()).encode();
+	send_validation_message(
+		net,
+		validation_peers.keys().cloned(),
+		WireMessage::ViewUpdate(new_view.clone()),
+	).await?;
 
-	let notifications = peers.keys().cloned()
-		.map(move |peer| Ok(NetworkAction::WriteNotification(peer, peer_set, message.clone())));
+	send_collation_message(
+		net,
+		collation_peers.keys().cloned(),
+		WireMessage::ViewUpdate(new_view.clone()),
+	).await?;
 
-	net.action_sink().send_all(&mut stream::iter(notifications)).await?;
+	if let Err(e) = dispatch_validation_event_to_all(
+		NetworkBridgeEvent::OurViewChange(new_view.clone()),
+		ctx,
+	).await {
+		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		return Err(e)
+	}
 
-	Ok(Some(NetworkBridgeEvent::OurViewChange(local_view.clone())))
+	if let Err(e) = dispatch_collation_event_to_all(
+		NetworkBridgeEvent::OurViewChange(new_view.clone()),
+		ctx,
+	).await {
+		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		return Err(e)
+	}
+
+	Ok(())
 }
 
-async fn send_message<M: Encode + Clone>(
+async fn send_validation_message<I>(
 	net: &mut impl Network,
-	peers: Vec<PeerId>,
+	peers: I,
+	message: WireMessage<protocol_v1::ValidationProtocol>,
+) -> SubsystemResult<()>
+	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator
+{
+	send_message(net, peers, PeerSet::Validation, message).await
+}
+
+async fn send_collation_message<I>(
+	net: &mut impl Network,
+	peers: I,
+	message: WireMessage<protocol_v1::CollationProtocol>,
+) -> SubsystemResult<()>
+	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator
+{
+	send_message(net, peers, PeerSet::Collation, message).await
+}
+
+async fn send_message<M: Encode + Clone, I>(
+	net: &mut impl Network,
+	peers: I,
 	peer_set: PeerSet,
 	message: WireMessage<M>,
-) -> SubsystemResult<()> {
+) -> SubsystemResult<()>
+	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator,
+{
 	let mut message_producer = stream::iter({
+		let mut peers = peers.into_iter();
 		let n_peers = peers.len();
 		let mut message = Some(message.encode());
 
-		peers.iter().cloned().enumerate().map(move |(i, peer)| {
+		peers.enumerate().map(move |(i, peer)| {
 			// optimization: avoid cloning the message for the last peer in the
 			// list. The message payload can be quite large. If the underlying
 			// network used `Bytes` this would not be necessary.
@@ -370,6 +420,42 @@ async fn send_message<M: Encode + Clone>(
 	});
 
 	net.action_sink().send_all(&mut message_producer).await
+}
+
+async fn dispatch_validation_event_to_all(
+	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> SubsystemResult<()> {
+	let messages = vec![
+		event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
+		)),
+		event.focus().ok().map(|m| AllMessages::BitfieldDistribution(
+			BitfieldDistributionMessage::NetworkBridgeUpdateV1(m)
+		)),
+		event.focus().ok().map(|m| AllMessages::PoVDistribution(
+			PoVDistributionMessage::NetworkBridgeUpdateV1(m)
+		)),
+		event.focus().ok().map(|m| AllMessages::StatementDistribution(
+			StatementDistributionMessage::NetworkBridgeUpdateV1(m)
+		)),
+	];
+
+	ctx.send_messages(messages.into_iter().filter_map(|x| x)).await
+}
+
+async fn dispatch_collation_event_to_all(
+	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> SubsystemResult<()> {
+	let message = event.focus().ok().map(|m| AllMessages::CollatorProtocol(
+		CollatorProtocolMessage::NetworkBridgeUpdateV1(m)
+	));
+
+	match message {
+		Some(m) => ctx.send_message(m).await,
+		None => Ok(()), // technically unreachable due to single variant.
+	}
 }
 
 async fn run_network<N: Network>(
@@ -419,6 +505,22 @@ async fn run_network<N: Network>(
 				// TODO: https://github.com/paritytech/polkadot/issues/1461
 			}
 
+			Action::ReportPeer(peer, rep) => net.report_peer(peer, rep).await?,
+
+			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+				live_heads.extend(activated);
+				live_heads.retain(|h| !deactivated.contains(h));
+
+				update_view(
+					&mut net,
+					&mut ctx,
+					&live_heads,
+					&mut local_view,
+					&validation_peers,
+					&collation_peers,
+				).await?;
+			}
+
 			_ => {} // TODO [now]: exhaustive match
 		}
 
@@ -445,23 +547,6 @@ async fn run_network<N: Network>(
 		// 	}
 		// 	Action::ReportPeer(peer, rep) => {
 		// 		net.report_peer(peer, rep).await?;
-		// 	}
-		// 	Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
-		// 		live_heads.extend(activated);
-		// 		live_heads.retain(|h| !deactivated.contains(h));
-
-		// 		if let Some(view_update)
-		// 			= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-		// 		{
-		// 			if let Err(e) = dispatch_update_to_all(
-		// 				view_update,
-		// 				event_producers.values(),
-		// 				&mut ctx,
-		// 			).await {
-		// 				log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-		// 				return Err(e)
-		// 			}
-		// 		}
 		// 	}
 		// 	Action::PeerConnected(peer, role) => {
 		// 		match peers.entry(peer.clone()) {

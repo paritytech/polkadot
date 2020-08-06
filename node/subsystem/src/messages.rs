@@ -157,6 +157,8 @@ pub enum CollatorProtocolMessage {
 	ReportCollator(CollatorId),
 	/// Note a collator as having provided a good collation.
 	NoteGoodCollation(CollatorId),
+	/// Get a network bridge update.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
 }
 
 /// Messages received by the network bridge subsystem.
