@@ -4489,7 +4489,6 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "smallvec 1.4.1",
- "smol 0.3.3",
  "smol-timeout",
  "sp-core",
  "sp-keyring",

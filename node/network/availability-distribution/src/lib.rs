@@ -25,7 +25,11 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use keystore::{KeyStorePtr, BareCryptoStore};
+use keystore::KeyStorePtr;
+use sp_core::{
+	crypto::Public,
+	traits::BareCryptoStore,
+};
 use sc_keystore as keystore;
 
 use node_primitives::{ProtocolId, View};
@@ -36,7 +40,7 @@ use polkadot_primitives::v1::{
 	PARACHAIN_KEY_TYPE_ID,
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	Hash as Hash, HashT, Id as ParaId,
-	ValidatorId, ValidatorIndex, ValidatorPair,
+	ValidatorId, ValidatorIndex,
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
@@ -150,7 +154,7 @@ struct PerRelayParent {
 }
 
 impl ProtocolState {
-	// collects the relay_parents plus their ancestors
+	/// Collects the relay_parents ancestors including the relay parents themselfes.
 	fn extend_with_ancestors<'a>(
 		&'a self,
 		relay_parents: impl IntoIterator<Item = &'a Hash> + 'a,
@@ -613,7 +617,7 @@ fn obtain_our_validator_index(
 ) -> Option<ValidatorIndex> {
 	let keystore = keystore.read();
 	validators.iter().enumerate().find_map(|(idx, validator)| {
-		if keystore.has_keys(&[(validator.0.to_vec(), PARACHAIN_KEY_TYPE_ID)]) {
+		if keystore.has_keys(&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]) {
 			Some(idx as ValidatorIndex)
 		} else {
 			None
@@ -1126,13 +1130,19 @@ mod test {
 	use futures::{executor, future, Future};
 	use smallvec::smallvec;
 	use smol_timeout::TimeoutExt;
-	use smol::Timer;
+	use futures_timer::Delay;
 	use std::time::Duration;
 
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
 			View(vec![ $( $hash.clone() ),* ])
 		];
+	}
+
+	macro_rules! delay {
+		($delay:expr) => {
+			Delay::new(Duration::from_millis($delay)).await;
+		};
 	}
 
 	struct TestHarness {
@@ -1171,7 +1181,7 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 		signal: OverseerSignal,
 	) {
-		Timer::new(Duration::from_millis(50)).await;
+		delay!(50);
 		overseer
 			.send(FromOverseer::Signal(signal))
 			.timeout(TIMEOUT)
@@ -1184,7 +1194,7 @@ mod test {
 		msg: AvailabilityDistributionMessage,
 	) {
 		log::trace!("Sending message:\n{:?}", &msg);
-		Timer::new(Duration::from_millis(50)).await;
+		delay!(50);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -1196,7 +1206,7 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	) -> AllMessages {
 		log::trace!("Waiting for message ...");
-		Timer::new(Duration::from_millis(50)).await;
+		delay!(50);
 		let msg = overseer
 			.recv()
 			.timeout(TIMEOUT)
@@ -1682,7 +1692,7 @@ mod test {
 							tx,
 						)
 					) => {
-						Timer::new(Duration::from_millis(100)).await;
+						delay!(100);
 						// assert_eq!(candidate_hash, candidate_b.hash());
 						tx.send(Some(
 							AvailableData {
@@ -1707,7 +1717,7 @@ mod test {
 							tx,
 						)
 					) => {
-						Timer::new(Duration::from_millis(100)).await;
+						delay!(100);
 						tx.send(
 							Ok(())
 						).unwrap();
