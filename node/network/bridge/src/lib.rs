@@ -401,22 +401,23 @@ async fn run_network<N: Network>(
 			Action::Nop => {}
 			Action::Abort => return Ok(()),
 
-			Action::SendValidationMessage(peers, msg) =>
-				send_message(
+			Action::SendValidationMessage(peers, msg) => send_message(
 					&mut net,
 					peers,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(msg),
-				).await?,
+			).await?,
 
-			Action::SendCollationMessage(peers, msg) =>
-				send_message(
+			Action::SendCollationMessage(peers, msg) => send_message(
 					&mut net,
 					peers,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(msg),
-				).await?,
+			).await?,
 
+			Action::ConnectToValidators(_peer_set, _validators, _res) => {
+				// TODO: https://github.com/paritytech/polkadot/issues/1461
+			}
 
 			_ => {} // TODO [now]: exhaustive match
 		}
