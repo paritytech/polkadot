@@ -340,13 +340,13 @@ fn derive_erasure_chunks_with_proofs(
 	available_data: &AvailableData,
 ) -> Result<Vec<ErasureChunk>> {
 	if n_validators <= validator_index as usize {
-		warn!("Validator index is outside the validator set range");
+		warn!(target: TARGET, "Validator index is outside the validator set range");
 		return Err(Error::Logic);
 	}
 	let chunks: Vec<Vec<u8>> = if let Ok(chunks) = obtain_chunks(n_validators, available_data) {
 		chunks
 	} else {
-		warn!("Failed to create erasure chunks");
+		warn!(target: TARGET, "Failed to create erasure chunks");
 		return Err(Error::Logic);
 	};
 
@@ -701,7 +701,7 @@ where
 						message.erasure_chunk.index,
 						message.erasure_chunk.clone(),
 					).await? {
-						warn!("Failed to store erasure chunk to availability store");
+						warn!(target: TARGET, "Failed to store erasure chunk to availability store");
 					}
 				}
 			}
