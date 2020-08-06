@@ -407,7 +407,8 @@ impl StatementDistributionMessage {
 }
 
 /// This data becomes intrinsics or extrinsics which should be included in a future relay chain block.
-#[derive(Debug)]
+// It needs to be cloneable because multiple potential block authors can request copies.
+#[derive(Debug, Clone)]
 pub enum ProvisionableData {
 	/// This bitfield indicates the availability of various candidate blocks.
 	Bitfield(Hash, SignedAvailabilityBitfield),
@@ -488,8 +489,6 @@ pub enum AllMessages {
 	CandidateBacking(CandidateBackingMessage),
 	/// Message for the candidate selection subsystem.
 	CandidateSelection(CandidateSelectionMessage),
-	/// Message for the Chain API subsystem.
-	ChainApi(ChainApiMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
@@ -508,6 +507,8 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Message for the Chain API subsystem
+	ChainApi(ChainApiMessage),
 	/// Test message
 	///
 	/// This variant is only valid while testing, but makes the process of testing the

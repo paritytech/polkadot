@@ -151,6 +151,10 @@ struct LocalValidationData {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	code_upgrade_allowed: Option<BlockNumber>,
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
 
@@ -173,6 +177,8 @@ The execution and validation of parachain or parathread candidates produces a nu
 struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	fees: Balance,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
@@ -181,6 +187,10 @@ struct CandidateCommitments {
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
+	/// The number of messages processed from the DMQ.
+	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	hrmp_watermark: BlockNumber,
 }
 ```
 
@@ -209,11 +219,17 @@ struct ValidationOutputs {
 	global_validation_data: GlobalValidationData,
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
 	/// Fees paid to the validators of the relay-chain.
 	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
+	/// The number of messages processed from the DMQ.
+	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	hrmp_watermark: BlockNumber,
 }
 ```
