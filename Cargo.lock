@@ -239,23 +239,24 @@ dependencies = [
  "async-io",
  "futures-lite",
  "multitask",
- "parking",
+ "parking 1.0.6",
  "scoped-tls",
  "waker-fn",
 ]
 
 [[package]]
 name = "async-io"
-version = "0.1.9"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a679dff790f7943b4ddd12cf2d00cdadf3db0cb3a370eb2c77723343354e147"
+checksum = "e7e787e42430f9913bf6a8b05318432594c1af776c70b9e22ccee456b4534ab7"
 dependencies = [
  "cfg-if",
  "concurrent-queue",
  "futures-lite",
  "libc",
  "once_cell",
- "parking",
+ "parking 2.0.0",
+ "polling",
  "socket2",
  "vec-arena",
  "wepoll-sys-stjepang",
@@ -526,7 +527,7 @@ dependencies = [
  "atomic-waker",
  "futures-lite",
  "once_cell",
- "parking",
+ "parking 1.0.6",
  "waker-fn",
 ]
 
@@ -1718,7 +1719,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "memchr",
- "parking",
+ "parking 1.0.6",
  "pin-project-lite",
  "waker-fn",
 ]
@@ -4246,6 +4247,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6cb300f271742d4a2a66c01b6b2fa0c83dfebd2e0bf11addb879a3547b4ed87c"
 
 [[package]]
+name = "parking"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "427c3892f9e783d91cc128285287e70a59e206ca452770ece88a76f7a3eddd72"
+
+[[package]]
 name = "parking_lot"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5417,6 +5424,18 @@ dependencies = [
  "sp-trie",
  "substrate-prometheus-endpoint",
  "tokio 0.2.22",
+]
+
+[[package]]
+name = "polling"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4545151ad78cb34188ca6b8454b1e8331cfdd501ccf520c41659b0fcd44dd9ce"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "wepoll-sys-stjepang",
+ "winapi 0.3.9",
 ]
 
 [[package]]
