@@ -12,17 +12,19 @@ As such, approval checks provide significantly more security than backing checks
 
 ...
 
-Approval requires two gossiped message types, assignment notices created by its assignments subsystem, and approval votes sent by our approval checks subsystem when authorized by the candidate validity utility subsystem.  
-
 Approval has roughly two parts:
 
-- **Assignments** ensures that each candidate receives enough random checkers, while reducing adversaries' odds for obtaining enough checkers, and limiting adversaries' foreknowledge.  It tracks approval votes to identify when "no show" approval check takes suspiciously long, perhaps indicating the node being under attack, and assigns more checks in this case.  It tracks relay chain equivocations to determine when adversaries possibly gained foreknowledge about assignments, and adds additional checks in this case.
+- **Assignments** determines which validators performs approval checks on which candidates.  It ensures that each candidate receives enough random checkers, while reducing adversaries' odds for obtaining enough checkers, and limiting adversaries' foreknowledge.  It tracks approval votes to identify when "no show" approval check takes suspiciously long, perhaps indicating the node being under attack, and assigns more checks in this case.  It tracks relay chain equivocations to determine when adversaries possibly gained foreknowledge about assignments, and adds additional checks in this case.
 
 - **Approval checks** listens to the assignments subsystem for outgoing assignment notices that we shall check specific candidates.  It then performs these checks by first invoking the reconstruction subsystem to obtain the candidate, second invoking the candidate validity utility subsystem upon the candidate, and finally sending out an approval vote, or perhaps initiating a dispute.
 
-There are rewards computations on-chain too, which runs the assignments code to determine approval, but does so after the fact.
+These both run first as off-chain consensus protocols using messages gossiped among all validators, and second as an on-chain record of this off-chain protocols' progress after the fact.  We need the on-chain protocol to provide rewards for the on-chain protocol, and doing an on-chain protocol simplify interaction with GRANDPA.  
+
+Approval requires two gossiped message types, assignment notices created by its assignments subsystem, and approval votes sent by our approval checks subsystem when authorized by the candidate validity utility subsystem.  
 
 ...
+
+Any validators resyncing the chain after falling behind should track approvals using only the on-chain protocol.  In particular, they should avoid sending their own assignment noticed and thus save themselves considerable validation work util they have a full synced chain.
 
 ### Approval keys
 
