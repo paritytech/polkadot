@@ -335,7 +335,7 @@ fn new_full<RuntimeApi, Executor>(
 	let finality_proof_provider =
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
-	let (network, network_status_sinks, system_rpc_tx) =
+	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -512,6 +512,8 @@ fn new_full<RuntimeApi, Executor>(
 		)?;
 	}
 
+	network_starter.start_network();
+
 	Ok((task_manager, client))
 }
 
@@ -574,7 +576,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let finality_proof_provider =
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
-	let (network, network_status_sinks, system_rpc_tx) =
+	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -611,6 +613,8 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		config, keystore, backend, transaction_pool, client, network, network_status_sinks,
 		system_rpc_tx,
 	})?;
+
+	network_starter.start_network();
 
 	Ok(task_manager)
 }
