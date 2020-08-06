@@ -39,7 +39,9 @@ We might track the assignments and approvals together as pairs in a simple rewar
 
 Aside from inherents for assignment notices and approval votes, we provide an "Approved" inherent that triggers the on-chain logic in a relay chain block `R1` to rerun the assignment and approval tracker logic for its ancestor `R0`, which then declares `R0` approved.  We could integrate with GRANDPA by gossiping messages that list the descendent `R1`, but then map this into the approved ancestor `R0` for GRANDPA itself.
 
-Assignment notices and/or approval votes should be recorded on-chain only when relevant.  Any sent too early are retained but ignore until relevant by our off-chain assignment system.  Assignments are ignored completely by the dispute system because any dispute immediately escalates into all validators checking, but disputes count existing approval votes of course.
+Approval votes could be recorded on-chain quickly because they represent a major commitments.  
+
+Assignment notices should be recorded on-chain only when relevant.  Any sent too early are retained but ignore until relevant by our off-chain assignment system.  Assignments are ignored completely by the dispute system because any dispute immediately escalates into all validators checking, but disputes count existing approval votes of course.
 
 
 ## Local Disputes
