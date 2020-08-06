@@ -26,6 +26,7 @@ use crate::{
 	},
 	errors::{ChainApiError, RuntimeApiError},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	Metrics as MetricsTrait,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -331,6 +332,8 @@ pub trait JobTrait: Unpin {
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
+	/// Subsystem-specific prometheus metrics.
+	type Metrics: 'static + MetricsTrait + Send;
 
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;
@@ -339,6 +342,7 @@ pub trait JobTrait: Unpin {
 	fn run(
 		parent: Hash,
 		run_args: Self::RunArgs,
+		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
 		sender: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
@@ -412,7 +416,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs) -> Result<(), Error> {
+	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs, metrics: Job::Metrics) -> Result<(), Error> {
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (finished_tx, finished) = oneshot::channel();
@@ -421,7 +425,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let err_tx = self.errors.clone();
 
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = Job::run(parent_hash, run_args, to_job_rx, from_job_tx).await {
+			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
 				log::error!(
 					"{}({}) finished with an error {:?}",
 					Job::NAME,
@@ -529,6 +533,7 @@ where
 pub struct JobManager<Spawner, Context, Job: JobTrait> {
 	spawner: Spawner,
 	run_args: Job::RunArgs,
+	metrics: Job::Metrics,
 	context: std::marker::PhantomData<Context>,
 	job: std::marker::PhantomData<Job>,
 	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
@@ -543,10 +548,11 @@ where
 	Job::ToJob: TryFrom<AllMessages> + TryFrom<<Context as SubsystemContext>::Message> + Sync,
 {
 	/// Creates a new `Subsystem`.
-	pub fn new(spawner: Spawner, run_args: Job::RunArgs) -> Self {
+	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
 		Self {
 			spawner,
 			run_args,
+			metrics,
 			context: std::marker::PhantomData,
 			job: std::marker::PhantomData,
 			errors: None,
@@ -576,15 +582,16 @@ where
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
+	pub async fn run(mut ctx: Context, run_args: Job::RunArgs, metrics: Job::Metrics, spawner: Spawner, mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>) {
 		let mut jobs = Jobs::new(spawner.clone());
 		if let Some(ref err_tx) = err_tx {
 			jobs.forward_errors(err_tx.clone()).expect("we never call this twice in this context; qed");
 		}
 
 		loop {
+			let metrics = metrics.clone();
 			select! {
-				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &mut err_tx).await { break },
+				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, metrics, &mut err_tx).await { break },
 				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
 				complete => break,
 			}
@@ -607,6 +614,7 @@ where
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
+		metrics: Job::Metrics,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>
 	) -> bool {
 		use crate::FromOverseer::{Communication, Signal};
@@ -616,7 +624,8 @@ where
 		match incoming {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }))) => {
 				for hash in activated {
-					if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+					let metrics = metrics.clone();
+					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						log::error!("Failed to spawn a job: {:?}", e);
 						Self::fwd_err(Some(hash), e.into(), err_tx).await;
 						return true;
@@ -708,14 +717,17 @@ where
 	Job::RunArgs: Clone + Sync,
 	Job::ToJob: TryFrom<AllMessages> + Sync,
 {
+	type Metrics = Job::Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
+		let metrics = self.metrics.clone();
 		let errors = self.errors;
 
 
 		let future = Box::pin(async move {
-			Self::run(ctx, run_args, spawner, errors).await;
+			Self::run(ctx, run_args, metrics, spawner, errors).await;
 		});
 
 		SpawnedSubsystem {

@@ -22,7 +22,7 @@
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
-	FromOverseer, OverseerSignal, prometheus, RegisterMetrics,
+	FromOverseer, OverseerSignal, prometheus, Metrics as MetricsTrait,
 };
 use polkadot_subsystem::messages::{
 	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
@@ -50,23 +50,19 @@ const LOG_TARGET: &'static str = "candidate_validation";
 /// The candidate validation subsystem.
 pub struct CandidateValidationSubsystem<S> {
 	spawn: S,
-	metrics: MaybeMetrics,
+	metrics: Metrics,
 }
 
-/// Candidate validation metrics.
-struct Metrics {
+#[derive(Clone)]
+struct MetricsInner {
 	validation_requests: prometheus::CounterVec<prometheus::U64>,
 }
 
-struct MaybeMetrics(Option<Metrics>);
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
 
-impl Default for MaybeMetrics {
-	fn default() -> Self {
-		Self(None)
-	}
-}
-
-impl MaybeMetrics {
+impl Metrics {
 	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
 		if let Some(metrics) = &self.0 {
 			match event {
@@ -84,9 +80,9 @@ impl MaybeMetrics {
 	}
 }
 
-impl RegisterMetrics for MaybeMetrics {
-	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-		let metrics = Metrics {
+impl MetricsTrait for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
 			validation_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -98,21 +94,14 @@ impl RegisterMetrics for MaybeMetrics {
 				registry,
 			)?,
 		};
-		self.0 = Some(metrics);
-		Ok(())
-	}
-}
-
-impl<S> RegisterMetrics for CandidateValidationSubsystem<S> {
-	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-		self.metrics.try_register(registry)
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S) -> Self {
-		CandidateValidationSubsystem { spawn, metrics: Default::default() }
+	pub fn new(spawn: S, metrics: Metrics) -> Self {
+		CandidateValidationSubsystem { spawn, metrics }
 	}
 }
 
@@ -120,6 +109,8 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
 	S: SpawnNamed + Clone + 'static,
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
@@ -131,7 +122,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
-	metrics: MaybeMetrics,
+	metrics: Metrics,
 )
 	-> SubsystemResult<()>
 {

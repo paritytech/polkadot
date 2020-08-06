@@ -228,6 +228,8 @@ pub trait Metrics: Default + Clone {
 				},
 				Ok(metrics) => metrics,
 			}
+		} else {
+			Default::default()
 		}
 	}
 }
