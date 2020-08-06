@@ -34,9 +34,9 @@ Any validator could send their assignment notices and/or approval votes too earl
 
 ## Stories
 
-We based assignment criteria upon two possible "stories" about the relay chain block `R` that declared the candidate available.  All stories have an output that attempts to minimize adversarial influence, which then acts as the VRF input for an assignment criteria.
+We based assignment criteria upon two possible "stories" about the relay chain block `R` that included the candidate aka declared the candidate available.  All stories have an output that attempts to minimize adversarial influence, which then acts as the VRF input for an assignment criteria.
 
-We first have a `RelayVRFStory` that outputs the randomness from another VRF output known only to the relay chain block producer who created `R`, and unknown even to them two epochs previously.  
+We first have a `RelayVRFStory` that outputs the randomness from another VRF output produced by the relay chain block producer when creating `R`.  Among honest nodes, only this one relay chain block producer who creates `R` knew the story in advance, and even they knew nothing two epochs previously.  
 
 In BABE, we create this value calling `schnorrkel::vrf::VRFInOut::make_bytes` with a context "A&V RC-VRF", with the `VRFInOut` coming from either the VRF that authorized block production for primary blocks, or else from the secondary block VRF for the secondary block type.
 
