@@ -46,6 +46,7 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
+	prometheus,
 	util::{
 		self,
 		request_session_index_for_child,
@@ -100,6 +101,7 @@ struct CandidateBackingJob {
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	table: Table<TableContext>,
 	table_context: TableContext,
+	metrics: Metrics,
 }
 
 const fn group_quorum(n_validators: usize) -> usize {
@@ -528,7 +530,9 @@ impl CandidateBackingJob {
 	}
 
 	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		Some(self.table_context.validator.as_ref()?.sign(statement))
+		let signed = self.table_context.validator.as_ref()?.sign(statement);
+		self.metrics.on_statement_signed();
+		Some(signed)
 	}
 
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
@@ -671,13 +675,13 @@ impl util::JobTrait for CandidateBackingJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = KeyStorePtr;
+	type RunArgs = (KeyStorePtr, Metrics);
 
 	const NAME: &'static str = "CandidateBackingJob";
 
 	fn run(
 		parent: Hash,
-		keystore: KeyStorePtr,
+		(keystore, metrics): (KeyStorePtr, Metrics),
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -764,6 +768,7 @@ impl util::JobTrait for CandidateBackingJob {
 				reported_misbehavior_for: HashSet::new(),
 				table: Table::default(),
 				table_context,
+				metrics,
 			};
 
 			job.run_loop().await
@@ -780,6 +785,23 @@ pub struct CandidateBackingSubsystem<Spawner, Context> {
 	manager: Manager<Spawner, Context>,
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	signed_statement_count: prometheus::Counter<prometheus::U64>,
+}
+
+/// Candidate backing metrics.
+#[derive(Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_statement_signed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.signed_statement_count.inc();
+		}
+	}
+}
+
 impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
 where
 	Spawner: Clone + SpawnNamed + Send + Unpin,
@@ -787,15 +809,10 @@ where
 	ToJob: From<<Context as SubsystemContext>::Message>,
 {
 	/// Creates a new `CandidateBackingSubsystem`.
-	pub fn new(spawner: Spawner, keystore: KeyStorePtr) -> Self {
+	pub fn new(spawner: Spawner, keystore: KeyStorePtr, metrics: Metrics) -> Self {
 		CandidateBackingSubsystem {
-			manager: util::JobManager::new(spawner, keystore)
+			manager: util::JobManager::new(spawner, (keystore, metrics)),
 		}
-	}
-
-	/// Run this subsystem
-	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
-		<Manager<Spawner, Context>>::run(ctx, keystore, spawner, None).await
 	}
 }
 
@@ -942,7 +959,7 @@ mod tests {
 
 		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
+		let subsystem = CandidateBackingSubsystem::new(pool.clone(), keystore, Metrics(None)).start(context).future;
 
 		let test_fut = test(TestHarness {
 			virtual_overseer,

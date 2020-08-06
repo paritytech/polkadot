@@ -210,6 +210,8 @@ pub trait Subsystem<C: SubsystemContext> {
 /// Will be called before a subsystem starts.
 pub trait RegisterMetrics {
 	/// Try to register metrics in the prometheus registry.
+	// FIXME: instead of &mut self, it should return MaybeMetricsFor<Subsystem>
+	// probably via an assoc type.
 	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError>;
 }
 
