@@ -342,6 +342,36 @@ async fn update_view<M: Encode>(
 	Ok(Some(NetworkBridgeEvent::OurViewChange(local_view.clone())))
 }
 
+async fn send_message<M: Encode + Clone>(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peer_set: PeerSet,
+	message: WireMessage<M>,
+) -> SubsystemResult<()> {
+	let mut message_producer = stream::iter({
+		let n_peers = peers.len();
+		let mut message = Some(message.encode());
+
+		peers.iter().cloned().enumerate().map(move |(i, peer)| {
+			// optimization: avoid cloning the message for the last peer in the
+			// list. The message payload can be quite large. If the underlying
+			// network used `Bytes` this would not be necessary.
+			let message = if i == n_peers - 1 {
+				message.take()
+					.expect("Only taken in last iteration of loop, never afterwards; qed")
+			} else {
+				message.as_ref()
+					.expect("Only taken in last iteration of loop, we are not there yet; qed")
+					.clone()
+			};
+
+			Ok(NetworkAction::WriteNotification(peer, peer_set, message))
+		})
+	});
+
+	net.action_sink().send_all(&mut message_producer).await
+}
+
 async fn run_network<N: Network>(
 	mut net: N,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
@@ -370,6 +400,24 @@ async fn run_network<N: Network>(
 		match action {
 			Action::Nop => {}
 			Action::Abort => return Ok(()),
+
+			Action::SendValidationMessage(peers, msg) =>
+				send_message(
+					&mut net,
+					peers,
+					PeerSet::Validation,
+					WireMessage::ProtocolMessage(msg),
+				).await?,
+
+			Action::SendCollationMessage(peers, msg) =>
+				send_message(
+					&mut net,
+					peers,
+					PeerSet::Collation,
+					WireMessage::ProtocolMessage(msg),
+				).await?,
+
+
 			_ => {} // TODO [now]: exhaustive match
 		}
 
@@ -393,32 +441,6 @@ async fn run_network<N: Network>(
 
 		// 			ctx.send_messages(messages).await?;
 		// 		}
-		// 	}
-		// 	Action::SendMessage(peers, protocol, message) => {
-		// 		let mut message_producer = stream::iter({
-		// 			let n_peers = peers.len();
-		// 			let mut message = Some(
-		// 				WireMessage::ProtocolMessage(protocol, message).encode()
-		// 			);
-
-		// 			peers.iter().cloned().enumerate().map(move |(i, peer)| {
-		// 				// optimization: avoid cloning the message for the last peer in the
-		// 				// list. The message payload can be quite large. If the underlying
-		// 				// network used `Bytes` this would not be necessary.
-		// 				let message = if i == n_peers - 1 {
-		// 					message.take()
-		// 						.expect("Only taken in last iteration of loop, never afterwards; qed")
-		// 				} else {
-		// 					message.as_ref()
-		// 						.expect("Only taken in last iteration of loop, we are not there yet; qed")
-		// 						.clone()
-		// 				};
-
-		// 				Ok(NetworkAction::WriteNotification(peer, message))
-		// 			})
-		// 		});
-
-		// 		net.action_sink().send_all(&mut message_producer).await?;
 		// 	}
 		// 	Action::ReportPeer(peer, rep) => {
 		// 		net.report_peer(peer, rep).await?;
