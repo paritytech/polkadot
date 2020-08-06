@@ -18,6 +18,7 @@
 
 use polkadot_primitives::v1::Hash;
 use parity_scale_codec::{Encode, Decode};
+use std::convert::TryFrom;
 
 pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
@@ -26,6 +27,10 @@ pub type RequestId = u64;
 
 /// A version of the protocol.
 pub type ProtocolVersion = u32;
+
+/// An error indicating that this the over-arching message type had the wrong variant
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct WrongVariant;
 
 /// The peer-sets that the network manages. Different subsystems will use different peer-sets.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -55,6 +60,57 @@ pub enum NetworkBridgeEvent<M> {
 	OurViewChange(View),
 }
 
+macro_rules! impl_try_from {
+	($m:ident, $variant:ident, $out:ty) => {
+		impl TryFrom<$m> for $out {
+			type Error = crate::WrongVariant;
+
+			#[allow(unreachable_patterns)] // when there is only one variant
+			fn try_from(x: $m) -> Result<$out, Self::Error> {
+				match x {
+					$m::$variant(y) => Ok(y),
+					_ => Err(crate::WrongVariant),
+				}
+			}
+		}
+
+		impl<'a> TryFrom<&'a $m> for &'a $out {
+			type Error = crate::WrongVariant;
+
+			fn try_from(x: &'a $m) -> Result<&'a $out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
+				match *x {
+					$m::$variant(ref y) => Ok(y),
+					_ => Err(crate::WrongVariant),
+				}
+			}
+		}
+	}
+}
+
+impl<M> NetworkBridgeEvent<M> {
+	/// Focus an overarching network-bridge event into some more specific variant.
+	///
+	/// This acts as a call to `clone`, except in the case where the event is a message event,
+	/// in which case the clone can be expensive and it only clones if the message type can
+	/// be focused.
+	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
+		where T: 'a + Clone, &'a T: TryFrom<&'a M, Error = WrongVariant>
+	{
+		Ok(match *self {
+			NetworkBridgeEvent::PeerConnected(ref peer, ref role)
+				=> NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone()),
+			NetworkBridgeEvent::PeerDisconnected(ref peer)
+				=> NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+			NetworkBridgeEvent::PeerMessage(ref peer, ref msg)
+				=> NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
+			NetworkBridgeEvent::PeerViewChange(ref peer, ref view)
+				=> NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
+			NetworkBridgeEvent::OurViewChange(ref view)
+				=> NetworkBridgeEvent::OurViewChange(view.clone()),
+		})
+	}
+}
 
 /// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
 ///
@@ -79,7 +135,6 @@ impl View {
 	}
 }
 
-
 /// v1 protocol types.
 pub mod v1 {
 	use polkadot_primitives::v1::{
@@ -88,6 +143,7 @@ pub mod v1 {
 	};
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
+	use std::convert::TryFrom;
 	use super::RequestId;
 
 	/// Network messages used by the availability distribution subsystem
@@ -149,10 +205,17 @@ pub mod v1 {
 		StatementDistribution(StatementDistributionMessage),
 	}
 
+	impl_try_from!(ValidationProtocol, AvailabilityDistribution, AvailabilityDistributionMessage);
+	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
+	impl_try_from!(ValidationProtocol, PoVDistribution, PoVDistributionMessage);
+	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
+
 	/// All network messages on the collation peer-set.
 	#[derive(Debug, Clone, Encode, Decode)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
 		CollatorProtocol(CollatorProtocolMessage),
 	}
+
+	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
 }
