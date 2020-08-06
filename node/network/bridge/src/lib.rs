@@ -521,65 +521,68 @@ async fn run_network<N: Network>(
 				).await?;
 			}
 
+			Action::PeerConnected(peer_set, peer, role) => {
+				let peer_map = match peer_set {
+					PeerSet::Validation => &mut validation_peers,
+					PeerSet::Collation => &mut collation_peers,
+				};
+
+				match peer_map.entry(peer.clone()) {
+					HEntry::Occupied(_) => continue,
+					HEntry::Vacant(vacant) => {
+						vacant.insert(PeerData {
+							view: View(Vec::new()),
+							role: role.clone(),
+						});
+
+						let res = match peer_set {
+							PeerSet::Validation => dispatch_validation_event_to_all(
+								NetworkBridgeEvent::PeerConnected(peer, role),
+								&mut ctx,
+							).await,
+							PeerSet::Collation => dispatch_collation_event_to_all(
+								NetworkBridgeEvent::PeerConnected(peer, role),
+								&mut ctx,
+							).await,
+						};
+
+						if let Err(e) = res {
+							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							return Err(e);
+						}
+					}
+				}
+			}
+			Action::PeerDisconnected(peer_set, peer) => {
+				let peer_map = match peer_set {
+					PeerSet::Validation => &mut validation_peers,
+					PeerSet::Collation => &mut collation_peers,
+				};
+
+				if peer_map.remove(&peer).is_some() {
+					let res = match peer_set {
+						PeerSet::Validation => dispatch_validation_event_to_all(
+							NetworkBridgeEvent::PeerDisconnected(peer),
+							&mut ctx,
+						).await,
+						PeerSet::Collation => dispatch_collation_event_to_all(
+							NetworkBridgeEvent::PeerDisconnected(peer),
+							&mut ctx,
+						).await,
+					};
+
+					if let Err(e) = res {
+						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+						return Err(e)
+					}
+				}
+			},
+
 			_ => {} // TODO [now]: exhaustive match
 		}
 
 		// match action {
-		// 	Action::RegisterEventProducer(protocol_id, event_producer) => {
-		// 		// insert only if none present.
-		// 		if let BEntry::Vacant(entry) = event_producers.entry(protocol_id) {
-		// 			let event_producer = entry.insert(event_producer);
 
-		// 			// send the event producer information on all connected peers.
-		// 			let mut messages = Vec::with_capacity(peers.len() * 2);
-		// 			for (peer, data) in &peers {
-		// 				messages.push(event_producer(
-		// 					NetworkBridgeEvent::PeerConnected(peer.clone(), data.role.clone())
-		// 				));
-
-		// 				messages.push(event_producer(
-		// 					NetworkBridgeEvent::PeerViewChange(peer.clone(), data.view.clone())
-		// 				));
-		// 			}
-
-		// 			ctx.send_messages(messages).await?;
-		// 		}
-		// 	}
-		// 	Action::ReportPeer(peer, rep) => {
-		// 		net.report_peer(peer, rep).await?;
-		// 	}
-		// 	Action::PeerConnected(peer, role) => {
-		// 		match peers.entry(peer.clone()) {
-		// 			HEntry::Occupied(_) => continue,
-		// 			HEntry::Vacant(vacant) => {
-		// 				vacant.insert(PeerData {
-		// 					view: View(Vec::new()),
-		// 					role: role.clone(),
-		// 				});
-
-		// 				if let Err(e) = dispatch_update_to_all(
-		// 					NetworkBridgeEvent::PeerConnected(peer, role),
-		// 					event_producers.values(),
-		// 					&mut ctx,
-		// 				).await {
-		// 					log::warn!("Aborting - Failure to dispatch messages to overseer");
-		// 					return Err(e)
-		// 				}
-		// 			}
-		// 		}
-		// 	}
-		// 	Action::PeerDisconnected(peer) => {
-		// 		if peers.remove(&peer).is_some() {
-		// 			if let Err(e) = dispatch_update_to_all(
-		// 				NetworkBridgeEvent::PeerDisconnected(peer),
-		// 				event_producers.values(),
-		// 				&mut ctx,
-		// 			).await {
-		// 				log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-		// 				return Err(e)
-		// 			}
-		// 		}
-		// 	},
 		// 	Action::PeerMessages(peer, messages) => {
 		// 		let peer_data = match peers.get_mut(&peer) {
 		// 			None => continue,
@@ -639,9 +642,6 @@ async fn run_network<N: Network>(
 		// 			return Err(e)
 		// 		}
 		// 	},
-
-		// 	Action::Abort => return Ok(()),
-		// 	Action::Nop => (),
 		// }
 	}
 }
