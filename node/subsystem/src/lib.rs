@@ -135,9 +135,9 @@ impl From<oneshot::Canceled> for SubsystemError {
 }
 
 impl From<futures::task::SpawnError> for SubsystemError {
-    fn from(_: futures::task::SpawnError) -> Self {
+	fn from(_: futures::task::SpawnError) -> Self {
 		Self
-    }
+	}
 }
 
 impl From<std::convert::Infallible> for SubsystemError {
@@ -202,28 +202,32 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
+	/// Subsystem-specific prometheus metrics.
+	///
+	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+	/// to ensure `Default` bounds or as a dummy type ().
+	type Metrics: Metrics;
+
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
 }
 
-/// Register subsystem-specific metrics in the prometheus registry.
-/// Will be called before a subsystem starts.
-pub trait RegisterMetrics {
+/// Subsystem-specific prometheus metrics.
+pub trait Metrics: Default + Clone {
 	/// Try to register metrics in the prometheus registry.
-	// FIXME: instead of &mut self, it should return MaybeMetricsFor<Subsystem>
-	// probably via an assoc type.
-	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError>;
-}
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-
-/// A helper function to register metrics in the prometheus registry.
-pub fn register_metrics<S: RegisterMetrics>(s: &mut S, registry: Option<&prometheus::Registry>) {
-	if let Some(registry) = registry {
-		match RegisterMetrics::try_register(s, registry) {
-			Err(e) => {
-				log::warn!("Failed to register metrics: {:?}", e);
-			},
-			_ => {},
+	/// Convience method to register metrics in the optional prometheus registry.
+	/// If the registration fails, prints a warning and returns `Default::default()`.
+	fn register(registry: Option<&prometheus::Registry>) -> Self {
+		if let Some(registry) = registry {
+			match Self::try_register(registry) {
+				Err(e) => {
+					log::warn!("Failed to register metrics: {:?}", e);
+					Default::default()
+				},
+				Ok(metrics) => metrics,
+			}
 		}
 	}
 }
@@ -233,6 +237,8 @@ pub fn register_metrics<S: RegisterMetrics>(s: &mut S, registry: Option<&prometh
 pub struct DummySubsystem;
 
 impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+	type Metrics = ();
+
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
@@ -251,8 +257,8 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 	}
 }
 
-impl RegisterMetrics for DummySubsystem {
-	fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+impl Metrics for () {
+	fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
 		Ok(())
 	}
 }
