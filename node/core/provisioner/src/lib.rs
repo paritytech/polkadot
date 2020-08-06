@@ -470,28 +470,60 @@ delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+	use bitvec::bitvec;
+	use polkadot_primitives::v1::{OccupiedCore, ScheduledCore};
+
+	pub fn occupied_core(para_id: u32) -> CoreState {
+		CoreState::Occupied(OccupiedCore {
+			para_id: para_id.into(),
+			group_responsible: para_id.into(),
+			next_up_on_available: None,
+			occupied_since: 100_u32,
+			time_out_at: 200_u32,
+			next_up_on_time_out: None,
+			availability: default_bitvec(),
+		})
+	}
+
+	pub fn build_occupied_core<Builder>(para_id: u32, builder: Builder) -> CoreState
+	where
+		Builder: FnOnce(&mut OccupiedCore),
+	{
+		let mut core = match occupied_core(para_id) {
+			CoreState::Occupied(core) => core,
+			_ => unreachable!(),
+		};
+
+		builder(&mut core);
+
+		CoreState::Occupied(core)
+	}
+
+	pub fn default_bitvec() -> CoreAvailability {
+		bitvec![bitvec::order::Lsb0, u8; 0; 32]
+	}
+
+	pub fn scheduled_core(id: u32) -> ScheduledCore {
+		ScheduledCore {
+			para_id: id.into(),
+			..Default::default()
+		}
+	}
+
 	mod select_availability_bitfields {
 		use super::super::*;
-		use bitvec::bitvec;
+		use super::{default_bitvec, occupied_core};
 		use lazy_static::lazy_static;
-		use polkadot_primitives::v1::{GroupIndex, Id as ParaId, ValidatorIndex, ValidatorPair, OccupiedCore, SigningContext};
+		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorPair};
 		use sp_core::crypto::Pair;
 		use std::sync::Mutex;
 
-		lazy_static!{
+		lazy_static! {
+			// we can use a normal mutex here, not a futures-aware one, because we don't use any futures-based
+			// concurrency when accessing this. The risk of contention is that multiple tests are run in parallel,
+			// in independent threads, in which case a standard mutex suffices.
 			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorPair>> = Mutex::new(HashMap::new());
-		}
-
-		fn occupied_core(para_id: ParaId, group_responsible: GroupIndex) -> CoreState {
-			CoreState::Occupied(OccupiedCore {
-				para_id,
-				group_responsible,
-				next_up_on_available: None,
-				occupied_since: 100_u32,
-				time_out_at: 200_u32,
-				next_up_on_time_out: None,
-				availability: bitvec![bitvec::order::Lsb0, u8; 0; 32],
-			})
 		}
 
 		fn signed_bitfield(
@@ -499,22 +531,22 @@ mod tests {
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
 			let mut lock = VALIDATORS.lock().unwrap();
-			let validator = lock.entry(validator_idx).or_insert_with(|| ValidatorPair::generate().0);
-			SignedAvailabilityBitfield::sign(field.into(), &<SigningContext<Hash>>::default(), validator_idx, validator)
-		}
-
-		fn default_bitvec() -> CoreAvailability {
-			bitvec![bitvec::order::Lsb0, u8; 0; 32]
+			let validator = lock
+				.entry(validator_idx)
+				.or_insert_with(|| ValidatorPair::generate().0);
+			SignedAvailabilityBitfield::sign(
+				field.into(),
+				&<SigningContext<Hash>>::default(),
+				validator_idx,
+				validator,
+			)
 		}
 
 		#[test]
 		fn not_more_than_one_per_validator() {
 			let bitvec = default_bitvec();
 
-			let cores = vec![
-				occupied_core(0.into(), 0.into()),
-				occupied_core(1.into(), 1.into()),
-			];
+			let cores = vec![occupied_core(0), occupied_core(1)];
 
 			// we pass in three bitfields with two validators
 			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
@@ -561,9 +593,7 @@ mod tests {
 				bitvec
 			};
 
-			let cores = vec![
-				occupied_core(0.into(), 0.into()),
-			];
+			let cores = vec![occupied_core(0)];
 
 			let bitfields = vec![
 				signed_bitfield(bitvec_zero, 0),
@@ -583,9 +613,21 @@ mod tests {
 
 	mod select_candidates {
 		use super::super::*;
+		use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
+		use polkadot_node_subsystem::messages::RuntimeApiRequest::{
+			AvailabilityCores, GlobalValidationData, LocalValidationData,
+		};
+		use polkadot_primitives::v1::{
+			BlockNumber, CandidateDescriptor, CommittedCandidateReceipt,
+		};
+		use FromJob::{ChainApi, Runtime};
 
-		fn test_harness<OverseerFactory, Overseer, TestFactory, Test,>(overseer_factory: OverseerFactory, test_factory: TestFactory)
-		where
+		const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
+
+		fn test_harness<OverseerFactory, Overseer, TestFactory, Test>(
+			overseer_factory: OverseerFactory,
+			test_factory: TestFactory,
+		) where
 			OverseerFactory: FnOnce(mpsc::Receiver<FromJob>) -> Overseer,
 			Overseer: Future<Output = ()>,
 			TestFactory: FnOnce(mpsc::Sender<FromJob>) -> Test,
@@ -597,21 +639,106 @@ mod tests {
 
 			futures::pin_mut!(overseer, test);
 
-			tokio::runtime::Runtime::new().unwrap().block_on(future::select(overseer, test));
+			tokio::runtime::Runtime::new()
+				.unwrap()
+				.block_on(future::select(overseer, test));
+		}
+
+		// For test purposes, we always return this set of availability cores:
+		//
+		//   [
+		//      0: Free,
+		//      1: Scheduled(default),
+		//      2: Occupied(no next_up set),
+		//      3: Occupied(next_up_on_available set but not available),
+		//      4: Occupied(next_up_on_available set and available),
+		//      5: Occupied(next_up_on_time_out set but not timeout),
+		//      6: Occupied(next_up_on_time_out set and timeout but available),
+		//      7: Occupied(next_up_on_time_out set and timeout and not available),
+		//      8: Occupied(both next_up set, available),
+		//      9: Occupied(both next_up set, not available, no timeout),
+		//     10: Occupied(both next_up set, not available, timeout),
+		//     11: Occupied(next_up_on_available and available, but different successor para_id)
+		//   ]
+		fn mock_availability_cores() -> Vec<CoreState> {
+			use std::ops::Not;
+			use CoreState::{Free, Scheduled};
+
+			vec![
+				// 0: Free,
+				Free,
+				// 1: Scheduled(default),
+				Scheduled(scheduled_core(1)),
+				// 2: Occupied(no next_up set),
+				occupied_core(2),
+				// 3: Occupied(next_up_on_available set but not available),
+				build_occupied_core(3, |core| {
+					core.next_up_on_available = Some(scheduled_core(3));
+				}),
+				// 4: Occupied(next_up_on_available set and available),
+				build_occupied_core(4, |core| {
+					core.next_up_on_available = Some(scheduled_core(4));
+					core.availability = core.availability.clone().not();
+				}),
+				// 5: Occupied(next_up_on_time_out set but not timeout),
+				build_occupied_core(5, |core| {
+					core.next_up_on_time_out = Some(scheduled_core(5));
+				}),
+				// 6: Occupied(next_up_on_time_out set and timeout but available),
+				build_occupied_core(6, |core| {
+					core.next_up_on_time_out = Some(scheduled_core(6));
+					core.time_out_at = BLOCK_UNDER_PRODUCTION;
+					core.availability = core.availability.clone().not();
+				}),
+				// 7: Occupied(next_up_on_time_out set and timeout and not available),
+				build_occupied_core(7, |core| {
+					core.next_up_on_time_out = Some(scheduled_core(7));
+					core.time_out_at = BLOCK_UNDER_PRODUCTION;
+				}),
+				// 8: Occupied(both next_up set, available),
+				build_occupied_core(8, |core| {
+					core.next_up_on_available = Some(scheduled_core(8));
+					core.next_up_on_time_out = Some(scheduled_core(8));
+					core.availability = core.availability.clone().not();
+				}),
+				// 9: Occupied(both next_up set, not available, no timeout),
+				build_occupied_core(9, |core| {
+					core.next_up_on_available = Some(scheduled_core(9));
+					core.next_up_on_time_out = Some(scheduled_core(9));
+				}),
+				// 10: Occupied(both next_up set, not available, timeout),
+				build_occupied_core(10, |core| {
+					core.next_up_on_available = Some(scheduled_core(10));
+					core.next_up_on_time_out = Some(scheduled_core(10));
+					core.time_out_at = BLOCK_UNDER_PRODUCTION;
+				}),
+				// 11: Occupied(next_up_on_available and available, but different successor para_id)
+				build_occupied_core(11, |core| {
+					core.next_up_on_available = Some(scheduled_core(12));
+					core.availability = core.availability.clone().not();
+				}),
+			]
 		}
 
 		async fn mock_overseer(mut receiver: mpsc::Receiver<FromJob>) {
-			use FromJob::{ChainApi, Runtime};
 			use ChainApiMessage::BlockNumber;
 			use RuntimeApiMessage::Request;
-			use polkadot_node_subsystem::messages::RuntimeApiRequest::{LocalValidationData, GlobalValidationData, AvailabilityCores};
 
 			while let Some(from_job) = receiver.next().await {
 				match from_job {
-					ChainApi(BlockNumber(_relay_parent, tx)) => tx.send(Ok(Some(100))).unwrap(),
-					Runtime(Request(_parent_hash, GlobalValidationData(tx))) => tx.send(Ok(Default::default())).unwrap(),
-					Runtime(Request(_parent_hash, LocalValidationData(_para_id, _assumption, tx))) => tx.send(Ok(Default::default())).unwrap(),
-					Runtime(Request(_parent_hash, AvailabilityCores(tx))) => tx.send(Ok(vec![])).unwrap(),
+					ChainApi(BlockNumber(_relay_parent, tx)) => {
+						tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
+					}
+					Runtime(Request(_parent_hash, GlobalValidationData(tx))) => {
+						tx.send(Ok(Default::default())).unwrap()
+					}
+					Runtime(Request(
+						_parent_hash,
+						LocalValidationData(_para_id, _assumption, tx),
+					)) => tx.send(Ok(Some(Default::default()))).unwrap(),
+					Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
+						tx.send(Ok(mock_availability_cores())).unwrap()
+					}
 					// non-exhaustive matches are fine for testing
 					_ => unimplemented!(),
 				}
@@ -644,6 +771,67 @@ mod tests {
 				let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
 				println!("{:?}", result);
 				assert!(result.is_ok());
+			})
+		}
+
+		// this tests that only the appropriate candidates get selected.
+		// To accomplish this, we supply a candidate list containing one candidate per possible core;
+		// the candidate selection algorithm must filter them to the appropriate set
+		#[test]
+		fn selects_correct_candidates() {
+			let mock_cores = mock_availability_cores();
+
+			let empty_hash =
+				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
+			dbg!(empty_hash);
+
+			let candidate_template = BackedCandidate {
+				candidate: CommittedCandidateReceipt {
+					descriptor: CandidateDescriptor {
+						validation_data_hash: empty_hash,
+						..Default::default()
+					},
+					..Default::default()
+				},
+				validity_votes: Vec::new(),
+				validator_indices: default_bitvec(),
+			};
+
+			let candidates: Vec<_> = std::iter::repeat(candidate_template)
+				.take(mock_cores.len())
+				.enumerate()
+				.map(|(idx, mut candidate)| {
+					candidate.candidate.descriptor.para_id = idx.into();
+					candidate
+				})
+				.cycle()
+				.take(mock_cores.len() * 2)
+				.enumerate()
+				.map(|(idx, mut candidate)| {
+					// for the second repetition of the candidates, give them the wrong hash
+					if idx < mock_cores.len() {
+						candidate
+					} else {
+						candidate.candidate.descriptor.validation_data_hash = Default::default();
+						candidate
+					}
+				})
+				.collect();
+
+			let expected_candidates: Vec<_> = [1, 4, 7, 8, 10]
+				.iter()
+				.map(|&idx| candidates[idx].clone())
+				.collect();
+
+			test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+				let result =
+					select_candidates(&mock_cores, &[], &candidates, Default::default(), &mut tx)
+						.await;
+
+				if result.is_err() {
+					println!("{:?}", result);
+				}
+				assert_eq!(result.unwrap(), expected_candidates);
 			})
 		}
 	}
