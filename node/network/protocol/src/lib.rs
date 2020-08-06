@@ -28,7 +28,7 @@ pub type RequestId = u64;
 pub type ProtocolVersion = u32;
 
 /// The peer-sets that the network manages. Different subsystems will use different peer-sets.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum PeerSet {
 	/// The validation peer-set is responsible for all messages related to candidate validation and communication among validators.
 	Validation,

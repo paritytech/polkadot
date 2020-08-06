@@ -20,20 +20,20 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
+use futures::channel::oneshot;
 
-use sc_network::{
-	ObservedRole, ReputationChange, PeerId,
-	Event as NetworkEvent,
-};
+use sc_network::Event as NetworkEvent;
 use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemError,
 	SubsystemResult,
 };
-use polkadot_subsystem::messages::{NetworkBridgeEvent, NetworkBridgeMessage, AllMessages};
-use node_primitives::{ProtocolId, View};
-use polkadot_primitives::v1::{Block, Hash};
+use polkadot_subsystem::messages::{NetworkBridgeMessage, AllMessages};
+use polkadot_primitives::v1::{Block, Hash, ValidatorId};
+use polkadot_node_network_protocol::{
+	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
+};
 
 use std::collections::btree_map::{BTreeMap, Entry as BEntry};
 use std::collections::hash_map::{HashMap, Entry as HEntry};
@@ -45,10 +45,14 @@ use std::sync::Arc;
 /// We use the same limit to compute the view sent to peers locally.
 const MAX_VIEW_HEADS: usize = 5;
 
-/// The engine ID of the polkadot network protocol.
-pub const POLKADOT_ENGINE_ID: ConsensusEngineId = *b"dot2";
-/// The protocol name.
-pub const POLKADOT_PROTOCOL_NAME: &[u8] = b"/polkadot/2";
+/// The engine ID of the validation protocol.
+pub const VALIDATION_PROTOCOL_ID: ConsensusEngineId = *b"pvn1";
+/// The protocol name for the validation peer-set.
+pub const VALIDATION_PROTOCOL_NAME: &[u8] = b"/polkadot/validation/1";
+/// The engine ID of the collation protocol.
+pub const COLLATION_PROTOCOL_ID: ConsensusEngineId = *b"pcn1";
+/// The protocol name for the collation peer-set.
+pub const COLLATION_PROTOCOL_NAME: &[u8] = b"/polkadot/collation/1";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
@@ -62,10 +66,10 @@ const TARGET: &'static str = "network_bridge";
 
 /// Messages received on the network.
 #[derive(Debug, Encode, Decode, Clone)]
-pub enum WireMessage {
+pub enum WireMessage<M> {
 	/// A message from a peer on a specific protocol.
 	#[codec(index = "1")]
-	ProtocolMessage(ProtocolId, Vec<u8>),
+	ProtocolMessage(M),
 	/// A view update from a peer.
 	#[codec(index = "2")]
 	ViewUpdate(View),
@@ -73,8 +77,11 @@ pub enum WireMessage {
 
 /// Information about the notifications protocol. Should be used during network configuration
 /// or shortly after startup to register the protocol with the network service.
-pub fn notifications_protocol_info() -> (ConsensusEngineId, std::borrow::Cow<'static, [u8]>) {
-	(POLKADOT_ENGINE_ID, POLKADOT_PROTOCOL_NAME.into())
+pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, [u8]>)> {
+	vec![
+		(VALIDATION_PROTOCOL_ID, VALIDATION_PROTOCOL_NAME.into()),
+		(COLLATION_PROTOCOL_ID, COLLATION_PROTOCOL_NAME.into()),
+	]
 }
 
 /// An action to be carried out by the network.
@@ -82,15 +89,16 @@ pub fn notifications_protocol_info() -> (ConsensusEngineId, std::borrow::Cow<'st
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
 	ReputationChange(PeerId, ReputationChange),
-	/// Write a notification to a given peer.
-	WriteNotification(PeerId, Vec<u8>),
+	/// Write a notification to a given peer on the given peer-set.
+	WriteNotification(PeerId, PeerSet, Vec<u8>),
 }
 
 /// An abstraction over networking for the purposes of this subsystem.
 pub trait Network: Send + 'static {
 	/// Get a stream of all events occurring on the network. This may include events unrelated
 	/// to the Polkadot protocol - the user of this function should filter only for events related
-	/// to the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID).
+	/// to the [`VALIDATION_PROTOCOL_ID`](VALIDATION_PROTOCOL_ID)
+	/// or [`COLLATION_PROTOCOL_ID`](COLLATION_PROTOCOL_ID)
 	fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent>;
 
 	/// Get access to an underlying sink for all network actions.
@@ -107,12 +115,12 @@ pub trait Network: Send + 'static {
 		}.boxed()
 	}
 
-	/// Write a notification to a peer on the [`POLKADOT_ENGINE_ID`](POLKADOT_ENGINE_ID) topic.
-	fn write_notification(&mut self, who: PeerId, message: Vec<u8>)
+	/// Write a notification to a peer on the given peer-set's protocol.
+	fn write_notification(&mut self, who: PeerId, peer_set: PeerSet, message: Vec<u8>)
 		-> BoxFuture<SubsystemResult<()>>
 	{
 		async move {
-			self.action_sink().send(NetworkAction::WriteNotification(who, message)).await
+			self.action_sink().send(NetworkAction::WriteNotification(who, peer_set, message)).await
 		}.boxed()
 	}
 }
@@ -143,11 +151,20 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 						peer,
 						cost_benefit,
 					),
-					NetworkAction::WriteNotification(peer, message) => self.0.write_notification(
-						peer,
-						POLKADOT_ENGINE_ID,
-						message,
-					),
+					NetworkAction::WriteNotification(peer, peer_set, message) => {
+						match peer_set {
+							PeerSet::Validation => self.0.write_notification(
+								peer,
+								VALIDATION_PROTOCOL_ID,
+								message,
+							),
+							PeerSet::Collation => self.0.write_notification(
+								peer,
+								COLLATION_PROTOCOL_ID,
+								message,
+							),
+						}
+					}
 				}
 
 				Ok(())
@@ -203,14 +220,20 @@ struct PeerData {
 
 #[derive(Debug)]
 enum Action {
-	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
-	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
+	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
 	ReportPeer(PeerId, ReputationChange),
+
 	ActiveLeaves(ActiveLeavesUpdate),
 
-	PeerConnected(PeerId, ObservedRole),
-	PeerDisconnected(PeerId),
-	PeerMessages(PeerId, Vec<WireMessage>),
+	PeerConnected(PeerSet, PeerId, ObservedRole),
+	PeerDisconnected(PeerSet, PeerId),
+	PeerMessages(
+		PeerId,
+		Vec<WireMessage<protocol_v1::ValidationProtocol>>,
+		Vec<WireMessage<protocol_v1::CollationProtocol>>,
+	),
 
 	Abort,
 	Nop,
@@ -224,11 +247,13 @@ fn action_from_overseer_message(
 			=> Action::ActiveLeaves(active_leaves),
 		Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => Action::Abort,
 		Ok(FromOverseer::Communication { msg }) => match msg {
-			NetworkBridgeMessage::RegisterEventProducer(protocol_id, message_producer)
-				=>  Action::RegisterEventProducer(protocol_id, message_producer),
 			NetworkBridgeMessage::ReportPeer(peer, rep) => Action::ReportPeer(peer, rep),
-			NetworkBridgeMessage::SendMessage(peers, protocol, message)
-				=> Action::SendMessage(peers, protocol, message),
+			NetworkBridgeMessage::SendValidationMessage(peers, msg)
+				=> Action::SendValidationMessage(peers, msg),
+			NetworkBridgeMessage::SendCollationMessage(peers, msg)
+				=> Action::SendCollationMessage(peers, msg),
+			NetworkBridgeMessage::ConnectToValidators(peer_set, validators, res)
+				=> Action::ConnectToValidators(peer_set, validators, res),
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -239,40 +264,54 @@ fn action_from_overseer_message(
 	}
 }
 
-fn action_from_network_message(event: Option<NetworkEvent>) -> Option<Action> {
+fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	match event {
 		None => {
 			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
-			Some(Action::Abort)
+			Action::Abort
 		}
-		Some(NetworkEvent::Dht(_)) => None,
+		Some(NetworkEvent::Dht(_)) => Action::Nop,
 		Some(NetworkEvent::NotificationStreamOpened { remote, engine_id, role }) => {
-			if engine_id == POLKADOT_ENGINE_ID {
-				Some(Action::PeerConnected(remote, role))
-			} else {
-				None
+			match engine_id {
+				x if x == VALIDATION_PROTOCOL_ID
+					=> Action::PeerConnected(PeerSet::Validation, remote, role),
+				x if x == COLLATION_PROTOCOL_ID
+					=> Action::PeerConnected(PeerSet::Collation, remote, role),
+				_ => Action::Nop,
 			}
 		}
 		Some(NetworkEvent::NotificationStreamClosed { remote, engine_id }) => {
-			if engine_id == POLKADOT_ENGINE_ID {
-				Some(Action::PeerDisconnected(remote))
-			} else {
-				None
+			match engine_id {
+				x if x == VALIDATION_PROTOCOL_ID
+					=> Action::PeerDisconnected(PeerSet::Validation, remote),
+				x if x == COLLATION_PROTOCOL_ID
+					=> Action::PeerDisconnected(PeerSet::Collation, remote),
+				_ => Action::Nop,
 			}
 		}
 		Some(NetworkEvent::NotificationsReceived { remote, messages }) => {
-			let v: Result<Vec<_>, _> = messages.iter()
-				.filter(|(engine_id, _)| engine_id == &POLKADOT_ENGINE_ID)
+			let v_messages: Result<Vec<_>, _> = messages.iter()
+				.filter(|(engine_id, _)| engine_id == &VALIDATION_PROTOCOL_ID)
 				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
 				.collect();
 
-			match v {
-				Err(_) => Some(Action::ReportPeer(remote, MALFORMED_MESSAGE_COST)),
-				Ok(v) => if v.is_empty() {
-					None
+			let v_messages = match v_messages {
+				Err(_) => return Action::ReportPeer(remote, MALFORMED_MESSAGE_COST),
+				Ok(v) => v,
+			};
+
+			let c_messages: Result<Vec<_>, _> = messages.iter()
+				.filter(|(engine_id, _)| engine_id == &COLLATION_PROTOCOL_ID)
+				.map(|(_, msg_bytes)| WireMessage::decode(&mut msg_bytes.as_ref()))
+				.collect();
+
+			match c_messages {
+				Err(_) => Action::ReportPeer(remote, MALFORMED_MESSAGE_COST),
+				Ok(c_messages) => if v_messages.is_empty() && c_messages.is_empty() {
+					Action::Nop
 				} else {
-					Some(Action::PeerMessages(remote, v))
-				}
+					Action::PeerMessages(remote, v_messages, c_messages)
+				},
 			}
 		}
 	}
@@ -282,33 +321,21 @@ fn construct_view(live_heads: &[Hash]) -> View {
 	View(live_heads.iter().rev().take(MAX_VIEW_HEADS).cloned().collect())
 }
 
-async fn dispatch_update_to_all(
-	update: NetworkBridgeEvent,
-	event_producers: impl IntoIterator<Item=&fn(NetworkBridgeEvent) -> AllMessages>,
-	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> polkadot_subsystem::SubsystemResult<()> {
-	// collect messages here to avoid the borrow lasting across await boundary.
-	let messages: Vec<_> = event_producers.into_iter()
-		.map(|producer| producer(update.clone()))
-		.collect();
-
-	ctx.send_messages(messages).await
-}
-
-async fn update_view(
+async fn update_view<M: Encode>(
 	peers: &HashMap<PeerId, PeerData>,
+	peer_set: PeerSet,
 	live_heads: &[Hash],
 	net: &mut impl Network,
 	local_view: &mut View,
-) -> SubsystemResult<Option<NetworkBridgeEvent>> {
+) -> SubsystemResult<Option<NetworkBridgeEvent<M>>> {
 	let new_view = construct_view(live_heads);
 	if *local_view == new_view { return Ok(None) }
 	*local_view = new_view.clone();
 
-	let message = WireMessage::ViewUpdate(new_view.clone()).encode();
+	let message = WireMessage::<M>::ViewUpdate(new_view.clone()).encode();
 
 	let notifications = peers.keys().cloned()
-		.map(move |peer| Ok(NetworkAction::WriteNotification(peer, message.clone())));
+		.map(move |peer| Ok(NetworkAction::WriteNotification(peer, peer_set, message.clone())));
 
 	net.action_sink().send_all(&mut stream::iter(notifications)).await?;
 
@@ -322,11 +349,11 @@ async fn run_network<N: Network>(
 	let mut event_stream = net.event_stream().fuse();
 
 	// Most recent heads are at the back.
-	let mut live_heads = Vec::with_capacity(MAX_VIEW_HEADS);
+	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
 	let mut local_view = View(Vec::new());
 
-	let mut peers: HashMap<PeerId, PeerData> = HashMap::new();
-	let mut event_producers = BTreeMap::new();
+	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
+	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
 	loop {
 		let action = {
@@ -334,179 +361,180 @@ async fn run_network<N: Network>(
 			let mut net_event_next = event_stream.next().fuse();
 			futures::pin_mut!(subsystem_next);
 
-			let action = futures::select! {
-				subsystem_msg = subsystem_next => Some(action_from_overseer_message(subsystem_msg)),
+			futures::select! {
+				subsystem_msg = subsystem_next => action_from_overseer_message(subsystem_msg),
 				net_event = net_event_next => action_from_network_message(net_event),
-			};
-
-			match action {
-				Some(a) => a,
-				None => continue,
 			}
 		};
 
 		match action {
-			Action::RegisterEventProducer(protocol_id, event_producer) => {
-				// insert only if none present.
-				if let BEntry::Vacant(entry) = event_producers.entry(protocol_id) {
-					let event_producer = entry.insert(event_producer);
-
-					// send the event producer information on all connected peers.
-					let mut messages = Vec::with_capacity(peers.len() * 2);
-					for (peer, data) in &peers {
-						messages.push(event_producer(
-							NetworkBridgeEvent::PeerConnected(peer.clone(), data.role.clone())
-						));
-
-						messages.push(event_producer(
-							NetworkBridgeEvent::PeerViewChange(peer.clone(), data.view.clone())
-						));
-					}
-
-					ctx.send_messages(messages).await?;
-				}
-			}
-			Action::SendMessage(peers, protocol, message) => {
-				let mut message_producer = stream::iter({
-					let n_peers = peers.len();
-					let mut message = Some(
-						WireMessage::ProtocolMessage(protocol, message).encode()
-					);
-
-					peers.iter().cloned().enumerate().map(move |(i, peer)| {
-						// optimization: avoid cloning the message for the last peer in the
-						// list. The message payload can be quite large. If the underlying
-						// network used `Bytes` this would not be necessary.
-						let message = if i == n_peers - 1 {
-							message.take()
-								.expect("Only taken in last iteration of loop, never afterwards; qed")
-						} else {
-							message.as_ref()
-								.expect("Only taken in last iteration of loop, we are not there yet; qed")
-								.clone()
-						};
-
-						Ok(NetworkAction::WriteNotification(peer, message))
-					})
-				});
-
-				net.action_sink().send_all(&mut message_producer).await?;
-			}
-			Action::ReportPeer(peer, rep) => {
-				net.report_peer(peer, rep).await?;
-			}
-			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
-				live_heads.extend(activated);
-				live_heads.retain(|h| !deactivated.contains(h));
-
-				if let Some(view_update)
-					= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
-				{
-					if let Err(e) = dispatch_update_to_all(
-						view_update,
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
-					}
-				}
-			}
-			Action::PeerConnected(peer, role) => {
-				match peers.entry(peer.clone()) {
-					HEntry::Occupied(_) => continue,
-					HEntry::Vacant(vacant) => {
-						vacant.insert(PeerData {
-							view: View(Vec::new()),
-							role: role.clone(),
-						});
-
-						if let Err(e) = dispatch_update_to_all(
-							NetworkBridgeEvent::PeerConnected(peer, role),
-							event_producers.values(),
-							&mut ctx,
-						).await {
-							log::warn!("Aborting - Failure to dispatch messages to overseer");
-							return Err(e)
-						}
-					}
-				}
-			}
-			Action::PeerDisconnected(peer) => {
-				if peers.remove(&peer).is_some() {
-					if let Err(e) = dispatch_update_to_all(
-						NetworkBridgeEvent::PeerDisconnected(peer),
-						event_producers.values(),
-						&mut ctx,
-					).await {
-						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-						return Err(e)
-					}
-				}
-			},
-			Action::PeerMessages(peer, messages) => {
-				let peer_data = match peers.get_mut(&peer) {
-					None => continue,
-					Some(d) => d,
-				};
-
-				let mut outgoing_messages = Vec::with_capacity(messages.len());
-				for message in messages {
-					match message {
-						WireMessage::ViewUpdate(new_view) => {
-							if new_view.0.len() > MAX_VIEW_HEADS {
-								net.report_peer(
-									peer.clone(),
-									MALFORMED_VIEW_COST,
-								).await?;
-
-								continue
-							}
-
-							if new_view == peer_data.view { continue }
-							peer_data.view = new_view;
-
-							let update = NetworkBridgeEvent::PeerViewChange(
-								peer.clone(),
-								peer_data.view.clone(),
-							);
-
-							outgoing_messages.extend(
-								event_producers.values().map(|producer| producer(update.clone()))
-							);
-						}
-						WireMessage::ProtocolMessage(protocol, message) => {
-							let message = match event_producers.get(&protocol) {
-								Some(producer) => Some(producer(
-									NetworkBridgeEvent::PeerMessage(peer.clone(), message)
-								)),
-								None => {
-									net.report_peer(
-										peer.clone(),
-										UNKNOWN_PROTO_COST,
-									).await?;
-
-									None
-								}
-							};
-
-							if let Some(message) = message {
-								outgoing_messages.push(message);
-							}
-						}
-					}
-				}
-
-				let send_messages = ctx.send_messages(outgoing_messages);
-				if let Err(e) = send_messages.await {
-					log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-					return Err(e)
-				}
-			},
-
+			Action::Nop => {}
 			Action::Abort => return Ok(()),
-			Action::Nop => (),
+			_ => {} // TODO [now]: exhaustive match
 		}
+
+		// match action {
+		// 	Action::RegisterEventProducer(protocol_id, event_producer) => {
+		// 		// insert only if none present.
+		// 		if let BEntry::Vacant(entry) = event_producers.entry(protocol_id) {
+		// 			let event_producer = entry.insert(event_producer);
+
+		// 			// send the event producer information on all connected peers.
+		// 			let mut messages = Vec::with_capacity(peers.len() * 2);
+		// 			for (peer, data) in &peers {
+		// 				messages.push(event_producer(
+		// 					NetworkBridgeEvent::PeerConnected(peer.clone(), data.role.clone())
+		// 				));
+
+		// 				messages.push(event_producer(
+		// 					NetworkBridgeEvent::PeerViewChange(peer.clone(), data.view.clone())
+		// 				));
+		// 			}
+
+		// 			ctx.send_messages(messages).await?;
+		// 		}
+		// 	}
+		// 	Action::SendMessage(peers, protocol, message) => {
+		// 		let mut message_producer = stream::iter({
+		// 			let n_peers = peers.len();
+		// 			let mut message = Some(
+		// 				WireMessage::ProtocolMessage(protocol, message).encode()
+		// 			);
+
+		// 			peers.iter().cloned().enumerate().map(move |(i, peer)| {
+		// 				// optimization: avoid cloning the message for the last peer in the
+		// 				// list. The message payload can be quite large. If the underlying
+		// 				// network used `Bytes` this would not be necessary.
+		// 				let message = if i == n_peers - 1 {
+		// 					message.take()
+		// 						.expect("Only taken in last iteration of loop, never afterwards; qed")
+		// 				} else {
+		// 					message.as_ref()
+		// 						.expect("Only taken in last iteration of loop, we are not there yet; qed")
+		// 						.clone()
+		// 				};
+
+		// 				Ok(NetworkAction::WriteNotification(peer, message))
+		// 			})
+		// 		});
+
+		// 		net.action_sink().send_all(&mut message_producer).await?;
+		// 	}
+		// 	Action::ReportPeer(peer, rep) => {
+		// 		net.report_peer(peer, rep).await?;
+		// 	}
+		// 	Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+		// 		live_heads.extend(activated);
+		// 		live_heads.retain(|h| !deactivated.contains(h));
+
+		// 		if let Some(view_update)
+		// 			= update_view(&peers, &live_heads, &mut net, &mut local_view).await?
+		// 		{
+		// 			if let Err(e) = dispatch_update_to_all(
+		// 				view_update,
+		// 				event_producers.values(),
+		// 				&mut ctx,
+		// 			).await {
+		// 				log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		// 				return Err(e)
+		// 			}
+		// 		}
+		// 	}
+		// 	Action::PeerConnected(peer, role) => {
+		// 		match peers.entry(peer.clone()) {
+		// 			HEntry::Occupied(_) => continue,
+		// 			HEntry::Vacant(vacant) => {
+		// 				vacant.insert(PeerData {
+		// 					view: View(Vec::new()),
+		// 					role: role.clone(),
+		// 				});
+
+		// 				if let Err(e) = dispatch_update_to_all(
+		// 					NetworkBridgeEvent::PeerConnected(peer, role),
+		// 					event_producers.values(),
+		// 					&mut ctx,
+		// 				).await {
+		// 					log::warn!("Aborting - Failure to dispatch messages to overseer");
+		// 					return Err(e)
+		// 				}
+		// 			}
+		// 		}
+		// 	}
+		// 	Action::PeerDisconnected(peer) => {
+		// 		if peers.remove(&peer).is_some() {
+		// 			if let Err(e) = dispatch_update_to_all(
+		// 				NetworkBridgeEvent::PeerDisconnected(peer),
+		// 				event_producers.values(),
+		// 				&mut ctx,
+		// 			).await {
+		// 				log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		// 				return Err(e)
+		// 			}
+		// 		}
+		// 	},
+		// 	Action::PeerMessages(peer, messages) => {
+		// 		let peer_data = match peers.get_mut(&peer) {
+		// 			None => continue,
+		// 			Some(d) => d,
+		// 		};
+
+		// 		let mut outgoing_messages = Vec::with_capacity(messages.len());
+		// 		for message in messages {
+		// 			match message {
+		// 				WireMessage::ViewUpdate(new_view) => {
+		// 					if new_view.0.len() > MAX_VIEW_HEADS {
+		// 						net.report_peer(
+		// 							peer.clone(),
+		// 							MALFORMED_VIEW_COST,
+		// 						).await?;
+
+		// 						continue
+		// 					}
+
+		// 					if new_view == peer_data.view { continue }
+		// 					peer_data.view = new_view;
+
+		// 					let update = NetworkBridgeEvent::PeerViewChange(
+		// 						peer.clone(),
+		// 						peer_data.view.clone(),
+		// 					);
+
+		// 					outgoing_messages.extend(
+		// 						event_producers.values().map(|producer| producer(update.clone()))
+		// 					);
+		// 				}
+		// 				WireMessage::ProtocolMessage(protocol, message) => {
+		// 					let message = match event_producers.get(&protocol) {
+		// 						Some(producer) => Some(producer(
+		// 							NetworkBridgeEvent::PeerMessage(peer.clone(), message)
+		// 						)),
+		// 						None => {
+		// 							net.report_peer(
+		// 								peer.clone(),
+		// 								UNKNOWN_PROTO_COST,
+		// 							).await?;
+
+		// 							None
+		// 						}
+		// 					};
+
+		// 					if let Some(message) = message {
+		// 						outgoing_messages.push(message);
+		// 					}
+		// 				}
+		// 			}
+		// 		}
+
+		// 		let send_messages = ctx.send_messages(outgoing_messages);
+		// 		if let Err(e) = send_messages.await {
+		// 			log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		// 			return Err(e)
+		// 		}
+		// 	},
+
+		// 	Action::Abort => return Ok(()),
+		// 	Action::Nop => (),
+		// }
 	}
 }
 
@@ -589,7 +617,7 @@ mod tests {
 		async fn connect_peer(&mut self, peer: PeerId, role: ObservedRole) {
 			self.send_network_event(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
-				engine_id: POLKADOT_ENGINE_ID,
+				engine_id: VALIDATION_PROTOCOL_ID,
 				role,
 			}).await;
 		}
@@ -597,14 +625,14 @@ mod tests {
 		async fn disconnect_peer(&mut self, peer: PeerId) {
 			self.send_network_event(NetworkEvent::NotificationStreamClosed {
 				remote: peer,
-				engine_id: POLKADOT_ENGINE_ID,
+				engine_id: VALIDATION_PROTOCOL_ID,
 			}).await;
 		}
 
 		async fn peer_message(&mut self, peer: PeerId, message: Vec<u8>) {
 			self.send_network_event(NetworkEvent::NotificationsReceived {
 				remote: peer,
-				messages: vec![(POLKADOT_ENGINE_ID, message.into())],
+				messages: vec![(VALIDATION_PROTOCOL_ID, message.into())],
 			}).await;
 		}
 
