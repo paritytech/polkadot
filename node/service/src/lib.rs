@@ -29,7 +29,7 @@ use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
 use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, OverseerHandler};
-use polkadot_subsystem::{DummySubsystem, register_metrics, RegisterMetrics};
+use polkadot_subsystem::{DummySubsystem, register_metrics};
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 use sp_core::traits::SpawnNamed;
