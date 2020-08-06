@@ -84,7 +84,7 @@ pub trait RuntimeApiCollection:
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -102,7 +102,7 @@ where
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
 	+ sp_block_builder::BlockBuilder<Block>
-	+ system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
 	+ sp_api::Metadata<Block>
 	+ sp_offchain::OffchainWorkerApi<Block>
@@ -301,7 +301,7 @@ fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_disabled: bool,
+	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -644,7 +644,7 @@ pub fn polkadot_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -662,7 +662,7 @@ pub fn polkadot_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;
@@ -676,7 +676,7 @@ pub fn kusama_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -694,7 +694,7 @@ pub fn kusama_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;
@@ -708,7 +708,7 @@ pub fn westend_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -726,7 +726,7 @@ pub fn westend_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;

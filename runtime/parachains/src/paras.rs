@@ -41,7 +41,7 @@ use sp_core::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub trait Trait: system::Trait + configuration::Trait { }
+pub trait Trait: frame_system::Trait + configuration::Trait { }
 
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode)]
@@ -241,7 +241,7 @@ decl_error! {
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 	}
 }
@@ -257,7 +257,7 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
@@ -477,7 +477,7 @@ impl<T: Trait> Module<T> {
 				CurrentCode::insert(&id, &new_code);
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
-				let now = <system::Module<T>>::block_number();
+				let now = <frame_system::Module<T>>::block_number();
 
 				let weight = Self::note_past_code(
 					id,
@@ -509,7 +509,7 @@ impl<T: Trait> Module<T> {
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<ValidationCode> {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
@@ -553,7 +553,7 @@ impl<T: Trait> Module<T> {
 	/// Compute the local-validation data based on the head of the para. This assumes the
 	/// relay-parent is the parent of the current block.
 	pub(crate) fn local_validation_data(para_id: ParaId) -> Option<LocalValidationData<T::BlockNumber>> {
-		let relay_parent_number = <system::Module<T>>::block_number() - One::one();
+		let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 		let config = <configuration::Module<T>>::config();
 		let freq = config.validation_upgrade_frequency;

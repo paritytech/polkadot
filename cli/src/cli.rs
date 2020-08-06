@@ -59,10 +59,7 @@ pub struct RunCmd {
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
 
-	/// Disable the authority discovery module on validator or sentry nodes.
-	///
-	/// Enabled by default on validator and sentry nodes. Always disabled on
-	/// non validator or sentry nodes.
+	/// Enable the authority discovery module on validator or sentry nodes.
 	///
 	/// When enabled:
 	///
@@ -73,8 +70,8 @@ pub struct RunCmd {
 	/// (2) As a validator or sentry node: Discover addresses of validators or
 	///     addresses of their sentry nodes and maintain a permanent connection
 	///     to a subset.
-	#[structopt(long = "disable-authority-discovery")]
-	pub authority_discovery_disabled: bool,
+	#[structopt(long = "enable-authority-discovery")]
+	pub authority_discovery_enabled: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
 	///

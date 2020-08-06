@@ -250,7 +250,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 	test: bool,
@@ -453,7 +453,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	}
 
 	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
-		if !authority_discovery_disabled {
+		if authority_discovery_enabled {
 			let (sentries, authority_discovery_role) = match role {
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
@@ -690,7 +690,7 @@ pub fn polkadot_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -704,7 +704,7 @@ pub fn polkadot_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 		false,
@@ -719,7 +719,7 @@ pub fn kusama_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -732,7 +732,7 @@ pub fn kusama_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 		false,
@@ -747,7 +747,7 @@ pub fn westend_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -761,7 +761,7 @@ pub fn westend_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 		false,
@@ -776,7 +776,7 @@ pub fn rococo_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -790,7 +790,7 @@ pub fn rococo_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 		false,
@@ -829,7 +829,7 @@ pub fn build_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
@@ -838,7 +838,7 @@ pub fn build_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			grandpa_pause,
 			false,
@@ -848,7 +848,7 @@ pub fn build_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			grandpa_pause,
 			false,
@@ -858,7 +858,7 @@ pub fn build_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			grandpa_pause,
 			false,
@@ -868,7 +868,7 @@ pub fn build_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			grandpa_pause,
 			false,
