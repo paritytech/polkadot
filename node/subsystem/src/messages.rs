@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_primitives::v1::{
-	Hash, CommittedCandidateReceipt,
+	Hash, CommittedCandidateReceipt, CollatorId,
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
@@ -137,6 +137,28 @@ impl CandidateValidationMessage {
 	}
 }
 
+
+/// Messages received by the Collator Protocol subsystem.
+#[derive(Debug)]
+pub enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	DistributeCollation(CandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
+}
+
 /// Messages received by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
@@ -154,7 +176,6 @@ pub enum NetworkBridgeMessage {
 	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
 	/// validators.
 	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
-
 }
 
 impl NetworkBridgeMessage {
@@ -480,6 +501,8 @@ pub enum AllMessages {
 	CandidateSelection(CandidateSelectionMessage),
 	/// Message for the Chain API subsystem.
 	ChainApi(ChainApiMessage),
+	/// Message for the Collator Protocol subsystem.
+	CollatorProtocol(CollatorProtocolMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
