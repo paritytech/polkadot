@@ -348,9 +348,10 @@ fn derive_erasure_chunks_with_proofs(
 	let branches = branches(chunks.as_ref());
 
 	let erasure_chunks = branches
-		.map(|(proof, chunk)| ErasureChunk {
+		.enumerate()
+		.map(|(index, (proof, chunk))| ErasureChunk {
 			chunk: chunk.to_vec(),
-			index: validator_index,
+			index: index as _,
 			proof,
 		})
 		.collect::<Vec<ErasureChunk>>();
@@ -679,7 +680,7 @@ where
 		if per_candidate
 			.message_vault
 			.insert(message_id.1, message.clone())
-			.is_none()
+			.is_some()
 		{
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 		} else {
@@ -1225,6 +1226,8 @@ mod test {
 
 	use sp_keyring::Sr25519Keyring;
 
+
+	#[derive(Clone)]
 	struct TestState {
 		chain_ids: Vec<ParaId>,
 		validators: Vec<Sr25519Keyring>,
@@ -1329,19 +1332,49 @@ mod test {
 		}
 	}
 
-	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
+
+	fn make_available_data(test: &TestState, pov: PoV) -> AvailableData {
 		let omitted_validation = OmittedValidationData {
 			global_validation: test.global_validation_data.clone(),
 			local_validation: test.local_validation_data.clone(),
 		};
 
-		let available_data = AvailableData {
+		AvailableData {
 			omitted_validation,
 			pov,
-		};
+		}
+	}
+
+	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
+		let available_data = make_available_data(test, pov);
 
 		let chunks = obtain_chunks(test.validators.len(), &available_data).unwrap();
 		branches(&chunks).root()
+	}
+
+
+	fn make_valid_availability_gossip(
+		test: &TestState,
+		candidate_hash: Hash,
+		validator_index: ValidatorIndex,
+		erasure_chunk_index: u32,
+		pov: PoV,
+	) -> AvailabilityGossipMessage {
+		let available_data = make_available_data(test, pov);
+
+		let erasure_chunks =
+			derive_erasure_chunks_with_proofs(test.validators.len(), validator_index, &available_data)
+				.expect("Generated avilable data must be able to spawn erasure chunks");
+
+		let erasure_chunk: ErasureChunk = erasure_chunks
+			.get(erasure_chunk_index as usize)
+			.expect("Must be valid or input is oob")
+			.clone();
+
+		AvailabilityGossipMessage {
+			candidate_hash,
+			erasure_chunk,
+		}
 	}
 
 	#[derive(Default)]
@@ -1371,37 +1404,37 @@ mod test {
 		}
 	}
 
-	fn valid_availability_gossip(
-		candidate_hash: Hash,
-		validator_count: usize,
-		validator_index: ValidatorIndex,
-		erasure_chunk_index: u32,
-	) -> AvailabilityGossipMessage {
-		let available_data = AvailableData {
-			pov: PoV {
-				block_data: BlockData(vec![0x77; 453]),
-			},
-			omitted_validation: OmittedValidationData {
-				global_validation: GlobalValidationData::default(),
-				local_validation: LocalValidationData {
-					validation_code_hash: candidate_hash.clone(),
-					..Default::default()
-				},
-			},
+	#[test]
+	fn helper_integrity() {
+		let test_state = TestState::default();
+
+		let pov_block_a = PoV {
+			block_data: BlockData(vec![42, 43, 44]),
 		};
-		let erasure_chunks =
-			derive_erasure_chunks_with_proofs(validator_count, validator_index, &available_data)
-				.expect("Generated must work");
 
-		let erasure_chunk: ErasureChunk = erasure_chunks
-			.get(erasure_chunk_index as usize)
-			.expect("Must be valid or input is oob")
-			.clone();
+		let pov_hash_a = pov_block_a.hash();
 
-		AvailabilityGossipMessage {
-			candidate_hash,
-			erasure_chunk,
-		}
+		let candidate_a = TestCandidateBuilder {
+			para_id: test_state.chain_ids[0],
+			relay_parent: test_state.relay_parent,
+			pov_hash: pov_hash_a,
+			erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
+			..Default::default()
+		}.build();
+
+		let validator_index: ValidatorIndex = test_state.validator_index.unwrap();
+
+		let message =
+			make_valid_availability_gossip(&test_state, dbg!(candidate_a.hash()), validator_index, 2, pov_block_a.clone());
+
+		let root = dbg!(&candidate_a.commitments().erasure_root);
+
+		let anticipated_hash = branch_hash(
+			root,
+			&message.erasure_chunk.proof,
+			dbg!(message.erasure_chunk.index as usize),
+		).expect("Must be able to derive branch hash");
+		assert_eq!(anticipated_hash, BlakeTwo256::hash(&message.erasure_chunk.chunk));
 	}
 
 	#[test]
@@ -1446,7 +1479,7 @@ mod test {
 			let TestState {
 				chain_ids,
 				keystore: _,
-				validators,
+				validators: _,
 				validator_public,
 				validator_groups,
 				availability_cores,
@@ -1456,7 +1489,7 @@ mod test {
 				relay_parent,
 				ancestors,
 				validator_index,
-			} = test_state;
+			} = test_state.clone();
 
 			let _ = validator_groups;
 			let _ = availability_cores;
@@ -1750,7 +1783,7 @@ mod test {
 			);
 
 			let valid: AvailabilityGossipMessage =
-				valid_availability_gossip(candidate_a.hash(), validators.len(), validator_index, 2);
+				make_valid_availability_gossip(&test_state, candidate_a.hash(), validator_index, 2, pov_block_a.clone());
 
 			// valid (first, from b)
 			overseer_send(
