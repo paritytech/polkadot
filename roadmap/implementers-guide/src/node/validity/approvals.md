@@ -1,4 +1,4 @@
-# Approval subsystem
+# Approvals subsystem
 
 The approval subsystem determines whether a relay chain block can be considered for finality.  It does so by running validity checks on the candidates declared available in that relay chain block.  
 
