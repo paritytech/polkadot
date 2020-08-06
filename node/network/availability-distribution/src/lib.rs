@@ -25,7 +25,7 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use keystore::KeyStorePtr;
+use keystore::{KeyStorePtr, BareCryptoStore};
 use sc_keystore as keystore;
 
 use node_primitives::{ProtocolId, View};
@@ -33,6 +33,7 @@ use node_primitives::{ProtocolId, View};
 use log::{trace, warn};
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
+	PARACHAIN_KEY_TYPE_ID,
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	Hash as Hash, HashT, Id as ParaId,
 	ValidatorId, ValidatorIndex, ValidatorPair,
@@ -139,7 +140,8 @@ struct PerCandidate {
 	validators: Vec<ValidatorId>,
 
 	/// If this node is a validator, note the index in the validator set.
-	validator_index: Option<ValidatorIndex>,}
+	validator_index: Option<ValidatorIndex>,
+}
 
 #[derive(Debug, Clone, Default)]
 struct PerRelayParent {
@@ -473,7 +475,6 @@ where
 				erasure_chunk,
 			};
 
-			// let per_candidate = state.per_candidate.entry(candidate_hash.clone()).or_default();
 			send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await?;
 		}
 	}
@@ -611,11 +612,12 @@ fn obtain_our_validator_index(
 	keystore: KeyStorePtr,
 ) -> Option<ValidatorIndex> {
 	let keystore = keystore.read();
-	validators.iter().enumerate().find_map(|(idx, v)| {
-		keystore
-			.key_pair::<ValidatorPair>(&v)
-			.ok()
-			.map(move |_| idx as ValidatorIndex)
+	validators.iter().enumerate().find_map(|(idx, validator)| {
+		if keystore.has_keys(&[(validator.0.to_vec(), PARACHAIN_KEY_TYPE_ID)]) {
+			Some(idx as ValidatorIndex)
+		} else {
+			None
+		}
 	})
 }
 
@@ -772,8 +774,6 @@ impl AvailabilityDistributionSubsystem {
 				FromOverseer::Communication {
 					msg: AvailabilityDistributionMessage::NetworkBridgeUpdate(event),
 				} => {
-					trace!(target: TARGET, "Processing NetworkMessage");
-					// a network message was received
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
 						self.keystore.clone(),
@@ -787,19 +787,13 @@ impl AvailabilityDistributionSubsystem {
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated,
-					deactivated,
+					activated: _,
+					deactivated: _,
 				})) => {
-					for relay_parent in activated {
-						trace!(target: TARGET, "Start {:?}", relay_parent);
-					}
-					for relay_parent in deactivated {
-						trace!(target: TARGET, "Stop {:?}", relay_parent);
-					}
+					// handled at view change
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
-					trace!(target: TARGET, "Conclude");
 					return Ok(());
 				}
 			}
