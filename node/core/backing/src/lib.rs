@@ -46,7 +46,7 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	prometheus,
+	prometheus, RegisterMetrics,
 	util::{
 		self,
 		request_session_index_for_child,
@@ -799,6 +799,22 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			metrics.signed_statement_count.inc();
 		}
+	}
+}
+
+impl RegisterMetrics for Metrics {
+	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			signed_statement_count: prometheus::register(
+				prometheus::Counter::new(
+					"signed_statement_count",
+					"Number of statements signed.",
+				)?,
+				registry,
+			)?,
+		};
+		self.0 = Some(metrics);
+		Ok(())
 	}
 }
 
