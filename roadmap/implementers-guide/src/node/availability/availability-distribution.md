@@ -26,7 +26,7 @@ Register on startup an event producer with  `NetworkBridge::RegisterEventProduce
 
 For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 
-We define an operation `live_candidates(relay_heads) -> Set<CommittedCandidateReceipt>` which returns a set of [`CommittedCandidateReceipt`s](../../types/candidate.md#committed-candidate-receipt) a given set of relay chain heads that implies a set of candidates whose availability chunks should be currently gossiped.
+We define an operation `live_candidates(relay_heads) -> Set<CommittedCandidateReceipt>` which returns a set of [`CommittedCandidateReceipt`s](../../types/candidate.md#committed-candidate-receipt).
 This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors in the same session. We assume that state is not pruned within `K` blocks of the chain-head.
 
 We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`.
