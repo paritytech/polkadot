@@ -31,7 +31,7 @@ pub mod paras_sudo_wrapper;
 
 use primitives::v0::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
-use system::limits;
+use frame_system::limits;
 use frame_support::{
 	parameter_types, traits::{Currency},
 	weights::{Weight, constants::WEIGHT_PER_SECOND, DispatchClass},
@@ -132,10 +132,10 @@ mod multiplier_tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub const AvailableBlockRatio: Perbill = Perbill::one();
-		pub BlockLength: system::limits::BlockLength =
-			system::limits::BlockLength::max(2 * 1024);
-		pub BlockWeights: system::limits::BlockWeights =
-			system::limits::BlockWeights::simple_max(1024);
+		pub BlockLength: frame_system::limits::BlockLength =
+			frame_system::limits::BlockLength::max(2 * 1024);
+		pub BlockWeights: frame_system::limits::BlockWeights =
+			frame_system::limits::BlockWeights::simple_max(1024);
 	}
 
 	impl frame_system::Trait for Runtime {
