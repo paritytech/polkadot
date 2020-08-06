@@ -16,7 +16,7 @@ We liberate availability cores when their candidate becomes available of course,
 
 Assignment operates in loosely timed rounds determined by this `DelayTranche`s, which proceed roughly 12 times faster than six second block production assuming half second gossip times.  If a candidate `C` needs more approval checkers by the time we reach round `t` then any validators with an assignment to `C` in delay tranche `t` gossip their send assignment notice for `C`.  We continue until all candidates have enough approval checkers assigned.  We take entire tranches together if we do not yet have enough, so we expect strictly more than enough checkers.  We also take later tranches if some checkers return their approval votes too slow (see no shows below).  
 
-Assignment ensures validators check those relay chain blocks for which they have delay tranche zero aka the highest high precedence, so that adversaries always face honest checkers equal to the expected number of assignments with delay tranche zero.  
+Assignment ensures validators check those relay chain blocks for which they have delay tranche zero aka the highest precedence, so that adversaries always face honest checkers equal to the expected number of assignments with delay tranche zero.  
 
 Among these criteria, the BABE VRF output provides the story for two, which reduces how frequently adversaries could position their own checkers.  We have one criterion whose story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate.  It provides unforeseeable assignments when adversaries gain foreknowledge about the other two by committing an equivocation in relay chain block production.
 
