@@ -38,7 +38,7 @@ In future, we shall determine which among the several hardening techniques best 
 
 ### Gossip
 
-Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices until they agree with our local clock.
+Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We delay gossiping the assignment notices unless their delay tranche exceeds our local clock excessively.
 
 ### Future work
 
