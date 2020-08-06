@@ -24,7 +24,7 @@ Output:
 For each relay-parent in our local view update, look at all backed candidates pending availability. Distribute via gossip all erasure chunks for all candidates that we have to peers.
 
 We define an operation `live_candidates(relay_heads) -> Set<CommittedCandidateReceipt>` which returns a set of [`CommittedCandidateReceipt`s](../../types/candidate.md#committed-candidate-receipt).
-This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors in the same session. We assume that state is not pruned within `K` blocks of the chain-head.
+This is defined as all candidates pending availability in any of those relay-chain heads or any of their last `K` ancestors in the same session. We assume that state is not pruned within `K` blocks of the chain-head. `K` commonly is small and is currently fixed to `K=3`.
 
 We will send any erasure-chunks that correspond to candidates in `live_candidates(peer_most_recent_view_update)`.
 Likewise, we only accept and forward messages pertaining to a candidate in `live_candidates(current_heads)`.
@@ -36,6 +36,4 @@ On our view change, for all live candidates, we will check if we have the PoV by
 
 If we are operating as a validator, we note our index `i` in the validator set and keep the `i`th availability chunk for any live candidate, as we receive it. We keep the chunk and its merkle proof in the [Availability Store](../utility/availability-store.md) by sending a `StoreChunk` command. This includes chunks and proofs generated as the result of a successful `QueryPoV`.
 
-> TODO: back-and-forth is kind of ugly but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed
->
-> K=3?
+The back-and-forth seems suboptimal at first glance, but drastically simplifies the pruning in the availability store, as it creates an invariant that chunks are only stored if the candidate was actually backed.
