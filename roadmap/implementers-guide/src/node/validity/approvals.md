@@ -28,11 +28,11 @@ There are rewards computations on-chain too, which runs the assignments code to 
 
 We need two separate keys for the approval subsystem
 
-- **Approval assignment keys** are sr25519/schnorrkel keys used only for the assignment criteria VRF.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.  
+- **Approval assignment keys** are sr25519/schnorrkel keys used only for the assignment criteria VRFs.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.  
 
-- **Approval vote keys** would only sign off on candidate parblock validity.  
+- **Approval vote keys** would only sign off on candidate parablock validity and has no natrual key type restrictions.  We could reuse the ed25519 grandpa keys for this purpose since these signatures control access to grandpa, although distant future node configurations might favor separate roles.  
 
-Approval vote keys could easily be handled by some hardened signer tooling, perhaps even HSMs if we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but they represent only minimal slashing risk for validator operator.  
+Approval vote keys could relatively easily be handled by some hardened signer tooling, perhaps even HSMs if we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but doing so sounds far more complex, and they represent little if any slashing risk for validator operator.  
 
 In future, we shall determine which among the several hardening techniques best benefits the netwrok as a whole.  We could provide a multi-process multi-machine architecture for validators, perhaps even reminiscent of GNUNet, or perhaps more resembling smart HSM tooling.  We might instead design a system that more resembled full systems, like like Cosmos' sentry nodes.  In either case, approval assignments might be handled by a slightly hardened machine, but not necessarily nearly as hardened as approval votes, but approval votes machines must similarly run foreign WASM code, which increases their risk, so assignments being separate sounds helpful.  
 
