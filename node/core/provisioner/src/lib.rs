@@ -584,19 +584,44 @@ mod tests {
 	mod select_candidates {
 		use super::super::*;
 
-		fn test_harness<MockOverseer, Test>(mock_overseer: MockOverseer, test: Test)
+		fn test_harness<OverseerFactory, Overseer, TestFactory, Test,>(overseer_factory: OverseerFactory, test_factory: TestFactory)
 		where
-			MockOverseer: FnOnce(mpsc::Receiver<FromJob>) -> Box<dyn Future<Output=()> + Unpin>,
-			Test: FnOnce(mpsc::Sender<FromJob>) -> Box<dyn Future<Output=()> + Unpin>
+			OverseerFactory: FnOnce(mpsc::Receiver<FromJob>) -> Overseer,
+			Overseer: Future<Output = ()>,
+			TestFactory: FnOnce(mpsc::Sender<FromJob>) -> Test,
+			Test: Future<Output = ()>,
 		{
 			let (tx, rx) = mpsc::channel(64);
-			let overseer = mock_overseer(rx);
-			let test = test(tx);
+			let overseer = overseer_factory(rx);
+			let test = test_factory(tx);
 
-			futures::pin_mut!(overseer);
-			futures::pin_mut!(test);
+			futures::pin_mut!(overseer, test);
 
-			futures::executor::block_on(future::select(overseer, test));
+			tokio::runtime::Runtime::new().unwrap().block_on(future::select(overseer, test));
+		}
+
+		// async fn mock_overseer(receiver: mpsc::Receiver<FromJob>) {
+		// 	unimplemented!()
+		// }
+
+		#[test]
+		fn handles_overseer_failure() {
+			let overseer = |rx: mpsc::Receiver<FromJob>| async move {
+				// drop the receiver so it closes and the sender can't send, then just sleep long enough that
+				// this is almost certainly not the first of the two futures to complete
+				std::mem::drop(rx);
+				tokio::time::delay_for(std::time::Duration::from_secs(1)).await;
+			};
+
+			let test = |mut tx: mpsc::Sender<FromJob>| async move {
+				// wait so that the overseer can drop the rx before we attempt to send
+				tokio::time::delay_for(std::time::Duration::from_millis(50)).await;
+				let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
+				println!("{:?}", result);
+				assert!(std::matches!(result, Err(Error::OneshotSend)));
+			};
+
+			test_harness(overseer, test);
 		}
 	}
 }
