@@ -600,9 +600,23 @@ mod tests {
 			tokio::runtime::Runtime::new().unwrap().block_on(future::select(overseer, test));
 		}
 
-		// async fn mock_overseer(receiver: mpsc::Receiver<FromJob>) {
-		// 	unimplemented!()
-		// }
+		async fn mock_overseer(mut receiver: mpsc::Receiver<FromJob>) {
+			use FromJob::{ChainApi, Runtime};
+			use ChainApiMessage::BlockNumber;
+			use RuntimeApiMessage::Request;
+			use polkadot_node_subsystem::messages::RuntimeApiRequest::{LocalValidationData, GlobalValidationData, AvailabilityCores};
+
+			while let Some(from_job) = receiver.next().await {
+				match from_job {
+					ChainApi(BlockNumber(_relay_parent, tx)) => tx.send(Ok(Some(100))).unwrap(),
+					Runtime(Request(_parent_hash, GlobalValidationData(tx))) => tx.send(Ok(Default::default())).unwrap(),
+					Runtime(Request(_parent_hash, LocalValidationData(_para_id, _assumption, tx))) => tx.send(Ok(Default::default())).unwrap(),
+					Runtime(Request(_parent_hash, AvailabilityCores(tx))) => tx.send(Ok(vec![])).unwrap(),
+					// non-exhaustive matches are fine for testing
+					_ => unimplemented!(),
+				}
+			}
+		}
 
 		#[test]
 		fn handles_overseer_failure() {
@@ -622,6 +636,15 @@ mod tests {
 			};
 
 			test_harness(overseer, test);
+		}
+
+		#[test]
+		fn can_succeed() {
+			test_harness(mock_overseer, |mut tx: mpsc::Sender<FromJob>| async move {
+				let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
+				println!("{:?}", result);
+				assert!(result.is_ok());
+			})
 		}
 	}
 }
