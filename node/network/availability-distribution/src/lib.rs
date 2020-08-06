@@ -34,8 +34,8 @@ use log::{trace, warn};
 use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
 	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
-	GlobalValidationData, Hash as Hash, HashT, Id as ParaId, LocalValidationData,
-	OccupiedCoreAssumption, OmittedValidationData, PoV, ValidatorId, ValidatorIndex, ValidatorPair,
+	Hash as Hash, HashT, Id as ParaId,
+	ValidatorId, ValidatorIndex, ValidatorPair,
 };
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
@@ -385,11 +385,7 @@ where
 	}
 
 	// handle all candidates
-	for (candidate_hash, candidate_receipt) in state.cached_live_candidates_unioned(added) {
-		let added = candidate_receipt.descriptor().relay_parent;
-		let desc = candidate_receipt.descriptor();
-		let para = desc.para_id;
-
+	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(added) {
 		let per_candidate = state
 			.per_candidate
 			.entry(candidate_hash.clone())
@@ -580,7 +576,7 @@ where
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
-	for (candidate_hash, receipt) in delta_candidates {
+	for (candidate_hash, _receipt) in delta_candidates {
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// obtain the relevant chunk indices not sent yet
@@ -692,12 +688,14 @@ where
 			// save the chunk for our index
 			if let Some(validator_index) = per_candidate.validator_index {
 				if message.erasure_chunk.index == validator_index {
-					store_chunk(
+					if let Err(_e) = store_chunk(
 						ctx,
 						message.candidate_hash.clone(),
 						message.erasure_chunk.index,
 						message.erasure_chunk.clone(),
-					).await?;
+					).await? {
+						warn!("Failed to store erasure chunk to availability store");
+					}
 				}
 			}
 		};
@@ -749,7 +747,7 @@ impl AvailabilityDistributionSubsystem {
 	const K: usize = 3;
 
 	/// Create a new instance of the availability distribution.
-	fn new(keystore: KeyStorePtr) -> Self {
+	pub fn new(keystore: KeyStorePtr) -> Self {
 		Self { keystore }
 	}
 
@@ -1123,8 +1121,6 @@ where
 mod test {
 	use super::*;
 	use assert_matches::assert_matches;
-	use bitvec::bitvec;
-	use maplit::hashmap;
 	use polkadot_primitives::v1::{
 		AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GlobalValidationData,
 		GroupIndex, GroupRotationInfo, HeadData, LocalValidationData, OccupiedCore,
@@ -1132,10 +1128,9 @@ mod test {
 	};
 	use polkadot_subsystem::test_helpers;
 
-	use futures::{channel::oneshot, executor, future, Future};
+	use futures::{executor, future, Future};
 	use smallvec::smallvec;
 	use smol_timeout::TimeoutExt;
-	use sp_core::crypto::Pair;
 	use std::time::Duration;
 
 	macro_rules! view {
@@ -1446,18 +1441,21 @@ mod test {
 
 			let TestState {
 				chain_ids,
-				keystore,
+				keystore: _,
 				validators,
 				validator_public,
 				validator_groups,
 				availability_cores,
-				head_data,
+				head_data: _,
 				local_validation_data,
 				global_validation_data,
 				relay_parent,
 				ancestors,
 				validator_index,
 			} = test_state;
+
+			let _ = validator_groups;
+			let _ = availability_cores;
 
 			let validator_index: ValidatorIndex = validator_index.unwrap();
 
@@ -1525,7 +1523,7 @@ mod test {
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-						relay_parent,
+						_relay_parent,
 						RuntimeApiRequest::SessionIndexForChild(tx)
 					)) => {
 						tx.send(Ok(1 as SessionIndex)).unwrap();
@@ -1660,7 +1658,7 @@ mod test {
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::AvailabilityStore(
 						AvailabilityStoreMessage::QueryAvailableData(
-							candidate_hash,
+							_candidate_hash,
 							tx,
 						)
 					) => {
@@ -1682,9 +1680,9 @@ mod test {
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::AvailabilityStore(
 						AvailabilityStoreMessage::StoreChunk(
-							candidate_hash,
-							idx,
-							chunk,
+							_candidate_hash,
+							_idx,
+							_chunk,
 							tx,
 						)
 					) => {

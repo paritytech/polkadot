@@ -4505,7 +4505,6 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
- "maplit",
  "parity-scale-codec",
  "parking_lot 0.11.0",
  "polkadot-erasure-coding",
