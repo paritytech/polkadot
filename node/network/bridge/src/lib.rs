@@ -421,7 +421,9 @@ async fn send_validation_message<I>(
 	peers: I,
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 ) -> SubsystemResult<()>
-	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator
+	where
+		I: IntoIterator<Item=PeerId>,
+		I::IntoIter: ExactSizeIterator,
 {
 	send_message(net, peers, PeerSet::Validation, message).await
 }
@@ -431,18 +433,23 @@ async fn send_collation_message<I>(
 	peers: I,
 	message: WireMessage<protocol_v1::CollationProtocol>,
 ) -> SubsystemResult<()>
-	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator
+	where
+	I: IntoIterator<Item=PeerId>,
+	I::IntoIter: ExactSizeIterator,
 {
 	send_message(net, peers, PeerSet::Collation, message).await
 }
 
-async fn send_message<M: Encode + Clone, I>(
+async fn send_message<M, I>(
 	net: &mut impl Network,
 	peers: I,
 	peer_set: PeerSet,
 	message: WireMessage<M>,
 ) -> SubsystemResult<()>
-	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator,
+	where
+		M: Encode + Clone,
+		I: IntoIterator<Item=PeerId>,
+		I::IntoIter: ExactSizeIterator,
 {
 	let mut message_producer = stream::iter({
 		let peers = peers.into_iter();

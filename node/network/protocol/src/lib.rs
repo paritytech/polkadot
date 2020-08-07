@@ -95,26 +95,26 @@ pub enum NetworkBridgeEvent<M> {
 }
 
 macro_rules! impl_try_from {
-	($m:ident, $variant:ident, $out:ty) => {
-		impl TryFrom<$m> for $out {
+	($m_ty:ident, $variant:ident, $out:ty) => {
+		impl TryFrom<$m_ty> for $out {
 			type Error = crate::WrongVariant;
 
 			#[allow(unreachable_patterns)] // when there is only one variant
-			fn try_from(x: $m) -> Result<$out, Self::Error> {
+			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
 				match x {
-					$m::$variant(y) => Ok(y),
+					$m_ty::$variant(y) => Ok(y),
 					_ => Err(crate::WrongVariant),
 				}
 			}
 		}
 
-		impl<'a> TryFrom<&'a $m> for &'a $out {
+		impl<'a> TryFrom<&'a $m_ty> for &'a $out {
 			type Error = crate::WrongVariant;
 
-			fn try_from(x: &'a $m) -> Result<&'a $out, Self::Error> {
+			fn try_from(x: &'a $m_ty) -> Result<&'a $out, Self::Error> {
 				#[allow(unreachable_patterns)] // when there is only one variant
 				match *x {
-					$m::$variant(ref y) => Ok(y),
+					$m_ty::$variant(ref y) => Ok(y),
 					_ => Err(crate::WrongVariant),
 				}
 			}
