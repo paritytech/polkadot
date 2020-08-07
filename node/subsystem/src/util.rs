@@ -24,7 +24,6 @@ use crate::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-	Metrics as MetricsTrait,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -59,10 +58,43 @@ use streamunordered::{StreamUnordered, StreamYield};
 /// Otherwise, downstream crates might have to modify their `Cargo.toml` to ensure `sp-core` appeared there.
 pub use sp_core::traits::SpawnNamed;
 
+/// Reexport prometheus types.
+pub use substrate_prometheus_endpoint as prometheus;
+
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
+
+
+/// Subsystem- or job-specific prometheus metrics.
+pub trait MetricsTrait: Default + Clone {
+	/// Try to register metrics in the prometheus registry.
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+
+	/// Convience method to register metrics in the optional prometheus registry.
+	/// If the registration fails, prints a warning and returns `Default::default()`.
+	fn register(registry: Option<&prometheus::Registry>) -> Self {
+		if let Some(registry) = registry {
+			match Self::try_register(registry) {
+				Err(e) => {
+					log::warn!("Failed to register metrics: {:?}", e);
+					Default::default()
+				},
+				Ok(metrics) => metrics,
+			}
+		} else {
+			Default::default()
+		}
+	}
+}
+
+// dummy impl
+impl MetricsTrait for () {
+	fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+		Ok(())
+	}
+}
 
 /// Utility errors
 #[derive(Debug, derive_more::From)]
@@ -826,11 +858,11 @@ where
 /// ```
 #[macro_export]
 macro_rules! delegated_subsystem {
-	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident) => {
-		delegated_subsystem!($job($run_args) <- $to_job as $subsystem; stringify!($subsystem));
+	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident) => {
+		delegated_subsystem!($job($run_args, $metrics) <- $to_job as $subsystem; stringify!($subsystem));
 	};
 
-	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
+	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
 		#[doc = "Manager type for the "]
 		#[doc = $subsystem_name]
 		type Manager<Spawner, Context> = $crate::util::JobManager<Spawner, Context, $job>;
@@ -849,15 +881,15 @@ macro_rules! delegated_subsystem {
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
-			pub fn new(spawner: Spawner, run_args: $run_args) -> Self {
+			pub fn new(spawner: Spawner, run_args: $run_args, metrics: $metrics) -> Self {
 				$subsystem {
-					manager: $crate::util::JobManager::new(spawner, run_args)
+					manager: $crate::util::JobManager::new(spawner, run_args, metrics)
 				}
 			}
 
 			/// Run this subsystem
-			pub async fn run(ctx: Context, run_args: $run_args, spawner: Spawner) {
-				<Manager<Spawner, Context>>::run(ctx, run_args, spawner, None).await
+			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
+				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}
 		}
 
@@ -867,6 +899,8 @@ macro_rules! delegated_subsystem {
 			Context: $crate::SubsystemContext,
 			<Context as $crate::SubsystemContext>::Message: Into<$to_job>,
 		{
+			type Metrics = $metrics;
+
 			fn start(self, ctx: Context) -> $crate::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}

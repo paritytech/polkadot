@@ -34,8 +34,6 @@ use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
 
-pub use substrate_prometheus_endpoint as prometheus;
-
 use crate::messages::AllMessages;
 
 pub mod errors;
@@ -206,32 +204,10 @@ pub trait Subsystem<C: SubsystemContext> {
 	///
 	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
 	/// to ensure `Default` bounds or as a dummy type ().
-	type Metrics: Metrics;
+	type Metrics: crate::util::MetricsTrait;
 
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
-}
-
-/// Subsystem-specific prometheus metrics.
-pub trait Metrics: Default + Clone {
-	/// Try to register metrics in the prometheus registry.
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
-
-	/// Convience method to register metrics in the optional prometheus registry.
-	/// If the registration fails, prints a warning and returns `Default::default()`.
-	fn register(registry: Option<&prometheus::Registry>) -> Self {
-		if let Some(registry) = registry {
-			match Self::try_register(registry) {
-				Err(e) => {
-					log::warn!("Failed to register metrics: {:?}", e);
-					Default::default()
-				},
-				Ok(metrics) => metrics,
-			}
-		} else {
-			Default::default()
-		}
-	}
 }
 
 /// A dummy subsystem that implements [`Subsystem`] for all
@@ -256,11 +232,5 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 			name: "DummySubsystem",
 			future,
 		}
-	}
-}
-
-impl Metrics for () {
-	fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-		Ok(())
 	}
 }
