@@ -40,5 +40,19 @@ struct HostConfiguration {
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
 	pub watermark_upward_queue_size: u32,
+	/// Number of sessions after which an HRMP open channel request expires.
+	pub hrmp_open_request_ttl: u32,
+	/// The deposit that the sender should provide for opening an HRMP channel.
+	pub hrmp_sender_deposit: u32,
+	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
+	pub hrmp_recipient_deposit: u32,
+	/// The maximum number of messages allowed in an HRMP channel at once.
+	pub hrmp_channel_max_places: u32,
+	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
+	pub hrmp_channel_max_size: u32,
+	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	pub hrmp_max_parachain_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	pub hrmp_max_parathread_outbound_channels: u32,
 }
 ```

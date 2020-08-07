@@ -93,7 +93,8 @@ OutgoingParas: Vec<ParaId>;
 
 ## Session Change
 
-1. Clean up outgoing paras. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.
+1. Clean up outgoing paras.
+	1. This means removing the entries under `Heads`, `ValidationCode`, `FutureCodeUpgrades`, and `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `ValidationCode` value. This is because any outdated validation code must remain available on-chain for a determined amount of blocks, and validation code outdated by de-registering the para is still subject to that invariant.
 1. Apply all incoming paras by initializing the `Heads` and `ValidationCode` using the genesis parameters.
 1. Amend the `Parachains` list to reflect changes in registered parachains.
 1. Amend the `Parathreads` set to reflect changes in registered parathreads.

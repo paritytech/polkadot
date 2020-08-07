@@ -301,7 +301,7 @@ fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	_max_block_data_size: Option<u64>,
-	_authority_discovery_disabled: bool,
+	_authority_discovery_enabled: bool,
 	_slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -335,7 +335,7 @@ fn new_full<RuntimeApi, Executor>(
 	let finality_proof_provider =
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
-	let (network, network_status_sinks, system_rpc_tx) =
+	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -512,6 +512,8 @@ fn new_full<RuntimeApi, Executor>(
 		)?;
 	}
 
+	network_starter.start_network();
+
 	Ok((task_manager, client))
 }
 
@@ -574,7 +576,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 	let finality_proof_provider =
 		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
-	let (network, network_status_sinks, system_rpc_tx) =
+	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -612,6 +614,8 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		system_rpc_tx,
 	})?;
 
+	network_starter.start_network();
+
 	Ok(task_manager)
 }
 
@@ -644,7 +648,7 @@ pub fn polkadot_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -662,7 +666,7 @@ pub fn polkadot_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;
@@ -676,7 +680,7 @@ pub fn kusama_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
@@ -694,7 +698,7 @@ pub fn kusama_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;
@@ -708,7 +712,7 @@ pub fn westend_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
@@ -726,7 +730,7 @@ pub fn westend_new_full(
 		config,
 		collating_for,
 		max_block_data_size,
-		authority_discovery_disabled,
+		authority_discovery_enabled,
 		slot_duration,
 		grandpa_pause,
 	)?;
