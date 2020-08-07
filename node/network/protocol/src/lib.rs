@@ -65,6 +65,16 @@ impl From<sc_network::ObservedRole> for ObservedRole {
 	}
 }
 
+impl Into<sc_network::ObservedRole> for ObservedRole {
+	fn into(self) -> sc_network::ObservedRole {
+		match self {
+			ObservedRole::Light => sc_network::ObservedRole::Light,
+			ObservedRole::Full => sc_network::ObservedRole::Full,
+			ObservedRole::Authority => sc_network::ObservedRole::Authority,
+		}
+	}
+}
+
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
