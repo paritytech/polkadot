@@ -1235,7 +1235,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 		let peer = PeerId::random();
 
 		executor::block_on(async move {
@@ -1327,7 +1327,7 @@ mod tests {
 		].into_iter().collect();
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let statement = {

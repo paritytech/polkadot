@@ -61,6 +61,8 @@ members = [
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
+	"node/subsystem-test-helpers",
+	"node/subsystem-util",
 	"node/test-service",
 
 	"parachain/test-parachains",
