@@ -35,10 +35,10 @@ use sc_keystore as keystore;
 use node_primitives::{ProtocolId, View};
 
 use log::{trace, warn};
-use polkadot_erasure_coding::{branch_hash, branches, obtain_chunks_v1 as obtain_chunks};
+use polkadot_erasure_coding::branch_hash;
 use polkadot_primitives::v1::{
 	PARACHAIN_KEY_TYPE_ID,
-	AvailableData, BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	Hash as Hash, HashT, Id as ParaId,
 	ValidatorId, ValidatorIndex,
 };
@@ -93,7 +93,7 @@ pub struct AvailabilityGossipMessage {
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 struct ProtocolState {
 	/// Track all active peers and their views
 	/// to determine what is relevant to them.
@@ -1098,6 +1098,8 @@ mod test {
 		OmittedValidationData, PoV, ScheduledCore, ValidatorPair,
 	};
 	use polkadot_subsystem::test_helpers;
+	use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
+
 
 	use futures::{executor, future, Future};
 	use smallvec::smallvec;
@@ -1332,7 +1334,6 @@ mod test {
 	fn make_valid_availability_gossip(
 		test: &TestState,
 		candidate_hash: Hash,
-		validator_index: ValidatorIndex,
 		erasure_chunk_index: u32,
 		pov: PoV,
 	) -> AvailabilityGossipMessage {
@@ -1397,10 +1398,8 @@ mod test {
 			..Default::default()
 		}.build();
 
-		let validator_index: ValidatorIndex = test_state.validator_index.unwrap();
-
 		let message =
-			make_valid_availability_gossip(&test_state, dbg!(candidate_a.hash()), validator_index, 2, pov_block_a.clone());
+			make_valid_availability_gossip(&test_state, dbg!(candidate_a.hash()), 2, pov_block_a.clone());
 
 		let root = dbg!(&candidate_a.commitments.erasure_root);
 
@@ -1495,17 +1494,15 @@ mod test {
 				validator_groups,
 				availability_cores,
 				head_data: _,
-				local_validation_data,
-				global_validation_data,
+				local_validation_data: _,
+				global_validation_data: _,
 				relay_parent,
 				ancestors,
-				validator_index,
+				validator_index: _,
 			} = test_state.clone();
 
 			let _ = validator_groups;
 			let _ = availability_cores;
-
-			let validator_index: ValidatorIndex = validator_index.unwrap();
 
 			let relay_parent_x = relay_parent;
 			// y is an ancestor of x
@@ -1636,7 +1633,7 @@ mod test {
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-						relay_parent,
+						_relay_parent,
 						RuntimeApiRequest::AvailabilityCores(tx),
 					)) => {
 						tx.send(Ok(vec![
@@ -1671,7 +1668,7 @@ mod test {
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(
 						RuntimeApiMessage::Request(
-							relay_parent,
+							_relay_parent,
 							RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 						)
 					) => {
@@ -1685,7 +1682,7 @@ mod test {
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-						relay_parent,
+						_relay_parent,
 						RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 					)) => {
 						assert_eq!(para, chain_ids[1]);
@@ -1717,8 +1714,9 @@ mod test {
 					}
 				);
 
+				assert_eq!(chunks.len(), test_state.validators.len());
 				// retrieve a stored chunk
-				for chunk in chunks.into_iter().take(dbg!(test_state.validators.len())) {
+				for chunk in chunks.into_iter() {
 					assert_matches!(
 						overseer_recv(&mut virtual_overseer).await,
 						AllMessages::AvailabilityStore(
@@ -1745,6 +1743,7 @@ mod test {
 				),
 			).await;
 
+			delay!(100);
 
 			overseer_send(
 				&mut virtual_overseer,
@@ -1753,6 +1752,8 @@ mod test {
 				),
 			).await;
 
+			delay!(100);
+
 			// setup peer b with interest in parent y
 			overseer_send(
 				&mut virtual_overseer,
@@ -1760,6 +1761,8 @@ mod test {
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 				),
 			).await;
+
+			delay!(100);
 
 			overseer_send(
 				&mut virtual_overseer,
@@ -1801,7 +1804,7 @@ mod test {
 			);
 
 			let valid: AvailabilityGossipMessage =
-				make_valid_availability_gossip(&test_state, candidate_a.hash(), validator_index, 2, pov_block_a.clone());
+				make_valid_availability_gossip(&test_state, candidate_a.hash(), 2, pov_block_a.clone());
 
 			delay!(300);
 
@@ -1914,7 +1917,7 @@ mod test {
 
 			// send another message
 			let valid2: AvailabilityGossipMessage =
-				make_valid_availability_gossip(&test_state, candidate_c.hash(), validator_index, 1, pov_block_c.clone());
+				make_valid_availability_gossip(&test_state, candidate_c.hash(), 1, pov_block_c.clone());
 
 
 			// send the a message before we send a view update
