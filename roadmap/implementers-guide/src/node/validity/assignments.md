@@ -66,23 +66,39 @@ As future work (or TODO?), we should merge assignment notices with the same dela
 
 ## Announcer and Watcher/Tracker
 
-We track all validators' announced approval assignments for each candidate associated to each relay chain block.  
+We track all validators' announced approval assignments for each candidate associated to each relay chain block, which tells us which validators were assigned to which candidates.  
 
 We permit at most one assignment per candidate per story per validator, so one validator could be assigned under both the `RelayVRFDelay` and `RelayEquivocation` criteria, but not under both `RelayVRFModulo` and `RelayVRFDelay` criteria, since those both use the same story.  We permit only one approval vote per candidate per validator, which counts for any applicable criteria. 
 
-We announce, and start checking for, our own assignments when their delay is reached, but only if the tracker says the assignee candidate requires more approval checkers.  We never announce an assignment we believe unnecessary because early announcements gives an adversary information.  All delay tranche zero assignments always get announced, which includes all `RelayVRFModulo` assignments.
+We announce, and start checking for, our own assignments when their tranche's delay is reached, but only if the tracker says the assignee candidate requires more approval checkers.  We never announce an assignment we believe unnecessary because early announcements gives an adversary information.  All delay tranche zero assignments always get announced, which includes all `RelayVRFModulo` assignments.
 
-We have a "no show" timeout longer than one relay chain slot, so at least six seconds, during which we expect approval checks should succeed in reconstructing the candidate block, in redoing its erasure coding to check the candidate receipt, and in rechecking the candidate block itself.  
+In other words, if some candidate `C` needs more approval checkers by the time we reach round `t` then any validators with an assignment to `C` in delay tranche `t` gossip their send assignment notice for `C`, and begin reconstruction and validation for 'C.  If however `C` reached enough assignments, then validators with later assignments skip announcing their assignments.  
 
-We consider a validator a "no show" if they do not approve or dispute within this "no show" timeout from our receiving their assignment notice.  We worry "no shows" represent a validator under denial of service attack, presumably to prevent it from reconstructing the candidate, but perhaps delaying it form gossiping a dispute too.  We always replace "no shows" by adding one entire extra delay tranche worth of validators, so such attacks always result in additional checkers.  
+We continue until all candidates have enough approval checkers assigned.  We never prioritize assignments within tranches and count all or no assignments for a given tranche together, so we often overshoot the target number of assigned approval checkers.
 
-As an example, imagine we need 20 checkers, but tranche zero produces only 14, and tranche one only 4, then we take all 5 from tranche two, and thus require 23 checkers for that candidate.  If one checker Charlie from tranche one-two does not respond within say 6 seconds, then we add all 7 checkers from tranche three.  If one checker Cindy from tranche three does not respond within 6 seconds then we take all 3 checkers from tranche four.  We now have 33 checkers working on the candidate, so this escalated quickly.  
+### No shows
+
+We have a "no show" timeout longer than one relay chain slot, so at least 6 seconds, during which we expect approval checks should succeed in reconstructing the candidate block, in redoing its erasure coding to check the candidate receipt, and finally in rechecking the candidate block itself.  We consider a validator a "no show" if they do not approve or dispute within this "no show" timeout from our receiving their assignment notice.  
+
+We worry "no shows" represent a validator under denial of service attack, presumably to prevent it from reconstructing the candidate, but perhaps delaying it form gossiping a dispute too.  We therefore always replace "no shows" by adding one entire extra delay tranche worth of validators, so such attacks always result in additional checkers. 
+
+As an example, imagine we need 20 checkers, but tranche zero produces only 14, and tranche one only 4, then we take all 5 from tranche two, and thus require 23 checkers for that candidate.  If one checker Charlie from tranche one or two does not respond within say 8 seconds, then we add all 7 checkers from tranche three.  If again one checker Cindy from tranche three does not respond within 8 seconds then we take all 3 checkers from tranche four.  We now have 33 checkers working on the candidate, so this escalated quickly.  
 
 We escalated so quickly because we worried that Charlie and Cindy might be the only honest checkers assigned to that candidate.  If therefore either Charlie or Cindy finally return an approval, then we can conclude approval, and abandon the checkers from tranche four.
 
 We require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain and reward.  We avoid slashing for "no shows" per se, although being "no show" could enter into some computation that punishes repeated poor performance, presumably replaces ImOnline, and we could reduce their rewards and further rewards those who filled in.
 
 As future work, we foresee expanding the "no show" scheme to anonymizes the additional checkers, like by using assignment noticed with a new criteria that employs a ring VRF and then all validators providing cover by requesting a couple erasure coded pieces, but such anonymity scheme sound extremely complex and lie far beyond our initial functionality.
+
+## Paramaters
+
+We prefer doing approval checkers assignments under `RelayVRFModulo` as opposed to `RelayVRFDelay` because `RelayVRFModulo` avoids giving individual checkers too many assignments and tranche zero assignments benefit security the most.  We suggest assigning at least 16 checkers under `RelayVRFModulo` although assignment levels have never been properly analysed. 
+
+Our delay criteria `RelayVRFDelay` and `RelayEquivocation` both have two primary paramaters, expected checkers per tranche and the zeroth delay tranche width.
+
+We require expected checkers per tranche to be less than three because otherwise an adversary with 1/3 stake could force all nodes into checking all blocks.  We strongly recommend expected checkers per tranche to be less than two, which helps avoid both accedental and intentional explosions.  We also suggest expected checkers per tranche be larger than one, which helps prevent adversaries from predicting than advancing one tranche adds only their own validators.
+
+We improve security more with tranche zero assignments, so `RelayEquivocation` should consolidates its first several tranches into tranche zero.  We describe this as the zeroth delay tranche width, which initially we set to 12 for `RelayEquivocation` and `1` for `RelayVRFDelay`.
 
 ## Why VRFs?
 
