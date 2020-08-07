@@ -506,4 +506,6 @@ pub enum AllMessages {
 	/// subsystem job manager much simpler.
 	#[cfg(test)]
 	Test(String),
+	#[cfg(test)]
+	TestVal(usize),
 }
