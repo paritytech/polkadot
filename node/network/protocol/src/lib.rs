@@ -171,21 +171,21 @@ pub mod v1 {
 	use super::RequestId;
 
 	/// Network messages used by the availability distribution subsystem
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum AvailabilityDistributionMessage {
 		/// An erasure chunk for a given candidate hash.
 		Chunk(Hash, ErasureChunk),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
 		Bitfield(Hash, SignedAvailabilityBitfield),
 	}
 
 	/// Network messages used by the PoV distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum PoVDistributionMessage {
 		/// Notification that we are awaiting the given PoVs (by hash) against a
 		/// specific relay-parent hash.
@@ -196,14 +196,14 @@ pub mod v1 {
 	}
 
 	/// Network messages used by the statement distribution subsystem.
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
 		Statement(Hash, SignedFullStatement)
 	}
 
 	/// Network messages used by the collator protocol subsystem
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum CollatorProtocolMessage {
 		/// Declare the intent to advertise collations under a collator ID.
 		Declare(CollatorId),
@@ -217,7 +217,7 @@ pub mod v1 {
 	}
 
 	/// All network messages on the validation peer-set.
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum ValidationProtocol {
 		/// Availability distribution messages
 		AvailabilityDistribution(AvailabilityDistributionMessage),
@@ -235,7 +235,7 @@ pub mod v1 {
 	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
 
 	/// All network messages on the collation peer-set.
-	#[derive(Debug, Clone, Encode, Decode)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
 		CollatorProtocol(CollatorProtocolMessage),
