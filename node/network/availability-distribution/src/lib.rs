@@ -460,15 +460,16 @@ where
 				.per_candidate
 				.entry(candidate_hash.clone())
 				.or_default();
+			let message_id = (candidate_hash.clone(), erasure_chunk.index);
 			let peers = peers
 				.iter()
 				.filter(|peer| {
+					// only pick those which were not sent before
 					!per_candidate
 						.sent_messages
 						.get(*peer)
 						.filter(|set| {
-							// peer already received this message
-							set.contains(&(candidate_hash.clone(), erasure_chunk.index))
+							set.contains(&message_id)
 						})
 						.is_some()
 				})
@@ -571,35 +572,42 @@ where
 {
 	let current = state.peer_views.entry(origin.clone()).or_default();
 
-	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
+	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
 
 	*current = view;
 
 	// only contains the intersection of what we are interested and
 	// the union of all relay parent's candidates.
-	let delta_candidates = state.cached_live_candidates_unioned(delta_vec.iter());
+	let added_candidates = state.cached_live_candidates_unioned(added.iter());
 
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
-	for (candidate_hash, _receipt) in delta_candidates {
+	for (candidate_hash, _receipt) in added_candidates {
 		let per_candidate = state.per_candidate.entry(candidate_hash).or_default();
 
 		// obtain the relevant chunk indices not sent yet
 		let messages = ((0 as ValidatorIndex)
 			..(per_candidate.validators.len() as ValidatorIndex))
 			.into_iter()
-			.filter(|erasure_chunk_index: &ValidatorIndex| {
-				// check if that erasure chunk was already sent before
-				if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
-					!sent_set.contains(&(candidate_hash, *erasure_chunk_index))
-				} else {
-					true
-				}
-			})
 			.filter_map(|erasure_chunk_index: ValidatorIndex| {
+				let message_id = (candidate_hash, erasure_chunk_index);
+
 				// try to pick up the message from the message vault
-				per_candidate.message_vault.get(&erasure_chunk_index)
+				// so we send as much as we have
+				per_candidate
+					.message_vault
+					.get(&erasure_chunk_index)
+					.filter(|_| {
+						// check if that erasure chunk was already sent before
+						if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
+							if sent_set.contains(&message_id) {
+								log::trace!(">>> sent before");
+								return false;
+							}
+						}
+						true
+					})
 			})
 			.cloned()
 			.collect::<HashSet<_>>();
@@ -1296,6 +1304,7 @@ mod test {
 
 			let mut head_data = HashMap::new();
 			head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
+			head_data.insert(chain_b, HeadData(vec![7, 8, 9]));
 
 			let ancestors = vec![
 				Hash::repeat_byte(0x44),
@@ -1460,8 +1469,14 @@ mod test {
 				block_data: BlockData(vec![45, 46, 47]),
 			};
 
+
+			let pov_block_c = PoV {
+				block_data: BlockData(vec![48, 49, 50]),
+			};
+
 			let pov_hash_a = pov_block_a.hash();
 			let pov_hash_b = pov_block_b.hash();
+			let pov_hash_c = pov_block_c.hash();
 
 			let candidate_a = TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
@@ -1477,6 +1492,15 @@ mod test {
 				pov_hash: pov_hash_b,
 				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
 				head_data: expected_head_data.clone(),
+				..Default::default()
+			}.build();
+
+			let candidate_c = TestCandidateBuilder {
+				para_id: test_state.chain_ids[1],
+				relay_parent: Hash::repeat_byte(0xFA),
+				pov_hash: pov_hash_c,
+				erasure_root: make_erasure_root(&test_state, pov_block_c.clone()),
+				head_data: test_state.head_data.get(&test_state.chain_ids[1]).unwrap().clone(),
 				..Default::default()
 			}.build();
 
@@ -1851,6 +1875,73 @@ mod test {
 					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
 				}
 			);
+
+			// peer a is not interested in anything anymore
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![]),
+				),
+			).await;
+
+			// send the a message again, so we should detect the duplicate
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+				),
+			).await;
+
+			delay!(50);
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
+				}
+			);
+
+			// peer b sends a message before we have the view
+			// setup peer a with interest in parent x
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+				),
+			).await;
+
+
+			// send another message
+			let valid2: AvailabilityGossipMessage =
+				make_valid_availability_gossip(&test_state, candidate_c.hash(), validator_index, 1, pov_block_c.clone());
+
+
+			// send the a message before we send a view update
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid2.encode()),
+				),
+			).await;
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(
+						peer,
+						rep
+					)
+				) => {
+					assert_eq!(peer, peer_a);
+					assert_eq!(rep, COST_NOT_A_LIVE_CANDIDATE);
+				}
+			);
+
 		});
 	}
 }
