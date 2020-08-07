@@ -239,7 +239,6 @@ any of dispatchables return an error.
   1. Remove `P` if it exists in `NeedsDispatch`.
   1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
   - Note that we don't remove the open/close requests since they are gon die out naturally.
-TODO: What happens with the deposits in channels or open requests?
 1. For each request `R` in `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
@@ -265,7 +264,3 @@ To remove a channel `C` identified with a tuple `(sender, recipient)`:
 1. Remove `C` from `HrmpChannelContents`.
 1. Remove `recipient` from the set `HrmpEgressChannelsIndex` for `sender`.
 1. Remove `sender` from the set `HrmpIngressChannelsIndex` for `recipient`.
-
-## Finalization
-
-  1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.max_upward_queue_size` and `config.max_upward_queue_count` limits.
