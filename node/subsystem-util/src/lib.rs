@@ -43,7 +43,7 @@ use polkadot_primitives::v1::{
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidatorPair,
 };
-use sp_core::Pair;
+use sp_core::{Pair, traits::SpawnNamed};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -53,10 +53,15 @@ use std::{
 };
 use streamunordered::{StreamUnordered, StreamYield};
 
-/// This reexport is required so that external crates can use the `delegated_subsystem` macro properly.
-///
-/// Otherwise, downstream crates might have to modify their `Cargo.toml` to ensure `sp-core` appeared there.
-pub use sp_core::traits::SpawnNamed;
+/// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
+pub mod reexports {
+	pub use sp_core::traits::SpawnNamed;
+	pub use polkadot_node_subsystem::{
+		SpawnedSubsystem,
+		Subsystem,
+		SubsystemContext,
+	};
+}
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -830,9 +835,9 @@ macro_rules! delegated_subsystem {
 
 		impl<Spawner, Context> $subsystem<Spawner, Context>
 		where
-			Spawner: Clone + $crate::SpawnNamed + Send + Unpin,
-			Context: polkadot_node_subsystem::SubsystemContext,
-			<Context as polkadot_node_subsystem::SubsystemContext>::Message: Into<$to_job>,
+			Spawner: Clone + $crate::reexports::SpawnNamed + Send + Unpin,
+			Context: $crate::reexports::SubsystemContext,
+			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
@@ -848,13 +853,13 @@ macro_rules! delegated_subsystem {
 			}
 		}
 
-		impl<Spawner, Context> polkadot_node_subsystem::Subsystem<Context> for $subsystem<Spawner, Context>
+		impl<Spawner, Context> $crate::reexports::Subsystem<Context> for $subsystem<Spawner, Context>
 		where
-			Spawner: $crate::SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: polkadot_node_subsystem::SubsystemContext,
-			<Context as polkadot_node_subsystem::SubsystemContext>::Message: Into<$to_job>,
+			Spawner: $crate::reexports::SpawnNamed + Send + Clone + Unpin + 'static,
+			Context: $crate::reexports::SubsystemContext,
+			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
-			fn start(self, ctx: Context) -> polkadot_node_subsystem::SpawnedSubsystem {
+			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
 		}

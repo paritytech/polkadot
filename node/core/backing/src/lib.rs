@@ -45,14 +45,14 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	util::{
-		self,
-		request_session_index_for_child,
-		request_validator_groups,
-		request_validators,
-		request_from_runtime,
-		Validator,
-	},
+};
+use polkadot_node_subsystem_util::{
+	self as util,
+	request_session_index_for_child,
+	request_validator_groups,
+	request_validators,
+	request_from_runtime,
+	Validator,
 	delegated_subsystem,
 };
 use statement_table::{
