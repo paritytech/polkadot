@@ -334,36 +334,6 @@ where
 	Ok(())
 }
 
-fn derive_erasure_chunks_with_proofs(
-	n_validators: usize,
-	validator_index: ValidatorIndex,
-	available_data: &AvailableData,
-) -> Result<Vec<ErasureChunk>> {
-	if n_validators <= validator_index as usize {
-		warn!(target: TARGET, "Validator index is outside the validator set range");
-		return Err(Error::Logic);
-	}
-	let chunks: Vec<Vec<u8>> = if let Ok(chunks) = obtain_chunks(n_validators, available_data) {
-		chunks
-	} else {
-		warn!(target: TARGET, "Failed to create erasure chunks");
-		return Err(Error::Logic);
-	};
-
-	// create proofs for each erasure chunk
-	let branches = branches(chunks.as_ref());
-
-	let erasure_chunks = branches
-		.enumerate()
-		.map(|(index, (proof, chunk))| ErasureChunk {
-			chunk: chunk.to_vec(),
-			index: index as _,
-			proof,
-		})
-		.collect::<Vec<ErasureChunk>>();
-
-	Ok(erasure_chunks)
-}
 
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
@@ -400,45 +370,16 @@ where
 			.or_default();
 
 		// assure the node has the validator role
-		let validator_index = if let Some(validator_index) = per_candidate.validator_index {
-			validator_index
-		} else {
+		if per_candidate.validator_index.is_none() {
 			continue;
 		};
 
-		// pull the proof of validity
-		let available_data = if let Some(available_data) =
-			query_available_data(ctx, candidate_hash.clone()).await?
-		{
-			available_data
-		} else {
+		// check if the availability is present in the store exists
+		if !query_data_availability(ctx, candidate_hash).await? {
 			continue;
-		};
-
-
-		let erasure_chunks = if let Ok(erasure_chunks) = derive_erasure_chunks_with_proofs(
-			per_candidate.validators.len(),
-			validator_index,
-			&available_data,
-		) {
-			erasure_chunks
-		} else {
-			return Ok(());
-		};
-
-		if let Some(erasure_chunk) = erasure_chunks.get(validator_index as usize) {
-			match store_chunk(ctx, candidate_hash, validator_index, erasure_chunk.clone()).await {
-				Err(e) => warn!(target: TARGET, "Failed to send store message to overseer: {:?}", e),
-				Ok(Err(())) => warn!(target: TARGET, "Failed to store our own erasure chunk"),
-				Ok(Ok(())) => {}
-			}
-		} else {
-			warn!(
-				target: TARGET,
-				"Our validation index is out of bounds, no associated message"
-			);
-			return Ok(());
 		}
+
+		let validator_count = per_candidate.validators.len();
 
 		// obtain interested peers in the candidate hash
 		let peers: Vec<PeerId> = state
@@ -455,13 +396,27 @@ where
 			.collect();
 
 		// distribute all erasure messages to interested peers
-		for erasure_chunk in erasure_chunks {
+		for chunk_index in 0u32..(validator_count as u32) {
+
 			// only the peers which did not receive this particular erasure chunk
 			let per_candidate = state
 				.per_candidate
 				.entry(candidate_hash)
 				.or_default();
-			let message_id = (candidate_hash, erasure_chunk.index);
+
+			// obtain the chunks from the cache, if not fallback
+			// and query the availability store
+			let message_id = (candidate_hash, chunk_index);
+			let erasure_chunk = if let Some(message) = per_candidate.message_vault.get(&chunk_index) {
+				message.erasure_chunk.clone()
+			} else if let Some(erasure_chunk) = query_chunk(ctx, candidate_hash, chunk_index as ValidatorIndex).await? {
+				erasure_chunk
+			} else {
+				continue;
+			};
+
+			debug_assert_eq!(erasure_chunk.index, chunk_index);
+
 			let peers = peers
 				.iter()
 				.filter(|peer| {
@@ -967,21 +922,38 @@ where
 }
 
 /// Query the proof of validity for a particular candidate hash.
-async fn query_available_data<Context>(
+async fn query_data_availability<Context>(
 	ctx: &mut Context,
 	candidate_hash: Hash,
-) -> Result<Option<AvailableData>>
+) -> Result<bool>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx),
+		AvailabilityStoreMessage::QueryDataAvailability(candidate_hash, tx),
 	))
-	.await
-	.map_err::<Error, _>(Into::into)?;
+	.await?;
 	rx.await.map_err::<Error, _>(Into::into)
 }
+
+
+async fn query_chunk<Context>(
+	ctx: &mut Context,
+	candidate_hash: Hash,
+	validator_index: ValidatorIndex,
+) -> Result<Option<ErasureChunk>>
+where
+	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	ctx.send_message(AllMessages::AvailabilityStore(
+			AvailabilityStoreMessage::QueryChunk(candidate_hash, validator_index, tx),
+		))
+		.await?;
+	rx.await.map_err::<Error, _>(Into::into)
+}
+
 
 async fn store_chunk<Context>(
 	ctx: &mut Context,
@@ -995,9 +967,7 @@ where
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
 		AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
-	))
-	.await
-	.map_err::<Error, _>(Into::into)?;
+	)).await?;
 	rx.await.map_err::<Error, _>(Into::into)
 }
 
@@ -1012,11 +982,11 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent,
-		RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-	)))
-	.await
-	.map_err::<Error, _>(Into::into)?;
+			relay_parent,
+			RuntimeApiRequest::CandidatePendingAvailability(para, tx),
+		)))
+		.await
+		.map_err::<Error, _>(Into::into)?;
 	rx.await
 		.map_err::<Error, _>(Into::into)?
 		.map_err::<Error, _>(Into::into)
@@ -1209,7 +1179,7 @@ mod test {
 		msg: AvailabilityDistributionMessage,
 	) {
 		log::trace!("Sending message:\n{:?}", &msg);
-		delay!(50);
+		delay!(10);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -1221,7 +1191,7 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	) -> AllMessages {
 		log::trace!("Waiting for message ...");
-		delay!(50);
+		delay!(10);
 		let msg = overseer
 			.recv()
 			.timeout(TIMEOUT)
@@ -1383,8 +1353,7 @@ mod test {
 		let available_data = make_available_data(test, pov);
 
 		let erasure_chunks =
-			derive_erasure_chunks_with_proofs(test.validators.len(), validator_index, &available_data)
-				.expect("Generated avilable data must be able to spawn erasure chunks");
+			derive_erasure_chunks_with_proofs(test.validators.len(), &available_data);
 
 		let erasure_chunk: ErasureChunk = erasure_chunks
 			.get(erasure_chunk_index as usize)
@@ -1455,6 +1424,27 @@ mod test {
 			dbg!(message.erasure_chunk.index as usize),
 		).expect("Must be able to derive branch hash");
 		assert_eq!(anticipated_hash, BlakeTwo256::hash(&message.erasure_chunk.chunk));
+	}
+
+	fn derive_erasure_chunks_with_proofs(
+		n_validators: usize,
+		available_data: &AvailableData,
+	) -> Vec<ErasureChunk> {
+		let chunks: Vec<Vec<u8>> = obtain_chunks(n_validators, available_data).unwrap();
+
+		// create proofs for each erasure chunk
+		let branches = branches(chunks.as_ref());
+
+		let erasure_chunks = branches
+			.enumerate()
+			.map(|(index, (proof, chunk))| ErasureChunk {
+				chunk: chunk.to_vec(),
+				index: index as _,
+				proof,
+			})
+			.collect::<Vec<ErasureChunk>>();
+
+		erasure_chunks
 	}
 
 	#[test]
@@ -1589,18 +1579,25 @@ mod test {
 				}
 			);
 
-			for _ in 0usize..3 {
-				// state query for each of them
-				assert_matches!(
-					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-						_relay_parent,
-						RuntimeApiRequest::SessionIndexForChild(tx)
-					)) => {
-						tx.send(Ok(1 as SessionIndex)).unwrap();
-					}
-				);
-			}
+			// state query for each of them
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx)
+				)) => {
+					tx.send(Ok(1 as SessionIndex)).unwrap();
+				}
+			);
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx)
+				)) => {
+					tx.send(Ok(1 as SessionIndex)).unwrap();
+				}
+			);
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1648,112 +1645,110 @@ mod test {
 					))).unwrap();
 				}
 			);
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::AvailabilityCores(tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					tx.send(Ok(vec![
-						CoreState::Occupied(OccupiedCore {
-							para_id: chain_ids[0].clone(),
-							next_up_on_available: None,
-							occupied_since: 0,
-							time_out_at: 10,
-							next_up_on_time_out: None,
-							availability: Default::default(),
-							group_responsible: GroupIndex::from(0),
-						}),
-						CoreState::Free,
-						CoreState::Free,
-						CoreState::Occupied(OccupiedCore {
-							para_id: chain_ids[1].clone(),
-							next_up_on_available: None,
-							occupied_since: 1,
-							time_out_at: 7,
-							next_up_on_time_out: None,
-							availability: Default::default(),
-							group_responsible: GroupIndex::from(0),
-						}),
-						CoreState::Free,
-						CoreState::Free,
-					])).unwrap();
-				}
-			);
 
-			// query the availability cores for each of the paras (2)
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(
-						relay_parent,
-						RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-					)
-				) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, chain_ids[0]);
-					tx.send(Ok(Some(
-						candidate_a.clone()
-					))).unwrap();
-				}
-			);
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					relay_parent,
-					RuntimeApiRequest::CandidatePendingAvailability(para, tx),
-				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
-					assert_eq!(para, chain_ids[1]);
-					tx.send(Ok(Some(
-						candidate_b.clone()
-					))).unwrap();
-				}
-			);
-
-			// query the available data incl PoV from the availability store
 			for _ in 0usize..2 {
-				// query the available data incl PoV from the availability store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::QueryAvailableData(
-							_candidate_hash,
-							tx,
-						)
-					) => {
-						delay!(100);
-						// assert_eq!(candidate_hash, candidate_b.hash());
-						tx.send(Some(
-							AvailableData {
-								pov: pov_block_a.clone(),
-								omitted_validation: OmittedValidationData {
-									local_validation: local_validation_data.clone(),
-									global_validation: global_validation_data.clone(),
-								},
-							}
-						)).unwrap();
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						relay_parent,
+						RuntimeApiRequest::AvailabilityCores(tx),
+					)) => {
+						tx.send(Ok(vec![
+							CoreState::Occupied(OccupiedCore {
+								para_id: chain_ids[0].clone(),
+								next_up_on_available: None,
+								occupied_since: 0,
+								time_out_at: 10,
+								next_up_on_time_out: None,
+								availability: Default::default(),
+								group_responsible: GroupIndex::from(0),
+							}),
+							CoreState::Free,
+							CoreState::Free,
+							CoreState::Occupied(OccupiedCore {
+								para_id: chain_ids[1].clone(),
+								next_up_on_available: None,
+								occupied_since: 1,
+								time_out_at: 7,
+								next_up_on_time_out: None,
+								availability: Default::default(),
+								group_responsible: GroupIndex::from(0),
+							}),
+							CoreState::Free,
+							CoreState::Free,
+						])).unwrap();
 					}
 				);
+
+				// query the availability cores for each of the paras (2)
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::RuntimeApi(
+						RuntimeApiMessage::Request(
+							relay_parent,
+							RuntimeApiRequest::CandidatePendingAvailability(para, tx),
+						)
+					) => {
+						assert_eq!(para, chain_ids[0]);
+						tx.send(Ok(Some(
+							candidate_a.clone()
+						))).unwrap();
+					}
+				);
+
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						relay_parent,
+						RuntimeApiRequest::CandidatePendingAvailability(para, tx),
+					)) => {
+						assert_eq!(para, chain_ids[1]);
+						tx.send(Ok(Some(
+							candidate_b.clone()
+						))).unwrap();
+					}
+				);
+			}
+			// query the available data incl PoV from the availability store
+			for _ in 0usize..1 {
+
+				let avail_data = make_available_data(&test_state, pov_block_a.clone());
+				let chunks = derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
 
 				// store the chunk to the av store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::AvailabilityStore(
-						AvailabilityStoreMessage::StoreChunk(
+						AvailabilityStoreMessage::QueryDataAvailability(
 							_candidate_hash,
-							_idx,
-							_chunk,
 							tx,
 						)
 					) => {
-						delay!(100);
+						dbg!(_candidate_hash);
 						tx.send(
-							Ok(())
+							true
 						).unwrap();
 					}
 				);
+
+				// retrieve a stored chunk
+				for chunk in chunks.into_iter().take(dbg!(test_state.validators.len())) {
+					assert_matches!(
+						overseer_recv(&mut virtual_overseer).await,
+						AllMessages::AvailabilityStore(
+							AvailabilityStoreMessage::QueryChunk(
+								_candidate_hash,
+								_idx,
+								tx,
+							)
+						) => {
+							tx.send(
+								Some(chunk.clone())
+							).unwrap();
+						}
+					);
+				}
+
 			}
 
 			// setup peer a with interest in parent x
