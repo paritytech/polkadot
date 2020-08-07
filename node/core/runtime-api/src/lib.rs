@@ -48,6 +48,8 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
+	type Metrics = (); // TODO (metrics)
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self.0).map(|_| ()).boxed(),

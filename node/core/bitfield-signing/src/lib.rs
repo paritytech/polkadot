@@ -255,6 +255,7 @@ impl JobTrait for BitfieldSigningJob {
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = KeyStorePtr;
+	type Metrics = (); // TODO (metrics)
 
 	const NAME: &'static str = "BitfieldSigningJob";
 
@@ -262,6 +263,7 @@ impl JobTrait for BitfieldSigningJob {
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
+		_metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<ToJob>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {

@@ -54,6 +54,8 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
+	type Metrics = (); // TODO (metrics)
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self.client).map(|_| ()).boxed(),

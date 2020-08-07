@@ -271,6 +271,8 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
+	type Metrics = (); // TODO (metrics)
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			if let Err(e) = run(self, ctx).await {

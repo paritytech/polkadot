@@ -133,6 +133,7 @@ impl JobTrait for ProvisioningJob {
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = ();
+	type Metrics = (); // TODO (metrics)
 
 	const NAME: &'static str = "ProvisioningJob";
 
@@ -142,6 +143,7 @@ impl JobTrait for ProvisioningJob {
 	fn run(
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,
+		_metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -466,7 +468,7 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
+delegated_subsystem!(ProvisioningJob((), ()) <- ToJob as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests {
