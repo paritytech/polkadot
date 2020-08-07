@@ -83,7 +83,8 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, prometheus, RegisterMetrics, register_metrics,
+	SpawnedSubsystem, ActiveLeavesUpdate, 
+	util::{prometheus, MetricsTrait},
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -311,7 +312,8 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 
 /// A subsystem compatible with the overseer - one which can be run in the context of the
 /// overseer.
-pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>> + Send>;
+// TODO: do we need this?
+// pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>> + Send>;
 
 /// A subsystem that we oversee.
 ///
@@ -432,11 +434,19 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
 }
 
 /// Overseer prometheus metrics.
+#[derive(Clone)]
 struct Metrics {
 	active_heads_count: prometheus::Gauge<prometheus::U64>,
 }
 
+#[derive(Clone)]
 struct MaybeMetrics(Option<Metrics>);
+
+impl Default for MaybeMetrics {
+	fn default() -> MaybeMetrics {
+		MaybeMetrics(None)
+	}
+}
 
 impl MaybeMetrics {
 	fn on_head_activated(&self) {
@@ -452,8 +462,8 @@ impl MaybeMetrics {
 	}
 }
 
-impl RegisterMetrics for MaybeMetrics {
-	fn try_register(&mut self, registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+impl MetricsTrait for MaybeMetrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = Metrics {
 			active_heads_count: prometheus::register(
 				prometheus::Gauge::new(
@@ -463,8 +473,7 @@ impl RegisterMetrics for MaybeMetrics {
 				registry,
 			)?,
 		};
-		self.0 = Some(metrics);
-		Ok(())
+		Ok(MaybeMetrics(Some(metrics)))
 	}
 }
 
@@ -576,19 +585,19 @@ where
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
-		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + RegisterMetrics + Send,
-		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + RegisterMetrics + Send,
-		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + RegisterMetrics + Send,
-		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + RegisterMetrics + Send,
-		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + RegisterMetrics + Send,
-		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + RegisterMetrics + Send,
-		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + RegisterMetrics + Send,
-		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + RegisterMetrics + Send,
-		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + RegisterMetrics + Send,
-		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + RegisterMetrics + Send,
-		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + RegisterMetrics + Send,
-		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + RegisterMetrics + Send,
-		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + RegisterMetrics + Send,
+		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
+		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
+		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
+		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
+		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
+		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
+		BD: Subsystem<OverseerSubsystemContext<BitfieldDistributionMessage>> + Send,
+		P: Subsystem<OverseerSubsystemContext<ProvisionerMessage>> + Send,
+		PoVD: Subsystem<OverseerSubsystemContext<PoVDistributionMessage>> + Send,
+		RA: Subsystem<OverseerSubsystemContext<RuntimeApiMessage>> + Send,
+		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
+		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
+		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
 	{
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
@@ -697,8 +706,7 @@ where
 
 		let active_leaves = HashSet::new();
 
-		let mut metrics = MaybeMetrics(None);
-		register_metrics(&mut metrics, prometheus_registry);
+		let metrics = <MaybeMetrics as MetricsTrait>::register(prometheus_registry);
 
 		let this = Self {
 			candidate_validation_subsystem,
@@ -1060,6 +1068,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0;
 			SpawnedSubsystem {
@@ -1083,17 +1093,13 @@ mod tests {
 		}
 	}
 
-	impl RegisterMetrics for TestSubsystem1 {
-		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
-		}
-	}
-
 	struct TestSubsystem2(mpsc::Sender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let sender = self.0.clone();
 			SpawnedSubsystem {
@@ -1135,17 +1141,13 @@ mod tests {
 		}
 	}
 
-	impl RegisterMetrics for TestSubsystem2 {
-		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
-		}
-	}
-
 	struct TestSubsystem4;
 
 	impl<C> Subsystem<C> for TestSubsystem4
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "test-subsystem-4",
@@ -1153,12 +1155,6 @@ mod tests {
 					// Do nothing and exit.
 				}),
 			}
-		}
-	}
-
-	impl RegisterMetrics for TestSubsystem4 {
-		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
 		}
 	}
 
@@ -1273,6 +1269,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1297,18 +1295,13 @@ mod tests {
 		}
 	}
 
-	impl RegisterMetrics for TestSubsystem5 {
-		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
-		}
-	}
-
-
 	struct TestSubsystem6(mpsc::Sender<OverseerSignal>);
 
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1330,12 +1323,6 @@ mod tests {
 					}
 				}),
 			}
-		}
-	}
-
-	impl RegisterMetrics for TestSubsystem6 {
-		fn try_register(&mut self, _registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-			Ok(())
 		}
 	}
 
