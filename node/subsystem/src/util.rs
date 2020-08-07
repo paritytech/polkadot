@@ -1024,6 +1024,7 @@ mod tests {
 		// RunArgs get cloned so that each job gets its own owned copy. If you need that, wrap it in
 		// an Arc. Within a testing context, that efficiency is less important.
 		type RunArgs = HashMap<Hash, Vec<FromJob>>;
+		type Metrics = ();
 
 		const NAME: &'static str = "FakeCandidateSelectionJob";
 
@@ -1033,6 +1034,7 @@ mod tests {
 		fn run(
 			parent: Hash,
 			mut run_args: Self::RunArgs,
+			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<ToJob>,
 			mut sender: mpsc::Sender<FromJob>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -1084,7 +1086,7 @@ mod tests {
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 
-		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, pool, Some(err_tx));
+		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, (), pool, Some(err_tx));
 		let test_future = test(overseer_handle, err_rx);
 		let timeout = Delay::new(Duration::from_secs(2));
 
@@ -1160,7 +1162,7 @@ mod tests {
 		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
 
 		let SpawnedSubsystem { name, .. } =
-			FakeCandidateSelectionSubsystem::new(pool, HashMap::new()).start(context);
+			FakeCandidateSelectionSubsystem::new(pool, HashMap::new(), ()).start(context);
 		assert_eq!(name, "FakeCandidateSelection");
 	}
 }

@@ -556,6 +556,8 @@ impl<C> Subsystem<C> for BitfieldDistribution
 where
 	C: SubsystemContext<Message = BitfieldDistributionMessage> + Sync + Send,
 {
+	type Metrics = (); // TODO (metrics)
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "bitfield-distribution",

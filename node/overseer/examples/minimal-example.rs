@@ -76,6 +76,8 @@ impl Subsystem1 {
 impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
+	type Metrics = (); // no prometheus metrics
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -121,6 +123,8 @@ impl Subsystem2 {
 impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
+	type Metrics = (); // no prometheus metrics
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
