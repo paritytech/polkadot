@@ -31,8 +31,7 @@ use primitives::v1::{
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use runtime_parachains::{
 	self,
@@ -402,6 +401,9 @@ parameter_types! {
 
 impl frame_system::Trait for Runtime {
 	type BaseCallFilter = BaseFilter;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -413,13 +415,6 @@ impl frame_system::Trait for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = RocksDbWeight;
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -585,7 +580,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl pallet_offences::Trait for Runtime {

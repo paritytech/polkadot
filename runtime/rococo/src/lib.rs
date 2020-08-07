@@ -30,8 +30,7 @@ use primitives::v0::{
 use runtime_common::{
 	attestations, parachains, registrar, SlowAdjustingFeeUpdate,
 	impls::ToAuthor,
-	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
-	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
+	BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -114,6 +113,9 @@ parameter_types! {
 
 impl frame_system::Trait for Runtime {
 	type BaseCallFilter = BaseFilter;
+	type BlockWeights = BlockWeights;
+	type BlockLength = BlockLength;
+	type DbWeight = RocksDbWeight;
 	type Origin = Origin;
 	type Call = Call;
 	type Index = Nonce;
@@ -125,13 +127,6 @@ impl frame_system::Trait for Runtime {
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
-	type DbWeight = RocksDbWeight;
-	type BlockExecutionWeight = BlockExecutionWeight;
-	type ExtrinsicBaseWeight = ExtrinsicBaseWeight;
-	type MaximumExtrinsicWeight = MaximumExtrinsicWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
 	type ModuleToIndex = ModuleToIndex;
 	type AccountData = pallet_balances::AccountData<Balance>;
@@ -140,12 +135,17 @@ impl frame_system::Trait for Runtime {
 	type SystemWeightInfo = ();
 }
 
+parameter_types! {
+	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+		BlockWeights::get().max_block;
+}
+
 impl pallet_scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
 	type PalletsOrigin = OriginCaller;
 	type Call = Call;
-	type MaximumWeight = MaximumBlockWeight;
+	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = ();
 }
@@ -311,7 +311,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * MaximumBlockWeight::get();
+	pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
 }
 
 impl pallet_offences::Trait for Runtime {

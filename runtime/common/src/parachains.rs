@@ -1946,7 +1946,8 @@ mod tests {
 	}
 
 	parameter_types! {
-		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60) * BlockWeights::get().max_block;
+		pub OffencesWeightSoftLimit: Weight = Perbill::from_percent(60)
+			* <() as Get<frame_system::limits::BlockWeights>>::get().max_block;
 	}
 
 	impl pallet_offences::Trait for Test {
