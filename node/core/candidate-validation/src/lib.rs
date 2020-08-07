@@ -22,10 +22,12 @@
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
-	FromOverseer, OverseerSignal, prometheus, Metrics as MetricsTrait,
-};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
+	FromOverseer, OverseerSignal,
+	messages::{
+		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
+		ValidationFailed, RuntimeApiRequest,
+	},
+	util::{prometheus, MetricsTrait},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
