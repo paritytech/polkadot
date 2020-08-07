@@ -42,8 +42,8 @@ pub mod runtime_api_impl;
 mod mock;
 
 /// Origin for the parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
+// TODO: #[cfg_attr(feature = "std", derive(Debug))]
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),

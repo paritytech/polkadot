@@ -28,6 +28,7 @@ pub mod crowdfund;
 pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
+pub mod paras_registrar;
 
 use primitives::v0::BlockNumber;
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};

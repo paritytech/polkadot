@@ -24,7 +24,7 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
-use sp_std::marker::PhantomData;
+use sp_std::result;
 use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, LocalValidationData,
@@ -41,7 +41,14 @@ use sp_core::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub trait Trait: frame_system::Trait + configuration::Trait { }
+pub use crate::Origin;
+
+pub trait Trait: frame_system::Trait + configuration::Trait {
+	/// The outer origin type.
+	type Origin: From<Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
+}
 
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode)]
@@ -205,7 +212,7 @@ decl_storage! {
 		/// Upcoming paras instantiation arguments.
 		UpcomingParasGenesis: map hasher(twox_64_concat) ParaId => Option<ParaGenesisArgs>;
 		/// Paras that are to be cleaned up at the end of the session.
-		OutgoingParas: Vec<ParaId>;
+		OutgoingParas get(fn outgoing_paras): Vec<ParaId>;
 
 	}
 	add_extra_genesis {
