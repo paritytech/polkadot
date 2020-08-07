@@ -439,14 +439,8 @@ struct Metrics {
 	active_heads_count: prometheus::Gauge<prometheus::U64>,
 }
 
-#[derive(Clone)]
+#[derive(Default, Clone)]
 struct MaybeMetrics(Option<Metrics>);
-
-impl Default for MaybeMetrics {
-	fn default() -> MaybeMetrics {
-		MaybeMetrics(None)
-	}
-}
 
 impl MaybeMetrics {
 	fn on_head_activated(&self) {

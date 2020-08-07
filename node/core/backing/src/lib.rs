@@ -786,14 +786,8 @@ struct MetricsInner {
 }
 
 /// Candidate backing metrics.
-#[derive(Clone)]
+#[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
-
-impl Default for Metrics {
-	fn default() -> Self {
-		Metrics(None)
-	}
-}
 
 impl Metrics {
 	fn on_statement_signed(&self) {
