@@ -16,4 +16,4 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.5", features = ["thread-pool"] }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = ["test-helpers"] }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
