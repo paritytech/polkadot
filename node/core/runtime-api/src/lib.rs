@@ -123,7 +123,7 @@ mod tests {
 		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent,
 	};
-	use polkadot_subsystem::test_helpers;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
 
 	use std::collections::HashMap;

@@ -121,7 +121,7 @@ mod tests {
 	use futures::{future::BoxFuture, channel::oneshot};
 
 	use polkadot_primitives::v1::{Hash, BlockNumber, BlockId, Header};
-	use polkadot_subsystem::test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 	use sp_blockchain::Info as BlockInfo;
 	use sp_core::testing::TaskExecutor;
 

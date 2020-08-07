@@ -36,9 +36,6 @@ use crate::messages::AllMessages;
 
 pub mod errors;
 pub mod messages;
-pub mod util;
-#[cfg(any(test, feature = "test-helpers"))]
-pub mod test_helpers;
 
 /// How many slots are stack-reserved for active leaves updates
 ///

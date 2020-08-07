@@ -20,7 +20,7 @@
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
 
-use crate::{
+use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
@@ -43,7 +43,7 @@ use polkadot_primitives::v1::{
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidatorPair,
 };
-use sp_core::Pair;
+use sp_core::{Pair, traits::SpawnNamed};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -53,10 +53,15 @@ use std::{
 };
 use streamunordered::{StreamUnordered, StreamYield};
 
-/// This reexport is required so that external crates can use the `delegated_subsystem` macro properly.
-///
-/// Otherwise, downstream crates might have to modify their `Cargo.toml` to ensure `sp-core` appeared there.
-pub use sp_core::traits::SpawnNamed;
+/// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
+pub mod reexports {
+	pub use sp_core::traits::SpawnNamed;
+	pub use polkadot_node_subsystem::{
+		SpawnedSubsystem,
+		Subsystem,
+		SubsystemContext,
+	};
+}
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
@@ -655,9 +660,9 @@ where
 		run_args: &Job::RunArgs,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) -> bool {
-		use crate::ActiveLeavesUpdate;
-		use crate::FromOverseer::{Communication, Signal};
-		use crate::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
+		use polkadot_node_subsystem::ActiveLeavesUpdate;
+		use polkadot_node_subsystem::FromOverseer::{Communication, Signal};
+		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
 
 		match incoming {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate {
@@ -783,7 +788,7 @@ where
 /// It is possible to create a type which implements `Subsystem` by simply doing:
 ///
 /// ```ignore
-/// pub type ExampleSubsystem<Spawner, Context> = util::JobManager<Spawner, Context, ExampleJob>;
+/// pub type ExampleSubsystem<Spawner, Context> = JobManager<Spawner, Context, ExampleJob>;
 /// ```
 ///
 /// However, doing this requires that job itself and all types which comprise it (i.e. `ToJob`, `FromJob`, `Error`, `RunArgs`)
@@ -791,7 +796,7 @@ where
 /// can reduce the total number of public types exposed, i.e.
 ///
 /// ```ignore
-/// type Manager<Spawner, Context> = util::JobManager<Spawner, Context, ExampleJob>;
+/// type Manager<Spawner, Context> = JobManager<Spawner, Context, ExampleJob>;
 /// pub struct ExampleSubsystem {
 /// 	manager: Manager<Spawner, Context>,
 /// }
@@ -820,7 +825,7 @@ macro_rules! delegated_subsystem {
 	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
 		#[doc = "Manager type for the "]
 		#[doc = $subsystem_name]
-		type Manager<Spawner, Context> = $crate::util::JobManager<Spawner, Context, $job>;
+		type Manager<Spawner, Context> = $crate::JobManager<Spawner, Context, $job>;
 
 		#[doc = "An implementation of the "]
 		#[doc = $subsystem_name]
@@ -830,15 +835,15 @@ macro_rules! delegated_subsystem {
 
 		impl<Spawner, Context> $subsystem<Spawner, Context>
 		where
-			Spawner: Clone + $crate::util::SpawnNamed + Send + Unpin,
-			Context: $crate::SubsystemContext,
-			<Context as $crate::SubsystemContext>::Message: Into<$to_job>,
+			Spawner: Clone + $crate::reexports::SpawnNamed + Send + Unpin,
+			Context: $crate::reexports::SubsystemContext,
+			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
 			pub fn new(spawner: Spawner, run_args: $run_args) -> Self {
 				$subsystem {
-					manager: $crate::util::JobManager::new(spawner, run_args)
+					manager: $crate::JobManager::new(spawner, run_args)
 				}
 			}
 
@@ -848,13 +853,13 @@ macro_rules! delegated_subsystem {
 			}
 		}
 
-		impl<Spawner, Context> $crate::Subsystem<Context> for $subsystem<Spawner, Context>
+		impl<Spawner, Context> $crate::reexports::Subsystem<Context> for $subsystem<Spawner, Context>
 		where
-			Spawner: $crate::util::SpawnNamed + Send + Clone + Unpin + 'static,
-			Context: $crate::SubsystemContext,
-			<Context as $crate::SubsystemContext>::Message: Into<$to_job>,
+			Spawner: $crate::reexports::SpawnNamed + Send + Clone + Unpin + 'static,
+			Context: $crate::reexports::SubsystemContext,
+			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
-			fn start(self, ctx: Context) -> $crate::SpawnedSubsystem {
+			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
 		}
@@ -863,10 +868,9 @@ macro_rules! delegated_subsystem {
 
 #[cfg(test)]
 mod tests {
-	use crate::{
+	use super::{Error as UtilError, JobManager, JobTrait, JobsError, ToJobTrait};
+	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
-		test_helpers::{self, make_subsystem_context},
-		util::{self, JobManager, JobTrait, JobsError, ToJobTrait},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	};
 	use assert_matches::assert_matches;
@@ -878,6 +882,7 @@ mod tests {
 	};
 	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
+	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
@@ -941,13 +946,13 @@ mod tests {
 	// we include it in the RunArgs
 	#[derive(Clone)]
 	enum FromJob {
-		Test(String),
+		Test,
 	}
 
 	impl From<FromJob> for AllMessages {
 		fn from(from_job: FromJob) -> AllMessages {
 			match from_job {
-				FromJob::Test(s) => AllMessages::Test(s),
+				FromJob::Test => AllMessages::CandidateSelection(CandidateSelectionMessage::default()),
 			}
 		}
 	}
@@ -1054,10 +1059,9 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
-		let test_message = format!("greetings from {}", relay_parent);
 		run_args.insert(
 			relay_parent.clone(),
-			vec![FromJob::Test(test_message.clone())],
+			vec![FromJob::Test],
 		);
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
@@ -1068,7 +1072,7 @@ mod tests {
 				.await;
 			assert_matches!(
 				overseer_handle.recv().await,
-				AllMessages::Test(msg) if msg == test_message
+				AllMessages::CandidateSelection(_)
 			);
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
@@ -1098,7 +1102,7 @@ mod tests {
 			assert_eq!(errs[0].0, Some(relay_parent));
 			assert_matches!(
 				errs[0].1,
-				JobsError::Utility(util::Error::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
+				JobsError::Utility(UtilError::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
 			);
 		});
 	}
