@@ -14,7 +14,7 @@ node-primitives = { package = "polkadot-node-primitives", path = "../../primitiv
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
-polkadot-network = { path = "../../../network" }
+polkadot-node-network-protocol = { path = "../../network/protocol" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
