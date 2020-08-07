@@ -224,7 +224,7 @@ any of dispatchables return an error.
       1. If `weight_of(D) + T > config.max_parachain_ump_dispatch_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
       1. Dequeue `D`
       1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
-      1. In case `D` doesn't deserialize as a proper call - drop it (this can happen if an upgrade took place after the acceptance check)
+      1. In case `D` doesn't deserialize as a proper entrypoint - drop it (this can happen if an upgrade took place after the acceptance check)
       1. Execute `D` and add the actual amount of weight consumed to `T`.
       1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`. If `NeedsDispatch` became empty then finish processing.
 
