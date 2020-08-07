@@ -1257,17 +1257,15 @@ mod tests {
 				let message = handle.recv().await;
 				let expected_to = vec![peer.clone()];
 				let expected_payload
-					= WireMessage::Statement(hash_c, statement.statement.clone()).encode();
+					= statement_message(hash_c, statement.statement.clone());
 
 				assert_matches!(
 					message,
-					AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+					AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 						to,
-						protocol,
 						payload,
 					)) => {
 						assert_eq!(to, expected_to);
-						assert_eq!(protocol, expected_protocol);
 						assert_eq!(payload, expected_payload)
 					}
 				)
@@ -1376,7 +1374,7 @@ mod tests {
 
 					assert_eq!(
 						payload,
-						WireMessage::Statement(hash_b, statement.statement.clone()).encode(),
+						statement_message(hash_b, statement.statement.clone()),
 					);
 				}
 			)
