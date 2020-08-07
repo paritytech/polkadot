@@ -201,9 +201,6 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
 	/// Subsystem-specific prometheus metrics.
-	///
-	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
-	/// to ensure `Default` bounds or as a dummy type ().
 	type Metrics: crate::util::MetricsTrait;
 
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.

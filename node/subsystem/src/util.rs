@@ -68,6 +68,10 @@ pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
 
 /// Subsystem- or job-specific prometheus metrics.
+///
+/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+/// to ensure `Default` bounds or as a dummy type ().
+/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
 pub trait MetricsTrait: Default + Clone {
 	/// Try to register metrics in the prometheus registry.
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
