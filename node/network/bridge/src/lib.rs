@@ -60,8 +60,8 @@ pub const COLLATION_PROTOCOL_NAME: &[u8] = b"/polkadot/collation/1";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
-const UNKNOWN_PROTO_COST: ReputationChange
-	= ReputationChange::new(-50, "Message sent to unknown protocol");
+const UNCONNECTED_PEERSET_COST: ReputationChange
+	= ReputationChange::new(-50, "Message sent to un-connected peer-set");
 const MALFORMED_VIEW_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed view");
 
@@ -218,8 +218,6 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 struct PeerData {
 	/// Latest view sent by the peer.
 	view: View,
-	/// The role of the peer.
-	role: ObservedRole,
 }
 
 #[derive(Debug)]
@@ -369,11 +367,52 @@ async fn update_view(
 	Ok(())
 }
 
+// Handle messages on a specific peer-set. The peer is expected to be connected on that
+// peer-set.
 async fn handle_peer_messages<M>(
+	peer: PeerId,
 	peers: &mut HashMap<PeerId, PeerData>,
 	messages: Vec<WireMessage<M>>,
-) -> SubsystemResult<()> {
-	Ok(())
+	net: &mut impl Network,
+) -> SubsystemResult<Vec<NetworkBridgeEvent<M>>> {
+	let peer_data = match peers.get_mut(&peer) {
+		None => {
+			net.report_peer(peer, UNCONNECTED_PEERSET_COST).await?;
+
+			return Ok(Vec::new());
+		},
+		Some(d) => d,
+	};
+
+	let mut outgoing_messages = Vec::with_capacity(messages.len());
+	for message in messages {
+		outgoing_messages.push(match message {
+			WireMessage::ViewUpdate(new_view) => {
+				if new_view.0.len() > MAX_VIEW_HEADS {
+					net.report_peer(
+						peer.clone(),
+						MALFORMED_VIEW_COST,
+					).await?;
+
+					continue
+				} else if new_view == peer_data.view {
+					continue
+				} else {
+					peer_data.view = new_view;
+
+					NetworkBridgeEvent::PeerViewChange(
+						peer.clone(),
+						peer_data.view.clone(),
+					)
+				}
+			}
+			WireMessage::ProtocolMessage(message) => {
+				NetworkBridgeEvent::PeerMessage(peer.clone(), message)
+			}
+		})
+	}
+
+	Ok(outgoing_messages)
 }
 
 async fn send_validation_message<I>(
@@ -405,7 +444,7 @@ async fn send_message<M: Encode + Clone, I>(
 	where I: IntoIterator<Item=PeerId>, I::IntoIter: ExactSizeIterator,
 {
 	let mut message_producer = stream::iter({
-		let mut peers = peers.into_iter();
+		let peers = peers.into_iter();
 		let n_peers = peers.len();
 		let mut message = Some(message.encode());
 
@@ -565,7 +604,6 @@ async fn run_network<N: Network>(
 					HEntry::Vacant(vacant) => {
 						vacant.insert(PeerData {
 							view: View(Vec::new()),
-							role: role.clone(),
 						});
 
 						let res = match peer_set {
@@ -605,70 +643,54 @@ async fn run_network<N: Network>(
 					};
 
 					if let Err(e) = res {
-						log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+						log::warn!(
+							target: TARGET,
+							"Aborting - Failure to dispatch messages to overseer",
+						);
 						return Err(e)
 					}
 				}
 			},
 			Action::PeerMessages(peer, v_messages, c_messages) => {
-				// TODO [now]
-				// let peer_data = match peers.get_mut(&peer) {
-				// 	None => continue,
-				// 	Some(d) => d,
-				// };
+				if !v_messages.is_empty() {
+					let events = handle_peer_messages(
+						peer.clone(),
+						&mut validation_peers,
+						v_messages,
+						&mut net,
+					).await?;
 
-				// let mut outgoing_messages = Vec::with_capacity(messages.len());
-				// for message in messages {
-				// 	match message {
-				// 		WireMessage::ViewUpdate(new_view) => {
-				// 			if new_view.0.len() > MAX_VIEW_HEADS {
-				// 				net.report_peer(
-				// 					peer.clone(),
-				// 					MALFORMED_VIEW_COST,
-				// 				).await?;
+					if let Err(e) = dispatch_validation_events_to_all(
+						events,
+						&mut ctx,
+					).await {
+						log::warn!(
+							target: TARGET,
+							"Aborting - Failure to dispatch messages to overseer",
+						);
+						return Err(e)
+					}
+				}
 
-				// 				continue
-				// 			}
+				if !c_messages.is_empty() {
+					let events = handle_peer_messages(
+						peer.clone(),
+						&mut validation_peers,
+						c_messages,
+						&mut net,
+					).await?;
 
-				// 			if new_view == peer_data.view { continue }
-				// 			peer_data.view = new_view;
-
-				// 			let update = NetworkBridgeEvent::PeerViewChange(
-				// 				peer.clone(),
-				// 				peer_data.view.clone(),
-				// 			);
-
-				// 			outgoing_messages.extend(
-				// 				event_producers.values().map(|producer| producer(update.clone()))
-				// 			);
-				// 		}
-				// 		WireMessage::ProtocolMessage(protocol, message) => {
-				// 			let message = match event_producers.get(&protocol) {
-				// 				Some(producer) => Some(producer(
-				// 					NetworkBridgeEvent::PeerMessage(peer.clone(), message)
-				// 				)),
-				// 				None => {
-				// 					net.report_peer(
-				// 						peer.clone(),
-				// 						UNKNOWN_PROTO_COST,
-				// 					).await?;
-
-				// 					None
-				// 				}
-				// 			};
-
-				// 			if let Some(message) = message {
-				// 				outgoing_messages.push(message);
-				// 			}
-				// 		}
-				// 	}
-				// }
-
-				// let send_messages = ctx.send_messages(outgoing_messages);
-				// if let Err(e) = send_messages.await {
-				// 	log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-				// 	return Err(e)
-				// }
+					if let Err(e) = dispatch_collation_events_to_all(
+						events,
+						&mut ctx,
+					).await {
+						log::warn!(
+							target: TARGET,
+							"Aborting - Failure to dispatch messages to overseer",
+						);
+						return Err(e)
+					}
+				}
 			},
 		}
 	}
