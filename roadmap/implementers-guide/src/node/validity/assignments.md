@@ -42,7 +42,7 @@ In BABE, we create this value calling `schnorrkel::vrf::VRFInOut::make_bytes` wi
 
 In Sassafras, we shall always use the non-anonymized recycling VRF output, never the anonymized ring VRF that authorizes block production.  We do not currently know if Sassafras shall have a separate schnorrkel key, but if it reuses its ring VRF key there is an equivalent `ring_vrf::VRFInOut::make_bytes`.
 
-We like that `RelayVRFStory` admits relatively few choices, but an adversary who equivocates in relay chain block production might assignments that depend upon it too early. 
+We like that `RelayVRFStory` admits relatively few choices, but an adversary who equivocates in relay chain block production could learn assignments that depend upon the `RelayVRFStory` too early because the same relay chain VRF appears in multiple blocks. 
 
 We therefore provide a secondary `RelayEquivocationStory` that outputs the candidate's block hash, but only for candidate equivocations.  We say a candidate `C` in `R` is an equivocation when there exists another relay chain block `R1` that equivocates for `R` in the sense that `R` and `R1` have the same `RelayVRFStory`, but `R` contains `C` and `R1` does not contain `C`.  
 
