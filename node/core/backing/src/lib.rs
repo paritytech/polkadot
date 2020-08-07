@@ -45,7 +45,6 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	prometheus, Metrics as MetricsTrait,
 	util::{
 		self,
 		request_session_index_for_child,
@@ -53,6 +52,8 @@ use polkadot_subsystem::{
 		request_validators,
 		request_from_runtime,
 		Validator,
+		prometheus,
+		MetricsTrait,
 	},
 	delegated_subsystem,
 };
@@ -675,13 +676,15 @@ impl util::JobTrait for CandidateBackingJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = (KeyStorePtr, Metrics);
+	type RunArgs = KeyStorePtr;
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateBackingJob";
 
 	fn run(
 		parent: Hash,
-		(keystore, metrics): (KeyStorePtr, Metrics),
+		keystore: KeyStorePtr,
+		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -786,6 +789,12 @@ struct MetricsInner {
 #[derive(Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
+impl Default for Metrics {
+	fn default() -> Self {
+		Metrics(None)
+	}
+}
+
 impl Metrics {
 	fn on_statement_signed(&self) {
 		if let Some(metrics) = &self.0 {
@@ -809,7 +818,7 @@ impl MetricsTrait for Metrics {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -941,7 +950,7 @@ mod tests {
 
 		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = CandidateBackingSubsystem::new(pool.clone(), keystore, Metrics(None)).start(context).future;
+		let subsystem = CandidateBackingSubsystem::run(context, keystore, Metrics(None), pool.clone());
 
 		let test_fut = test(TestHarness {
 			virtual_overseer,
