@@ -22,11 +22,17 @@ enum ParachainDispatchOrigin {
 	Root,
 }
 
-struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
+enum UpwardMessage {
+	/// This upward message is meant to be dispatched to the entrypoint specified.
+	Dispatchable {
+		/// The origin for the message to be sent from.
+		origin: ParachainDispatchOrigin,
+		/// An opaque byte buffer that encodes an enrtypoint and the arguments that should be
+		/// provided to it upon the dispatch.
+		data: Vec<u8>,
+	},
+	/// HrmpOpenChannel { .. },
+	/// HrmpCloseChannel { .. },
 }
 ```
 
