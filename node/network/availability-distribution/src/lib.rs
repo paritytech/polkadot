@@ -1944,4 +1944,77 @@ mod test {
 
 		});
 	}
+
+
+	#[test]
+	fn ancestors() {
+
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut virtual_overseer) =
+			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
+
+
+		const DATA: &[(Hash, SessionIndex)] = &[
+			(Hash::repeat_byte(0x32), 3)
+			(Hash::repeat_byte(0x31), 3)
+			(Hash::repeat_byte(0x30), 3)
+			(Hash::repeat_byte(0x20), 2)
+			(Hash::repeat_byte(0x11), 1)
+			(Hash::repeat_byte(0x10), 1)
+		];
+		const N: usize = 4;
+
+		const EXPECTED: &[Hash] = &[DATA[1], DATA[2]];
+
+
+		executor::block_on(async move {
+
+			ctx.spawn("test-ancestors", async move {
+				let ancestors = query_up_to_k_ancestors_in_same_session(ctx, DATA[0].0, N).await.unwrap();
+				assert_eq!(ancestors, EXPECTED.to_vec());
+				Ok(())
+			});
+
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::ChainApi(ChainApiMessage::Ancestors {
+					hash: relay_parent,
+					k,
+					response_channel: tx,
+				}) => {
+					assert_eq!(k, N+1);
+					assert_eq!(relay_parent, DATA[0].0);
+					tx.send(Ok(DATA[1..=k].map(|x| x.0).collect::<Vec<_>>()));
+				}
+			);
+
+			// query the desired session index of the relay parent
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::SessionIndexForChild(tx),
+				)) => {
+					assert_eq!(relay_parent, DATA[0].0);
+					tx.send(Ok(DATA[N-i+1].1));
+				}
+			);
+
+			// query ancestors in reverse
+			for i in 0..=N {
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						relay_parent,
+						RuntimeApiRequest::SessionIndexForChild(tx),
+					)) => {
+						let x = &DATA[N-i+1];
+						assert_eq!(relay_parent, x.0);
+						tx.send(Ok(x.1));
+					}
+				);
+			}
+		});
+	}
 }
