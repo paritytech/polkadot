@@ -41,10 +41,10 @@ struct HostConfiguration {
 	/// a single message.
 	pub max_upward_queue_size: u32,
 	/// Maximum amount of weight that we wish to devote on processing of the dispatchable upward
-    /// messages.
+	/// messages.
 	pub max_parachain_ump_dispatch_weight: u32,
 	/// The maximum number of messages that a candidate can contain.
-    pub max_upward_msg_num_per_candidate: u32,
+	pub max_upward_msg_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
