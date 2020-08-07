@@ -1107,19 +1107,25 @@ where
 	// if the consumer wants to push the `relay_parent` onto it too and does not hurt otherwise
 	let mut acc = Vec::with_capacity(ancestors.len());
 
-	// iterate from oldest to youngest
-	let mut iter = ancestors.into_iter().rev();
-	if let Some(oldest) = iter.next() {
-		let mut child_session_index = query_session_index_for_child(ctx, oldest).await?;
-		for ancestor in iter {
-			let ancestor_session_index = child_session_index;
-			child_session_index = query_session_index_for_child(ctx, ancestor).await?;
+	// iterate from youngest to oldest
+	let mut iter = ancestors.into_iter().peekable();
 
-			if desired_session == ancestor_session_index {
+	while let Some(ancestor) = iter.next() {
+		if let Some(ancestor_parent) = iter.peek() {
+			let session = query_session_index_for_child(ctx, *ancestor_parent).await?;
+			if session != desired_session {
+				break;
+			}
+			if ancestor != relay_parent {
 				acc.push(ancestor);
 			}
+		} else {
+			// we reached the genesis, which does not have ancestors
+			acc.push(ancestor);
+			break;
 		}
 	}
+
 	debug_assert!(acc.len() <= k);
 	Ok(acc)
 }
@@ -1170,6 +1176,7 @@ mod test {
 			.try_init();
 
 		let pool = sp_core::testing::TaskExecutor::new();
+
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = AvailabilityDistributionSubsystem::new(keystore);
@@ -1947,35 +1954,26 @@ mod test {
 
 
 	#[test]
-	fn ancestors() {
+	fn k_ancestors_in_session() {
 
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (mut ctx, mut virtual_overseer) =
-			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
-
+			test_helpers::make_subsystem_context::<AvailabilityDistributionMessage, _>(pool);
 
 		const DATA: &[(Hash, SessionIndex)] = &[
-			(Hash::repeat_byte(0x32), 3)
-			(Hash::repeat_byte(0x31), 3)
-			(Hash::repeat_byte(0x30), 3)
-			(Hash::repeat_byte(0x20), 2)
-			(Hash::repeat_byte(0x11), 1)
-			(Hash::repeat_byte(0x10), 1)
+			(Hash::repeat_byte(0x32), 3), // relay parent
+			(Hash::repeat_byte(0x31), 3), // grand parent
+			(Hash::repeat_byte(0x30), 3), // great ...
+			(Hash::repeat_byte(0x20), 2),
+			(Hash::repeat_byte(0x12), 1),
+			(Hash::repeat_byte(0x11), 1),
+			(Hash::repeat_byte(0x10), 1),
 		];
-		const N: usize = 4;
+		const K: usize = 5;
 
-		const EXPECTED: &[Hash] = &[DATA[1], DATA[2]];
+		const EXPECTED: &[Hash] = &[DATA[1].0, DATA[2].0];
 
-
-		executor::block_on(async move {
-
-			ctx.spawn("test-ancestors", async move {
-				let ancestors = query_up_to_k_ancestors_in_same_session(ctx, DATA[0].0, N).await.unwrap();
-				assert_eq!(ancestors, EXPECTED.to_vec());
-				Ok(())
-			});
-
-
+		let test_fut = async move {
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::ChainApi(ChainApiMessage::Ancestors {
@@ -1983,9 +1981,9 @@ mod test {
 					k,
 					response_channel: tx,
 				}) => {
-					assert_eq!(k, N+1);
+					assert_eq!(k, K+1);
 					assert_eq!(relay_parent, DATA[0].0);
-					tx.send(Ok(DATA[1..=k].map(|x| x.0).collect::<Vec<_>>()));
+					tx.send(Ok(DATA[1..=k].into_iter().map(|x| x.0).collect::<Vec<_>>())).unwrap();
 				}
 			);
 
@@ -1997,24 +1995,39 @@ mod test {
 					RuntimeApiRequest::SessionIndexForChild(tx),
 				)) => {
 					assert_eq!(relay_parent, DATA[0].0);
-					tx.send(Ok(DATA[N-i+1].1));
+					let session: SessionIndex = DATA[0].1;
+					tx.send(Ok(session)).unwrap();
 				}
 			);
 
-			// query ancestors in reverse
-			for i in 0..=N {
+			// query ancestors
+			for i in 2usize..=(EXPECTED.len() + 1 + 1) {
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 						relay_parent,
 						RuntimeApiRequest::SessionIndexForChild(tx),
 					)) => {
-						let x = &DATA[N-i+1];
+						// query is for ancestor_parent
+						let x = &DATA[i];
 						assert_eq!(relay_parent, x.0);
-						tx.send(Ok(x.1));
+						// but needs to yield ancestor_parent's child's session index
+						let x = &DATA[i-1];
+						tx.send(Ok(x.1)).unwrap();
 					}
 				);
 			}
-		});
+		};
+
+		let sut = async move {
+				let ancestors = query_up_to_k_ancestors_in_same_session(&mut ctx, DATA[0].0, K).await.unwrap();
+				assert_eq!(ancestors, EXPECTED.to_vec());
+		};
+
+		futures::pin_mut!(test_fut);
+		futures::pin_mut!(sut);
+
+		executor::block_on(future::join(test_fut, sut).timeout(Duration::from_millis(1000)));
+
 	}
 }
