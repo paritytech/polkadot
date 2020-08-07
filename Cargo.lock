@@ -4555,6 +4555,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "sp-core",
+ "sp-keyring",
  "sp-runtime",
  "streamunordered",
 ]

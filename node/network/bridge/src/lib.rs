@@ -89,7 +89,7 @@ pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow
 }
 
 /// An action to be carried out by the network.
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum NetworkAction {
 	/// Note a change in reputation for a peer.
 	ReputationChange(PeerId, ReputationChange),
@@ -688,7 +688,7 @@ async fn run_network<N: Network>(
 				if !c_messages.is_empty() {
 					let events = handle_peer_messages(
 						peer.clone(),
-						&mut validation_peers,
+						&mut collation_peers,
 						c_messages,
 						&mut net,
 					).await?;
@@ -722,6 +722,8 @@ mod tests {
 	use polkadot_subsystem::messages::{StatementDistributionMessage, BitfieldDistributionMessage};
 	use polkadot_subsystem::test_helpers::{SingleItemSink, SingleItemStream};
 	use polkadot_subsystem::test_helpers::TestSubsystemContextHandle;
+
+	use sp_keyring::Sr25519Keyring;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
@@ -887,6 +889,18 @@ mod tests {
 		);
 	}
 
+	async fn assert_sends_collation_event_to_all(
+		event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
+		virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
+	) {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::CollatorProtocol(
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		)
+	}
+
 	#[test]
 	fn sends_view_updates_to_peers() {
 		test_harness(|test_harness| async move {
@@ -1044,6 +1058,323 @@ mod tests {
 				NetworkBridgeEvent::PeerDisconnected(peer),
 				&mut virtual_overseer,
 			).await;
+		});
+	}
+
+	#[test]
+	fn peer_disconnect_from_just_one_peerset() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut network_handle,
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer = PeerId::random();
+
+			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			// bridge will inform about all connected peers.
+			{
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			{
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
+
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+				&mut virtual_overseer,
+			).await;
+
+			// to show that we're still connected on the collation protocol, send a view update.
+
+			let hash_a = Hash::from([1; 32]);
+
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View(vec![hash_a])
+			).encode();
+
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::WriteNotification(
+					peer.clone(),
+					PeerSet::Collation,
+					wire_message.clone(),
+				),
+			));
+		});
+	}
+
+	#[test]
+	fn relays_collation_protocol_messages() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut network_handle,
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer_a = PeerId::random();
+			let peer_b = PeerId::random();
+
+			network_handle.connect_peer(peer_a.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer_b.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			// bridge will inform about all connected peers.
+			{
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			{
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			// peer A gets reported for sending a collation message.
+
+			let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
+				Sr25519Keyring::Alice.public().into()
+			);
+
+			let message = protocol_v1::CollationProtocol::CollatorProtocol(
+				collator_protocol_message.clone()
+			);
+
+			network_handle.peer_message(
+				peer_a.clone(),
+				PeerSet::Collation,
+				WireMessage::ProtocolMessage(message.clone()).encode(),
+			).await;
+
+			let actions = network_handle.next_network_actions(1).await;
+			assert!(network_actions_contains(
+				&actions,
+				&NetworkAction::ReputationChange(
+					peer_a.clone(),
+					UNCONNECTED_PEERSET_COST,
+				),
+			));
+
+			// peer B has the message relayed.
+
+			network_handle.peer_message(
+				peer_b.clone(),
+				PeerSet::Collation,
+				WireMessage::ProtocolMessage(message.clone()).encode(),
+			).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::NetworkBridgeUpdateV1(
+						NetworkBridgeEvent::PeerMessage(p, m)
+					)
+				) => {
+					assert_eq!(p, peer_b);
+					assert_eq!(m, collator_protocol_message);
+				}
+			);
+		});
+	}
+
+	#[test]
+	fn different_views_on_different_peer_sets() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut network_handle,
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer = PeerId::random();
+
+			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			// bridge will inform about all connected peers.
+			{
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			{
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			let view_a = View(vec![[1; 32].into()]);
+			let view_b = View(vec![[2; 32].into()]);
+
+			network_handle.peer_message(
+				peer.clone(),
+				PeerSet::Validation,
+				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(view_a.clone()).encode(),
+			).await;
+
+			network_handle.peer_message(
+				peer.clone(),
+				PeerSet::Collation,
+				WireMessage::<protocol_v1::CollationProtocol>::ViewUpdate(view_b.clone()).encode(),
+			).await;
+
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view_a.clone()),
+				&mut virtual_overseer,
+			).await;
+
+			assert_sends_collation_event_to_all(
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view_b.clone()),
+				&mut virtual_overseer,
+			).await;
+		});
+	}
+
+	#[test]
+	fn send_messages_to_peers() {
+		test_harness(|test_harness| async move {
+			let TestHarness {
+				mut network_handle,
+				mut virtual_overseer,
+			} = test_harness;
+
+			let peer = PeerId::random();
+
+			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
+			network_handle.connect_peer(peer.clone(), PeerSet::Collation, ObservedRole::Full).await;
+
+			// bridge will inform about all connected peers.
+			{
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			{
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
+
+				assert_sends_collation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
+			}
+
+			// send a validation protocol message.
+
+			{
+				let pov_distribution_message = protocol_v1::PoVDistributionMessage::Awaiting(
+					[0; 32].into(),
+					vec![[1; 32].into()],
+				);
+
+				let message = protocol_v1::ValidationProtocol::PoVDistribution(
+					pov_distribution_message.clone(),
+				);
+
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: NetworkBridgeMessage::SendValidationMessage(
+						vec![peer.clone()],
+						message.clone(),
+					)
+				}).await;
+
+				assert_eq!(
+					network_handle.next_network_action().await,
+					NetworkAction::WriteNotification(
+						peer.clone(),
+						PeerSet::Validation,
+						WireMessage::ProtocolMessage(message).encode(),
+					)
+				);
+			}
+
+			// send a collation protocol message.
+
+			{
+				let collator_protocol_message = protocol_v1::CollatorProtocolMessage::Declare(
+					Sr25519Keyring::Alice.public().into()
+				);
+
+				let message = protocol_v1::CollationProtocol::CollatorProtocol(
+					collator_protocol_message.clone()
+				);
+
+				virtual_overseer.send(FromOverseer::Communication {
+					msg: NetworkBridgeMessage::SendCollationMessage(
+						vec![peer.clone()],
+						message.clone(),
+					)
+				}).await;
+
+				assert_eq!(
+					network_handle.next_network_action().await,
+					NetworkAction::WriteNotification(
+						peer.clone(),
+						PeerSet::Collation,
+						WireMessage::ProtocolMessage(message).encode(),
+					)
+				);
+			}
 		});
 	}
 }
