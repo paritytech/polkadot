@@ -518,8 +518,10 @@ where
 	/// struct ValidationSubsystem;
 	///
 	/// impl<C> Subsystem<C> for ValidationSubsystem
-	/// 	where C: SubsystemContext<Message=CandidateValidationMessage>
+	///     where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
+	///     type Metrics = ();
+	///
 	///     fn start(
 	///         self,
 	///         mut ctx: C,
