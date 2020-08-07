@@ -655,7 +655,7 @@ where
 	};
 
 	// check the merkle proof
-	let root = &live_candidate.commitments().erasure_root;
+	let root = &live_candidate.commitments.erasure_root;
 	let anticipated_hash = if let Ok(hash) = branch_hash(
 		root,
 		&message.erasure_chunk.proof,
@@ -1440,7 +1440,7 @@ mod test {
 		let message =
 			make_valid_availability_gossip(&test_state, dbg!(candidate_a.hash()), validator_index, 2, pov_block_a.clone());
 
-		let root = dbg!(&candidate_a.commitments().erasure_root);
+		let root = dbg!(&candidate_a.commitments.erasure_root);
 
 		let anticipated_hash = branch_hash(
 			root,
