@@ -1384,24 +1384,24 @@ mod test {
 	fn helper_integrity() {
 		let test_state = TestState::default();
 
-		let pov_block_a = PoV {
+		let pov_block = PoV {
 			block_data: BlockData(vec![42, 43, 44]),
 		};
 
-		let pov_hash_a = pov_block_a.hash();
+		let pov_hash = pov_block.hash();
 
-		let candidate_a = TestCandidateBuilder {
+		let candidate = TestCandidateBuilder {
 			para_id: test_state.chain_ids[0],
 			relay_parent: test_state.relay_parent,
-			pov_hash: pov_hash_a,
-			erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
+			pov_hash: pov_hash,
+			erasure_root: make_erasure_root(&test_state, pov_block.clone()),
 			..Default::default()
 		}.build();
 
 		let message =
-			make_valid_availability_gossip(&test_state, dbg!(candidate_a.hash()), 2, pov_block_a.clone());
+			make_valid_availability_gossip(&test_state, dbg!(candidate.hash()), 2, pov_block.clone());
 
-		let root = dbg!(&candidate_a.commitments.erasure_root);
+		let root = dbg!(&candidate.commitments.erasure_root);
 
 		let anticipated_hash = branch_hash(
 			root,
@@ -1451,7 +1451,6 @@ mod test {
 				block_data: BlockData(vec![45, 46, 47]),
 			};
 
-
 			let pov_block_c = PoV {
 				block_data: BlockData(vec![48, 49, 50]),
 			};
@@ -1460,31 +1459,30 @@ mod test {
 			let pov_hash_b = pov_block_b.hash();
 			let pov_hash_c = pov_block_c.hash();
 
-			let candidate_a = TestCandidateBuilder {
+			let candidates = vec![TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash: pov_hash_a,
 				erasure_root: make_erasure_root(&test_state, pov_block_a.clone()),
 				..Default::default()
-			}.build();
-
-			let candidate_b = TestCandidateBuilder {
+			}.build(),
+			TestCandidateBuilder {
 				para_id: test_state.chain_ids[0],
 				relay_parent: test_state.relay_parent,
 				pov_hash: pov_hash_b,
 				erasure_root: make_erasure_root(&test_state, pov_block_b.clone()),
 				head_data: expected_head_data.clone(),
 				..Default::default()
-			}.build();
-
-			let candidate_c = TestCandidateBuilder {
+			}.build(),
+			TestCandidateBuilder {
 				para_id: test_state.chain_ids[1],
 				relay_parent: Hash::repeat_byte(0xFA),
 				pov_hash: pov_hash_c,
 				erasure_root: make_erasure_root(&test_state, pov_block_c.clone()),
 				head_data: test_state.head_data.get(&test_state.chain_ids[1]).unwrap().clone(),
 				..Default::default()
-			}.build();
+			}.build()
+			];
 
 			let TestState {
 				chain_ids,
@@ -1496,17 +1494,13 @@ mod test {
 				head_data: _,
 				local_validation_data: _,
 				global_validation_data: _,
-				relay_parent,
+				relay_parent: current,
 				ancestors,
 				validator_index: _,
 			} = test_state.clone();
 
 			let _ = validator_groups;
 			let _ = availability_cores;
-
-			let relay_parent_x = relay_parent;
-			// y is an ancestor of x
-			let relay_parent_y = ancestors[0];
 
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
@@ -1515,13 +1509,13 @@ mod test {
 			log::trace!("peer A: {:?}", peer_a);
 			log::trace!("peer B: {:?}", peer_b);
 
-			log::trace!("candidate A: {:?}", candidate_a.hash());
-			log::trace!("candidate B: {:?}", candidate_b.hash());
+			log::trace!("candidate A: {:?}", candidates[0].hash());
+			log::trace!("candidate B: {:?}", candidates[1].hash());
 
 			overseer_signal(
 				&mut virtual_overseer,
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-					activated: smallvec![relay_parent_x.clone()],
+					activated: smallvec![current.clone()],
 					deactivated: smallvec![],
 				}),
 			).await;
@@ -1532,7 +1526,7 @@ mod test {
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::OurViewChange(view![relay_parent_x,]),
+					NetworkBridgeEvent::OurViewChange(view![current,]),
 				),
 			).await;
 
@@ -1543,7 +1537,7 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::Validators(tx),
 				)) => {
-					assert_eq!(relay_parent, relay_parent_x);
+					assert_eq!(relay_parent, current);
 					tx.send(Ok(validator_public.clone())).unwrap();
 				}
 			);
@@ -1556,9 +1550,9 @@ mod test {
 					k,
 					response_channel: tx,
 				}) => {
-					assert_eq!(relay_parent, relay_parent_x);
+					assert_eq!(relay_parent, current);
 					assert_eq!(k, AvailabilityDistributionSubsystem::K + 1);
-					tx.send(Ok(vec![relay_parent_y.clone(), relay_parent_y.clone()])).unwrap();
+					tx.send(Ok(vec![ancestors[0].clone()])).unwrap();
 				}
 			);
 
@@ -1566,21 +1560,14 @@ mod test {
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_relay_parent,
+					relay_parent,
 					RuntimeApiRequest::SessionIndexForChild(tx)
 				)) => {
+					assert_eq!(relay_parent, current);
 					tx.send(Ok(1 as SessionIndex)).unwrap();
 				}
 			);
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_relay_parent,
-					RuntimeApiRequest::SessionIndexForChild(tx)
-				)) => {
-					tx.send(Ok(1 as SessionIndex)).unwrap();
-				}
-			);
+			// ony one ancestor, so it's assumed the last one is ok too, no query done
 
 			// subsystem peer id collection
 			// which will query the availability cores
@@ -1590,7 +1577,7 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::AvailabilityCores(tx)
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, ancestors[0]);
 					// respond with a set of availability core states
 					tx.send(Ok(vec![
 						dummy_occupied_core(chain_ids[0]),
@@ -1607,10 +1594,10 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, ancestors[0]);
 					assert_eq!(para, chain_ids[0]);
 					tx.send(Ok(Some(
-						candidate_a.clone()
+						candidates[0].clone()
 					))).unwrap();
 				}
 			);
@@ -1621,15 +1608,15 @@ mod test {
 					relay_parent,
 					RuntimeApiRequest::CandidatePendingAvailability(para, tx)
 				)) => {
-					assert_eq!(relay_parent, relay_parent_y);
+					assert_eq!(relay_parent, ancestors[0]);
 					assert_eq!(para, chain_ids[1]);
 					tx.send(Ok(Some(
-						candidate_b.clone()
+						candidates[1].clone()
 					))).unwrap();
 				}
 			);
 
-			for _ in 0usize..2 {
+			for _ in 0usize..1 {
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -1674,7 +1661,7 @@ mod test {
 					) => {
 						assert_eq!(para, chain_ids[0]);
 						tx.send(Ok(Some(
-							candidate_a.clone()
+							candidates[0].clone()
 						))).unwrap();
 					}
 				);
@@ -1687,45 +1674,59 @@ mod test {
 					)) => {
 						assert_eq!(para, chain_ids[1]);
 						tx.send(Ok(Some(
-							candidate_b.clone()
+							candidates[1].clone()
 						))).unwrap();
 					}
 				);
 			}
-			// query the available data incl PoV from the availability store
-			for _ in 0usize..1 {
 
+			let mut candidates2 = candidates.clone();
+			// check if the availability store can provide the desired erasure chunks
+			for i in 0usize..2 {
+				log::trace!("0000");
 				let avail_data = make_available_data(&test_state, pov_block_a.clone());
 				let chunks = derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
 
+				let expected;
 				// store the chunk to the av store
 				assert_matches!(
 					overseer_recv(&mut virtual_overseer).await,
 					AllMessages::AvailabilityStore(
 						AvailabilityStoreMessage::QueryDataAvailability(
-							_candidate_hash,
+							candidate_hash,
 							tx,
 						)
 					) => {
-						dbg!(_candidate_hash);
+						let index = candidates2.iter().enumerate().find(|x| { x.1.hash() == candidate_hash }).map(|x| x.0).unwrap();
+						expected = dbg!(candidates2.swap_remove(index).hash());
 						tx.send(
-							true
+							i == 0
 						).unwrap();
 					}
 				);
 
 				assert_eq!(chunks.len(), test_state.validators.len());
+
+				log::trace!("xxxx");
 				// retrieve a stored chunk
-				for chunk in chunks.into_iter() {
+				for (j, chunk) in chunks.into_iter().enumerate() {
+					log::trace!("yyyy i={}, j={}", i, j);
+					if i != 0 {
+						// not a validator, so this never happens
+						break;
+					}
 					assert_matches!(
 						overseer_recv(&mut virtual_overseer).await,
 						AllMessages::AvailabilityStore(
 							AvailabilityStoreMessage::QueryChunk(
-								_candidate_hash,
-								_idx,
+								candidate_hash,
+								idx,
 								tx,
 							)
 						) => {
+							assert_eq!(candidate_hash, expected);
+							assert_eq!(j as u32, chunk.index);
+							assert_eq!(idx, j as u32);
 							tx.send(
 								Some(chunk.clone())
 							).unwrap();
@@ -1734,8 +1735,7 @@ mod test {
 				}
 
 			}
-
-			// setup peer a with interest in parent x
+			// setup peer a with interest in current
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
@@ -1743,18 +1743,14 @@ mod test {
 				),
 			).await;
 
-			delay!(100);
-
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![relay_parent_x]),
+					NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![current]),
 				),
 			).await;
 
-			delay!(100);
-
-			// setup peer b with interest in parent y
+			// setup peer b with interest in ancestor
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
@@ -1762,16 +1758,14 @@ mod test {
 				),
 			).await;
 
-			delay!(100);
-
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![relay_parent_y]),
+					NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![ancestors[0]]),
 				),
 			).await;
 
-			delay!(300);
+			delay!(100);
 
 			/////////////////////////////////////////////////////////
 			// ready for action
@@ -1804,78 +1798,77 @@ mod test {
 			);
 
 			let valid: AvailabilityGossipMessage =
-				make_valid_availability_gossip(&test_state, candidate_a.hash(), 2, pov_block_a.clone());
+				make_valid_availability_gossip(&test_state, candidates[0].hash(), 2, pov_block_a.clone());
 
-			delay!(300);
+			{
+				// valid (first, from b)
+				overseer_send(
+					&mut virtual_overseer,
+					AvailabilityDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+					),
+				).await;
 
-			// valid (first, from b)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
-				),
-			).await;
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep
+						)
+					) => {
+						assert_eq!(peer, peer_b);
+						assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
+					}
+				);
+			}
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
-				}
-			);
+			{
+				// valid (duplicate, from b)
+				overseer_send(
+					&mut virtual_overseer,
+					AvailabilityDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+					),
+				).await;
 
-			delay!(300);
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep
+						)
+					) => {
+						assert_eq!(peer, peer_b);
+						assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
+					}
+				);
+			}
 
-			// valid (duplicate, from b)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
-				),
-			).await;
+			{
+				// valid (second, from a)
+				overseer_send(
+					&mut virtual_overseer,
+					AvailabilityDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+					),
+				).await;
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_b);
-					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
-				}
-			);
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep
+						)
+					) => {
+						assert_eq!(peer, peer_a);
+						assert_eq!(rep, BENEFIT_VALID_MESSAGE);
+					}
+				);
 
-			delay!(300);
-
-			// valid (second, from a)
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
-				),
-			).await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, BENEFIT_VALID_MESSAGE);
-				}
-			);
-
-			delay!(300);
+			}
 
 			// peer a is not interested in anything anymore
 			overseer_send(
@@ -1885,29 +1878,41 @@ mod test {
 				),
 			).await;
 
-			// send the a message again, so we should detect the duplicate
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
-				),
-			).await;
+			{
+				// send the a message again, so we should detect the duplicate
+				overseer_send(
+					&mut virtual_overseer,
+					AvailabilityDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+					),
+				).await;
 
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
-				}
-			);
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep
+						)
+					) => {
+						assert_eq!(peer, peer_a);
+						assert_eq!(rep, COST_PEER_DUPLICATE_MESSAGE);
+					}
+				);
+			}
+
 
 			// peer b sends a message before we have the view
 			// setup peer a with interest in parent x
+			overseer_send(
+				&mut virtual_overseer,
+				AvailabilityDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
+				),
+			).await;
+
+			delay!(10);
+
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdate(
@@ -1915,32 +1920,32 @@ mod test {
 				),
 			).await;
 
-			// send another message
-			let valid2: AvailabilityGossipMessage =
-				make_valid_availability_gossip(&test_state, candidate_c.hash(), 1, pov_block_c.clone());
+			{
+				// send another message
+				let valid2: AvailabilityGossipMessage =
+					make_valid_availability_gossip(&test_state, candidates[2].hash(), 1, pov_block_c.clone());
 
+				// send the a message before we send a view update
+				overseer_send(
+					&mut virtual_overseer,
+					AvailabilityDistributionMessage::NetworkBridgeUpdate(
+						NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid2.encode()),
+					),
+				).await;
 
-			// send the a message before we send a view update
-			overseer_send(
-				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid2.encode()),
-				),
-			).await;
-
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(
-						peer,
-						rep
-					)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, COST_NOT_A_LIVE_CANDIDATE);
-				}
-			);
-
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::ReportPeer(
+							peer,
+							rep
+						)
+					) => {
+						assert_eq!(peer, peer_a);
+						assert_eq!(rep, COST_NOT_A_LIVE_CANDIDATE);
+					}
+				);
+			}
 		});
 	}
 
