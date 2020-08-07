@@ -20,7 +20,7 @@ use polkadot_primitives::v1::Hash;
 use parity_scale_codec::{Encode, Decode};
 use std::convert::TryFrom;
 
-pub use sc_network::{ObservedRole, ReputationChange, PeerId};
+pub use sc_network::{ReputationChange, PeerId};
 
 /// A unique identifier of a request.
 pub type RequestId = u64;
@@ -39,6 +39,30 @@ pub enum PeerSet {
 	Validation,
 	/// The collation peer-set is used for validator<>collator communication.
 	Collation,
+}
+
+/// The advertised role of a node.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ObservedRole {
+	/// A light node.
+	Light,
+	/// A full node.
+	Full,
+	/// A node claiming to be an authority (unauthenticated)
+	Authority,
+}
+
+impl From<sc_network::ObservedRole> for ObservedRole {
+	fn from(role: sc_network::ObservedRole) -> ObservedRole {
+		match role {
+			sc_network::ObservedRole::Light => ObservedRole::Light,
+			sc_network::ObservedRole::Authority => ObservedRole::Authority,
+			sc_network::ObservedRole::Full
+				| sc_network::ObservedRole::OurSentry
+				| sc_network::ObservedRole::OurGuardedAuthority
+				=> ObservedRole::Full,
+		}
+	}
 }
 
 /// Events from network.
