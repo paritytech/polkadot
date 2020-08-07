@@ -87,9 +87,9 @@ const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
 /// to other peers.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct AvailabilityGossipMessage {
-	/// Anchor hash of the candidate this is associated to.
+	/// Anchor hash of the candidate the `ErasureChunk` is associated to.
 	pub candidate_hash: Hash,
-	/// The actual signed availability bitfield.
+	/// The erasure chunk, a encoded information part of `AvailabilityData`.
 	pub erasure_chunk: ErasureChunk,
 }
 
@@ -167,13 +167,13 @@ impl ProtocolState {
 					.into_iter()
 					.map(|per_relay_parent| per_relay_parent.ancestors.iter().cloned())
 					.flatten()
-					.chain(iter::once(relay_parent.clone()))
+					.chain(iter::once(*relay_parent))
 			})
 			.flatten()
 			.collect::<HashSet<Hash>>()
 	}
 
-	/// Unionize all cached entries for the given relay parents and it's ancestors ancestors.
+	/// Unionize all cached entries for the given relay parents and its ancestors.
 	/// Ignores all non existent relay parents, so this can be used directly with a peers view.
 	/// Returns a map from candidate hash -> receipt
 	fn cached_live_candidates_unioned<'a>(
@@ -201,7 +201,7 @@ impl ProtocolState {
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
 		let candidates =
-			query_live_candidates(ctx, self, std::iter::once(relay_parent.clone())).await?;
+			query_live_candidates(ctx, self, std::iter::once(relay_parent)).await?;
 
 		// register the relation of relay_parent to candidate..
 		// ..and the reverse association.
@@ -228,7 +228,7 @@ impl ProtocolState {
 				if ancestor_or_relay_parent == &relay_parent {
 					None
 				} else {
-					Some(ancestor_or_relay_parent.clone())
+					Some(*ancestor_or_relay_parent)
 				}
 			})
 			.collect::<Vec<Hash>>();
@@ -238,7 +238,7 @@ impl ProtocolState {
 			self.ancestry
 				.entry(ancestor.clone())
 				.or_default()
-				.insert(relay_parent.clone());
+				.insert(relay_parent);
 		}
 
 		self
@@ -382,20 +382,21 @@ where
 	let added = view.difference(&old_view).collect::<Vec<&'_ Hash>>();
 
 	// add all the relay parents and fill the cache
-	for added in added.clone() {
-		let validators = query_validators(ctx, added.clone()).await?;
+	for added in added.iter() {
+		let added = **added;
+		let validators = query_validators(ctx, added).await?;
 		let validator_index = obtain_our_validator_index(
 			&validators,
 			keystore.clone(),
 		);
-		state.add_relay_parent(ctx, added.clone(), validators, validator_index).await?;
+		state.add_relay_parent(ctx, added, validators, validator_index).await?;
 	}
 
 	// handle all candidates
 	for (candidate_hash, _receipt) in state.cached_live_candidates_unioned(added) {
 		let per_candidate = state
 			.per_candidate
-			.entry(candidate_hash.clone())
+			.entry(candidate_hash)
 			.or_default();
 
 		// assure the node has the validator role
@@ -427,7 +428,7 @@ where
 
 		if let Some(erasure_chunk) = erasure_chunks.get(validator_index as usize) {
 			match store_chunk(ctx, candidate_hash, validator_index, erasure_chunk.clone()).await {
-				Err(_e) => warn!(target: TARGET, "Failed to send store message to overseer"),
+				Err(e) => warn!(target: TARGET, "Failed to send store message to overseer: {:?}", e),
 				Ok(Err(())) => warn!(target: TARGET, "Failed to store our own erasure chunk"),
 				Ok(Ok(())) => {}
 			}
@@ -458,9 +459,9 @@ where
 			// only the peers which did not receive this particular erasure chunk
 			let per_candidate = state
 				.per_candidate
-				.entry(candidate_hash.clone())
+				.entry(candidate_hash)
 				.or_default();
-			let message_id = (candidate_hash.clone(), erasure_chunk.index);
+			let message_id = (candidate_hash, erasure_chunk.index);
 			let peers = peers
 				.iter()
 				.filter(|peer| {
@@ -531,11 +532,11 @@ where
 		return Ok(())
 	}
 	for message in message_iter {
-		for peer in peers.clone() {
+		for peer in peers.iter() {
 			let message_id = (message.candidate_hash, message.erasure_chunk.index);
 			per_candidate
 				.sent_messages
-				.entry(peer)
+				.entry(peer.clone())
 				.or_default()
 				.insert(message_id);
 		}
@@ -602,7 +603,6 @@ where
 						// check if that erasure chunk was already sent before
 						if let Some(sent_set) = per_candidate.sent_messages.get(&origin) {
 							if sent_set.contains(&message_id) {
-								log::trace!(">>> sent before");
 								return false;
 							}
 						}
@@ -838,7 +838,7 @@ where
 
 	let mut live_candidates = HashSet::with_capacity(hint.1.unwrap_or(hint.0));
 	for relay_parent in iter {
-		let paras = query_para_ids(ctx, relay_parent.clone()).await?;
+		let paras = query_para_ids(ctx, relay_parent).await?;
 		for para in paras {
 			if let Some(ccr) = query_pending_availability(ctx, relay_parent, para).await? {
 				live_candidates.insert(ccr);
@@ -893,7 +893,7 @@ where
 						live_candidates.extend(receipts.into_iter().map(
 							|(receipt_hash, receipt)| {
 								(
-									relay_parent.clone(),
+									relay_parent,
 									(receipt_hash.clone(), receipt.clone()),
 								)
 							},
@@ -1032,7 +1032,7 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	let query_validators = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::Validators(tx),
 	));
 
@@ -1078,7 +1078,7 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	let query_session_idx_for_child = AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::SessionIndexForChild(tx),
 	));
 
