@@ -274,6 +274,7 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 		}
 		Some(NetworkEvent::Dht(_)) => Action::Nop,
 		Some(NetworkEvent::NotificationStreamOpened { remote, engine_id, role }) => {
+			let role = role.into();
 			match engine_id {
 				x if x == VALIDATION_PROTOCOL_ID
 					=> Action::PeerConnected(PeerSet::Validation, remote, role),
@@ -607,12 +608,24 @@ async fn run_network<N: Network>(
 						});
 
 						let res = match peer_set {
-							PeerSet::Validation => dispatch_validation_event_to_all(
-								NetworkBridgeEvent::PeerConnected(peer, role),
+							PeerSet::Validation => dispatch_validation_events_to_all(
+								vec![
+									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+									NetworkBridgeEvent::PeerViewChange(
+										peer,
+										View(Default::default()),
+									),
+								],
 								&mut ctx,
 							).await,
-							PeerSet::Collation => dispatch_collation_event_to_all(
-								NetworkBridgeEvent::PeerConnected(peer, role),
+							PeerSet::Collation => dispatch_collation_events_to_all(
+								vec![
+									NetworkBridgeEvent::PeerConnected(peer.clone(), role),
+									NetworkBridgeEvent::PeerViewChange(
+										peer,
+										View(Default::default()),
+									),
+								],
 								&mut ctx,
 							).await,
 						};
@@ -708,6 +721,7 @@ mod tests {
 
 	use polkadot_subsystem::messages::{StatementDistributionMessage, BitfieldDistributionMessage};
 	use polkadot_subsystem::test_helpers::{SingleItemSink, SingleItemStream};
+	use polkadot_subsystem::test_helpers::TestSubsystemContextHandle;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
 	struct TestNetwork {
@@ -741,6 +755,13 @@ mod tests {
 		)
 	}
 
+	fn peer_set_engine_id(peer_set: PeerSet) -> ConsensusEngineId {
+		match peer_set {
+			PeerSet::Validation => VALIDATION_PROTOCOL_ID,
+			PeerSet::Collation => COLLATION_PROTOCOL_ID,
+		}
+	}
+
 	impl Network for TestNetwork {
 		fn event_stream(&mut self) -> BoxStream<'static, NetworkEvent> {
 			self.net_events.lock()
@@ -772,25 +793,25 @@ mod tests {
 			v
 		}
 
-		async fn connect_peer(&mut self, peer: PeerId, role: ObservedRole) {
+		async fn connect_peer(&mut self, peer: PeerId, peer_set: PeerSet, role: ObservedRole) {
 			self.send_network_event(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
-				engine_id: VALIDATION_PROTOCOL_ID,
-				role,
+				engine_id: peer_set_engine_id(peer_set),
+				role: role.into(),
 			}).await;
 		}
 
-		async fn disconnect_peer(&mut self, peer: PeerId) {
+		async fn disconnect_peer(&mut self, peer: PeerId, peer_set: PeerSet) {
 			self.send_network_event(NetworkEvent::NotificationStreamClosed {
 				remote: peer,
-				engine_id: VALIDATION_PROTOCOL_ID,
+				engine_id: peer_set_engine_id(peer_set),
 			}).await;
 		}
 
-		async fn peer_message(&mut self, peer: PeerId, message: Vec<u8>) {
+		async fn peer_message(&mut self, peer: PeerId, peer_set: PeerSet, message: Vec<u8>) {
 			self.send_network_event(NetworkEvent::NotificationsReceived {
 				remote: peer,
-				messages: vec![(VALIDATION_PROTOCOL_ID, message.into())],
+				messages: vec![(peer_set_engine_id(peer_set), message.into())],
 			}).await;
 		}
 
@@ -807,7 +828,7 @@ mod tests {
 
 	struct TestHarness {
 		network_handle: TestNetworkHandle,
-		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<NetworkBridgeMessage>,
+		virtual_overseer: TestSubsystemContextHandle<NetworkBridgeMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
@@ -833,6 +854,39 @@ mod tests {
 		executor::block_on(future::select(test_fut, network_bridge));
 	}
 
+	async fn assert_sends_validation_event_to_all(
+		event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
+		virtual_overseer: &mut TestSubsystemContextHandle<NetworkBridgeMessage>,
+	) {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::AvailabilityDistribution(
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::BitfieldDistribution(
+				BitfieldDistributionMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::PoVDistribution(
+				PoVDistributionMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::NetworkBridgeUpdateV1(e)
+			) if e == event.focus().expect("could not focus message")
+		);
+	}
+
 	#[test]
 	fn sends_view_updates_to_peers() {
 		test_harness(|test_harness| async move {
@@ -841,23 +895,44 @@ mod tests {
 			let peer_a = PeerId::random();
 			let peer_b = PeerId::random();
 
-			network_handle.connect_peer(peer_a.clone(), ObservedRole::Full).await;
-			network_handle.connect_peer(peer_b.clone(), ObservedRole::Full).await;
+			network_handle.connect_peer(
+				peer_a.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
+			network_handle.connect_peer(
+				peer_b.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
 
 			let hash_a = Hash::from([1; 32]);
 
-			virtual_overseer.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))).await;
+			virtual_overseer.send(
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(hash_a)))
+			).await;
 
 			let actions = network_handle.next_network_actions(2).await;
-			let wire_message = WireMessage::ViewUpdate(View(vec![hash_a])).encode();
+			let wire_message = WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+				View(vec![hash_a])
+			).encode();
+
 			assert!(network_actions_contains(
 				&actions,
-				&NetworkAction::WriteNotification(peer_a, wire_message.clone()),
+				&NetworkAction::WriteNotification(
+					peer_a,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
 			));
 
 			assert!(network_actions_contains(
 				&actions,
-				&NetworkAction::WriteNotification(peer_b, wire_message.clone()),
+				&NetworkAction::WriteNotification(
+					peer_b,
+					PeerSet::Validation,
+					wire_message.clone(),
+				),
 			));
 		});
 	}
@@ -872,101 +947,35 @@ mod tests {
 
 			let peer = PeerId::random();
 
-			let proto_statement = *b"abcd";
-			let proto_bitfield = *b"wxyz";
-
-			network_handle.connect_peer(peer.clone(), ObservedRole::Full).await;
-
-			virtual_overseer.send(FromOverseer::Communication {
-				msg: NetworkBridgeMessage::RegisterEventProducer(
-					proto_statement,
-					|event| AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(event)
-					)
-				),
-			}).await;
-
-			virtual_overseer.send(FromOverseer::Communication {
-				msg: NetworkBridgeMessage::RegisterEventProducer(
-					proto_bitfield,
-					|event| AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(event)
-					)
-				),
-			}).await;
+			network_handle.connect_peer(peer.clone(), PeerSet::Validation, ObservedRole::Full).await;
 
 			let view = View(vec![Hash::from([1u8; 32])]);
 
-			// bridge will inform about all previously-connected peers.
+			// bridge will inform about all connected peers.
 			{
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerConnected(p, ObservedRole::Full)
-						)
-					) if p == peer
-				);
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
 
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerViewChange(p, v)
-						)
-					) if p == peer && v == View(Default::default())
-				);
-
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerConnected(p, ObservedRole::Full)
-						)
-					) if p == peer
-				);
-
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerViewChange(p, v)
-						)
-					) if p == peer && v == View(Default::default())
-				);
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
 			}
 
 			network_handle.peer_message(
 				peer.clone(),
-				WireMessage::ViewUpdate(view.clone()).encode(),
+				PeerSet::Validation,
+				WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+					view.clone(),
+				).encode(),
 			).await;
 
-			// statement distribution message comes first because handlers are ordered by
-			// protocol ID.
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::PeerViewChange(p, v)
-					)
-				) => {
-					assert_eq!(p, peer);
-					assert_eq!(v, view);
-				}
-			);
-
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::BitfieldDistribution(
-					BitfieldDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::PeerViewChange(p, v)
-					)
-				) => {
-					assert_eq!(p, peer);
-					assert_eq!(v, view);
-				}
-			);
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::PeerViewChange(peer.clone(), view),
+				&mut virtual_overseer,
+			).await;
 		});
 	}
 
@@ -980,103 +989,61 @@ mod tests {
 
 			let peer = PeerId::random();
 
-			let proto_statement = *b"abcd";
-			let proto_bitfield = *b"wxyz";
+			network_handle.connect_peer(
+				peer.clone(),
+				PeerSet::Validation,
+				ObservedRole::Full,
+			).await;
 
-			network_handle.connect_peer(peer.clone(), ObservedRole::Full).await;
-
-			virtual_overseer.send(FromOverseer::Communication {
-				msg: NetworkBridgeMessage::RegisterEventProducer(
-					proto_statement,
-					|event| AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(event)
-					)
-				),
-			}).await;
-
-			virtual_overseer.send(FromOverseer::Communication {
-				msg: NetworkBridgeMessage::RegisterEventProducer(
-					proto_bitfield,
-					|event| AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(event)
-					)
-				),
-			}).await;
-
-			// bridge will inform about all previously-connected peers.
+			// bridge will inform about all connected peers.
 			{
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerConnected(p, ObservedRole::Full)
-						)
-					) if p == peer
-				);
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Full),
+					&mut virtual_overseer,
+				).await;
 
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::StatementDistribution(
-						StatementDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerViewChange(p, v)
-						)
-					) if p == peer && v == View(Default::default())
-				);
-
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerConnected(p, ObservedRole::Full)
-						)
-					) if p == peer
-				);
-
-				assert_matches!(
-					virtual_overseer.recv().await,
-					AllMessages::BitfieldDistribution(
-						BitfieldDistributionMessage::NetworkBridgeUpdate(
-							NetworkBridgeEvent::PeerViewChange(p, v)
-						)
-					) if p == peer && v == View(Default::default())
-				);
+				assert_sends_validation_event_to_all(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+					&mut virtual_overseer,
+				).await;
 			}
 
-			let payload = vec![1, 2, 3];
+			let pov_distribution_message = protocol_v1::PoVDistributionMessage::Awaiting(
+				[0; 32].into(),
+				vec![[1; 32].into()],
+			);
+
+			let message = protocol_v1::ValidationProtocol::PoVDistribution(
+				pov_distribution_message.clone(),
+			);
 
 			network_handle.peer_message(
 				peer.clone(),
-				WireMessage::ProtocolMessage(proto_statement, payload.clone()).encode(),
+				PeerSet::Validation,
+				WireMessage::ProtocolMessage(message.clone()).encode(),
 			).await;
 
-			network_handle.disconnect_peer(peer.clone()).await;
+			network_handle.disconnect_peer(peer.clone(), PeerSet::Validation).await;
 
-			// statement distribution message comes first because handlers are ordered by
-			// protocol ID, and then a disconnection event comes - indicating that the message
-			// was only sent to the correct protocol.
+			// PoV distribution message comes first, and the message is only sent to that subsystem.
+			// then a disconnection event arises that is sent to all validation networking subsystems.
 
 			assert_matches!(
 				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::NetworkBridgeUpdate(
+				AllMessages::PoVDistribution(
+					PoVDistributionMessage::NetworkBridgeUpdateV1(
 						NetworkBridgeEvent::PeerMessage(p, m)
 					)
 				) => {
 					assert_eq!(p, peer);
-					assert_eq!(m, payload);
+					assert_eq!(m, pov_distribution_message);
 				}
 			);
 
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::StatementDistribution(
-					StatementDistributionMessage::NetworkBridgeUpdate(
-						NetworkBridgeEvent::PeerDisconnected(p)
-					)
-				) => {
-					assert_eq!(p, peer);
-				}
-			);
+			assert_sends_validation_event_to_all(
+				NetworkBridgeEvent::PeerDisconnected(peer),
+				&mut virtual_overseer,
+			).await;
 		});
 	}
 }
