@@ -649,7 +649,7 @@ mod tests {
 					assert_eq!(peers, vec![peer_a.clone()]);
 					assert_eq!(
 						message,
-						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+						send_pov_message(hash_a, pov_hash, pov.clone()),
 					);
 				}
 			)
@@ -719,12 +719,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendValidationMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
 					assert_eq!(
 						message,
-						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
+						awaiting_message(hash_a, vec![pov_hash]),
 					);
 				}
 			)
@@ -790,12 +790,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendValidationMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
 					assert_eq!(
 						message,
-						WireMessage::Awaiting(hash_a, vec![pov_a_hash]).encode(),
+						awaiting_message(hash_a, vec![pov_a_hash]),
 					);
 				}
 			)
@@ -858,8 +858,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			handle_network_update(
@@ -867,8 +867,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_b.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);
@@ -946,8 +946,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, bad_pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, bad_pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// didn't complete our sender.
@@ -1009,8 +1009,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_matches!(
@@ -1070,8 +1070,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_b, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_b, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_matches!(
@@ -1132,8 +1132,8 @@ mod tests {
 					&mut ctx,
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
-					),
+						awaiting_message(hash_a, vec![pov_hash]),
+					).focus().unwrap(),
 				).await.unwrap();
 			}
 
@@ -1146,8 +1146,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_a, vec![last_pov_hash]).encode(),
-				),
+					awaiting_message(hash_a, vec![last_pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// No more bookkeeping for you!
@@ -1215,8 +1215,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
-				),
+					awaiting_message(hash_b, vec![pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert!(state.peer_state[&peer_a].awaited.get(&hash_b).is_none());
@@ -1277,8 +1277,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
-				),
+					awaiting_message(hash_b, vec![pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// Illegal `awaited` is ignored.
@@ -1351,8 +1351,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);
@@ -1370,12 +1370,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendValidationMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_b.clone()]);
 					assert_eq!(
 						message,
-						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+						send_pov_message(hash_a, pov_hash, pov.clone()),
 					);
 				}
 			);
@@ -1433,8 +1433,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);
