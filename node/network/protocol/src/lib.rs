@@ -184,6 +184,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum AvailabilityDistributionMessage {
 		/// An erasure chunk for a given candidate hash.
+		#[codec(index = "0")]
 		Chunk(Hash, ErasureChunk),
 	}
 
@@ -191,6 +192,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum BitfieldDistributionMessage {
 		/// A signed availability bitfield for a given relay-parent hash.
+		#[codec(index = "0")]
 		Bitfield(Hash, SignedAvailabilityBitfield),
 	}
 
@@ -199,9 +201,11 @@ pub mod v1 {
 	pub enum PoVDistributionMessage {
 		/// Notification that we are awaiting the given PoVs (by hash) against a
 		/// specific relay-parent hash.
+		#[codec(index = "0")]
 		Awaiting(Hash, Vec<Hash>),
 		/// Notification of an awaited PoV, in a given relay-parent context.
 		/// (relay_parent, pov_hash, pov)
+		#[codec(index = "1")]
 		SendPoV(Hash, Hash, PoV),
 	}
 
@@ -209,6 +213,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum StatementDistributionMessage {
 		/// A signed full statement under a given relay-parent.
+		#[codec(index = "0")]
 		Statement(Hash, SignedFullStatement)
 	}
 
@@ -216,13 +221,17 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum CollatorProtocolMessage {
 		/// Declare the intent to advertise collations under a collator ID.
+		#[codec(index = "0")]
 		Declare(CollatorId),
 		/// Advertise a collation to a validator. Can only be sent once the peer has declared
 		/// that they are a collator with given ID.
+		#[codec(index = "1")]
 		AdvertiseCollation(Hash, ParaId),
 		/// Request the advertised collation at that relay-parent.
+		#[codec(index = "2")]
 		RequestCollation(RequestId, Hash, ParaId),
 		/// A requested collation.
+		#[codec(index = "3")]
 		Collation(RequestId, CandidateReceipt, PoV),
 	}
 
@@ -230,12 +239,16 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum ValidationProtocol {
 		/// Availability distribution messages
+		#[codec(index = "0")]
 		AvailabilityDistribution(AvailabilityDistributionMessage),
 		/// Bitfield distribution messages
+		#[codec(index = "1")]
 		BitfieldDistribution(BitfieldDistributionMessage),
 		/// PoV Distribution messages
+		#[codec(index = "2")]
 		PoVDistribution(PoVDistributionMessage),
 		/// Statement distribution messages
+		#[codec(index = "3")]
 		StatementDistribution(StatementDistributionMessage),
 	}
 
@@ -248,6 +261,7 @@ pub mod v1 {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
+		#[codec(index = "0")]
 		CollatorProtocol(CollatorProtocolMessage),
 	}
 
