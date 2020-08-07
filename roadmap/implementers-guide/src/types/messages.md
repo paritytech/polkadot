@@ -31,8 +31,9 @@ enum UpwardMessage {
 		/// provided to it upon the dispatch.
 		data: Vec<u8>,
 	},
-	/// HrmpOpenChannel { .. },
-	/// HrmpCloseChannel { .. },
+	// Examples:
+	// HrmpOpenChannel { .. },
+	// HrmpCloseChannel { .. },
 }
 ```
 
