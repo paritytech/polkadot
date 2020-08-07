@@ -369,6 +369,13 @@ async fn update_view(
 	Ok(())
 }
 
+async fn handle_peer_messages<M>(
+	peers: &mut HashMap<PeerId, PeerData>,
+	messages: Vec<WireMessage<M>>,
+) -> SubsystemResult<()> {
+	Ok(())
+}
+
 async fn send_validation_message<I>(
 	net: &mut impl Network,
 	peers: I,
@@ -426,36 +433,62 @@ async fn dispatch_validation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
 ) -> SubsystemResult<()> {
-	let messages = vec![
-		event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
-			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
-		)),
-		event.focus().ok().map(|m| AllMessages::BitfieldDistribution(
-			BitfieldDistributionMessage::NetworkBridgeUpdateV1(m)
-		)),
-		event.focus().ok().map(|m| AllMessages::PoVDistribution(
-			PoVDistributionMessage::NetworkBridgeUpdateV1(m)
-		)),
-		event.focus().ok().map(|m| AllMessages::StatementDistribution(
-			StatementDistributionMessage::NetworkBridgeUpdateV1(m)
-		)),
-	];
-
-	ctx.send_messages(messages.into_iter().filter_map(|x| x)).await
+	dispatch_validation_events_to_all(std::iter::once(event), ctx).await
 }
 
 async fn dispatch_collation_event_to_all(
 	event: NetworkBridgeEvent<protocol_v1::CollationProtocol>,
 	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
 ) -> SubsystemResult<()> {
-	let message = event.focus().ok().map(|m| AllMessages::CollatorProtocol(
-		CollatorProtocolMessage::NetworkBridgeUpdateV1(m)
-	));
+	dispatch_collation_events_to_all(std::iter::once(event), ctx).await
+}
 
-	match message {
-		Some(m) => ctx.send_message(m).await,
-		None => Ok(()), // technically unreachable due to single variant.
-	}
+async fn dispatch_validation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> SubsystemResult<()>
+	where
+		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::ValidationProtocol>>,
+		I::IntoIter: Send,
+{
+	let messages_for = |event: NetworkBridgeEvent<protocol_v1::ValidationProtocol>| {
+		let a = std::iter::once(event.focus().ok().map(|m| AllMessages::AvailabilityDistribution(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		let b = std::iter::once(event.focus().ok().map(|m| AllMessages::BitfieldDistribution(
+			BitfieldDistributionMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		let p = std::iter::once(event.focus().ok().map(|m| AllMessages::PoVDistribution(
+			PoVDistributionMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		let s = std::iter::once(event.focus().ok().map(|m| AllMessages::StatementDistribution(
+			StatementDistributionMessage::NetworkBridgeUpdateV1(m)
+		)));
+
+		a.chain(b).chain(p).chain(s).filter_map(|x| x)
+	};
+
+	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
+}
+
+async fn dispatch_collation_events_to_all<I>(
+	events: I,
+	ctx: &mut impl SubsystemContext<Message=NetworkBridgeMessage>,
+) -> SubsystemResult<()>
+	where
+		I: IntoIterator<Item = NetworkBridgeEvent<protocol_v1::CollationProtocol>>,
+		I::IntoIter: Send,
+{
+	let messages_for = |event: NetworkBridgeEvent<protocol_v1::CollationProtocol>| {
+		event.focus().ok().map(|m| AllMessages::CollatorProtocol(
+			CollatorProtocolMessage::NetworkBridgeUpdateV1(m)
+		))
+	};
+
+	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
 async fn run_network<N: Network>(
@@ -577,72 +610,67 @@ async fn run_network<N: Network>(
 					}
 				}
 			},
+			Action::PeerMessages(peer, v_messages, c_messages) => {
+				// TODO [now]
+				// let peer_data = match peers.get_mut(&peer) {
+				// 	None => continue,
+				// 	Some(d) => d,
+				// };
 
-			_ => {} // TODO [now]: exhaustive match
+				// let mut outgoing_messages = Vec::with_capacity(messages.len());
+				// for message in messages {
+				// 	match message {
+				// 		WireMessage::ViewUpdate(new_view) => {
+				// 			if new_view.0.len() > MAX_VIEW_HEADS {
+				// 				net.report_peer(
+				// 					peer.clone(),
+				// 					MALFORMED_VIEW_COST,
+				// 				).await?;
+
+				// 				continue
+				// 			}
+
+				// 			if new_view == peer_data.view { continue }
+				// 			peer_data.view = new_view;
+
+				// 			let update = NetworkBridgeEvent::PeerViewChange(
+				// 				peer.clone(),
+				// 				peer_data.view.clone(),
+				// 			);
+
+				// 			outgoing_messages.extend(
+				// 				event_producers.values().map(|producer| producer(update.clone()))
+				// 			);
+				// 		}
+				// 		WireMessage::ProtocolMessage(protocol, message) => {
+				// 			let message = match event_producers.get(&protocol) {
+				// 				Some(producer) => Some(producer(
+				// 					NetworkBridgeEvent::PeerMessage(peer.clone(), message)
+				// 				)),
+				// 				None => {
+				// 					net.report_peer(
+				// 						peer.clone(),
+				// 						UNKNOWN_PROTO_COST,
+				// 					).await?;
+
+				// 					None
+				// 				}
+				// 			};
+
+				// 			if let Some(message) = message {
+				// 				outgoing_messages.push(message);
+				// 			}
+				// 		}
+				// 	}
+				// }
+
+				// let send_messages = ctx.send_messages(outgoing_messages);
+				// if let Err(e) = send_messages.await {
+				// 	log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+				// 	return Err(e)
+				// }
+			},
 		}
-
-		// match action {
-
-		// 	Action::PeerMessages(peer, messages) => {
-		// 		let peer_data = match peers.get_mut(&peer) {
-		// 			None => continue,
-		// 			Some(d) => d,
-		// 		};
-
-		// 		let mut outgoing_messages = Vec::with_capacity(messages.len());
-		// 		for message in messages {
-		// 			match message {
-		// 				WireMessage::ViewUpdate(new_view) => {
-		// 					if new_view.0.len() > MAX_VIEW_HEADS {
-		// 						net.report_peer(
-		// 							peer.clone(),
-		// 							MALFORMED_VIEW_COST,
-		// 						).await?;
-
-		// 						continue
-		// 					}
-
-		// 					if new_view == peer_data.view { continue }
-		// 					peer_data.view = new_view;
-
-		// 					let update = NetworkBridgeEvent::PeerViewChange(
-		// 						peer.clone(),
-		// 						peer_data.view.clone(),
-		// 					);
-
-		// 					outgoing_messages.extend(
-		// 						event_producers.values().map(|producer| producer(update.clone()))
-		// 					);
-		// 				}
-		// 				WireMessage::ProtocolMessage(protocol, message) => {
-		// 					let message = match event_producers.get(&protocol) {
-		// 						Some(producer) => Some(producer(
-		// 							NetworkBridgeEvent::PeerMessage(peer.clone(), message)
-		// 						)),
-		// 						None => {
-		// 							net.report_peer(
-		// 								peer.clone(),
-		// 								UNKNOWN_PROTO_COST,
-		// 							).await?;
-
-		// 							None
-		// 						}
-		// 					};
-
-		// 					if let Some(message) = message {
-		// 						outgoing_messages.push(message);
-		// 					}
-		// 				}
-		// 			}
-		// 		}
-
-		// 		let send_messages = ctx.send_messages(outgoing_messages);
-		// 		if let Err(e) = send_messages.await {
-		// 			log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
-		// 			return Err(e)
-		// 		}
-		// 	},
-		// }
 	}
 }
 
