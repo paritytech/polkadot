@@ -479,14 +479,14 @@ where
 {
 	let current = state.peer_views.entry(origin.clone()).or_default();
 
-	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
+	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
 
 	*current = view;
 
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
-	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = delta_vec
+	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
 			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
