@@ -66,7 +66,7 @@ impl From<sc_network::ObservedRole> for ObservedRole {
 }
 
 /// Events from network.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
 	PeerConnected(PeerId, ObservedRole),
