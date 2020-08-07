@@ -70,8 +70,6 @@ enum Error {
 	RuntimeApi(RuntimeApiError),
 	#[from]
 	ChainApi(ChainApiError),
-
-	Logic,
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -886,9 +884,7 @@ where
 	.map_err::<Error, _>(Into::into)?;
 
 	let all_para_ids: Vec<_> = rx
-		.await
-		.map_err::<Error, _>(Into::into)?
-		.map_err::<Error, _>(Into::into)?;
+		.await??;
 
 	let occupied_para_ids = all_para_ids
 		.into_iter()
@@ -985,10 +981,8 @@ where
 			relay_parent,
 			RuntimeApiRequest::CandidatePendingAvailability(para, tx),
 		)))
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
+		.await?;
+	rx.await?
 		.map_err::<Error, _>(Into::into)
 }
 
@@ -1007,10 +1001,8 @@ where
 	));
 
 	ctx.send_message(query_validators)
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
+		.await?;
+	rx.await?
 		.map_err::<Error, _>(Into::into)
 }
 
@@ -1031,10 +1023,8 @@ where
 	});
 
 	ctx.send_message(query_ancestors)
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
+		.await?;
+	rx.await?
 		.map_err::<Error, _>(Into::into)
 }
 
@@ -1053,10 +1043,8 @@ where
 	));
 
 	ctx.send_message(query_session_idx_for_child)
-		.await
-		.map_err::<Error, _>(Into::into)?;
-	rx.await
-		.map_err::<Error, _>(Into::into)?
+		.await?;
+	rx.await?
 		.map_err::<Error, _>(Into::into)
 }
 
@@ -1179,7 +1167,6 @@ mod test {
 		msg: AvailabilityDistributionMessage,
 	) {
 		log::trace!("Sending message:\n{:?}", &msg);
-		delay!(10);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -1191,7 +1178,6 @@ mod test {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	) -> AllMessages {
 		log::trace!("Waiting for message ...");
-		delay!(10);
 		let msg = overseer
 			.recv()
 			.timeout(TIMEOUT)
@@ -1782,6 +1768,8 @@ mod test {
 				),
 			).await;
 
+			delay!(300);
+
 			/////////////////////////////////////////////////////////
 			// ready for action
 
@@ -1815,6 +1803,8 @@ mod test {
 			let valid: AvailabilityGossipMessage =
 				make_valid_availability_gossip(&test_state, candidate_a.hash(), validator_index, 2, pov_block_a.clone());
 
+			delay!(300);
+
 			// valid (first, from b)
 			overseer_send(
 				&mut virtual_overseer,
@@ -1835,6 +1825,8 @@ mod test {
 					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST);
 				}
 			);
+
+			delay!(300);
 
 			// valid (duplicate, from b)
 			overseer_send(
@@ -1857,6 +1849,8 @@ mod test {
 				}
 			);
 
+			delay!(300);
+
 			// valid (second, from a)
 			overseer_send(
 				&mut virtual_overseer,
@@ -1878,6 +1872,8 @@ mod test {
 				}
 			);
 
+			delay!(300);
+
 			// peer a is not interested in anything anymore
 			overseer_send(
 				&mut virtual_overseer,
@@ -1894,7 +1890,6 @@ mod test {
 				),
 			).await;
 
-			delay!(50);
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(
@@ -1916,7 +1911,6 @@ mod test {
 					NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 				),
 			).await;
-
 
 			// send another message
 			let valid2: AvailabilityGossipMessage =
