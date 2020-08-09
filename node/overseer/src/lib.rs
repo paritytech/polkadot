@@ -84,7 +84,7 @@ use polkadot_subsystem::messages::{
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate, 
-	util::{prometheus, MetricsTrait},
+	metrics::{self, prometheus},
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -456,7 +456,7 @@ impl MaybeMetrics {
 	}
 }
 
-impl MetricsTrait for MaybeMetrics {
+impl metrics::Metrics for MaybeMetrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = Metrics {
 			active_heads_count: prometheus::register(
@@ -702,7 +702,7 @@ where
 
 		let active_leaves = HashSet::new();
 
-		let metrics = <MaybeMetrics as MetricsTrait>::register(prometheus_registry);
+		let metrics = <MaybeMetrics as metrics::Metrics>::register(prometheus_registry);
 
 		let this = Self {
 			candidate_validation_subsystem,

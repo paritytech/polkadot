@@ -24,6 +24,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	metrics,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -63,47 +64,12 @@ pub mod reexports {
 	};
 }
 
-/// Reexport prometheus types.
-pub use substrate_prometheus_endpoint as prometheus;
 
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
-
-/// Subsystem- or job-specific prometheus metrics.
-///
-/// Usually implemented as a wrapper for `Option<ActualMetrics>`
-/// to ensure `Default` bounds or as a dummy type ().
-/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
-pub trait MetricsTrait: Default + Clone {
-	/// Try to register metrics in the prometheus registry.
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
-
-	/// Convience method to register metrics in the optional prometheus registry.
-	/// If the registration fails, prints a warning and returns `Default::default()`.
-	fn register(registry: Option<&prometheus::Registry>) -> Self {
-		if let Some(registry) = registry {
-			match Self::try_register(registry) {
-				Err(e) => {
-					log::warn!("Failed to register metrics: {:?}", e);
-					Default::default()
-				},
-				Ok(metrics) => metrics,
-			}
-		} else {
-			Default::default()
-		}
-	}
-}
-
-// dummy impl
-impl MetricsTrait for () {
-	fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
-		Ok(())
-	}
-}
 
 /// Utility errors
 #[derive(Debug, derive_more::From)]
@@ -401,7 +367,7 @@ pub trait JobTrait: Unpin {
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
 	/// Subsystem-specific prometheus metrics.
-	type Metrics: 'static + MetricsTrait + Send;
+	type Metrics: 'static + metrics::Metrics + Send;
 
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;

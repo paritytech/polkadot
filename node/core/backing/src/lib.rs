@@ -45,6 +45,7 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
+	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -53,8 +54,6 @@ use polkadot_node_subsystem_util::{
 	request_validators,
 	request_from_runtime,
 	Validator,
-	prometheus,
-	MetricsTrait,
 	delegated_subsystem,
 };
 use statement_table::{
@@ -797,7 +796,7 @@ impl Metrics {
 	}
 }
 
-impl MetricsTrait for Metrics {
+impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			signed_statement_count: prometheus::register(

@@ -198,7 +198,7 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
 	/// Subsystem-specific prometheus metrics.
-	type Metrics: crate::util::MetricsTrait;
+	type Metrics: metrics::Metrics;
 
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
 	fn start(self, ctx: C) -> SpawnedSubsystem;
@@ -225,6 +225,43 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 		SpawnedSubsystem {
 			name: "DummySubsystem",
 			future,
+		}
+	}
+}
+
+/// This module reexports prometheus types and defines `Metrics` trait.
+pub mod metrics {
+	/// Reexport prometheus types.
+	pub use substrate_prometheus_endpoint as prometheus;
+
+	/// Subsystem- or job-specific prometheus metrics.
+	///
+	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+	/// to ensure `Default` bounds or as a dummy type ().
+	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
+	pub trait Metrics: Default + Clone {
+		/// Try to register metrics in the prometheus registry.
+		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+
+		/// Convience method to register metrics in the optional prometheus registry.
+		/// If the registration fails, prints a warning and returns `Default::default()`.
+		fn register(registry: Option<&prometheus::Registry>) -> Self {
+			registry.map(|r| {
+				match Self::try_register(r) {
+					Err(e) => {
+						log::warn!("Failed to register metrics: {:?}", e);
+						Default::default()
+					},
+					Ok(metrics) => metrics,
+				}
+			}).unwrap_or_default()
+		}
+	}
+
+	// dummy impl
+	impl Metrics for () {
+		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
 		}
 	}
 }
