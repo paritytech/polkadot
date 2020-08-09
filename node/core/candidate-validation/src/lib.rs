@@ -27,7 +27,7 @@ use polkadot_subsystem::{
 		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
 		ValidationFailed, RuntimeApiRequest,
 	},
-	util::{prometheus, MetricsTrait},
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
@@ -82,7 +82,7 @@ impl Metrics {
 	}
 }
 
-impl MetricsTrait for Metrics {
+impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			validation_requests: prometheus::register(
