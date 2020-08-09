@@ -641,7 +641,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -721,7 +721,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -799,7 +799,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -871,7 +871,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request before peer B.
@@ -959,7 +959,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1022,7 +1022,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1083,7 +1083,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1141,7 +1141,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let max_plausibly_awaited = n_validators * 2;
@@ -1226,7 +1226,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1288,7 +1288,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1365,7 +1365,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -1448,7 +1448,7 @@ mod tests {
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(

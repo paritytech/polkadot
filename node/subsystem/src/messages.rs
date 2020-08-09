@@ -61,6 +61,12 @@ impl CandidateSelectionMessage {
 	}
 }
 
+impl Default for CandidateSelectionMessage {
+	fn default() -> Self {
+		CandidateSelectionMessage::Invalid(Default::default(), Default::default())
+	}
+}
+
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -509,10 +515,4 @@ pub enum AllMessages {
 	NetworkBridge(NetworkBridgeMessage),
 	/// Message for the Chain API subsystem
 	ChainApi(ChainApiMessage),
-	/// Test message
-	///
-	/// This variant is only valid while testing, but makes the process of testing the
-	/// subsystem job manager much simpler.
-	#[cfg(test)]
-	Test(String),
 }

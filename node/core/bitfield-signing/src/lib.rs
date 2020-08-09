@@ -29,7 +29,9 @@ use polkadot_node_subsystem::{
 		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
 	},
 	errors::RuntimeApiError,
-	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
+};
+use polkadot_node_subsystem_util::{
+	self as util, JobManager, JobTrait, ToJobTrait, Validator
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration};

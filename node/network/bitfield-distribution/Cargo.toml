@@ -18,7 +18,7 @@ polkadot-network = { path = "../../../network" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = [ "test-helpers" ] }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 parking_lot = "0.10.0"
