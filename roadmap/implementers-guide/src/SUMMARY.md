@@ -5,6 +5,7 @@
 - [Whence Parachains](whence-parachains.md)
 - [Parachains Overview](parachains-overview.md)
 - [Architecture Overview](architecture.md)
+- [Messaging Overview](messaging.md)
 - [Runtime Architecture](runtime/README.md)
   - [Initializer Module](runtime/initializer.md)
   - [Configuration Module](runtime/configuration.md)
