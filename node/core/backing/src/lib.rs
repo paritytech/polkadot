@@ -434,6 +434,7 @@ impl CandidateBackingJob {
 								&candidate,
 								pov,
 							).await {
+								self.metrics.on_candidate_seconded();
 								self.seconded = Some(candidate_hash);
 							}
 						}
@@ -782,6 +783,7 @@ impl util::JobTrait for CandidateBackingJob {
 #[derive(Clone)]
 struct MetricsInner {
 	signed_statement_count: prometheus::Counter<prometheus::U64>,
+	candidates_seconded_count: prometheus::Counter<prometheus::U64>
 }
 
 /// Candidate backing metrics.
@@ -794,6 +796,12 @@ impl Metrics {
 			metrics.signed_statement_count.inc();
 		}
 	}
+
+	fn on_candidate_seconded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidates_seconded_count.inc();
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -803,6 +811,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"signed_statement_count",
 					"Number of statements signed.",
+				)?,
+				registry,
+			)?,
+			candidates_seconded_count: prometheus::register(
+				prometheus::Counter::new(
+					"candidates_seconded_count",
+					"Number of candidates seconded.",
 				)?,
 				registry,
 			)?,
