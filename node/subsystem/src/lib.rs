@@ -228,9 +228,10 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use std::time::Duration;
-	use futures::{executor, future, Future};
+
+	use futures::{executor, future};
 	use assert_matches::assert_matches;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 
 	macro_rules! assert_msg {
 		($msg:expr, $expected:expr) => {
@@ -257,7 +258,7 @@ mod tests {
 	#[test]
 	fn fast() {
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut overseer) = make_subsystem_context(pool);
+		let (mut ctx, mut overseer) = test_helpers::make_subsystem_context(pool);
 
 		let ping = async move {
 			for x in 50_000usize..100_000 {
