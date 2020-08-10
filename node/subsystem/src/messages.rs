@@ -507,7 +507,4 @@ pub enum AllMessages {
 	NetworkBridge(NetworkBridgeMessage),
 	/// Message for the Chain API subsystem.
 	ChainApi(ChainApiMessage),
-	/// A test message.
-	#[cfg(test)]
-	TestVal(usize),
 }
