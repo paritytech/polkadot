@@ -78,7 +78,9 @@ We continue until all candidates have enough approval checkers assigned.  We nev
 
 ### No shows
 
-We have a "no show" timeout longer than one relay chain slot, so at least 6 seconds, during which we expect approval checks should succeed in reconstructing the candidate block, in redoing its erasure coding to check the candidate receipt, and finally in rechecking the candidate block itself.  We consider a validator a "no show" if they do not approve or dispute within this "no show" timeout from our receiving their assignment notice.  
+We have a "no show" timeout longer than one relay chain slot, so at least 6 seconds, during which we expect approval checks should succeed in reconstructing the candidate block, in redoing its erasure coding to check the candidate receipt, and finally in rechecking the candidate block itself.  
+
+We consider a validator a "no show" if they do not approve or dispute within this "no show" timeout from our receiving their assignment notice.  We time this from our receipt of their assignment notice instead of our imagined real time for their tranche because otherwise receiving late assignment notices creates immediate "no shows" and unnecessary work.
 
 We worry "no shows" represent a validator under denial of service attack, presumably to prevent it from reconstructing the candidate, but perhaps delaying it form gossiping a dispute too.  We therefore always replace "no shows" by adding one entire extra delay tranche worth of validators, so such attacks always result in additional checkers. 
 
@@ -86,9 +88,33 @@ As an example, imagine we need 20 checkers, but tranche zero produces only 14, a
 
 We escalated so quickly because we worried that Charlie and Cindy might be the only honest checkers assigned to that candidate.  If therefore either Charlie or Cindy finally return an approval, then we can conclude approval, and abandon the checkers from tranche four.
 
-We require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain and reward.  We avoid slashing for "no shows" per se, although being "no show" could enter into some computation that punishes repeated poor performance, presumably replaces ImOnline, and we could reduce their rewards and further rewards those who filled in.
+We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain.  We discuss below how this helps reward validators who replace "no shows".
+
+We avoid slashing for "no shows" per se, although being "no show" could enter into some computation that punishes repeated poor performance, presumably replaces ImOnline, and we could reduce their rewards and further rewards those who filled in.
 
 As future work, we foresee expanding the "no show" scheme to anonymizes the additional checkers, like by using assignment noticed with a new criteria that employs a ring VRF and then all validators providing cover by requesting a couple erasure coded pieces, but such anonymity scheme sound extremely complex and lie far beyond our initial functionality.
+
+## Assignment postponement 
+
+We expect validators could occasionally overloaded when they randomly acquire too many assignments.  All these fluctuations amortize over multiple blocks fairly well, but this slows down finality.
+
+We therefore permit validators to delay sending their assignment noticed intentionally.  If nobody knows about their assignment then they avoid creating "no shows" and the workload progresses normally.  
+
+We strongly prefer if postponements come from tranches higher aka less important than zero because tranche zero checks provide somewhat more security.
+
+TODO: When?  Is this optimal for the network?  etc.
+
+## On-chain verification
+
+We should verify approval on-chain to reward approval checkers and to simplify integration with GRADPA.  We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with both these goals.
+
+In principle, all validators have some "tranche" at which they're assigned to the parachain candidate, which ensures we reach enough validators eventually.  As noted above, we often retract "no shows" when the slow validator eventually shows up, so witnessing their initially being a "no show" helps manage rewards.
+
+We expect on-chain verification should work in two phases:  We first record assignments notices and approval votes on-chain in relay chain block, doing the VRF or regular signature verification again in block verification, and inserting chain authenticated unsigned notes into the relay chain state that contain the checker, tranche, paraid, and relay block height for each assignment notice.  We then later have another relay chain block that runs some "approved" intrinsic, which extract all these notes from the state and feeds them into our approval code.
+
+We now encounter one niche concern in the interaction between postponement and on-chain verification:  Any validator with a tranche zero (or other low) assignment could delay sending an assignment notice, like because they postponed their assigned tranche (which is allowed).  If they later send this assignment notices right around finality time, then they race with this approved. intrinsic:  If their announcement gets on-chain (also allowed), then yes it delays finality. If it does not get on-chain, then yes we've one announcement that the off-chain consensus system says is valid, but the chain ignores for being too slow.  
+
+We need the chain to win in this case, but doing this requires imposing an annoyingly long overarching delay upon finality.  We might explore limits on postponement too, but this sounds much harder.
 
 ## Paramaters
 
