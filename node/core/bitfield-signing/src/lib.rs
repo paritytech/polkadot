@@ -258,7 +258,7 @@ struct MetricsInner {
 	bitfields_signed_count: prometheus::Counter<prometheus::U64>,
 }
 
-/// Candidate backing metrics.
+/// Bitfield signing metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
