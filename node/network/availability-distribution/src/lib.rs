@@ -771,6 +771,8 @@ impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 {
+	type Metrics = (); // TODO (metrics)
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "availability-distribution-subsystem",
