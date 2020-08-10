@@ -460,6 +460,7 @@ fn reputation_verification() {
 			}
 		);
 
+		let genesis = Hash::repeat_byte(0xAA);
 		// query of k ancestors, we only provide one
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -470,7 +471,9 @@ fn reputation_verification() {
 			}) => {
 				assert_eq!(relay_parent, current);
 				assert_eq!(k, AvailabilityDistributionSubsystem::K + 1);
-				tx.send(Ok(vec![ancestors[0].clone()])).unwrap();
+				// 0xAA..AA will not be included, since there is no mean to determine
+				// its session index
+				tx.send(Ok(vec![ancestors[0].clone(), genesis])).unwrap();
 			}
 		);
 
@@ -485,7 +488,17 @@ fn reputation_verification() {
 				tx.send(Ok(1 as SessionIndex)).unwrap();
 			}
 		);
-		// ony one ancestor, so it's assumed the last one is ok too, no query done
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx)
+			)) => {
+				assert_eq!(relay_parent, genesis);
+				tx.send(Ok(1 as SessionIndex)).unwrap();
+			}
+		);
 
 		// subsystem peer id collection
 		// which will query the availability cores
