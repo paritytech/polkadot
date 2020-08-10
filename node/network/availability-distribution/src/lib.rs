@@ -1075,12 +1075,10 @@ where
 			if session != desired_session {
 				break;
 			}
-			if ancestor != relay_parent {
-				acc.push(ancestor);
-			}
-		} else {
-			// we reached the genesis, which does not have ancestors
 			acc.push(ancestor);
+		} else {
+			// either ended up at genesis or the blocks were
+			// already pruned
 			break;
 		}
 	}
