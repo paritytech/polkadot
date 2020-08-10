@@ -19,6 +19,7 @@
 use sp_std::prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
+use futures::Future;
 
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
@@ -702,6 +703,27 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+	}
+}
+
+/// The output of a collator.
+#[derive(Clone, Encode, Decode)]
+pub struct Collation {
+	head_data: HeadData,
+	upward_messages: Vec<UpwardMessage>,
+	proof_of_validity: PoV,
+}
+
+/// Configuration for the collation generator
+pub struct CollationGenerationConfig {
+	key: ValidatorPair,
+	// REVIEW: should the collation function take some params? What?
+	collator: Box<dyn Fn() -> Box<dyn Future<Output = Collation>> + Send>,
+}
+
+impl std::fmt::Debug for CollationGenerationConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
 }
 

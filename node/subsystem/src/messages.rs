@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
 	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
 	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex, BlockNumber,
+	CandidateEvent, SessionIndex, BlockNumber, CollationGenerationConfig,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
@@ -486,6 +486,20 @@ impl PoVDistributionMessage {
 	}
 }
 
+/// Message to the Collation Generation Subsystem.
+#[derive(Debug)]
+pub enum CollationGenerationMessage {
+	/// Initialize the collation generation subsystem
+	Initialize(CollationGenerationConfig),
+}
+
+impl CollationGenerationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
@@ -515,4 +529,6 @@ pub enum AllMessages {
 	NetworkBridge(NetworkBridgeMessage),
 	/// Message for the Chain API subsystem
 	ChainApi(ChainApiMessage),
+	/// Message for the Collation Generation subsystem
+	CollationGeneration(CollationGenerationMessage),
 }
