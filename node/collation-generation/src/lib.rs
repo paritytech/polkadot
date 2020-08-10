@@ -1,20 +1,34 @@
-use futures::Future;
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! The collation generation subsystem is the interface between polkadot and the collators.
+
+#![deny(missing_docs)]
+
 use polkadot_node_subsystem::{
 	messages::CollationGenerationMessage,
 	FromOverseer,
-	OverseerSignal,
 	SpawnedSubsystem,
 	Subsystem,
 	SubsystemContext,
 	SubsystemResult,
 };
 use polkadot_primitives::v1::{
-	Collation,
 	CollationGenerationConfig,
-	HeadData,
-	PoV,
-	UpwardMessage,
-	ValidatorPair,
+	Hash,
 };
 
 /// Collation Generation Subsystem
@@ -65,12 +79,12 @@ impl CollationGenerationSubsystem {
 		use polkadot_node_subsystem::OverseerSignal::{ActiveLeaves, BlockFinalized, Conclude};
 
 		match incoming {
-			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate {
-				activated,
-				deactivated,
-			}))) => {
+			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
 				// follow the procedure from the guide
-				unimplemented!()
+				if let Some(ref config) = self.config {
+					handle_new_activations(config, &activated).await;
+				}
+				false
 			}
 			Ok(Signal(Conclude)) => {
 				true
@@ -96,11 +110,16 @@ impl CollationGenerationSubsystem {
 	}
 }
 
+async fn handle_new_activations(config: &CollationGenerationConfig, activated: &[Hash]) {
+	// follow the procedure from the guide
+	unimplemented!()
+}
+
 impl<Context> Subsystem<Context> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
-	fn start(self, mut ctx: Context) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let subsystem = CollationGenerationSubsystem {
 			config: None,
 		};

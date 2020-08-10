@@ -709,16 +709,21 @@ sp_api::decl_runtime_apis! {
 /// The output of a collator.
 #[derive(Clone, Encode, Decode)]
 pub struct Collation {
-	head_data: HeadData,
-	upward_messages: Vec<UpwardMessage>,
-	proof_of_validity: PoV,
+	/// Head data of the para block.
+	pub head_data: HeadData,
+	/// Messages to be passed up to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Proof that this block is valid.
+	pub proof_of_validity: PoV,
 }
 
 /// Configuration for the collation generator
 pub struct CollationGenerationConfig {
-	key: ValidatorPair,
+	/// Collator's authentication key, so it can sign things.
+	pub key: ValidatorPair,
+	/// Collation function.
 	// REVIEW: should the collation function take some params? What?
-	collator: Box<dyn Fn() -> Box<dyn Future<Output = Collation>> + Send>,
+	pub collator: Box<dyn Fn() -> Box<dyn Future<Output = Collation>> + Send + Sync>,
 }
 
 impl std::fmt::Debug for CollationGenerationConfig {
