@@ -258,14 +258,33 @@ impl<T: Trait> Module<T> {
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
 		let now = <frame_system::Module<T>>::block_number();
-		let mut parachains = Self::clean_up_outgoing(now);
+		let mut parachains = <Self as Store>::Parachains::get();
+		Self::shapeshifter();
+		Self::clean_up_outgoing(now, &mut parachains);
 		Self::apply_incoming(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
 	}
 
+	/// Handles transformation of para threads to para chains and vice versa.
+	// @todo avoid extra calls to storage calls
+	fn shapeshifters(now: T::BlockNumber) -> Vec<ParaId> {
+		let next: HashSet<ParaId> = <Self as Store>::UpcomingParas::get().into_iter().collect();
+		let ceasing: HashSet<ParaId> = <Self as Store>::UpcomingParas::get().into_iter().collect();
+		let common = next & ceasing;
+		common.into_iter().filter(|para| {
+			<Self as Store>::UpcomingParasGenesis::get(para)
+				.filter(|genesis_data| {
+					!x.parachain
+				}).is_some()
+			!=
+			para
+
+		}).collect::<Vec<_>>();
+	}
+
 	/// Cleans up all outgoing paras. Returns the new set of parachains
-	fn clean_up_outgoing(now: T::BlockNumber) -> Vec<ParaId> {
-		let mut parachains = <Self as Store>::Parachains::get();
+	fn clean_up_outgoing(now: T::BlockNumber, parachains: &mut Vec<ParaId>) {
+
 		let outgoing = <Self as Store>::OutgoingParas::take();
 
 		for outgoing_para in outgoing {

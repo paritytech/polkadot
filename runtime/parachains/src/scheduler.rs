@@ -66,7 +66,7 @@ pub struct QueuedParathread {
 #[cfg_attr(test, derive(PartialEq, Debug))]
 pub struct ParathreadClaimQueue {
 	queue: Vec<QueuedParathread>,
-	// this value is between 0 and config.parathread_cores
+	// this value is between `0` and `config.parathread_cores`
 	next_core_offset: u32,
 }
 
@@ -94,6 +94,11 @@ impl ParathreadClaimQueue {
 	fn get_next_on_core(&self, core_offset: u32) -> Option<&ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| &self.queue[i].claim)
+	}
+
+	/// Clear all threads.
+	fn clear(&mut self) {
+		self.queue.clear(idx);
 	}
 }
 
@@ -194,6 +199,9 @@ impl<T: Trait> Module<T> {
 		let mut thread_queue = ParathreadQueue::get();
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 		let n_cores = n_parachains + config.parathread_cores;
+
+		// @todo feels displaced / odd to split the logic up like this
+		thread_queue.clear();
 
 		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
 		AvailabilityCores::mutate(|cores| {
