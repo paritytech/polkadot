@@ -25,6 +25,7 @@
 
 use sp_std::prelude::*;
 use sp_std::result;
+use sp_std::marker::PhantomData;
 use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData, LocalValidationData,

@@ -737,5 +737,4 @@ impl paras_registrar::Trait for Runtime {
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type Origin = Origin;
-	type SwapAux = ();
 }
