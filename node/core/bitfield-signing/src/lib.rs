@@ -29,6 +29,7 @@ use polkadot_node_subsystem::{
 		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
 	},
 	errors::RuntimeApiError,
+	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util, JobManager, JobTrait, ToJobTrait, Validator
@@ -252,12 +253,44 @@ async fn construct_availability_bitfield(
 	}
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	bitfields_signed_count: prometheus::Counter<prometheus::U64>,
+}
+
+/// Candidate backing metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_bitfield_signed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.bitfields_signed_count.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			bitfields_signed_count: prometheus::register(
+				prometheus::Counter::new(
+					"bitfields_signed_count",
+					"Number of bitfields signed.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = KeyStorePtr;
-	type Metrics = (); // TODO (metrics)
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";
 
@@ -265,7 +298,7 @@ impl JobTrait for BitfieldSigningJob {
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
-		_metrics: Self::Metrics,
+		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<ToJob>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -297,6 +330,7 @@ impl JobTrait for BitfieldSigningJob {
 			};
 
 			let signed_bitfield = validator.sign(bitfield);
+			metrics.on_bitfield_signed();
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message
 			{
