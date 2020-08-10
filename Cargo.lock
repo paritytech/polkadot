@@ -4398,7 +4398,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.8.22"
+version = "0.8.19"
 dependencies = [
  "assert_cmd",
  "futures 0.3.5",
@@ -4427,6 +4427,7 @@ dependencies = [
  "polkadot-network-bridge",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
  "smol 0.3.3",
@@ -4453,6 +4454,7 @@ dependencies = [
  "polkadot-network-bridge",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-keystore",
  "sc-network",
@@ -4608,6 +4610,7 @@ dependencies = [
  "parking_lot 0.10.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
  "sp-core",
@@ -4650,6 +4653,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-overseer",
  "polkadot-primitives",
  "sp-core",
@@ -4667,6 +4671,8 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-client-api",
@@ -4686,6 +4692,7 @@ dependencies = [
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
  "wasm-timer",
@@ -4702,6 +4709,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-blockchain",
@@ -4716,6 +4724,7 @@ dependencies = [
  "futures 0.3.5",
  "maplit",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
@@ -4748,12 +4757,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-provisioner"
+version = "0.1.0"
+dependencies = [
+ "bitvec",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "lazy_static",
+ "log 0.4.11",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sp-core",
+ "tokio 0.2.21",
+]
+
+[[package]]
 name = "polkadot-node-core-runtime-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sp-api",
  "sp-blockchain",
@@ -4764,7 +4790,6 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
- "async-trait",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
@@ -4786,6 +4811,51 @@ dependencies = [
  "parking_lot 0.10.2",
  "pin-project",
  "polkadot-node-primitives",
+ "polkadot-node-subsystem-test-helpers",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sc-network",
+ "smallvec 1.4.1",
+ "sp-core",
+]
+
+[[package]]
+name = "polkadot-node-subsystem-test-helpers"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.11",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "pin-project",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-primitives",
+ "polkadot-statement-table",
+ "sc-network",
+ "smallvec 1.4.1",
+ "sp-core",
+]
+
+[[package]]
+name = "polkadot-node-subsystem-util"
+version = "0.1.0"
+dependencies = [
+ "assert_matches",
+ "async-trait",
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "futures-timer 3.0.2",
+ "log 0.4.11",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "pin-project",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-keystore",
@@ -4845,6 +4915,7 @@ dependencies = [
  "parking_lot 0.10.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
  "sp-core",
@@ -5201,6 +5272,7 @@ dependencies = [
  "parking_lot 0.10.2",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",

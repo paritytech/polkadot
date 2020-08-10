@@ -16,8 +16,8 @@
 
 //! Utilities for testing subsystems.
 
-use crate::{SubsystemContext, FromOverseer, SubsystemResult, SubsystemError};
-use crate::messages::AllMessages;
+use polkadot_node_subsystem::{SubsystemContext, FromOverseer, SubsystemResult, SubsystemError};
+use polkadot_node_subsystem::messages::AllMessages;
 
 use futures::prelude::*;
 use futures::channel::mpsc;

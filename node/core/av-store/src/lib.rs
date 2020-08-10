@@ -316,7 +316,7 @@ mod tests {
 		AvailableData, BlockData, HeadData, GlobalValidationData, LocalValidationData, PoV,
 		OmittedValidationData,
 	};
-	use polkadot_subsystem::test_helpers;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 
 	struct TestHarness {
 		virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,

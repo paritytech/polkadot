@@ -14,6 +14,16 @@ type SignedAvailabilityBitfield = Signed<Bitvec>;
 struct Bitfields(Vec<(SignedAvailabilityBitfield)>), // bitfields sorted by validator index, ascending
 ```
 
+### Semantics
+
+A `SignedAvailabilityBitfield` represents the view from a particular validator's perspective. Each bit in the bitfield corresponds to a single [availability core](../runtime-api/availability-cores.md). A `1` bit indicates that the validator believes the following statements to be true for a core:
+
+- the availability core is occupied
+- there exists a [`CommittedCandidateReceipt`](candidate.html#committed-candidate-receipt) corresponding to that core. In other words, that para has a block in progress.
+- the validator's [Availability Store](../node/utility/availability-store.md) contains a chunk of that parablock's PoV.
+
+In other words, it is the transpose of [`OccupiedCore::availability`](../runtime-api/availability-cores.md).
+
 ## Proof-of-Validity
 
 Often referred to as PoV, this is a type-safe wrapper around bytes (`Vec<u8>`) when referring to data that acts as a stateless-client proof of validity of a candidate, when used as input to the validation function of the para.
