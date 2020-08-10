@@ -35,7 +35,7 @@ impl CollationGenerationSubsystem {
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
 	async fn run<Context>(
-		self,
+		mut self,
 		mut ctx: Context,
 	)
 	where
@@ -43,14 +43,18 @@ impl CollationGenerationSubsystem {
 	{
 		loop {
 			let incoming = ctx.recv().await;
-			if Self::handle_incoming::<Context>(incoming).await {
+			if self.handle_incoming::<Context>(incoming).await {
 				break
 			}
 		}
 	}
 
 	// handle an incoming message. return true if we should break afterwards.
+	// note: this doesn't strictly need to be a separate function; it's more an administrative function
+	// so that we don't clutter the run loop. It could in principle be inlined directly into there.
+	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
 	async fn handle_incoming<Context>(
+		&mut self,
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 	) -> bool
 	where
@@ -71,11 +75,17 @@ impl CollationGenerationSubsystem {
 			Ok(Signal(Conclude)) => {
 				true
 			}
-			Ok(Communication { msg }) => {
-				// only used for initialization
+			Ok(Communication { msg: CollationGenerationMessage::Initialize(config) }) => {
 				// REVIEW: what happens if someone sends two initializaiton messages:
-				// panic, replace, ignore?
-				unimplemented!()
+				// panic, replace, ignore, abort?
+				// for now, we won't panic, but we'll break the run loop
+				if self.config.is_some() {
+					log::warn!(target: "collation_generation", "double initialization");
+					true
+				} else {
+					self.config = Some(config);
+					false
+				}
 			}
 			Ok(Signal(BlockFinalized(_))) => { false }
 			Err(err) => {
