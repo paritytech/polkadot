@@ -639,7 +639,7 @@ where
 		}
 
 		loop {
-			let metrics = metrics.clone(); // FIXME: remove the clone
+			let metrics = metrics.clone();
 			select! {
 				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, metrics, &mut err_tx).await { break },
 				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
