@@ -88,7 +88,7 @@ impl metrics::Metrics for Metrics {
 			validation_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"validation_request_events",
+						"validation_requests",
 						"Number of validation requests served.",
 					),
 					&["valid", "invalid", "failed"],
