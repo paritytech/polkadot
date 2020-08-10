@@ -773,7 +773,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			name: "availability-distribution",
+			name: "availability-distribution-subsystem",
 			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
 		}
 	}
