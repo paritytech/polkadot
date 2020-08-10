@@ -570,8 +570,9 @@ where
 	Ok(())
 }
 
-/// Obtain the first key with a signing key, which must be ours. We obtain the index as `ValidatorIndex`
-/// If we cannot find a key in the validator set, which we could use.
+/// Obtain the first key which has a signing key.
+/// Returns the index within the validator set as `ValidatorIndex`, if there exists one,
+/// otherwise, `None` is returned.
 fn obtain_our_validator_index(
 	validators: &[ValidatorId],
 	keystore: KeyStorePtr,
