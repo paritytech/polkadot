@@ -188,12 +188,6 @@ impl NetworkBridgeMessage {
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
-	/// Distribute an availability chunk to other validators.
-	DistributeChunk(Hash, ErasureChunk),
-
-	/// Fetch an erasure chunk from networking by candidate hash and chunk index.
-	FetchChunk(Hash, u32),
-
 	/// Event from the network bridge.
 	NetworkBridgeUpdate(NetworkBridgeEvent),
 }
@@ -202,8 +196,6 @@ impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::DistributeChunk(hash, _) => Some(*hash),
-			Self::FetchChunk(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdate(_) => None,
 		}
 	}
@@ -255,7 +247,7 @@ pub enum AvailabilityStoreMessage {
 	/// megabytes of data to get a single bit of information.
 	QueryDataAvailability(Hash, oneshot::Sender<bool>),
 
-	/// Query an `ErasureChunk` from the AV store.
+	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
 	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Query whether an `ErasureChunk` exists within the AV Store.
@@ -513,6 +505,6 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
-	/// Message for the Chain API subsystem
+	/// Message for the Chain API subsystem.
 	ChainApi(ChainApiMessage),
 }
