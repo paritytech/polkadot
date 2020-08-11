@@ -335,7 +335,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			received_availability_chunks_count: prometheus::register(
 				prometheus::Counter::new(
-					"received_availability_chunks_count",
+					"parachain_received_availability_chunks_count",
 					"Number of availability chunks received.",
 				)?,
 				registry,

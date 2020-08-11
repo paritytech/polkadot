@@ -149,7 +149,7 @@ impl metrics::Metrics for Metrics {
 			chain_api_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"runtime_api_requests",
+						"parachain_runtime_api_requests",
 						"Number of Runtime API requests served.",
 					),
 					&["succeeded", "failed"],

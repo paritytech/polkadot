@@ -809,14 +809,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			signed_statement_count: prometheus::register(
 				prometheus::Counter::new(
-					"signed_statement_count",
+					"parachain_signed_statement_count",
 					"Number of statements signed.",
 				)?,
 				registry,
 			)?,
 			candidates_seconded_count: prometheus::register(
 				prometheus::Counter::new(
-					"candidates_seconded_count",
+					"parachain_candidates_seconded_count",
 					"Number of candidates seconded.",
 				)?,
 				registry,

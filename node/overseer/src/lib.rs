@@ -456,7 +456,7 @@ impl metrics::Metrics for MaybeMetrics {
 		let metrics = Metrics {
 			active_heads_count: prometheus::register(
 				prometheus::Gauge::new(
-					"active_heads_count",
+					"parachain_active_heads_count",
 					"Number of active heads."
 				)?,
 				registry,

@@ -275,7 +275,7 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			bitfields_signed_count: prometheus::register(
 				prometheus::Counter::new(
-					"bitfields_signed_count",
+					"parachain_bitfields_signed_count",
 					"Number of bitfields signed.",
 				)?,
 				registry,
