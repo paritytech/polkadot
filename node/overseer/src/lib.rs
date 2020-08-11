@@ -310,11 +310,6 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 }
 
-/// A subsystem compatible with the overseer - one which can be run in the context of the
-/// overseer.
-// TODO: do we need this?
-// pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>> + Send>;
-
 /// A subsystem that we oversee.
 ///
 /// Ties together the [`Subsystem`] itself and it's running instance
