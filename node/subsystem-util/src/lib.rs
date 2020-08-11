@@ -639,9 +639,8 @@ where
 		}
 
 		loop {
-			let metrics = metrics.clone();
 			select! {
-				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, metrics, &mut err_tx).await { break },
+				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &metrics, &mut err_tx).await { break },
 				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
 				complete => break,
 			}
@@ -668,7 +667,7 @@ where
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
-		metrics: Job::Metrics,
+		metrics: &Job::Metrics,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) -> bool {
 		use polkadot_node_subsystem::ActiveLeavesUpdate;
@@ -778,6 +777,7 @@ where
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
 	Job::ToJob: TryFrom<AllMessages> + Sync,
+	Job::Metrics: Sync,
 {
 	type Metrics = Job::Metrics;
 
