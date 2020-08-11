@@ -372,7 +372,7 @@ construct_runtime! {
 		Paras: parachains_paras::{Module, Call, Storage, Origin},
 		Initializer: parachains_initializer::{Module, Call, Storage},
 
-		Registrar: paras_registrar::{Module, Call, Storage, Event},
+		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 	}
 }
@@ -733,7 +733,6 @@ impl parachains_initializer::Trait for Runtime {
 impl paras_sudo_wrapper::Trait for Runtime { }
 
 impl paras_registrar::Trait for Runtime {
-	type Event = Event;
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type Origin = Origin;

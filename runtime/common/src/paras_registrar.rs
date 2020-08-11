@@ -14,10 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Module to handle parathread/parachain registration and related fund management.
+//! In essence this is a simple wrapper around `paras`.
+
 use sp_std::{prelude::*, result};
 
 use frame_support::{
-	decl_storage, decl_module, decl_event, decl_error, ensure,
+	decl_storage, decl_module, decl_error, ensure,
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ReservableCurrency},
 	weights::DispatchClass,
@@ -39,10 +42,10 @@ type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
 pub trait Trait: paras::Trait {
-	/// The overarching event type.
-	type Event: From<Event> + Into<<Self as frame_system::Trait>::Event>;
-
-	/// The aggregated origin type.
+	/// The aggregated origin type must support the `parachains` origin. We require that we can
+	/// infallibly convert between this origin and the system origin, but in reality, they're the
+	/// same type, we just can't express that to the Rust type system without writing a `where`
+	/// clause everywhere.
 	type Origin: From<<Self as frame_system::Trait>::Origin>
 		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
@@ -51,16 +54,6 @@ pub trait Trait: paras::Trait {
 
 	/// The deposit to be paid to run a parathread.
 	type ParathreadDeposit: Get<BalanceOf<Self>>;
-}
-
-decl_event! {
-	pub enum Event {
-		/// A parathread was registered; its new ID is supplied.
-		ParathreadRegistered(ParaId),
-
-		/// The parathread of the supplied ID was de-registered.
-		ParathreadDeregistered(ParaId),
-	}
 }
 
 decl_storage! {
@@ -95,6 +88,10 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
+		/// Register a parathread with given code for immediate use.
+		///
+		/// Must be sent from a Signed origin that is able to have `ParathreadDeposit` reserved.
+		/// `gensis_head` and `validation_code` are used to initalize the parathread's state.
 		#[weight = (5_000_000_000, DispatchClass::Operational)]
 		pub fn register_parathread(
 			origin,
@@ -126,7 +123,9 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = (10_000, DispatchClass::Operational)]
+		/// Register a parachain with given code. Must be called by root.
+		/// Fails if given ID is already used.
+		#[weight = (5_000_000_000, DispatchClass::Operational)]
 		pub fn register_parachain(
 			origin,
 			id: ParaId,
@@ -155,7 +154,8 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = (10_000, DispatchClass::Operational)]
+		/// Deregister a parachain with the given ID. Must be called by root.
+		#[weight = (0, DispatchClass::Operational)]
 		pub fn deregister_parachain(origin, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
 
@@ -168,7 +168,14 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = (10_000_000, DispatchClass::Operational)]
+		/// Deregister a parathread and retreive the deposit.
+		///
+		/// Must be sent from a `Parachain` origin which is currently a parathread.
+		///
+		/// Ensure that before calling this that any funds you want emptied from the parathread's
+		/// account is moved out; after this it will be impossible to retreive them (without
+		/// governance intervention).
+		#[weight = (0, DispatchClass::Operational)]
 		pub fn deregister_parathread(origin) -> DispatchResult {
 			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
@@ -473,7 +480,6 @@ mod tests {
 	}
 
 	impl Trait for Test {
-		type Event = ();
 		type Origin = Origin;
 		type Currency = pallet_balances::Module<Test>;
 		type ParathreadDeposit = ParathreadDeposit;
