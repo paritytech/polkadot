@@ -782,7 +782,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 #[derive(Clone)]
 struct MetricsInner {
-	signed_statement_count: prometheus::Counter<prometheus::U64>,
+	signed_statements_count: prometheus::Counter<prometheus::U64>,
 	candidates_seconded_count: prometheus::Counter<prometheus::U64>
 }
 
@@ -793,7 +793,7 @@ pub struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	fn on_statement_signed(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.signed_statement_count.inc();
+			metrics.signed_statements_count.inc();
 		}
 	}
 
@@ -807,9 +807,9 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			signed_statement_count: prometheus::register(
+			signed_statements_count: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_signed_statement_count",
+					"parachain_signed_statements_count",
 					"Number of statements signed.",
 				)?,
 				registry,
