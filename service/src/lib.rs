@@ -25,12 +25,13 @@ use std::time::Duration;
 use polkadot_primitives::v0::{self as parachain, Hash, BlockId};
 #[cfg(feature = "full-node")]
 use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::Error as ServiceError};
+use service::error::Error as ServiceError;
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_trie::PrefixedMemoryDB;
 use sc_client_api::ExecutorProvider;
+use prometheus_endpoint::Registry;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -45,14 +46,14 @@ pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
 pub use polkadot_primitives::v0::{Block, CollatorId, ParachainHost};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 #[cfg(feature = "full-node")]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
-use prometheus_endpoint::Registry;
+pub use rococo_runtime;
 pub use self::client::*;
 
 native_executor_instance!(
@@ -365,7 +366,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let polkadot_network_service = network_protocol::start(
 		network.clone(),
 		network_protocol::Config {
-			collating_for: collating_for,
+			collating_for,
 		},
 		(is_known, client.clone()),
 		client.clone(),
