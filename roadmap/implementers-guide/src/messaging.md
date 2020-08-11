@@ -3,7 +3,8 @@
 Polkadot has a few mechanisms that are responsible for message passing. They can be generally divided
 on two categories: Horizontal and Vertical. Horizontal Message Passing (HMP) refers to mechanisms
 that are responsible for exchanging messages between parachains. Vertical Message Passing (VMP) is
-used for communication between the relay chain and parachains.
+used for communication between the relay chain and parachains. A third category, which is still under
+construction, is also described by this document: Cross-Chain Message Passing (XCMP). 
 
 ## Vertical Message Passing
 
@@ -61,6 +62,8 @@ digraph {
 }
 ```
 
+## Cross-Chain Message Passing
+
 The most important member of this family is XCMP.
 
 > ℹ️ XCMP is currently under construction and details are subject for change.
@@ -81,8 +84,10 @@ candidate authoring time. The proof stems from the relay parent storage that con
 Since not all messages are required to be processed by the receiver's candidate, only the processed
 messages are supplied (i.e. preimages), rest are provided as hashes.
 
-Further details can be found at the [W3F research website](https://research.web3.foundation/en/latest/polkadot/XCMP.html)
-and [this blogpost](https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7).
+Further details can be found at the official repository for the
+[Cross-Consensus Message Format (XCM)](https://github.com/paritytech/xcm-format/blob/master/README.md), as well as
+at the [W3F research website](https://research.web3.foundation/en/latest/polkadot/XCMP.html) and
+[this blogpost](https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7).
 
 HRMP (Horizontally Relay-routed Message Passing) is a stop gap that predates XCMP. Semantically, it mimics XCMP's interface.
 The crucial difference from XCMP though is that all the messages are stored in the relay-chain storage. That makes
