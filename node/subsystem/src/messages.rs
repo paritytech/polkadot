@@ -24,21 +24,20 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_primitives::v1::{
-	Hash, CommittedCandidateReceipt,
-	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
-	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
-	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex, BlockNumber, CollationGenerationConfig,
-};
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
+	MisbehaviorReport, ProtocolId, SignedFullStatement, ValidationResult, View,
+};
+use polkadot_primitives::v1::{
+	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateReceipt, CollationGenerationConfig, CollatorId, CommittedCandidateReceipt,
+	CoreAssignment, CoreOccupied, CoreState, ErasureChunk, GlobalValidationData, GroupRotationInfo,
+	Hash, Id as ParaId, LocalValidationData, OccupiedCoreAssumption, OmittedValidationData, PoV,
+	SessionIndex, SignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use std::sync::Arc;
 
-pub use sc_network::{ObservedRole, ReputationChange, PeerId};
+pub use sc_network::{ObservedRole, PeerId, ReputationChange};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -80,7 +79,6 @@ pub enum CandidateBackingMessage {
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
 }
-
 
 impl CandidateBackingMessage {
 	/// If the current variant contains the relay parent hash, return it.
@@ -268,13 +266,24 @@ pub enum AvailabilityStoreMessage {
 	/// Store an `ErasureChunk` in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+	StoreChunk(
+		Hash,
+		ValidatorIndex,
+		ErasureChunk,
+		oneshot::Sender<Result<(), ()>>,
+	),
 
 	/// Store a `AvailableData` in the AV store.
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData(
+		Hash,
+		Option<ValidatorIndex>,
+		u32,
+		AvailableData,
+		oneshot::Sender<Result<(), ()>>,
+	),
 }
 
 impl AvailabilityStoreMessage {
@@ -368,7 +377,11 @@ pub enum RuntimeApiRequest {
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
+	ValidationCode(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
@@ -500,6 +513,45 @@ impl CollationGenerationMessage {
 	}
 }
 
+/// Message to the Collator Protocol subsystem
+#[derive(Debug)]
+pub enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	// REVIEW: the guide is a bit inconsistent about this data type:
+	// the collation-generation page says it should have a CommittedCandidateReceipt,
+	// but the definition under Overseer Protocol types says it should just be a CandidateReceipt.
+	// I took a guess as to which of them it should be, but we should ensure I guessed right.
+	DistributeCollation(CommittedCandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
+}
+
+impl CollatorProtocolMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			CollatorProtocolMessage::FetchCollation(hash, _, _) => Some(*hash),
+			// enumerate the rest, not glob, so we can't forget to update in case we ever add a variant to the enum
+			CollatorProtocolMessage::CollateOn(_)
+			| CollatorProtocolMessage::DistributeCollation(_, _)
+			| CollatorProtocolMessage::ReportCollator(_)
+			| CollatorProtocolMessage::NoteGoodCollation(_) => None,
+		}
+	}
+}
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
@@ -531,4 +583,6 @@ pub enum AllMessages {
 	ChainApi(ChainApiMessage),
 	/// Message for the Collation Generation subsystem
 	CollationGeneration(CollationGenerationMessage),
+	/// Message for the Collator Protocol subsystem
+	CollatorProtocol(CollatorProtocolMessage),
 }

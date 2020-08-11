@@ -288,6 +288,8 @@ fn real_overseer<S: SpawnNamed>(
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,
 		chain_api: DummySubsystem,
+		collation_generation: DummySubsystem,
+		collator_protocol: DummySubsystem,
 	};
 	Overseer::new(
 		leaves,

@@ -19,6 +19,8 @@
 use sp_std::prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
+
+#[cfg(feature = "std")]
 use futures::Future;
 
 use primitives::RuntimeDebug;
@@ -718,14 +720,19 @@ pub struct Collation {
 }
 
 /// Configuration for the collation generator
+#[cfg(feature = "std")]
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
-	pub key: ValidatorPair,
+	pub key: CollatorPair,
 	/// Collation function.
-	// REVIEW: should the collation function take some params? What?
-	pub collator: Box<dyn Fn() -> Box<dyn Future<Output = Collation>> + Send + Sync>,
+	// REVIEW: the guide memtions generating the validation function params here, but that struct
+	// is only defined within cumulus, and I don't want to either add a circular dependency or
+	// move the struct definition into here. Would there be any real pitfalls to just providing both
+	// pieces of validation data and letting the collator extract its own params?
+	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
 }
 
+#[cfg(feature = "std")]
 impl std::fmt::Debug for CollationGenerationConfig {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CollationGenerationConfig {{ ... }}")
