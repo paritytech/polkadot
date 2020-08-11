@@ -458,7 +458,7 @@ impl metrics::Metrics for MaybeMetrics {
 				prometheus::Gauge::new(
 					"active_heads_count",
 					"Number of active heads."
-				)?, // TODO: should this be `.expect(PROOF)`?
+				)?,
 				registry,
 			)?,
 		};
