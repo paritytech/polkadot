@@ -59,6 +59,10 @@ pub struct RunCmd {
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
 
+	/// Force using Rococo native runtime.
+	#[structopt(long = "force-westend")]
+	pub force_rococo: bool,
+
 	/// Disable the authority discovery module on validator or sentry nodes.
 	///
 	/// Enabled by default on validator and sentry nodes. Always disabled on
