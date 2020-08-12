@@ -672,7 +672,7 @@ impl purchase::Trait for Runtime {
 	type MaxUnlocked = MaxUnlocked;
 }
 
-impl<I: dummy::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
 
 construct_runtime! {
 	pub enum Runtime where

@@ -754,7 +754,7 @@ parameter_types! {
 	pub const MaxProxies: u16 = 32;
 }
 
-impl<I: dummy::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
