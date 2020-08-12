@@ -66,8 +66,9 @@ struct InboundHrmpMessage {
 
 ## Downward Message
 
-A message that go down from the relay chain to a parachain. Such a message could be initiated either
-as a result of an operation took place on the relay chain.
+`DownwardMessage`- is a message that go down from the relay chain to a parachain. Such a message
+could be seen as a notification, however, it is concievable that they might be used by the relay
+chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
 
 ```rust,ignore
 enum DispatchResult {
