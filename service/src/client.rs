@@ -78,8 +78,6 @@ pub trait AbstractClient<Block, Backend>:
 		Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
 {}
 
-//impl<Block, Backend, Client> AbstractClient<Block, Backend> for Arc<Client> {}
-
 impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 	where
 		Block: BlockT,

@@ -75,7 +75,7 @@ use polkadot_service_new::{
 };
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
-use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
+use sp_runtime::traits::BlakeTwo256;
 use consensus_common::SyncOracle;
 use sc_client_api::Backend as BackendT;
 
