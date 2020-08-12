@@ -121,7 +121,7 @@ pub trait BuildParachainContext {
 	/// Build the `ParachainContext`.
 	fn build<SP, Client, Block, Backend>(
 		self,
-		client: Client,
+		client: Arc<Client>,
 		spawner: SP,
 		network: impl Network + SyncOracle + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
@@ -225,7 +225,6 @@ struct BuildCollationWork<P> {
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
 	spawner: SpawnTaskHandle,
-	client: polkadot_service::Client,
 }
 
 impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
@@ -242,15 +241,6 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
 		Api: RuntimeApiCollection<StateBackend = Backend::State>,
 		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
-		/*
-		Client: BlockchainEvents<Block> + sp_api::ProvideRuntimeApi<Block> + HeaderBackend<Block>
-			+ Sized + Send + Sync
-			+ sp_api::CallApiAt<
-				Block,
-				Error = sp_blockchain::Error,
-				StateBackend = Backend::State
-			>,
-		*/
 	{
 		let polkadot_network = self.handles
 			.polkadot_network
@@ -263,7 +253,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 			.ok_or_else(|| "Collator cannot run when validation networking has not been started")?;
 
 		let parachain_context = match self.build_parachain_context.build(
-			self.client,
+			client.clone(),
 			self.spawner.clone(),
 			polkadot_network.clone(),
 		) {
@@ -383,7 +373,6 @@ fn build_collator_service<P>(
 		key,
 		build_parachain_context,
 		spawner,
-		client: client.clone(),
 	})
 }
 

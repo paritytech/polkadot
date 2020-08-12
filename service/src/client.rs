@@ -120,6 +120,11 @@ pub trait ExecuteWithClient {
 			Client: AbstractClient<Block, Backend, Api = Api> + 'static;
 }
 
+/// Yet Another ExecuteWithClient
+pub trait YaExecuteWithClient {
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output;
+}
+
 /// A client instance of Polkadot.
 ///
 /// See [`ExecuteWithClient`] for more information.
@@ -129,12 +134,11 @@ pub enum Client {
 	Westend(Arc<crate::FullClient<westend_runtime::RuntimeApi, crate::WestendExecutor>>),
 	Kusama(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::KusamaExecutor>>),
 	Rococo(Arc<crate::FullClient<rococo_runtime::RuntimeApi, crate::RococoExecutor>>),
-	//Test(Arc<crate::FullClient<polkadot_test_runtime::RuntimeApi, polkadot_test_service::RococoExecutor>>),
 }
 
-impl Client {
+impl YaExecuteWithClient for Client {
 	/// Execute the given something with the client.
-	pub fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		match self {
 			Self::Polkadot(client) => {
 				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
