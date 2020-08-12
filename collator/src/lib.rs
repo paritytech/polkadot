@@ -128,7 +128,7 @@ pub trait BuildParachainContext {
 			SP: SpawnNamed + Clone + Send + Sync + 'static,
 			Backend: BackendT<Block>,
 			Backend::State: sp_api::StateBackend<BlakeTwo256>,
-			Client: polkadot_service::AbstractClient<Block, Backend>,
+			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
 			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
 		;
 }
