@@ -35,7 +35,7 @@ mod validation_host;
 // maximum memory in bytes
 const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
-const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.1 MiB
+const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.01 MiB
 
 /// A stub validation-pool defined when compiling for Android or WASM.
 #[cfg(any(target_os = "android", target_os = "unknown"))]
