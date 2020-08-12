@@ -4423,8 +4423,8 @@ dependencies = [
  "maplit",
  "parity-scale-codec",
  "parking_lot 0.11.0",
- "polkadot-network",
  "polkadot-network-bridge",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -4450,19 +4450,16 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.0",
  "polkadot-erasure-coding",
- "polkadot-network",
  "polkadot-network-bridge",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-keystore",
- "sc-network",
  "smallvec 1.4.1",
  "smol-timeout",
  "sp-core",
  "sp-keyring",
- "sp-staking",
  "streamunordered",
 ]
 
@@ -4608,12 +4605,13 @@ dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-network",
  "sp-core",
+ "sp-keyring",
  "sp-runtime",
  "streamunordered",
 ]
@@ -4787,6 +4785,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-network-protocol"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-node-primitives",
+ "polkadot-primitives",
+ "sc-network",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
 name = "polkadot-node-primitives"
 version = "0.1.0"
 dependencies = [
@@ -4810,6 +4820,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "pin-project",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
@@ -4913,11 +4924,11 @@ dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
- "sc-network",
  "sp-core",
  "sp-runtime",
  "streamunordered",
@@ -5271,6 +5282,7 @@ dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
+ "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",

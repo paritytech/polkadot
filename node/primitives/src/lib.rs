@@ -258,29 +258,3 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 		}
 	}
 }
-
-/// A unique identifier for a network protocol.
-pub type ProtocolId = [u8; 4];
-
-/// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
-///
-/// Up to `N` (5?) chain heads.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct View(pub Vec<Hash>);
-
-impl View {
-	/// Returns an iterator of the hashes present in `Self` but not in `other`.
-	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| !other.contains(h))
-	}
-
-	/// An iterator containing hashes present in both `Self` and in `other`.
-	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| other.contains(h))
-	}
-
-	/// Whether the view contains a given hash.
-	pub fn contains(&self, hash: &Hash) -> bool {
-		self.0.contains(hash)
-	}
-}

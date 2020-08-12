@@ -55,6 +55,7 @@ members = [
 	"node/core/runtime-api",
 	"node/network/bridge",
 	"node/network/pov-distribution",
+	"node/network/protocol",
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
 	"node/network/availability-distribution",

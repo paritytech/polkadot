@@ -281,6 +281,7 @@ fn real_overseer<S: SpawnNamed>(
 		candidate_validation: DummySubsystem,
 		candidate_backing: DummySubsystem,
 		candidate_selection: DummySubsystem,
+		collator_protocol: DummySubsystem,
 		statement_distribution: DummySubsystem,
 		availability_distribution: DummySubsystem,
 		bitfield_signing: DummySubsystem,
