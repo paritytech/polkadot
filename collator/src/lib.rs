@@ -356,7 +356,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: impl polkadot_service::YaExecuteWithClient,
+	client: impl YaExecuteWithClient,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,

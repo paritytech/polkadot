@@ -122,6 +122,7 @@ pub trait ExecuteWithClient {
 
 /// Yet Another ExecuteWithClient
 pub trait YaExecuteWithClient {
+	/// Execute the given something with the client.
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output;
 }
 
@@ -137,7 +138,6 @@ pub enum Client {
 }
 
 impl YaExecuteWithClient for Client {
-	/// Execute the given something with the client.
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		match self {
 			Self::Polkadot(client) => {
