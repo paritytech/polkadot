@@ -255,7 +255,7 @@ async fn construct_availability_bitfield(
 
 #[derive(Clone)]
 struct MetricsInner {
-	bitfields_signed_count: prometheus::Counter<prometheus::U64>,
+	bitfields_signed_total: prometheus::Counter<prometheus::U64>,
 }
 
 /// Bitfield signing metrics.
@@ -265,7 +265,7 @@ pub struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	fn on_bitfield_signed(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.bitfields_signed_count.inc();
+			metrics.bitfields_signed_total.inc();
 		}
 	}
 }
@@ -273,9 +273,9 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			bitfields_signed_count: prometheus::register(
+			bitfields_signed_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_bitfields_signed_count",
+					"parachain_bitfields_signed_total",
 					"Number of bitfields signed.",
 				)?,
 				registry,
