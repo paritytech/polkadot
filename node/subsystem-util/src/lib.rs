@@ -367,6 +367,10 @@ pub trait JobTrait: Unpin {
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
 	/// Subsystem-specific prometheus metrics.
+	///
+	/// Jobs spawned by one subsystem should share the same
+	/// instance of metrics (use `.clone()`).
+	/// The `delegate_subsystem!` macro should take care of this.
 	type Metrics: 'static + metrics::Metrics + Send;
 
 	/// Name of the job, i.e. `CandidateBackingJob`
