@@ -33,7 +33,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for HeadData {
@@ -44,7 +44,7 @@ impl From<Vec<u8>> for HeadData {
 
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for ValidationCode {
@@ -186,7 +186,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[repr(u8)]
 pub enum ParachainDispatchOrigin {
 	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
@@ -215,7 +215,7 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 
 /// A message from a parachain to its Relay Chain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
 	pub origin: ParachainDispatchOrigin,

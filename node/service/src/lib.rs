@@ -157,7 +157,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
+			impl Fn(polkadot_rpc::DenyUnsafe, polkadot_rpc::SubscriptionManager) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -227,6 +227,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		config.prometheus_registry(),
 	)?;
 
+	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 
@@ -242,7 +243,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -256,6 +257,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 				grandpa: polkadot_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
+					justification_stream: justification_stream.clone(),
+					subscriptions,
 				},
 			};
 

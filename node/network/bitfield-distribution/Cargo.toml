@@ -21,9 +21,9 @@ sc-network = { git = "https://github.com/paritytech/substrate", branch = "master
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-parking_lot = "0.10.0"
+parking_lot = "0.11.0"
 maplit = "1.0.2"
-smol = "0.2.0"
+smol = "0.3.3"
 smol-timeout = "0.1.0"
 env_logger = "0.7.1"
 assert_matches = "1.3.0"
