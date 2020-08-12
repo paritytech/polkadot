@@ -434,23 +434,23 @@ pub struct AllSubsystems<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
 struct MetricsInner {
-	actived_heads_total: prometheus::Counter<prometheus::U64>,
-	deactived_heads_total: prometheus::Counter<prometheus::U64>,
+	activated_heads_total: prometheus::Counter<prometheus::U64>,
+	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
-struct Metrics(Option<Metrics>);
+struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	fn on_head_activated(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.actived_heads_total.inc();
+			metrics.activated_heads_total.inc();
 		}
 	}
 
 	fn on_head_deactivated(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.deactived_heads_total.inc();
+			metrics.deactivated_heads_total.inc();
 		}
 	}
 }
@@ -458,16 +458,16 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			actived_heads_total: prometheus::register(
+			activated_heads_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_actived_heads_total",
+					"parachain_activated_heads_total",
 					"Number of activated heads."
 				)?,
 				registry,
 			)?,
-			deactived_heads_total: prometheus::register(
+			deactivated_heads_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_deactived_heads_total",
+					"parachain_deactivated_heads_total",
 					"Number of deactivated heads."
 				)?,
 				registry,
