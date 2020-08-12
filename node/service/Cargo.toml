@@ -45,14 +45,14 @@ sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-im-online = { package = "pallet-im-online", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-system_rpc_runtime_api = { package = "frame-system-rpc-runtime-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 codec = { package = "parity-scale-codec", version = "1.3.4" }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }

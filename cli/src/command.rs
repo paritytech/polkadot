@@ -47,7 +47,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend"].iter()
+			["polkadot", "kusama", "westend", "rococo"].iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
 				.unwrap_or("polkadot")
@@ -65,13 +65,28 @@ impl SubstrateCli for Cli {
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
-			path if self.run.force_kusama => {
-				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
+			path => {
+				let path = std::path::PathBuf::from(path);
+
+				let starts_with = |prefix: &str| {
+					path.file_name().map(|f| f.to_str().map(|s| s.starts_with(&prefix))).flatten().unwrap_or(false)
+				};
+
+				// When `force_*` is given or the file name starts with the name of one of the known chains,
+				// we use the chain spec for the specific chain.
+				if self.run.force_rococo || starts_with("rococo") {
+					Box::new(service::RococoChainSpec::from_json_file(path)?)
+				} else if self.run.force_kusama || starts_with("kusama") {
+					Box::new(service::KusamaChainSpec::from_json_file(path)?)
+				} else if self.run.force_westend || starts_with("westend") {
+					Box::new(service::WestendChainSpec::from_json_file(path)?)
+				} else {
+					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
+				}
 			},
-			path if self.run.force_westend => {
-				Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(path))?)
-			},
-			path => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		})
 	}
 
@@ -80,6 +95,8 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
+		} else if spec.is_rococo() {
+			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
 		}
@@ -111,7 +128,7 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
+			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -128,17 +145,17 @@ pub fn run() -> Result<()> {
 
 			runner.run_node_until_exit(|config| {
 				let role = config.role.clone();
-				let builder = service::NodeBuilder::new(config);
 
 				match role {
-					Role::Light => builder.build_light().map(|(task_manager, _)| task_manager),
-					_ => builder.build_full(
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					_ => service::build_full(
+						config,
 						None,
 						None,
-						authority_discovery_disabled,
+						authority_discovery_enabled,
 						6000,
 						grandpa_pause,
-					),
+					).map(|r| r.0),
 				}
 			})
 		},
@@ -153,7 +170,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
-						service::kusama_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else if chain_spec.is_westend() {
@@ -161,7 +177,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
 						service::WestendExecutor,
-						service::westend_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else {
@@ -169,7 +184,6 @@ pub fn run() -> Result<()> {
 					service::new_chain_ops::<
 						service::polkadot_runtime::RuntimeApi,
 						service::PolkadotExecutor,
-						service::polkadot_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			}

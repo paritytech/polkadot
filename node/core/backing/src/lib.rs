@@ -36,24 +36,24 @@ use polkadot_primitives::v1::{
 };
 use polkadot_node_primitives::{
 	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult, SpawnNamed,
+	ValidationOutputs, ValidationResult,
 };
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem,
 	messages::{
 		AllMessages, AvailabilityStoreMessage, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, NewBackedCandidate, PoVDistributionMessage, ProvisionableData,
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	util::{
-		self,
-		request_session_index_for_child,
-		request_validator_groups,
-		request_validators,
-		request_from_runtime,
-		Validator,
-	},
+};
+use polkadot_node_subsystem_util::{
+	self as util,
+	request_session_index_for_child,
+	request_validator_groups,
+	request_validators,
+	request_from_runtime,
+	Validator,
+	delegated_subsystem,
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
@@ -305,7 +305,7 @@ impl CandidateBackingJob {
 					}
 				}
 			}
-			ValidationResult::Invalid => {
+			ValidationResult::Invalid(_reason) => {
 				// no need to issue a statement about this if we aren't seconding it.
 				//
 				// there's an infinite amount of garbage out there. no need to acknowledge
@@ -497,7 +497,7 @@ impl CandidateBackingJob {
 					Err(()) => Statement::Invalid(candidate_hash),
 				}
 			}
-			ValidationResult::Invalid => {
+			ValidationResult::Invalid(_reason) => {
 				Statement::Invalid(candidate_hash)
 			}
 		};
@@ -772,45 +772,7 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
-/// Manager type for the CandidateBackingSubsystem
-type Manager<Spawner, Context> = util::JobManager<Spawner, Context, CandidateBackingJob>;
-
-/// An implementation of the Candidate Backing subsystem.
-pub struct CandidateBackingSubsystem<Spawner, Context> {
-	manager: Manager<Spawner, Context>,
-}
-
-impl<Spawner, Context> CandidateBackingSubsystem<Spawner, Context>
-where
-	Spawner: Clone + SpawnNamed + Send + Unpin,
-	Context: SubsystemContext,
-	ToJob: From<<Context as SubsystemContext>::Message>,
-{
-	/// Creates a new `CandidateBackingSubsystem`.
-	pub fn new(spawner: Spawner, keystore: KeyStorePtr) -> Self {
-		CandidateBackingSubsystem {
-			manager: util::JobManager::new(spawner, keystore)
-		}
-	}
-
-	/// Run this subsystem
-	pub async fn run(ctx: Context, keystore: KeyStorePtr, spawner: Spawner) {
-		<Manager<Spawner, Context>>::run(ctx, keystore, spawner, None).await
-	}
-}
-
-impl<Spawner, Context> Subsystem<Context> for CandidateBackingSubsystem<Spawner, Context>
-where
-	Spawner: SpawnNamed + Send + Clone + Unpin + 'static,
-	Context: SubsystemContext,
-	<Context as SubsystemContext>::Message: Into<ToJob>,
-{
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		self.manager.start(ctx)
-	}
-}
-
-
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -826,6 +788,7 @@ mod tests {
 		messages::RuntimeApiRequest,
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
+	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::HashMap;
 
@@ -933,13 +896,13 @@ mod tests {
 	}
 
 	struct TestHarness {
-		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
 
 		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
 
@@ -997,7 +960,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
@@ -1461,7 +1424,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate_a.descriptor() => {
-					tx.send(Ok(ValidationResult::Invalid)).unwrap();
+					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 				}
 			);
 
@@ -1597,7 +1560,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
-					tx.send(Ok(ValidationResult::Invalid)).unwrap();
+					tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 				}
 			);
 
@@ -1729,7 +1692,7 @@ mod tests {
 						tx,
 					)
 				) if pov == pov && &c == candidate.descriptor() => {
-					tx.send(Err(ValidationFailed)).unwrap();
+					tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 				}
 			);
 

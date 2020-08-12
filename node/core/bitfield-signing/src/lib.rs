@@ -26,9 +26,12 @@ use keystore::KeyStorePtr;
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
-		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage, RuntimeApiError
+		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
 	},
-	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
+	errors::RuntimeApiError,
+};
+use polkadot_node_subsystem_util::{
+	self as util, JobManager, JobTrait, ToJobTrait, Validator
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration};

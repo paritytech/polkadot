@@ -77,7 +77,7 @@ struct CandidateDescriptor {
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
-	/// The blake2-256 hash of the validation data. These are extra parameters
+	/// The blake2-256 hash of the local and global validation data. These are extra parameters
 	/// derived from relay-chain state that influence the validity of the block.
 	validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
@@ -120,6 +120,12 @@ This choice can also be expressed as a choice of which parent head of the para w
 
 Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
 
+Design-wise we should maintain two properties about this data structure:
+
+1. The `LocalValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate.
+1. To make contextual execution possible, `LocalValidationData` should be constructable only having access to the latest relay-chain state for the past `k` blocks. That implies
+either that the relay-chain should maintain all the required data accessible or somehow provided indirectly with a header-chain proof and a state proof from there.
+
 > TODO: determine if balance/fees are even needed here.
 > TODO: message queue watermarks (first downward messages, then XCMP channels)
 
@@ -145,6 +151,10 @@ struct LocalValidationData {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	code_upgrade_allowed: Option<BlockNumber>,
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
 
@@ -167,6 +177,8 @@ The execution and validation of parachain or parathread candidates produces a nu
 struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	fees: Balance,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
@@ -175,6 +187,10 @@ struct CandidateCommitments {
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
+	/// The number of messages processed from the DMQ.
+	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	hrmp_watermark: BlockNumber,
 }
 ```
 
@@ -203,11 +219,17 @@ struct ValidationOutputs {
 	global_validation_data: GlobalValidationData,
 	/// The local validation data.
 	local_validation_data: LocalValidationData,
+	/// Messages directed to other paras routed via the relay chain.
+	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
 	/// Fees paid to the validators of the relay-chain.
 	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
+	/// The number of messages processed from the DMQ.
+	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	hrmp_watermark: BlockNumber,
 }
 ```

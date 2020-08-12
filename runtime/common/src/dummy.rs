@@ -18,7 +18,7 @@
 
 use frame_support::{decl_module, decl_storage};
 
-pub trait Trait<I: Instance = DefaultInstance>: system::Trait { }
+pub trait Trait<I: Instance = DefaultInstance>: frame_system::Trait { }
 
 decl_module! {
 	pub struct Module<T: Trait<I>, I: Instance = DefaultInstance> for enum Call where origin: T::Origin {
