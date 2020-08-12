@@ -40,9 +40,20 @@ struct HostConfiguration {
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
 	pub max_upward_queue_size: u32,
-	/// Maximum amount of weight that we wish to devote on processing of the dispatchable upward
-	/// messages.
-	pub max_parachain_ump_dispatch_weight: u32,
+	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
+	/// stage.
+	///
+	/// NOTE that this is a soft limit and could be exceeded.
+	pub preferred_dispatchable_upward_messages_step_weight: u32,
+	/// Any dispatchable upward message that requests more than the critical amount is rejected
+	/// with `DispatchResult::CriticalWeightExceeded`.
+	///
+	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
+	/// the total budget. I.e. that the sum of `preferred_dispatchable_upward_messages_step_weight`
+	/// and `dispatchable_upward_message_critical_weight` doesn't exceed the amount of weight left
+	/// under a typical worst case (e.g. no upgrades, etc) weight consumed by the required phases of
+	/// block execution (i.e. initialization, finalization and inherents).
+	pub dispatchable_upward_message_critical_weight: u32,
 	/// The maximum number of messages that a candidate can contain.
 	pub max_upward_msg_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.

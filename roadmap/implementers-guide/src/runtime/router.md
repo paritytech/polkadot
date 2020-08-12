@@ -13,7 +13,7 @@ OutgoingParas: Vec<ParaId>;
 /// Messages ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
+RelayDispatchQueues: map ParaId => Vec<RawDispatchable>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
@@ -165,8 +165,6 @@ Candidate Acceptance Function:
   1. Checks that there are at most `config.max_upward_msg_num_per_candidate` messages.
   1. Checks each upward message individually depending on its kind:
   1. If the message kind is `Dispatchable`:
-      1. Check that `data` actually decodes to a valid entrypoint / dispatchable
-      1. Check that the entrypoint weight doesn't exceed `config.max_parachain_ump_dispatch_weight`
       1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed
       upward messages of the `Dispatchable` kind up to this point!)
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
@@ -201,7 +199,6 @@ Candidate Enactment:
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
   1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
-
 * `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
   1. Process all upward messages in order depending on their kinds:
   1. If the message kind is `Dispatchable`:
@@ -219,14 +216,19 @@ any of dispatchables return an error.
 
 `process_upward_dispatchables()`:
   1. Initialize a cumulative weight counter `T` to 0
+  1. Initialize a local in memory dictionary `R` that maps `ParaId` to a vector of `DispatchResult`.
   1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
-      1. Peek the size of the first dispatchable `D` from `RelayDispatchQueues` for `P`
-      1. If `weight_of(D) + T > config.max_parachain_ump_dispatch_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
-      1. Dequeue `D`
+      1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
       1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
-      1. In case `D` doesn't deserialize as a proper entrypoint - drop it (this can happen if an upgrade took place after the acceptance check)
-      1. Execute `D` and add the actual amount of weight consumed to `T`.
-      1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`. If `NeedsDispatch` became empty then finish processing.
+      1. Decode `D` into a dispatchable. If failed append `DispatchResult::DecodeFailed` into `R` for `P`. Otherwise, if succeeded:
+          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then append `DispatchResult::CriticalWeightExceeded` into `R` for `P`. Otherwise:
+            1. Execute `D` and add the actual amount of weight consumed to `T`. Add the `DispatchResult` into `R` for `P`.
+      1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+      1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
+      1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
+  1. Then, for each `P` and the vector of `DispatchResult` in `R`:
+      1. Obtain a message by wrapping the vector into `DownwardMessage::DispatchResult`
+      1. Append the resulting message to `DownwardMessageQueues` for `P`.
 
 ## Session Change
 
