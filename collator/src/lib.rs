@@ -75,8 +75,10 @@ use polkadot_service_new::{
 };
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
-use sp_runtime::traits::BlakeTwo256;
+use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
 use consensus_common::SyncOracle;
+use sc_client_api::{Backend as BackendT, BlockchainEvents};
+use sp_blockchain::HeaderBackend;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -117,14 +119,20 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<SP>(
+	fn build<SP, Client, Block, Backend>(
 		self,
-		client: polkadot_service::Client,
+		client: Client,
 		spawner: SP,
 		network: impl Network + SyncOracle + Clone + 'static,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			SP: SpawnNamed + Clone + Send + Sync + 'static;
+			SP: SpawnNamed + Clone + Send + Sync + 'static,
+			Block: BlockT,
+			Backend: BackendT<Block>,
+			Backend::State: sp_api::StateBackend<BlakeTwo256>,
+			Client: polkadot_service::AbstractClient<Block, Backend>,
+			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+		;
 }
 
 /// Parachain context needed for collation.
@@ -233,7 +241,16 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 		Backend: sc_client_api::Backend<Block>,
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
 		Api: RuntimeApiCollection<StateBackend = Backend::State>,
-		Client: AbstractClient<Block, Backend, Api = Api> + 'static
+		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
+		/*
+		Client: BlockchainEvents<Block> + sp_api::ProvideRuntimeApi<Block> + HeaderBackend<Block>
+			+ Sized + Send + Sync
+			+ sp_api::CallApiAt<
+				Block,
+				Error = sp_blockchain::Error,
+				StateBackend = Backend::State
+			>,
+		*/
 	{
 		let polkadot_network = self.handles
 			.polkadot_network

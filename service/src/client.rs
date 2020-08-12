@@ -78,6 +78,8 @@ pub trait AbstractClient<Block, Backend>:
 		Self::Api: RuntimeApiCollection<StateBackend = Backend::State>,
 {}
 
+//impl<Block, Backend, Client> AbstractClient<Block, Backend> for Arc<Client> {}
+
 impl<Block, Backend, Client> AbstractClient<Block, Backend> for Client
 	where
 		Block: BlockT,
@@ -127,6 +129,7 @@ pub enum Client {
 	Westend(Arc<crate::FullClient<westend_runtime::RuntimeApi, crate::WestendExecutor>>),
 	Kusama(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::KusamaExecutor>>),
 	Rococo(Arc<crate::FullClient<rococo_runtime::RuntimeApi, crate::RococoExecutor>>),
+	//Test(Arc<crate::FullClient<polkadot_test_runtime::RuntimeApi, polkadot_test_service::RococoExecutor>>),
 }
 
 impl Client {
