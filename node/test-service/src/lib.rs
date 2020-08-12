@@ -67,7 +67,7 @@ pub fn polkadot_test_new_full(
 ) -> Result<
 	(
 		TaskManager,
-		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
+		Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
