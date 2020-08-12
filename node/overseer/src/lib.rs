@@ -514,8 +514,8 @@ where
 	///     availability_store: DummySubsystem,
 	///     network_bridge: DummySubsystem,
 	///     chain_api: DummySubsystem,
-	///		collation_generation: DummySubsystem,
-	///		collator_protocol: DummySubsystem,
+	///     collation_generation: DummySubsystem,
+	///     collator_protocol: DummySubsystem,
 	/// };
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],

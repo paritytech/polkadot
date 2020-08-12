@@ -31,7 +31,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, validation_data_hash, CandidateCommitments, CandidateDescriptor,
-	CommittedCandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
+	CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 };
 use sp_core::crypto::Pair;
 
@@ -191,12 +191,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 			let pov_hash = collation.proof_of_validity.hash();
 
-			let ccr = CommittedCandidateReceipt {
-				commitments: CandidateCommitments {
+			let ccr = CandidateReceipt {
+				commitments_hash: (CandidateCommitments {
 					upward_messages: collation.upward_messages,
 					head_data: collation.head_data,
 					..Default::default()
-				},
+				}).hash(),
 				descriptor: CandidateDescriptor {
 					signature: config.key.sign(&collator_signature_payload(
 						&relay_parent,

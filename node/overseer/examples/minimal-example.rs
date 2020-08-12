@@ -145,6 +145,7 @@ fn main() {
 			candidate_validation: Subsystem2,
 			candidate_backing: Subsystem1,
 			candidate_selection: DummySubsystem,
+			collator_protocol: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
 			bitfield_signing: DummySubsystem,
