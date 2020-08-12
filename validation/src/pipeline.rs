@@ -101,6 +101,7 @@ pub struct ValidatedCandidate<'a> {
 	upward_messages: Vec<UpwardMessage>,
 	fees: Balance,
 	processed_downward_messages: u32,
+	new_validation_code: Option<ValidationCode>,
 }
 
 impl<'a> ValidatedCandidate<'a> {
@@ -114,6 +115,7 @@ impl<'a> ValidatedCandidate<'a> {
 			upward_messages,
 			fees,
 			processed_downward_messages,
+			new_validation_code,
 		} = self;
 
 		let omitted_validation = OmittedValidationData {
@@ -150,7 +152,7 @@ impl<'a> ValidatedCandidate<'a> {
 			upward_messages,
 			fees,
 			erasure_root,
-			new_validation_code: None,
+			new_validation_code,
 			processed_downward_messages,
 		};
 
@@ -241,6 +243,7 @@ pub fn validate<'a>(
 					upward_messages: result.upward_messages,
 					fees,
 					processed_downward_messages: result.processed_downward_messages,
+					new_validation_code: result.new_validation_code,
 				})
 			} else {
 				Err(Error::HeadDataMismatch)
