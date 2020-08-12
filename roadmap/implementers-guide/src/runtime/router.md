@@ -162,7 +162,7 @@ The following routines are intended to be invoked by paras' upward messages.
 Candidate Acceptance Function:
 
 * `check_upward_messages(P: ParaId, Vec<UpwardMessage>`:
-  1. Checks that there are at most `config.max_upward_msg_num_per_candidate` messages.
+  1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
   1. Checks each upward message individually depending on its kind:
   1. If the message kind is `Dispatchable`:
       1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed

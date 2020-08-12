@@ -55,7 +55,7 @@ struct HostConfiguration {
 	/// block execution (i.e. initialization, finalization and inherents).
 	pub dispatchable_upward_message_critical_weight: u32,
 	/// The maximum number of messages that a candidate can contain.
-	pub max_upward_msg_num_per_candidate: u32,
+	pub max_upward_message_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.

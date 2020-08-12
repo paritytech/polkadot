@@ -76,6 +76,7 @@ enum DispatchResult {
 	},
 	/// Decoding `RawDispatchable` into an executable runtime representation has failed.
 	DecodeFailed,
+	/// A dispatchable in question exceeded the maximum amount of weight allowed.
 	CriticalWeightExceeded,
 }
 
