@@ -82,7 +82,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo"),
 	authoring_version: 2,
-	spec_version: 0,
+	spec_version: 1,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -383,8 +383,8 @@ impl attestations::Trait for Runtime {
 parameter_types! {
 	pub const MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
 	pub const MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
-	pub const ValidationUpgradeFrequency: BlockNumber = 2 * DAYS;
-	pub const ValidationUpgradeDelay: BlockNumber = 8 * HOURS;
+	pub const ValidationUpgradeFrequency: BlockNumber = 2 * MINUTES;
+	pub const ValidationUpgradeDelay: BlockNumber = 30 * MINUTES / 60;
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
 }
 
