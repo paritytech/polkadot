@@ -20,12 +20,13 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
-	HeadData,
+	HeadData, PoV, CollatorPair,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -282,5 +283,30 @@ impl View {
 	/// Whether the view contains a given hash.
 	pub fn contains(&self, hash: &Hash) -> bool {
 		self.0.contains(hash)
+	}
+}
+
+/// The output of a collator.
+#[derive(Clone, Encode, Decode)]
+pub struct Collation {
+	/// Head data of the para block.
+	pub head_data: HeadData,
+	/// Messages to be passed up to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Proof that this block is valid.
+	pub proof_of_validity: PoV,
+}
+
+/// Configuration for the collation generator
+pub struct CollationGenerationConfig {
+	/// Collator's authentication key, so it can sign things.
+	pub key: CollatorPair,
+	/// Collation function.
+	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+}
+
+impl std::fmt::Debug for CollationGenerationConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
 }

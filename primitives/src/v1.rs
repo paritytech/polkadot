@@ -20,9 +20,6 @@ use sp_std::prelude::*;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
-#[cfg(feature = "std")]
-use futures::Future;
-
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
@@ -705,37 +702,6 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
-	}
-}
-
-/// The output of a collator.
-#[derive(Clone, Encode, Decode)]
-pub struct Collation {
-	/// Head data of the para block.
-	pub head_data: HeadData,
-	/// Messages to be passed up to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// Proof that this block is valid.
-	pub proof_of_validity: PoV,
-}
-
-/// Configuration for the collation generator
-#[cfg(feature = "std")]
-pub struct CollationGenerationConfig {
-	/// Collator's authentication key, so it can sign things.
-	pub key: CollatorPair,
-	/// Collation function.
-	// REVIEW: the guide memtions generating the validation function params here, but that struct
-	// is only defined within cumulus, and I don't want to either add a circular dependency or
-	// move the struct definition into here. Would there be any real pitfalls to just providing both
-	// pieces of validation data and letting the collator extract its own params?
-	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
-}
-
-#[cfg(feature = "std")]
-impl std::fmt::Debug for CollationGenerationConfig {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
 }
 

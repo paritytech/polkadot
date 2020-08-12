@@ -19,6 +19,7 @@
 #![deny(missing_docs)]
 
 use futures::channel::oneshot;
+use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
@@ -30,7 +31,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, validation_data_hash, CandidateCommitments, CandidateDescriptor,
-	CollationGenerationConfig, CommittedCandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
+	CommittedCandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 };
 use sp_core::crypto::Pair;
 
@@ -94,9 +95,6 @@ impl CollationGenerationSubsystem {
 			Ok(Communication {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
-				// REVIEW: what happens if someone sends two initializaiton messages:
-				// panic, replace, ignore, abort?
-				// for now, we won't panic, but we'll break the run loop
 				if self.config.is_some() {
 					log::warn!(target: "collation_generation", "double initialization");
 					true
@@ -161,20 +159,14 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			.await?
 			.await??;
 
-		// REVIEW: this section is largely cribbed from the provisioner. Is this a safe assumption to make?
-		// If yes: TODO: we should abstract away the duplication between these sections
 		for core in availability_cores {
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) => {
 					(scheduled_core, OccupiedCoreAssumption::Free)
 				}
-				CoreState::Occupied(occupied_core) => {
-					if let Some(scheduled_core) = occupied_core.next_up_on_available {
-						(scheduled_core, OccupiedCoreAssumption::Included)
-					} else {
-						// REVIEW: the guide doesn't mention it, but should we also handle the timed out case?
-						continue;
-					}
+				CoreState::Occupied(_occupied_core) => {
+					// TODO: https://github.com/paritytech/polkadot/issues/1573
+					continue
 				}
 				_ => continue,
 			};
