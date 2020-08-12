@@ -20,7 +20,7 @@
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 //!
-//! This crate also reexports prometheus metrics which are expected to be implemented by subsystems.
+//! This crate also reexports Prometheus metrics which are expected to be implemented by subsystems.
 
 #![warn(missing_docs)]
 
@@ -197,7 +197,7 @@ pub trait SubsystemContext: Send + 'static {
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
 pub trait Subsystem<C: SubsystemContext> {
-	/// Subsystem-specific prometheus metrics.
+	/// Subsystem-specific Prometheus metrics.
 	type Metrics: metrics::Metrics;
 
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
@@ -229,21 +229,21 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 	}
 }
 
-/// This module reexports prometheus types and defines `Metrics` trait.
+/// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
-	/// Reexport prometheus types.
+	/// Reexport Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;
 
-	/// Subsystem- or job-specific prometheus metrics.
+	/// Subsystem- or job-specific Prometheus metrics.
 	///
 	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
 	/// to ensure `Default` bounds or as a dummy type ().
 	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
 	pub trait Metrics: Default + Clone {
-		/// Try to register metrics in the prometheus registry.
+		/// Try to register metrics in the Prometheus registry.
 		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-		/// Convience method to register metrics in the optional prometheus registry.
+		/// Convience method to register metrics in the optional Prometheus registry.
 		/// If the registration fails, prints a warning and returns `Default::default()`.
 		fn register(registry: Option<&prometheus::Registry>) -> Self {
 			registry.map(|r| {

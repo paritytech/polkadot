@@ -312,7 +312,7 @@ fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> R
 
 #[derive(Clone)]
 struct MetricsInner {
-	received_availability_chunks_count: prometheus::Counter<prometheus::U64>,
+	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
 }
 
 /// Availability metrics.
@@ -325,7 +325,7 @@ impl Metrics {
 			use core::convert::TryFrom as _;
 			// assume usize fits into u64
 			let by = u64::try_from(count).unwrap_or_default();
-			metrics.received_availability_chunks_count.inc_by(by);
+			metrics.received_availability_chunks_total.inc_by(by);
 		}
 	}
 }
@@ -333,9 +333,9 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
-			received_availability_chunks_count: prometheus::register(
+			received_availability_chunks_total: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_received_availability_chunks_count",
+					"parachain_received_availability_chunks_total",
 					"Number of availability chunks received.",
 				)?,
 				registry,

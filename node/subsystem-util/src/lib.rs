@@ -366,7 +366,7 @@ pub trait JobTrait: Unpin {
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
-	/// Subsystem-specific prometheus metrics.
+	/// Subsystem-specific Prometheus metrics.
 	///
 	/// Jobs spawned by one subsystem should share the same
 	/// instance of metrics (use `.clone()`).

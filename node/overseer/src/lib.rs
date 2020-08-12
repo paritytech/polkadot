@@ -385,10 +385,8 @@ pub struct Overseer<S: SpawnNamed> {
 	/// The set of the "active leaves".
 	active_leaves: HashSet<(Hash, BlockNumber)>,
 
-	/// Various prometheus metrics.
-	/// `None` if `Metrics::try_register` fails for some reason
-	/// or if no registry was provided.
-	metrics: MaybeMetrics,
+	/// Various Prometheus metrics.
+	metrics: Metrics,
 }
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
@@ -433,41 +431,49 @@ pub struct AllSubsystems<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA
 	pub chain_api: CA,
 }
 
-/// Overseer prometheus metrics.
+/// Overseer Prometheus metrics.
 #[derive(Clone)]
-struct Metrics {
-	active_heads_count: prometheus::Gauge<prometheus::U64>,
+struct MetricsInner {
+	actived_heads_total: prometheus::Counter<prometheus::U64>,
+	deactived_heads_total: prometheus::Counter<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
-struct MaybeMetrics(Option<Metrics>);
+struct Metrics(Option<Metrics>);
 
-impl MaybeMetrics {
+impl Metrics {
 	fn on_head_activated(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.active_heads_count.inc();
+			metrics.actived_heads_total.inc();
 		}
 	}
 
 	fn on_head_deactivated(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.active_heads_count.dec();
+			metrics.deactived_heads_total.inc();
 		}
 	}
 }
 
-impl metrics::Metrics for MaybeMetrics {
+impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = Metrics {
-			active_heads_count: prometheus::register(
-				prometheus::Gauge::new(
-					"parachain_active_heads_count",
-					"Number of active heads."
+		let metrics = MetricsInner {
+			actived_heads_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_actived_heads_total",
+					"Number of activated heads."
+				)?,
+				registry,
+			)?,
+			deactived_heads_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_deactived_heads_total",
+					"Number of deactivated heads."
 				)?,
 				registry,
 			)?,
 		};
-		Ok(MaybeMetrics(Some(metrics)))
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
@@ -711,7 +717,7 @@ where
 
 		let active_leaves = HashSet::new();
 
-		let metrics = <MaybeMetrics as metrics::Metrics>::register(prometheus_registry);
+		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry);
 
 		let this = Self {
 			candidate_validation_subsystem,
