@@ -67,7 +67,7 @@ pub use sc_network::PeerId;
 pub use service::{RuntimeApiCollection, Client};
 pub use sc_cli::SubstrateCli;
 #[cfg(not(feature = "service-rewr"))]
-use polkadot_service::{FullNodeHandles, AbstractClient};
+use polkadot_service::{FullNodeHandles, AbstractClient, YaExecuteWithClient};
 #[cfg(feature = "service-rewr")]
 use polkadot_service_new::{
 	self as polkadot_service,
@@ -77,8 +77,7 @@ use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
 use consensus_common::SyncOracle;
-use sc_client_api::{Backend as BackendT, BlockchainEvents};
-use sp_blockchain::HeaderBackend;
+use sc_client_api::Backend as BackendT;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -206,7 +205,7 @@ pub async fn collate<P>(
 fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: polkadot_service::Client,
+	client: impl YaExecuteWithClient,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
@@ -357,7 +356,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: polkadot_service::Client,
+	client: impl polkadot_service::YaExecuteWithClient,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
