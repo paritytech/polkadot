@@ -95,6 +95,7 @@ pub struct TestClient(Arc<FullClient<polkadot_test_runtime::RuntimeApi, Polkadot
 // TODO: that comes from service, make it public?
 type FullBackend = service::TFullBackend<Block>;
 
+// TODO: maybe implementable for any Arc<TFullClient<...>>?
 impl YaExecuteWithClient for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		T::execute_with_client::<_, _, FullBackend>(t, self.0.clone())

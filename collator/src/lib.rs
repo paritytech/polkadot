@@ -118,7 +118,7 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<SP, Client, Block, Backend>(
+	fn build<SP, Client, Backend>(
 		self,
 		client: Arc<Client>,
 		spawner: SP,
@@ -126,7 +126,6 @@ pub trait BuildParachainContext {
 	) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static,
-			Block: BlockT,
 			Backend: BackendT<Block>,
 			Backend::State: sp_api::StateBackend<BlakeTwo256>,
 			Client: polkadot_service::AbstractClient<Block, Backend>,
