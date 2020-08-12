@@ -61,7 +61,7 @@ digraph {
 }
 ```
 
-## Cross-Chain Message Passing
+### Cross-Chain Message Passing
 
 The most important member of this family is XCMP.
 
