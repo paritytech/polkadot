@@ -91,7 +91,7 @@ pub fn polkadot_test_new_full(
 // TODO: that comes from service, make it public?
 type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
 /// A wrapper for the test client that implements YaExecuteWithClient.
-pub struct TestClient(Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
+pub struct TestClient(pub Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
 // TODO: that comes from service, make it public?
 type FullBackend = service::TFullBackend<Block>;
 
