@@ -477,7 +477,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}}).boxed();
-			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
 				client.clone(),
 				network.clone(),
 				sentries,
@@ -486,7 +486,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				prometheus_registry.clone(),
 			);
 
-			task_manager.spawn_handle().spawn("authority-discovery", authority_discovery);
+			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker);
 		}
 	}
 
