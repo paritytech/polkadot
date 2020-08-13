@@ -10,7 +10,7 @@ Storage layout:
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
-/// Messages ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
+/// Dispatchable objects ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
 RelayDispatchQueues: map ParaId => Vec<RawDispatchable>;
