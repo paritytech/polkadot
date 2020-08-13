@@ -200,8 +200,9 @@ pub async fn collate<P>(
 	Some(collation)
 }
 
+/// Build a collator service based on the `YaExecuteWithClient`.
 #[cfg(feature = "service-rewr")]
-fn build_collator_service<P>(
+pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
 	client: impl YaExecuteWithClient,
@@ -351,8 +352,9 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 	}
 }
 
+/// Build a collator service based on the `YaExecuteWithClient`.
 #[cfg(not(feature = "service-rewr"))]
-fn build_collator_service<P>(
+pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
 	client: impl YaExecuteWithClient,
