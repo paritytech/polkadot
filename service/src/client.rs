@@ -118,6 +118,19 @@ pub trait ExecuteWithClient {
 			Client: AbstractClient<Block, Backend, Api = Api> + 'static;
 }
 
+/// A handle to a Polkadot client instance.
+///
+/// The Polkadot service supports multiple different runtimes (Westend, Polkadot itself, etc). As each runtime has a
+/// specialized client, we need to hide them behind a trait. This is this trait.
+///
+/// When wanting to work with the inner client, you need to use `execute_with`.
+///
+/// See [`ExecuteWithClient`](trait.ExecuteWithClient.html) for more information.
+pub trait ClientHandle {
+	/// Execute the given something with the client.
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output;
+}
+
 /// A client instance of Polkadot.
 ///
 /// See [`ExecuteWithClient`] for more information.
@@ -129,9 +142,8 @@ pub enum Client {
 	Rococo(Arc<crate::FullClient<rococo_runtime::RuntimeApi, crate::RococoExecutor>>),
 }
 
-impl Client {
-	/// Execute the given something with the client.
-	pub fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
+impl ClientHandle for Client {
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		match self {
 			Self::Polkadot(client) => {
 				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
