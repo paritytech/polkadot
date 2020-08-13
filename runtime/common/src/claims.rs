@@ -406,7 +406,7 @@ decl_module! {
 		}
 
 		#[weight = (
-			T::DbWeight::get().reads_writes(4, 4) + 100_000_000_000,
+			T::DbWeight::get().reads_writes(4, 5) + 100_000_000_000,
 			DispatchClass::Normal,
 			Pays::No
 		)]
