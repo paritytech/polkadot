@@ -22,7 +22,6 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	validation_data_hash,
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, CommittedCandidateReceipt,
@@ -435,9 +434,8 @@ impl<T: Trait> Module<T> {
 
 						{
 							// this should never fail because the para is registered
-							let (global_validation_data, local_validation_data) = (
-								<configuration::Module<T>>::global_validation_data(),
-								match <paras::Module<T>>::local_validation_data(para_id) {
+							let persisted_validation_data =
+								match crate::util::make_persisted_validation_data::<T>(para_id) {
 									Some(l) => l,
 									None => {
 										// We don't want to error out here because it will
@@ -445,13 +443,9 @@ impl<T: Trait> Module<T> {
 										// doing anything.
 										return Ok(Vec::new());
 									}
-								}
-							);
+								};
 
-							let expected = validation_data_hash(
-								&global_validation_data,
-								&local_validation_data,
-							);
+							let expected = persisted_validation_data.hash();
 
 							ensure!(
 								expected == candidate.descriptor().validation_data_hash,
@@ -875,9 +869,9 @@ mod tests {
 	}
 
 	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
-		let global_validation_data = Configuration::global_validation_data();
-		let local_validation_data = Paras::local_validation_data(para_id)?;
-		Some(validation_data_hash(&global_validation_data, &local_validation_data))
+		let persisted_validation_data
+			= crate::util::make_persisted_validation_data::<Test>(para_id)?;
+		Some(persisted_validation_data.hash())
 	}
 
 	#[test]
