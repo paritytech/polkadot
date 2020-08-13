@@ -36,7 +36,7 @@ The weight that processing of the dispatchables can consume is limited by a prec
 that some dispatchables will be left for later blocks. To make the dispatching more fair, the queues are processed turn-by-turn
 in a round robin fashion.
 
-Other kinds of upward messages can be introduced in the future as well. Most likely the HRMP channel managem
+Other kinds of upward messages can be introduced in the future as well. Most likely the HRMP channel management.
 
 ## Horizontal Message Passing
 
