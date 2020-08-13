@@ -31,7 +31,7 @@ use polkadot_primitives::v1::{
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
 	ValidatorSignature, AvailableData, GroupRotationInfo,
 	CoreState, ValidationData, PersistedValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex, BlockNumber,
+	CandidateEvent, SessionIndex, BlockNumber, TransientValidationData,
 };
 use polkadot_node_primitives::{
 	MisbehaviorReport, SignedFullStatement, ValidationResult,
@@ -123,9 +123,11 @@ pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
 	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain.
+	/// validation without needing to access the state of the relay-chain. Optionally provide the
+	/// `TransientValidationData` for further checks on the outputs.
 	ValidateFromExhaustive(
 		PersistedValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -138,7 +140,7 @@ impl CandidateValidationMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 		}
 	}
 }
