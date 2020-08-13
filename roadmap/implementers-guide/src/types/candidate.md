@@ -88,15 +88,15 @@ struct CandidateDescriptor {
 
 ## ValidationData
 
-The validation data provide information about how to validate both the inputs and outputs of a candidate. There are two types of validation data: [persisted](#persistedvalidationdata) and [non-persisted](#nonpersistedvalidationdata). Their respective sections of the guide elaborate on their functionality in more detail.
+The validation data provide information about how to validate both the inputs and outputs of a candidate. There are two types of validation data: [persisted](#persistedvalidationdata) and [transient](#transientvalidationdata). Their respective sections of the guide elaborate on their functionality in more detail.
 
 This information is derived from the chain state and will vary from para to para, although some of the fields may be the same for every para.
 
-Persisted validation data are generally derived from some relay-chain state to form inputs to the validation function, and as such need to be persisted by the availability system to avoid dependence on availability of the relay-chain state. The backing phase of the inclusion pipeline ensures that everything that is included in a valid fork of the relay-chain already adheres to the non-persisted constraints.
+Persisted validation data are generally derived from some relay-chain state to form inputs to the validation function, and as such need to be persisted by the availability system to avoid dependence on availability of the relay-chain state. The backing phase of the inclusion pipeline ensures that everything that is included in a valid fork of the relay-chain already adheres to the transient constraints.
 
 The validation data also serve the purpose of giving collators a means of ensuring that their produced candidate and the commitments submitted to the relay-chain alongside it will pass the checks done by the relay-chain when backing, and give validators the same understanding when determining whether to second or attest to a candidate.
 
-Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these non-persisted validation data.
+Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these transient validation data.
 
 Design-wise we should maintain two properties about this data structure:
 
@@ -107,7 +107,7 @@ either that the relay-chain should maintain all the required data accessible or 
 ```rust
 struct ValidationData {
     persisted: PersistedValidationData,
-    non_persisted: NonPersistedValidationData,
+    transient: TransientValidationData,
 }
 ```
 
@@ -139,12 +139,12 @@ struct PersistedValidationData {
 }
 ```
 
-## NonPersistedValidationData
+## TransientValidationData
 
 These validation data are derived from some relay-chain state to check outputs of the validation function.
 
 ```rust
-struct NonPersistedValidationData {
+struct TransientValidationData {
 	/// The maximum code size permitted, in bytes, of a produced validation code upgrade.
 	///
 	/// This informs a relay-chain backing check and the parachain logic.
@@ -219,7 +219,7 @@ This struct encapsulates the outputs of candidate validation.
 struct ValidationOutputs {
 	/// The head-data produced by validation.
 	head_data: HeadData,
-	/// The validation data, persisted and non-persisted.
+	/// The validation data, persisted and transient.
 	validation_data: ValidationData,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,

@@ -41,8 +41,8 @@ This is the data we want to keep available for each [candidate](candidate.md) in
 struct AvailableData {
     /// The Proof-of-Validation of the candidate.
     pov: PoV,
-    /// The omitted validation data.
-    omitted_validation: PersistedValidationData,
+    /// The persisted validation data used to check the candidate.
+    validation_data: PersistedValidationData,
 }
 ```
 
