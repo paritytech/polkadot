@@ -1,5 +1,6 @@
 # Polkadot
 
+
 Implementation of a https://polkadot.network node in Rust based on the Substrate framework.
 
 > **NOTE:** In 2018, we split our implementation of "Polkadot" from its development framework
