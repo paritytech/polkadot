@@ -383,13 +383,13 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 
 		if let Some(ref duty) = local_duty {
 			info!(
-				"✍️ Starting parachain attestation session (parent: {}) with active duty {}",
+				"✍️  Starting parachain attestation session (parent: {}) with active duty {}",
 				parent_hash,
 				Colour::Red.bold().paint(format!("{:?}", duty)),
 			);
 		} else {
 			debug!(
-				"✍️ Starting parachain attestation session (parent: {}). No local duty..",
+				"✍️  Starting parachain attestation session (parent: {}). No local duty..",
 				parent_hash,
 			);
 		}

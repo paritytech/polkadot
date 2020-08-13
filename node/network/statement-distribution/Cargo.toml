@@ -16,12 +16,13 @@ parity-scale-codec = "1.3.4"
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.1"
 indexmap = "1.4.0"
 
 [dev-dependencies]
 parking_lot = "0.10.0"
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem", features = ["test-helpers"] }
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.3.0"
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
