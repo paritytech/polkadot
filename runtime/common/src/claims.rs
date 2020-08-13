@@ -204,11 +204,10 @@ decl_module! {
 		fn deposit_event() = default;
 
 		fn on_runtime_upgrade() -> frame_support::weights::Weight {
-			use frame_support::migrations::*;
+			use frame_support::migration::*;
 
 			let total = <StorageIterator<BalanceOf<T>>>::new(b"Claims", b"Claims")
-				.iter()
-				.fold(0.into(), |acc, x| acc + x);
+				.fold(BalanceOf::<T>::zero(), |acc, (_, x)| acc + x);
 
 			put_storage_value(b"Claims", b"Total", &[], total);
 
