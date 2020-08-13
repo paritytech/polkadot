@@ -109,16 +109,25 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	}
 }
 
-type FullBackend = service::TFullBackend<Block>;
-type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
-type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
+/// Polkadot's full backend.
+pub type FullBackend = service::TFullBackend<Block>;
+
+/// Polkadot's select chain.
+pub type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+
+/// Polkadot's full client.
+pub type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
+
+/// Polkadot's full Grandpa block import.
+pub type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
 
-type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
+/// Polkadot's light backend.
+pub type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
 
-type LightClient<RuntimeApi, Executor> =
+/// Polkadot's light client.
+pub type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
