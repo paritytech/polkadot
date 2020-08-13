@@ -26,7 +26,7 @@ On `ActiveLeavesUpdate`:
   * Otherwise, for each `activated` head in the update:
     * Determine if the para is scheduled or is next up on any occupied core by fetching the `availability_cores` Runtime API.
     * Determine an occupied core assumption to make about the para. The simplest thing to do is to always assume that if the para occupies a core, that the candidate will become available. Further on, this might be determined based on bitfields seen or validator requests.
-    * Use the Runtime API subsystem to fetch the global validation data and local validation data.
+    * Use the Runtime API subsystem to fetch the full validation data.
 	* Construct validation function params based on validation data.
 	* Invoke the `collation_producer`.
 	* Construct a `CommittedCandidateReceipt` using the outputs of the `collation_producer` and signing with the `key`.
