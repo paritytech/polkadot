@@ -4,16 +4,6 @@ on:
     types: [labeled]
 
 jobs:
-  build-pr:
-    runs-on: ubuntu-latest
-      - name: Notify devops
-        if: github.event.label.name == 'A1-needsburnin'
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - run: cargo build --release --all-features
   notify-devops:
     runs-on: ubuntu-latest
     steps:
