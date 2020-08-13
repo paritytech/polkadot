@@ -2,6 +2,14 @@
 
 Types used within the runtime exclusively and pervasively.
 
+## Para Id
+
+A unique 32-bit identifier referring to a specific para (chain or thread). The relay-chain runtime guarantees that `ParaId`s are unique for the duration of any session, but recycling and reuse over a longer period of time is permitted.
+
+```rust
+struct ParaId(u32);
+```
+
 ## Host Configuration
 
 The internal-to-runtime configuration of the parachain host. This is expected to be altered only by governance procedures.

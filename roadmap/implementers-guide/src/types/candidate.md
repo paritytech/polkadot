@@ -7,14 +7,6 @@ In a way, this entire guide is about these candidates: how they are scheduled, c
 
 This section will describe the base candidate type, its components, and variants that contain extra data.
 
-## Para Id
-
-A unique 32-bit identifier referring to a specific para (chain or thread). The relay-chain runtime guarantees that `ParaId`s are unique for the duration of any session, but recycling and reuse over a longer period of time is permitted.
-
-```rust
-struct ParaId(u32);
-```
-
 ## Candidate Receipt
 
 Much info in a [`FullCandidateReceipt`](#full-candidate-receipt) is duplicated from the relay-chain state. When the corresponding relay-chain state is considered widely available, the Candidate Receipt should be favored over the `FullCandidateReceipt`.
