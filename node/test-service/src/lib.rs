@@ -67,7 +67,7 @@ pub fn polkadot_test_new_full(
 ) -> Result<
 	(
 		TaskManager,
-		Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
+		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
@@ -88,17 +88,12 @@ pub fn polkadot_test_new_full(
 	Ok((task_manager, client, handles, network, rpc_handlers))
 }
 
-// TODO: that comes from service, make it public?
-type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
-/// A wrapper for the test client that implements YaExecuteWithClient.
-pub struct TestClient(pub Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
-// TODO: that comes from service, make it public?
-type FullBackend = service::TFullBackend<Block>;
+/// A wrapper for the test client that implements `YaExecuteWithClient`.
+pub struct TestClient(pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
 
-// TODO: maybe implementable for any Arc<TFullClient<...>>?
 impl YaExecuteWithClient for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
-		T::execute_with_client::<_, _, FullBackend>(t, self.0.clone())
+		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
 	}
 }
 
