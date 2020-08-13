@@ -203,6 +203,18 @@ decl_module! {
 		/// Deposit one of this module's events by using the default implementation.
 		fn deposit_event() = default;
 
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			use frame_support::migrations::*;
+
+			let total = <StorageIterator<BalanceOf<T>>>::new(b"Claims", b"Claims")
+				.iter()
+				.fold(0.into(), |acc, x| acc + x);
+
+			put_storage_value(b"Claims", b"Total", &[], total);
+
+			0
+		}
+
 		/// Make a claim to collect your DOTs.
 		///
 		/// The dispatch origin for this call must be _None_.
