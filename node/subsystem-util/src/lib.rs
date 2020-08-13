@@ -1117,6 +1117,29 @@ mod tests {
 	}
 
 	#[test]
+	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
+		let run_args = HashMap::new();
+
+		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+			// send to a non running job
+			overseer_handle
+				.send(FromOverseer::Communication { 
+					msg: Default::default(),
+				})
+				.await;
+
+			// the subsystem is still alive
+			assert_matches!(
+				overseer_handle.recv().await,
+				AllMessages::CandidateSelection(_)
+			);
+
+			let errs: Vec<_> = err_rx.collect().await;
+			assert_eq!(errs.len(), 0);
+		});
+	}
+
+	#[test]
 	fn test_subsystem_impl_and_name_derivation() {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
