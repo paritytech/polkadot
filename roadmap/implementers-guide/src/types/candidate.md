@@ -74,8 +74,9 @@ struct CandidateDescriptor {
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
-	/// The blake2-256 hash of the local and global validation data. These are extra parameters
-	/// derived from relay-chain state that influence the validity of the block.
+	/// The blake2-256 hash of the persisted validation data. These are extra parameters
+	/// derived from relay-chain state that influence the validity of the block which
+	/// must also be kept available for secondary checkers.
 	validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
@@ -87,11 +88,15 @@ struct CandidateDescriptor {
 
 ## ValidationData
 
-The validation data provide information about how to validate both the inputs and outputs of a candidate. There are two types of validation data: [persisted](#persistedvalidationdata) and [non-persiste](#nonpersistedvalidationdata). Their respective sections of the guide elaborate on their functionality in more detail.
+The validation data provide information about how to validate both the inputs and outputs of a candidate. There are two types of validation data: [persisted](#persistedvalidationdata) and [non-persisted](#nonpersistedvalidationdata). Their respective sections of the guide elaborate on their functionality in more detail.
 
 This information is derived from the chain state and will vary from para to para, although some of the fields may be the same for every para.
 
-The validation data also serve the purpose of giving collators a means of ensuring that the candidate they produce will pass the checks done by the relay-chain when backing, and give validators the same understanding.
+Persisted validation data are generally derived from some relay-chain state to form inputs to the validation function, and as such need to be persisted by the availability system to avoid dependence on availability of the relay-chain state. The backing phase of the inclusion pipeline ensures that everything that is included in a valid fork of the relay-chain already adheres to the non-persisted constraints.
+
+The validation data also serve the purpose of giving collators a means of ensuring that their produced candidate and the commitments submitted to the relay-chain alongside it will pass the checks done by the relay-chain when backing, and give validators the same understanding when determining whether to second or attest to a candidate.
+
+Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these non-persisted validation data.
 
 Design-wise we should maintain two properties about this data structure:
 
@@ -108,9 +113,7 @@ struct ValidationData {
 
 ## PersistedValidationData
 
-Validation data that needs to be persisted for secondary checkers.
-    
-These validation data are generally derived from some relay-chain state to form inputs to the validation function, and as such need to be persisted by the availability system to avoid dependence on availability of the relay-chain state. The backing phase of the inclusion pipeline ensures that everything that is included in a valid fork of th relay-chain already adheres to the non-persisted constraints.
+Validation data that needs to be persisted for secondary checkers. See the section on [`ValidationData`](#validationdata) for more details.
 
 ```rust
 struct PersistedValidationData {
@@ -138,9 +141,7 @@ struct PersistedValidationData {
 
 ## NonPersistedValidationData
 
-These validation data are derived from some relay-chain state to check outputs of the validation function. 
-
-Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for this information to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied by this field.
+These validation data are derived from some relay-chain state to check outputs of the validation function.
 
 ```rust
 struct NonPersistedValidationData {

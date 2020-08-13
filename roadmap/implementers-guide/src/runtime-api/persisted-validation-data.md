@@ -1,6 +1,6 @@
 # Persisted Validation Data
 
-Yields the [`PersistedValidationData`](../types/candidate.md#persistedvalidationdata) for the given [`ParaId`](../types/candidate.md#paraid) along with an assumption that should be used if the para currently occupies a core: 
+Yields the [`PersistedValidationData`](../types/candidate.md#persistedvalidationdata) for the given [`ParaId`](../types/candidate.md#paraid) along with an assumption that should be used if the para currently occupies a core:
 
 ```rust
 /// Returns the persisted validation data for the given para and occupied core assumption.

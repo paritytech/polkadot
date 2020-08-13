@@ -38,7 +38,7 @@ The next sections will contain information on specific runtime APIs. The format 
 fn some_runtime_api(at: Block, arg1: Type1, arg2: Type2, ...) -> ReturnValue;
 ```
 
-Certain runtime APIs concerning the state of a para require the caller to provide an `OccupiedCoreAssumption`. This indicates how the result of the runtime API should be computed if there is a candidate from the para occupying an availability core in the [Inclusion Module](../runtime/inclusion.md). 
+Certain runtime APIs concerning the state of a para require the caller to provide an `OccupiedCoreAssumption`. This indicates how the result of the runtime API should be computed if there is a candidate from the para occupying an availability core in the [Inclusion Module](../runtime/inclusion.md).
 
 The choices of assumption are whether the candidate occupying that core should be assumed to have been made available and included or timed out and discarded, along with a third option to assert that the core was not occupied. This choice affects everything from the parent head-data, the validation code, and the state of message-queues. Typically, users will take the assumption that either the core was free or that the occupying candidate was included, as timeouts are expected only in adversarial circumstances and even so, only in a small minority of blocks directly following validator set rotations.
 
