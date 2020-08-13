@@ -405,7 +405,13 @@ decl_module! {
 		) {
 			T::MoveClaimOrigin::try_origin(origin).map(|_| ()).or_else(ensure_root)?;
 
-			Claims::<T>::take(&old).map(|c| Claims::<T>::insert(&new, c));
+			Claims::<T>::take(&old).map(|c| Claims::<T>::mutate(&new, |maybe_overwrite| {
+				if let Some(overwrite) = maybe_overwrite {
+					Total::<T>::mutate(|total| *total = *total - *overwrite + c);
+				}
+
+				*maybe_overwrite = Some(c);
+			}));
 			Vesting::<T>::take(&old).map(|c| Vesting::<T>::insert(&new, c));
 			Signing::take(&old).map(|c| Signing::insert(&new, c));
 			maybe_preclaim.map(|preclaim| Preclaims::<T>::mutate(&preclaim, |maybe_o|
@@ -763,7 +769,10 @@ mod tests {
 				(eth(&eve()), 300, Some(42), Some(StatementKind::Saft)),
 				(eth(&frank()), 400, Some(43), None),
 			],
-			vesting: vec![(eth(&alice()), (50, 10, 1))],
+			vesting: vec![
+				(eth(&alice()), (50, 10, 1)),
+				(eth(&frank()), (5, 1, 1))
+			],
 		}.assimilate_storage(&mut t).unwrap();
 		t.into()
 	}
@@ -816,6 +825,24 @@ mod tests {
 			assert_eq!(Balances::free_balance(&42), 100);
 			assert_eq!(Vesting::vesting_balance(&42), Some(50));
 			assert_eq!(Claims::total(), total_claims() - 100);
+		});
+
+		new_test_ext().execute_with(|| {
+			let alice_held = Claims::claims(&eth(&alice())).unwrap();
+			let frank_held = Claims::claims(&eth(&frank())).unwrap();
+
+			assert_eq!(Balances::free_balance(42), 0);
+			assert_ok!(Claims::move_claim(Origin::signed(6), eth(&alice()), eth(&frank()), None));
+			assert_noop!(Claims::claim(Origin::none(), 42, sig::<Test>(&alice(), &42u64.encode(), &[][..])), Error::<Test>::SignerHasNoClaim);
+
+			let new_frank_held = alice_held;
+
+			assert_ok!(Claims::claim(Origin::none(), 42, sig::<Test>(&frank(), &42u64.encode(), &[][..])));
+			assert_eq!(Balances::free_balance(&42), new_frank_held);
+
+			let claimed = new_frank_held;
+
+			assert_eq!(Claims::total(), total_claims() - frank_held + alice_held - claimed);
 		});
 	}
 
