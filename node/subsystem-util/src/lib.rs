@@ -518,10 +518,19 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
+	/// Will only print a warning if the job is not running.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) -> Result<(), Error> {
 		match self.running.get_mut(&parent_hash) {
 			Some(job) => job.send_msg(msg).await?,
-			None => return Err(Error::JobNotFound(parent_hash)),
+			None => {
+				// don't bring down the subsystem, this can happen to due a race condition
+				log::warn!(
+					"A message to a Job::{} with parent_hash ({}) was received,\
+					but the job is not running, this could be a false positive",
+					Job::NAME,
+					parent_hash,
+				);
+			},
 		}
 		Ok(())
 	}
