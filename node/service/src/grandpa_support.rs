@@ -256,7 +256,7 @@ mod tests {
 				for i in 0..n {
 					let mut builder = client.new_block(Default::default()).unwrap();
 
-					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(vec![], base + i) {
+					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(base + i) {
 						builder.push(extrinsic).unwrap()
 					}
 

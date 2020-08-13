@@ -45,14 +45,13 @@ pub use sp_runtime::traits::{HashFor, NumberFor};
 pub use consensus_common::{SelectChain, BlockImport, block_validation::Chain};
 pub use polkadot_primitives::v0::{Block, CollatorId, ParachainHost};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
 pub use consensus::run_validation_worker;
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
-pub use rococo_runtime;
 pub use self::client::*;
 
 native_executor_instance!(
@@ -76,13 +75,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-native_executor_instance!(
-	pub RococoExecutor,
-	rococo_runtime::api::dispatch,
-	rococo_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
-
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
@@ -90,9 +82,6 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Westend` network.
 	fn is_westend(&self) -> bool;
-
-	/// Returns if this is a configuration for the `Rococo` network.
-	fn is_rococo(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
@@ -102,10 +91,6 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 
 	fn is_westend(&self) -> bool {
 		self.id().starts_with("westend") || self.id().starts_with("wnd")
-	}
-
-	fn is_rococo(&self) -> bool {
-		self.id().starts_with("rococo") || self.id().starts_with("roc")
 	}
 }
 
@@ -787,35 +772,6 @@ pub fn westend_new_full(
 	Ok((service, client, handles))
 }
 
-/// Create a new Rococo service for a full node.
-#[cfg(feature = "full-node")]
-pub fn rococo_new_full(
-	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-)
-	-> Result<(
-		TaskManager,
-		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (service, client, handles, _, _) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-		false,
-	)?;
-
-	Ok((service, client, handles))
-}
-
 /// Handles to other sub-services that full nodes instantiate, which consumers
 /// of the node may use.
 #[cfg(feature = "full-node")]
@@ -833,8 +789,6 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandler
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 	} else if config.chain_spec.is_westend() {
 		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
-	} else if config.chain_spec.is_rococo() {
-		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else {
 		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
 	}
@@ -870,16 +824,6 @@ pub fn build_full(
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
-	} else if config.chain_spec.is_rococo() {
-		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
-			config,
-			collating_for,
-			max_block_data_size,
-			authority_discovery_enabled,
-			slot_duration,
-			grandpa_pause,
-			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Rococo(client), handles))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,

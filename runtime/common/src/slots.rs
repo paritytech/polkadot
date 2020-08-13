@@ -28,11 +28,10 @@ use frame_support::{
 	traits::{Currency, ReservableCurrency, WithdrawReason, ExistenceRequirement, Get, Randomness},
 	weights::{DispatchClass, Weight},
 };
-use primitives::v0::{
-	SwapAux, PARACHAIN_INFO, Id as ParaId, ValidationCode, HeadData,
+use primitives::v1::{
+	Id as ParaId, ValidationCode, HeadData,
 };
 use frame_system::{ensure_signed, ensure_root};
-use crate::registrar::{Registrar, swap_ordered_existence};
 use crate::slot_range::{SlotRange, SLOT_RANGE_COUNT};
 
 type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
@@ -56,6 +55,50 @@ pub trait Trait: frame_system::Trait {
 
 	/// Something that provides randomness in the runtime.
 	type Randomness: Randomness<Self::Hash>;
+}
+
+/// Parachain registration API.
+pub trait Registrar<AccountId> {
+	/// Create a new unique parachain identity for later registration.
+	fn new_id() -> ParaId;
+
+	/// Checks whether the given initial head data size falls within the limit.
+	fn head_data_size_allowed(head_data_size: u32) -> bool;
+
+	/// Checks whether the given validation code falls within the limit.
+	fn code_size_allowed(code_size: u32) -> bool;
+
+	/// Register a parachain with given `code` and `initial_head_data`. `id` must not yet be registered or it will
+	/// result in a error.
+	///
+	/// This does not enforce any code size or initial head data limits, as these
+	/// are governable and parameters for parachain initialization are often
+	/// determined long ahead-of-time. Not checking these values ensures that changes to limits
+	/// do not invalidate in-progress auction winners.
+	fn register_para(
+		id: ParaId,
+		_parachain: bool,
+		code: ValidationCode,
+		initial_head_data: HeadData,
+	) -> DispatchResult;
+
+	/// Deregister a parachain with given `id`. If `id` is not currently registered, an error is returned.
+	fn deregister_para(id: ParaId) -> DispatchResult;
+}
+
+/// Auxilliary for when there's an attempt to swap two parachains/parathreads.
+pub trait SwapAux {
+	/// Result describing whether it is possible to swap two parachains. Doesn't mutate state.
+	fn ensure_can_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
+
+	/// Updates any needed state/references to enact a logical swap of two parachains. Identity,
+	/// code and `head_data` remain equivalent for all parachains/threads, however other properties
+	/// such as leases, deposits held and thread/chain nature are swapped.
+	///
+	/// May only be called on a state that `ensure_can_swap` has previously returned `Ok` for: if this is
+	/// not the case, the result is undefined. May only return an error if `ensure_can_swap` also returns
+	/// an error.
+	fn on_swap(one: ParaId, other: ParaId) -> Result<(), &'static str>;
 }
 
 /// A sub-bidder identifier. Used to distinguish between different logical bidders coming from the
@@ -185,6 +228,21 @@ decl_storage! {
 		/// parachain gets off-boarded; i.e. its lease period is up and it isn't renewed.
 		pub Offboarding get(fn offboarding): map hasher(twox_64_concat) ParaId => T::AccountId;
 	}
+}
+
+/// Swap the existence of two items, provided by value, within an ordered list.
+///
+/// If neither item exists, or if both items exist this will do nothing. If exactly one of the
+/// items exists, then it will be removed and the other inserted.
+fn swap_ordered_existence<T: PartialOrd + Ord + Copy>(ids: &mut [T], one: T, other: T) {
+	let maybe_one_pos = ids.binary_search(&one);
+	let maybe_other_pos = ids.binary_search(&other);
+	match (maybe_one_pos, maybe_other_pos) {
+		(Ok(one_pos), Err(_)) => ids[one_pos] = other,
+		(Err(_), Ok(other_pos)) => ids[other_pos] = one,
+		_ => return,
+	};
+	ids.sort();
 }
 
 impl<T: Trait> SwapAux for Module<T> {
@@ -470,7 +528,7 @@ decl_module! {
 					// parachain for its immediate start.
 					<Onboarding<T>>::remove(&para_id);
 					let _ = T::Parachains::
-						register_para(para_id, PARACHAIN_INFO, code, initial_head_data);
+						register_para(para_id, true, code, initial_head_data);
 				}
 
 				Ok(())
@@ -719,7 +777,7 @@ impl<T: Trait> Module<T> {
 				// The chain's deployment data is set; go ahead and register it, and remove the
 				// now-redundant on-boarding entry.
 				let _ = T::Parachains::
-					register_para(para_id.clone(), PARACHAIN_INFO, code, initial_head_data);
+					register_para(para_id.clone(), true, code, initial_head_data);
 				// ^^ not much we can do if it fails for some reason.
 				<Onboarding<T>>::remove(para_id)
 			}
@@ -890,7 +948,7 @@ mod tests {
 		traits::{OnInitialize, OnFinalize}
 	};
 	use pallet_balances;
-	use primitives::v0::{BlockNumber, Header, Id as ParaId, Info as ParaInfo, Scheduling};
+	use primitives::v1::{BlockNumber, Header, Id as ParaId};
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -974,13 +1032,9 @@ mod tests {
 			code_size <= MAX_CODE_SIZE
 		}
 
-		fn para_info(_id: ParaId) -> Option<ParaInfo> {
-			Some(ParaInfo { scheduling: Scheduling::Always })
-		}
-
 		fn register_para(
 			id: ParaId,
-			_info: ParaInfo,
+			_parachain: bool,
 			code: ValidationCode,
 			initial_head_data: HeadData,
 		) -> DispatchResult {
