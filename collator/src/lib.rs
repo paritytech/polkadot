@@ -67,7 +67,7 @@ pub use sc_network::PeerId;
 pub use service::{RuntimeApiCollection, Client};
 pub use sc_cli::SubstrateCli;
 #[cfg(not(feature = "service-rewr"))]
-use polkadot_service::{FullNodeHandles, AbstractClient, YaExecuteWithClient};
+use polkadot_service::{FullNodeHandles, AbstractClient, ClientHandle};
 #[cfg(feature = "service-rewr")]
 use polkadot_service_new::{
 	self as polkadot_service,
@@ -200,12 +200,12 @@ pub async fn collate<P>(
 	Some(collation)
 }
 
-/// Build a collator service based on the `YaExecuteWithClient`.
+/// Build a collator service based on the `ClientHandle`.
 #[cfg(feature = "service-rewr")]
 pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: impl YaExecuteWithClient,
+	client: impl ClientHandle,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
@@ -352,12 +352,12 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 	}
 }
 
-/// Build a collator service based on the `YaExecuteWithClient`.
+/// Build a collator service based on the `ClientHandle`.
 #[cfg(not(feature = "service-rewr"))]
 pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: impl YaExecuteWithClient,
+	client: impl ClientHandle,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
