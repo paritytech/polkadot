@@ -33,7 +33,7 @@ struct CandidateReceipt {
 
 ## Full Candidate Receipt
 
-This is the full receipt type. The `ValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
+This is the full receipt type. The `ValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
 
 However, the Full Candidate Receipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
