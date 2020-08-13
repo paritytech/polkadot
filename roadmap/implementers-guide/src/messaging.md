@@ -26,10 +26,10 @@ The downward message queue doesn't have a cap on its size and it is up to the re
 that prevent spamming in place.
 
 Upward Message Passing (UMP) is a mechanism responsible for delivering messages in the opposite direction:
-from a parachain up to the relay chain. Upward messagess can serve different purposes and can be of different
+from a parachain up to the relay chain. Upward messages can serve different purposes and can be of different
  kinds.
 
-One kind of messages is `Dispatchable`. They could be thought of similar to extrinsics sent to a relay chain: they also
+One kind of message is `Dispatchable`. They could be thought of similarly to extrinsics sent to a relay chain: they also
 invoke exposed runtime entrypoints, they consume weight and require fees. The difference is that they originate from
 a parachain. Each parachain has a queue of dispatchables to be executed. There can be only so many dispatchables at a time.
 The weight that processing of the dispatchables can consume is limited by a preconfigured value. Therefore, it is possible
