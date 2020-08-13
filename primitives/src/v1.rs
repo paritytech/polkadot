@@ -299,7 +299,7 @@ pub struct TransientValidationData {
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender. This informs the collator.
-	hrmp_mqc_heads: Vec<(Id, Hash)>,
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
