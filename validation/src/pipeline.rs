@@ -204,10 +204,7 @@ pub fn validate<'a>(
 	let params = ValidationParams {
 		parent_head: local_validation.parent_head.clone(),
 		block_data: pov_block.block_data.clone(),
-		max_code_size: global_validation.max_code_size,
-		max_head_data_size: global_validation.max_head_data_size,
 		relay_chain_height: global_validation.block_number,
-		code_upgrade_allowed: local_validation.code_upgrade_allowed,
 	};
 
 	// TODO: remove when ext does not do this.

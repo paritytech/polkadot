@@ -31,10 +31,7 @@ fn terminates_on_timeout() {
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		sp_core::testing::TaskExecutor::new(),
@@ -61,10 +58,7 @@ fn parallel_execution() {
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
 		sp_core::testing::TaskExecutor::new(),
@@ -74,10 +68,7 @@ fn parallel_execution() {
 		ValidationParams {
 			block_data: BlockData(Vec::new()),
 			parent_head: Default::default(),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		sp_core::testing::TaskExecutor::new(),

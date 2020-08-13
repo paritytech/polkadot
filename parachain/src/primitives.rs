@@ -232,18 +232,8 @@ pub struct ValidationParams {
 	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
 	/// The current relay-chain block number.
-	pub relay_chain_height: polkadot_core_primitives::BlockNumber,
-	/// Whether a code upgrade is allowed or not, and at which height the upgrade
-	/// would be applied after, if so. The parachain logic should apply any upgrade
-	/// issued in this block after the first block
-	/// with `relay_chain_height` at least this value, if `Some`. if `None`, issue
-	/// no upgrade.
-	pub code_upgrade_allowed: Option<polkadot_core_primitives::BlockNumber>,
+	pub relay_chain_height: RelayChainBlockNumber,
 }
 
 /// The result of parachain validation.

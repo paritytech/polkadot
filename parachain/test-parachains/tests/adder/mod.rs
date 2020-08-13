@@ -72,10 +72,7 @@ pub fn execute_good_on_parent() {
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		sp_core::testing::TaskExecutor::new(),
@@ -112,10 +109,7 @@ fn execute_good_chain_on_parent() {
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
-				max_code_size: 1024,
-				max_head_data_size: 1024,
 				relay_chain_height: number as RelayChainBlockNumber + 1,
-				code_upgrade_allowed: None,
 			},
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 			sp_core::testing::TaskExecutor::new(),
@@ -153,10 +147,7 @@ fn execute_bad_on_parent() {
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
 		},
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
 		sp_core::testing::TaskExecutor::new(),
