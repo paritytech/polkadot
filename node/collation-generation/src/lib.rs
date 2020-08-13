@@ -171,6 +171,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				_ => continue,
 			};
 
+			if scheduled_core.para_id != config.para_id {
+				continue;
+			}
+
 			let local_validation_data = match request_local_validation_data_ctx(
 				relay_parent,
 				scheduled_core.para_id,

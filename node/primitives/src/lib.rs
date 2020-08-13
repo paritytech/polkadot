@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
-	HeadData, PoV, CollatorPair,
+	HeadData, PoV, CollatorPair, Id as ParaId,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -277,6 +277,8 @@ pub struct CollationGenerationConfig {
 	pub key: CollatorPair,
 	/// Collation function.
 	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+	/// The parachain that this collator collates for
+	pub para_id: ParaId,
 }
 
 impl std::fmt::Debug for CollationGenerationConfig {
