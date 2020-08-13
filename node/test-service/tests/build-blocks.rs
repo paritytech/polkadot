@@ -48,6 +48,6 @@ async fn ensure_test_service_build_blocks(task_executor: TaskExecutor) {
 		}
 	}
 
-	alice.task_manager.clean_shutdown();
-	bob.task_manager.clean_shutdown();
+	alice.task_manager.clean_shutdown().await;
+	bob.task_manager.clean_shutdown().await;
 }

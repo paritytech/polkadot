@@ -40,5 +40,5 @@ async fn call_function_actually_work(task_executor: TaskExecutor) {
 		"result starts with 0x"
 	);
 
-	alice.task_manager.clean_shutdown();
+	alice.task_manager.clean_shutdown().await;
 }
