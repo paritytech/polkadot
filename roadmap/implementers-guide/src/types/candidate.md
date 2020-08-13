@@ -219,8 +219,8 @@ This struct encapsulates the outputs of candidate validation.
 struct ValidationOutputs {
 	/// The head-data produced by validation.
 	head_data: HeadData,
-	/// The validation data, persisted and transient.
-	validation_data: ValidationData,
+	/// The validation data, persisted.
+	validation_data: PersistedValidationData,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
