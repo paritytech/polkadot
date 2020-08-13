@@ -29,8 +29,8 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
 	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
 	CoreAssignment, CoreOccupied, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
-	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
+	ValidatorSignature, AvailableData, GroupRotationInfo,
+	CoreState, ValidationData, PersistedValidationData, OccupiedCoreAssumption,
 	CandidateEvent, SessionIndex, BlockNumber,
 };
 use polkadot_node_primitives::{
@@ -109,7 +109,7 @@ pub struct ValidationFailed(pub String);
 pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters using relay-chain state.
 	///
-	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
+	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
 	///
@@ -122,10 +122,10 @@ pub enum CandidateValidationMessage {
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
-	/// Explicitly provide the `OmittedValidationData` and `ValidationCode` so this can do full
+	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
 	/// validation without needing to access the state of the relay-chain.
 	ValidateFromExhaustive(
-		OmittedValidationData,
+		PersistedValidationData,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -372,15 +372,21 @@ pub enum RuntimeApiRequest {
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
 	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
-	/// Get the global validation data.
-	GlobalValidationData(RuntimeApiSender<GlobalValidationData>),
-	/// Get the local validation data for a particular para, taking the given
+	/// Get the full validation data for a particular para, taking the given
 	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
 	/// if the para currently occupies a core.
-	LocalValidationData(
+	PersistedValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<LocalValidationData>>,
+		RuntimeApiSender<Option<PersistedValidationData>>,
+	),
+	/// Get the full validation data for a particular para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
+	FullValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationData>>,
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),

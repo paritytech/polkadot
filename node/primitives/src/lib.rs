@@ -24,8 +24,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
-	HeadData,
+	UpwardMessage, Balance, ValidationCode, ValidationData, HeadData,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -117,10 +116,8 @@ pub struct FromTableMisbehavior {
 pub struct ValidationOutputs {
 	/// The head-data produced by validation.
 	pub head_data: HeadData,
-	/// The global validation schedule.
-	pub global_validation_data: GlobalValidationData,
-	/// The local validation data.
-	pub local_validation_data: LocalValidationData,
+	/// The validation data.
+	pub global_validation_data: ValidationData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Fees paid to the validators of the relay-chain.
