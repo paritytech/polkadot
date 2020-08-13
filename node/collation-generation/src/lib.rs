@@ -18,7 +18,13 @@
 
 #![deny(missing_docs)]
 
-use futures::channel::oneshot;
+use futures::{
+	channel::{mpsc, oneshot},
+	future::FutureExt,
+	select,
+	sink::SinkExt,
+	stream::StreamExt,
+};
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
@@ -34,10 +40,11 @@ use polkadot_primitives::v1::{
 	CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 };
 use sp_core::crypto::Pair;
+use std::sync::Arc;
 
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
-	config: Option<CollationGenerationConfig>,
+	config: Option<Arc<CollationGenerationConfig>>,
 }
 
 impl CollationGenerationSubsystem {
@@ -56,10 +63,28 @@ impl CollationGenerationSubsystem {
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
 	{
+		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
+		// expected to generate precisely one message. We don't want to block the main loop
+		// at any point waiting for them all, so instead, we create a channel on which they can
+		// send those messages. We can then just monitor the channel and forward messages on it
+		// to the overseer here, via the context.
+		let (sender, mut receiver) = mpsc::channel(0);
+
 		loop {
-			let incoming = ctx.recv().await;
-			if self.handle_incoming::<Context>(incoming, &mut ctx).await {
-				break;
+			select! {
+				incoming = ctx.recv().fuse() => {
+					if self.handle_incoming::<Context>(incoming, &mut ctx, &sender).await {
+						break;
+					}
+				},
+				msg = receiver.next().fuse() => {
+					if let Some(msg) = msg {
+						if let Err(err) = ctx.send_message(msg).await {
+							log::warn!(target: "collation_generation", "failed to forward message to overseer: {:?}", err);
+							break;
+						}
+					}
+				},
 			}
 		}
 	}
@@ -72,6 +97,7 @@ impl CollationGenerationSubsystem {
 		&mut self,
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		ctx: &mut Context,
+		sender: &mpsc::Sender<AllMessages>,
 	) -> bool
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,
@@ -83,8 +109,10 @@ impl CollationGenerationSubsystem {
 		match incoming {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
 				// follow the procedure from the guide
-				if let Some(ref config) = self.config {
-					if let Err(err) = handle_new_activations(config, &activated, ctx).await {
+				if let Some(config) = &self.config {
+					if let Err(err) =
+						handle_new_activations(config.clone(), &activated, ctx, sender).await
+					{
 						log::warn!(target: "collation_generation", "failed to handle new activations: {:?}", err);
 						return true;
 					};
@@ -99,7 +127,7 @@ impl CollationGenerationSubsystem {
 					log::warn!(target: "collation_generation", "double initialization");
 					true
 				} else {
-					self.config = Some(config);
+					self.config = Some(Arc::new(config));
 					false
 				}
 			}
@@ -143,17 +171,20 @@ enum Error {
 type Result<T> = std::result::Result<T, Error>;
 
 async fn handle_new_activations<Context: SubsystemContext>(
-	config: &CollationGenerationConfig,
+	config: Arc<CollationGenerationConfig>,
 	activated: &[Hash],
 	ctx: &mut Context,
+	sender: &mpsc::Sender<AllMessages>,
 ) -> Result<()> {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
 	for relay_parent in activated.iter().copied() {
-		let global_validation_data = request_global_validation_data_ctx(relay_parent, ctx)
-			.await?
-			.await??;
+		let global_validation_data = Arc::new(
+			request_global_validation_data_ctx(relay_parent, ctx)
+				.await?
+				.await??,
+		);
 
 		let availability_cores = request_availability_cores_ctx(relay_parent, ctx)
 			.await?
@@ -166,7 +197,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				}
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
-					continue
+					continue;
 				}
 				_ => continue,
 			};
@@ -175,6 +206,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				continue;
 			}
 
+			// we get local validation data synchronously for each core instead of within the subtask loop,
+			// because we have only a single mutable handle to the context, so the work can't really be distributed
 			let local_validation_data = match request_local_validation_data_ctx(
 				relay_parent,
 				scheduled_core.para_id,
@@ -188,37 +221,44 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				None => continue,
 			};
 
-			let validation_data_hash =
-				validation_data_hash(&global_validation_data, &local_validation_data);
+			let task_global_validation_data = global_validation_data.clone();
+			let task_config = config.clone();
+			let mut task_sender = sender.clone();
+			ctx.spawn("collation generation collation builder", Box::pin(async move {
+				let validation_data_hash =
+					validation_data_hash(&task_global_validation_data, &local_validation_data);
 
-			let collation = (config.collator)(&global_validation_data, &local_validation_data).await;
+				let collation = (task_config.collator)(&task_global_validation_data, &local_validation_data).await;
 
-			let pov_hash = collation.proof_of_validity.hash();
+				let pov_hash = collation.proof_of_validity.hash();
 
-			let ccr = CandidateReceipt {
-				commitments_hash: (CandidateCommitments {
-					upward_messages: collation.upward_messages,
-					head_data: collation.head_data,
-					..Default::default()
-				}).hash(),
-				descriptor: CandidateDescriptor {
-					signature: config.key.sign(&collator_signature_payload(
-						&relay_parent,
-						&scheduled_core.para_id,
-						&validation_data_hash,
-						&pov_hash,
-					)),
-					para_id: scheduled_core.para_id,
-					relay_parent,
-					collator: config.key.public(),
-					validation_data_hash,
-					pov_hash,
-				},
-			};
+				let ccr = CandidateReceipt {
+					commitments_hash: (CandidateCommitments {
+						upward_messages: collation.upward_messages,
+						head_data: collation.head_data,
+						..Default::default()
+					}).hash(),
+					descriptor: CandidateDescriptor {
+						signature: task_config.key.sign(&collator_signature_payload(
+							&relay_parent,
+							&scheduled_core.para_id,
+							&validation_data_hash,
+							&pov_hash,
+						)),
+						para_id: scheduled_core.para_id,
+						relay_parent,
+						collator: task_config.key.public(),
+						validation_data_hash,
+						pov_hash,
+					},
+				};
 
-			ctx.send_message(AllMessages::CollatorProtocol(
-				CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity),
-			)).await?;
+				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
+					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
+				)).await {
+					log::warn!(target: "collation_generation", "failed to send collation result for para_id {}: {:?}", scheduled_core.para_id, err);
+				}
+			})).await?;
 		}
 	}
 
