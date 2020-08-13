@@ -264,3 +264,114 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 	Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+	mod handle_new_activations {
+		use super::super::*;
+		use futures::{
+			lock::Mutex,
+			task::{Context as FuturesContext, Poll},
+			Future,
+		};
+		use polkadot_node_primitives::Collation;
+		use polkadot_node_subsystem::messages::{
+			AllMessages, RuntimeApiMessage, RuntimeApiRequest,
+		};
+		use polkadot_node_subsystem_test_helpers::{
+			subsystem_test_harness, TestSubsystemContextHandle,
+		};
+		use polkadot_primitives::v1::{
+			BlockData, CollatorPair, GlobalValidationData, LocalValidationData, PoV,
+		};
+		use std::pin::Pin;
+
+		fn test_collation() -> Collation {
+			Collation {
+				head_data: Default::default(),
+				upward_messages: Vec::new(),
+				proof_of_validity: PoV {
+					block_data: BlockData(Vec::new()),
+				},
+			}
+		}
+
+		// Box<dyn Future<Output = Collation> + Unpin + Send
+		struct TestCollator;
+
+		impl Future for TestCollator {
+			type Output = Collation;
+
+			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
+				Poll::Ready(test_collation())
+			}
+		}
+
+		impl Unpin for TestCollator {}
+
+		fn test_config() -> Arc<CollationGenerationConfig> {
+			Arc::new(CollationGenerationConfig {
+				key: CollatorPair::generate().0,
+				collator: Box::new(|_gvd: &GlobalValidationData, _lvd: &LocalValidationData| {
+					Box::new(TestCollator)
+				}),
+				para_id: 123.into(),
+			})
+		}
+
+		#[test]
+		fn requests_validation_and_availability_per_relay_parent() {
+			let activated_hashes: Arc<Vec<Hash>> = Arc::new(vec![
+				[1; 32].into(),
+				[4; 32].into(),
+				[9; 32].into(),
+				[16; 32].into(),
+			]);
+
+			let requested_validation_data = Arc::new(Mutex::new(Vec::new()));
+			let requested_availability_cores = Arc::new(Mutex::new(Vec::new()));
+
+			let overseer_requested_validation_data = requested_validation_data.clone();
+			let overseer_requested_availability_cores = requested_availability_cores.clone();
+			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
+				loop {
+					match handle.recv().await {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::GlobalValidationData(tx))) => {
+							overseer_requested_validation_data.lock().await.push(hash);
+							tx.send(Ok(Default::default())).unwrap();
+						}
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx))) => {
+							overseer_requested_availability_cores.lock().await.push(hash);
+							tx.send(Ok(vec![])).unwrap();
+						}
+						msg => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
+					}
+				}
+			};
+
+			let (tx, _rx) = mpsc::channel(0);
+
+			let subsystem_activated_hashes = activated_hashes.clone();
+			subsystem_test_harness(overseer, |mut ctx| async move {
+				handle_new_activations(test_config(), &subsystem_activated_hashes, &mut ctx, &tx)
+					.await
+					.unwrap();
+			});
+
+			let mut requested_validation_data = Arc::try_unwrap(requested_validation_data)
+				.expect("overseer should have shut down by now")
+				.into_inner();
+			requested_validation_data.sort();
+			let mut requested_availability_cores = Arc::try_unwrap(requested_availability_cores)
+				.expect("overseer should have shut down by now")
+				.into_inner();
+			requested_availability_cores.sort();
+
+			let activated_hashes =
+				Arc::try_unwrap(activated_hashes).expect("subsystem should have shut down by now");
+
+			assert_eq!(requested_validation_data, activated_hashes);
+			assert_eq!(requested_availability_cores, activated_hashes);
+		}
+	}
+}
