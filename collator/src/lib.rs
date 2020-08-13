@@ -458,12 +458,19 @@ mod tests {
 	impl BuildParachainContext for BuildDummyParachainContext {
 		type ParachainContext = DummyParachainContext;
 
-		fn build<SP>(
+		fn build<SP, Client, Backend>(
 			self,
-			_: polkadot_service::Client,
+			_: Arc<Client>,
 			_: SP,
 			_: impl Network + Clone + 'static,
-		) -> Result<Self::ParachainContext, ()> {
+		) -> Result<Self::ParachainContext, ()>
+		where
+			SP: SpawnNamed + Clone + Send + Sync + 'static,
+			Backend: BackendT<Block>,
+			Backend::State: sp_api::StateBackend<BlakeTwo256>,
+			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
+			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+		{
 			Ok(DummyParachainContext)
 		}
 	}
