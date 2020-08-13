@@ -247,8 +247,6 @@ impl Ord for CommittedCandidateReceipt {
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct ValidationData<N = BlockNumber> {
-	/// The parent head-data.
-	pub parent_head: HeadData,
 	/// The persisted validation data.
 	pub persisted: PersistedValidationData<N>,
 	/// The transient validation data.
@@ -259,6 +257,8 @@ pub struct ValidationData<N = BlockNumber> {
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 pub struct PersistedValidationData<N = BlockNumber> {
+	/// The parent head-data.
+	pub parent_head: HeadData,
 	/// Whether the parachain is allowed to upgrade its validation code.
 	///
 	/// This is `Some` if so, and contains the number of the minimum relay-chain
