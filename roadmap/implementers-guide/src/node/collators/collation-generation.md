@@ -4,9 +4,17 @@ The collation generation subsystem is executed on collator nodes and produces ca
 
 ## Protocol
 
-Input: None
+Input: `CollationGenerationMessage`
 
-Output: CollationDistributionMessage
+```rust
+enum CollationGenerationMessage {
+    Initialize(CollationGenerationConfig),
+}
+```
+
+No more than one initialization message should ever be sent to the collation generation subsystem.
+
+Output: `CollationDistributionMessage`
 
 ## Functionality
 
