@@ -30,8 +30,8 @@ use polkadot_subsystem::messages::{
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
 use polkadot_primitives::v1::{
-	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,
-	GlobalValidationData, OccupiedCoreAssumption, Hash, validation_data_hash,
+	ValidationCode, PoV, CandidateDescriptor, ValidationData, PersistedValidationData,
+	TransientValidationData, OccupiedCoreAssumption, Hash,
 };
 use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode, ValidationError,
 	InvalidCandidate as WasmInvalidCandidate};
@@ -100,7 +100,7 @@ async fn run(
 					}
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
-					omitted_validation,
+					validation_data,
 					validation_code,
 					descriptor,
 					pov,
@@ -109,7 +109,7 @@ async fn run(
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
 						Some(pool.clone()),
-						omitted_validation,
+						validation_data,
 						validation_code,
 						descriptor,
 						pov,
@@ -149,7 +149,7 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	Matches(OmittedValidationData, ValidationCode),
+	Matches(ValidationData, ValidationCode),
 	DoesNotMatch,
 	BadRequest,
 }
@@ -157,15 +157,14 @@ enum AssumptionCheckOutcome {
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
-	global_validation_data: &GlobalValidationData,
 	assumption: OccupiedCoreAssumption,
 ) -> SubsystemResult<AssumptionCheckOutcome> {
-	let local_validation_data = {
+	let validation_data = {
 		let (tx, rx) = oneshot::channel();
 		let d = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::LocalValidationData(
+			RuntimeApiRequest::FullValidationData(
 				descriptor.para_id,
 				assumption,
 				tx,
@@ -181,17 +180,9 @@ async fn check_assumption_validation_data(
 		}
 	};
 
-	let validation_data_hash = validation_data_hash(
-		&global_validation_data,
-		&local_validation_data,
-	);
+	let validation_data_hash = validation_data.persisted.hash();
 
 	SubsystemResult::Ok(if descriptor.validation_data_hash == validation_data_hash {
-		let omitted_validation = OmittedValidationData {
-			global_validation: global_validation_data.clone(),
-			local_validation: local_validation_data,
-		};
-
 		let (code_tx, code_rx) = oneshot::channel();
 		let validation_code = runtime_api_request(
 			ctx,
@@ -206,7 +197,7 @@ async fn check_assumption_validation_data(
 
 		match validation_code {
 			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
-			Ok(Some(v)) => AssumptionCheckOutcome::Matches(omitted_validation, v),
+			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
 		}
 	} else {
 		AssumptionCheckOutcome::DoesNotMatch
@@ -222,42 +213,18 @@ async fn spawn_validate_from_chain_state(
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	// The candidate descriptor has a `validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
-	// relay-parent. We can fetch these values by getting the `global_validation_data`,
-	// and both `local_validation_data` based on the different `OccupiedCoreAssumption`s.
-	let global_validation_data = {
-		let (tx, rx) = oneshot::channel();
-		let res = runtime_api_request(
-			ctx,
-			descriptor.relay_parent,
-			RuntimeApiRequest::GlobalValidationData(tx),
-			rx,
-		).await?;
-
-		match res {
-			Ok(g) => g,
-			Err(e) => {
-				log::warn!(
-					target: "candidate_validation",
-					"Error making runtime API request: {:?}",
-					e,
-				);
-
-				return Ok(Err(ValidationFailed("Error making API request".into())));
-			}
-		}
-	};
-
+	// relay-parent. We can fetch these values by getting the persisted validation data
+	// based on the different `OccupiedCoreAssumption`s.
 	match check_assumption_validation_data(
 		ctx,
 		&descriptor,
-		&global_validation_data,
 		OccupiedCoreAssumption::Included,
 	).await? {
-		AssumptionCheckOutcome::Matches(omitted_validation, validation_code) => {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
 				validation_pool,
-				omitted_validation,
+				validation_data,
 				validation_code,
 				descriptor,
 				pov,
@@ -271,14 +238,13 @@ async fn spawn_validate_from_chain_state(
 	match check_assumption_validation_data(
 		ctx,
 		&descriptor,
-		&global_validation_data,
 		OccupiedCoreAssumption::TimedOut,
 	).await? {
-		AssumptionCheckOutcome::Matches(omitted_validation, validation_code) => {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
 				validation_pool,
-				omitted_validation,
+				validation_data,
 				validation_code,
 				descriptor,
 				pov,
@@ -298,7 +264,7 @@ async fn spawn_validate_from_chain_state(
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_pool: Option<ValidationPool>,
-	omitted_validation: OmittedValidationData,
+	validation_data: ValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -308,7 +274,7 @@ async fn spawn_validate_exhaustive(
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			validation_pool,
-			omitted_validation,
+			validation_data,
 			validation_code,
 			descriptor,
 			pov,
@@ -353,16 +319,15 @@ fn perform_basic_checks(
 ///
 /// Returns `Ok(())` if checks pass, error otherwise.
 fn check_wasm_result_against_constraints(
-	global_validation_data: &GlobalValidationData,
-	_local_validation_data: &LocalValidationData,
+	transient_params: &TransientValidationData,
 	result: &WasmValidationResult,
 ) -> Result<(), InvalidCandidate> {
-	if result.head_data.0.len() > global_validation_data.max_head_data_size as _ {
+	if result.head_data.0.len() > transient_params.max_head_data_size as _ {
 		return Err(InvalidCandidate::HeadDataTooLarge(result.head_data.0.len() as u64))
 	}
 
 	if let Some(ref code) = result.new_validation_code {
-		if code.0.len() > global_validation_data.max_code_size as _ {
+		if code.0.len() > transient_params.max_code_size as _ {
 			return Err(InvalidCandidate::NewCodeTooLarge(code.0.len() as u64))
 		}
 	}
@@ -410,7 +375,7 @@ impl ValidationBackend for RealValidationBackend {
 /// Sends the result of validation on the channel once complete.
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
-	omitted_validation: OmittedValidationData,
+	validation_data: ValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -420,15 +385,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		return Ok(ValidationResult::Invalid(e))
 	}
 
-	let OmittedValidationData { global_validation, local_validation } = omitted_validation;
-
 	let params = ValidationParams {
-		parent_head: local_validation.parent_head.clone(),
+		parent_head: validation_data.persisted.parent_head.clone(),
 		block_data: pov.block_data.clone(),
-		max_code_size: global_validation.max_code_size,
-		max_head_data_size: global_validation.max_head_data_size,
-		relay_chain_height: global_validation.block_number,
-		code_upgrade_allowed: local_validation.code_upgrade_allowed,
+		relay_chain_height: validation_data.persisted.block_number,
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
@@ -447,16 +407,14 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
 			let post_check_result = check_wasm_result_against_constraints(
-				&global_validation,
-				&local_validation,
+				&validation_data.transient,
 				&res,
 			);
 
 			Ok(match post_check_result {
 				Ok(()) => ValidationResult::Valid(ValidationOutputs {
 					head_data: res.head_data,
-					global_validation_data: global_validation,
-					local_validation_data: local_validation,
+					validation_data,
 					upward_messages: res.upward_messages,
 					fees: 0,
 					new_validation_code: res.new_validation_code,
