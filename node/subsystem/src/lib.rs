@@ -20,7 +20,7 @@
 //! that communicate via message-passing. They are coordinated by an overseer, provided by a
 //! separate crate.
 //!
-//! This crate also reexports Prometheus metrics which are expected to be implemented by subsystems.
+//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
 #![warn(missing_docs)]
 

@@ -150,7 +150,7 @@ impl metrics::Metrics for Metrics {
 			chain_api_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_chain_api_requests",
+						"parachain_chain_api_requests_total",
 						"Number of Chain API requests served.",
 					),
 					&["succeeded", "failed"],

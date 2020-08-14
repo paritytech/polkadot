@@ -495,7 +495,7 @@ impl metrics::Metrics for Metrics {
 			inherent_data_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"parachain_inherent_data_requests",
+						"parachain_inherent_data_requests_total",
 						"Number of InherentData requests served by provisioner.",
 					),
 					&["succeeded", "failed"],
