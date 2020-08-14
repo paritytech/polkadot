@@ -16,5 +16,6 @@
 
 /// A collection of weight modules used for pallets in the runtime.
 
-pub mod balances;
-pub mod collective;
+pub mod pallet_balances;
+pub mod pallet_collective;
+pub mod pallet_democracy;

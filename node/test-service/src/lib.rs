@@ -25,11 +25,11 @@ use futures::future::Future;
 use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
-use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
+use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, FullNodeHandles, PolkadotClient,
+	new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
 };
-use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -64,12 +64,12 @@ pub fn polkadot_test_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	max_block_data_size: Option<u64>,
-	authority_discovery_disabled: bool,
+	authority_discovery_enabled: bool,
 	slot_duration: u64,
 ) -> Result<
 	(
 		TaskManager,
-		Arc<impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>>,
+		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
@@ -81,13 +81,22 @@ pub fn polkadot_test_new_full(
 			config,
 			collating_for,
 			max_block_data_size,
-			authority_discovery_disabled,
+			authority_discovery_enabled,
 			slot_duration,
 			None,
 			true,
 		)?;
 
 	Ok((task_manager, client, handles, network, rpc_handlers))
+}
+
+/// A wrapper for the test client that implements `ClientHandle`.
+pub struct TestClient(pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
+
+impl ClientHandle for TestClient {
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
+		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
+	}
 }
 
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
@@ -196,13 +205,13 @@ pub fn run_test_node(
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> PolkadotTestNode<
 	TaskManager,
-	impl PolkadotClient<Block, TFullBackend<Block>, polkadot_test_runtime::RuntimeApi>,
+	impl AbstractClient<Block, TFullBackend<Block>>,
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_disabled = true;
+	let authority_discovery_enabled = false;
 	let (task_manager, client, handles, network, rpc_handlers) =
-		polkadot_test_new_full(config, None, None, authority_discovery_disabled, 6000)
+		polkadot_test_new_full(config, None, None, authority_discovery_enabled, 6000)
 			.expect("could not create Polkadot test service");
 
 	let peer_id = network.local_peer_id().clone();
@@ -251,7 +260,6 @@ where
 			.unwrap_or(2) as u64;
 		let tip = 0;
 		let extra: SignedExtra = (
-			RestrictFunctionality,
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -259,20 +267,15 @@ where
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::from_raw(
 			function.clone(),
 			extra.clone(),
 			(
-				(),
 				VERSION.spec_version,
 				VERSION.transaction_version,
 				genesis_block,
 				current_block_hash,
-				(),
-				(),
 				(),
 				(),
 				(),

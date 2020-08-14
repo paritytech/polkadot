@@ -243,11 +243,11 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 pub fn candidate_events<T, F>(extract_event: F) -> Vec<CandidateEvent<T::Hash>>
 where
 	T: initializer::Trait,
-	F: Fn(<T as system::Trait>::Event) -> Option<inclusion::Event<T>>,
+	F: Fn(<T as frame_system::Trait>::Event) -> Option<inclusion::Event<T>>,
 {
 	use inclusion::Event as RawEvent;
 
-	<system::Module<T>>::events().into_iter()
+	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),

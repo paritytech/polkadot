@@ -23,15 +23,13 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use node_primitives::{ProtocolId, View};
-
 use log::{trace, warn};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
-use sc_network::ReputationChange;
+use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange};
 use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
@@ -42,23 +40,38 @@ const COST_MISSING_PEER_SESSION_KEY: ReputationChange =
 	ReputationChange::new(-133, "Missing peer session key");
 const COST_NOT_IN_VIEW: ReputationChange =
 	ReputationChange::new(-51, "Not interested in that parent hash");
-const COST_MESSAGE_NOT_DECODABLE: ReputationChange =
-	ReputationChange::new(-100, "Not interested in that parent hash");
 const COST_PEER_DUPLICATE_MESSAGE: ReputationChange =
 	ReputationChange::new(-500, "Peer sent the same message multiple times");
-const GAIN_VALID_MESSAGE_FIRST: ReputationChange =
+const BENEFIT_VALID_MESSAGE_FIRST: ReputationChange =
 	ReputationChange::new(15, "Valid message with new information");
-const GAIN_VALID_MESSAGE: ReputationChange =
+const BENEFIT_VALID_MESSAGE: ReputationChange =
 	ReputationChange::new(10, "Valid message");
 
 /// Checked signed availability bitfield that is distributed
 /// to other peers.
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
-pub struct BitfieldGossipMessage {
+struct BitfieldGossipMessage {
 	/// The relay parent this message is relative to.
-	pub relay_parent: Hash,
+	relay_parent: Hash,
 	/// The actual signed availability bitfield.
-	pub signed_availability: SignedAvailabilityBitfield,
+	signed_availability: SignedAvailabilityBitfield,
+}
+
+impl BitfieldGossipMessage {
+	fn into_validation_protocol(self) -> protocol_v1::ValidationProtocol {
+		protocol_v1::ValidationProtocol::BitfieldDistribution(
+			self.into_network_message()
+		)
+	}
+
+	fn into_network_message(self)
+		-> protocol_v1::BitfieldDistributionMessage
+	{
+		protocol_v1::BitfieldDistributionMessage::Bitfield(
+			self.relay_parent,
+			self.signed_availability,
+		)
+	}
 }
 
 /// Data used to track information of peers and relay parents the
@@ -114,28 +127,15 @@ impl PerRelayParentData {
 	}
 }
 
-fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
-	AllMessages::BitfieldDistribution(BitfieldDistributionMessage::NetworkBridgeUpdate(n))
-}
-
 /// The bitfield distribution subsystem.
 pub struct BitfieldDistribution;
 
 impl BitfieldDistribution {
-	/// The protocol identifier for bitfield distribution.
-	const PROTOCOL_ID: ProtocolId = *b"bitd";
-
 	/// Start processing work as passed on from the Overseer.
 	async fn run<Context>(mut ctx: Context) -> SubsystemResult<()>
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 	{
-		// startup: register the network protocol with the bridge.
-		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::RegisterEventProducer(Self::PROTOCOL_ID, network_update_message),
-		))
-		.await?;
-
 		// work: process incoming messages from the overseer and process accordingly.
 		let mut state = ProtocolState::default();
 		loop {
@@ -149,7 +149,7 @@ impl BitfieldDistribution {
 						.await?;
 				}
 				FromOverseer::Communication {
-					msg: BitfieldDistributionMessage::NetworkBridgeUpdate(event),
+					msg: BitfieldDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
 					trace!(target: "bitd", "Processing NetworkMessage");
 					// a network message was received
@@ -314,10 +314,9 @@ where
 		);
 	} else {
 		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendMessage(
+			NetworkBridgeMessage::SendValidationMessage(
 				interested_peers,
-				BitfieldDistribution::PROTOCOL_ID,
-				message.encode(),
+				message.into_validation_protocol(),
 			),
 		))
 		.await?;
@@ -396,14 +395,14 @@ where
 				"Already received a message for validator at index {}",
 				validator_index
 			);
-			modify_reputation(ctx, origin, GAIN_VALID_MESSAGE).await?;
+			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 			return Ok(());
 		}
 		one_per_validator.insert(validator.clone(), message.clone());
 
 		relay_message(ctx, job_data, &mut state.peer_views, validator, message).await?;
 
-		modify_reputation(ctx, origin, GAIN_VALID_MESSAGE_FIRST).await
+		modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE_FIRST).await
 	} else {
 		modify_reputation(ctx, origin, COST_SIGNATURE_INVALID).await
 	}
@@ -413,7 +412,7 @@ where
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
-	bridge_message: NetworkBridgeEvent,
+	bridge_message: NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>,
 ) -> SubsystemResult<()>
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
@@ -433,12 +432,16 @@ where
 		NetworkBridgeEvent::OurViewChange(view) => {
 			handle_our_view_change(state, view)?;
 		}
-		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
-			if let Ok(gossiped_bitfield) = BitfieldGossipMessage::decode(&mut (bytes.as_slice())) {
-				trace!(target: "bitd", "Received bitfield gossip from peer {:?}", &remote);
-				process_incoming_peer_message(ctx, state, remote, gossiped_bitfield).await?;
-			} else {
-				modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await?;
+		NetworkBridgeEvent::PeerMessage(remote, message) => {
+			match message {
+				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
+					trace!(target: "bitd", "Received bitfield gossip from peer {:?}", &remote);
+					let gossiped_bitfield = BitfieldGossipMessage {
+						relay_parent,
+						signed_availability: bitfield,
+					};
+					process_incoming_peer_message(ctx, state, remote, gossiped_bitfield).await?;
+				}
 			}
 		}
 	}
@@ -479,14 +482,14 @@ where
 {
 	let current = state.peer_views.entry(origin.clone()).or_default();
 
-	let delta_vec: Vec<Hash> = (*current).difference(&view).cloned().collect();
+	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
 
 	*current = view;
 
 	// Send all messages we've seen before and the peer is now interested
 	// in to that peer.
 
-	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = delta_vec
+	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
 			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
@@ -541,10 +544,9 @@ where
 		.insert(validator.clone());
 
 	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::SendMessage(
+		NetworkBridgeMessage::SendValidationMessage(
 			vec![dest],
-			BitfieldDistribution::PROTOCOL_ID,
-			message.encode(),
+			message.into_validation_protocol(),
 		),
 	))
 	.await?;
@@ -558,7 +560,7 @@ where
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			name: "bitfield-distribution",
+			name: "bitfield-distribution-subsystem",
 			future: Box::pin(async move { Self::run(ctx) }.map(|_| ())),
 		}
 	}
@@ -607,11 +609,12 @@ mod test {
 	use futures::executor;
 	use maplit::hashmap;
 	use polkadot_primitives::v1::{Signed, ValidatorPair, AvailabilityBitfield};
-	use polkadot_subsystem::test_helpers::make_subsystem_context;
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use smol_timeout::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
+	use polkadot_node_network_protocol::ObservedRole;
 
 	macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -742,7 +745,7 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message()),
 			));
 
 			// reputation change due to invalid validator index
@@ -795,7 +798,7 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.into_network_message()),
 			));
 
 			// reputation change due to invalid validator index
@@ -848,7 +851,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			// none of our peers has any interest in any messages
@@ -870,7 +876,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_b);
-					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
 				}
 			);
 
@@ -878,7 +884,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			assert_matches!(
@@ -887,7 +896,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_a);
-					assert_eq!(rep, GAIN_VALID_MESSAGE)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE)
 				}
 			);
 
@@ -895,7 +904,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			assert_matches!(
@@ -909,6 +921,7 @@ mod test {
 			);
 		});
 	}
+
 	#[test]
 	fn changing_view() {
 		let _ = env_logger::builder()
@@ -960,7 +973,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			// gossip to the overseer
@@ -977,12 +993,11 @@ mod test {
 			// gossip to the network
 			assert_matches!(
 				handle.recv().await,
-				AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage (
-					peers, proto, bytes
+				AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage (
+					peers, out_msg,
 				)) => {
 					assert_eq!(peers, peers![peer_b]);
-					assert_eq!(proto, BitfieldDistribution::PROTOCOL_ID);
-					assert_eq!(bytes, msg.encode());
+					assert_eq!(out_msg, msg.clone().into_validation_protocol());
 				}
 			);
 
@@ -993,7 +1008,7 @@ mod test {
 					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
 					assert_eq!(peer, peer_b);
-					assert_eq!(rep, GAIN_VALID_MESSAGE_FIRST)
+					assert_eq!(rep, BENEFIT_VALID_MESSAGE_FIRST)
 				}
 			);
 
@@ -1014,7 +1029,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_b.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_b.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			// reputation change for peer B
@@ -1042,7 +1060,10 @@ mod test {
 			launch!(handle_network_msg(
 				&mut ctx,
 				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_a.clone(), msg.encode()),
+				NetworkBridgeEvent::PeerMessage(
+					peer_a.clone(),
+					msg.clone().into_network_message(),
+				),
 			));
 
 			// reputation change for peer B
@@ -1053,61 +1074,6 @@ mod test {
 				) => {
 					assert_eq!(peer, peer_a);
 					assert_eq!(rep, COST_NOT_IN_VIEW)
-				}
-			);
-
-		});
-	}
-
-
-	#[test]
-	fn invalid_peer_message() {
-		let _ = env_logger::builder()
-			.filter(None, log::LevelFilter::Trace)
-			.is_test(true)
-			.try_init();
-
-		let hash_a: Hash = [0; 32].into();
-		let peer_a = PeerId::random();
-
-		// validator 0 key pair
-		let (mut state, _signing_context, _validator_pair) = state_with_view(view![], hash_a.clone());
-
-		let pool = sp_core::testing::TaskExecutor::new();
-		let (mut ctx, mut handle) =
-			make_subsystem_context::<BitfieldDistributionMessage, _>(pool);
-
-		executor::block_on(async move {
-			launch!(handle_network_msg(
-				&mut ctx,
-				&mut state,
-				NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
-			));
-
-			// make peer b interested
-			launch!(handle_network_msg(
-				&mut ctx,
-				&mut state,
-				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![hash_a]),
-			));
-
-			assert!(state.peer_views.contains_key(&peer_a));
-
-			// recv a first message from the network
-			launch!(handle_network_msg(
-				&mut ctx,
-				&mut state,
-				NetworkBridgeEvent::PeerMessage(peer_a.clone(), b"00AaBbCcDdEeFf".to_vec()),
-			));
-
-			// reputation change for peer A
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ReportPeer(peer, rep)
-				) => {
-					assert_eq!(peer, peer_a);
-					assert_eq!(rep, COST_MESSAGE_NOT_DECODABLE);
 				}
 			);
 

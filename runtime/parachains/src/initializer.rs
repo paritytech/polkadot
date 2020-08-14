@@ -55,7 +55,7 @@ struct BufferedSessionChange<N> {
 }
 
 pub trait Trait:
-	system::Trait + configuration::Trait + paras::Trait + scheduler::Trait + inclusion::Trait
+	frame_system::Trait + configuration::Trait + paras::Trait + scheduler::Trait + inclusion::Trait
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
@@ -89,7 +89,7 @@ decl_error! {
 
 decl_module! {
 	/// The initializer module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
@@ -190,7 +190,7 @@ impl<T: Trait> Module<T> {
 		};
 
 		<BufferedSessionChanges<T>>::mutate(|v| v.push(BufferedSessionChange {
-			apply_at: <system::Module<T>>::block_number() + One::one(),
+			apply_at: <frame_system::Module<T>>::block_number() + One::one(),
 			validators,
 			queued,
 			session_index,
@@ -202,7 +202,7 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: session::Trait + Trait> session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
@@ -214,7 +214,7 @@ impl<T: session::Trait + Trait> session::OneSessionHandler<T::AccountId> for Mod
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-		let session_index = <session::Module<T>>::current_index();
+		let session_index = <pallet_session::Module<T>>::current_index();
 		<Module<T>>::on_new_session(changed, session_index, validators, Some(queued));
 	}
 

@@ -2,14 +2,14 @@
   "name": "Westend",
   "id": "westend2",
   "bootNodes": [
-    "/ip4/104.155.79.90/tcp/30333/p2p/QmZ4HcUygvbrPaABU9MfjqFsSPUKwmH6LyXBFYX2xSXGo2",
-    "/ip4/104.155.79.90/tcp/30334/ws/p2p/QmZ4HcUygvbrPaABU9MfjqFsSPUKwmH6LyXBFYX2xSXGo2",
-    "/ip4/35.205.142.129/tcp/30333/p2p/QmaynNd1C321UowxH8a8MVBe6R8FUYQmaU6Sm4wnvdTyuq",
-    "/ip4/35.205.142.129/tcp/30334/ws/p2p/QmaynNd1C321UowxH8a8MVBe6R8FUYQmaU6Sm4wnvdTyuq",
-    "/ip4/34.73.55.183/tcp/30333/p2p/QmPDkHPQtjVQzhVUwhg1hKyV3U2rmF46aUN4pDUXopZd9j",
-    "/ip4/34.73.55.183/tcp/30334/ws/p2p/QmPDkHPQtjVQzhVUwhg1hKyV3U2rmF46aUN4pDUXopZd9j",
-    "/ip4/35.243.227.147/tcp/30333/p2p/QmfZHq4crnQyJky6vLgUECCVmLiCM1VuiGUpdw44FvLEr5",
-    "/ip4/35.243.227.147/tcp/30334/ws/p2p/QmfZHq4crnQyJky6vLgUECCVmLiCM1VuiGUpdw44FvLEr5"
+    "/dns/0.westend.paritytech.net/tcp/30333/p2p/12D3KooWKer94o1REDPtAhjtYR4SdLehnSrN8PEhBnZm5NBoCrMC",
+    "/dns/0.westend.paritytech.net/tcp/30334/ws/p2p/12D3KooWKer94o1REDPtAhjtYR4SdLehnSrN8PEhBnZm5NBoCrMC",
+    "/dns/1.westend.paritytech.net/tcp/30333/p2p/12D3KooWPVPzs42GvRBShdUMtFsk4SvnByrSdWqb6aeAAHvLMSLS",
+    "/dns/1.westend.paritytech.net/tcp/30334/ws/p2p/12D3KooWPVPzs42GvRBShdUMtFsk4SvnByrSdWqb6aeAAHvLMSLS",
+    "/dns/2.westend.paritytech.net/tcp/30333/p2p/12D3KooWByVpK92hMi9CzTjyFg9cPHDU5ariTM3EPMq9vdh5S5Po",
+    "/dns/2.westend.paritytech.net/tcp/30334/ws/p2p/12D3KooWByVpK92hMi9CzTjyFg9cPHDU5ariTM3EPMq9vdh5S5Po",
+    "/dns/3.westend.paritytech.net/tcp/30333/p2p/12D3KooWGi1tCpKXLMYED9y28QXLnwgD4neYb1Arqq4QpeV1Sv3K",
+    "/dns/3.westend.paritytech.net/tcp/30334/ws/p2p/12D3KooWGi1tCpKXLMYED9y28QXLnwgD4neYb1Arqq4QpeV1Sv3K"
   ],
   "telemetryEndpoints": [
     [

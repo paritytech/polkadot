@@ -145,6 +145,7 @@ fn main() {
 			candidate_validation: Subsystem2,
 			candidate_backing: Subsystem1,
 			candidate_selection: DummySubsystem,
+			collator_protocol: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
 			bitfield_signing: DummySubsystem,
@@ -154,6 +155,7 @@ fn main() {
 			runtime_api: DummySubsystem,
 			availability_store: DummySubsystem,
 			network_bridge: DummySubsystem,
+			chain_api: DummySubsystem,
 		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
