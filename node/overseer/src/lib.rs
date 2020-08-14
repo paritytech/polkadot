@@ -757,6 +757,14 @@ where
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
+		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.collation_generation_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
 		let mut stop_delay = Delay::new(Duration::from_secs(STOP_DELAY)).fuse();
 
 		loop {
@@ -908,7 +916,15 @@ where
 		}
 
 		if let Some(ref mut s) = self.chain_api_subsystem.instance {
-			s.tx.send(FromOverseer::Signal(signal)).await?;
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.collation_generation_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
 
 		Ok(())
