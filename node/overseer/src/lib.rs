@@ -83,7 +83,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, 
+	SpawnedSubsystem, ActiveLeavesUpdate,
 	metrics::{self, prometheus},
 };
 use polkadot_node_primitives::SpawnNamed;
@@ -1248,6 +1248,84 @@ mod tests {
 
 			assert_eq!(s1_results, (0..10).collect::<Vec<_>>());
 		});
+	}
+
+	// Checks activated/deactivated metrics are updated properly.
+	#[test]
+	fn overseer_metrics_work() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		executor::block_on(async move {
+			let first_block_hash = [1; 32].into();
+			let second_block_hash = [2; 32].into();
+			let third_block_hash = [3; 32].into();
+
+			let first_block = BlockInfo {
+				hash: first_block_hash,
+				parent_hash: [0; 32].into(),
+				number: 1,
+			};
+			let second_block = BlockInfo {
+				hash: second_block_hash,
+				parent_hash: first_block_hash,
+				number: 2,
+			};
+			let third_block = BlockInfo {
+				hash: third_block_hash,
+				parent_hash: second_block_hash,
+				number: 3,
+			};
+
+			let all_subsystems = AllSubsystems {
+				candidate_validation: DummySubsystem,
+				candidate_backing: DummySubsystem,
+				candidate_selection: DummySubsystem,
+				collator_protocol: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
+			};
+			let registry = prometheus::Registry::new();
+			let (overseer, mut handler) = Overseer::new(
+				vec![first_block],
+				all_subsystems,
+				Some(&registry),
+				spawner,
+			).unwrap();
+			let overseer_fut = overseer.run().fuse();
+
+			pin_mut!(overseer_fut);
+
+			handler.block_imported(second_block).await.unwrap();
+			handler.block_imported(third_block).await.unwrap();
+			handler.stop().await.unwrap();
+
+			select! {
+				res = overseer_fut => {
+					assert!(res.is_ok());
+					let (activated, deactivated) = extract_metrics(&registry);
+					assert_eq!(activated, 3);
+					assert_eq!(deactivated, 2);
+				},
+				complete => (),
+			}
+		});
+	}
+
+	fn extract_metrics(registry: &prometheus::Registry) -> (u64, u64) {
+		let gather = registry.gather();
+		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
+		(activated, deactivated)
 	}
 
 	// Spawn a subsystem that immediately exits.
