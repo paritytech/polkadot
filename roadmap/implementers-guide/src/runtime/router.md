@@ -129,10 +129,6 @@ HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 
 No initialization routine runs for this module.
 
-## Entry points
-
-The following routines are intended to be invoked by paras' upward messages.
-
 * `hrmp_init_open_channel(recipient)`:
   1. Check that the origin of this message is a para. We say that the origin of this message is the `sender`.
   1. Check that the `sender` is not `recipient`.
@@ -163,10 +159,16 @@ Candidate Acceptance Function:
 
 * `check_upward_messages(P: ParaId, Vec<UpwardMessage>`:
   1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
-  1. Checks each upward message individually depending on its kind:
+  1. Checks each upward message `M` individually depending on its kind:
   1. If the message kind is `Dispatchable`:
       1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed
       upward messages of the `Dispatchable` kind up to this point!)
+  1. If the message kind is `HrmpInitOpenChannel`:
+      1.
+  1. If the message kind is `HrmpAcceptOpenChannel`:
+      1.
+  1. If the message kind is `HrmpCloseChannel`:
+      1. 
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
   1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
   1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
