@@ -133,6 +133,8 @@ struct PersistedValidationData {
 
 These validation data are derived from some relay-chain state to check outputs of the validation function.
 
+It's worth noting that all the data is collected **before** the candidate execution.
+
 ```rust
 struct TransientValidationData {
 	/// The maximum code size permitted, in bytes, of a produced validation code upgrade.
