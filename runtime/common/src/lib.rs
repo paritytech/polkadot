@@ -18,18 +18,17 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-pub mod attestations;
 pub mod claims;
-pub mod parachains;
 pub mod slot_range;
-pub mod registrar;
 pub mod slots;
 pub mod crowdfund;
 pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
 
-use primitives::v0::BlockNumber;
+pub mod dummy;
+
+use primitives::v1::{BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
 use frame_support::{
 	parameter_types, traits::{Currency},
@@ -45,8 +44,6 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
-pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::Call as ParachainsCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
 pub use impls::{CurrencyToVoteHandler, ToAuthor};
@@ -91,6 +88,35 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	AdjustmentVariable,
 	MinimumMultiplier
 >;
+
+/// A placeholder since there is currently no provided session key handler for parachain validator
+/// keys.
+pub struct ParachainSessionKeyPlaceholder<T>(sp_std::marker::PhantomData<T>);
+impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T> {
+	type Public = ValidatorId;
+}
+
+impl<T: pallet_session::Trait>
+	pallet_session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+{
+	type Key = ValidatorId;
+
+	fn on_genesis_session<'a, I: 'a>(_validators: I) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_new_session<'a, I: 'a>(_changed: bool, _v: I, _q: I) where
+		I: Iterator<Item = (&'a T::AccountId, ValidatorId)>,
+		T::AccountId: 'a
+	{
+
+	}
+
+	fn on_disabled(_: usize) { }
+}
 
 #[cfg(test)]
 mod multiplier_tests {
