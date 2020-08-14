@@ -173,8 +173,20 @@ struct TransientValidationData {
 	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
 	/// sent to the parachain are processed.
 	hrmp_watermark: BlockNumber,
+	/// A mapping that specifies if the parachain can send an HRMP message to the given recipient
+	/// channel. A candidate can send a message only to the recipients that are present in this
+	/// mapping.
+	/// Since it's a mapping there can't be two items with same `ParaId`.
+	hrmp_egress_limits: Vec<(ParaId, HrmpChannelLimits)>,
 	/// The number of messages pending of the downward message queue.
 	dmq_length: u32,
+}
+
+struct HrmpChannelLimits {
+	/// Indicates if the channel is already full and cannot accept any more messages.
+	overfilled: bool,
+	/// A message sent to the channel can occupy only that many bytes.
+	available_size: u32,
 }
 ```
 
