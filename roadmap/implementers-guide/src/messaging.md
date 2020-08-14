@@ -37,7 +37,7 @@ that some dispatchables will be left for later blocks. To make the dispatching m
 in a round robin fashion.
 
 Other kinds of upward messages can be introduced in the future as well. Potential candidates are channel management for
-horizontal message passing (XCMP and HRMP, both are to be described later), new validation code signalling, or other
+horizontal message passing (XCMP and HRMP, both are to be described below), new validation code signalling, or other
 requests to the relay chain.
 
 ## Horizontal Message Passing
