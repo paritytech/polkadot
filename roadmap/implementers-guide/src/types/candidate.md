@@ -170,6 +170,9 @@ struct TransientValidationData {
 	/// A vector that enumerates the list of blocks in which there were at least one message was
 	/// received. The first number is always after the watermark.
 	hrmp_digest: Vec<BlockNumber>,
+	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
+	/// sent to the parachain are processed.
+	hrmp_watermark: BlockNumber,
 	/// The number of messages pending of the downward message queue.
 	dmq_length: u32,
 }
