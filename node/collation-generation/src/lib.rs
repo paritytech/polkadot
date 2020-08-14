@@ -282,7 +282,7 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockData, CollatorPair, GlobalValidationData, LocalValidationData, PoV,
+			BlockData, CollatorPair, GlobalValidationData, LocalValidationData, PoV, ScheduledCore, Id as ParaId
 		};
 		use std::pin::Pin;
 
@@ -309,24 +309,31 @@ mod tests {
 
 		impl Unpin for TestCollator {}
 
-		fn test_config() -> Arc<CollationGenerationConfig> {
+		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
 				collator: Box::new(|_gvd: &GlobalValidationData, _lvd: &LocalValidationData| {
 					Box::new(TestCollator)
 				}),
-				para_id: 123.into(),
+				para_id: para_id.into(),
 			})
+		}
+
+		fn scheduled_core_for<Id: Into<ParaId>>(para_id: Id) -> ScheduledCore {
+			ScheduledCore {
+				para_id: para_id.into(),
+				collator: None,
+			}
 		}
 
 		#[test]
 		fn requests_validation_and_availability_per_relay_parent() {
-			let activated_hashes: Arc<Vec<Hash>> = Arc::new(vec![
+			let activated_hashes: Vec<Hash> = vec![
 				[1; 32].into(),
 				[4; 32].into(),
 				[9; 32].into(),
 				[16; 32].into(),
-			]);
+			];
 
 			let requested_validation_data = Arc::new(Mutex::new(Vec::new()));
 			let requested_availability_cores = Arc::new(Mutex::new(Vec::new()));
@@ -353,7 +360,7 @@ mod tests {
 
 			let subsystem_activated_hashes = activated_hashes.clone();
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(test_config(), &subsystem_activated_hashes, &mut ctx, &tx)
+				handle_new_activations(test_config(123), &subsystem_activated_hashes, &mut ctx, &tx)
 					.await
 					.unwrap();
 			});
@@ -367,11 +374,64 @@ mod tests {
 				.into_inner();
 			requested_availability_cores.sort();
 
-			let activated_hashes =
-				Arc::try_unwrap(activated_hashes).expect("subsystem should have shut down by now");
-
 			assert_eq!(requested_validation_data, activated_hashes);
 			assert_eq!(requested_availability_cores, activated_hashes);
+		}
+
+		#[test]
+		fn requests_local_validation_for_scheduled_matches() {
+			let activated_hashes: Vec<Hash> = vec![
+				Hash::repeat_byte(1),
+				Hash::repeat_byte(4),
+				Hash::repeat_byte(9),
+				Hash::repeat_byte(16),
+			];
+
+			let requested_local_validation_data = Arc::new(Mutex::new(Vec::new()));
+
+			let overseer_requested_local_validation_data = requested_local_validation_data.clone();
+			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
+				loop {
+					match handle.recv().await {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::GlobalValidationData(tx))) => {
+							tx.send(Ok(Default::default())).unwrap();
+						}
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx))) => {
+							tx.send(Ok(vec![
+								CoreState::Free,
+								// this is weird, see explanation below
+								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 4) as u32)),
+								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 5) as u32)),
+							])).unwrap();
+						}
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::LocalValidationData(_para_id, _occupied_core_assumption, tx))) => {
+							overseer_requested_local_validation_data.lock().await.push(hash);
+							tx.send(Ok(Default::default())).unwrap();
+						}
+						msg => panic!("didn't expect any other overseer requests; got {:?}", msg),
+					}
+				}
+			};
+
+			let (tx, _rx) = mpsc::channel(0);
+
+			let subsystem_activated_hashes = activated_hashes.clone();
+			subsystem_test_harness(overseer, |mut ctx| async move {
+				handle_new_activations(test_config(16), &subsystem_activated_hashes, &mut ctx, &tx)
+					.await
+					.unwrap();
+			});
+
+			let requested_local_validation_data = Arc::try_unwrap(requested_local_validation_data)
+				.expect("overseer should have shut down by now")
+				.into_inner();
+
+
+			// the only activated hash should be from the 4 hash:
+			// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
+			// given that the test configuration has a para_id of 16, there's only one way to get that value: with the 4
+			// hash.
+			assert_eq!(requested_local_validation_data, vec![[4; 32].into()]);
 		}
 	}
 }
