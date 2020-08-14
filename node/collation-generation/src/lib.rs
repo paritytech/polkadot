@@ -232,15 +232,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				let pov_hash = collation.proof_of_validity.hash();
 
-				println!("signing with {:?}", task_config.key.public());
 				let signature_payload = collator_signature_payload(
 					&relay_parent,
 					&scheduled_core.para_id,
 					&validation_data_hash,
 					&pov_hash,
 				);
-				println!("signed payload: {:x?}", signature_payload.as_ref());
-
 
 				let ccr = CandidateReceipt {
 					commitments_hash: (CandidateCommitments {
@@ -550,14 +547,12 @@ mod tests {
 			let expect_validation_data_hash =
 				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
 			let expect_relay_parent = Hash::repeat_byte(4);
-			println!("checking with {:?}", config.key.public());
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,
 				&config.para_id,
 				&expect_validation_data_hash,
 				&expect_pov_hash,
 			);
-			println!("checked payload: {:x?}", expect_payload.as_ref());
 			let expect_descriptor = CandidateDescriptor {
 				signature: config.key.sign(&expect_payload),
 				para_id: config.para_id,
@@ -573,6 +568,25 @@ mod tests {
 					CandidateReceipt { descriptor, .. },
 					_pov,
 				)) => {
+					// signature generation is non-deterministic, so we can't just assert that the
+					// expected descriptor is correct. What we can do is validate that the produced
+					// descriptor has a valid signature, then just copy in the generated signature
+					// and check the rest of the fields for equality.
+					assert!(CollatorPair::verify(
+						&descriptor.signature,
+						&collator_signature_payload(
+							&descriptor.relay_parent,
+							&descriptor.para_id,
+							&descriptor.validation_data_hash,
+							&descriptor.pov_hash,
+						).as_ref(),
+						&descriptor.collator,
+					));
+					let expect_descriptor = {
+						let mut expect_descriptor = expect_descriptor;
+						expect_descriptor.signature = descriptor.signature.clone();
+						expect_descriptor
+					};
 					assert_eq!(descriptor, &expect_descriptor);
 				}
 				_ => panic!("received wrong message type"),
