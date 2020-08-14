@@ -52,15 +52,15 @@ pub struct RunCmd {
 	pub base: sc_cli::RunCmd,
 
 	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
+	#[structopt(long)]
 	pub force_kusama: bool,
 
 	/// Force using Westend native runtime.
-	#[structopt(long = "force-westend")]
+	#[structopt(long)]
 	pub force_westend: bool,
 
 	/// Force using Rococo native runtime.
-	#[structopt(long = "force-westend")]
+	#[structopt(long)]
 	pub force_rococo: bool,
 
 	/// Disable the authority discovery module on validator or sentry nodes.
