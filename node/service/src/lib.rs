@@ -343,6 +343,7 @@ fn new_full<RuntimeApi, Executor>(
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
+			backend: backend.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
@@ -584,6 +585,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
+			backend: backend.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
