@@ -46,10 +46,7 @@ enum UpwardMessage {
 	HrmpAcceptOpenChannel(ParaId),
 	/// A message for closing an existing channel between (`sender` -> `recipient`). The `origin`
 	/// must be either `sender` or `recipient`.
-	HrmpCloseChannel {
-		sender: ParaId,
-		recipient: ParaId,
-	},
+	HrmpCloseChannel(HrmpChannelId),
 }
 ```
 
