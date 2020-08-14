@@ -282,7 +282,8 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockData, CollatorPair, GlobalValidationData, LocalValidationData, PoV, ScheduledCore, Id as ParaId, BlockNumber,
+			BlockData, BlockNumber, CollatorPair, GlobalValidationData, Id as ParaId,
+			LocalValidationData, PoV, ScheduledCore,
 		};
 		use std::pin::Pin;
 
@@ -360,9 +361,14 @@ mod tests {
 
 			let subsystem_activated_hashes = activated_hashes.clone();
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(test_config(123), &subsystem_activated_hashes, &mut ctx, &tx)
-					.await
-					.unwrap();
+				handle_new_activations(
+					test_config(123),
+					&subsystem_activated_hashes,
+					&mut ctx,
+					&tx,
+				)
+				.await
+				.unwrap();
 			});
 
 			let mut requested_validation_data = Arc::try_unwrap(requested_validation_data)
@@ -393,19 +399,40 @@ mod tests {
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
 					match handle.recv().await {
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::GlobalValidationData(tx))) => {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::GlobalValidationData(tx),
+						)) => {
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx))) => {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							hash,
+							RuntimeApiRequest::AvailabilityCores(tx),
+						)) => {
 							tx.send(Ok(vec![
 								CoreState::Free,
 								// this is weird, see explanation below
-								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 4) as u32)),
-								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 5) as u32)),
-							])).unwrap();
+								CoreState::Scheduled(scheduled_core_for(
+									(hash.as_fixed_bytes()[0] * 4) as u32,
+								)),
+								CoreState::Scheduled(scheduled_core_for(
+									(hash.as_fixed_bytes()[0] * 5) as u32,
+								)),
+							]))
+							.unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::LocalValidationData(_para_id, _occupied_core_assumption, tx))) => {
-							overseer_requested_local_validation_data.lock().await.push(hash);
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							hash,
+							RuntimeApiRequest::LocalValidationData(
+								_para_id,
+								_occupied_core_assumption,
+								tx,
+							),
+						)) => {
+							overseer_requested_local_validation_data
+								.lock()
+								.await
+								.push(hash);
 							tx.send(Ok(Default::default())).unwrap();
 						}
 						msg => panic!("didn't expect any other overseer requests; got {:?}", msg),
@@ -424,7 +451,6 @@ mod tests {
 			let requested_local_validation_data = Arc::try_unwrap(requested_local_validation_data)
 				.expect("overseer should have shut down by now")
 				.into_inner();
-
 
 			// the only activated hash should be from the 4 hash:
 			// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
@@ -445,18 +471,36 @@ mod tests {
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
 					match handle.recv().await {
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::GlobalValidationData(tx))) => {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::GlobalValidationData(tx),
+						)) => {
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx))) => {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							hash,
+							RuntimeApiRequest::AvailabilityCores(tx),
+						)) => {
 							tx.send(Ok(vec![
 								CoreState::Free,
 								// this is weird, see explanation below
-								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 4) as u32)),
-								CoreState::Scheduled(scheduled_core_for((hash.as_fixed_bytes()[0] * 5) as u32)),
-							])).unwrap();
+								CoreState::Scheduled(scheduled_core_for(
+									(hash.as_fixed_bytes()[0] * 4) as u32,
+								)),
+								CoreState::Scheduled(scheduled_core_for(
+									(hash.as_fixed_bytes()[0] * 5) as u32,
+								)),
+							]))
+							.unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::LocalValidationData(_para_id, _occupied_core_assumption, tx))) => {
+						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::LocalValidationData(
+								_para_id,
+								_occupied_core_assumption,
+								tx,
+							),
+						)) => {
 							tx.send(Ok(Default::default())).unwrap();
 						}
 						msg => panic!("didn't expect any other overseer requests; got {:?}", msg),
@@ -483,16 +527,24 @@ mod tests {
 				*subsystem_sent_messages.lock().await = rx.collect().await;
 			});
 
-			let sent_messages = Arc::try_unwrap(sent_messages).expect("subsystem should have shut down by now").into_inner();
+			let sent_messages = Arc::try_unwrap(sent_messages)
+				.expect("subsystem should have shut down by now")
+				.into_inner();
 
 			// we expect a single message to be sent, containing a candidate receipt.
 			// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
 			// correct descriptor
 			let expect_pov_hash = test_collation().proof_of_validity.hash();
-			let expect_validation_data_hash = validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
+			let expect_validation_data_hash =
+				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
 			let expect_relay_parent = Hash::repeat_byte(16);
 			let expect_descriptor = CandidateDescriptor {
-				signature: config.key.sign(&collator_signature_payload(&expect_relay_parent, &config.para_id, &expect_validation_data_hash, &expect_pov_hash)),
+				signature: config.key.sign(&collator_signature_payload(
+					&expect_relay_parent,
+					&config.para_id,
+					&expect_validation_data_hash,
+					&expect_pov_hash,
+				)),
 				para_id: config.para_id,
 				relay_parent: expect_relay_parent,
 				collator: config.key.public(),
@@ -502,9 +554,12 @@ mod tests {
 
 			assert_eq!(sent_messages.len(), 1);
 			match &sent_messages[0] {
-				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(CandidateReceipt { descriptor, .. }, .. )) => {
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::DistributeCollation(
+					CandidateReceipt { descriptor, .. },
+					_pov,
+				)) => {
 					assert_eq!(descriptor, &expect_descriptor);
-				},
+				}
 				_ => panic!("received wrong message type"),
 			}
 		}
