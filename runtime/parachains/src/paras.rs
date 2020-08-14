@@ -28,6 +28,7 @@ use sp_std::marker::PhantomData;
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData,
 };
+use sp_runtime::traits::One;
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	traits::Get,

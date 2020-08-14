@@ -19,6 +19,7 @@
 
 use sp_runtime::traits::{One, Saturating};
 use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData};
+use sp_std::prelude::*;
 
 use crate::{configuration, paras};
 
