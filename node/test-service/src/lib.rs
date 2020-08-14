@@ -25,9 +25,11 @@ use futures::future::Future;
 use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
-use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
-use polkadot_service::{new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient};
-use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_runtime_common::BlockHashCount;
+use polkadot_service::{
+	new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
+};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -258,7 +260,6 @@ where
 			.unwrap_or(2) as u64;
 		let tip = 0;
 		let extra: SignedExtra = (
-			RestrictFunctionality,
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -266,20 +267,15 @@ where
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::from_raw(
 			function.clone(),
 			extra.clone(),
 			(
-				(),
 				VERSION.spec_version,
 				VERSION.transaction_version,
 				genesis_block,
 				current_block_hash,
-				(),
-				(),
 				(),
 				(),
 				(),
