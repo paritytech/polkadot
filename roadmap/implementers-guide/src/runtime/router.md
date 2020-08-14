@@ -115,6 +115,7 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
+/// Invariant: The vector is never empty.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
