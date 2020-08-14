@@ -17,7 +17,7 @@ log = "0.4.8"
 derive_more = "0.99.9"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "mxinden-libp2p-0.24.0" }
 futures = { version = "0.3.5", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 kvdb-memorydb = "0.7.0"

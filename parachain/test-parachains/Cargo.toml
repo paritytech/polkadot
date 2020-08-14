@@ -15,7 +15,7 @@ halt = { package = "test-parachain-halt", path = "halt" }
 code-upgrader = { package = "test-parachain-code-upgrader", path = "code-upgrader" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "mxinden-libp2p-0.24.0" }
 
 [features]
 default = [ "std" ]
