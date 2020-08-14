@@ -232,6 +232,16 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				let pov_hash = collation.proof_of_validity.hash();
 
+				println!("signing with {:?}", task_config.key.public());
+				let signature_payload = collator_signature_payload(
+					&relay_parent,
+					&scheduled_core.para_id,
+					&validation_data_hash,
+					&pov_hash,
+				);
+				println!("signed payload: {:x?}", signature_payload.as_ref());
+
+
 				let ccr = CandidateReceipt {
 					commitments_hash: (CandidateCommitments {
 						upward_messages: collation.upward_messages,
@@ -239,12 +249,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						..Default::default()
 					}).hash(),
 					descriptor: CandidateDescriptor {
-						signature: task_config.key.sign(&collator_signature_payload(
-							&relay_parent,
-							&scheduled_core.para_id,
-							&validation_data_hash,
-							&pov_hash,
-						)),
+						signature: task_config.key.sign(&signature_payload),
 						para_id: scheduled_core.para_id,
 						relay_parent,
 						collator: task_config.key.public(),
@@ -343,16 +348,17 @@ mod tests {
 			let overseer_requested_availability_cores = requested_availability_cores.clone();
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
-					match handle.recv().await {
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::GlobalValidationData(tx))) => {
+					match handle.try_recv().await {
+						None => break,
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::GlobalValidationData(tx)))) => {
 							overseer_requested_validation_data.lock().await.push(hash);
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx))) => {
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx)))) => {
 							overseer_requested_availability_cores.lock().await.push(hash);
 							tx.send(Ok(vec![])).unwrap();
 						}
-						msg => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
+						Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
 					}
 				}
 			};
@@ -398,17 +404,18 @@ mod tests {
 			let overseer_requested_local_validation_data = requested_local_validation_data.clone();
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
-					match handle.recv().await {
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					match handle.try_recv().await {
+						None => break,
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
 							RuntimeApiRequest::GlobalValidationData(tx),
-						)) => {
+						))) => {
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
 							RuntimeApiRequest::AvailabilityCores(tx),
-						)) => {
+						))) => {
 							tx.send(Ok(vec![
 								CoreState::Free,
 								// this is weird, see explanation below
@@ -421,21 +428,23 @@ mod tests {
 							]))
 							.unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
 							RuntimeApiRequest::LocalValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
 							),
-						)) => {
+						))) => {
 							overseer_requested_local_validation_data
 								.lock()
 								.await
 								.push(hash);
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						msg => panic!("didn't expect any other overseer requests; got {:?}", msg),
+						Some(msg) => {
+							panic!("didn't expect any other overseer requests; got {:?}", msg)
+						}
 					}
 				}
 			};
@@ -470,17 +479,18 @@ mod tests {
 
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
-					match handle.recv().await {
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					match handle.try_recv().await {
+						None => break,
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
 							RuntimeApiRequest::GlobalValidationData(tx),
-						)) => {
+						))) => {
 							tx.send(Ok(Default::default())).unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
 							RuntimeApiRequest::AvailabilityCores(tx),
-						)) => {
+						))) => {
 							tx.send(Ok(vec![
 								CoreState::Free,
 								// this is weird, see explanation below
@@ -493,17 +503,19 @@ mod tests {
 							]))
 							.unwrap();
 						}
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
 							RuntimeApiRequest::LocalValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
 							),
-						)) => {
-							tx.send(Ok(Default::default())).unwrap();
+						))) => {
+							tx.send(Ok(Some(Default::default()))).unwrap();
 						}
-						msg => panic!("didn't expect any other overseer requests; got {:?}", msg),
+						Some(msg) => {
+							panic!("didn't expect any other overseer requests; got {:?}", msg)
+						}
 					}
 				}
 			};
@@ -537,14 +549,17 @@ mod tests {
 			let expect_pov_hash = test_collation().proof_of_validity.hash();
 			let expect_validation_data_hash =
 				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
-			let expect_relay_parent = Hash::repeat_byte(16);
+			let expect_relay_parent = Hash::repeat_byte(4);
+			println!("checking with {:?}", config.key.public());
+			let expect_payload = collator_signature_payload(
+				&expect_relay_parent,
+				&config.para_id,
+				&expect_validation_data_hash,
+				&expect_pov_hash,
+			);
+			println!("checked payload: {:x?}", expect_payload.as_ref());
 			let expect_descriptor = CandidateDescriptor {
-				signature: config.key.sign(&collator_signature_payload(
-					&expect_relay_parent,
-					&config.para_id,
-					&expect_validation_data_hash,
-					&expect_pov_hash,
-				)),
+				signature: config.key.sign(&expect_payload),
 				para_id: config.para_id,
 				relay_parent: expect_relay_parent,
 				collator: config.key.public(),

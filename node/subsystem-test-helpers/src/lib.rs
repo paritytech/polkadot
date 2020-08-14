@@ -219,7 +219,12 @@ impl<M> TestSubsystemContextHandle<M> {
 
 	/// Receive the next message from the subsystem.
 	pub async fn recv(&mut self) -> AllMessages {
-		self.rx.next().await.expect("Test subsystem no longer live")
+		self.try_recv().await.expect("Test subsystem no longer live")
+	}
+
+	/// Receive the next message from the subsystem, or `None` if the channel has been closed.
+	pub async fn try_recv(&mut self) -> Option<AllMessages> {
+		self.rx.next().await
 	}
 }
 
