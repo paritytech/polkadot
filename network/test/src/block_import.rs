@@ -29,7 +29,7 @@ fn prepare_good_block() -> (TestClient, Hash, u64, PeerId, IncomingBlock<Block>)
 	let mut client = polkadot_test_runtime_client::new();
 	let mut builder = client.new_block(Default::default()).unwrap();
 
-	let extrinsics = polkadot_test_runtime_client::needed_extrinsics(vec![], 0);
+	let extrinsics = polkadot_test_runtime_client::needed_extrinsics(0);
 
 	for extrinsic in &extrinsics {
 		builder.push(extrinsic.clone()).unwrap();
