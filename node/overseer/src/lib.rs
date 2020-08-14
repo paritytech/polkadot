@@ -737,7 +737,7 @@ where
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
-		if let Some(ref mut s) = self.availability_distribution_subsystem.instance {
+		if let Some(ref mut s) = self.availability_store_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -1695,8 +1695,7 @@ mod tests {
 				res = overseer_fut => {
 					const NUM_SUBSYSTEMS: usize = 14;
 
-					// TODO: why - 1?
-					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS - 1);
+					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
 					assert_eq!(signals_received.load(atomic::Ordering::SeqCst), 2 * NUM_SUBSYSTEMS);
 					// -1 for BitfieldSigning
