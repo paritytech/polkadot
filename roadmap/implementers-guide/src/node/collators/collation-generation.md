@@ -8,7 +8,7 @@ Input: `CollationGenerationMessage`
 
 ```rust
 enum CollationGenerationMessage {
-    Initialize(CollationGenerationConfig),
+  Initialize(CollationGenerationConfig),
 }
 ```
 
@@ -22,15 +22,15 @@ The process of generating a collation for a parachain is very parachain-specific
 
 ```rust
 pub struct Collation {
-    pub head_data: HeadData,
-    pub upward_messages: Vec<UpwardMessage>,
-    pub proof_of_validity: PoV,
+  /// Hash of `CandidateCommitments` as understood by the collator.
+  pub commitments_hash: Hash,
+  pub proof_of_validity: PoV,
 }
 
 struct CollationGenerationConfig {
-    key: CollatorPair,
-    collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation>>>
-    para_id: ParaId,
+  key: CollatorPair,
+  collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation>>>
+  para_id: ParaId,
 }
 ```
 

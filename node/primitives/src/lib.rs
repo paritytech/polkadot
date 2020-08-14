@@ -263,10 +263,8 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 /// The output of a collator.
 #[derive(Clone, Encode, Decode)]
 pub struct Collation {
-	/// Head data of the para block.
-	pub head_data: HeadData,
-	/// Messages to be passed up to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
+	/// Hash of `CandidateCommitments` as understood by the collator.
+	pub commitments_hash: Hash,
 	/// Proof that this block is valid.
 	pub proof_of_validity: PoV,
 }
