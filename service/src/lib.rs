@@ -257,7 +257,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	Arc<FullClient<RuntimeApi, Executor>>,
 	FullNodeHandles,
 	Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	Arc<RpcHandlers>,
+	RpcHandlers,
 ), Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -560,7 +560,7 @@ pub fn new_full<RuntimeApi, Executor>(
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, RpcHandlers), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -784,7 +784,7 @@ pub struct FullNodeHandles {
 }
 
 /// Build a new light node.
-pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
+pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 	} else if config.chain_spec.is_westend() {

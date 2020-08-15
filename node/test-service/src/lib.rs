@@ -72,7 +72,7 @@ pub fn polkadot_test_new_full(
 		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
-		Arc<RpcHandlers>,
+		RpcHandlers,
 	),
 	ServiceError,
 > {
@@ -237,7 +237,7 @@ pub struct PolkadotTestNode<S, C> {
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
-	pub rpc_handlers: Arc<RpcHandlers>,
+	pub rpc_handlers: RpcHandlers,
 }
 
 impl<S, C> PolkadotTestNode<S, C>
