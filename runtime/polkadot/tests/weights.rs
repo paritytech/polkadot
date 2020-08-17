@@ -51,15 +51,6 @@ fn sanity_check_weight_per_time_constants_are_as_expected() {
 }
 
 #[test]
-fn weight_of_timestamp_set_is_correct() {
-	// #[weight = T::DbWeight::get().reads_writes(2, 1) + 8_000_000]
-	let expected_weight = (2 * DbWeight::get().read) + DbWeight::get().write + 8_000_000;
-	let weight = polkadot_runtime::TimestampCall::set::<Runtime>(Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_staking_bond_is_correct() {
 	let controller: AccountId = AccountKeyring::Alice.into();
 
@@ -101,34 +92,6 @@ fn weight_of_system_set_code_is_correct() {
 	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
 	let expected_weight = MaximumBlockWeight::get();
 	let weight = SystemCall::set_code::<Runtime>(vec![]).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_system_set_storage_is_correct() {
-	let storage_items = vec![(vec![12], vec![34]), (vec![45], vec![83])];
-	let len = storage_items.len() as Weight;
-
-	// #[weight = FunctionOf(
-	// 	|(items,): (&Vec<KeyValue>,)| {
-	// 		T::DbWeight::get().writes(items.len() as Weight)
-	// 			.saturating_add((items.len() as Weight).saturating_mul(600_000))
-	// 	},
-	// 	DispatchClass::Operational,
-	// 	Pays::Yes,
-	// )]
-	let expected_weight = (DbWeight::get().write * len).saturating_add(len.saturating_mul(600_000));
-	let weight = SystemCall::set_storage::<Runtime>(storage_items).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_system_remark_is_correct() {
-	// #[weight = 700_000]
-	let expected_weight = 700_000;
-	let weight = SystemCall::remark::<Runtime>(vec![]).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
