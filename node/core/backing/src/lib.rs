@@ -863,14 +863,14 @@ mod tests {
 			let validation_data = ValidationData {
 				persisted: PersistedValidationData {
 					parent_head: HeadData(vec![7, 8, 9]),
-					code_upgrade_allowed: None,
 					block_number: Default::default(),
+					hrmp_mqc_heads: Vec::new(),
 				},
 				transient: TransientValidationData {
 					max_code_size: 1000,
 					max_head_data_size: 1000,
 					balance: Default::default(),
-					hrmp_mqc_heads: Vec::new(),
+					code_upgrade_allowed: None,
 				},
 			};
 
