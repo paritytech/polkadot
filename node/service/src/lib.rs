@@ -281,7 +281,6 @@ fn real_overseer<S: SpawnNamed>(
 		candidate_validation: DummySubsystem,
 		candidate_backing: DummySubsystem,
 		candidate_selection: DummySubsystem,
-		collator_protocol: DummySubsystem,
 		statement_distribution: DummySubsystem,
 		availability_distribution: DummySubsystem,
 		bitfield_signing: DummySubsystem,
@@ -292,6 +291,8 @@ fn real_overseer<S: SpawnNamed>(
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,
 		chain_api: DummySubsystem,
+		collation_generation: DummySubsystem,
+		collator_protocol: DummySubsystem,
 	};
 	Overseer::new(
 		leaves,

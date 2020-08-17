@@ -78,8 +78,8 @@ use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage,
 	CandidateSelectionMessage, ChainApiMessage, StatementDistributionMessage,
 	AvailabilityDistributionMessage, BitfieldSigningMessage, BitfieldDistributionMessage,
-	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage, CollatorProtocolMessage,
-	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages,
+	ProvisionerMessage, PoVDistributionMessage, RuntimeApiMessage,
+	AvailabilityStoreMessage, NetworkBridgeMessage, AllMessages, CollationGenerationMessage, CollatorProtocolMessage,
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
@@ -352,9 +352,6 @@ pub struct Overseer<S: SpawnNamed> {
 	/// A candidate selection subsystem.
 	candidate_selection_subsystem: OverseenSubsystem<CandidateSelectionMessage>,
 
-	/// A collator protocol subsystem
-	collator_protocol_subsystem: OverseenSubsystem<CollatorProtocolMessage>,
-
 	/// A statement distribution subsystem.
 	statement_distribution_subsystem: OverseenSubsystem<StatementDistributionMessage>,
 
@@ -382,8 +379,14 @@ pub struct Overseer<S: SpawnNamed> {
 	/// A network bridge subsystem.
 	network_bridge_subsystem: OverseenSubsystem<NetworkBridgeMessage>,
 
-	/// A Chain API subsystem
+	/// A Chain API subsystem.
 	chain_api_subsystem: OverseenSubsystem<ChainApiMessage>,
+
+	/// A Collation Generation subsystem.
+	collation_generation_subsystem: OverseenSubsystem<CollationGenerationMessage>,
+
+	/// A Collator Protocol subsystem.
+	collator_protocol_subsystem: OverseenSubsystem<CollatorProtocolMessage>,
 
 	/// Spawner to spawn tasks to.
 	s: S,
@@ -417,15 +420,13 @@ pub struct Overseer<S: SpawnNamed> {
 ///
 /// [`Subsystem`]: trait.Subsystem.html
 /// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA> {
+pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
 	pub candidate_backing: CB,
 	/// A candidate selection subsystem.
 	pub candidate_selection: CS,
-	/// A collator protocol subsystem.
-	pub collator_protocol: CP,
 	/// A statement distribution subsystem.
 	pub statement_distribution: SD,
 	/// An availability distribution subsystem.
@@ -446,6 +447,10 @@ pub struct AllSubsystems<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA
 	pub network_bridge: NB,
 	/// A Chain API subsystem.
 	pub chain_api: CA,
+	/// A Collation Generation subsystem.
+	pub collation_generation: CG,
+	/// A Collator Protocol subsystem.
+	pub collator_protocol: CP,
 }
 
 impl<S> Overseer<S>
@@ -518,7 +523,6 @@ where
 	///     candidate_validation: ValidationSubsystem,
 	///     candidate_backing: DummySubsystem,
 	///     candidate_selection: DummySubsystem,
-	///	    collator_protocol: DummySubsystem,
 	///     statement_distribution: DummySubsystem,
 	///     availability_distribution: DummySubsystem,
 	///     bitfield_signing: DummySubsystem,
@@ -529,6 +533,8 @@ where
 	///     availability_store: DummySubsystem,
 	///     network_bridge: DummySubsystem,
 	///     chain_api: DummySubsystem,
+	///     collation_generation: DummySubsystem,
+	///     collator_protocol: DummySubsystem,
 	/// };
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
@@ -549,16 +555,15 @@ where
 	/// #
 	/// # }); }
 	/// ```
-	pub fn new<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>(
+	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
-		all_subsystems: AllSubsystems<CV, CB, CS, CP, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA>,
+		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
 		CV: Subsystem<OverseerSubsystemContext<CandidateValidationMessage>> + Send,
 		CB: Subsystem<OverseerSubsystemContext<CandidateBackingMessage>> + Send,
 		CS: Subsystem<OverseerSubsystemContext<CandidateSelectionMessage>> + Send,
-		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
 		SD: Subsystem<OverseerSubsystemContext<StatementDistributionMessage>> + Send,
 		AD: Subsystem<OverseerSubsystemContext<AvailabilityDistributionMessage>> + Send,
 		BS: Subsystem<OverseerSubsystemContext<BitfieldSigningMessage>> + Send,
@@ -569,6 +574,8 @@ where
 		AS: Subsystem<OverseerSubsystemContext<AvailabilityStoreMessage>> + Send,
 		NB: Subsystem<OverseerSubsystemContext<NetworkBridgeMessage>> + Send,
 		CA: Subsystem<OverseerSubsystemContext<ChainApiMessage>> + Send,
+		CG: Subsystem<OverseerSubsystemContext<CollationGenerationMessage>> + Send,
+		CP: Subsystem<OverseerSubsystemContext<CollatorProtocolMessage>> + Send,
 	{
 		let (events_tx, events_rx) = mpsc::channel(CHANNEL_CAPACITY);
 
@@ -598,13 +605,6 @@ where
 			&mut running_subsystems,
 			&mut running_subsystems_rx,
 			all_subsystems.candidate_selection,
-		)?;
-
-		let collator_protocol_subsystem = spawn(
-			&mut s,
-			&mut running_subsystems,
-			&mut running_subsystems_rx,
-			all_subsystems.collator_protocol,
 		)?;
 
 		let statement_distribution_subsystem = spawn(
@@ -677,6 +677,21 @@ where
 			all_subsystems.chain_api,
 		)?;
 
+		let collation_generation_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.collation_generation,
+		)?;
+
+
+		let collator_protocol_subsystem = spawn(
+			&mut s,
+			&mut running_subsystems,
+			&mut running_subsystems_rx,
+			all_subsystems.collator_protocol,
+		)?;
+
 		let active_leaves = HashSet::new();
 
 		let leaves = leaves
@@ -688,7 +703,6 @@ where
 			candidate_validation_subsystem,
 			candidate_backing_subsystem,
 			candidate_selection_subsystem,
-			collator_protocol_subsystem,
 			statement_distribution_subsystem,
 			availability_distribution_subsystem,
 			bitfield_signing_subsystem,
@@ -699,6 +713,8 @@ where
 			availability_store_subsystem,
 			network_bridge_subsystem,
 			chain_api_subsystem,
+			collation_generation_subsystem,
+			collator_protocol_subsystem,
 			s,
 			running_subsystems,
 			running_subsystems_rx,
@@ -721,10 +737,6 @@ where
 		}
 
 		if let Some(ref mut s) = self.candidate_selection_subsystem.instance {
-			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-		}
-
-		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -765,6 +777,14 @@ where
 		}
 
 		if let Some(ref mut s) = self.chain_api_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
+			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		}
+
+		if let Some(ref mut s) = self.collation_generation_subsystem.instance {
 			let _ = s.tx.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		}
 
@@ -889,10 +909,6 @@ where
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
 
-		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
-			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
-		}
-
 		if let Some(ref mut s) = self.statement_distribution_subsystem.instance {
 			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
@@ -930,7 +946,15 @@ where
 		}
 
 		if let Some(ref mut s) = self.chain_api_subsystem.instance {
-			s.tx.send(FromOverseer::Signal(signal)).await?;
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
+		}
+
+		if let Some(ref mut s) = self.collation_generation_subsystem.instance {
+			s.tx.send(FromOverseer::Signal(signal.clone())).await?;
 		}
 
 		Ok(())
@@ -950,11 +974,6 @@ where
 			}
 			AllMessages::CandidateSelection(msg) => {
 				if let Some(ref mut s) = self.candidate_selection_subsystem.instance {
-					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
-				}
-			}
-			AllMessages::CollatorProtocol(msg) => {
-				if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
@@ -1005,6 +1024,16 @@ where
 			}
 			AllMessages::ChainApi(msg) => {
 				if let Some(ref mut s) = self.chain_api_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::CollationGeneration(msg) => {
+				if let Some(ref mut s) = self.collation_generation_subsystem.instance {
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
+				}
+			}
+			AllMessages::CollatorProtocol(msg) => {
+				if let Some(ref mut s) = self.collator_protocol_subsystem.instance {
 					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
@@ -1169,7 +1198,6 @@ mod tests {
 				candidate_validation: TestSubsystem1(s1_tx),
 				candidate_backing: TestSubsystem2(s2_tx),
 				candidate_selection: DummySubsystem,
-				collator_protocol: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
 				bitfield_signing: DummySubsystem,
@@ -1180,6 +1208,8 @@ mod tests {
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
 				chain_api: DummySubsystem,
+				collation_generation: DummySubsystem,
+				collator_protocol: DummySubsystem,
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
@@ -1234,7 +1264,6 @@ mod tests {
 				candidate_validation: TestSubsystem1(s1_tx),
 				candidate_backing: TestSubsystem4,
 				candidate_selection: DummySubsystem,
-				collator_protocol: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
 				bitfield_signing: DummySubsystem,
@@ -1245,6 +1274,8 @@ mod tests {
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
 				chain_api: DummySubsystem,
+				collation_generation: DummySubsystem,
+				collator_protocol: DummySubsystem,
 			};
 			let (overseer, _handle) = Overseer::new(
 				vec![],
@@ -1352,7 +1383,6 @@ mod tests {
 				candidate_validation: TestSubsystem5(tx_5),
 				candidate_backing: TestSubsystem6(tx_6),
 				candidate_selection: DummySubsystem,
-				collator_protocol: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
 				bitfield_signing: DummySubsystem,
@@ -1363,6 +1393,8 @@ mod tests {
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
 				chain_api: DummySubsystem,
+				collation_generation: DummySubsystem,
+				collator_protocol: DummySubsystem,
 			};
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
@@ -1455,7 +1487,6 @@ mod tests {
 				candidate_validation: TestSubsystem5(tx_5),
 				candidate_backing: TestSubsystem6(tx_6),
 				candidate_selection: DummySubsystem,
-				collator_protocol: DummySubsystem,
 				statement_distribution: DummySubsystem,
 				availability_distribution: DummySubsystem,
 				bitfield_signing: DummySubsystem,
@@ -1466,6 +1497,8 @@ mod tests {
 				availability_store: DummySubsystem,
 				network_bridge: DummySubsystem,
 				chain_api: DummySubsystem,
+				collation_generation: DummySubsystem,
+				collator_protocol: DummySubsystem,
 			};
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
