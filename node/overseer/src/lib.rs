@@ -112,6 +112,13 @@ enum ToOverseer {
 		name: &'static str,
 		s: BoxFuture<'static, ()>,
 	},
+
+	/// Same as `SpawnJob` but for blocking tasks to be executed on a
+	/// dedicated thread pool.
+	SpawnBlockingJob {
+		name: &'static str,
+		s: BoxFuture<'static, ()>,
+	},
 }
 
 /// An event telling the `Overseer` on the particular block
@@ -238,7 +245,8 @@ impl Debug for ToOverseer {
 			ToOverseer::SubsystemMessage(msg) => {
 				write!(f, "OverseerMessage::SubsystemMessage({:?})", msg)
 			}
-			ToOverseer::SpawnJob { .. } => write!(f, "OverseerMessage::Spawn(..)")
+			ToOverseer::SpawnJob { .. } => write!(f, "OverseerMessage::Spawn(..)"),
+			ToOverseer::SpawnBlockingJob { .. } => write!(f, "OverseerMessage::SpawnBlocking(..)")
 		}
 	}
 }
@@ -283,6 +291,17 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		-> SubsystemResult<()>
 	{
 		self.tx.send(ToOverseer::SpawnJob {
+			name,
+			s,
+		}).await?;
+
+		Ok(())
+	}
+
+	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+		-> SubsystemResult<()>
+	{
+		self.tx.send(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
 		}).await?;
@@ -803,6 +822,9 @@ where
 					ToOverseer::SpawnJob { name, s } => {
 						self.spawn_job(name, s);
 					}
+					ToOverseer::SpawnBlockingJob { name, s } => {
+						self.spawn_blocking_job(name, s);
+					}
 				}
 			}
 
@@ -991,6 +1013,10 @@ where
 
 	fn spawn_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
 		self.s.spawn(name, j);
+	}
+
+	fn spawn_blocking_job(&mut self, name: &'static str, j: BoxFuture<'static, ()>) {
+		self.s.spawn_blocking(name, j);
 	}
 }
 

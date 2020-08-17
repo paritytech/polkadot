@@ -177,6 +177,13 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext for Tes
 		Ok(())
 	}
 
+	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
+		-> SubsystemResult<()>
+	{
+		self.spawn.spawn_blocking(name, s);
+		Ok(())
+	}
+
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
 		self.tx.send(msg).await.expect("test overseer no longer live");
 		Ok(())
