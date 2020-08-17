@@ -77,7 +77,7 @@ struct CandidateDescriptor {
 	/// The blake2-256 hash of the persisted validation data. These are extra parameters
 	/// derived from relay-chain state that influence the validity of the block which
 	/// must also be kept available for secondary checkers.
-	validation_data_hash: Hash,
+	persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
 	/// Signature on blake2-256 of components of this receipt:

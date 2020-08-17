@@ -182,9 +182,9 @@ async fn check_assumption_validation_data(
 		}
 	};
 
-	let validation_data_hash = validation_data.persisted.hash();
+	let persisted_validation_data_hash = validation_data.persisted.hash();
 
-	SubsystemResult::Ok(if descriptor.validation_data_hash == validation_data_hash {
+	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
 		let (code_tx, code_rx) = oneshot::channel();
 		let validation_code = runtime_api_request(
 			ctx,
@@ -213,7 +213,7 @@ async fn spawn_validate_from_chain_state(
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	// The candidate descriptor has a `validation_data_hash` which corresponds to
+	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
 	// relay-parent. We can fetch these values by getting the persisted validation data
 	// based on the different `OccupiedCoreAssumption`s.
@@ -260,7 +260,7 @@ async fn spawn_validate_from_chain_state(
 	}
 
 	// If neither the assumption of the occupied core having the para included or the assumption
-	// of the occupied core timing out are valid, then the validation_data_hash in the descriptor
+	// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 	// is not based on the relay parent and is thus invalid.
 	Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
 }
@@ -475,7 +475,7 @@ mod tests {
 		let payload = polkadot_primitives::v1::collator_signature_payload(
 			&descriptor.relay_parent,
 			&descriptor.para_id,
-			&descriptor.validation_data_hash,
+			&descriptor.persisted_validation_data_hash,
 			&descriptor.pov_hash,
 		);
 
@@ -488,13 +488,13 @@ mod tests {
 		let validation_data: ValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -548,13 +548,13 @@ mod tests {
 		let validation_data: ValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -606,13 +606,13 @@ mod tests {
 	#[test]
 	fn check_is_bad_request_if_no_validation_data() {
 		let validation_data: ValidationData = Default::default();
-		let validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -648,13 +648,13 @@ mod tests {
 	#[test]
 	fn check_is_bad_request_if_no_validation_code() {
 		let validation_data: ValidationData = Default::default();
-		let validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -708,7 +708,7 @@ mod tests {
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = [3; 32].into();
+		candidate.persisted_validation_data_hash = [3; 32].into();
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();

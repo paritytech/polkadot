@@ -448,7 +448,7 @@ impl<T: Trait> Module<T> {
 							let expected = persisted_validation_data.hash();
 
 							ensure!(
-								expected == candidate.descriptor().validation_data_hash,
+								expected == candidate.descriptor().persisted_validation_data_hash,
 								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
@@ -716,7 +716,7 @@ mod tests {
 		let payload = primitives::v1::collator_signature_payload(
 			&candidate.descriptor.relay_parent,
 			&candidate.descriptor.para_id,
-			&candidate.descriptor.validation_data_hash,
+			&candidate.descriptor.persisted_validation_data_hash,
 			&candidate.descriptor.pov_hash,
 		);
 
@@ -845,7 +845,7 @@ mod tests {
 		head_data: HeadData,
 		pov_hash: Hash,
 		relay_parent: Hash,
-		validation_data_hash: Hash,
+		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
 	}
 
@@ -856,7 +856,7 @@ mod tests {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
-					validation_data_hash: self.validation_data_hash,
+					persisted_validation_data_hash: self.persisted_validation_data_hash,
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -1300,7 +1300,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1332,14 +1332,14 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
-					validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1386,7 +1386,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1421,7 +1421,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1453,7 +1453,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1491,7 +1491,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1528,7 +1528,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1574,7 +1574,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1613,7 +1613,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
-					validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1654,7 +1654,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
-					validation_data_hash: [42u8; 32].into(),
+					persisted_validation_data_hash: [42u8; 32].into(),
 					..Default::default()
 				}.build();
 
@@ -1744,7 +1744,7 @@ mod tests {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
-				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1756,7 +1756,7 @@ mod tests {
 				para_id: chain_b,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
-				validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1768,7 +1768,7 @@ mod tests {
 				para_id: thread_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
-				validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1900,7 +1900,7 @@ mod tests {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
-				validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
 				..Default::default()
 			}.build();

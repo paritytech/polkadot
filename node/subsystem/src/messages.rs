@@ -374,7 +374,7 @@ pub enum RuntimeApiRequest {
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
 	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
-	/// Get the full validation data for a particular para, taking the given
+	/// Get the persisted validation data for a particular para, taking the given
 	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
 	/// if the para currently occupies a core.
 	PersistedValidationData(

@@ -29,7 +29,6 @@ use crate::{configuration, paras};
 pub fn make_persisted_validation_data<T: paras::Trait>(
 	para_id: ParaId,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
-	let config = <configuration::Module<T>>::config();
 	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
 	Some(PersistedValidationData {

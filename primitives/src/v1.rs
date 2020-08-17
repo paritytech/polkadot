@@ -60,7 +60,7 @@ pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
-	validation_data_hash: &Hash,
+	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
 ) -> [u8; 100] {
 	// 32-byte hash length is protected in a test below.
@@ -68,7 +68,7 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
 	u32::from(*para_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
-	payload[36..68].copy_from_slice(validation_data_hash.as_ref());
+	payload[36..68].copy_from_slice(persisted_validation_data_hash.as_ref());
 	payload[68..100].copy_from_slice(pov_hash.as_ref());
 
 	payload
@@ -77,7 +77,7 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 fn check_collator_signature<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
-	validation_data_hash: &Hash,
+	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
@@ -85,7 +85,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 	let payload = collator_signature_payload(
 		relay_parent,
 		para_id,
-		validation_data_hash,
+		persisted_validation_data_hash,
 		pov_hash,
 	);
 
@@ -109,13 +109,12 @@ pub struct CandidateDescriptor<H = Hash> {
 	/// The blake2-256 hash of the persisted validation data. This is extra data derived from
 	/// relay-chain state which may vary based on bitfields included before the candidate.
 	/// Thus it cannot be derived entirely from the relay-parent.
-	pub validation_data_hash: Hash,
+	pub persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
 	/// Signature on blake2-256 of components of this receipt:
 	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
 	pub signature: CollatorSignature,
-
 }
 
 impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
@@ -124,7 +123,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.para_id,
-			&self.validation_data_hash,
+			&self.persisted_validation_data_hash,
 			&self.pov_hash,
 			&self.collator,
 			&self.signature,
@@ -161,7 +160,8 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
 	/// The validation data derived from the relay-chain state at that
-	/// point. Should match the `validation_data_hash` in the descriptor
+	/// point. The hash of the persisted validation data should
+	/// match the `persisted_validation_data_hash` in the descriptor
 	/// of the receipt.
 	pub validation_data: ValidationData<N>,
 }
