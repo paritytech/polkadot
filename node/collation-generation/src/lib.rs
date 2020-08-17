@@ -52,6 +52,14 @@ pub struct CollationGenerationSubsystem {
 }
 
 impl CollationGenerationSubsystem {
+	/// Create a new instance of the `CollationGenerationSubsystem`.
+	pub fn new(metrics: Metrics) -> Self {
+		Self {
+			config: None,
+			metrics,
+		}
+	}
+
 	/// Run this subsystem
 	///
 	/// Conceptually, this is very simple: it just loops forever.
@@ -152,9 +160,7 @@ where
 	type Metrics = Metrics;
 
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let subsystem = CollationGenerationSubsystem { config: None, metrics: self.metrics };
-
-		let future = Box::pin(subsystem.run(ctx));
+		let future = Box::pin(self.run(ctx));
 
 		SpawnedSubsystem {
 			name: "collation-generation-subsystem",
