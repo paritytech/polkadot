@@ -243,7 +243,7 @@ any of dispatchables return an error.
   1. Remove `RelayDispatchQueues` of `P`.
   1. Remove `P` if it exists in `NeedsDispatch`.
   1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
-  - Note that we don't remove the open/close requests since they are gon die out naturally at the end of the session.
+  - Note that if we don't remove the open/close requests since they are goning die out naturally at the end of the session.
 1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
