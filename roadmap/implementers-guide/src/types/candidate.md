@@ -119,23 +119,13 @@ Validation data that needs to be persisted for secondary checkers. See the secti
 struct PersistedValidationData {
 	/// The parent head-data.
 	parent_head: HeadData,
-	/// Whether the parachain is allowed to upgrade its validation code.
-	///
-	/// This is `Some` if so, and contains the number of the minimum relay-chain
-	/// height at which the upgrade will be applied, if an upgrade is signaled
-	/// now.
-	///
-	/// A parachain should enact its side of the upgrade at the end of the first
-	/// parablock executing in the context of a relay-chain block with at least this
-	/// height. This may be equal to the current perceived relay-chain block height, in
-	/// which case the code upgrade should be applied at the end of the signaling
-	/// block.
-	///
-	/// This informs a relay-chain backing check and the parachain logic.
-	code_upgrade_allowed: Option<BlockNumber>,
-
 	/// The relay-chain block number this is in the context of. This informs the collator.
 	block_number: BlockNumber,
+	/// The relay-chain 
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
 
@@ -155,10 +145,20 @@ struct TransientValidationData {
 	max_head_data_size: u32,
 	/// The balance of the parachain at the moment of validation.
 	balance: Balance,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender. This informs the collator.
-	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
+	/// Whether the parachain is allowed to upgrade its validation code.
+	///
+	/// This is `Some` if so, and contains the number of the minimum relay-chain
+	/// height at which the upgrade will be applied, if an upgrade is signaled
+	/// now.
+	///
+	/// A parachain should enact its side of the upgrade at the end of the first
+	/// parablock executing in the context of a relay-chain block with at least this
+	/// height. This may be equal to the current perceived relay-chain block height, in
+	/// which case the code upgrade should be applied at the end of the signaling
+	/// block.
+	///
+	/// This informs a relay-chain backing check and the parachain logic.
+	code_upgrade_allowed: Option<BlockNumber>,
 }
 ```
 

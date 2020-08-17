@@ -28,6 +28,8 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
+use polkadot_core_primitives::Hash;
+
 /// Block number type used by the relay chain.
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
@@ -228,12 +230,16 @@ pub struct UpwardMessage {
 #[derive(PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
-	/// The collation body.
-	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
+	/// The collation body.
+	pub block_data: BlockData,
 	/// The current relay-chain block number.
 	pub relay_chain_height: RelayChainBlockNumber,
+	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 /// The result of parachain validation.

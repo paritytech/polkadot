@@ -250,7 +250,7 @@ pub struct ValidationData<N = BlockNumber> {
 	/// The persisted validation data.
 	pub persisted: PersistedValidationData<N>,
 	/// The transient validation data.
-	pub transient: TransientValidationData,
+	pub transient: TransientValidationData<N>,
 }
 
 /// Validation data that needs to be persisted for secondary checkers.
@@ -259,20 +259,12 @@ pub struct ValidationData<N = BlockNumber> {
 pub struct PersistedValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
-	/// Whether the parachain is allowed to upgrade its validation code.
-	///
-	/// This is `Some` if so, and contains the number of the minimum relay-chain
-	/// height at which the upgrade will be applied, if an upgrade is signaled
-	/// now.
-	///
-	/// A parachain should enact its side of the upgrade at the end of the first
-	/// parablock executing in the context of a relay-chain block with at least this
-	/// height. This may be equal to the current perceived relay-chain block height, in
-	/// which case the code upgrade should be applied at the end of the signaling
-	/// block.
-	pub code_upgrade_allowed: Option<N>,
 	/// The relay-chain block number this is in the context of.
 	pub block_number: N,
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 impl<N: Encode> PersistedValidationData<N> {
@@ -289,17 +281,25 @@ impl<N: Encode> PersistedValidationData<N> {
 /// candidate is backed.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct TransientValidationData {
+pub struct TransientValidationData<N = BlockNumber> {
 	/// The maximum code size permitted, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size permitted, in bytes.
 	pub max_head_data_size: u32,
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender. This informs the collator.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	/// Whether the parachain is allowed to upgrade its validation code.
+	///
+	/// This is `Some` if so, and contains the number of the minimum relay-chain
+	/// height at which the upgrade will be applied, if an upgrade is signaled
+	/// now.
+	///
+	/// A parachain should enact its side of the upgrade at the end of the first
+	/// parablock executing in the context of a relay-chain block with at least this
+	/// height. This may be equal to the current perceived relay-chain block height, in
+	/// which case the code upgrade should be applied at the end of the signaling
+	/// block.
+	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
