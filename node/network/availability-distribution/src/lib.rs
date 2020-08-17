@@ -32,24 +32,27 @@ use sp_core::{
 };
 use sc_keystore as keystore;
 
-use node_primitives::{ProtocolId, View};
-
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_primitives::v1::{
 	PARACHAIN_KEY_TYPE_ID,
 	BlakeTwo256, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	Hash as Hash, HashT, Id as ParaId,
-	ValidatorId, ValidatorIndex,
+	ValidatorId, ValidatorIndex, SessionIndex,
 };
-use polkadot_subsystem::messages::*;
+use polkadot_subsystem::messages::{
+	AllMessages, AvailabilityDistributionMessage, NetworkBridgeMessage, RuntimeApiMessage,
+	RuntimeApiRequest, AvailabilityStoreMessage, ChainApiMessage,
+};
 use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
 };
-use sc_network::ReputationChange as Rep;
-use sp_staking::SessionIndex;
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, View, ReputationChange as Rep, PeerId,
+	NetworkBridgeEvent,
+};
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::iter;
@@ -76,7 +79,6 @@ type Result<T> = std::result::Result<T, Error>;
 
 const COST_MERKLE_PROOF_INVALID: Rep = Rep::new(-100, "Merkle proof was invalid");
 const COST_NOT_A_LIVE_CANDIDATE: Rep = Rep::new(-51, "Candidate is not live");
-const COST_MESSAGE_NOT_DECODABLE: Rep = Rep::new(-100, "Message is not decodable");
 const COST_PEER_DUPLICATE_MESSAGE: Rep = Rep::new(-500, "Peer sent identical messages");
 const BENEFIT_VALID_MESSAGE_FIRST: Rep = Rep::new(15, "Valid message with new information");
 const BENEFIT_VALID_MESSAGE: Rep = Rep::new(10, "Valid message");
@@ -284,17 +286,13 @@ impl ProtocolState {
 	}
 }
 
-fn network_update_message(n: NetworkBridgeEvent) -> AllMessages {
-	AllMessages::AvailabilityDistribution(AvailabilityDistributionMessage::NetworkBridgeUpdate(n))
-}
-
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	keystore: KeyStorePtr,
 	state: &mut ProtocolState,
-	bridge_message: NetworkBridgeEvent,
+	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -314,19 +312,13 @@ where
 		NetworkBridgeEvent::OurViewChange(view) => {
 			handle_our_view_change(ctx, keystore, state, view).await?;
 		}
-		NetworkBridgeEvent::PeerMessage(remote, bytes) => {
-			if let Ok(gossiped_availability) =
-				AvailabilityGossipMessage::decode(&mut (bytes.as_slice()))
-			{
-				trace!(
-					target: TARGET,
-					"Received availability gossip from peer {:?}",
-					&remote
-				);
-				process_incoming_peer_message(ctx, state, remote, gossiped_availability).await?;
-			} else {
-				modify_reputation(ctx, remote, COST_MESSAGE_NOT_DECODABLE).await?;
-			}
+		NetworkBridgeEvent::PeerMessage(remote, msg) => {
+			let gossiped_availability = match msg {
+				protocol_v1::AvailabilityDistributionMessage::Chunk(candidate_hash, chunk) =>
+					AvailabilityGossipMessage { candidate_hash, erasure_chunk: chunk }
+			};
+
+			process_incoming_peer_message(ctx, state, remote, gossiped_availability).await?;
 		}
 	}
 	Ok(())
@@ -494,16 +486,19 @@ where
 				.insert(message_id);
 		}
 
-		let encoded = message.encode();
 		per_candidate
 			.message_vault
-			.insert(message.erasure_chunk.index, message);
+			.insert(message.erasure_chunk.index, message.clone());
+
+		let wire_message = protocol_v1::AvailabilityDistributionMessage::Chunk(
+			message.candidate_hash,
+			message.erasure_chunk,
+		);
 
 		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::SendMessage(
+			NetworkBridgeMessage::SendValidationMessage(
 				peers.clone(),
-				AvailabilityDistributionSubsystem::PROTOCOL_ID,
-				encoded,
+				protocol_v1::ValidationProtocol::AvailabilityDistribution(wire_message),
 			),
 		))
 		.await
@@ -709,9 +704,6 @@ pub struct AvailabilityDistributionSubsystem {
 }
 
 impl AvailabilityDistributionSubsystem {
-	/// The protocol identifier for bitfield distribution.
-	const PROTOCOL_ID: ProtocolId = *b"avad";
-
 	/// Number of ancestors to keep around for the relay-chain heads.
 	const K: usize = 3;
 
@@ -725,20 +717,13 @@ impl AvailabilityDistributionSubsystem {
 	where
 		Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 	{
-		// startup: register the network protocol with the bridge.
-		ctx.send_message(AllMessages::NetworkBridge(
-			NetworkBridgeMessage::RegisterEventProducer(Self::PROTOCOL_ID, network_update_message),
-		))
-		.await
-		.map_err::<Error, _>(Into::into)?;
-
 		// work: process incoming messages from the overseer.
 		let mut state = ProtocolState::default();
 		loop {
 			let message = ctx.recv().await.map_err::<Error, _>(Into::into)?;
 			match message {
 				FromOverseer::Communication {
-					msg: AvailabilityDistributionMessage::NetworkBridgeUpdate(event),
+					msg: AvailabilityDistributionMessage::NetworkBridgeUpdateV1(event),
 				} => {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,

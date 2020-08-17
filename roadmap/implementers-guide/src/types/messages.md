@@ -22,11 +22,24 @@ enum ParachainDispatchOrigin {
 	Root,
 }
 
-struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
+/// An opaque byte buffer that encodes an entrypoint and the arguments that should be
+/// provided to it upon the dispatch.
+///
+/// NOTE In order to be executable the byte buffer should be decoded which potentially can fail if
+/// the encoding was changed.
+type RawDispatchable = Vec<u8>;
+
+enum UpwardMessage {
+	/// This upward message is meant to schedule execution of a provided dispatchable.
+	Dispatchable {
+		/// The origin with which the dispatchable should be executed.
+		origin: ParachainDispatchOrigin,
+		/// The dispatchable to be executed in its raw form.
+		dispatchable: RawDispatchable,
+	},
+	// Examples:
+	// HrmpOpenChannel { .. },
+	// HrmpCloseChannel { .. },
 }
 ```
 
@@ -53,11 +66,25 @@ struct InboundHrmpMessage {
 
 ## Downward Message
 
-A message that go down from the relay chain to a parachain. Such a message could be initiated either
-as a result of an operation took place on the relay chain.
+`DownwardMessage`- is a message that goes down from the relay chain to a parachain. Such a message
+could be seen as a notification, however, it is conceivable that they might be used by the relay
+chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
 
 ```rust,ignore
+enum DispatchResult {
+	Executed {
+		success: bool,
+	},
+	/// Decoding `RawDispatchable` into an executable runtime representation has failed.
+	DecodeFailed,
+	/// A dispatchable in question exceeded the maximum amount of weight allowed.
+	CriticalWeightExceeded,
+}
+
 enum DownwardMessage {
+	/// The parachain receives a dispatch result for each sent dispatchable upward message in order
+	/// they were sent.
+	DispatchResult(Vec<DispatchResult>),
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
 	TransferInto(AccountId, Balance, Remark),
