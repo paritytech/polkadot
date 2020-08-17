@@ -30,6 +30,7 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_trie::PrefixedMemoryDB;
+use sc_client_api::ExecutorProvider;
 use prometheus_endpoint::Registry;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
@@ -195,6 +196,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 	)?;
 
 	let justification_stream = grandpa_link.justification_stream();
@@ -266,7 +268,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		Executor: NativeExecutionDispatch + 'static,
 {
 	use sc_network::Event;
-	use sc_client_api::ExecutorProvider;
 	use futures::stream::StreamExt;
 	use sp_core::traits::BareCryptoStorePtr;
 
@@ -615,6 +616,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::NeverCanAuthor,
 	)?;
 
 	let finality_proof_provider =
