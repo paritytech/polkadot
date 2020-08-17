@@ -157,7 +157,7 @@ where
 		let future = Box::pin(subsystem.run(ctx));
 
 		SpawnedSubsystem {
-			name: "CollationGenerationSubsystem",
+			name: "collation-generation-subsystem",
 			future,
 		}
 	}
