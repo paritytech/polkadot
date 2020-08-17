@@ -33,11 +33,12 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores_ctx, request_global_validation_data_ctx,
-	request_local_validation_data_ctx,
+	request_local_validation_data_ctx, request_validators_ctx,
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, validation_data_hash, CandidateDescriptor,
-	CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
+	collator_signature_payload, validation_data_hash, AvailableData, CandidateCommitments,
+	CandidateDescriptor, CandidateReceipt, CoreState, GlobalValidationData, Hash,
+	LocalValidationData, OccupiedCoreAssumption, PoV,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -166,6 +167,8 @@ enum Error {
 	Runtime(RuntimeApiError),
 	#[from]
 	Util(util::Error),
+	#[from]
+	Erasure(polkadot_erasure_coding::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
@@ -180,15 +183,18 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
 	for relay_parent in activated.iter().copied() {
-		let global_validation_data = Arc::new(
-			request_global_validation_data_ctx(relay_parent, ctx)
-				.await?
-				.await??,
-		);
+		let global_validation_data = request_global_validation_data_ctx(relay_parent, ctx)
+			.await?
+			.await??;
 
 		let availability_cores = request_availability_cores_ctx(relay_parent, ctx)
 			.await?
 			.await??;
+
+		let n_validators = request_validators_ctx(relay_parent, ctx)
+			.await?
+			.await??
+			.len();
 
 		for core in availability_cores {
 			let (scheduled_core, assumption) = match core {
@@ -239,8 +245,24 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					&pov_hash,
 				);
 
+				let erasure_root = match erasure_root(n_validators, local_validation_data, task_global_validation_data, collation.proof_of_validity.clone()) {
+					Ok(erasure_root) => erasure_root,
+					Err(err) => {
+						log::error!(target: "collation_generation", "failed to calculate erasure root for para_id {}: {:?}", scheduled_core.para_id, err);
+						return
+					}
+				};
+
+				let commitments = CandidateCommitments {
+					fees: collation.fees,
+					upward_messages: collation.upward_messages,
+					new_validation_code: collation.new_validation_code,
+					head_data: collation.head_data,
+					erasure_root,
+				};
+
 				let ccr = CandidateReceipt {
-					commitments_hash: collation.commitments_hash,
+					commitments_hash: commitments.hash(),
 					descriptor: CandidateDescriptor {
 						signature: task_config.key.sign(&signature_payload),
 						para_id: scheduled_core.para_id,
@@ -261,6 +283,26 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	}
 
 	Ok(())
+}
+
+fn erasure_root(
+	n_validators: usize,
+	local_validation_data: LocalValidationData,
+	global_validation_data: GlobalValidationData,
+	pov: PoV,
+) -> Result<Hash> {
+	let omitted_validation = polkadot_primitives::v1::OmittedValidationData {
+		global_validation: global_validation_data,
+		local_validation: local_validation_data,
+	};
+
+	let available_data = AvailableData {
+		omitted_validation,
+		pov,
+	};
+
+	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
+	Ok(polkadot_erasure_coding::branches(&chunks).root())
 }
 
 #[cfg(test)]
@@ -287,7 +329,10 @@ mod tests {
 
 		fn test_collation() -> Collation {
 			Collation {
-				commitments_hash: Default::default(),
+				fees: Default::default(),
+				upward_messages: Default::default(),
+				new_validation_code: Default::default(),
+				head_data: Default::default(),
 				proof_of_validity: PoV {
 					block_data: BlockData(Vec::new()),
 				},
@@ -349,6 +394,9 @@ mod tests {
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx)))) => {
 							overseer_requested_availability_cores.lock().await.push(hash);
 							tx.send(Ok(vec![])).unwrap();
+						}
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(_hash, RuntimeApiRequest::Validators(tx)))) => {
+							tx.send(Ok(vec![Default::default(); 3])).unwrap();
 						}
 						Some(msg) => panic!("didn't expect any other overseer requests given no availability cores; got {:?}", msg),
 					}
@@ -434,6 +482,12 @@ mod tests {
 								.push(hash);
 							tx.send(Ok(Default::default())).unwrap();
 						}
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::Validators(tx),
+						))) => {
+							tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)
 						}
@@ -505,6 +559,12 @@ mod tests {
 						))) => {
 							tx.send(Ok(Some(Default::default()))).unwrap();
 						}
+						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+							_hash,
+							RuntimeApiRequest::Validators(tx),
+						))) => {
+							tx.send(Ok(vec![Default::default(); 3])).unwrap();
+						}
 						Some(msg) => {
 							panic!("didn't expect any other overseer requests; got {:?}", msg)
 						}
@@ -574,7 +634,8 @@ mod tests {
 							&descriptor.para_id,
 							&descriptor.validation_data_hash,
 							&descriptor.pov_hash,
-						).as_ref(),
+						)
+						.as_ref(),
 						&descriptor.collator,
 					));
 					let expect_descriptor = {

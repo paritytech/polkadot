@@ -261,10 +261,21 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 }
 
 /// The output of a collator.
+///
+/// This differs from `CandidateCommitments` in two ways:
+///
+/// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
+/// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 pub struct Collation {
-	/// Hash of `CandidateCommitments` as understood by the collator.
-	pub commitments_hash: Hash,
+	/// Fees paid from the chain to the relay chain validators.
+	pub fees: Balance,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// New validation code.
+	pub new_validation_code: Option<ValidationCode>,
+	/// The head-data produced as a result of execution.
+	pub head_data: HeadData,
 	/// Proof that this block is valid.
 	pub proof_of_validity: PoV,
 }
