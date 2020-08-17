@@ -33,7 +33,7 @@ struct CandidateReceipt {
 
 ## Full Candidate Receipt
 
-This is the full receipt type. The `GlobalValidationData` and the `LocalValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the a block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
+This is the full receipt type. The `ValidationData` are technically redundant with the `inner.relay_parent`, which uniquely describes the block in the blockchain from whose state these values are derived. The [`CandidateReceipt`](#candidate-receipt) variant is often used instead for this reason.
 
 However, the Full Candidate Receipt type is useful as a means of avoiding the implicit dependency on availability of old blockchain state. In situations such as availability and approval, having the full description of the candidate within a self-contained struct is convenient.
 
@@ -41,10 +41,7 @@ However, the Full Candidate Receipt type is useful as a means of avoiding the im
 /// All data pertaining to the execution of a para candidate.
 struct FullCandidateReceipt {
 	inner: CandidateReceipt,
-	/// The global validation schedule.
-	global_validation: GlobalValidationData,
-	/// The local validation data.
-	local_validation: LocalValidationData,
+	validation_data: ValidationData,
 }
 ```
 
@@ -77,8 +74,9 @@ struct CandidateDescriptor {
 	relay_parent: Hash,
 	/// The collator's sr25519 public key.
 	collator: CollatorId,
-	/// The blake2-256 hash of the local and global validation data. These are extra parameters
-	/// derived from relay-chain state that influence the validity of the block.
+	/// The blake2-256 hash of the persisted validation data. These are extra parameters
+	/// derived from relay-chain state that influence the validity of the block which
+	/// must also be kept available for secondary checkers.
 	validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov-block.
 	pov_hash: Hash,
@@ -88,57 +86,39 @@ struct CandidateDescriptor {
 }
 ```
 
+## ValidationData
 
-## GlobalValidationData
+The validation data provide information about how to validate both the inputs and outputs of a candidate. There are two types of validation data: [persisted](#persistedvalidationdata) and [transient](#transientvalidationdata). Their respective sections of the guide elaborate on their functionality in more detail.
 
-The global validation schedule comprises of information describing the global environment for para execution, as derived from a particular relay-parent. These are parameters that will apply to all parablocks executed in the context of this relay-parent.
+This information is derived from the chain state and will vary from para to para, although some of the fields may be the same for every para.
 
-```rust
-/// Extra data that is needed along with the other fields in a `CandidateReceipt`
-/// to fully validate the candidate.
-///
-/// These are global parameters that apply to all candidates in a block.
-struct GlobalValidationData {
-	/// The maximum code size permitted, in bytes.
-	max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	max_head_data_size: u32,
-	/// The relay-chain block number this is in the context of.
-	block_number: BlockNumber,
-}
-```
+Persisted validation data are generally derived from some relay-chain state to form inputs to the validation function, and as such need to be persisted by the availability system to avoid dependence on availability of the relay-chain state. The backing phase of the inclusion pipeline ensures that everything that is included in a valid fork of the relay-chain already adheres to the transient constraints.
 
-## LocalValidationData
+The validation data also serve the purpose of giving collators a means of ensuring that their produced candidate and the commitments submitted to the relay-chain alongside it will pass the checks done by the relay-chain when backing, and give validators the same understanding when determining whether to second or attest to a candidate.
 
-This is validation data needed for execution of candidate pertaining to a specific para and relay-chain block.
-
-Unlike the [`GlobalValidationData`](#globalvalidationdata), which only depends on a relay-parent, this is parameterized both by a relay-parent and a choice of one of two options:
-  1. Assume that the candidate pending availability on this para at the onset of the relay-parent is included.
-  1. Assume that the candidate pending availability on this para at the onset of the relay-parent is timed-out.
-
-This choice can also be expressed as a choice of which parent head of the para will be built on - either optimistically on the candidate pending availability or pessimistically on the one that is surely included.
-
-Para validation happens optimistically before the block is authored, so it is not possible to predict with 100% accuracy what will happen in the earlier phase of the [`InclusionInherent`](../runtime/inclusioninherent.md) module where new availability bitfields and availability timeouts are processed. This is what will eventually define whether a candidate can be backed within a specific relay-chain block.
+Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these transient validation data.
 
 Design-wise we should maintain two properties about this data structure:
 
-1. The `LocalValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate.
-1. To make contextual execution possible, `LocalValidationData` should be constructable only having access to the latest relay-chain state for the past `k` blocks. That implies
+1. The `ValidationData` should be relatively lightweight primarly because it is constructed during inclusion for each candidate.
+1. To make contextual execution possible, `ValidationData` should be constructable only having access to the latest relay-chain state for the past `k` blocks. That implies
 either that the relay-chain should maintain all the required data accessible or somehow provided indirectly with a header-chain proof and a state proof from there.
 
-> TODO: determine if balance/fees are even needed here.
-> TODO: message queue watermarks (first downward messages, then XCMP channels)
+```rust
+struct ValidationData {
+    persisted: PersistedValidationData,
+    transient: TransientValidationData,
+}
+```
+
+## PersistedValidationData
+
+Validation data that needs to be persisted for secondary checkers. See the section on [`ValidationData`](#validationdata) for more details.
 
 ```rust
-/// Extra data that is needed along with the other fields in a `CandidateReceipt`
-/// to fully validate the candidate. These fields are parachain-specific.
-struct LocalValidationData {
+struct PersistedValidationData {
 	/// The parent head-data.
 	parent_head: HeadData,
-	/// The balance of the parachain at the moment of validation.
-	balance: Balance,
-	/// The blake2-256 hash of the validation code used to execute the candidate.
-	validation_code_hash: Hash,
 	/// Whether the parachain is allowed to upgrade its validation code.
 	///
 	/// This is `Some` if so, and contains the number of the minimum relay-chain
@@ -150,10 +130,34 @@ struct LocalValidationData {
 	/// height. This may be equal to the current perceived relay-chain block height, in
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
+	///
+	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
+
+	/// The relay-chain block number this is in the context of. This informs the collator.
+	block_number: BlockNumber,
+}
+```
+
+## TransientValidationData
+
+These validation data are derived from some relay-chain state to check outputs of the validation function.
+
+```rust
+struct TransientValidationData {
+	/// The maximum code size permitted, in bytes, of a produced validation code upgrade.
+	///
+	/// This informs a relay-chain backing check and the parachain logic.
+	max_code_size: u32,
+	/// The maximum head-data size permitted, in bytes.
+	///
+	/// This informs a relay-chain backing check and the parachain collator.
+	max_head_data_size: u32,
+	/// The balance of the parachain at the moment of validation.
+	balance: Balance,
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
+	/// sender. This informs the collator.
 	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
@@ -215,10 +219,8 @@ This struct encapsulates the outputs of candidate validation.
 struct ValidationOutputs {
 	/// The head-data produced by validation.
 	head_data: HeadData,
-	/// The global validation schedule.
-	global_validation_data: GlobalValidationData,
-	/// The local validation data.
-	local_validation_data: LocalValidationData,
+	/// The validation data, persisted and transient.
+	validation_data: ValidationData,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.

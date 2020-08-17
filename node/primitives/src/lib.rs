@@ -20,12 +20,13 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
-	HeadData,
+	HeadData, PoV, CollatorPair, Id as ParaId,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -256,5 +257,41 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 			}
 			_ => Err(()),
 		}
+	}
+}
+
+/// The output of a collator.
+///
+/// This differs from `CandidateCommitments` in two ways:
+///
+/// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
+/// - contains a proof of validity.
+#[derive(Clone, Encode, Decode)]
+pub struct Collation {
+	/// Fees paid from the chain to the relay chain validators.
+	pub fees: Balance,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// New validation code.
+	pub new_validation_code: Option<ValidationCode>,
+	/// The head-data produced as a result of execution.
+	pub head_data: HeadData,
+	/// Proof that this block is valid.
+	pub proof_of_validity: PoV,
+}
+
+/// Configuration for the collation generator
+pub struct CollationGenerationConfig {
+	/// Collator's authentication key, so it can sign things.
+	pub key: CollatorPair,
+	/// Collation function.
+	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+	/// The parachain that this collator collates for
+	pub para_id: ParaId,
+}
+
+impl std::fmt::Debug for CollationGenerationConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
 }
