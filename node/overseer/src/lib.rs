@@ -1087,11 +1087,13 @@ mod tests {
 	use std::sync::atomic;
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
-	use polkadot_primitives::v1::{BlockData, PoV};
+	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV};
 	use polkadot_subsystem::DummySubsystem;
 	use polkadot_subsystem::messages::RuntimeApiRequest;
-
+	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
+
+	use sp_core::crypto::Pair as _;
 
 	use super::*;
 
@@ -1250,7 +1252,6 @@ mod tests {
 			assert_eq!(s1_results, (0..10).collect::<Vec<_>>());
 		});
 	}
-
 	// Spawn a subsystem that immediately exits.
 	//
 	// Should immediately conclude the overseer itself with an error.
@@ -1591,6 +1592,8 @@ mod tests {
 			C: SubsystemContext<Message=M>,
 			M: Send,
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "counter-subsystem",
@@ -1638,6 +1641,25 @@ mod tests {
 		let (sender, _) = oneshot::channel();
 		ChainApiMessage::FinalizedBlockNumber(sender)
 	}
+
+	fn test_collator_generation_msg() -> CollationGenerationMessage {
+		CollationGenerationMessage::Initialize(CollationGenerationConfig {
+			key: CollatorPair::generate().0,
+			collator: Box::new(|_, _| Box::new(TestCollator)),
+			para_id: Default::default(),
+		})
+	}
+	struct TestCollator;
+
+	impl Future for TestCollator {
+		type Output = Collation;
+
+		fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
+			panic!("at the Disco")
+		}
+	}
+
+	impl Unpin for TestCollator {}
 
 	fn test_collator_protocol_msg() -> CollatorProtocolMessage {
 		CollatorProtocolMessage::CollateOn(Default::default())
@@ -1702,6 +1724,7 @@ mod tests {
 				candidate_validation: subsystem.clone(),
 				candidate_backing: subsystem.clone(),
 				candidate_selection: subsystem.clone(),
+				collation_generation: subsystem.clone(),
 				collator_protocol: subsystem.clone(),
 				statement_distribution: subsystem.clone(),
 				availability_distribution: subsystem.clone(),
@@ -1717,6 +1740,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1735,6 +1759,7 @@ mod tests {
 			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await.unwrap();
 			handler.send_msg(AllMessages::CandidateBacking(test_candidate_backing_msg())).await.unwrap();
 			handler.send_msg(AllMessages::CandidateSelection(test_candidate_selection_msg())).await.unwrap();
+			handler.send_msg(AllMessages::CollationGeneration(test_collator_generation_msg())).await.unwrap();
 			handler.send_msg(AllMessages::CollatorProtocol(test_collator_protocol_msg())).await.unwrap();
 			handler.send_msg(AllMessages::StatementDistribution(test_statement_distribution_msg())).await.unwrap();
 			handler.send_msg(AllMessages::AvailabilityDistribution(test_availability_distribution_msg())).await.unwrap();
@@ -1752,7 +1777,7 @@ mod tests {
 
 			select! {
 				res = overseer_fut => {
-					const NUM_SUBSYSTEMS: usize = 14;
+					const NUM_SUBSYSTEMS: usize = 15;
 
 					assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 					// x2 because of broadcast_signal on startup
