@@ -1592,8 +1592,6 @@ mod tests {
 			C: SubsystemContext<Message=M>,
 			M: Send,
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "counter-subsystem",
@@ -1740,7 +1738,6 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
-				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
