@@ -25,6 +25,7 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-bran
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 version = { package = "sp-version", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
@@ -145,6 +146,7 @@ std = [
 	"babe/std",
 	"babe-primitives/std",
 	"sp-session/std",
+	"sp-staking/std",
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 ]

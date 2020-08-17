@@ -59,6 +59,7 @@ use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
 use system::EnsureRoot;
+use constants::{time::*, currency::*, fee::*};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -71,7 +72,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*};
+mod propose_parachain;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
