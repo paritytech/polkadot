@@ -205,6 +205,7 @@ pub fn validate<'a>(
 		parent_head: local_validation.parent_head.clone(),
 		block_data: pov_block.block_data.clone(),
 		relay_chain_height: global_validation.block_number,
+		hrmp_mqc_heads: Vec::new(),
 	};
 
 	// TODO: remove when ext does not do this.
