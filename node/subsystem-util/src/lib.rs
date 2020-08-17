@@ -264,8 +264,8 @@ specialize_requests_ctx! {
 	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
-	fn request_global_validation_data_ctx() -> GlobalValidationData; GlobalValidationData;
-	fn request_local_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<LocalValidationData>; LocalValidationData;
+	fn request_full_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationData>; FullValidationData;
+	fn request_persisted_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child_ctx() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
