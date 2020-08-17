@@ -189,6 +189,89 @@ specialize_requests! {
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
 }
 
+/// Request some data from the `RuntimeApi` via a SubsystemContext.
+async fn request_from_runtime_ctx<RequestBuilder, Context, Response>(
+	parent: Hash,
+	ctx: &mut Context,
+	request_builder: RequestBuilder,
+) -> Result<RuntimeApiReceiver<Response>, Error>
+where
+	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
+	Context: SubsystemContext,
+{
+	let (tx, rx) = oneshot::channel();
+
+	ctx
+		.send_message(
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+				.try_into()
+				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+		)
+		.await?;
+
+	Ok(rx)
+}
+
+
+/// Construct specialized request functions for the runtime.
+///
+/// These would otherwise get pretty repetitive.
+macro_rules! specialize_requests_ctx {
+	// expand return type name for documentation purposes
+	(fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		specialize_requests_ctx!{
+			named stringify!($request_variant) ; fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant;
+		}
+	};
+
+	// create a single specialized request function
+	(named $doc_name:expr ; fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		#[doc = "Request `"]
+		#[doc = $doc_name]
+		#[doc = "` from the runtime via a `SubsystemContext`"]
+		pub async fn $func_name<Context: SubsystemContext>(
+			parent: Hash,
+			$(
+				$param_name: $param_ty,
+			)*
+			ctx: &mut Context,
+		) -> Result<RuntimeApiReceiver<$return_ty>, Error> {
+			request_from_runtime_ctx(parent, ctx, |tx| RuntimeApiRequest::$request_variant(
+				$( $param_name, )* tx
+			)).await
+		}
+	};
+
+	// recursive decompose
+	(
+		fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;
+		$(
+			fn $t_func_name:ident( $( $t_param_name:ident : $t_param_ty:ty ),* ) -> $t_return_ty:ty ; $t_request_variant:ident;
+		)+
+	) => {
+		specialize_requests_ctx!{
+			fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant ;
+		}
+		specialize_requests_ctx!{
+			$(
+				fn $t_func_name( $( $t_param_name : $t_param_ty ),* ) -> $t_return_ty ; $t_request_variant ;
+			)+
+		}
+	};
+}
+
+specialize_requests_ctx! {
+	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
+	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
+	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
+	fn request_global_validation_data_ctx() -> GlobalValidationData; GlobalValidationData;
+	fn request_local_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<LocalValidationData>; LocalValidationData;
+	fn request_session_index_for_child_ctx() -> SessionIndex; SessionIndexForChild;
+	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
+	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
+}
+
 /// From the given set of validators, find the first key we can sign with, if any.
 pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
 	let keystore = keystore.read();
