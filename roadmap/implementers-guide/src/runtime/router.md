@@ -265,7 +265,7 @@ any of dispatchables return an error.
 1. For each channel designator `D` in `HrmpCloseChannelRequestsList`
     1. remove the channel identified by `D`, if exists.
     1. remove `D` from `HrmpCloseChannelRequests`.
-    1. remove `D`
+    1. remove `D` from `HrmpCloseChannelRequestsList`
 
 To remove a channel `C` identified with a tuple `(sender, recipient)`:
 
