@@ -37,7 +37,7 @@ use sc_client_api::ExecutorProvider;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
-	Configuration, ChainSpec, TaskManager,
+	Configuration, ChainSpec, TaskManager, NetworkStatusSinks,
 };
 pub use service::config::{DatabaseConfig, PrometheusConfig};
 pub use sc_executor::NativeExecutionDispatch;
@@ -345,7 +345,6 @@ fn new_full<RuntimeApi, Executor>(
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
-			backend: backend.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
@@ -527,7 +526,9 @@ fn new_full<RuntimeApi, Executor>(
 pub struct FullNodeHandles;
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager, Error>
+pub fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(
+	TaskManager, Arc<LightClient<Runtime, Dispatch>>, Arc<LightBackend>, NetworkStatusSinks<Block>,
+), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -588,7 +589,6 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
-			backend: backend.clone(),
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
@@ -619,13 +619,30 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
-		config, keystore, backend, transaction_pool, client, network, network_status_sinks,
-		system_rpc_tx,
+		client: client.clone(),
+		backend: backend.clone(),
+		network: network.clone(),
+		network_status_sinks: network_status_sinks.clone(),
+		config, keystore, transaction_pool, system_rpc_tx,
 	})?;
 
 	network_starter.start_network();
 
-	Ok(task_manager)
+	Ok((task_manager, client, backend, network_status_sinks))
+}
+
+/// Builds a new object suitable for light client chain operations.
+pub fn new_light_chain_ops<Runtime, Dispatch>(config: Configuration) -> Result<(
+	Arc<LightClient<Runtime, Dispatch>>, Arc<LightBackend>, NetworkStatusSinks<Block>, TaskManager,
+), Error>
+	where
+		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
+		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
+		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
+		Dispatch: NativeExecutionDispatch + 'static,
+{
+	let (task_manager, client, backend, network) = new_light(config)?;
+	Ok((client, backend, network, task_manager))
 }
 
 /// Builds a new object suitable for chain operations.
@@ -750,17 +767,20 @@ pub fn westend_new_full(
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+	let (task_manager, ..) = new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)?;
+	Ok(task_manager)
 }
 
 /// Create a new Kusama service for a light client.
 pub fn kusama_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
-	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+	let (task_manager, ..) = new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)?;
+	Ok(task_manager)
 }
 
 /// Create a new Westend service for a light client.
 pub fn westend_new_light(config: Configuration, ) -> Result<TaskManager, ServiceError>
 {
-	new_light::<westend_runtime::RuntimeApi, KusamaExecutor>(config)
+	let (task_manager, ..) = new_light::<westend_runtime::RuntimeApi, KusamaExecutor>(config)?;
+	Ok(task_manager)
 }

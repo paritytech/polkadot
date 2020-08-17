@@ -159,25 +159,52 @@ pub fn run() -> Result<()> {
 			set_default_ss58_version(chain_spec);
 
 			if chain_spec.is_kusama() {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
-						service::kusama_runtime::RuntimeApi,
-						service::KusamaExecutor,
-					>(config)
+				runner.run_subcommand(
+					subcommand,
+					|config| {
+						service::new_chain_ops::<
+							service::kusama_runtime::RuntimeApi,
+							service::KusamaExecutor,
+						>(config)
+					},
+					|config| {
+						service::new_light_chain_ops::<
+							service::kusama_runtime::RuntimeApi,
+							service::KusamaExecutor,
+						>(config)
+					},
 				)
 			} else if chain_spec.is_westend() {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
-						service::westend_runtime::RuntimeApi,
-						service::WestendExecutor,
-					>(config)
+				runner.run_subcommand(
+					subcommand,
+					|config| {
+						service::new_chain_ops::<
+							service::westend_runtime::RuntimeApi,
+							service::WestendExecutor,
+						>(config)
+					},
+					|config| {
+						service::new_light_chain_ops::<
+							service::westend_runtime::RuntimeApi,
+							service::WestendExecutor,
+						>(config)
+					},
 				)
 			} else {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
-						service::polkadot_runtime::RuntimeApi,
-						service::PolkadotExecutor,
-					>(config)
+				runner.run_subcommand(
+					subcommand,
+					|config| {
+						service::new_chain_ops::<
+							service::polkadot_runtime::RuntimeApi,
+							service::PolkadotExecutor,
+						>(config)
+					},
+					|config| {
+						service::new_light_chain_ops::<
+							service::polkadot_runtime::RuntimeApi,
+							service::PolkadotExecutor,
+						>(config)
+					},
 				)
 			}
 		},
