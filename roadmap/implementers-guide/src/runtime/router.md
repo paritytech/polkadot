@@ -148,7 +148,7 @@ Candidate Acceptance Function:
       channels (`config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
       1. Check that `P`'s balance is more or equal to `config.hrmp_sender_deposit`
   1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
-      1. Check that there is exsting request between (`sender`, `P`) in `HrmpOpenChannelRequests`
+      1. Check that there is existing request between (`sender`, `P`) in `HrmpOpenChannelRequests`
       1. Check that `P`'s balance is more or equal to `config.hrmp_recipient_deposit`.
   1. If the message kind is `HrmpCloseChannel(ch)`:
       1. Check that `P` is either `ch.sender` or `ch.recipient`
