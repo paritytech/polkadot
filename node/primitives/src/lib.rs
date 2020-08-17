@@ -149,6 +149,8 @@ pub enum InvalidCandidate {
 	NewCodeTooLarge(u64),
 	/// Head-data is over the limit.
 	HeadDataTooLarge(u64),
+	/// Code upgrade triggered but not allowed.
+	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.

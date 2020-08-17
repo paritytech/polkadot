@@ -333,6 +333,10 @@ fn check_wasm_result_against_constraints(
 	}
 
 	if let Some(ref code) = result.new_validation_code {
+		if transient_params.code_upgrade_allowed.is_none() {
+			return Err(InvalidCandidate::CodeUpgradeNotAllowed)
+		}
+
 		if code.0.len() > transient_params.max_code_size as _ {
 			return Err(InvalidCandidate::NewCodeTooLarge(code.0.len() as u64))
 		}
@@ -396,6 +400,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_chain_height: persisted_validation_data.block_number,
+		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
@@ -741,6 +746,7 @@ mod tests {
 		let mut validation_data: ValidationData = Default::default();
 		validation_data.transient.max_head_data_size = 1024;
 		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -787,6 +793,7 @@ mod tests {
 
 		validation_data.transient.max_head_data_size = 1024;
 		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -832,6 +839,7 @@ mod tests {
 
 		validation_data.transient.max_head_data_size = 1024;
 		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
