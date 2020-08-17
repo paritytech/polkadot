@@ -10,16 +10,19 @@ Storage layout:
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
-/// Messages ready to be dispatched onto the relay chain.
+/// Dispatchable objects ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
+RelayDispatchQueues: map ParaId => Vec<RawDispatchable>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
 RelayDispatchQueueSize: map ParaId => (u32, u32);
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 NeedsDispatch: Vec<ParaId>;
+/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+/// execution round.
+NextDispatchRoundStartWith: Option<ParaId>;
 /// The downward messages addressed for a certain para.
 DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 ```
@@ -158,6 +161,12 @@ The following routines are intended to be invoked by paras' upward messages.
 
 Candidate Acceptance Function:
 
+* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`:
+  1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
+  1. Checks each upward message individually depending on its kind:
+  1. If the message kind is `Dispatchable`:
+      1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed
+      upward messages of the `Dispatchable` kind up to this point!)
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
   1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
   1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
@@ -190,14 +199,38 @@ Candidate Enactment:
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
   1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
-
-* `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
-  1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
+* `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+  1. Process all upward messages in order depending on their kinds:
+  1. If the message kind is `Dispatchable`:
+      1. Append the message to `RelayDispatchQueues` for `P`
+      1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
+      1. Ensure that `P` is present in `NeedsDispatch`.
 
 The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
 `schedule_para_cleanup(ParaId)`:
     1. Add the para into the `OutgoingParas` vector maintaining the sorted order.
+
+The following routine is meant to execute pending entries in upward dispatchable queues. This function doesn't fail, even if
+any of dispatchables return an error.
+
+`process_upward_dispatchables()`:
+  1. Initialize a cumulative weight counter `T` to 0
+  1. Initialize a local in memory dictionary `R` that maps `ParaId` to a vector of `DispatchResult`.
+  1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
+      1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
+      1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
+      1. Decode `D` into a dispatchable. If failed append `DispatchResult::DecodeFailed` into `R` for `P`. Otherwise, if succeeded:
+          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then append `DispatchResult::CriticalWeightExceeded` into `R` for `P`. Otherwise:
+            1. Execute `D` and add the actual amount of weight consumed to `T`. Add the `DispatchResult` into `R` for `P`.
+      1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+      > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
+      > that could take place on the course of handling these dispatchables.
+      1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
+      1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
+  1. Then, for each `P` and the vector of `DispatchResult` in `R`:
+      1. Obtain a message by wrapping the vector into `DownwardMessage::DispatchResult`
+      1. Append the resulting message to `DownwardMessageQueues` for `P`.
 
 ## Session Change
 
@@ -207,8 +240,9 @@ The following routine is intended to be called in the same time when `Paras::sch
   1. Remove all `DownwardMessageQueues` of `P`.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
+  1. Remove `P` if it exists in `NeedsDispatch`.
+  1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
   - Note that we don't remove the open/close requests since they are gon die out naturally.
-TODO: What happens with the deposits in channels or open requests?
 1. For each request `R` in `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
@@ -234,7 +268,3 @@ To remove a channel `C` identified with a tuple `(sender, recipient)`:
 1. Remove `C` from `HrmpChannelContents`.
 1. Remove `recipient` from the set `HrmpEgressChannelsIndex` for `sender`.
 1. Remove `sender` from the set `HrmpIngressChannelsIndex` for `recipient`.
-
-## Finalization
-
-  1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.watermark_upward_queue_size` and `config.max_upward_queue_count` limits.
