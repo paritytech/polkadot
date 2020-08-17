@@ -19,8 +19,10 @@
 use std::{process, env, sync::Arc, sync::atomic};
 use codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
-use super::{validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
-			MAX_CODE_MEM, MAX_RUNTIME_MEM};
+use super::{
+	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
+	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
+};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
@@ -113,7 +115,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	};
 
 	let exit = Arc::new(atomic::AtomicBool::new(false));
-    let task_executor = TaskExecutor::new()?;
+	let task_executor = TaskExecutor::new()?;
 	// spawn parent monitor thread
 	let watch_exit = exit.clone();
 	std::thread::spawn(move || {
@@ -220,7 +222,7 @@ impl Drop for ValidationHost {
 
 impl ValidationHost {
 	fn create_memory() -> Result<SharedMem, InternalError> {
-		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + 1024;
+		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
 		let mem_config = SharedMemConf::default()
 			.set_size(mem_size)
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
@@ -318,9 +320,16 @@ impl ValidationHost {
 			debug!("{} Reading results", self.id);
 			let data: &[u8] = &**memory.wlock_as_slice(0)
 				.map_err(|e| ValidationError::Internal(e.into()))?;
-			let (header_buf, _) = data.split_at(1024);
+			let (header_buf, _) = data.split_at(MAX_VALIDATION_RESULT_HEADER_MEM);
 			let mut header_buf: &[u8] = header_buf;
-			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
+			let header = ValidationResultHeader::decode(&mut header_buf)
+				.map_err(|e|
+					InternalError::System(
+						Box::<dyn std::error::Error + Send + Sync>::from(
+							format!("Failed to decode `ValidationResultHeader`: {:?}", e)
+						) as Box<_>
+					)
+				)?;
 			match header {
 				ValidationResultHeader::Ok(result) => Ok(result),
 				ValidationResultHeader::Error(WorkerValidationError::InternalError(e)) => {

@@ -24,20 +24,19 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_primitives::v1::{
-	Hash, CommittedCandidateReceipt, CollatorId,
-	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
-	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, CandidateDescriptor,
-	ValidatorSignature, AvailableData, GroupRotationInfo,
-	CoreState, ValidationData, PersistedValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex, BlockNumber, TransientValidationData,
-};
-use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, ValidationResult,
-};
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId, PeerSet,
+};
+use polkadot_node_primitives::{
+	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+};
+use polkadot_primitives::v1::{
+	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreAssignment, CoreOccupied, CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
+	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
+	ValidatorSignature,
 };
 use std::sync::Arc;
 
@@ -81,7 +80,6 @@ pub enum CandidateBackingMessage {
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
 }
-
 
 impl CandidateBackingMessage {
 	/// If the current variant contains the relay parent hash, return it.
@@ -513,6 +511,20 @@ impl PoVDistributionMessage {
 	}
 }
 
+/// Message to the Collation Generation Subsystem.
+#[derive(Debug)]
+pub enum CollationGenerationMessage {
+	/// Initialize the collation generation subsystem
+	Initialize(CollationGenerationConfig),
+}
+
+impl CollationGenerationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// A message type tying together all message types that are used across Subsystems.
 #[derive(Debug)]
 pub enum AllMessages {
@@ -544,4 +556,6 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
+	/// Message for the Collation Generation subsystem
+	CollationGeneration(CollationGenerationMessage),
 }

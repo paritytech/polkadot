@@ -39,7 +39,23 @@ struct HostConfiguration {
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
-	pub watermark_upward_queue_size: u32,
+	pub max_upward_queue_size: u32,
+	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
+	/// stage.
+	///
+	/// NOTE that this is a soft limit and could be exceeded.
+	pub preferred_dispatchable_upward_messages_step_weight: u32,
+	/// Any dispatchable upward message that requests more than the critical amount is rejected
+	/// with `DispatchResult::CriticalWeightExceeded`.
+	///
+	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
+	/// the total budget. I.e. that the sum of `preferred_dispatchable_upward_messages_step_weight`
+	/// and `dispatchable_upward_message_critical_weight` doesn't exceed the amount of weight left
+	/// under a typical worst case (e.g. no upgrades, etc) weight consumed by the required phases of
+	/// block execution (i.e. initialization, finalization and inherents).
+	pub dispatchable_upward_message_critical_weight: u32,
+	/// The maximum number of messages that a candidate can contain.
+	pub max_upward_message_num_per_candidate: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.

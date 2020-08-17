@@ -178,6 +178,13 @@ pub trait SubsystemContext: Send + 'static {
 	/// Spawn a child task on the executor.
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>) -> SubsystemResult<()>;
 
+	/// Spawn a blocking child task on the executor's dedicated thread pool.
+	async fn spawn_blocking(
+		&mut self,
+		name: &'static str,
+		s: Pin<Box<dyn Future<Output = ()> + Send>>,
+	) -> SubsystemResult<()>;
+
 	/// Send a direct message to some other `Subsystem`, routed based on message type.
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()>;
 
