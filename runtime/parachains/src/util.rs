@@ -29,9 +29,25 @@ use crate::{configuration, paras};
 pub fn make_persisted_validation_data<T: paras::Trait>(
 	para_id: ParaId,
 ) -> Option<PersistedValidationData<T::BlockNumber>> {
+	let config = <configuration::Module<T>>::config();
 	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
 
+	Some(PersistedValidationData {
+		parent_head: <paras::Module<T>>::para_head(&para_id)?,
+		block_number: relay_parent_number,
+		hrmp_mqc_heads: Vec::new(),
+	})
+}
+
+/// Make the transient validation data for a particular parachain.
+///
+/// This ties together the storage of several modules.
+pub fn make_transient_validation_data<T: paras::Trait>(
+	para_id: ParaId,
+) -> Option<TransientValidationData<T::BlockNumber>> {
 	let config = <configuration::Module<T>>::config();
+	let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
+
 	let freq = config.validation_upgrade_frequency;
 	let delay = config.validation_upgrade_delay;
 
@@ -47,25 +63,10 @@ pub fn make_persisted_validation_data<T: paras::Trait>(
 		None
 	};
 
-	Some(PersistedValidationData {
-		parent_head: <paras::Module<T>>::para_head(&para_id)?,
-		code_upgrade_allowed,
-		block_number: relay_parent_number,
-	})
-}
-
-/// Make the transient validation data for a particular parachain.
-///
-/// This ties together the storage of several modules.
-pub fn make_transient_validation_data<T: configuration::Trait>(
-	_para_id: ParaId,
-) -> Option<TransientValidationData> {
-	let config = <configuration::Module<T>>::config();
-
 	Some(TransientValidationData {
 		max_code_size: config.max_code_size,
 		max_head_data_size: config.max_head_data_size,
 		balance: 0,
-		hrmp_mqc_heads: Vec::new(),
+		code_upgrade_allowed,
 	})
 }
