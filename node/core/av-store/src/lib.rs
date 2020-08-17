@@ -313,8 +313,7 @@ mod tests {
 	};
 	use std::cell::RefCell;
 	use polkadot_primitives::v1::{
-		AvailableData, BlockData, HeadData, GlobalValidationData, LocalValidationData, PoV,
-		OmittedValidationData,
+		AvailableData, BlockData, HeadData, PersistedValidationData, PoV,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 
@@ -327,29 +326,19 @@ mod tests {
 	}
 
 	struct TestState {
-		global_validation_schedule: GlobalValidationData,
-		local_validation_data: LocalValidationData,
+		persisted_validation_data: PersistedValidationData,
 	}
 
 	impl Default for TestState {
 		fn default() -> Self {
 
-			let local_validation_data = LocalValidationData {
+			let persisted_validation_data = PersistedValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
-				balance: Default::default(),
-				code_upgrade_allowed: None,
-				validation_code_hash: Default::default(),
-			};
-
-			let global_validation_schedule = GlobalValidationData {
-				max_code_size: 1000,
-				max_head_data_size: 1000,
 				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
 			};
-
 			Self {
-				local_validation_data,
-				global_validation_schedule,
+				persisted_validation_data,
 			}
 		}
 	}
@@ -427,17 +416,9 @@ mod tests {
 				block_data: BlockData(vec![4, 5, 6]),
 			};
 
-			let global_validation = test_state.global_validation_schedule;
-			let local_validation = test_state.local_validation_data;
-
-			let omitted_validation = OmittedValidationData {
-				global_validation,
-				local_validation,
-			};
-
 			let available_data = AvailableData {
 				pov,
-				omitted_validation,
+				validation_data: test_state.persisted_validation_data,
 			};
 
 
@@ -488,17 +469,9 @@ mod tests {
 				block_data: BlockData(vec![4, 5, 6]),
 			};
 
-			let global_validation = test_state.global_validation_schedule;
-			let local_validation = test_state.local_validation_data;
-
-			let omitted_validation = OmittedValidationData {
-				global_validation,
-				local_validation,
-			};
-
 			let available_data = AvailableData {
 				pov,
-				omitted_validation,
+				validation_data: test_state.persisted_validation_data,
 			};
 
 			let chunks_expected = get_chunks(&available_data, n_validators as usize).unwrap();
