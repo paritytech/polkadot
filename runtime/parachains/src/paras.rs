@@ -24,6 +24,7 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
+#[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
 use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
 use primitives::v1::{
