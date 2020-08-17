@@ -19,8 +19,7 @@ Parachain candidates are validated against their validation function: A piece of
 Upon receiving a validation request, the first thing the candidate validation subsystem should do is make sure it has all the necessary parameters to the validation function. These are:
   * The Validation Function itself.
   * The [`CandidateDescriptor`](../../types/candidate.md#candidatedescriptor).
-  * The [`LocalValidationData`](../../types/candidate.md#localvalidationdata).
-  * The [`GlobalValidationSchedule](../../types/candidate.md#globalvalidationschedule).
+  * The [`ValidationData`](../../types/candidate.md#validationdata).
   * The [`PoV`](../../types/availability.md#proofofvalidity).
 
 ### Determining Parameters
