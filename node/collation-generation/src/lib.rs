@@ -21,6 +21,7 @@
 use futures::{
 	channel::{mpsc, oneshot},
 	future::FutureExt,
+	join,
 	select,
 	sink::SinkExt,
 	stream::StreamExt,
@@ -183,18 +184,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
 	for relay_parent in activated.iter().copied() {
-		let global_validation_data = request_global_validation_data_ctx(relay_parent, ctx)
-			.await?
-			.await??;
+		// double-future magic happens here: the first layer of requests takes a mutable borrow of the context, and
+		// returns a receiver. The second layer of requests actually polls those receivers to completion.
+		let (global_validation_data, availability_cores, validators) = join!(
+			request_global_validation_data_ctx(relay_parent, ctx).await?,
+			request_availability_cores_ctx(relay_parent, ctx).await?,
+			request_validators_ctx(relay_parent, ctx).await?,
+		);
 
-		let availability_cores = request_availability_cores_ctx(relay_parent, ctx)
-			.await?
-			.await??;
-
-		let n_validators = request_validators_ctx(relay_parent, ctx)
-			.await?
-			.await??
-			.len();
+		let global_validation_data = global_validation_data??;
+		let availability_cores = availability_cores??;
+		let n_validators = validators??.len();
 
 		for core in availability_cores {
 			let (scheduled_core, assumption) = match core {
