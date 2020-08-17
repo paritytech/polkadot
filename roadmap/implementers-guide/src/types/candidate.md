@@ -167,7 +167,7 @@ struct TransientValidationData {
 	///
 	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
-	/// A vector that enumerates the list of blocks in which there were at least one message was
+	/// A vector that enumerates the list of blocks in which there was at least one message
 	/// received. The first number is always after the watermark.
 	hrmp_digest: Vec<BlockNumber>,
 	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
