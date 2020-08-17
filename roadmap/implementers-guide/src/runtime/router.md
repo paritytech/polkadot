@@ -32,12 +32,6 @@ DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 HRMP related structs:
 
 ```rust,ignore
-/// A type used to designate a HRMP channel between a (sender, recipient).
-struct HrmpChannelId {
-    sender: ParaId,
-    recipient: ParaId,
-}
-
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
     /// The sender and the initiator of this request.
