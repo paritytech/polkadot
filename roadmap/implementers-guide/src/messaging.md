@@ -36,7 +36,7 @@ The weight that processing of the dispatchables can consume is limited by a prec
 that some dispatchables will be left for later blocks. To make the dispatching more fair, the queues are processed turn-by-turn
 in a round robin fashion.
 
-Upward messages are also used by parachain to request opening and closing HRMP channels (HRMP will be described below).
+Upward messages are also used by a parachain to request opening and closing HRMP channels (HRMP will be described below).
 
 Other kinds of upward messages can be introduced in the future as well. Potential candidates are
 new validation code signalling, or other requests to the relay chain.
