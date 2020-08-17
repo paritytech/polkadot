@@ -33,7 +33,7 @@ use polkadot_node_primitives::{
 use polkadot_primitives::v1::{
 	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreAssignment, CoreOccupied, CoreState, ErasureChunk, GlobalValidationData, GroupRotationInfo,
+	CoreState, ErasureChunk, GlobalValidationData, GroupRotationInfo,
 	Hash, Id as ParaId, LocalValidationData, OccupiedCoreAssumption, OmittedValidationData, PoV,
 	SessionIndex, SignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidatorSignature,
@@ -343,19 +343,6 @@ impl ChainApiMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		None
 	}
-}
-
-/// The information on scheduler assignments that some somesystems may be querying.
-#[derive(Debug, Clone)]
-pub struct SchedulerRoster {
-	/// Validator-to-groups assignments.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
-	/// All scheduled paras.
-	pub scheduled: Vec<CoreAssignment>,
-	/// Upcoming paras (chains and threads).
-	pub upcoming: Vec<ParaId>,
-	/// Occupied cores.
-	pub availability_cores: Vec<Option<CoreOccupied>>,
 }
 
 /// A sender for the result of a runtime API request.
