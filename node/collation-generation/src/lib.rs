@@ -34,13 +34,13 @@ use polkadot_node_subsystem::{
 	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores_ctx, request_global_validation_data_ctx,
-	request_local_validation_data_ctx, request_validators_ctx,
+	self as util, request_availability_cores_ctx, request_full_validation_data_ctx,
+	request_validators_ctx,
 };
 use polkadot_primitives::v1::{
-	collator_signature_payload, validation_data_hash, AvailableData, CandidateCommitments,
-	CandidateDescriptor, CandidateReceipt, CoreState, GlobalValidationData, Hash,
-	LocalValidationData, OccupiedCoreAssumption, PoV,
+	collator_signature_payload, AvailableData, CandidateCommitments,
+	CandidateDescriptor, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
+	PersistedValidationData, PoV,
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
@@ -198,13 +198,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	for relay_parent in activated.iter().copied() {
 		// double-future magic happens here: the first layer of requests takes a mutable borrow of the context, and
 		// returns a receiver. The second layer of requests actually polls those receivers to completion.
-		let (global_validation_data, availability_cores, validators) = join!(
-			request_global_validation_data_ctx(relay_parent, ctx).await?,
+		let (availability_cores, validators) = join!(
 			request_availability_cores_ctx(relay_parent, ctx).await?,
 			request_validators_ctx(relay_parent, ctx).await?,
 		);
 
-		let global_validation_data = global_validation_data??;
 		let availability_cores = availability_cores??;
 		let n_validators = validators??.len();
 
@@ -224,9 +222,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				continue;
 			}
 
-			// we get local validation data synchronously for each core instead of within the subtask loop,
-			// because we have only a single mutable handle to the context, so the work can't really be distributed
-			let local_validation_data = match request_local_validation_data_ctx(
+			// we get validation data synchronously for each core instead of
+			// within the subtask loop, because we have only a single mutable handle to the
+			// context, so the work can't really be distributed
+			let validation_data = match request_full_validation_data_ctx(
 				relay_parent,
 				scheduled_core.para_id,
 				assumption,
@@ -235,30 +234,32 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			.await?
 			.await??
 			{
-				Some(local_validation_data) => local_validation_data,
+				Some(v) => v,
 				None => continue,
 			};
 
-			let task_global_validation_data = global_validation_data.clone();
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
 			let metrics = metrics.clone();
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
-				let validation_data_hash =
-					validation_data_hash(&task_global_validation_data, &local_validation_data);
+				let persisted_validation_data_hash = validation_data.persisted.hash();
 
-				let collation = (task_config.collator)(&task_global_validation_data, &local_validation_data).await;
+				let collation = (task_config.collator)(&validation_data).await;
 
 				let pov_hash = collation.proof_of_validity.hash();
 
 				let signature_payload = collator_signature_payload(
 					&relay_parent,
 					&scheduled_core.para_id,
-					&validation_data_hash,
+					&persisted_validation_data_hash,
 					&pov_hash,
 				);
 
-				let erasure_root = match erasure_root(n_validators, local_validation_data, task_global_validation_data, collation.proof_of_validity.clone()) {
+				let erasure_root = match erasure_root(
+					n_validators,
+					validation_data.persisted,
+					collation.proof_of_validity.clone(),
+				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
 						log::error!(target: "collation_generation", "failed to calculate erasure root for para_id {}: {:?}", scheduled_core.para_id, err);
@@ -281,7 +282,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						para_id: scheduled_core.para_id,
 						relay_parent,
 						collator: task_config.key.public(),
-						validation_data_hash,
+						persisted_validation_data_hash,
 						pov_hash,
 					},
 				};
@@ -302,17 +303,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 fn erasure_root(
 	n_validators: usize,
-	local_validation_data: LocalValidationData,
-	global_validation_data: GlobalValidationData,
+	persisted_validation: PersistedValidationData,
 	pov: PoV,
 ) -> Result<Hash> {
-	let omitted_validation = polkadot_primitives::v1::OmittedValidationData {
-		global_validation: global_validation_data,
-		local_validation: local_validation_data,
-	};
-
 	let available_data = AvailableData {
-		omitted_validation,
+		validation_data: persisted_validation,
 		pov,
 	};
 
@@ -369,8 +364,8 @@ mod tests {
 			subsystem_test_harness, TestSubsystemContextHandle,
 		};
 		use polkadot_primitives::v1::{
-			BlockData, BlockNumber, CollatorPair, GlobalValidationData, Id as ParaId,
-			LocalValidationData, PoV, ScheduledCore,
+			BlockData, BlockNumber, CollatorPair, Id as ParaId,
+			PersistedValidationData, PoV, ScheduledCore, ValidationData,
 		};
 		use std::pin::Pin;
 
@@ -402,7 +397,7 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_gvd: &GlobalValidationData, _lvd: &LocalValidationData| {
+				collator: Box::new(|_vd: &ValidationData| {
 					Box::new(TestCollator)
 				}),
 				para_id: para_id.into(),
@@ -417,7 +412,7 @@ mod tests {
 		}
 
 		#[test]
-		fn requests_validation_and_availability_per_relay_parent() {
+		fn requests_availability_per_relay_parent() {
 			let activated_hashes: Vec<Hash> = vec![
 				[1; 32].into(),
 				[4; 32].into(),
@@ -425,19 +420,13 @@ mod tests {
 				[16; 32].into(),
 			];
 
-			let requested_validation_data = Arc::new(Mutex::new(Vec::new()));
 			let requested_availability_cores = Arc::new(Mutex::new(Vec::new()));
 
-			let overseer_requested_validation_data = requested_validation_data.clone();
 			let overseer_requested_availability_cores = requested_availability_cores.clone();
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
 					match handle.try_recv().await {
 						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::GlobalValidationData(tx)))) => {
-							overseer_requested_validation_data.lock().await.push(hash);
-							tx.send(Ok(Default::default())).unwrap();
-						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(hash, RuntimeApiRequest::AvailabilityCores(tx)))) => {
 							overseer_requested_availability_cores.lock().await.push(hash);
 							tx.send(Ok(vec![])).unwrap();
@@ -455,7 +444,7 @@ mod tests {
 			let subsystem_activated_hashes = activated_hashes.clone();
 			subsystem_test_harness(overseer, |mut ctx| async move {
 				handle_new_activations(
-					test_config(123),
+					test_config(123u32),
 					&subsystem_activated_hashes,
 					&mut ctx,
 					Metrics(None),
@@ -465,21 +454,16 @@ mod tests {
 				.unwrap();
 			});
 
-			let mut requested_validation_data = Arc::try_unwrap(requested_validation_data)
-				.expect("overseer should have shut down by now")
-				.into_inner();
-			requested_validation_data.sort();
 			let mut requested_availability_cores = Arc::try_unwrap(requested_availability_cores)
 				.expect("overseer should have shut down by now")
 				.into_inner();
 			requested_availability_cores.sort();
 
-			assert_eq!(requested_validation_data, activated_hashes);
 			assert_eq!(requested_availability_cores, activated_hashes);
 		}
 
 		#[test]
-		fn requests_local_validation_for_scheduled_matches() {
+		fn requests_validation_data_for_scheduled_matches() {
 			let activated_hashes: Vec<Hash> = vec![
 				Hash::repeat_byte(1),
 				Hash::repeat_byte(4),
@@ -487,19 +471,13 @@ mod tests {
 				Hash::repeat_byte(16),
 			];
 
-			let requested_local_validation_data = Arc::new(Mutex::new(Vec::new()));
+			let requested_full_validation_data = Arc::new(Mutex::new(Vec::new()));
 
-			let overseer_requested_local_validation_data = requested_local_validation_data.clone();
+			let overseer_requested_full_validation_data = requested_full_validation_data.clone();
 			let overseer = |mut handle: TestSubsystemContextHandle<CollationGenerationMessage>| async move {
 				loop {
 					match handle.try_recv().await {
 						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::GlobalValidationData(tx),
-						))) => {
-							tx.send(Ok(Default::default())).unwrap();
-						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
 							RuntimeApiRequest::AvailabilityCores(tx),
@@ -518,13 +496,13 @@ mod tests {
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
-							RuntimeApiRequest::LocalValidationData(
+							RuntimeApiRequest::FullValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
 							),
 						))) => {
-							overseer_requested_local_validation_data
+							overseer_requested_full_validation_data
 								.lock()
 								.await
 								.push(hash);
@@ -551,7 +529,7 @@ mod tests {
 					.unwrap();
 			});
 
-			let requested_local_validation_data = Arc::try_unwrap(requested_local_validation_data)
+			let requested_full_validation_data = Arc::try_unwrap(requested_full_validation_data)
 				.expect("overseer should have shut down by now")
 				.into_inner();
 
@@ -559,7 +537,7 @@ mod tests {
 			// each activated hash generates two scheduled cores: one with its value * 4, one with its value * 5
 			// given that the test configuration has a para_id of 16, there's only one way to get that value: with the 4
 			// hash.
-			assert_eq!(requested_local_validation_data, vec![[4; 32].into()]);
+			assert_eq!(requested_full_validation_data, vec![[4; 32].into()]);
 		}
 
 		#[test]
@@ -575,12 +553,6 @@ mod tests {
 				loop {
 					match handle.try_recv().await {
 						None => break,
-						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_hash,
-							RuntimeApiRequest::GlobalValidationData(tx),
-						))) => {
-							tx.send(Ok(Default::default())).unwrap();
-						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							hash,
 							RuntimeApiRequest::AvailabilityCores(tx),
@@ -599,7 +571,7 @@ mod tests {
 						}
 						Some(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 							_hash,
-							RuntimeApiRequest::LocalValidationData(
+							RuntimeApiRequest::FullValidationData(
 								_para_id,
 								_occupied_core_assumption,
 								tx,
@@ -647,8 +619,8 @@ mod tests {
 			// we don't care too much about the commitments_hash right now, but let's ensure that we've calculated the
 			// correct descriptor
 			let expect_pov_hash = test_collation().proof_of_validity.hash();
-			let expect_validation_data_hash =
-				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
+			let expect_validation_data_hash
+				= PersistedValidationData::<BlockNumber>::default().hash();
 			let expect_relay_parent = Hash::repeat_byte(4);
 			let expect_payload = collator_signature_payload(
 				&expect_relay_parent,
@@ -661,7 +633,7 @@ mod tests {
 				para_id: config.para_id,
 				relay_parent: expect_relay_parent,
 				collator: config.key.public(),
-				validation_data_hash: expect_validation_data_hash,
+				persisted_validation_data_hash: expect_validation_data_hash,
 				pov_hash: expect_pov_hash,
 			};
 
@@ -680,7 +652,7 @@ mod tests {
 						&collator_signature_payload(
 							&descriptor.relay_parent,
 							&descriptor.para_id,
-							&descriptor.validation_data_hash,
+							&descriptor.persisted_validation_data_hash,
 							&descriptor.pov_hash,
 						)
 						.as_ref(),

@@ -26,10 +26,10 @@
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
-use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating};
 use primitives::v1::{
-	Id as ParaId, ValidationCode, HeadData, LocalValidationData,
+	Id as ParaId, ValidationCode, HeadData,
 };
+use sp_runtime::traits::One;
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	traits::Get,
@@ -549,37 +549,6 @@ impl<T: Trait> Module<T> {
 		}
 
 		Self::past_code_meta(&id).most_recent_change()
-	}
-
-	/// Compute the local-validation data based on the head of the para. This assumes the
-	/// relay-parent is the parent of the current block.
-	pub(crate) fn local_validation_data(para_id: ParaId) -> Option<LocalValidationData<T::BlockNumber>> {
-		let relay_parent_number = <frame_system::Module<T>>::block_number() - One::one();
-
-		let config = <configuration::Module<T>>::config();
-		let freq = config.validation_upgrade_frequency;
-		let delay = config.validation_upgrade_delay;
-
-		let last_code_upgrade = Self::last_code_upgrade(para_id, true);
-		let can_upgrade_code = last_code_upgrade.map_or(
-			true,
-			|l| { l <= relay_parent_number && relay_parent_number.saturating_sub(l) >= freq },
-		);
-
-		let code_upgrade_allowed = if can_upgrade_code {
-			Some(relay_parent_number + delay)
-		} else {
-			None
-		};
-
-		Some(LocalValidationData {
-			parent_head: Self::para_head(&para_id)?,
-			balance: 0,
-			validation_code_hash: BlakeTwo256::hash_of(
-				&Self::current_code(&para_id)?
-			),
-			code_upgrade_allowed,
-		})
 	}
 }
 
