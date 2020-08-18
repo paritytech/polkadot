@@ -4861,6 +4861,7 @@ dependencies = [
  "sc-network",
  "smallvec 1.4.1",
  "sp-core",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]

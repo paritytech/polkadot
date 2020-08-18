@@ -23,9 +23,11 @@
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
 	FromOverseer, OverseerSignal,
-};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
+	messages::{
+		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
+		ValidationFailed, RuntimeApiRequest,
+	},
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
@@ -45,13 +47,63 @@ use futures::prelude::*;
 
 use std::sync::Arc;
 
+const LOG_TARGET: &'static str = "candidate_validation";
+
 /// The candidate validation subsystem.
-pub struct CandidateValidationSubsystem<S>(S);
+pub struct CandidateValidationSubsystem<S> {
+	spawn: S,
+	metrics: Metrics,
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["failed"]).inc();
+				},
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_validation_requests_total",
+						"Number of validation requests served.",
+					),
+					&["valid", "invalid", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S) -> Self {
-		CandidateValidationSubsystem(spawn)
+	pub fn new(spawn: S, metrics: Metrics) -> Self {
+		CandidateValidationSubsystem { spawn, metrics }
 	}
 }
 
@@ -59,10 +111,12 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
 	S: SpawnNamed + Clone + 'static,
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx, self.0).map(|_| ()).boxed(),
+			future: run(ctx, self.spawn, self.metrics).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -70,6 +124,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
+	metrics: Metrics,
 )
 	-> SubsystemResult<()>
 {
@@ -95,8 +150,11 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => { let _ = response_sender.send(x); }
-						Err(e)=> return Err(e),
+						Ok(x) => {
+							metrics.on_validation_event(&x);
+							let _ = response_sender.send(x);
+						}
+						Err(e) => return Err(e),
 					}
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
@@ -117,13 +175,16 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => if let Err(_e) = response_sender.send(x) {
-							log::warn!(
-								target: "candidate_validation",
-								"Requester of candidate validation dropped",
-							)
+						Ok(x) => {
+							metrics.on_validation_event(&x);
+							if let Err(_e) = response_sender.send(x) {
+								log::warn!(
+									target: LOG_TARGET,
+									"Requester of candidate validation dropped",
+								)
+							}
 						},
-						Err(e)=> return Err(e),
+						Err(e) => return Err(e),
 					}
 				}
 			}
@@ -237,7 +298,7 @@ async fn spawn_validate_from_chain_state(
 			Ok(g) => g,
 			Err(e) => {
 				log::warn!(
-					target: "candidate_validation",
+					target: LOG_TARGET,
 					"Error making runtime API request: {:?}",
 					e,
 				);

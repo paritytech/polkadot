@@ -84,6 +84,7 @@ use polkadot_subsystem::messages::{
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate,
+	metrics::{self, prometheus},
 };
 use polkadot_node_primitives::SpawnNamed;
 
@@ -92,6 +93,9 @@ use polkadot_node_primitives::SpawnNamed;
 const CHANNEL_CAPACITY: usize = 1024;
 // A graceful `Overseer` teardown time delay.
 const STOP_DELAY: u64 = 1;
+// Target for logs.
+const LOG_TARGET: &'static str = "overseer";
+
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -325,10 +329,6 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 }
 
-/// A subsystem compatible with the overseer - one which can be run in the context of the
-/// overseer.
-pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>> + Send>;
-
 /// A subsystem that we oversee.
 ///
 /// Ties together the [`Subsystem`] itself and it's running instance
@@ -336,7 +336,6 @@ pub type CompatibleSubsystem<M> = Box<dyn Subsystem<OverseerSubsystemContext<M>>
 /// for whatever reason).
 ///
 /// [`Subsystem`]: trait.Subsystem.html
-#[allow(dead_code)]
 struct OverseenSubsystem<M> {
 	instance: Option<SubsystemInstance<M>>,
 }
@@ -407,6 +406,9 @@ pub struct Overseer<S: SpawnNamed> {
 
 	/// The set of the "active leaves".
 	active_leaves: HashSet<(Hash, BlockNumber)>,
+
+	/// Various Prometheus metrics.
+	metrics: Metrics,
 }
 
 /// This struct is passed as an argument to create a new instance of an [`Overseer`].
@@ -451,6 +453,52 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG
 	pub collation_generation: CG,
 	/// A Collator Protocol subsystem.
 	pub collator_protocol: CP,
+}
+
+/// Overseer Prometheus metrics.
+#[derive(Clone)]
+struct MetricsInner {
+	activated_heads_total: prometheus::Counter<prometheus::U64>,
+	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
+}
+
+#[derive(Default, Clone)]
+struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_head_activated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.activated_heads_total.inc();
+		}
+	}
+
+	fn on_head_deactivated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.deactivated_heads_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			activated_heads_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_activated_heads_total",
+					"Number of activated heads."
+				)?,
+				registry,
+			)?,
+			deactivated_heads_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_deactivated_heads_total",
+					"Number of deactivated heads."
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
 }
 
 impl<S> Overseer<S>
@@ -500,8 +548,10 @@ where
 	/// struct ValidationSubsystem;
 	///
 	/// impl<C> Subsystem<C> for ValidationSubsystem
-	/// 	where C: SubsystemContext<Message=CandidateValidationMessage>
+	///     where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
+	///     type Metrics = ();
+	///
 	///     fn start(
 	///         self,
 	///         mut ctx: C,
@@ -539,6 +589,7 @@ where
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
+	///     None,
 	///     spawner,
 	/// ).unwrap();
 	///
@@ -558,6 +609,7 @@ where
 	pub fn new<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>(
 		leaves: impl IntoIterator<Item = BlockInfo>,
 		all_subsystems: AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>,
+		prometheus_registry: Option<&prometheus::Registry>,
 		mut s: S,
 	) -> SubsystemResult<(Self, OverseerHandler)>
 	where
@@ -692,12 +744,14 @@ where
 			all_subsystems.collator_protocol,
 		)?;
 
-		let active_leaves = HashSet::new();
-
 		let leaves = leaves
 			.into_iter()
 			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number))
 			.collect();
+
+		let active_leaves = HashSet::new();
+
+		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry);
 
 		let this = Self {
 			candidate_validation_subsystem,
@@ -721,6 +775,7 @@ where
 			events_rx,
 			leaves,
 			active_leaves,
+			metrics,
 		};
 
 		Ok((this, handler))
@@ -811,6 +866,7 @@ where
 		for leaf in leaves.into_iter() {
 			update.activated.push(leaf.0);
 			self.active_leaves.insert(leaf);
+			self.metrics.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -850,7 +906,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				log::error!("Subsystem finished unexpectedly {:?}", finished);
+				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
 				self.stop().await;
 				return Err(SubsystemError);
 			}
@@ -865,11 +921,13 @@ where
 
 		if let Some(parent) = block.number.checked_sub(1).and_then(|number| self.active_leaves.take(&(block.parent_hash, number))) {
 			update.deactivated.push(parent.0);
+			self.metrics.on_head_deactivated();
 		}
 
 		if !self.active_leaves.contains(&(block.hash, block.number)) {
 			update.activated.push(block.hash);
 			self.active_leaves.insert((block.hash, block.number));
+			self.metrics.on_head_activated();
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -879,10 +937,12 @@ where
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
+		let metrics = &self.metrics;
 
 		self.active_leaves.retain(|(h, n)| {
 			if *n <= block.number {
 				update.deactivated.push(*h);
+				metrics.on_head_deactivated();
 				false
 			} else {
 				true
@@ -1103,6 +1163,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0;
 			SpawnedSubsystem {
@@ -1131,6 +1193,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let sender = self.0.clone();
 			SpawnedSubsystem {
@@ -1177,6 +1241,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem4
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "test-subsystem-4",
@@ -1186,6 +1252,7 @@ mod tests {
 			}
 		}
 	}
+
 
 	// Checks that a minimal configuration of two jobs can run and exchange messages.
 	#[test]
@@ -1216,6 +1283,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1252,6 +1320,86 @@ mod tests {
 			assert_eq!(s1_results, (0..10).collect::<Vec<_>>());
 		});
 	}
+
+	// Checks activated/deactivated metrics are updated properly.
+	#[test]
+	fn overseer_metrics_work() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+
+		executor::block_on(async move {
+			let first_block_hash = [1; 32].into();
+			let second_block_hash = [2; 32].into();
+			let third_block_hash = [3; 32].into();
+
+			let first_block = BlockInfo {
+				hash: first_block_hash,
+				parent_hash: [0; 32].into(),
+				number: 1,
+			};
+			let second_block = BlockInfo {
+				hash: second_block_hash,
+				parent_hash: first_block_hash,
+				number: 2,
+			};
+			let third_block = BlockInfo {
+				hash: third_block_hash,
+				parent_hash: second_block_hash,
+				number: 3,
+			};
+
+			let all_subsystems = AllSubsystems {
+				collation_generation: DummySubsystem,
+				candidate_validation: DummySubsystem,
+				candidate_backing: DummySubsystem,
+				candidate_selection: DummySubsystem,
+				collator_protocol: DummySubsystem,
+				statement_distribution: DummySubsystem,
+				availability_distribution: DummySubsystem,
+				bitfield_signing: DummySubsystem,
+				bitfield_distribution: DummySubsystem,
+				provisioner: DummySubsystem,
+				pov_distribution: DummySubsystem,
+				runtime_api: DummySubsystem,
+				availability_store: DummySubsystem,
+				network_bridge: DummySubsystem,
+				chain_api: DummySubsystem,
+			};
+			let registry = prometheus::Registry::new();
+			let (overseer, mut handler) = Overseer::new(
+				vec![first_block],
+				all_subsystems,
+				Some(&registry),
+				spawner,
+			).unwrap();
+			let overseer_fut = overseer.run().fuse();
+
+			pin_mut!(overseer_fut);
+
+			handler.block_imported(second_block).await.unwrap();
+			handler.block_imported(third_block).await.unwrap();
+			handler.stop().await.unwrap();
+
+			select! {
+				res = overseer_fut => {
+					assert!(res.is_ok());
+					let (activated, deactivated) = extract_metrics(&registry);
+					assert_eq!(activated, 3);
+					assert_eq!(deactivated, 2);
+				},
+				complete => (),
+			}
+		});
+	}
+
+	fn extract_metrics(registry: &prometheus::Registry) -> (u64, u64) {
+		let gather = registry.gather();
+		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
+		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
+		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
+		(activated, deactivated)
+	}
+
 	// Spawn a subsystem that immediately exits.
 	//
 	// Should immediately conclude the overseer itself with an error.
@@ -1281,6 +1429,7 @@ mod tests {
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
@@ -1298,6 +1447,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1327,6 +1478,8 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1400,6 +1553,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 
@@ -1505,6 +1659,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 
@@ -1592,6 +1747,8 @@ mod tests {
 			C: SubsystemContext<Message=M>,
 			M: Send,
 	{
+		type Metrics = ();
+
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "counter-subsystem",
@@ -1738,6 +1895,7 @@ mod tests {
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
+				None,
 				spawner,
 			).unwrap();
 			let overseer_fut = overseer.run().fuse();
