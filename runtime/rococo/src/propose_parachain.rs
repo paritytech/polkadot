@@ -36,7 +36,7 @@ use frame_support::{
 use primitives::v0::{Id as ParaId, Info as ParaInfo, Scheduling, HeadData, ValidationCode};
 use polkadot_parachain::primitives::AccountIdConversion;
 use system::{ensure_signed, EnsureOneOf, EnsureSigned};
-use sp_runtime::{Either, traits::BadOrigin};
+use sp_runtime::Either;
 use sp_staking::SessionIndex;
 use sp_std::vec::Vec;
 use runtime_common::registrar::Registrar;
@@ -209,7 +209,7 @@ decl_module! {
 			origin,
 			para_id: ParaId,
 		) {
-			T::PriviledgedOrigin::try_origin(origin).map_err(|_| BadOrigin)?;
+			T::PriviledgedOrigin::ensure_origin(origin)?;
 
 			if !Proposals::<T>::contains_key(&para_id) {
 				return Err(Error::<T>::ProposalNotFound.into())
@@ -225,7 +225,7 @@ decl_module! {
 		/// This also unreserves the deposit.
 		#[weight = 100_000]
 		fn cancel_proposal(origin, para_id: ParaId) {
-			let who = match EnsurePriviledgedOrSigned::<T>::try_origin(origin).map_err(|_| BadOrigin)? {
+			let who = match EnsurePriviledgedOrSigned::<T>::ensure_origin(origin)? {
 				Either::Left(()) => None,
 				Either::Right(who) => Some(who),
 			};
@@ -244,7 +244,7 @@ decl_module! {
 		/// Deregister a parachain that was already successfully registered in the relay chain.
 		#[weight = 100_000]
 		fn deregister_parachain(origin, para_id: ParaId) {
-			let who = match EnsurePriviledgedOrSigned::<T>::try_origin(origin).map_err(|_| BadOrigin)? {
+			let who = match EnsurePriviledgedOrSigned::<T>::ensure_origin(origin)? {
 				Either::Left(()) => None,
 				Either::Right(who) => Some(who),
 			};
