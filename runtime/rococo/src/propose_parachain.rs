@@ -63,7 +63,7 @@ pub trait Trait: session::Trait + runtime_common::parachains::Trait + runtime_co
 	type ProposeDeposit: Get<BalanceOf<Self>>;
 
 	/// Priviledged origin that can approve/cancel/deregister parachain and proposals.
-	type PriviledgedOrigin: EnsureOrigin<<Self as system::Trait>::Origin, Success = ()>;
+	type PriviledgedOrigin: EnsureOrigin<<Self as system::Trait>::Origin>;
 }
 
 /// A proposal for adding a parachain to the relay chain.
@@ -98,6 +98,8 @@ decl_event! {
 		ParachainProposed(Vec<u8>, ParaId),
 		/// A parachain was approved and is scheduled for being activated.
 		ParachainApproved(ParaId),
+		/// A parachain was registered and is now running.
+		ParachainRegistered(ParaId),
 	}
 }
 
@@ -158,7 +160,7 @@ decl_module! {
 		/// - `balance`: The initial balance of the parachain on the relay chain.
 		///
 		/// It will reserve a deposit from the sender account over the lifetime of the chain.
-		#[weight = T::MaximumBlockWeight::get()]
+		#[weight = 1000_000]
 		fn propose_parachain(
 			origin,
 			para_id: ParaId,
@@ -226,7 +228,7 @@ decl_module! {
 		#[weight = 100_000]
 		fn cancel_proposal(origin, para_id: ParaId) {
 			let who = match EnsurePriviledgedOrSigned::<T>::ensure_origin(origin)? {
-				Either::Left(()) => None,
+				Either::Left(_) => None,
 				Either::Right(who) => Some(who),
 			};
 
@@ -245,7 +247,7 @@ decl_module! {
 		#[weight = 100_000]
 		fn deregister_parachain(origin, para_id: ParaId) {
 			let who = match EnsurePriviledgedOrSigned::<T>::ensure_origin(origin)? {
-				Either::Left(()) => None,
+				Either::Left(_) => None,
 				Either::Right(who) => Some(who),
 			};
 
@@ -307,6 +309,7 @@ impl<T: Trait> session::SessionManager<T::ValidatorId> for Module<T> {
 				proposal.validation_function,
 				proposal.initial_head_state,
 			);
+			Self::deposit_event(Event::ParachainRegistered(*id));
 
 			// Add some funds to the Parachain
 			let _ = T::Currency::deposit_creating(&id.into_account(), proposal.balance);

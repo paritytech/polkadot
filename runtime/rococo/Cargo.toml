@@ -70,14 +70,13 @@ frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch =
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, optional = true }
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, optional = true }
-hex-literal = { version = "0.2.1" }
+hex-literal = "0.2.1"
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.2.1"
 libsecp256k1 = "0.3.2"
 tiny-keccak = "1.5.0"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
