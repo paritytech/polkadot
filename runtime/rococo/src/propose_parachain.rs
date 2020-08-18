@@ -15,6 +15,19 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! A pallet for proposing a parachain for Rococo.
+//!
+//! This pallet works as registration of parachains for Rococo. The idea is to have
+//! the registration of community provides parachains being handled by this pallet.
+//! People will be able to propose their parachain for registration. This proposal
+//! will need to be improved by some priviledged account. After approval the workflow
+//! is the following:
+//!
+//! 1. On start of the next session the pallet announces the new relay chain validators.
+//!
+//! 2. The session after announcing the new relay chain validators, they will be active. At the
+//!    switch to this session, the parachain will be registered and is allowed to produce blocks.
+//!
+//! When deregistering a parachain, we basically reverse the operations.
 
 use frame_support::{
 	decl_event, decl_error, decl_module, traits::{Get, ReservableCurrency, EnsureOrigin, Currency},
@@ -129,8 +142,22 @@ decl_module! {
 		/// The maximum name length of a parachain.
 		const MaxNameLength: u32 = T::MaxNameLength::get();
 
+		/// The deposit that will be reserved when proposing a parachain.
+		const ProposeDeposit: BalanceOf<T> = T::ProposeDeposit::get();
+
 		fn deposit_event() = default;
 
+		/// Propose a new parachain
+		///
+		/// This requires:
+		/// - `para_id`: The id of the parachain.
+		/// - `name`: The name of the parachain.
+		/// - `validation_function`: The wasm runtime of the parachain.
+		/// - `initial_head_state`: The genesis state of the parachain.
+		/// - `validators`: Two validators that will validate for the relay chain.
+		/// - `balance`: The initial balance of the parachain on the relay chain.
+		///
+		/// It will reserve a deposit from the sender account over the lifetime of the chain.
 		#[weight = T::MaximumBlockWeight::get()]
 		fn propose_parachain(
 			origin,
@@ -176,6 +203,7 @@ decl_module! {
 			Self::deposit_event(Event::ParachainProposed(name, para_id));
 		}
 
+		/// Approve a parachain proposal.
 		#[weight = 100_000]
 		fn approve_proposal(
 			origin,
@@ -192,6 +220,9 @@ decl_module! {
 			Self::deposit_event(Event::ParachainApproved(para_id));
 		}
 
+		/// Cancel a parachain proposal.
+		///
+		/// This also unreserves the deposit.
 		#[weight = 100_000]
 		fn cancel_proposal(origin, para_id: ParaId) {
 			let who = match EnsurePriviledgedOrSigned::<T>::try_origin(origin).map_err(|_| BadOrigin)? {
@@ -210,6 +241,7 @@ decl_module! {
 			T::Currency::unreserve(&proposal.proposer, T::ProposeDeposit::get());
 		}
 
+		/// Deregister a parachain that was already successfully registered in the relay chain.
 		#[weight = 100_000]
 		fn deregister_parachain(origin, para_id: ParaId) {
 			let who = match EnsurePriviledgedOrSigned::<T>::try_origin(origin).map_err(|_| BadOrigin)? {
@@ -225,6 +257,7 @@ decl_module! {
 
 			ParachainInfo::<T>::remove(&para_id);
 			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
+			let _ = T::Registrar::deregister_para(para_id);
 
 			T::Currency::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
@@ -802,6 +835,7 @@ mod tests {
 			assert_eq!(vec![11, 12], ValidatorsToRetire::<Test>::get());
 			assert!(Session::validators().iter().any(|v| *v == 11));
 			assert!(Session::validators().iter().any(|v| *v == 12));
+			assert!(parachains::Code::get(&ParaId::from(10)).is_none());
 
 			run_to_block(4);
 			assert!(Session::validators().iter().all(|v| *v != 11 && *v != 12));
