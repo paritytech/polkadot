@@ -5328,7 +5328,6 @@ dependencies = [
  "polkadot-runtime-common",
  "polkadot-service",
  "polkadot-test-runtime",
- "polkadot-validation",
  "rand 0.7.3",
  "sc-authority-discovery",
  "sc-chain-spec",

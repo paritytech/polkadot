@@ -13,7 +13,6 @@ rand = "0.7.3"
 tempfile = "3.1.0"
 
 # Polkadot dependencies
-consensus = { package = "polkadot-validation", path = "../../validation" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-runtime-common = { path = "../../runtime/common" }
