@@ -7,7 +7,6 @@ edition = "2018"
 [dependencies]
 adder = { package = "test-parachain-adder", path = ".." }
 parachain = { package = "polkadot-parachain", path = "../../.." }
-collator = { package = "polkadot-collator", path = "../../../../collator" }
 primitives = { package = "polkadot-primitives", path = "../../../../primitives" }
 service = { package = "polkadot-service", path = "../../../../service" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
