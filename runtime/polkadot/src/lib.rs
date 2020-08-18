@@ -21,7 +21,7 @@
 #![recursion_limit="256"]
 
 use runtime_common::{
-	dummy, claims, SlowAdjustingFeeUpdate,
+	dummy, purchase, claims, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, BlockWeights, BlockLength, RocksDbWeight,
 	ParachainSessionKeyPlaceholder,

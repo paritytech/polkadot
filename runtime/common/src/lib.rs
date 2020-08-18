@@ -29,7 +29,7 @@ pub mod paras_sudo_wrapper;
 pub mod dummy;
 
 use primitives::v1::{BlockNumber, ValidatorId};
-use sp_runtime::{Perquintill, Perbill, FixedPointNumber, traits::Saturating};
+use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
 use frame_support::{
 	parameter_types, traits::{Currency},

@@ -27,7 +27,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 };
 use runtime_common::{
-	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
+	claims, SlowAdjustingFeeUpdate,
 	impls::CurrencyToVoteHandler,
 	BlockHashCount, BlockWeights, ParachainSessionKeyPlaceholder,
 };
