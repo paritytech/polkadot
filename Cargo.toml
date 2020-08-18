@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.8.22"
+version = "0.8.19"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -37,7 +37,6 @@ members = [
 	"runtime/kusama",
 	"runtime/rococo-v1",
 	"runtime/westend",
-	"runtime/rococo",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -45,21 +44,27 @@ members = [
 	"service",
 	"validation",
 
+	"node/collation-generation",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
 	"node/core/proposer",
+	"node/core/provisioner",
 	"node/core/runtime-api",
 	"node/network/bridge",
 	"node/network/pov-distribution",
+	"node/network/protocol",
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
+	"node/network/availability-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
+	"node/subsystem-test-helpers",
+	"node/subsystem-util",
 	"node/test-service",
 
 	"parachain/test-parachains",

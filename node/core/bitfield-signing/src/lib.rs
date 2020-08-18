@@ -29,7 +29,10 @@ use polkadot_node_subsystem::{
 		BitfieldSigningMessage, CandidateBackingMessage, RuntimeApiMessage,
 	},
 	errors::RuntimeApiError,
-	util::{self, JobManager, JobTrait, ToJobTrait, Validator},
+	metrics::{self, prometheus},
+};
+use polkadot_node_subsystem_util::{
+	self as util, JobManager, JobTrait, ToJobTrait, Validator
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration};
@@ -250,11 +253,44 @@ async fn construct_availability_bitfield(
 	}
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	bitfields_signed_total: prometheus::Counter<prometheus::U64>,
+}
+
+/// Bitfield signing metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_bitfield_signed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.bitfields_signed_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			bitfields_signed_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_bitfields_signed_total",
+					"Number of bitfields signed.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = KeyStorePtr;
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";
 
@@ -262,6 +298,7 @@ impl JobTrait for BitfieldSigningJob {
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,
+		metrics: Self::Metrics,
 		_receiver: mpsc::Receiver<ToJob>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -293,6 +330,7 @@ impl JobTrait for BitfieldSigningJob {
 			};
 
 			let signed_bitfield = validator.sign(bitfield);
+			metrics.on_bitfield_signed();
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message
 			{

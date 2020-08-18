@@ -25,7 +25,7 @@ use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
 
-use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
@@ -106,7 +106,7 @@ pub fn validation_data_hash<N: Encode>(
 
 /// A unique descriptor of the candidate receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -176,7 +176,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 
 /// A candidate-receipt with commitments directly included.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -266,7 +266,7 @@ pub struct GlobalValidationData<N = BlockNumber> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
@@ -434,57 +434,10 @@ pub enum CoreOccupied {
 	Parachain,
 }
 
-/// The assignment type.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum AssignmentKind {
-	/// A parachain.
-	Parachain,
-	/// A parathread.
-	Parathread(CollatorId, u32),
-}
-
-/// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct CoreAssignment {
-	/// The core that is assigned.
-	pub core: CoreIndex,
-	/// The unique ID of the para that is assigned to the core.
-	pub para_id: Id,
-	/// The kind of the assignment.
-	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
-}
-
-impl CoreAssignment {
-	/// Get the ID of a collator who is required to collate this block.
-	pub fn required_collator(&self) -> Option<&CollatorId> {
-		match self.kind {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(ref id, _) => Some(id),
-		}
-	}
-
-	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(&self) -> CoreOccupied {
-		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
-				ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator.clone()),
-					retries,
-				}
-			),
-		}
-	}
-}
-
 /// Validation data omitted from most candidate descriptor structs, as it can be derived from the
 /// relay-parent.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
 pub struct OmittedValidationData {
 	/// The global validation schedule.
 	pub global_validation: GlobalValidationData,
@@ -585,7 +538,7 @@ pub struct OccupiedCore<N = BlockNumber> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -613,8 +566,19 @@ pub enum CoreState<N = BlockNumber> {
 	Free,
 }
 
+impl<N> CoreState<N> {
+	/// If this core state has a `para_id`, return it.
+	pub fn para_id(&self) -> Option<Id> {
+		match self {
+			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Free => None,
+		}
+	}
+}
+
 /// An assumption being made about the state of an occupied core.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
@@ -691,6 +655,25 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+	}
+}
+
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The Ethereum signature is invalid.
+	InvalidEthereumSignature = 0,
+	/// The signer has no claim.
+	SignerHasNoClaim = 1,
+	/// No permission to execute the call.
+	NoPermission = 2,
+	/// An invalid statement was made for a claim.
+	InvalidStatement = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
 	}
 }
 
