@@ -97,8 +97,8 @@ Persisted validation data are generally derived from some relay-chain state to f
 The validation data also serve the purpose of giving collators a means of ensuring that their produced candidate and the commitments submitted to the relay-chain alongside it will pass the checks done by the relay-chain when backing, and give validators the same understanding when determining whether to second or attest to a candidate.
 
 Furthermore, the validation data acts as a way to authorize the additional data the collator needs to pass to the validator
-function. For example, the validation function can check whether the messages that collator claims were sent actually were sent,
-by checking the sent messages.
+function. For example, the validation function can check whether the incoming messages (e.g. downward messages) were actually
+sent by using the data provided in the validation data (e.g. using so called MQC heads).
 
 Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these transient validation data.
 
