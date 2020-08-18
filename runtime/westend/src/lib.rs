@@ -28,7 +28,7 @@ use primitives::v1::{
 use primitives::v0 as p_v0;
 use runtime_common::{
 	dummy, purchase, SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 	ParachainSessionKeyPlaceholder,
@@ -305,7 +305,7 @@ parameter_types! {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();

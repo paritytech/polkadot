@@ -22,7 +22,7 @@
 
 use runtime_common::{
 	dummy, claims, SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder,
@@ -342,7 +342,7 @@ type SlashCancelOrigin = EnsureOneOf<
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = Treasury;
 	type Event = Event;
 	type Slash = Treasury;
@@ -490,7 +490,7 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type CandidacyBond = CandidacyBond;
 	type VotingBond = VotingBond;
 	type LoserCandidate = Treasury;

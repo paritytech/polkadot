@@ -46,7 +46,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
-pub use impls::{CurrencyToVoteHandler, ToAuthor};
+pub use impls::ToAuthor;
 
 pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 

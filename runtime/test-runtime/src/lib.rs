@@ -27,7 +27,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, impls::CurrencyToVoteHandler,
+	claims, SlowAdjustingFeeUpdate,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
 };
@@ -283,7 +283,7 @@ parameter_types! {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
