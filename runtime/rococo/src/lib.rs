@@ -658,6 +658,18 @@ impl proxy::Trait for Runtime {
 	type WeightInfo = ();
 }
 
+parameter_types! {
+	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
+	pub const MaxNameLength: u32 = 20;
+}
+
+impl propose_parachain::Trait for Runtime {
+	type Event = Event;
+	type MaxNameLength = MaxNameLength;
+	type ProposeDeposit = ProposeDeposit;
+	type PriviledgedOrigin = EnsureRoot<AccountId>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -710,11 +722,14 @@ construct_runtime! {
 		// Sudo.
 		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
-		// Proxy module. Late addition.
+		// Proxy module.
 		Proxy: proxy::{Module, Call, Storage, Event<T>},
 
-		// Multisig module. Late addition.
+		// Multisig module.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Propose parachain pallet.
+		ProposeParachain: propose_parachain::{Module, Call, Storage, Event},
 	}
 }
 
