@@ -8448,23 +8448,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "test-parachain-adder-collator"
-version = "0.1.0"
-dependencies = [
- "futures 0.3.5",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-service",
- "sc-client-api",
- "sp-api",
- "sp-core",
- "sp-runtime",
- "test-parachain-adder",
-]
-
-[[package]]
 name = "test-parachain-halt"
 version = "0.8.22"
 dependencies = [
