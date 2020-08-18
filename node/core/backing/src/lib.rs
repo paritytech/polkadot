@@ -272,7 +272,7 @@ impl CandidateBackingJob {
 	) -> Result<bool, Error> {
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
-			.map_or(false, |c| c == &candidate.descriptor().collator)
+			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
 			self.issue_candidate_invalid_message(candidate.clone()).await?;
 			return Ok(false);
@@ -492,7 +492,7 @@ impl CandidateBackingJob {
 
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
-			.map_or(false, |c| c == &descriptor.collator)
+			.map_or(false, |c| c != &descriptor.collator)
 		{
 			// If not, we've got the statement in the table but we will
 			// not issue validation work for it.
@@ -1079,15 +1079,15 @@ mod tests {
 			}
 		);
 
-			// Check that subsystem job issues a request for the availability cores.
-			assert_matches!(
-				virtual_overseer.recv().await,
-				AllMessages::RuntimeApi(
-					RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
-				) if parent == test_state.relay_parent => {
-					tx.send(Ok(test_state.availability_cores.clone())).unwrap();
-				}
-			);
+		// Check that subsystem job issues a request for the availability cores.
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+			}
+		);
 	}
 
 	// Test that a `CandidateBackingMessage::Second` issues validation work
@@ -1783,6 +1783,110 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg }).await;
 			assert_eq!(rx.await.unwrap().len(), 0);
+		});
+	}
+
+	// Test that a `CandidateBackingMessage::Second` issues validation work
+	// and in case validation is successful issues a `StatementDistributionMessage`.
+	#[test]
+	fn backing_doesnt_second_wrong_collator() {
+		let mut test_state = TestState::default();
+		test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
+			para_id: ParaId::from(1),
+			collator: Some(Sr25519Keyring::Bob.public().into()),
+		});
+
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let pov_hash = pov.hash();
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let second = CandidateBackingMessage::Second(
+				test_state.relay_parent,
+				candidate.to_plain(),
+				pov.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: second }).await;
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::CandidateSelection(
+					CandidateSelectionMessage::Invalid(parent, c)
+				) if parent == test_state.relay_parent && c == candidate.to_plain() => {
+				}
+			);
+
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
+			).await;
+		});
+	}
+
+	#[test]
+	fn validation_work_ignores_wrong_collator() {
+		let mut test_state = TestState::default();
+		test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
+			para_id: ParaId::from(1),
+			collator: Some(Sr25519Keyring::Bob.public().into()),
+		});
+
+		test_harness(test_state.keystore.clone(), |test_harness| async move {
+			let TestHarness { mut virtual_overseer } = test_harness;
+
+			test_startup(&mut virtual_overseer, &test_state).await;
+
+			let pov = PoV {
+				block_data: BlockData(vec![1, 2, 3]),
+			};
+
+			let pov_hash = pov.hash();
+
+			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
+
+			let candidate_a = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				head_data: expected_head_data.clone(),
+				erasure_root: make_erasure_root(&test_state, pov.clone()),
+				..Default::default()
+			}.build();
+
+			let seconding = SignedFullStatement::sign(
+				Statement::Seconded(candidate_a.clone()),
+				&test_state.signing_context,
+				2,
+				&test_state.validators[2].pair().into(),
+			);
+
+			let statement = CandidateBackingMessage::Statement(
+				test_state.relay_parent,
+				seconding.clone(),
+			);
+
+			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
+
+			// The statement will be ignored because it has the wrong collator.
+			virtual_overseer.send(FromOverseer::Signal(
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))
+			).await;
 		});
 	}
 }
