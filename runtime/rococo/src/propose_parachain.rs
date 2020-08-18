@@ -117,6 +117,8 @@ decl_storage! {
 		ScheduledProposals: map hasher(twox_64_concat) SessionIndex => Vec<ParaId>;
 		/// Information about the registered parachains.
 		ParachainInfo: map hasher(twox_64_concat) ParaId => Option<RegisteredParachainInfo<T::AccountId, T::ValidatorId>>;
+		/// Validators that should be retired, because their Parachain was deregistered.
+		ValidatorsToRetire: Vec<T::ValidatorId>;
 	}
 }
 
@@ -181,6 +183,10 @@ decl_module! {
 		) {
 			T::PriviledgedOrigin::try_origin(origin).map_err(|_| BadOrigin)?;
 
+			if !Proposals::<T>::contains_key(&para_id) {
+				return Err(Error::<T>::ProposalNotFound.into())
+			}
+
 			ApprovedProposals::append(para_id);
 
 			Self::deposit_event(Event::ParachainApproved(para_id));
@@ -218,6 +224,7 @@ decl_module! {
 			}
 
 			ParachainInfo::<T>::remove(&para_id);
+			info.validators.into_iter().for_each(|v| ValidatorsToRetire::<T>::append(v));
 
 			T::Currency::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
@@ -233,6 +240,12 @@ impl<T: Trait> session::SessionManager<T::ValidatorId> for Module<T> {
 		let proposals = ApprovedProposals::take();
 
 		let mut validators = Session::<T>::validators();
+
+		ValidatorsToRetire::<T>::take().iter().for_each(|v| {
+			if let Some(pos) = validators.iter().position(|r| r == v) {
+				validators.swap_remove(pos);
+			}
+		});
 
 		// Schedule all approved proposals
 		for (id, proposal) in proposals.iter().filter_map(|id| Proposals::<T>::get(&id).map(|p| (id, p))) {
@@ -781,9 +794,17 @@ mod tests {
 			assert_eq!(Balances::free_balance(&ParaId::from(10).into_account()), 100);
 			assert!(Proposals::<Test>::get(&ParaId::from(10)).is_none());
 			assert_eq!(Balances::reserved_balance(&10), 10);
+			assert!(Session::validators().iter().any(|v| *v == 11));
+			assert!(Session::validators().iter().any(|v| *v == 12));
 
 			assert_eq!(ProposeParachain::deregister_parachain(Origin::signed(10), 10.into()), Ok(()));
 			assert_eq!(Balances::reserved_balance(&10), 0);
+			assert_eq!(vec![11, 12], ValidatorsToRetire::<Test>::get());
+			assert!(Session::validators().iter().any(|v| *v == 11));
+			assert!(Session::validators().iter().any(|v| *v == 12));
+
+			run_to_block(4);
+			assert!(Session::validators().iter().all(|v| *v != 11 && *v != 12));
 		})
 	}
 
