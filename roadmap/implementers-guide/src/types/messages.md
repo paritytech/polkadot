@@ -53,9 +53,23 @@ enum UpwardMessage {
 		/// The dispatchable to be executed in its raw form.
 		dispatchable: RawDispatchable,
 	},
-	// Examples:
-	// HrmpOpenChannel { .. },
-	// HrmpCloseChannel { .. },
+	/// A message for initiation of opening a new HRMP channel between the origin para and the
+	/// given `recipient`.
+	///
+	/// Let `origin` be the parachain that sent this upward message. In that case the channel
+	/// to be opened is (`origin` -> `recipient`).
+	HrmpInitOpenChannel(ParaId),
+	/// A message that is meant to confirm the HRMP open channel request initiated earlier by the
+	/// `HrmpInitOpenChannel` by the given `sender`.
+	///
+	/// Let `origin` be the parachain that sent this upward message. In that case the channel
+	/// (`origin` -> `sender`) will be opened during the session change.
+	HrmpAcceptOpenChannel(ParaId),
+	/// A message for closing the specified existing channel `ch`.
+	///
+	/// The channel to be closed is `(ch.sender -> ch.recipient)`. The parachain that sent this
+	/// upward message must be either `ch.sender` or `ch.recipient`.
+	HrmpCloseChannel(HrmpChannelId),
 }
 ```
 

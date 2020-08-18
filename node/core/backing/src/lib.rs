@@ -30,7 +30,7 @@ use futures::{
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
-	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
+	ValidatorIndex, SigningContext, PoV,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments, CoreState, CoreIndex,
 };
@@ -623,14 +623,9 @@ impl CandidateBackingJob {
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
-		let omitted_validation = OmittedValidationData {
-			global_validation: outputs.global_validation_data,
-			local_validation: outputs.local_validation_data,
-		};
-
 		let available_data = AvailableData {
 			pov,
-			omitted_validation,
+			validation_data: outputs.validation_data,
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -835,7 +830,7 @@ mod tests {
 	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments, CollatorId,
-		LocalValidationData, GlobalValidationData, HeadData,
+		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
 		ValidatorPair, ValidityAttestation, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
@@ -855,8 +850,7 @@ mod tests {
 		keystore: KeyStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		global_validation_data: GlobalValidationData,
-		local_validation_data: LocalValidationData,
+		validation_data: ValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -920,17 +914,18 @@ mod tests {
 				parent_hash: relay_parent,
 			};
 
-			let local_validation_data = LocalValidationData {
-				parent_head: HeadData(vec![7, 8, 9]),
-				balance: Default::default(),
-				code_upgrade_allowed: None,
-				validation_code_hash: Default::default(),
-			};
-
-			let global_validation_data = GlobalValidationData {
-				max_code_size: 1000,
-				max_head_data_size: 1000,
-				block_number: Default::default(),
+			let validation_data = ValidationData {
+				persisted: PersistedValidationData {
+					parent_head: HeadData(vec![7, 8, 9]),
+					block_number: Default::default(),
+					hrmp_mqc_heads: Vec::new(),
+				},
+				transient: TransientValidationData {
+					max_code_size: 1000,
+					max_head_data_size: 1000,
+					balance: Default::default(),
+					code_upgrade_allowed: None,
+				},
 			};
 
 			Self {
@@ -941,8 +936,7 @@ mod tests {
 				validator_groups: (validator_groups, group_rotation_info),
 				availability_cores,
 				head_data,
-				local_validation_data,
-				global_validation_data,
+				validation_data,
 				signing_context,
 				relay_parent,
 			}
@@ -971,13 +965,8 @@ mod tests {
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
-		let omitted_validation = OmittedValidationData {
-			global_validation: test.global_validation_data.clone(),
-			local_validation: test.local_validation_data.clone(),
-		};
-
 		let available_data = AvailableData {
-			omitted_validation,
+			validation_data: test.validation_data.persisted.clone(),
 			pov,
 		};
 
@@ -1109,8 +1098,7 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1221,8 +1209,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1351,8 +1338,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1508,8 +1494,7 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
