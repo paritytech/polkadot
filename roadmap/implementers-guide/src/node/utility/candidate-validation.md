@@ -40,7 +40,7 @@ Once we have all parameters, we can spin up a background task to perform the val
   * The collator signature is valid
   * The PoV provided matches the `pov_hash` field of the descriptor
 
-After that, we can invoke the validation function. Lastly, we do some final checks on the output using the `TransientValidationData`:
+After that, we can invoke the validation function. Lastly, if available, we do some final checks on the output using the `TransientValidationData`:
   * The produced head-data is no larger than the maximum allowed.
   * The produced code upgrade, if any, is no larger than the maximum allowed, and a code upgrade was allowed to be signaled.
   * The amount and size of produced upward messages is not too large.
