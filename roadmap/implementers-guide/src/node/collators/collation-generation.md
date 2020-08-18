@@ -4,33 +4,48 @@ The collation generation subsystem is executed on collator nodes and produces ca
 
 ## Protocol
 
-Input: None
+Input: `CollationGenerationMessage`
 
-Output: CollationDistributionMessage
+```rust
+enum CollationGenerationMessage {
+  Initialize(CollationGenerationConfig),
+}
+```
+
+No more than one initialization message should ever be sent to the collation generation subsystem.
+
+Output: `CollationDistributionMessage`
 
 ## Functionality
 
 The process of generating a collation for a parachain is very parachain-specific. As such, the details of how to do so are left beyond the scope of this description. The subsystem should be implemented as an abstract wrapper, which is aware of this configuration:
 
 ```rust
+pub struct Collation {
+  /// Hash of `CandidateCommitments` as understood by the collator.
+  pub commitments_hash: Hash,
+  pub proof_of_validity: PoV,
+}
+
 struct CollationGenerationConfig {
-	key: CollatorPair,
-	collation_producer: Fn(params) -> async (HeadData, Vec<UpwardMessage>, PoV),
+  key: CollatorPair,
+  collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation>>>
+  para_id: ParaId,
 }
 ```
 
 The configuration should be optional, to allow for the case where the node is not run with the capability to collate.
 
 On `ActiveLeavesUpdate`:
-  * If there is no collation generation config, ignore.
-  * Otherwise, for each `activated` head in the update:
-    * Determine if the para is scheduled or is next up on any occupied core by fetching the `availability_cores` Runtime API.
-    * Determine an occupied core assumption to make about the para. The simplest thing to do is to always assume that if the para occupies a core, that the candidate will become available. Further on, this might be determined based on bitfields seen or validator requests.
-    * Use the Runtime API subsystem to fetch the full validation data.
-	* Construct validation function params based on validation data.
-	* Invoke the `collation_producer`.
-	* Construct a `CommittedCandidateReceipt` using the outputs of the `collation_producer` and signing with the `key`.
-	* Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
+
+* If there is no collation generation config, ignore.
+* Otherwise, for each `activated` head in the update:
+  * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
+    > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/paritytech/polkadot/issues/1573).
+  * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
+  * Use the Runtime API subsystem to fetch the full validation data.
+  * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.
+  * Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
 
 [CP]: collator-protocol.md
 [CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage

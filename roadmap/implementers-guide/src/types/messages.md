@@ -5,6 +5,22 @@ Types of messages that are passed between parachains and the relay chain: UMP, D
 There is also HRMP (Horizontally Relay-routed Message Passing) which provides the same functionality
 although with smaller scalability potential.
 
+## HrmpChannelId
+
+A type that uniquely identifies a HRMP channel. A HRMP channel is established between two paras.
+In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
+unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
+that we use the first item tuple for the sender and the second for the recipient. Only one channel
+is allowed between two participants in one direction, i.e. there cannot be 2 different channels
+identified by `(A, B)`.
+
+```rust,ignore
+struct HrmpChannelId {
+    sender: ParaId,
+    recipient: ParaId,
+}
+```
+
 ## Upward Message
 
 A type of messages dispatched from a parachain to the relay chain.
@@ -22,11 +38,24 @@ enum ParachainDispatchOrigin {
 	Root,
 }
 
-struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
+/// An opaque byte buffer that encodes an entrypoint and the arguments that should be
+/// provided to it upon the dispatch.
+///
+/// NOTE In order to be executable the byte buffer should be decoded which potentially can fail if
+/// the encoding was changed.
+type RawDispatchable = Vec<u8>;
+
+enum UpwardMessage {
+	/// This upward message is meant to schedule execution of a provided dispatchable.
+	Dispatchable {
+		/// The origin with which the dispatchable should be executed.
+		origin: ParachainDispatchOrigin,
+		/// The dispatchable to be executed in its raw form.
+		dispatchable: RawDispatchable,
+	},
+	// Examples:
+	// HrmpOpenChannel { .. },
+	// HrmpCloseChannel { .. },
 }
 ```
 
@@ -53,11 +82,25 @@ struct InboundHrmpMessage {
 
 ## Downward Message
 
-A message that go down from the relay chain to a parachain. Such a message could be initiated either
-as a result of an operation took place on the relay chain.
+`DownwardMessage`- is a message that goes down from the relay chain to a parachain. Such a message
+could be seen as a notification, however, it is conceivable that they might be used by the relay
+chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
 
 ```rust,ignore
+enum DispatchResult {
+	Executed {
+		success: bool,
+	},
+	/// Decoding `RawDispatchable` into an executable runtime representation has failed.
+	DecodeFailed,
+	/// A dispatchable in question exceeded the maximum amount of weight allowed.
+	CriticalWeightExceeded,
+}
+
 enum DownwardMessage {
+	/// The parachain receives a dispatch result for each sent dispatchable upward message in order
+	/// they were sent.
+	DispatchResult(Vec<DispatchResult>),
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
 	TransferInto(AccountId, Balance, Remark),

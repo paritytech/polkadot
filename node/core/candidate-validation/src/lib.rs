@@ -318,7 +318,7 @@ async fn spawn_validate_exhaustive(
 		let _ = tx.send(res);
 	};
 
-	ctx.spawn("blocking-candidate-validation-task", fut.boxed()).await?;
+	ctx.spawn_blocking("blocking-candidate-validation-task", fut.boxed()).await?;
 	rx.await.map_err(Into::into)
 }
 
