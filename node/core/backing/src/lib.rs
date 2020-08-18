@@ -270,6 +270,14 @@ impl CandidateBackingJob {
 		candidate: &CandidateReceipt,
 		pov: PoV,
 	) -> Result<bool, Error> {
+		// Check that candidate is collated by the right collator.
+		if self.required_collator.as_ref()
+			.map_or(false, |c| c == &candidate.descriptor().collator)
+		{
+			self.issue_candidate_invalid_message(candidate.clone()).await?;
+			return Ok(false);
+		}
+
 		let valid = self.request_candidate_validation(
 			candidate.descriptor().clone(),
 			Arc::new(pov.clone()),
@@ -481,6 +489,19 @@ impl CandidateBackingJob {
 		let expected_commitments = candidate.commitments.clone();
 
 		let descriptor = candidate.descriptor().clone();
+
+		// Check that candidate is collated by the right collator.
+		if self.required_collator.as_ref()
+			.map_or(false, |c| c == &descriptor.collator)
+		{
+			// If not, we've got the statement in the table but we will
+			// not issue validation work for it.
+			//
+			// Act as though we've issued a statement.
+			self.issued_statements.insert(candidate_hash);
+			return Ok(());
+		}
+
 		let pov = self.request_pov_from_distribution(descriptor.clone()).await?;
 		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
 
