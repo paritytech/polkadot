@@ -31,6 +31,7 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_availability_cores_ctx, request_global_validation_data_ctx,
@@ -47,9 +48,18 @@ use std::sync::Arc;
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
 	config: Option<Arc<CollationGenerationConfig>>,
+	metrics: Metrics,
 }
 
 impl CollationGenerationSubsystem {
+	/// Create a new instance of the `CollationGenerationSubsystem`.
+	pub fn new(metrics: Metrics) -> Self {
+		Self {
+			config: None,
+			metrics,
+		}
+	}
+
 	/// Run this subsystem
 	///
 	/// Conceptually, this is very simple: it just loops forever.
@@ -112,8 +122,9 @@ impl CollationGenerationSubsystem {
 			Ok(Signal(ActiveLeaves(ActiveLeavesUpdate { activated, .. }))) => {
 				// follow the procedure from the guide
 				if let Some(config) = &self.config {
+					let metrics = self.metrics.clone();
 					if let Err(err) =
-						handle_new_activations(config.clone(), &activated, ctx, sender).await
+						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
 						log::warn!(target: "collation_generation", "failed to handle new activations: {:?}", err);
 						return true;
@@ -146,13 +157,13 @@ impl<Context> Subsystem<Context> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let subsystem = CollationGenerationSubsystem { config: None };
+	type Metrics = Metrics;
 
-		let future = Box::pin(subsystem.run(ctx));
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = Box::pin(self.run(ctx));
 
 		SpawnedSubsystem {
-			name: "CollationGenerationSubsystem",
+			name: "collation-generation-subsystem",
 			future,
 		}
 	}
@@ -178,6 +189,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: &[Hash],
 	ctx: &mut Context,
+	metrics: Metrics,
 	sender: &mpsc::Sender<AllMessages>,
 ) -> Result<()> {
 	// follow the procedure from the guide:
@@ -230,6 +242,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			let task_global_validation_data = global_validation_data.clone();
 			let task_config = config.clone();
 			let mut task_sender = sender.clone();
+			let metrics = metrics.clone();
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let validation_data_hash =
 					validation_data_hash(&task_global_validation_data, &local_validation_data);
@@ -273,6 +286,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					},
 				};
 
+				metrics.on_collation_generated();
+
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
@@ -303,6 +318,38 @@ fn erasure_root(
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
 	Ok(polkadot_erasure_coding::branches(&chunks).root())
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	collations_generated_total: prometheus::Counter<prometheus::U64>,
+}
+
+/// CollationGenerationSubsystem metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_collation_generated(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.collations_generated_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> std::result::Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			collations_generated_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_collations_generated_total",
+					"Number of collations generated."
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
 }
 
 #[cfg(test)]
@@ -411,6 +458,7 @@ mod tests {
 					test_config(123),
 					&subsystem_activated_hashes,
 					&mut ctx,
+					Metrics(None),
 					&tx,
 				)
 				.await
@@ -498,7 +546,7 @@ mod tests {
 			let (tx, _rx) = mpsc::channel(0);
 
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(test_config(16), &activated_hashes, &mut ctx, &tx)
+				handle_new_activations(test_config(16), &activated_hashes, &mut ctx, Metrics(None), &tx)
 					.await
 					.unwrap();
 			});
@@ -581,7 +629,7 @@ mod tests {
 			let sent_messages = Arc::new(Mutex::new(Vec::new()));
 			let subsystem_sent_messages = sent_messages.clone();
 			subsystem_test_harness(overseer, |mut ctx| async move {
-				handle_new_activations(subsystem_config, &activated_hashes, &mut ctx, &tx)
+				handle_new_activations(subsystem_config, &activated_hashes, &mut ctx, Metrics(None), &tx)
 					.await
 					.unwrap();
 

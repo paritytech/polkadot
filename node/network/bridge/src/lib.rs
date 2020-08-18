@@ -205,6 +205,8 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 		Net: Network,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
+	type Metrics = ();
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.

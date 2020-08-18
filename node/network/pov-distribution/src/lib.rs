@@ -51,6 +51,8 @@ pub struct PoVDistribution;
 impl<C> Subsystem<C> for PoVDistribution
 	where C: SubsystemContext<Message = PoVDistributionMessage>
 {
+	type Metrics = ();
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.

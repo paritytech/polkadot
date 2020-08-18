@@ -5,6 +5,22 @@ Types of messages that are passed between parachains and the relay chain: UMP, D
 There is also HRMP (Horizontally Relay-routed Message Passing) which provides the same functionality
 although with smaller scalability potential.
 
+## HrmpChannelId
+
+A type that uniquely identifies a HRMP channel. A HRMP channel is established between two paras.
+In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
+unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
+that we use the first item tuple for the sender and the second for the recipient. Only one channel
+is allowed between two participants in one direction, i.e. there cannot be 2 different channels
+identified by `(A, B)`.
+
+```rust,ignore
+struct HrmpChannelId {
+    sender: ParaId,
+    recipient: ParaId,
+}
+```
+
 ## Upward Message
 
 A type of messages dispatched from a parachain to the relay chain.

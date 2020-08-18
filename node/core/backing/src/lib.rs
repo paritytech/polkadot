@@ -45,6 +45,7 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
+	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -100,6 +101,7 @@ struct CandidateBackingJob {
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	table: Table<TableContext>,
 	table_context: TableContext,
+	metrics: Metrics,
 }
 
 const fn group_quorum(n_validators: usize) -> usize {
@@ -432,6 +434,7 @@ impl CandidateBackingJob {
 								&candidate,
 								pov,
 							).await {
+								self.metrics.on_candidate_seconded();
 								self.seconded = Some(candidate_hash);
 							}
 						}
@@ -528,7 +531,9 @@ impl CandidateBackingJob {
 	}
 
 	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		Some(self.table_context.validator.as_ref()?.sign(statement))
+		let signed = self.table_context.validator.as_ref()?.sign(statement);
+		self.metrics.on_statement_signed();
+		Some(signed)
 	}
 
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
@@ -672,12 +677,14 @@ impl util::JobTrait for CandidateBackingJob {
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = KeyStorePtr;
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateBackingJob";
 
 	fn run(
 		parent: Hash,
 		keystore: KeyStorePtr,
+		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -764,6 +771,7 @@ impl util::JobTrait for CandidateBackingJob {
 				reported_misbehavior_for: HashSet::new(),
 				table: Table::default(),
 				table_context,
+				metrics,
 			};
 
 			job.run_loop().await
@@ -772,7 +780,53 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
+#[derive(Clone)]
+struct MetricsInner {
+	signed_statements_total: prometheus::Counter<prometheus::U64>,
+	candidates_seconded_total: prometheus::Counter<prometheus::U64>
+}
+
+/// Candidate backing metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_statement_signed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.signed_statements_total.inc();
+		}
+	}
+
+	fn on_candidate_seconded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidates_seconded_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			signed_statements_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_signed_statements_total",
+					"Number of statements signed.",
+				)?,
+				registry,
+			)?,
+			candidates_seconded_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_candidates_seconded_total",
+					"Number of candidates seconded.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -904,7 +958,7 @@ mod tests {
 
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
+		let subsystem = CandidateBackingSubsystem::run(context, keystore, Metrics(None), pool.clone());
 
 		let test_fut = test(TestHarness {
 			virtual_overseer,

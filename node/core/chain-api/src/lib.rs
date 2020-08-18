@@ -30,6 +30,7 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
 	messages::ChainApiMessage,
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
@@ -39,13 +40,15 @@ use futures::prelude::*;
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
 	client: Client,
+	metrics: Metrics,
 }
 
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
-	pub fn new(client: Client) -> Self {
+	pub fn new(client: Client, metrics: Metrics) -> Self {
 		ChainApiSubsystem {
-			client
+			client,
+			metrics,
 		}
 	}
 }
@@ -54,9 +57,11 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			future: run(ctx, self.client).map(|_| ()).boxed(),
+			future: run(ctx, self).map(|_| ()).boxed(),
 			name: "chain-api-subsystem",
 		}
 	}
@@ -64,7 +69,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
-	client: Client,
+	subsystem: ChainApiSubsystem<Client>,
 ) -> SubsystemResult<()>
 where
 	Client: HeaderBackend<Block>,
@@ -76,23 +81,27 @@ where
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
-					let result = client.number(hash).map_err(|e| e.to_string().into());
+					let result = subsystem.client.number(hash).map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
 				ChainApiMessage::FinalizedBlockHash(number, response_channel) => {
 					// Note: we don't verify it's finalized
-					let result = client.hash(number).map_err(|e| e.to_string().into());
+					let result = subsystem.client.hash(number).map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
 				ChainApiMessage::FinalizedBlockNumber(response_channel) => {
-					let result = client.info().finalized_number;
+					let result = subsystem.client.info().finalized_number;
+					// always succeeds
+					subsystem.metrics.on_request(true);
 					let _ = response_channel.send(Ok(result));
 				},
 				ChainApiMessage::Ancestors { hash, k, response_channel } => {
 					let mut hash = hash;
 
 					let next_parent = core::iter::from_fn(|| {
-						let maybe_header = client.header(BlockId::Hash(hash));
+						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
 							Err(e) => Some(Err(e.to_string().into())),
@@ -106,12 +115,53 @@ where
 					});
 
 					let result = next_parent.take(k).collect::<Result<Vec<_>, _>>();
+					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
 			}
 		}
 	}
 }
+
+#[derive(Clone)]
+struct MetricsInner {
+	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Chain API metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_request(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			if succeeded {
+				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
+			} else {
+				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			chain_api_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_chain_api_requests_total",
+						"Number of Chain API requests served.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 
 #[cfg(test)]
 mod tests {
@@ -238,7 +288,8 @@ mod tests {
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
 		let client = TestClient::default();
 
-		let chain_api_task = run(ctx, client.clone()).map(|x| x.unwrap());
+		let subsystem = ChainApiSubsystem::new(client.clone(), Metrics(None));
+		let chain_api_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = test(client, ctx_handle);
 
 		futures::executor::block_on(future::join(chain_api_task, test_task));

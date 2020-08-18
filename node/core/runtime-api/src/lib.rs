@@ -22,6 +22,7 @@
 use polkadot_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
 	RuntimeApiMessage, RuntimeApiRequest as Request,
@@ -34,12 +35,15 @@ use sp_api::{ProvideRuntimeApi};
 use futures::prelude::*;
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
-pub struct RuntimeApiSubsystem<Client>(Client);
+pub struct RuntimeApiSubsystem<Client> {
+	client: Client,
+	metrics: Metrics,
+}
 
 impl<Client> RuntimeApiSubsystem<Client> {
-	/// Create a new Runtime API subsystem wrapping the given client.
-	pub fn new(client: Client) -> Self {
-		RuntimeApiSubsystem(client)
+	/// Create a new Runtime API subsystem wrapping the given client and metrics.
+	pub fn new(client: Client, metrics: Metrics) -> Self {
+		RuntimeApiSubsystem { client, metrics }
 	}
 }
 
@@ -48,9 +52,11 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			future: run(ctx, self.0).map(|_| ()).boxed(),
+			future: run(ctx, self).map(|_| ()).boxed(),
 			name: "runtime-api-subsystem",
 		}
 	}
@@ -58,7 +64,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
-	client: Client,
+	subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
@@ -70,7 +76,8 @@ async fn run<Client>(
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				RuntimeApiMessage::Request(relay_parent, request) => make_runtime_api_request(
-					&client,
+					&subsystem.client,
+					&subsystem.metrics,
 					relay_parent,
 					request,
 				),
@@ -81,6 +88,7 @@ async fn run<Client>(
 
 fn make_runtime_api_request<Client>(
 	client: &Client,
+	metrics: &Metrics,
 	relay_parent: Hash,
 	request: Request,
 ) where
@@ -93,7 +101,7 @@ fn make_runtime_api_request<Client>(
 			let api = client.runtime_api();
 			let res = api.$api_name(&BlockId::Hash(relay_parent), $($param),*)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
-
+			metrics.on_request(res.is_ok());
 			let _ = sender.send(res);
 		}}
 	}
@@ -111,6 +119,45 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Runtime API metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_request(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			if succeeded {
+				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
+			} else {
+				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			chain_api_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_runtime_api_requests_total",
+						"Number of Runtime API requests served.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
@@ -216,7 +263,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -238,7 +286,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -260,7 +309,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -282,7 +332,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -308,7 +359,8 @@ mod tests {
 
 		runtime_api.local_validation_data.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -343,7 +395,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -369,7 +422,8 @@ mod tests {
 
 		runtime_api.validation_code.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -408,7 +462,8 @@ mod tests {
 
 		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -444,7 +499,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
