@@ -617,12 +617,6 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			Some(job) => job.send_msg(msg).await?,
 			None => {
 				// don't bring down the subsystem, this can happen to due a race condition
-				log::warn!(
-					"A message to a Job::{} with parent_hash ({}) was received,\
-					but the job is not running, this could be a false positive",
-					Job::NAME,
-					parent_hash,
-				);
 			},
 		}
 		Ok(())
