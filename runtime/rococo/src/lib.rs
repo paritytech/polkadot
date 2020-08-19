@@ -682,6 +682,7 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 		}
 	}
 
+	#[cfg(feature = "runtime-benchmarks")]
 	fn successful_origin() -> OuterOrigin { Origin::root() }
 }
 
