@@ -671,7 +671,8 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 
 	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
 		let allowed = [
-			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220")
+			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220"),
+			hex_literal::hex!("762a6a38ba72b139cba285a39a6766e02046fb023f695f5ecf7f48b037c0dd6b")
 		];
 
 		let origin = o.clone();
