@@ -681,6 +681,8 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 			_ => Err(origin),
 		}
 	}
+
+	fn successful_origin() -> OuterOrigin { Origin::root() }
 }
 
 impl propose_parachain::Trait for Runtime {
