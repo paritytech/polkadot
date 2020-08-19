@@ -1143,6 +1143,14 @@ mod tests {
 		run_args: HashMap<Hash, Vec<FromJob>>,
 		test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T,
 	) {
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(
+				None,
+				log::LevelFilter::Trace,
+			)
+			.try_init();
+
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
@@ -1151,9 +1159,7 @@ mod tests {
 		let test_future = test(overseer_handle, err_rx);
 		let timeout = Delay::new(Duration::from_secs(2));
 
-		futures::pin_mut!(test_future);
-		futures::pin_mut!(subsystem);
-		futures::pin_mut!(timeout);
+		futures::pin_mut!(subsystem, test_future, timeout);
 
 		executor::block_on(async move {
 			futures::select! {
