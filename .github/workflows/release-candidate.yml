@@ -29,9 +29,10 @@ jobs:
             echo "##[set-output name=new_tag;]$branch-rc1"
           fi
       - name: Apply new tag
-        uses: tvdias/github-tagger@v0.0.2
+        uses: s3krit-testorg/github-tagger@v0.0.2
         with:
           # We can't use the normal GITHUB_TOKEN for the following reason:
           # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token
+          # GITHUB_RC_BRANCH_TOKEN requires public_repo OAuth scope
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
