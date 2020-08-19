@@ -212,7 +212,7 @@ impl OverseerHandler {
 	///
 	/// The response channel responds if the hash was activated.
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
-	/// the response channel may never return if the hash was activated before this call.
+	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
 	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<()>) -> SubsystemResult<()> {
 		self.events_tx.send(Event::ExternalRequest(ExternalRequest::WaitForActivation {
@@ -425,7 +425,7 @@ pub struct Overseer<S: SpawnNamed> {
 	events_rx: mpsc::Receiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
-	// TODO (now): how to clean it up? Use LRUCache?
+	// TODO (now): how to clean it up? Use LRUCache? Or .retain(|_, v| { v.retain(|c| !c.is_cancelled()); v })
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<()>>>,
 
 	/// A set of leaves that `Overseer` starts working with.
