@@ -51,14 +51,15 @@ use version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter, EnsureOrigin},
 	weights::Weight,
 };
 use im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
-use system::EnsureRoot;
+use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
+use constants::{time::*, currency::*, fee::*};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -71,7 +72,7 @@ pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
-use constants::{time::*, currency::*, fee::*};
+mod propose_parachain;
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -82,7 +83,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo"),
 	authoring_version: 2,
-	spec_version: 1,
+	spec_version: 2,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -262,7 +263,7 @@ impl session::Trait for Runtime {
 	type ValidatorIdOf = ();
 	type ShouldEndSession = Babe;
 	type NextSessionRotation = Babe;
-	type SessionManager = ();
+	type SessionManager = ProposeParachain;
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
@@ -657,6 +658,40 @@ impl proxy::Trait for Runtime {
 	type WeightInfo = ();
 }
 
+parameter_types! {
+	pub const ProposeDeposit: Balance = 1000 * DOLLARS;
+	pub const MaxNameLength: u32 = 20;
+}
+
+/// Priviledged origin used by propose parachain.
+pub struct PriviledgedOrigin;
+
+impl EnsureOrigin<Origin> for PriviledgedOrigin {
+	type Success = ();
+
+	fn try_origin(o: Origin) -> Result<Self::Success, Origin> {
+		let allowed = [
+			hex_literal::hex!("b44c58e50328768ac06ed44b842bfa69d86ea10f60bc36156c9ffc5e00867220"),
+			hex_literal::hex!("762a6a38ba72b139cba285a39a6766e02046fb023f695f5ecf7f48b037c0dd6b")
+		];
+
+		let origin = o.clone();
+		match EnsureSigned::try_origin(o) {
+			Ok(who) if allowed.iter().any(|a| a == &who.as_ref()) => Ok(()),
+			_ => Err(origin),
+		}
+	}
+
+	fn successful_origin() -> OuterOrigin { Origin::root() }
+}
+
+impl propose_parachain::Trait for Runtime {
+	type Event = Event;
+	type MaxNameLength = MaxNameLength;
+	type ProposeDeposit = ProposeDeposit;
+	type PriviledgedOrigin = EnsureOneOf<AccountId, EnsureRoot<AccountId>, PriviledgedOrigin>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -709,11 +744,14 @@ construct_runtime! {
 		// Sudo.
 		Sudo: sudo::{Module, Call, Storage, Event<T>, Config<T>},
 
-		// Proxy module. Late addition.
+		// Proxy module.
 		Proxy: proxy::{Module, Call, Storage, Event<T>},
 
-		// Multisig module. Late addition.
+		// Multisig module.
 		Multisig: multisig::{Module, Call, Storage, Event<T>},
+
+		// Propose parachain pallet.
+		ProposeParachain: propose_parachain::{Module, Call, Storage, Event},
 	}
 }
 

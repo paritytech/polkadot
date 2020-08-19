@@ -76,7 +76,7 @@ impl TableContextTrait for TableContext {
 			None => return false,
 		};
 
-		self.groups.get(group).map_or(false, |g| g.validity_guarantors.get(&key).is_some())
+		self.groups.get(group).map_or(false, |g| g.validity_guarantors.iter().any(|v| v == key))
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {

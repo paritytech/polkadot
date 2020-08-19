@@ -29,10 +29,7 @@
 //!
 //! Groups themselves may be compromised by malicious authorities.
 
-use std::{
-	collections::{HashMap, HashSet},
-	sync::Arc,
-};
+use std::{collections::HashMap, sync::Arc};
 use codec::Encode;
 use polkadot_primitives::v0::{
 	Id as ParaId, Chain, DutyRoster, AbridgedCandidateReceipt,
@@ -126,7 +123,7 @@ pub struct LocalDuty {
 #[derive(Debug, Clone, Default)]
 pub struct GroupInfo {
 	/// Authorities meant to check validity of candidates.
-	validity_guarantors: HashSet<ValidatorId>,
+	validity_guarantors: Vec<ValidatorId>,
 	/// Number of votes needed for validity.
 	needed_validity: usize,
 }
@@ -187,9 +184,10 @@ pub fn make_group_info(
 		match *v_duty {
 			Chain::Relay => {}, // does nothing for now.
 			Chain::Parachain(ref id) => {
-				map.entry(id.clone()).or_insert_with(GroupInfo::default)
+				map.entry(id.clone())
+					.or_insert_with(|| GroupInfo::default())
 					.validity_guarantors
-					.insert(authority.clone());
+					.push(authority.clone());
 			}
 		}
 	}
@@ -198,7 +196,6 @@ pub fn make_group_info(
 		let validity_len = live_group.validity_guarantors.len();
 		live_group.needed_validity = validity_len / 2 + validity_len % 2;
 	}
-
 
 	let local_duty = local_validation.map(|v| LocalDuty {
 		validation: v,
