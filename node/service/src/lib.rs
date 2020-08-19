@@ -33,6 +33,7 @@ use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 use sp_core::traits::SpawnNamed;
+use sc_client_api::ExecutorProvider;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -157,7 +158,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
+			impl Fn(polkadot_rpc::DenyUnsafe, polkadot_rpc::SubscriptionManager) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -225,8 +226,10 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 	)?;
 
+	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 
@@ -242,7 +245,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -256,6 +259,8 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 				grandpa: polkadot_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
+					justification_stream: justification_stream.clone(),
+					subscriptions,
 				},
 			};
 
@@ -272,6 +277,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
+	prometheus_registry: Option<&Registry>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
 	let all_subsystems = AllSubsystems {
@@ -288,10 +294,14 @@ fn real_overseer<S: SpawnNamed>(
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,
 		chain_api: DummySubsystem,
+		collation_generation: DummySubsystem,
+		collator_protocol: DummySubsystem,
 	};
+
 	Overseer::new(
 		leaves,
 		all_subsystems,
+		prometheus_registry,
 		s,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
@@ -314,7 +324,6 @@ fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	use sc_client_api::ExecutorProvider;
 	use sp_core::traits::BareCryptoStorePtr;
 
 	let is_collator = collating_for.is_some();
@@ -393,7 +402,7 @@ fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(leaves, spawner)?;
+	let (overseer, handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
 	let handler_clone = handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
@@ -496,7 +505,7 @@ fn new_full<RuntimeApi, Executor>(
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
-			prometheus_registry: prometheus_registry,
+			prometheus_registry,
 			shared_voter_state,
 		};
 
@@ -527,7 +536,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
 {
-	crate::set_prometheus_registry(&mut config)?;
+	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
 	let (client, backend, keystore, mut task_manager, on_demand) =
@@ -571,6 +580,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::NeverCanAuthor,
 	)?;
 
 	let finality_proof_provider =

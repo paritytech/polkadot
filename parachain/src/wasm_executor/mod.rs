@@ -35,6 +35,7 @@ mod validation_host;
 // maximum memory in bytes
 const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
+const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
 /// A stub validation-pool defined when compiling for Android or WASM.
 #[cfg(any(target_os = "android", target_os = "unknown"))]
@@ -176,11 +177,6 @@ pub fn validate_candidate_internal(
 	encoded_call_data: &[u8],
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
-	let mut extensions = Extensions::new();
-	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
-
-	let mut ext = ValidationExternalities(extensions);
-
 	let executor = sc_executor::WasmExecutor::new(
 		sc_executor::WasmExecutionMethod::Interpreted,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
@@ -188,6 +184,13 @@ pub fn validate_candidate_internal(
 		HostFunctions::host_functions(),
 		8
 	);
+
+	let mut extensions = Extensions::new();
+	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
+	extensions.register(sp_core::traits::CallInWasmExt::new(executor.clone()));
+
+	let mut ext = ValidationExternalities(extensions);
+
 	let res = executor.call_in_wasm(
 		validation_code,
 		None,

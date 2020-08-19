@@ -37,7 +37,6 @@ members = [
 	"runtime/kusama",
 	"runtime/rococo-v1",
 	"runtime/westend",
-	"runtime/rococo",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -45,6 +44,7 @@ members = [
 	"service",
 	"validation",
 
+	"node/collation-generation",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
@@ -55,18 +55,21 @@ members = [
 	"node/core/runtime-api",
 	"node/network/bridge",
 	"node/network/pov-distribution",
+	"node/network/protocol",
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
+	"node/network/availability-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
 	"node/subsystem",
+	"node/subsystem-test-helpers",
+	"node/subsystem-util",
 	"node/test-service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
-	"parachain/test-parachains/code-upgrader",
 ]
 
 [badges]

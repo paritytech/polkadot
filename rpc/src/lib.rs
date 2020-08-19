@@ -30,6 +30,7 @@ use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
 use sp_block_builder::BlockBuilder;
 pub use sc_rpc::DenyUnsafe;
+pub use jsonrpc_pubsub::manager::SubscriptionManager;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
@@ -62,6 +63,10 @@ pub struct GrandpaDeps {
 	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
 	/// Authority set info.
 	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
+	/// Receives notifications about justification events from Grandpa.
+	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
+	/// Subscription manager to keep track of pubsub subscribers.
+	pub subscriptions: jsonrpc_pubsub::manager::SubscriptionManager,
 }
 
 /// Full client dependencies
@@ -114,6 +119,8 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	let GrandpaDeps {
 		shared_voter_state,
 		shared_authority_set,
+		justification_stream,
+		subscriptions,
 	} = grandpa;
 
 	io.extend_with(
@@ -138,6 +145,8 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		GrandpaApi::to_delegate(GrandpaRpcHandler::new(
 			shared_authority_set,
 			shared_voter_state,
+			justification_stream,
+			subscriptions,
 		))
 	);
 	io

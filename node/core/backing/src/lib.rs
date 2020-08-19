@@ -30,7 +30,7 @@ use futures::{
 use keystore::KeyStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
-	ValidatorIndex, SigningContext, PoV, OmittedValidationData,
+	ValidatorIndex, SigningContext, PoV,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments, CoreState, CoreIndex,
 };
@@ -45,14 +45,15 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	util::{
-		self,
-		request_session_index_for_child,
-		request_validator_groups,
-		request_validators,
-		request_from_runtime,
-		Validator,
-	},
+	metrics::{self, prometheus},
+};
+use polkadot_node_subsystem_util::{
+	self as util,
+	request_session_index_for_child,
+	request_validator_groups,
+	request_validators,
+	request_from_runtime,
+	Validator,
 	delegated_subsystem,
 };
 use statement_table::{
@@ -100,6 +101,7 @@ struct CandidateBackingJob {
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	table: Table<TableContext>,
 	table_context: TableContext,
+	metrics: Metrics,
 }
 
 const fn group_quorum(n_validators: usize) -> usize {
@@ -432,6 +434,7 @@ impl CandidateBackingJob {
 								&candidate,
 								pov,
 							).await {
+								self.metrics.on_candidate_seconded();
 								self.seconded = Some(candidate_hash);
 							}
 						}
@@ -528,7 +531,9 @@ impl CandidateBackingJob {
 	}
 
 	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		Some(self.table_context.validator.as_ref()?.sign(statement))
+		let signed = self.table_context.validator.as_ref()?.sign(statement);
+		self.metrics.on_statement_signed();
+		Some(signed)
 	}
 
 	fn check_statement_signature(&self, statement: &SignedFullStatement) -> Result<(), Error> {
@@ -618,14 +623,9 @@ impl CandidateBackingJob {
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
-		let omitted_validation = OmittedValidationData {
-			global_validation: outputs.global_validation_data,
-			local_validation: outputs.local_validation_data,
-		};
-
 		let available_data = AvailableData {
 			pov,
-			omitted_validation,
+			validation_data: outputs.validation_data,
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -672,12 +672,14 @@ impl util::JobTrait for CandidateBackingJob {
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = KeyStorePtr;
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateBackingJob";
 
 	fn run(
 		parent: Hash,
 		keystore: KeyStorePtr,
+		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut tx_from: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -764,6 +766,7 @@ impl util::JobTrait for CandidateBackingJob {
 				reported_misbehavior_for: HashSet::new(),
 				table: Table::default(),
 				table_context,
+				metrics,
 			};
 
 			job.run_loop().await
@@ -772,7 +775,53 @@ impl util::JobTrait for CandidateBackingJob {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(KeyStorePtr) <- ToJob as CandidateBackingSubsystem);
+#[derive(Clone)]
+struct MetricsInner {
+	signed_statements_total: prometheus::Counter<prometheus::U64>,
+	candidates_seconded_total: prometheus::Counter<prometheus::U64>
+}
+
+/// Candidate backing metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_statement_signed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.signed_statements_total.inc();
+		}
+	}
+
+	fn on_candidate_seconded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.candidates_seconded_total.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			signed_statements_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_signed_statements_total",
+					"Number of statements signed.",
+				)?,
+				registry,
+			)?,
+			candidates_seconded_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_candidates_seconded_total",
+					"Number of candidates seconded.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
+delegated_subsystem!(CandidateBackingJob(KeyStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -781,7 +830,7 @@ mod tests {
 	use futures::{executor, future, Future};
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments, CollatorId,
-		LocalValidationData, GlobalValidationData, HeadData,
+		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
 		ValidatorPair, ValidityAttestation, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
@@ -801,8 +850,7 @@ mod tests {
 		keystore: KeyStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
-		global_validation_data: GlobalValidationData,
-		local_validation_data: LocalValidationData,
+		validation_data: ValidationData,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		availability_cores: Vec<CoreState>,
 		head_data: HashMap<ParaId, HeadData>,
@@ -866,17 +914,18 @@ mod tests {
 				parent_hash: relay_parent,
 			};
 
-			let local_validation_data = LocalValidationData {
-				parent_head: HeadData(vec![7, 8, 9]),
-				balance: Default::default(),
-				code_upgrade_allowed: None,
-				validation_code_hash: Default::default(),
-			};
-
-			let global_validation_data = GlobalValidationData {
-				max_code_size: 1000,
-				max_head_data_size: 1000,
-				block_number: Default::default(),
+			let validation_data = ValidationData {
+				persisted: PersistedValidationData {
+					parent_head: HeadData(vec![7, 8, 9]),
+					block_number: Default::default(),
+					hrmp_mqc_heads: Vec::new(),
+				},
+				transient: TransientValidationData {
+					max_code_size: 1000,
+					max_head_data_size: 1000,
+					balance: Default::default(),
+					code_upgrade_allowed: None,
+				},
 			};
 
 			Self {
@@ -887,8 +936,7 @@ mod tests {
 				validator_groups: (validator_groups, group_rotation_info),
 				availability_cores,
 				head_data,
-				local_validation_data,
-				global_validation_data,
+				validation_data,
 				signing_context,
 				relay_parent,
 			}
@@ -896,15 +944,15 @@ mod tests {
 	}
 
 	struct TestHarness {
-		virtual_overseer: polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
 	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
-		let (context, virtual_overseer) = polkadot_subsystem::test_helpers::make_subsystem_context(pool.clone());
+		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = CandidateBackingSubsystem::run(context, keystore, pool.clone());
+		let subsystem = CandidateBackingSubsystem::run(context, keystore, Metrics(None), pool.clone());
 
 		let test_fut = test(TestHarness {
 			virtual_overseer,
@@ -917,13 +965,8 @@ mod tests {
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
-		let omitted_validation = OmittedValidationData {
-			global_validation: test.global_validation_data.clone(),
-			local_validation: test.local_validation_data.clone(),
-		};
-
 		let available_data = AvailableData {
-			omitted_validation,
+			validation_data: test.validation_data.persisted.clone(),
 			pov,
 		};
 
@@ -960,7 +1003,7 @@ mod tests {
 
 	// Tests that the subsystem performs actions that are requied on startup.
 	async fn test_startup(
-		virtual_overseer: &mut polkadot_subsystem::test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
+		virtual_overseer: &mut polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 		test_state: &TestState,
 	) {
 		// Start work on some new parent.
@@ -1055,8 +1098,7 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1167,8 +1209,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1297,8 +1338,7 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
@@ -1454,8 +1494,7 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							global_validation_data: test_state.global_validation_data,
-							local_validation_data: test_state.local_validation_data,
+							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
