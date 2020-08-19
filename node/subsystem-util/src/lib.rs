@@ -611,7 +611,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
-	/// Will only print a warning if the job is not running.
+	/// Will not return an error if the job is not running.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) -> Result<(), Error> {
 		match self.running.get_mut(&parent_hash) {
 			Some(job) => job.send_msg(msg).await?,
