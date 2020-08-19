@@ -1161,16 +1161,13 @@ mod tests {
 
 		futures::pin_mut!(subsystem, test_future, timeout);
 
-		futures::executor::block_on(
-			futures::future::select(
-				// wait for both to finish
-				futures::future::join(subsystem, test_future),
-				timeout,
-			).then(|either| match either {
-				futures::future::Either::Right(_) => panic!("test timed out instead of completing"),
-				futures::future::Either::Left(_) => futures::future::ready(()),
-			})
-		);
+		executor::block_on(async move {
+			futures::select! {
+				_ = test_future.fuse() => (),
+				_ = subsystem.fuse() => (),
+				_ = timeout.fuse() => panic!("test timed out instead of completing"),
+			}
+		});
 	}
 
 	#[test]
@@ -1232,7 +1229,7 @@ mod tests {
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
 			// send to a non running job
 			overseer_handle
-				.send(FromOverseer::Communication {
+				.send(FromOverseer::Communication { 
 					msg: Default::default(),
 				})
 				.await;
