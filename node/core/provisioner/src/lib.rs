@@ -35,11 +35,10 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	self as util,
 	delegated_subsystem,
-	request_availability_cores, request_global_validation_data,
-	request_local_validation_data, JobTrait, ToJobTrait,
+	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
 };
 use polkadot_primitives::v1::{
-	validation_data_hash, BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
@@ -355,10 +354,6 @@ async fn select_candidates(
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
-	let global_validation_data = request_global_validation_data(relay_parent, sender)
-		.await?
-		.await??;
-
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
 
@@ -387,7 +382,7 @@ async fn select_candidates(
 			_ => continue,
 		};
 
-		let local_validation_data = match request_local_validation_data(
+		let validation_data = match request_persisted_validation_data(
 			relay_parent,
 			scheduled_core.para_id,
 			assumption,
@@ -396,18 +391,17 @@ async fn select_candidates(
 		.await?
 		.await??
 		{
-			Some(local_validation_data) => local_validation_data,
+			Some(v) => v,
 			None => continue,
 		};
 
-		let computed_validation_data_hash =
-			validation_data_hash(&global_validation_data, &local_validation_data);
+		let computed_validation_data_hash = validation_data.hash();
 
 		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
 			let descriptor = &backed_candidate.candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id
-				&& descriptor.validation_data_hash == computed_validation_data_hash
+				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
 			selected_candidates.push(candidate.clone());
 		}
@@ -657,10 +651,10 @@ mod tests {
 		use super::super::*;
 		use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
 		use polkadot_node_subsystem::messages::RuntimeApiRequest::{
-			AvailabilityCores, GlobalValidationData, LocalValidationData,
+			AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
 		};
 		use polkadot_primitives::v1::{
-			BlockNumber, CandidateDescriptor, CommittedCandidateReceipt,
+			BlockNumber, CandidateDescriptor, CommittedCandidateReceipt, PersistedValidationData,
 		};
 		use FromJob::{ChainApi, Runtime};
 
@@ -771,12 +765,9 @@ mod tests {
 					ChainApi(BlockNumber(_relay_parent, tx)) => {
 						tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 					}
-					Runtime(Request(_parent_hash, GlobalValidationData(tx))) => {
-						tx.send(Ok(Default::default())).unwrap()
-					}
 					Runtime(Request(
 						_parent_hash,
-						LocalValidationData(_para_id, _assumption, tx),
+						PersistedValidationDataReq(_para_id, _assumption, tx),
 					)) => tx.send(Ok(Some(Default::default()))).unwrap(),
 					Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
 						tx.send(Ok(mock_availability_cores())).unwrap()
@@ -823,14 +814,12 @@ mod tests {
 		fn selects_correct_candidates() {
 			let mock_cores = mock_availability_cores();
 
-			let empty_hash =
-				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
-			dbg!(empty_hash);
+			let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
 
 			let candidate_template = BackedCandidate {
 				candidate: CommittedCandidateReceipt {
 					descriptor: CandidateDescriptor {
-						validation_data_hash: empty_hash,
+						persisted_validation_data_hash: empty_hash,
 						..Default::default()
 					},
 					..Default::default()
@@ -855,7 +844,8 @@ mod tests {
 						candidate
 					} else if idx < mock_cores.len() * 2 {
 						// for the second repetition of the candidates, give them the wrong hash
-						candidate.candidate.descriptor.validation_data_hash = Default::default();
+						candidate.candidate.descriptor.persisted_validation_data_hash
+							= Default::default();
 						candidate
 					} else {
 						// third go-around: right hash, wrong para_id

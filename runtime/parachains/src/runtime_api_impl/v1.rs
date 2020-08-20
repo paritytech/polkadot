@@ -19,10 +19,10 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
-	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
+	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
+	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent,
+	GroupIndex, CandidateEvent, PersistedValidationData,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
@@ -161,34 +161,59 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	core_states
 }
 
-/// Implementation for the `global_validation_data` function of the runtime API.
-pub fn global_validation_data<T: initializer::Trait>()
-	-> GlobalValidationData<T::BlockNumber>
-{
-	<configuration::Module<T>>::global_validation_data()
-}
-
-/// Implementation for the `local_validation_data` function of the runtime API.
-pub fn local_validation_data<T: initializer::Trait>(
+fn with_assumption<Trait, T, F>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<LocalValidationData<T::BlockNumber>> {
+	build: F,
+) -> Option<T> where
+	Trait: inclusion::Trait,
+	F: FnOnce() -> Option<T>,
+{
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para_id);
-			<paras::Module<T>>::local_validation_data(para_id)
+			<inclusion::Module<Trait>>::force_enact(para_id);
+			build()
 		}
 		OccupiedCoreAssumption::TimedOut => {
-			<paras::Module<T>>::local_validation_data(para_id)
+			build()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
+			if <inclusion::Module<Trait>>::pending_availability(para_id).is_some() {
 				None
 			} else {
-				<paras::Module<T>>::local_validation_data(para_id)
+				build()
 			}
 		}
 	}
+}
+
+/// Implementation for the `full_validation_data` function of the runtime API.
+pub fn full_validation_data<T: initializer::Trait>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+)
+	-> Option<ValidationData<T::BlockNumber>>
+{
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| Some(ValidationData {
+			persisted: crate::util::make_persisted_validation_data::<T>(para_id)?,
+			transient: crate::util::make_transient_validation_data::<T>(para_id)?,
+		}),
+	)
+}
+
+/// Implementation for the `persisted_validation_data` function of the runtime API.
+pub fn persisted_validation_data<T: initializer::Trait>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<PersistedValidationData<T::BlockNumber>> {
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| crate::util::make_persisted_validation_data::<T>(para_id),
+	)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -208,26 +233,11 @@ pub fn validation_code<T: initializer::Trait>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
-	let fetch = || {
-		<paras::Module<T>>::current_code(&para_id)
-	};
-
-	match assumption {
-		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para_id);
-			fetch()
-		}
-		OccupiedCoreAssumption::TimedOut => {
-			fetch()
-		}
-		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
-				None
-			} else {
-				fetch()
-			}
-		}
-	}
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| <paras::Module<T>>::current_code(&para_id),
+	)
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
