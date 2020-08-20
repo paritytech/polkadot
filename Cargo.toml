@@ -70,7 +70,6 @@ members = [
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
-	"parachain/test-parachains/code-upgrader",
 ]
 
 [badges]

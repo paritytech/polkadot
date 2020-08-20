@@ -23,7 +23,7 @@
 use std::any::{TypeId, Any};
 use crate::primitives::{ValidationParams, ValidationResult};
 use codec::{Decode, Encode};
-use sp_core::{storage::ChildInfo, traits::{CallInWasm, SpawnNamed}};
+use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
@@ -305,7 +305,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("reset_read_write_count: unsupported feature for parachain validation")
 	}
 
-	fn set_whitelist(&mut self, _: Vec<Vec<u8>>) {
+	fn get_whitelist(&self) -> Vec<TrackedStorageKey> {
+		panic!("get_whitelist: unsupported feature for parachain validation")
+	}
+
+	fn set_whitelist(&mut self, _: Vec<TrackedStorageKey>) {
 		panic!("set_whitelist: unsupported feature for parachain validation")
 	}
 
