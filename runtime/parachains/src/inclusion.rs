@@ -154,11 +154,11 @@ decl_error! {
 
 decl_event! {
 	pub enum Event<T> where <T as frame_system::Trait>::Hash {
-		/// A candidate was backed.
+		/// A candidate was backed. [candidate, head_data]
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
-		/// A candidate was included.
+		/// A candidate was included. [candidate, head_data]
 		CandidateIncluded(CandidateReceipt<Hash>, HeadData),
-		/// A candidate timed out.
+		/// A candidate timed out. [candidate, head_data]
 		CandidateTimedOut(CandidateReceipt<Hash>, HeadData),
 	}
 }
