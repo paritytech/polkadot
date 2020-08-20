@@ -322,9 +322,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.tx.send(ToOverseer::SpawnJob {
 			name,
 			s,
-		}).await?;
-
-		Ok(())
+		}).await.map_err(Into::into)
 	}
 
 	async fn spawn_blocking(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
@@ -333,24 +331,18 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 		self.tx.send(ToOverseer::SpawnBlockingJob {
 			name,
 			s,
-		}).await?;
-
-		Ok(())
+		}).await.map_err(Into::into)
 	}
 
 	async fn send_message(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.tx.send(ToOverseer::SubsystemMessage(msg)).await?;
-
-		Ok(())
+		self.tx.send(ToOverseer::SubsystemMessage(msg)).await.map_err(Into::into)
 	}
 
 	async fn send_messages<T>(&mut self, msgs: T) -> SubsystemResult<()>
 		where T: IntoIterator<Item = AllMessages> + Send, T::IntoIter: Send
 	{
 		let mut msgs = stream::iter(msgs.into_iter().map(ToOverseer::SubsystemMessage).map(Ok));
-		self.tx.send_all(&mut msgs).await?;
-
-		Ok(())
+		self.tx.send_all(&mut msgs).await.map_err(Into::into)
 	}
 }
 
@@ -893,10 +885,10 @@ where
 		let leaves = std::mem::take(&mut self.leaves);
 		let mut update = ActiveLeavesUpdate::default();
 
-		for leaf in leaves.into_iter() {
-			update.activated.push(leaf.0);
-			self.active_leaves.insert(leaf.0, leaf.1);
-			self.on_head_activated(&leaf.0);
+		for (hash, number) in leaves.into_iter() {
+			update.activated.push(hash);
+			self.active_leaves.insert(hash, number);
+			self.on_head_activated(&hash);
 		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -1139,7 +1131,7 @@ where
 
 	fn on_head_activated(&mut self, hash: &Hash) {
 		self.metrics.on_head_activated();
-		if let Some(listeners) = self.activation_external_listeners.remove(&hash) {
+		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(());
@@ -1149,7 +1141,7 @@ where
 
 	fn on_head_deactivated(&mut self, hash: &Hash) {
 		self.metrics.on_head_deactivated();
-		if let Some(listeners) = self.activation_external_listeners.remove(&hash) {
+		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			// clean up and signal to listeners the block is deactivated
 			drop(listeners);
 		}
