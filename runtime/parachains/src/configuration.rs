@@ -26,7 +26,7 @@ use frame_support::{
 	weights::{DispatchClass, Weight},
 };
 use codec::{Encode, Decode};
-use system::ensure_root;
+use frame_system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
 #[derive(Clone, Encode, Decode, PartialEq, Default)]
@@ -60,7 +60,7 @@ pub struct HostConfiguration<BlockNumber> {
 	pub scheduling_lookahead: u32,
 }
 
-pub trait Trait: system::Trait { }
+pub trait Trait: frame_system::Trait { }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Configuration {
@@ -77,7 +77,7 @@ decl_error! {
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 
 		/// Set the validation upgrade frequency.

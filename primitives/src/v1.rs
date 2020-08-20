@@ -25,7 +25,7 @@ use runtime_primitives::traits::AppVerify;
 use inherents::InherentIdentifier;
 use sp_arithmetic::traits::{BaseArithmetic, Saturating, Zero};
 
-use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
+pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
@@ -60,14 +60,16 @@ pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
 pub fn collator_signature_payload<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
+	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
-) -> [u8; 68] {
+) -> [u8; 100] {
 	// 32-byte hash length is protected in a test below.
-	let mut payload = [0u8; 68];
+	let mut payload = [0u8; 100];
 
 	payload[0..32].copy_from_slice(relay_parent.as_ref());
 	u32::from(*para_id).using_encoded(|s| payload[32..32 + s.len()].copy_from_slice(s));
-	payload[36..68].copy_from_slice(pov_hash.as_ref());
+	payload[36..68].copy_from_slice(persisted_validation_data_hash.as_ref());
+	payload[68..100].copy_from_slice(pov_hash.as_ref());
 
 	payload
 }
@@ -75,11 +77,18 @@ pub fn collator_signature_payload<H: AsRef<[u8]>>(
 fn check_collator_signature<H: AsRef<[u8]>>(
 	relay_parent: &H,
 	para_id: &Id,
+	persisted_validation_data_hash: &Hash,
 	pov_hash: &Hash,
 	collator: &CollatorId,
 	signature: &CollatorSignature,
 ) -> Result<(),()> {
-	let payload = collator_signature_payload(relay_parent, para_id, pov_hash);
+	let payload = collator_signature_payload(
+		relay_parent,
+		para_id,
+		persisted_validation_data_hash,
+		pov_hash,
+	);
+
 	if signature.verify(&payload[..], collator) {
 		Ok(())
 	} else {
@@ -89,7 +98,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 
 /// A unique descriptor of the candidate receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -97,11 +106,15 @@ pub struct CandidateDescriptor<H = Hash> {
 	pub relay_parent: H,
 	/// The collator's sr25519 public key.
 	pub collator: CollatorId,
-	/// Signature on blake2-256 of components of this receipt:
-	/// The parachain index, the relay parent, and the pov_hash.
-	pub signature: CollatorSignature,
+	/// The blake2-256 hash of the persisted validation data. This is extra data derived from
+	/// relay-chain state which may vary based on bitfields included before the candidate.
+	/// Thus it cannot be derived entirely from the relay-parent.
+	pub persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the pov.
 	pub pov_hash: Hash,
+	/// Signature on blake2-256 of components of this receipt:
+	/// The parachain index, the relay parent, the validation data hash, and the pov_hash.
+	pub signature: CollatorSignature,
 }
 
 impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
@@ -110,6 +123,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 		check_collator_signature(
 			&self.relay_parent,
 			&self.para_id,
+			&self.persisted_validation_data_hash,
 			&self.pov_hash,
 			&self.collator,
 			&self.signature,
@@ -145,15 +159,16 @@ impl<H> CandidateReceipt<H> {
 pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 	/// The inner candidate receipt.
 	pub inner: CandidateReceipt<H>,
-	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule<N>,
-	/// The local validation data.
-	pub local_validation: LocalValidationData<N>,
+	/// The validation data derived from the relay-chain state at that
+	/// point. The hash of the persisted validation data should
+	/// match the `persisted_validation_data_hash` in the descriptor
+	/// of the receipt.
+	pub validation_data: ValidationData<N>,
 }
 
 /// A candidate-receipt with commitments directly included.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -201,17 +216,78 @@ impl Ord for CommittedCandidateReceipt {
 	}
 }
 
-/// Extra data that is needed along with the other fields in a `CandidateReceipt`
-/// to fully validate the candidate. These fields are parachain-specific.
+/// The validation data provide information about how to validate both the inputs and
+/// outputs of a candidate.
+///
+/// There are two types of validation data: persisted and transient.
+/// Their respective sections of the guide elaborate on their functionality in more detail.
+///
+/// This information is derived from the chain state and will vary from para to para,
+/// although some of the fields may be the same for every para.
+///
+/// Persisted validation data are generally derived from some relay-chain state to form inputs
+/// to the validation function, and as such need to be persisted by the availability system to
+/// avoid dependence on availability of the relay-chain state. The backing phase of the
+/// inclusion pipeline ensures that everything that is included in a valid fork of the
+/// relay-chain already adheres to the transient constraints.
+///
+/// The validation data also serve the purpose of giving collators a means of ensuring that
+/// their produced candidate and the commitments submitted to the relay-chain alongside it
+/// will pass the checks done by the relay-chain when backing, and give validators
+/// the same understanding when determining whether to second or attest to a candidate.
+///
+/// Since the commitments of the validation function are checked by the
+/// relay-chain, secondary checkers can rely on the invariant that the relay-chain
+/// only includes para-blocks for which these checks have already been done. As such,
+/// there is no need for the validation data used to inform validators and collators about
+/// the checks the relay-chain will perform to be persisted by the availability system.
+/// Nevertheless, we expose it so the backing validators can validate the outputs of a
+/// candidate before voting to submit it to the relay-chain and so collators can
+/// collate candidates that satisfy the criteria implied these transient validation data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct LocalValidationData<N = BlockNumber> {
+pub struct ValidationData<N = BlockNumber> {
+	/// The persisted validation data.
+	pub persisted: PersistedValidationData<N>,
+	/// The transient validation data.
+	pub transient: TransientValidationData<N>,
+}
+
+/// Validation data that needs to be persisted for secondary checkers.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct PersistedValidationData<N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
+	/// The relay-chain block number this is in the context of.
+	pub block_number: N,
+	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+}
+
+impl<N: Encode> PersistedValidationData<N> {
+	/// Compute the blake2-256 hash of the persisted validation data.
+	pub fn hash(&self) -> Hash {
+		BlakeTwo256::hash_of(self)
+	}
+}
+
+/// Validation data for checking outputs of the validation-function.
+/// As such, they also inform the collator about how to construct the candidate.
+///
+/// These are transient because they are not necessary beyond the point where the
+/// candidate is backed.
+#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Default))]
+pub struct TransientValidationData<N = BlockNumber> {
+	/// The maximum code size permitted, in bytes.
+	pub max_code_size: u32,
+	/// The maximum head-data size permitted, in bytes.
+	pub max_head_data_size: u32,
 	/// The balance of the parachain at the moment of validation.
 	pub balance: Balance,
-	/// The blake2-256 hash of the validation code used to execute the candidate.
-	pub validation_code_hash: Hash,
 	/// Whether the parachain is allowed to upgrade its validation code.
 	///
 	/// This is `Some` if so, and contains the number of the minimum relay-chain
@@ -226,24 +302,9 @@ pub struct LocalValidationData<N = BlockNumber> {
 	pub code_upgrade_allowed: Option<N>,
 }
 
-/// Extra data that is needed along with the other fields in a `CandidateReceipt`
-/// to fully validate the candidate.
-///
-/// These are global parameters that apply to all candidates in a block.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct GlobalValidationSchedule<N = BlockNumber> {
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
-	/// The relay-chain block number this is in the context of.
-	pub block_number: N,
-}
-
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
@@ -281,8 +342,7 @@ impl PoV {
 }
 
 /// A bitfield concerning availability of backed candidates.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub struct AvailabilityBitfield(pub BitVec<bitvec::order::Lsb0, u8>);
 
 impl From<BitVec<bitvec::order::Lsb0, u8>> for AvailabilityBitfield {
@@ -412,72 +472,14 @@ pub enum CoreOccupied {
 	Parachain,
 }
 
-/// The assignment type.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum AssignmentKind {
-	/// A parachain.
-	Parachain,
-	/// A parathread.
-	Parathread(CollatorId, u32),
-}
-
-/// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct CoreAssignment {
-	/// The core that is assigned.
-	pub core: CoreIndex,
-	/// The unique ID of the para that is assigned to the core.
-	pub para_id: Id,
-	/// The kind of the assignment.
-	pub kind: AssignmentKind,
-	/// The index of the validator group assigned to the core.
-	pub group_idx: GroupIndex,
-}
-
-impl CoreAssignment {
-	/// Get the ID of a collator who is required to collate this block.
-	pub fn required_collator(&self) -> Option<&CollatorId> {
-		match self.kind {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(ref id, _) => Some(id),
-		}
-	}
-
-	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(&self) -> CoreOccupied {
-		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain,
-			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
-				ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator.clone()),
-					retries,
-				}
-			),
-		}
-	}
-}
-
-/// Validation data omitted from most candidate descriptor structs, as it can be derived from the
-/// relay-parent.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub struct OmittedValidationData {
-	/// The global validation schedule.
-	pub global_validation: GlobalValidationSchedule,
-	/// The local validation data.
-	pub local_validation: LocalValidationData,
-}
-
 /// This is the data we keep available for each candidate included in the relay chain.
 #[derive(Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: PoV,
-	/// The omitted validation data.
-	pub omitted_validation: OmittedValidationData,
+	/// The persisted validation data needed for secondary checks.
+	pub validation_data: PersistedValidationData,
 }
 
 /// A helper data-type for tracking validator-group rotations.
@@ -563,7 +565,7 @@ pub struct OccupiedCore<N = BlockNumber> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug, Default))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -591,8 +593,19 @@ pub enum CoreState<N = BlockNumber> {
 	Free,
 }
 
+impl<N> CoreState<N> {
+	/// If this core state has a `para_id`, return it.
+	pub fn para_id(&self) -> Option<Id> {
+		match self {
+			Self::Occupied(OccupiedCore { para_id, ..}) => Some(*para_id),
+			Self::Scheduled(ScheduledCore { para_id, .. }) => Some(*para_id),
+			Self::Free => None,
+		}
+	}
+}
+
 /// An assumption being made about the state of an occupied core.
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Copy, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum OccupiedCoreAssumption {
 	/// The candidate occupying the core was made available and included to free the core.
@@ -623,7 +636,7 @@ pub enum CandidateEvent<H = Hash> {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode, N: Decode> {
+	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -636,17 +649,21 @@ sp_api::decl_runtime_apis! {
 		/// cores can have paras assigned to them.
 		fn availability_cores() -> Vec<CoreState<N>>;
 
-		/// Yields the GlobalValidationSchedule. This applies to all para candidates with the
-		/// relay-parent equal to the block in which context this is invoked in.
-		fn global_validation_schedule() -> GlobalValidationSchedule<N>;
+		/// Yields the full validation data for the given ParaId along with an assumption that
+		/// should be used if the para currently occupieds a core.
+		///
+		/// Returns `None` if either the para is not registered or the assumption is `Freed`
+		/// and the para already occupies a core.
+		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationData<N>>;
 
-		/// Yields the LocalValidationData for the given ParaId along with an assumption that
+		/// Yields the persisted validation data for the given ParaId along with an assumption that
 		/// should be used if the para currently occupies a core.
 		///
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
-		fn local_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<LocalValidationData<N>>;
+		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<N>>;
 
 		/// Returns the session index expected at a child of the block.
 		///
@@ -669,6 +686,25 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+	}
+}
+
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The Ethereum signature is invalid.
+	InvalidEthereumSignature = 0,
+	/// The signer has no claim.
+	SignerHasNoClaim = 1,
+	/// No permission to execute the call.
+	NoPermission = 2,
+	/// An invalid statement was made for a claim.
+	InvalidStatement = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
 	}
 }
 
@@ -695,5 +731,19 @@ mod tests {
 
 		assert_eq!(info.next_rotation_at(), 0);
 		assert_eq!(info.last_rotation_at(), 0);
+	}
+
+	#[test]
+	fn collator_signature_payload_is_valid() {
+		// if this fails, collator signature verification code has to be updated.
+		let h = Hash::default();
+		assert_eq!(h.as_ref().len(), 32);
+
+		let _payload = collator_signature_payload(
+			&Hash::from([1; 32]),
+			&5u32.into(),
+			&Hash::from([2; 32]),
+			&Hash::from([3; 32]),
+		);
 	}
 }

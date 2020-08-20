@@ -41,6 +41,8 @@ struct ActiveLeavesUpdate {
 
 Messages received by the availability distribution subsystem.
 
+This is a network protocol that receives messages of type [`AvailabilityDistributionV1Message`][AvailabilityDistributionV1NetworkMessage].
+
 ```rust
 enum AvailabilityDistributionMessage {
 	/// Distribute an availability chunk to other validators.
@@ -49,7 +51,7 @@ enum AvailabilityDistributionMessage {
 	FetchChunk(Hash, u32),
 	/// Event from the network.
 	/// An update on network state from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
 }
 ```
 
@@ -59,20 +61,26 @@ Messages to and from the availability store.
 
 ```rust
 enum AvailabilityStoreMessage {
-	/// Query the PoV of a candidate by hash.
-	QueryPoV(Hash, ResponseChannel<PoV>),
+	/// Query the `AvailableData` of a candidate by hash.
+	QueryAvailableData(Hash, ResponseChannel<Option<AvailableData>>),
+	/// Query whether an `AvailableData` exists within the AV Store.
+	QueryDataAvailability(Hash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<AvailabilityChunkAndProof>),
+	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
-	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof),
+	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
+	/// `AvailabilityChunkAndProof`.
+	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
 ## Bitfield Distribution Message
 
 Messages received by the bitfield distribution subsystem.
+This is a network protocol that receives messages of type [`BitfieldDistributionV1Message`][BitfieldDistributionV1NetworkMessage].
 
 ```rust
 enum BitfieldDistributionMessage {
@@ -80,7 +88,7 @@ enum BitfieldDistributionMessage {
 	/// The bitfield distribution subsystem will assume this is indeed correctly signed.
 	DistributeBitfield(relay_parent, SignedAvailabilityBitfield),
 	/// Receive a network bridge update.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<BitfieldDistributionV1Message>),
 }
 ```
 
@@ -121,44 +129,96 @@ enum CandidateSelectionMessage {
 }
 ```
 
+## Chain API Message
+
+The Chain API subsystem is responsible for providing an interface to chain data.
+
+```rust
+enum ChainApiMessage {
+	/// Get the block number by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
+	/// Get the finalized block hash by number.
+	/// Returns `None` if a block with the given number is not present in the db.
+	/// Note: the caller must ensure the block is finalized.
+	FinalizedBlockHash(BlockNumber, ResponseChannel<Result<Option<Hash>, Error>>),
+	/// Get the last finalized block number.
+	/// This request always succeeds.
+	FinalizedBlockNumber(ResponseChannel<Result<BlockNumber, Error>>),
+	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// The response channel may return a `Vec` of size up to `k`
+	/// filled with ancestors hashes with the following order:
+	/// `parent`, `grandparent`, ...
+	Ancestors {
+		/// The hash of the block in question.
+		hash: Hash,
+		/// The number of ancestors to request.
+		k: usize,
+		/// The response channel.
+		response_channel: ResponseChannel<Result<Vec<Hash>, Error>>,
+	}
+}
+```
+
+## Collator Protocol Message
+
+Messages received by the [Collator Protocol subsystem](../node/collators/collator-protocol.md)
+
+This is a network protocol that receives messages of type [`CollatorProtocolV1Message`][CollatorProtocolV1NetworkMessage].
+
+```rust
+enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	DistributeCollation(CandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, ParaId, ResponseChannel<(CandidateReceipt, PoV)>),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
+}
+```
+
 ## Network Bridge Message
 
 Messages received by the network bridge. This subsystem is invoked by others to manipulate access
 to the low-level networking code.
 
 ```rust
+/// Peer-sets handled by the network bridge.
+enum PeerSet {
+	/// The collation peer-set is used to distribute collations from collators to validators.
+	Collation,
+	/// The validation peer-set is used to distribute information relevant to parachain
+	/// validation among validators. This may include nodes which are not validators,
+	/// as some protocols on this peer-set are expected to be gossip.
+	Validation,
+}
+
 enum NetworkBridgeMessage {
-	/// Register an event producer with the network bridge. This should be done early and cannot
-	/// be de-registered.
-	RegisterEventProducer(ProtocolId, Fn(NetworkBridgeEvent) -> AllMessages),
 	/// Report a cost or benefit of a peer. Negative values are costs, positive are benefits.
-	ReportPeer(PeerId, cost_benefit: i32),
-	/// Send a message to one or more peers on the given protocol ID.
-	SendMessage([PeerId], ProtocolId, Bytes),
+	ReportPeer(PeerSet, PeerId, cost_benefit: i32),
+	/// Send a message to one or more peers on the validation peerset.
+	SendValidationMessage([PeerId], ValidationProtocolV1),
+	/// Send a message to one or more peers on the collation peerset.
+	SendCollationMessage([PeerId], ValidationProtocolV1),
+	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	///
+	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
+	/// validators.
+	ConnectToValidators(PeerSet, [ValidatorId], ResponseChannel<[(ValidatorId, PeerId)]>>),
 }
 ```
 
-## Network Bridge Update
-
-These updates are posted from the [Network Bridge Subsystem](../node/utility/network-bridge.md) to other subsystems based on registered listeners.
-
-```rust
-struct View(Vec<Hash>); // Up to `N` (5?) chain heads.
-
-enum NetworkBridgeEvent {
-	/// A peer with given ID is now connected.
-	PeerConnected(PeerId, ObservedRole), // role is one of Full, Light, OurGuardedAuthority, OurSentry
-	/// A peer with given ID is now disconnected.
-	PeerDisconnected(PeerId),
-	/// We received a message from the given peer. Protocol ID should be apparent from context.
-	PeerMessage(PeerId, Bytes),
-	/// The given peer has updated its description of its view.
-	PeerViewChange(PeerId, View), // guaranteed to come after peer connected event.
-	/// We have posted the given view update to all connected peers.
-	OurViewChange(View),
-}
-```
-
+## Misbehavior Report
 
 ```rust
 enum MisbehaviorReport {
@@ -182,6 +242,8 @@ If this subsystem chooses to second a parachain block, it dispatches a `Candidat
 
 ## PoV Distribution Message
 
+This is a network protocol that receives messages of type [`PoVDistributionV1Message`][PoVDistributionV1NetworkMessage].
+
 ```rust
 enum PoVDistributionMessage {
 	/// Fetch a PoV from the network.
@@ -193,7 +255,7 @@ enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, PoV),
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<PoVDistributionV1Message>),
 }
 ```
 
@@ -254,13 +316,18 @@ enum RuntimeApiRequest {
 	SessionIndex(ResponseChannel<SessionIndex>),
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Get the global validation schedule at the state of a given block.
-	GlobalValidationSchedule(ResponseChannel<GlobalValidationSchedule>),
-	/// Get the local validation data for a specific para, with the given occupied core assumption.
-	LocalValidationData(
+	/// Get the persisted validation data at the state of a given block for a specific para,
+	/// with the given occupied core assumption.
+	PersistedValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
-		ResponseChannel<Option<LocalValidationData>>,
+		ResponseChannel<Option<PersistedValidationData>>,
+	),
+	/// Get the full validation data for a specific para, with the given occupied core assumption.
+	FullValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		ResponseChannel<Option<ValidationData>>,
 	),
 	/// Get information about all availability cores.
 	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
@@ -281,10 +348,12 @@ enum RuntimeApiMessage {
 The Statement Distribution subsystem distributes signed statements and candidates from validators to other validators. It does this by distributing full statements, which embed the candidate receipt, as opposed to compact statements which don't.
 It receives updates from the network bridge and signed statements to share with other validators.
 
+This is a network protocol that receives messages of type [`StatementDistributionV1Message`][StatementDistributionV1NetworkMessage].
+
 ```rust
 enum StatementDistributionMessage {
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<StatementDistributionV1Message>),
 	/// We have validated a candidate and want to share our judgment with our peers.
 	/// The hash is the relay parent.
 	///
@@ -319,14 +388,18 @@ enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters. This will implicitly attempt to gather the
 	/// `OmittedValidationData` and `ValidationCode` from the runtime API of the chain,
 	/// based on the `relay_parent` of the `CandidateDescriptor`.
-	/// If there is no state available which can provide this data, an error is returned.
+	///
+	/// If there is no state available which can provide this data or the core for
+	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
 
-	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
+	/// Validate a candidate with provided parameters. Explicitly provide the `PersistedValidationData`
 	/// and `ValidationCode` so this can do full validation without needing to access the state of
-	/// the relay-chain.
+	/// the relay-chain. Optionally provide the `TransientValidationData` which will lead to checks
+	/// on the output.
 	ValidateFromExhaustive(
-		OmittedValidationData,
+		PersistedValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		PoV,
@@ -334,3 +407,10 @@ enum CandidateValidationMessage {
 	),
 }
 ```
+
+[NBE]: ../network.md#network-bridge-event
+[AvailabilityDistributionV1NetworkMessage]: network.md#availability-distribution-v1
+[BitfieldDistributionV1NetworkMessage]: network.md#bitfield-distribution-v1
+[PoVDistributionV1NetworkMessage]: network.md#pov-distribution-v1
+[StatementDistributionV1NetworkMessage]: network.md#statement-distribution-v1
+[CollatorProtocolV1NetworkMessage]: network.md#collator-protocol-v1

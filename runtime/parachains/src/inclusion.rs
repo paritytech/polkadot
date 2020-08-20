@@ -24,7 +24,7 @@ use sp_std::prelude::*;
 use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
-	BackedCandidate, CoreIndex, GroupIndex, CoreAssignment, CommittedCandidateReceipt,
+	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
 	CandidateReceipt, HeadData,
 };
 use frame_support::{
@@ -36,7 +36,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras};
+use crate::{configuration, paras, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,9 +86,9 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + configuration::Trait
 {
-	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
 
 decl_storage! {
@@ -145,6 +145,8 @@ decl_error! {
 		InvalidBacking,
 		/// Collator did not sign PoV.
 		NotCollatorSigned,
+		/// The validation data hash does not match expected.
+		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
 	}
@@ -164,7 +166,7 @@ decl_event! {
 decl_module! {
 	/// The parachain-candidate inclusion module.
 	pub struct Module<T: Trait>
-		for enum Call where origin: <T as system::Trait>::Origin, system = system
+		for enum Call where origin: <T as frame_system::Trait>::Origin
 	{
 		type Error = Error<T>;
 
@@ -227,7 +229,7 @@ impl<T: Trait> Module<T> {
 			let mut last_index = None;
 
 			let signing_context = SigningContext {
-				parent_hash: <system::Module<T>>::parent_hash(),
+				parent_hash: <frame_system::Module<T>>::parent_hash(),
 				session_index,
 			};
 
@@ -263,7 +265,7 @@ impl<T: Trait> Module<T> {
 			}
 		}
 
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		for signed_bitfield in signed_bitfields {
 			for (bit_idx, _)
 				in signed_bitfield.payload().0.iter().enumerate().filter(|(_, is_av)| **is_av)
@@ -353,9 +355,9 @@ impl<T: Trait> Module<T> {
 		}
 
 		let validators = Validators::get();
-		let parent_hash = <system::Module<T>>::parent_hash();
+		let parent_hash = <frame_system::Module<T>>::parent_hash();
 		let config = <configuration::Module<T>>::config();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let relay_parent_number = now - One::one();
 
 		// do all checks before writing storage.
@@ -399,14 +401,21 @@ impl<T: Trait> Module<T> {
 					Error::<T>::CandidateNotInParentContext,
 				);
 
-				let code_upgrade_allowed = <paras::Module<T>>::last_code_upgrade(para_id, true)
-					.map_or(
-						true,
-						|last| last <= relay_parent_number &&
-							relay_parent_number.saturating_sub(last) >= config.validation_upgrade_frequency,
-					);
+				// if any, the code upgrade attempt is allowed.
+				let valid_upgrade_attempt =
+					candidate.candidate.commitments.new_validation_code.is_none() ||
+					<paras::Module<T>>::last_code_upgrade(para_id, true)
+						.map_or(
+							true,
+							|last| last <= relay_parent_number &&
+								relay_parent_number.saturating_sub(last)
+									>= config.validation_upgrade_frequency,
+						);
 
-				ensure!(code_upgrade_allowed, Error::<T>::PrematureCodeUpgrade);
+				ensure!(
+					valid_upgrade_attempt,
+					Error::<T>::PrematureCodeUpgrade,
+				);
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
@@ -420,6 +429,27 @@ impl<T: Trait> Module<T> {
 							ensure!(
 								required_collator == &candidate.descriptor().collator,
 								Error::<T>::WrongCollator,
+							);
+						}
+
+						{
+							// this should never fail because the para is registered
+							let persisted_validation_data =
+								match crate::util::make_persisted_validation_data::<T>(para_id) {
+									Some(l) => l,
+									None => {
+										// We don't want to error out here because it will
+										// brick the relay-chain. So we return early without
+										// doing anything.
+										return Ok(Vec::new());
+									}
+								};
+
+							let expected = persisted_validation_data.hash();
+
+							ensure!(
+								expected == candidate.descriptor().persisted_validation_data_hash,
+								Error::<T>::ValidationDataHashMismatch,
 							);
 						}
 
@@ -632,7 +662,6 @@ mod tests {
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
-		AssignmentKind,
 	};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
@@ -644,6 +673,7 @@ mod tests {
 	use crate::initializer::SessionChangeNotification;
 	use crate::configuration::HostConfiguration;
 	use crate::paras::ParaGenesisArgs;
+	use crate::scheduler::AssignmentKind;
 
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();
@@ -686,6 +716,7 @@ mod tests {
 		let payload = primitives::v1::collator_signature_payload(
 			&candidate.descriptor.relay_parent,
 			&candidate.descriptor.para_id,
+			&candidate.descriptor.persisted_validation_data_hash,
 			&candidate.descriptor.pov_hash,
 		);
 
@@ -814,6 +845,7 @@ mod tests {
 		head_data: HeadData,
 		pov_hash: Hash,
 		relay_parent: Hash,
+		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
 	}
 
@@ -824,6 +856,7 @@ mod tests {
 					para_id: self.para_id,
 					pov_hash: self.pov_hash,
 					relay_parent: self.relay_parent,
+					persisted_validation_data_hash: self.persisted_validation_data_hash,
 					..Default::default()
 				},
 				commitments: CandidateCommitments {
@@ -833,6 +866,12 @@ mod tests {
 				},
 			}
 		}
+	}
+
+	fn make_vdata_hash(para_id: ParaId) -> Option<Hash> {
+		let persisted_validation_data
+			= crate::util::make_persisted_validation_data::<Test>(para_id)?;
+		Some(persisted_validation_data.hash())
 	}
 
 	#[test]
@@ -1261,6 +1300,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1276,11 +1316,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_b_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_b_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::UnscheduledCandidate.into()),
+				);
 			}
 
 			// candidates out of order.
@@ -1289,12 +1332,14 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
 					para_id: chain_b,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1324,11 +1369,15 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed_b, backed_a],
-					vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
-					&group_validators,
-				).is_err());
+				// out-of-order manifests as unscheduled.
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed_b, backed_a],
+						vec![chain_a_assignment.clone(), chain_b_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::UnscheduledCandidate.into()),
+				);
 			}
 
 			// candidate not backed.
@@ -1337,6 +1386,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1352,11 +1402,14 @@ mod tests {
 					BackingKind::Lacking,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::InsufficientBacking.into()),
+				);
 			}
 
 			// candidate not in parent context.
@@ -1368,6 +1421,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: wrong_parent_hash,
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1383,11 +1437,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateNotInParentContext.into()),
+				);
 			}
 
 			// candidate has wrong collator.
@@ -1396,6 +1453,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1413,15 +1471,18 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![
-						chain_a_assignment.clone(),
-						chain_b_assignment.clone(),
-						thread_a_assignment.clone(),
-					],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![
+							chain_a_assignment.clone(),
+							chain_b_assignment.clone(),
+							thread_a_assignment.clone(),
+						],
+						&group_validators,
+					),
+					Err(Error::<Test>::WrongCollator.into()),
+				);
 			}
 
 			// candidate not well-signed by collator.
@@ -1430,6 +1491,7 @@ mod tests {
 					para_id: thread_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1450,11 +1512,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![thread_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![thread_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::NotCollatorSigned.into()),
+				);
 			}
 
 			// para occupied - reject.
@@ -1463,6 +1528,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1489,11 +1555,14 @@ mod tests {
 				});
 				<PendingAvailabilityCommitments>::insert(&chain_a, candidate.commitments);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+				);
 
 				<PendingAvailability<Test>>::remove(&chain_a);
 				<PendingAvailabilityCommitments>::remove(&chain_a);
@@ -1505,6 +1574,7 @@ mod tests {
 					para_id: chain_a,
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1524,11 +1594,14 @@ mod tests {
 					BackingKind::Threshold,
 				);
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![chain_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::CandidateScheduledBeforeParaFree.into()),
+				);
 
 				<PendingAvailabilityCommitments>::remove(&chain_a);
 			}
@@ -1540,6 +1613,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
+					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 					..Default::default()
 				}.build();
 
@@ -1564,11 +1638,47 @@ mod tests {
 
 				assert_eq!(Paras::last_code_upgrade(chain_a, true), Some(10));
 
-				assert!(Inclusion::process_candidates(
-					vec![backed],
-					vec![thread_a_assignment.clone()],
-					&group_validators,
-				).is_err());
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::PrematureCodeUpgrade.into()),
+				);
+			}
+
+			// Bad validation data hash - reject
+			{
+				let mut candidate = TestCandidateBuilder {
+					para_id: chain_a,
+					relay_parent: System::parent_hash(),
+					pov_hash: Hash::from([1; 32]),
+					persisted_validation_data_hash: [42u8; 32].into(),
+					..Default::default()
+				}.build();
+
+				collator_sign_candidate(
+					Sr25519Keyring::One,
+					&mut candidate,
+				);
+
+				let backed = back_candidate(
+					candidate,
+					&validators,
+					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					&signing_context,
+					BackingKind::Threshold,
+				);
+
+				assert_eq!(
+					Inclusion::process_candidates(
+						vec![backed],
+						vec![chain_a_assignment.clone()],
+						&group_validators,
+					),
+					Err(Error::<Test>::ValidationDataHashMismatch.into()),
+				);
 			}
 		});
 	}
@@ -1634,6 +1744,7 @@ mod tests {
 				para_id: chain_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
+				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1645,6 +1756,7 @@ mod tests {
 				para_id: chain_b,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
+				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1656,6 +1768,7 @@ mod tests {
 				para_id: thread_a,
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
+				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1742,6 +1855,91 @@ mod tests {
 			assert_eq!(
 				<PendingAvailabilityCommitments>::get(&thread_a),
 				Some(candidate_c.commitments),
+			);
+		});
+	}
+
+	#[test]
+	fn can_include_candidate_with_ok_code_upgrade() {
+		let chain_a = ParaId::from(1);
+
+		let paras = vec![(chain_a, true)];
+		let validators = vec![
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+			Sr25519Keyring::Dave,
+			Sr25519Keyring::Ferdie,
+		];
+		let validator_public = validator_pubkeys(&validators);
+
+		new_test_ext(genesis_config(paras)).execute_with(|| {
+			Validators::set(validator_public.clone());
+			CurrentSessionIndex::set(5);
+
+			run_to_block(5, |_| None);
+
+			let signing_context = SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: 5,
+			};
+
+			let group_validators = |group_index: GroupIndex| match group_index {
+				group_index if group_index == GroupIndex::from(0) => Some(vec![0, 1, 2, 3, 4]),
+				_ => panic!("Group index out of bounds for 1 parachain"),
+			};
+
+			let chain_a_assignment = CoreAssignment {
+				core: CoreIndex::from(0),
+				para_id: chain_a,
+				kind: AssignmentKind::Parachain,
+				group_idx: GroupIndex::from(0),
+			};
+
+			let mut candidate_a = TestCandidateBuilder {
+				para_id: chain_a,
+				relay_parent: System::parent_hash(),
+				pov_hash: Hash::from([1; 32]),
+				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				new_validation_code: Some(vec![1, 2, 3].into()),
+				..Default::default()
+			}.build();
+			collator_sign_candidate(
+				Sr25519Keyring::One,
+				&mut candidate_a,
+			);
+
+			let backed_a = back_candidate(
+				candidate_a.clone(),
+				&validators,
+				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				&signing_context,
+				BackingKind::Threshold,
+			);
+
+			let occupied_cores = Inclusion::process_candidates(
+				vec![backed_a],
+				vec![
+					chain_a_assignment.clone(),
+				],
+				&group_validators,
+			).expect("candidates scheduled, in order, and backed");
+
+			assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+
+			assert_eq!(
+				<PendingAvailability<Test>>::get(&chain_a),
+				Some(CandidatePendingAvailability {
+					core: CoreIndex::from(0),
+					descriptor: candidate_a.descriptor,
+					availability_votes: default_availability_votes(),
+					relay_parent_number: System::block_number() - 1,
+					backed_in_number: System::block_number(),
+				})
+			);
+			assert_eq!(
+				<PendingAvailabilityCommitments>::get(&chain_a),
+				Some(candidate_a.commitments),
 			);
 		});
 	}

@@ -1,0 +1,143 @@
+name: Publish draft release
+
+on:
+  push:
+    tags:
+      - v**.**.**
+
+jobs:
+  build-runtimes:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        runtime: ['polkadot', 'kusama']
+    container:
+      image: chevdor/srtool:nightly-2020-07-20
+      volumes:
+        - ${{ github.workspace }}:/build
+      env:
+        PACKAGE: ${{ matrix.runtime }}-runtime
+        RUSTC_VERSION: nightly-2020-07-20
+    steps:
+      - uses: actions/checkout@v2
+      - name: Cache target dir
+        uses: actions/cache@v2
+        with:
+          path: '${{ github.workspace }}/target'
+          key: srtool-target-${{ matrix.runtime }}-${{ github.sha }}
+          restore-keys: |
+            srtool-target-${{ matrix.runtime }}-
+            srtool-target-
+      - name: Build ${{ matrix.runtime }} runtime
+        id: build-runtime
+        shell: bash
+        run: |
+          cd /build
+          pwd
+          ls -la
+          build --json | tee srtool_output.json
+          cat srtool_output.json
+          while IFS= read -r line; do
+            echo "::set-output name=$line::$(jq -r ".$line" < srtool_output.json)"
+          done <<< "$(jq -r 'keys[]' < srtool_output.json)"
+      - name: Upload ${{ matrix.runtime }} srtool json
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.runtime }}-srtool-json
+          path: srtool_output.json
+      - name: Upload ${{ matrix.runtime }} runtime
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ matrix.runtime }}-runtime
+          path: "${{ steps.build-runtime.outputs.wasm }}"
+
+  get-rust-versions:
+    runs-on: ubuntu-latest
+    container:
+      image: paritytech/ci-linux:production
+    outputs:
+      rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
+      rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
+    steps:
+      - id: get-rust-versions
+        run: |
+          echo "::set-output name=stable::$(rustc +stable --version)"
+          echo "::set-output name=nightly::$(rustc +nightly --version)"
+
+  publish-draft-release:
+    runs-on: ubuntu-latest
+    needs: ['get-rust-versions', 'build-runtimes']
+    outputs:
+      release_url: ${{ steps.create-release.outputs.html_url }}
+      asset_upload_url: ${{ steps.create-release.outputs.upload_url }}
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        fetch-depth: 0
+        path: polkadot
+    - name: Set up Ruby 2.7
+      uses: actions/setup-ruby@v1
+      with:
+        ruby-version: 2.7
+    - name: Download srtool json output
+      uses: actions/download-artifact@v2
+    - name: Generate release text
+      env:
+        RUSTC_STABLE: ${{ needs.get-rust-versions.outputs.rustc-stable }}
+        RUSTC_NIGHTLY: ${{ needs.get-rust-versions.outputs.rustc-nightly }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gem install changelogerator git toml
+        ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb | tee release_text.md
+    - name: Create draft release
+      id: create-release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: Polkadot ${{ github.ref }}
+        body_path: ./release_text.md
+        draft: true
+
+  post_to_matrix:
+    runs-on: ubuntu-latest
+    needs: publish-draft-release
+    steps:
+      - name: Internal polkadot channel
+        uses: s3krit/matrix-message-action@v0.0.2
+        with:
+          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          message: "**New version of polkadot tagged**: ${{ github.ref }}<br/>Gav: Draft release created: ${{ needs.publish-draft-release.outputs.release_url }}"
+          server: "matrix.parity.io"
+
+  publish-runtimes:
+    runs-on: ubuntu-latest
+    needs: ['publish-draft-release']
+    strategy:
+      matrix:
+        runtime: ['polkadot', 'kusama']
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/download-artifact@v2
+        with:
+          name: ${{ matrix.runtime }}-runtime
+      - name: Set up Ruby 2.7
+        uses: actions/setup-ruby@v1
+        with:
+          ruby-version: 2.7
+      - name: Get runtime version
+        id: get-runtime-ver
+        run: |
+          runtime_ver="$(ruby -e 'require "./scripts/github/lib.rb"; puts get_runtime("${{ matrix.runtime }}")')"
+          echo "::set-output name=runtime_ver::$runtime_ver"
+      - name: Upload ${{ matrix.runtime }} wasm
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.publish-draft-release.outputs.asset_upload_url }}
+          asset_path: ./${{ matrix.runtime }}_runtime.compact.wasm
+          asset_name: ${{ matrix.runtime }}_runtime-v${{ steps.get-runtime-ver.outputs.runtime_ver }}.compact.wasm
+          asset_content_type: application/wasm

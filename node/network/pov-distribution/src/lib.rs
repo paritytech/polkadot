@@ -21,24 +21,23 @@
 
 use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
 use polkadot_subsystem::{
-	OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
+	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
 };
 use polkadot_subsystem::messages::{
-	PoVDistributionMessage, NetworkBridgeEvent, ReputationChange as Rep, PeerId,
-	RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
+	PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 };
-use node_primitives::{View, ProtocolId};
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
+};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
-use parity_scale_codec::{Encode, Decode};
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::sync::Arc;
 
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
-const COST_MALFORMED_MESSAGE: Rep = Rep::new(-500, "Peer sent us a malformed message");
 const COST_AWAITED_NOT_IN_VIEW: Rep
 	= Rep::new(-100, "Peer claims to be awaiting something outside of its view");
 
@@ -46,26 +45,14 @@ const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited Po
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
-const PROTOCOL_V1: ProtocolId = *b"pvd1";
-
-#[derive(Encode, Decode)]
-enum WireMessage {
-    /// Notification that we are awaiting the given PoVs (by hash) against a
-	/// specific relay-parent hash.
-	#[codec(index = "0")]
-    Awaiting(Hash, Vec<Hash>),
-    /// Notification of an awaited PoV, in a given relay-parent context.
-    /// (relay_parent, pov_hash, pov)
-	#[codec(index = "1")]
-    SendPoV(Hash, Hash, PoV),
-}
-
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution;
 
 impl<C> Subsystem<C> for PoVDistribution
 	where C: SubsystemContext<Message = PoVDistributionMessage>
 {
+	type Metrics = ();
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
@@ -98,6 +85,22 @@ struct PeerState {
 	awaited: HashMap<Hash, HashSet<Hash>>,
 }
 
+fn awaiting_message(relay_parent: Hash, awaiting: Vec<Hash>)
+	-> protocol_v1::ValidationProtocol
+{
+	protocol_v1::ValidationProtocol::PoVDistribution(
+		protocol_v1::PoVDistributionMessage::Awaiting(relay_parent, awaiting)
+	)
+}
+
+fn send_pov_message(relay_parent: Hash, pov_hash: Hash, pov: PoV)
+	-> protocol_v1::ValidationProtocol
+{
+	protocol_v1::ValidationProtocol::PoVDistribution(
+		protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov)
+	)
+}
+
 /// Handles the signal. If successful, returns `true` if the subsystem should conclude,
 /// `false` otherwise.
 async fn handle_signal(
@@ -107,26 +110,45 @@ async fn handle_signal(
 ) -> SubsystemResult<bool> {
 	match signal {
 		OverseerSignal::Conclude => Ok(true),
-		OverseerSignal::StartWork(relay_parent) => {
-			let (vals_tx, vals_rx) = oneshot::channel();
-			ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				relay_parent,
-				RuntimeApiRequest::Validators(vals_tx),
-			))).await?;
+		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
+			for relay_parent in activated {
+				let (vals_tx, vals_rx) = oneshot::channel();
+				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(vals_tx),
+				))).await?;
 
-			state.relay_parent_state.insert(relay_parent, BlockBasedState {
-				known: HashMap::new(),
-				fetching: HashMap::new(),
-				n_validators: vals_rx.await?.len(),
-			});
+				let n_validators = match vals_rx.await? {
+					Ok(v) => v.len(),
+					Err(e) => {
+						log::warn!(target: "pov_distribution",
+							"Error fetching validators from runtime API for active leaf: {:?}",
+							e
+						);
+
+						// Not adding bookkeeping here might make us behave funny, but we
+						// shouldn't take down the node on spurious runtime API errors.
+						//
+						// and this is "behave funny" as in be bad at our job, but not in any
+						// slashable or security-related way.
+						continue;
+					}
+				};
+
+				state.relay_parent_state.insert(relay_parent, BlockBasedState {
+					known: HashMap::new(),
+					fetching: HashMap::new(),
+					n_validators: n_validators,
+				});
+			}
+
+			for relay_parent in deactivated {
+				state.relay_parent_state.remove(&relay_parent);
+			}
 
 			Ok(false)
 		}
-		OverseerSignal::StopWork(relay_parent) => {
-			state.relay_parent_state.remove(&relay_parent);
-
-			Ok(false)
-		}
+		OverseerSignal::BlockFinalized(_) => Ok(false),
 	}
 }
 
@@ -150,11 +172,10 @@ async fn notify_all_we_are_awaiting(
 
 	if peers_to_send.is_empty() { return Ok(()) }
 
-	let payload = WireMessage::Awaiting(relay_parent, vec![pov_hash]).encode();
+	let payload = awaiting_message(relay_parent, vec![pov_hash]);
 
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
-		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -175,11 +196,10 @@ async fn notify_one_we_are_awaiting_many(
 
 	if awaiting_hashes.is_empty() { return Ok(()) }
 
-	let payload = WireMessage::Awaiting(relay_parent, awaiting_hashes).encode();
+	let payload = awaiting_message(relay_parent, awaiting_hashes);
 
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		vec![peer.clone()],
-		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -207,11 +227,10 @@ async fn distribute_to_awaiting(
 
 	if peers_to_send.is_empty() { return Ok(()) }
 
-	let payload = WireMessage::SendPoV(relay_parent, pov_hash, pov.clone()).encode();
+	let payload = send_pov_message(relay_parent, pov_hash, pov.clone());
 
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
+	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
-		PROTOCOL_V1,
 		payload,
 	))).await
 }
@@ -342,11 +361,10 @@ async fn handle_awaiting(
 			// For all requested PoV hashes, if we have it, we complete the request immediately.
 			// Otherwise, we note that the peer is awaiting the PoV.
 			if let Some(pov) = relay_parent_state.known.get(&pov_hash) {
-				ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendMessage(
-					vec![peer.clone()],
-					PROTOCOL_V1,
-					WireMessage::SendPoV(relay_parent, pov_hash, (&**pov).clone()).encode(),
-				))).await?;
+				let payload = send_pov_message(relay_parent, pov_hash, (&**pov).clone());
+				ctx.send_message(AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendValidationMessage(vec![peer.clone()], payload)
+				)).await?;
 			} else {
 				peer_awaiting.insert(pov_hash);
 			}
@@ -430,7 +448,7 @@ async fn handle_incoming_pov(
 async fn handle_network_update(
 	state: &mut State,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
-	update: NetworkBridgeEvent,
+	update: NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>,
 ) -> SubsystemResult<()> {
 	match update {
 		NetworkBridgeEvent::PeerConnected(peer, _observed_role) => {
@@ -464,17 +482,18 @@ async fn handle_network_update(
 
 			Ok(())
 		}
-		NetworkBridgeEvent::PeerMessage(peer, bytes) => {
-			match WireMessage::decode(&mut &bytes[..]) {
-				Ok(msg) => match msg {
-					WireMessage::Awaiting(relay_parent, pov_hashes) => handle_awaiting(
+		NetworkBridgeEvent::PeerMessage(peer, message) => {
+			match message {
+				protocol_v1::PoVDistributionMessage::Awaiting(relay_parent, pov_hashes)
+					=> handle_awaiting(
 						state,
 						ctx,
 						peer,
 						relay_parent,
 						pov_hashes,
 					).await,
-					WireMessage::SendPoV(relay_parent, pov_hash, pov) => handle_incoming_pov(
+				protocol_v1::PoVDistributionMessage::SendPoV(relay_parent, pov_hash, pov)
+					=> handle_incoming_pov(
 						state,
 						ctx,
 						peer,
@@ -482,11 +501,6 @@ async fn handle_network_update(
 						pov_hash,
 						pov,
 					).await,
-				},
-				Err(_) => {
-					report_peer(ctx, peer, COST_MALFORMED_MESSAGE).await?;
-					Ok(())
-				}
 			}
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
@@ -496,19 +510,9 @@ async fn handle_network_update(
 	}
 }
 
-fn network_update_message(update: NetworkBridgeEvent) -> AllMessages {
-	AllMessages::PoVDistribution(PoVDistributionMessage::NetworkBridgeUpdate(update))
-}
-
 async fn run(
 	mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
 ) -> SubsystemResult<()> {
-	// startup: register the network protocol with the bridge.
-	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::RegisterEventProducer(
-		PROTOCOL_V1,
-		network_update_message,
-	))).await?;
-
 	let mut state = State {
 		relay_parent_state: HashMap::new(),
 		peer_state: HashMap::new(),
@@ -537,7 +541,7 @@ async fn run(
 						descriptor,
 						pov,
 					).await?,
-				PoVDistributionMessage::NetworkBridgeUpdate(event) =>
+				PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
 					handle_network_update(
 						&mut state,
 						&mut ctx,
@@ -619,8 +623,8 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -642,13 +646,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
-						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+						send_pov_message(hash_a, pov_hash, pov.clone()),
 					);
 				}
 			)
@@ -699,8 +702,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 		let mut descriptor = CandidateDescriptor::default();
 		descriptor.pov_hash = pov_hash;
 
@@ -718,13 +721,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
-						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
+						awaiting_message(hash_a, vec![pov_hash]),
 					);
 				}
 			)
@@ -777,8 +779,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -790,13 +792,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_a.clone()]);
-					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
-						WireMessage::Awaiting(hash_a, vec![pov_a_hash]).encode(),
+						awaiting_message(hash_a, vec![pov_a_hash]),
 					);
 				}
 			)
@@ -849,8 +850,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request before peer B.
@@ -859,8 +860,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			handle_network_update(
@@ -868,8 +869,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_b.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);
@@ -937,8 +938,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -947,8 +948,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, bad_pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, bad_pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// didn't complete our sender.
@@ -1000,8 +1001,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1010,8 +1011,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_matches!(
@@ -1061,8 +1062,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			// Peer A answers our request: right relay parent, awaited hash, wrong PoV.
@@ -1071,8 +1072,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_b, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_b, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_matches!(
@@ -1119,8 +1120,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let max_plausibly_awaited = n_validators * 2;
@@ -1133,8 +1134,8 @@ mod tests {
 					&mut ctx,
 					NetworkBridgeEvent::PeerMessage(
 						peer_a.clone(),
-						WireMessage::Awaiting(hash_a, vec![pov_hash]).encode(),
-					),
+						awaiting_message(hash_a, vec![pov_hash]),
+					).focus().unwrap(),
 				).await.unwrap();
 			}
 
@@ -1147,8 +1148,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_a, vec![last_pov_hash]).encode(),
-				),
+					awaiting_message(hash_a, vec![last_pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// No more bookkeeping for you!
@@ -1204,8 +1205,8 @@ mod tests {
 			our_view: View(vec![hash_a, hash_b]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1216,8 +1217,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
-				),
+					awaiting_message(hash_b, vec![pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert!(state.peer_state[&peer_a].awaited.get(&hash_b).is_none());
@@ -1266,8 +1267,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			let pov_hash = make_pov(vec![1, 2, 3]).hash();
@@ -1278,8 +1279,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::Awaiting(hash_b, vec![pov_hash]).encode(),
-				),
+					awaiting_message(hash_b, vec![pov_hash]),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			// Illegal `awaited` is ignored.
@@ -1343,8 +1344,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -1352,8 +1353,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);
@@ -1371,13 +1372,12 @@ mod tests {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendMessage(peers, protocol, message)
+					NetworkBridgeMessage::SendValidationMessage(peers, message)
 				) => {
 					assert_eq!(peers, vec![peer_b.clone()]);
-					assert_eq!(protocol, PROTOCOL_V1);
 					assert_eq!(
 						message,
-						WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
+						send_pov_message(hash_a, pov_hash, pov.clone()),
 					);
 				}
 			);
@@ -1426,8 +1426,8 @@ mod tests {
 			our_view: View(vec![hash_a]),
 		};
 
-		let pool = sp_core::testing::SpawnBlockingExecutor::new();
-		let (mut ctx, mut handle) = polkadot_subsystem::test_helpers::make_subsystem_context(pool);
+		let pool = sp_core::testing::TaskExecutor::new();
+		let (mut ctx, mut handle) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		executor::block_on(async move {
 			handle_network_update(
@@ -1435,8 +1435,8 @@ mod tests {
 				&mut ctx,
 				NetworkBridgeEvent::PeerMessage(
 					peer_a.clone(),
-					WireMessage::SendPoV(hash_a, pov_hash, pov.clone()).encode(),
-				),
+					send_pov_message(hash_a, pov_hash, pov.clone()),
+				).focus().unwrap(),
 			).await.unwrap();
 
 			assert_eq!(&*pov_recv.await.unwrap(), &pov);

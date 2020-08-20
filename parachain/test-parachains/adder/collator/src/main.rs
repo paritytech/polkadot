@@ -20,15 +20,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use sp_core::Pair;
+use sp_core::{traits::SpawnNamed, Pair};
 use codec::{Encode, Decode};
 use primitives::v0::{
-	Hash, DownwardMessage,
-	HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationSchedule,
+	Block, Hash, DownwardMessage,
+	HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationData,
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
 use parking_lot::Mutex;
 use futures::future::{Ready, ready, FutureExt};
+use sp_runtime::traits::BlakeTwo256;
+use client_api::Backend as BackendT;
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -58,7 +60,7 @@ impl ParachainContext for AdderContext {
 	fn produce_candidate(
 		&mut self,
 		_relay_parent: Hash,
-		_global_validation: GlobalValidationSchedule,
+		_global_validation: GlobalValidationData,
 		local_validation: LocalValidationData,
 		_: Vec<DownwardMessage>,
 	) -> Self::ProduceCandidate
@@ -89,8 +91,11 @@ impl ParachainContext for AdderContext {
 		let encoded_head = HeadData(next_head.encode());
 		let encoded_body = BlockData(next_body.encode());
 
-		println!("Created collation for #{}, post-state={}",
-			next_head.number, next_body.state.overflowing_add(next_body.add).0);
+		println!(
+			"Created collation for #{}, post-state={}",
+			next_head.number,
+			next_body.state.overflowing_add(next_body.add).0,
+		);
 
 		db.insert(next_head.clone(), next_body);
 		ready(Some((encoded_body, encoded_head)))
@@ -100,12 +105,19 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<Client, SP, Extrinsic>(
+	fn build<SP, Client, Backend>(
 		self,
 		_: Arc<Client>,
 		_: SP,
 		network: impl Network + Clone + 'static,
-	) -> Result<Self::ParachainContext, ()> {
+	) -> Result<Self::ParachainContext, ()>
+	where
+		SP: SpawnNamed + Clone + Send + Sync + 'static,
+		Backend: BackendT<Block>,
+		Backend::State: sp_api::StateBackend<BlakeTwo256>,
+		Client: service::AbstractClient<Block, Backend> + 'static,
+		Client::Api: service::RuntimeApiCollection<StateBackend = Backend::State>,
+	{
 		Ok(Self { _network: Some(Arc::new(network)), ..self })
 	}
 }

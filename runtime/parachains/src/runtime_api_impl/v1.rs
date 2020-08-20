@@ -17,13 +17,14 @@
 //! Runtimes implementing the v1 runtime API are recommended to forward directly to these
 //! functions.
 
+use sp_std::prelude::*;
 use primitives::v1::{
-	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationSchedule,
-	Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
+	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
+	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent,
+	GroupIndex, CandidateEvent, PersistedValidationData,
 };
-use sp_runtime::traits::{One, BlakeTwo256, Hash as HashT, Saturating, Zero};
+use sp_runtime::traits::Zero;
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
@@ -160,66 +161,59 @@ pub fn availability_cores<T: initializer::Trait>() -> Vec<CoreState<T::BlockNumb
 	core_states
 }
 
-/// Implementation for the `global_validation_schedule` function of the runtime API.
-pub fn global_validation_schedule<T: initializer::Trait>()
-	-> GlobalValidationSchedule<T::BlockNumber>
-{
-	let config = <configuration::Module<T>>::config();
-	GlobalValidationSchedule {
-		max_code_size: config.max_code_size,
-		max_head_data_size: config.max_head_data_size,
-		block_number: <system::Module<T>>::block_number() - One::one(),
-	}
-}
-
-/// Implementation for the `local_validation_data` function of the runtime API.
-pub fn local_validation_data<T: initializer::Trait>(
+fn with_assumption<Trait, T, F>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-) -> Option<LocalValidationData<T::BlockNumber>> {
-	let construct = || {
-		let relay_parent_number = <system::Module<T>>::block_number() - One::one();
-
-		let config = <configuration::Module<T>>::config();
-		let freq = config.validation_upgrade_frequency;
-		let delay = config.validation_upgrade_delay;
-
-		let last_code_upgrade = <paras::Module<T>>::last_code_upgrade(para_id, true)?;
-		let can_upgrade_code = last_code_upgrade <= relay_parent_number
-			&& relay_parent_number.saturating_sub(last_code_upgrade) >= freq;
-
-		let code_upgrade_allowed = if can_upgrade_code {
-			Some(relay_parent_number + delay)
-		} else {
-			None
-		};
-
-		Some(LocalValidationData {
-			parent_head: <paras::Module<T>>::para_head(&para_id)?,
-			balance: 0,
-			validation_code_hash: BlakeTwo256::hash_of(
-				&<paras::Module<T>>::current_code(&para_id)?
-			),
-			code_upgrade_allowed,
-		})
-	};
-
+	build: F,
+) -> Option<T> where
+	Trait: inclusion::Trait,
+	F: FnOnce() -> Option<T>,
+{
 	match assumption {
 		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para_id);
-			construct()
+			<inclusion::Module<Trait>>::force_enact(para_id);
+			build()
 		}
 		OccupiedCoreAssumption::TimedOut => {
-			construct()
+			build()
 		}
 		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
+			if <inclusion::Module<Trait>>::pending_availability(para_id).is_some() {
 				None
 			} else {
-				construct()
+				build()
 			}
 		}
 	}
+}
+
+/// Implementation for the `full_validation_data` function of the runtime API.
+pub fn full_validation_data<T: initializer::Trait>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+)
+	-> Option<ValidationData<T::BlockNumber>>
+{
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| Some(ValidationData {
+			persisted: crate::util::make_persisted_validation_data::<T>(para_id)?,
+			transient: crate::util::make_transient_validation_data::<T>(para_id)?,
+		}),
+	)
+}
+
+/// Implementation for the `persisted_validation_data` function of the runtime API.
+pub fn persisted_validation_data<T: initializer::Trait>(
+	para_id: ParaId,
+	assumption: OccupiedCoreAssumption,
+) -> Option<PersistedValidationData<T::BlockNumber>> {
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| crate::util::make_persisted_validation_data::<T>(para_id),
+	)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -239,26 +233,11 @@ pub fn validation_code<T: initializer::Trait>(
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
 ) -> Option<ValidationCode> {
-	let fetch = || {
-		<paras::Module<T>>::current_code(&para_id)
-	};
-
-	match assumption {
-		OccupiedCoreAssumption::Included => {
-			<inclusion::Module<T>>::force_enact(para_id);
-			fetch()
-		}
-		OccupiedCoreAssumption::TimedOut => {
-			fetch()
-		}
-		OccupiedCoreAssumption::Free => {
-			if <inclusion::Module<T>>::pending_availability(para_id).is_some() {
-				None
-			} else {
-				fetch()
-			}
-		}
-	}
+	with_assumption::<T, _, _>(
+		para_id,
+		assumption,
+		|| <paras::Module<T>>::current_code(&para_id),
+	)
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
@@ -271,12 +250,14 @@ pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 /// Implementation for the `candidate_events` function of the runtime API.
 // NOTE: this runs without block initialization, as it accesses events.
 // this means it can run in a different session than other runtime APIs at the same block.
-pub fn candidate_events<T: initializer::Trait>(
-	extract_event: impl Fn(<T as system::Trait>::Event) -> Option<inclusion::Event<T>>,
-) -> Vec<CandidateEvent<T::Hash>> {
+pub fn candidate_events<T, F>(extract_event: F) -> Vec<CandidateEvent<T::Hash>>
+where
+	T: initializer::Trait,
+	F: Fn(<T as frame_system::Trait>::Event) -> Option<inclusion::Event<T>>,
+{
 	use inclusion::Event as RawEvent;
 
-	<system::Module<T>>::events().into_iter()
+	<frame_system::Module<T>>::events().into_iter()
 		.filter_map(|record| extract_event(record.event))
 		.map(|event| match event {
 			RawEvent::<T>::CandidateBacked(c, h) => CandidateEvent::CandidateBacked(c, h),

@@ -19,11 +19,15 @@
 use std::{process, env, sync::Arc, sync::atomic};
 use codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
-use super::{validate_candidate_internal, Error};
-use super::{MAX_CODE_MEM, MAX_RUNTIME_MEM};
+use super::{
+	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
+	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
+};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
+use futures::executor::ThreadPool;
+use sp_core::traits::SpawnNamed;
 
 const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
@@ -41,6 +45,25 @@ enum Event {
 	CandidateReady = 0,
 	ResultReady = 1,
 	WorkerReady = 2,
+}
+
+#[derive(Clone)]
+struct TaskExecutor(ThreadPool);
+
+impl TaskExecutor {
+	fn new() -> Result<Self, String> {
+		ThreadPool::new().map_err(|e| e.to_string()).map(Self)
+	}
+}
+
+impl SpawnNamed for TaskExecutor {
+	fn spawn_blocking(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		self.0.spawn_ok(future);
+	}
+
+	fn spawn(&self, _: &'static str, future: futures::future::BoxFuture<'static, ()>) {
+		self.0.spawn_ok(future);
+	}
 }
 
 /// A pool of hosts.
@@ -68,7 +91,7 @@ impl ValidationPool {
 		validation_code: &[u8],
 		params: ValidationParams,
 		test_mode: bool,
-	) -> Result<ValidationResult, Error> {
+	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
 				return host.validate_candidate(validation_code, params, test_mode);
@@ -92,6 +115,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	};
 
 	let exit = Arc::new(atomic::AtomicBool::new(false));
+	let task_executor = TaskExecutor::new()?;
 	// spawn parent monitor thread
 	let watch_exit = exit.clone();
 	std::thread::spawn(move || {
@@ -139,12 +163,15 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 				let (call_data, _) = rest.split_at_mut(MAX_RUNTIME_MEM);
 				let (call_data, _) = call_data.split_at_mut(header.params_size as usize);
 
-				let result = validate_candidate_internal(code, call_data);
+				let result = validate_candidate_internal(code, call_data, task_executor.clone());
 				debug!("{} Candidate validated: {:?}", process::id(), result);
 
 				match result {
 					Ok(r) => ValidationResultHeader::Ok(r),
-					Err(e) => ValidationResultHeader::Error(e.to_string()),
+					Err(ValidationError::Internal(e)) =>
+						ValidationResultHeader::Error(WorkerValidationError::InternalError(e.to_string())),
+					Err(ValidationError::InvalidCandidate(e)) =>
+						ValidationResultHeader::Error(WorkerValidationError::ValidationError(e.to_string())),
 				}
 			};
 			let mut data: &mut[u8] = &mut **slice;
@@ -165,9 +192,15 @@ struct ValidationHeader {
 }
 
 #[derive(Encode, Decode, Debug)]
-pub enum ValidationResultHeader {
+enum WorkerValidationError {
+	InternalError(String),
+	ValidationError(String),
+}
+
+#[derive(Encode, Decode, Debug)]
+enum ValidationResultHeader {
 	Ok(ValidationResult),
-	Error(String),
+	Error(WorkerValidationError),
 }
 
 unsafe impl Send for ValidationHost {}
@@ -188,8 +221,8 @@ impl Drop for ValidationHost {
 }
 
 impl ValidationHost {
-	fn create_memory() -> Result<SharedMem, Error> {
-		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + 1024;
+	fn create_memory() -> Result<SharedMem, InternalError> {
+		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
 		let mem_config = SharedMemConf::default()
 			.set_size(mem_size)
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
@@ -200,7 +233,7 @@ impl ValidationHost {
 		Ok(mem_config.create()?)
 	}
 
-	fn start_worker(&mut self, test_mode: bool) -> Result<(), Error> {
+	fn start_worker(&mut self, test_mode: bool) -> Result<(), InternalError> {
 		if let Some(ref mut worker) = self.worker {
 			// Check if still alive
 			if let Ok(None) = worker.try_wait() {
@@ -236,9 +269,9 @@ impl ValidationHost {
 		validation_code: &[u8],
 		params: ValidationParams,
 		test_mode: bool,
-	) -> Result<ValidationResult, Error> {
+	) -> Result<ValidationResult, ValidationError> {
 		if validation_code.len() > MAX_CODE_MEM {
-			return Err(Error::CodeTooLarge(validation_code.len()));
+			return Err(ValidationError::InvalidCandidate(InvalidCandidate::CodeTooLarge(validation_code.len())));
 		}
 		// First, check if need to spawn the child process
 		self.start_worker(test_mode)?;
@@ -246,7 +279,8 @@ impl ValidationHost {
 			.expect("memory is always `Some` after `start_worker` completes successfully");
 		{
 			// Put data in shared mem
-			let data: &mut[u8] = &mut **memory.wlock_as_slice(0)?;
+			let data: &mut[u8] = &mut **memory.wlock_as_slice(0)
+				.map_err(|e|ValidationError::Internal(e.into()))?;
 			let (mut header_buf, rest) = data.split_at_mut(1024);
 			let (code, rest) = rest.split_at_mut(MAX_CODE_MEM);
 			let (code, _) = code.split_at_mut(validation_code.len());
@@ -254,7 +288,7 @@ impl ValidationHost {
 			code[..validation_code.len()].copy_from_slice(validation_code);
 			let encoded_params = params.encode();
 			if encoded_params.len() >= MAX_RUNTIME_MEM {
-				return Err(Error::ParamsTooLarge(MAX_RUNTIME_MEM));
+				return Err(ValidationError::InvalidCandidate(InvalidCandidate::ParamsTooLarge(MAX_RUNTIME_MEM)));
 			}
 			call_data[..encoded_params.len()].copy_from_slice(&encoded_params);
 
@@ -267,7 +301,8 @@ impl ValidationHost {
 		}
 
 		debug!("{} Signaling candidate", self.id);
-		memory.set(Event::CandidateReady as usize, EventState::Signaled)?;
+		memory.set(Event::CandidateReady as usize, EventState::Signaled)
+			.map_err(|e| ValidationError::Internal(e.into()))?;
 
 		debug!("{} Waiting for results", self.id);
 		match memory.wait(Event::ResultReady as usize, shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize)) {
@@ -276,22 +311,34 @@ impl ValidationHost {
 				if let Some(mut worker) = self.worker.take() {
 					worker.kill().ok();
 				}
-				return Err(Error::Timeout.into());
+				return Err(ValidationError::InvalidCandidate(InvalidCandidate::Timeout));
 			}
 			Ok(()) => {}
 		}
 
 		{
 			debug!("{} Reading results", self.id);
-			let data: &[u8] = &**memory.wlock_as_slice(0)?;
-			let (header_buf, _) = data.split_at(1024);
+			let data: &[u8] = &**memory.wlock_as_slice(0)
+				.map_err(|e| ValidationError::Internal(e.into()))?;
+			let (header_buf, _) = data.split_at(MAX_VALIDATION_RESULT_HEADER_MEM);
 			let mut header_buf: &[u8] = header_buf;
-			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
+			let header = ValidationResultHeader::decode(&mut header_buf)
+				.map_err(|e|
+					InternalError::System(
+						Box::<dyn std::error::Error + Send + Sync>::from(
+							format!("Failed to decode `ValidationResultHeader`: {:?}", e)
+						) as Box<_>
+					)
+				)?;
 			match header {
 				ValidationResultHeader::Ok(result) => Ok(result),
-				ValidationResultHeader::Error(message) => {
-					debug!("{} Validation error: {}", self.id, message);
-					Err(Error::External(message).into())
+				ValidationResultHeader::Error(WorkerValidationError::InternalError(e)) => {
+					debug!("{} Internal validation error: {}", self.id, e);
+					Err(ValidationError::Internal(InternalError::WasmWorker(e)))
+				},
+				ValidationResultHeader::Error(WorkerValidationError::ValidationError(e)) => {
+					debug!("{} External validation error: {}", self.id, e);
+					Err(ValidationError::InvalidCandidate(InvalidCandidate::ExternalWasmExecutor(e)))
 				}
 			}
 		}

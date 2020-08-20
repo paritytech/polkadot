@@ -145,7 +145,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	N::BuildTableRouter: Send + Unpin + 'static,
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
-	SP: SpawnNamed + Send + 'static,
+	SP: SpawnNamed + Clone + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
@@ -167,11 +167,15 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
-			spawner: self.spawner,
+			spawner: self.spawner.clone(),
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
 			validation_pool: validation_pool.clone(),
-			collation_fetch: DefaultCollationFetch(self.collators, validation_pool),
+			collation_fetch: DefaultCollationFetch {
+				collators: self.collators,
+				validation_pool,
+				spawner: self.spawner,
+			},
 		};
 
 		let client = self.client;
@@ -253,11 +257,17 @@ pub(crate) trait CollationFetch {
 }
 
 #[derive(Clone)]
-struct DefaultCollationFetch<C>(C, Option<ValidationPool>);
-impl<C> CollationFetch for DefaultCollationFetch<C>
+struct DefaultCollationFetch<C, S> {
+	collators: C,
+	validation_pool: Option<ValidationPool>,
+	spawner: S,
+}
+
+impl<C, S> CollationFetch for DefaultCollationFetch<C, S>
 	where
 		C: Collators + Send + Sync + Unpin + 'static,
 		C::Collation: Send + Unpin + 'static,
+		S: SpawnNamed + Clone + 'static,
 {
 	type Error = C::Error;
 
@@ -273,15 +283,15 @@ impl<C> CollationFetch for DefaultCollationFetch<C>
 			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 			P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	{
-		let DefaultCollationFetch(collators, validation_pool) = self;
 		crate::collation::collation_fetch(
-			validation_pool,
+			self.validation_pool,
 			parachain,
 			relay_parent,
-			collators,
+			self.collators,
 			client,
 			max_block_data_size,
 			n_validators,
+			self.spawner,
 		).boxed()
 	}
 }
@@ -373,13 +383,13 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 
 		if let Some(ref duty) = local_duty {
 			info!(
-				"✍️ Starting parachain attestation session (parent: {}) with active duty {}",
+				"✍️  Starting parachain attestation session (parent: {}) with active duty {}",
 				parent_hash,
 				Colour::Red.bold().paint(format!("{:?}", duty)),
 			);
 		} else {
 			debug!(
-				"✍️ Starting parachain attestation session (parent: {}). No local duty..",
+				"✍️  Starting parachain attestation session (parent: {}). No local duty..",
 				parent_hash,
 			);
 		}
@@ -547,13 +557,13 @@ mod tests {
 	use availability_store::ErasureNetworking;
 	use polkadot_primitives::v0::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
-		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
+		CollationInfo, DutyRoster, GlobalValidationData, LocalValidationData,
 		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext, ValidationCode,
 	};
 	use runtime_primitives::traits::Block as BlockT;
 	use std::pin::Pin;
 	use sp_keyring::sr25519::Keyring;
-	use primitives::testing::SpawnBlockingExecutor;
+	use primitives::testing::TaskExecutor;
 
 	/// Events fired while running mock implementations to follow execution.
 	enum Events {
@@ -697,7 +707,7 @@ mod tests {
 			fn validators(&self) -> Vec<ValidatorId> { self.validators.clone() }
 			fn duty_roster(&self) -> DutyRoster { self.duty_roster.clone() }
 			fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> { vec![(ParaId::from(1), None)] }
-			fn global_validation_schedule() -> GlobalValidationSchedule { Default::default() }
+			fn global_validation_data() -> GlobalValidationData { Default::default() }
 			fn local_validation_data(_: ParaId) -> Option<LocalValidationData> { None }
 			fn parachain_code(_: ParaId) -> Option<ValidationCode> { None }
 			fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
@@ -714,7 +724,7 @@ mod tests {
 
 	#[test]
 	fn launch_work_is_executed_properly() {
-		let executor = SpawnBlockingExecutor::new();
+		let executor = TaskExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Bob` key is in the keystore, so this mocked node will be a parachain validator.
@@ -754,7 +764,7 @@ mod tests {
 
 	#[test]
 	fn router_is_built_on_relay_chain_validator() {
-		let executor = SpawnBlockingExecutor::new();
+		let executor = TaskExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Alice` key is in the keystore, so this mocked node will be a relay-chain validator.

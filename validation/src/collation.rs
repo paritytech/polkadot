@@ -29,6 +29,7 @@ use polkadot_erasure_coding as erasure;
 use sp_api::ProvideRuntimeApi;
 use futures::prelude::*;
 use log::debug;
+use primitives::traits::SpawnNamed;
 
 /// Encapsulates connections to collators and allows collation on any parachain.
 ///
@@ -64,6 +65,7 @@ pub async fn collation_fetch<C: Collators, P>(
 	client: Arc<P>,
 	max_block_data_size: Option<u64>,
 	n_validators: usize,
+	spawner: impl SpawnNamed + Clone + 'static,
 ) -> Result<(CollationInfo, crate::pipeline::FullOutput), C::Error>
 	where
 		P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -82,6 +84,7 @@ pub async fn collation_fetch<C: Collators, P>(
 			&relay_parent,
 			max_block_data_size,
 			n_validators,
+			spawner.clone(),
 		);
 
 		match res {

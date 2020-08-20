@@ -1,0 +1,19 @@
+[package]
+name = "polkadot-node-core-provisioner"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
+derive_more = "0.99.9"
+futures = "0.3.5"
+log = "0.4.8"
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+
+[dev-dependencies]
+lazy_static = "1.4"
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = "0.2"
