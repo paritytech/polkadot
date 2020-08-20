@@ -951,7 +951,7 @@ where
 			hash_map::Entry::Occupied(entry) => {
 				debug_assert_eq!(*entry.get(), block.number);
 			}
-	}
+		}
 
 		self.clean_up_external_listeners();
 
