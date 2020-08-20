@@ -210,7 +210,7 @@ impl OverseerHandler {
 	/// Wait for a block with the given hash to be in the active-leaves set.
 	/// This method is used for external code like `Proposer` that doesn't subscribe to Overseer's signals.
 	///
-	/// The response channel responds if the hash was activated.
+	/// The response channel responds if the hash was activated and is closed if the hash was deactivated.
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
 	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
@@ -425,7 +425,6 @@ pub struct Overseer<S: SpawnNamed> {
 	events_rx: mpsc::Receiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
-	// TODO (now): how to clean it up? Use LRUCache? Or .retain(|_, v| { v.retain(|c| !c.is_cancelled()); v })
 	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<()>>>,
 
 	/// A set of leaves that `Overseer` starts working with.
@@ -955,7 +954,7 @@ where
 
 		if let Some(_number) = self.active_leaves.remove(&block.parent_hash) {
 			update.deactivated.push(block.parent_hash);
-			self.metrics.on_head_deactivated();
+			self.on_head_deactivated(block.parent_hash);
 		}
 
 		if self.active_leaves.get(&block.hash).is_none() {
@@ -976,12 +975,15 @@ where
 		self.active_leaves.retain(|h, n| {
 			if *n <= block.number {
 				update.deactivated.push(*h);
-				metrics.on_head_deactivated();
 				false
 			} else {
 				true
 			}
 		});
+
+		for deactivated in &update.deactivated {
+			self.on_head_deactivated(deactivated)
+		}
 
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
@@ -1141,6 +1143,14 @@ where
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(());
 			}
+		}
+	}
+
+	fn on_head_deactivated(&mut self, hash: &Hash) {
+		self.metrics.on_head_deactivated();
+		if let Some(listeners) = self.activation_external_listeners.remove(&hash) {
+			// clean up and signal to listeners the block is deactivated
+			drop(listeners);
 		}
 	}
 
