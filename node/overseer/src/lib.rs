@@ -954,7 +954,7 @@ where
 
 		if let Some(_number) = self.active_leaves.remove(&block.parent_hash) {
 			update.deactivated.push(block.parent_hash);
-			self.on_head_deactivated(block.parent_hash);
+			self.on_head_deactivated(&block.parent_hash);
 		}
 
 		if self.active_leaves.get(&block.hash).is_none() {
@@ -970,7 +970,6 @@ where
 
 	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
-		let metrics = &self.metrics;
 
 		self.active_leaves.retain(|h, n| {
 			if *n <= block.number {
