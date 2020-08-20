@@ -188,23 +188,17 @@ pub struct OverseerHandler {
 impl OverseerHandler {
 	/// Inform the `Overseer` that that some block was imported.
 	pub async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		self.events_tx.send(Event::BlockImported(block)).await?;
-
-		Ok(())
+		self.events_tx.send(Event::BlockImported(block)).await.map_err(Into::into)
 	}
 
 	/// Send some message to one of the `Subsystem`s.
 	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.events_tx.send(Event::MsgToSubsystem(msg)).await?;
-
-		Ok(())
+		self.events_tx.send(Event::MsgToSubsystem(msg)).await.map_err(Into::into)
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
 	pub async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
-		self.events_tx.send(Event::BlockFinalized(block)).await?;
-
-		Ok(())
+		self.events_tx.send(Event::BlockFinalized(block)).await.map_err(Into::into)
 	}
 
 	/// Wait for a block with the given hash to be in the active-leaves set.
@@ -218,16 +212,12 @@ impl OverseerHandler {
 		self.events_tx.send(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
 			response_channel
-		})).await?;
-
-		Ok(())
+		})).await.map_err(Into::into)
 	}
 
 	/// Tell `Overseer` to shutdown.
 	pub async fn stop(&mut self) -> SubsystemResult<()> {
-		self.events_tx.send(Event::Stop).await?;
-
-		Ok(())
+		self.events_tx.send(Event::Stop).await.map_err(Into::into)
 	}
 }
 
