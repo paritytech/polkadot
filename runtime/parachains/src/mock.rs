@@ -24,14 +24,12 @@ use sp_runtime::{
 		BlakeTwo256, IdentityLookup,
 	},
 };
-use primitives::{
-	BlockNumber,
-	Header,
-};
+use primitives::v1::{BlockNumber, Header};
 use frame_support::{
-	impl_outer_origin, impl_outer_dispatch, parameter_types,
+	impl_outer_origin, impl_outer_dispatch, impl_outer_event, parameter_types,
 	weights::Weight, traits::Randomness as RandomnessT,
 };
+use crate::inclusion;
 
 /// A test runtime struct.
 #[derive(Clone, Eq, PartialEq)]
@@ -44,6 +42,13 @@ impl_outer_origin! {
 impl_outer_dispatch! {
 	pub enum Call for Test where origin: Origin {
 		initializer::Initializer,
+	}
+}
+
+impl_outer_event! {
+	pub enum TestEvent for Test {
+		frame_system<T>,
+		inclusion<T>,
 	}
 }
 
@@ -62,7 +67,7 @@ parameter_types! {
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 }
 
-impl system::Trait for Test {
+impl frame_system::Trait for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -73,7 +78,7 @@ impl system::Trait for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
 	type Header = Header;
-	type Event = ();
+	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = ();
@@ -84,9 +89,10 @@ impl system::Trait for Test {
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type ModuleToIndex = ();
-	type AccountData = balances::AccountData<u128>;
+	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
 }
 
 impl crate::initializer::Trait for Test {
@@ -99,9 +105,11 @@ impl crate::paras::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
-impl crate::inclusion::Trait for Test { }
+impl crate::inclusion::Trait for Test {
+	type Event = TestEvent;
+}
 
-pub type System = system::Module<Test>;
+pub type System = frame_system::Module<Test>;
 
 /// Mocked initializer.
 pub type Initializer = crate::initializer::Module<Test>;
@@ -129,7 +137,7 @@ pub fn new_test_ext(state: GenesisConfig) -> TestExternalities {
 
 #[derive(Default)]
 pub struct GenesisConfig {
-	pub system: system::GenesisConfig,
+	pub system: frame_system::GenesisConfig,
 	pub configuration: crate::configuration::GenesisConfig<Test>,
 	pub paras: crate::paras::GenesisConfig<Test>,
 }

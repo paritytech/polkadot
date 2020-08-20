@@ -16,7 +16,7 @@
 
 //! Errors that can occur during the validation process.
 
-use polkadot_primitives::{parachain::ValidatorId, Hash};
+use polkadot_primitives::v0::{ValidatorId, Hash};
 
 /// Error type for validation
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -26,7 +26,7 @@ pub enum Error {
 	/// Consensus error
 	Consensus(consensus::error::Error),
 	/// A wasm-validation error.
-	WasmValidation(parachain::wasm_executor::Error),
+	WasmValidation(parachain::wasm_executor::ValidationError),
 	/// An I/O error.
 	Io(std::io::Error),
 	/// An error in the availability erasure-coding.
@@ -77,11 +77,14 @@ pub enum Error {
 	CommitmentsMismatch,
 	/// The parachain for which validation work is being done is not active.
 	#[display(fmt = "Parachain {:?} is not active", _0)]
-	InactiveParachain(polkadot_primitives::parachain::Id),
+	InactiveParachain(polkadot_primitives::v0::Id),
 	/// Block data is too big
 	#[display(fmt = "Block data is too big (maximum allowed size: {}, actual size: {})", size, max_size)]
 	BlockDataTooBig { size: u64, max_size: u64 },
-	Join(tokio::task::JoinError)
+	Join(tokio::task::JoinError),
+	/// Could not cover fee for an operation e.g. for sending `UpwardMessage`.
+	#[display(fmt = "Parachain could not cover fee for an operation e.g. for sending an `UpwardMessage`.")]
+	CouldNotCoverFee,
 }
 
 impl std::error::Error for Error {

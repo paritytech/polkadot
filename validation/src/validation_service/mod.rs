@@ -26,15 +26,14 @@
 //!
 //! These attestation sessions are kept live until they are periodically garbage-collected.
 
-use std::{time::{Duration, Instant}, sync::Arc, pin::Pin};
-use std::collections::HashMap;
+use std::{time::{Duration, Instant}, sync::Arc, pin::Pin, collections::HashMap};
 
 use crate::pipeline::FullOutput;
 use sc_client_api::{BlockchainEvents, BlockBackend};
 use consensus::SelectChain;
-use futures::{prelude::*, task::{Spawn, SpawnExt}};
-use polkadot_primitives::{Block, Hash, BlockId};
-use polkadot_primitives::parachain::{
+use futures::prelude::*;
+use polkadot_primitives::v0::{
+	Block, Hash, BlockId,
 	Chain, ParachainHost, Id as ParaId, ValidatorIndex, ValidatorId, ValidatorPair,
 	CollationInfo, SigningContext,
 };
@@ -42,15 +41,14 @@ use keystore::KeyStorePtr;
 use sp_api::{ProvideRuntimeApi, ApiExt};
 use runtime_primitives::traits::HashFor;
 use availability_store::Store as AvailabilityStore;
+use primitives::traits::SpawnNamed;
 
-use log::{warn, error, info, debug, trace};
+use ansi_term::Colour;
+use log::{warn, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
 use crate::pipeline::ValidationPool;
-
-/// A handle to spawn background tasks onto.
-pub type TaskExecutor = Arc<dyn Spawn + Send + Sync>;
 
 // Remote processes may request for a validation instance to be cloned or instantiated.
 // They send a oneshot channel.
@@ -147,7 +145,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 	N::BuildTableRouter: Send + Unpin + 'static,
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	SC: SelectChain<Block> + 'static,
-	SP: Spawn + Send + 'static,
+	SP: SpawnNamed + Clone + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
 {
@@ -169,11 +167,15 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
-			spawner: self.spawner,
+			spawner: self.spawner.clone(),
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
 			validation_pool: validation_pool.clone(),
-			collation_fetch: DefaultCollationFetch(self.collators, validation_pool),
+			collation_fetch: DefaultCollationFetch {
+				collators: self.collators,
+				validation_pool,
+				spawner: self.spawner,
+			},
 		};
 
 		let client = self.client;
@@ -255,11 +257,17 @@ pub(crate) trait CollationFetch {
 }
 
 #[derive(Clone)]
-struct DefaultCollationFetch<C>(C, Option<ValidationPool>);
-impl<C> CollationFetch for DefaultCollationFetch<C>
+struct DefaultCollationFetch<C, S> {
+	collators: C,
+	validation_pool: Option<ValidationPool>,
+	spawner: S,
+}
+
+impl<C, S> CollationFetch for DefaultCollationFetch<C, S>
 	where
 		C: Collators + Send + Sync + Unpin + 'static,
 		C::Collation: Send + Unpin + 'static,
+		S: SpawnNamed + Clone + 'static,
 {
 	type Error = C::Error;
 
@@ -275,15 +283,15 @@ impl<C> CollationFetch for DefaultCollationFetch<C>
 			P::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
 			P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	{
-		let DefaultCollationFetch(collators, validation_pool) = self;
 		crate::collation::collation_fetch(
-			validation_pool,
+			self.validation_pool,
 			parachain,
 			relay_parent,
-			collators,
+			self.collators,
 			client,
 			max_block_data_size,
 			n_validators,
+			self.spawner,
 		).boxed()
 	}
 }
@@ -336,7 +344,7 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 	N::TableRouter: Send + 'static + Sync,
 	<N::TableRouter as TableRouter>::SendLocalCollation: Send,
 	N::BuildTableRouter: Unpin + Send + 'static,
-	SP: Spawn + Send + 'static,
+	SP: SpawnNamed + Send + 'static,
 	CF: CollationFetch + Clone + Send + Sync + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<P, Block>: sp_api::StateBackend<HashFor<Block>>,
@@ -373,12 +381,18 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			sign_with.as_ref().map(|k| k.public()),
 		)?;
 
-		info!(
-			"Starting parachain attestation session on top of parent {:?}. Local parachain duty is {:?}",
-			parent_hash,
-			local_duty,
-		);
-
+		if let Some(ref duty) = local_duty {
+			info!(
+				"✍️  Starting parachain attestation session (parent: {}) with active duty {}",
+				parent_hash,
+				Colour::Red.bold().paint(format!("{:?}", duty)),
+			);
+		} else {
+			debug!(
+				"✍️  Starting parachain attestation session (parent: {}). No local duty..",
+				parent_hash,
+			);
+		}
 		let active_parachains = self.client.runtime_api().active_parachains(&id)?;
 
 		debug!(target: "validation", "Active parachains: {:?}", active_parachains);
@@ -446,19 +460,16 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			let collation_fetch = self.collation_fetch.clone();
 			let router = router.clone();
 
-			let res = self.spawner.spawn(
+			self.spawner.spawn(
+				"polkadot-parachain-validation-work",
 				launch_work(
 					move || collation_fetch.collation_fetch(id, parent_hash, client, max_block_data_size, n_validators),
 					availability_store,
 					router,
 					n_validators,
 					index,
-				),
+				).boxed(),
 			);
-
-			if let Err(e) = res {
-				error!(target: "validation", "Failed to launch work: {:?}", e);
-			}
 		}
 
 		let tracker = ValidationInstanceHandle {
@@ -542,16 +553,17 @@ async fn launch_work<CFF, E>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use futures::{executor::{ThreadPool, self}, future::ready, channel::mpsc};
+	use futures::{executor, future::ready, channel::mpsc};
 	use availability_store::ErasureNetworking;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		PoVBlock, AbridgedCandidateReceipt, ErasureChunk, ValidatorIndex,
-		CollationInfo, DutyRoster, GlobalValidationSchedule, LocalValidationData,
+		CollationInfo, DutyRoster, GlobalValidationData, LocalValidationData,
 		Retriable, CollatorId, BlockData, Chain, AvailableData, SigningContext, ValidationCode,
 	};
 	use runtime_primitives::traits::Block as BlockT;
 	use std::pin::Pin;
 	use sp_keyring::sr25519::Keyring;
+	use primitives::testing::TaskExecutor;
 
 	/// Events fired while running mock implementations to follow execution.
 	enum Events {
@@ -695,7 +707,7 @@ mod tests {
 			fn validators(&self) -> Vec<ValidatorId> { self.validators.clone() }
 			fn duty_roster(&self) -> DutyRoster { self.duty_roster.clone() }
 			fn active_parachains() -> Vec<(ParaId, Option<(CollatorId, Retriable)>)> { vec![(ParaId::from(1), None)] }
-			fn global_validation_schedule() -> GlobalValidationSchedule { Default::default() }
+			fn global_validation_data() -> GlobalValidationData { Default::default() }
 			fn local_validation_data(_: ParaId) -> Option<LocalValidationData> { None }
 			fn parachain_code(_: ParaId) -> Option<ValidationCode> { None }
 			fn get_heads(_: Vec<<Block as BlockT>::Extrinsic>) -> Option<Vec<AbridgedCandidateReceipt>> {
@@ -704,12 +716,15 @@ mod tests {
 			fn signing_context() -> SigningContext {
 				Default::default()
 			}
+			fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::v0::DownwardMessage> {
+				Vec::new()
+			}
 		}
 	}
 
 	#[test]
 	fn launch_work_is_executed_properly() {
-		let executor = ThreadPool::new().unwrap();
+		let executor = TaskExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Bob` key is in the keystore, so this mocked node will be a parachain validator.
@@ -749,7 +764,7 @@ mod tests {
 
 	#[test]
 	fn router_is_built_on_relay_chain_validator() {
-		let executor = ThreadPool::new().unwrap();
+		let executor = TaskExecutor::new();
 		let keystore = keystore::Store::new_in_memory();
 
 		// Make sure `Alice` key is in the keystore, so this mocked node will be a relay-chain validator.

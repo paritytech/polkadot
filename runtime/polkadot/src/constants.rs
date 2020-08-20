@@ -16,7 +16,7 @@
 
 /// Money matters.
 pub mod currency {
-	use primitives::Balance;
+	use primitives::v0::Balance;
 
 	pub const DOTS: Balance = 1_000_000_000_000;
 	pub const DOLLARS: Balance = DOTS / 100;       // 10_000_000_000
@@ -30,7 +30,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::{Moment, BlockNumber};
+	use primitives::v0::{Moment, BlockNumber};
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
 	pub const EPOCH_DURATION_IN_BLOCKS: BlockNumber = 4 * HOURS;
@@ -47,7 +47,7 @@ pub mod time {
 /// Fee-related.
 pub mod fee {
 	pub use sp_runtime::Perbill;
-	use primitives::Balance;
+	use primitives::v0::Balance;
 	use runtime_common::ExtrinsicBaseWeight;
 	use frame_support::weights::{
 		WeightToFeePolynomial, WeightToFeeCoefficient, WeightToFeeCoefficients,
@@ -61,7 +61,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, system::MaximumBlockWeight]
+	///   - [0, frame_system::MaximumBlockWeight]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:

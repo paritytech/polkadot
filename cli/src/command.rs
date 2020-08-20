@@ -19,8 +19,7 @@ use log::info;
 use service::{IdentifyVariant, self};
 #[cfg(feature = "service-rewr")]
 use service_new::{IdentifyVariant, self as service};
-use sc_executor::NativeExecutionDispatch;
-use sc_cli::{SubstrateCli, Result};
+use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
 
 fn get_exec_name() -> Option<String> {
@@ -31,19 +30,19 @@ fn get_exec_name() -> Option<String> {
 }
 
 impl SubstrateCli for Cli {
-	fn impl_name() -> &'static str { "Parity Polkadot" }
+	fn impl_name() -> String { "Parity Polkadot".into() }
 
-	fn impl_version() -> &'static str { env!("SUBSTRATE_CLI_IMPL_VERSION") }
+	fn impl_version() -> String { env!("SUBSTRATE_CLI_IMPL_VERSION").into() }
 
-	fn description() -> &'static str { env!("CARGO_PKG_DESCRIPTION") }
+	fn description() -> String { env!("CARGO_PKG_DESCRIPTION").into() }
 
-	fn author() -> &'static str { env!("CARGO_PKG_AUTHORS") }
+	fn author() -> String { env!("CARGO_PKG_AUTHORS").into() }
 
-	fn support_url() -> &'static str { "https://github.com/paritytech/polkadot/issues/new" }
+	fn support_url() -> String { "https://github.com/paritytech/polkadot/issues/new".into() }
 
 	fn copyright_start_year() -> i32 { 2017 }
 
-	fn executable_name() -> &'static str { "polkadot" }
+	fn executable_name() -> String { "polkadot".into() }
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
@@ -54,26 +53,46 @@ impl SubstrateCli for Cli {
 				.unwrap_or("polkadot")
 		} else { id };
 		Ok(match id {
-			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()),
-			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()),
-			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()),
-			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()),
-			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()),
-			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()),
+			"polkadot-dev" | "dev" => Box::new(service::chain_spec::polkadot_development_config()?),
+			"polkadot-local" => Box::new(service::chain_spec::polkadot_local_testnet_config()?),
+			"polkadot-staging" => Box::new(service::chain_spec::polkadot_staging_testnet_config()?),
+			"kusama-dev" => Box::new(service::chain_spec::kusama_development_config()?),
+			"kusama-local" => Box::new(service::chain_spec::kusama_local_testnet_config()?),
+			"kusama-staging" => Box::new(service::chain_spec::kusama_staging_testnet_config()?),
 			"polkadot" => Box::new(service::chain_spec::polkadot_config()?),
 			"westend" => Box::new(service::chain_spec::westend_config()?),
 			"kusama" => Box::new(service::chain_spec::kusama_config()?),
-			"westend-dev" => Box::new(service::chain_spec::westend_development_config()),
-			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()),
-			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()),
-			path if self.run.force_kusama => {
-				Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
+			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
+			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
+			path => {
+				let path = std::path::PathBuf::from(path);
+
+				let starts_with = |prefix: &str| {
+					path.file_name().map(|f| f.to_str().map(|s| s.starts_with(&prefix))).flatten().unwrap_or(false)
+				};
+
+				// When `force_*` is given or the file name starts with the name of one of the known chains,
+				// we use the chain spec for the specific chain.
+				if self.run.force_kusama || starts_with("kusama") {
+					Box::new(service::KusamaChainSpec::from_json_file(path)?)
+				} else if self.run.force_westend || starts_with("westend") {
+					Box::new(service::WestendChainSpec::from_json_file(path)?)
+				} else {
+					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
+				}
 			},
-			path if self.run.force_westend => {
-				Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(path))?)
-			},
-			path => Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		})
+	}
+
+	fn native_runtime_version(spec: &Box<dyn service::ChainSpec>) -> &'static RuntimeVersion {
+		if spec.is_kusama() {
+			&service::kusama_runtime::VERSION
+		} else if spec.is_westend() {
+			&service::westend_runtime::VERSION
+		} else {
+			&service::polkadot_runtime::VERSION
+		}
 	}
 }
 
@@ -97,8 +116,8 @@ pub fn run() -> Result<()> {
 
 	match &cli.subcommand {
 		None => {
-			let runtime = cli.create_runner(&cli.run.base)?;
-			let chain_spec = &runtime.config().chain_spec;
+			let runner = cli.create_runner(&cli.run.base)?;
+			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
 
@@ -115,90 +134,49 @@ pub fn run() -> Result<()> {
 				info!("      endorsed by the       ");
 				info!("     KUSAMA FOUNDATION      ");
 				info!("----------------------------");
-
-				runtime.run_node(
-					|config| {
-						service::kusama_new_light(config)
-					},
-					|config| {
-						service::kusama_new_full(
-							config,
-							None,
-							None,
-							authority_discovery_enabled,
-							6000,
-							grandpa_pause,
-							None,
-						).map(|(s, _, _)| s)
-					},
-					service::KusamaExecutor::native_version().runtime_version
-				)
-			} else if chain_spec.is_westend() {
-				runtime.run_node(
-					|config| {
-						service::westend_new_light(config)
-					},
-					|config| {
-						service::westend_new_full(
-							config,
-							None,
-							None,
-							authority_discovery_enabled,
-							6000,
-							grandpa_pause,
-							None,
-						).map(|(s, _, _)| s)
-					},
-					service::WestendExecutor::native_version().runtime_version
-				)
-			} else {
-				runtime.run_node(
-					|config| {
-						service::polkadot_new_light(config)
-					},
-					|config| {
-						service::polkadot_new_full(
-							config,
-							None,
-							None,
-							authority_discovery_enabled,
-							6000,
-							grandpa_pause,
-							None,
-						).map(|(s, _, _)| s)
-					},
-					service::PolkadotExecutor::native_version().runtime_version
-				)
 			}
+
+			runner.run_node_until_exit(|config| {
+				let role = config.role.clone();
+
+				match role {
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
+					_ => service::build_full(
+						config,
+						None,
+						None,
+						authority_discovery_enabled,
+						6000,
+						grandpa_pause,
+					).map(|r| r.0),
+				}
+			})
 		},
 		Some(Subcommand::Base(subcommand)) => {
-			let runtime = cli.create_runner(subcommand)?;
-			let chain_spec = &runtime.config().chain_spec;
+			let runner = cli.create_runner(subcommand)?;
+			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
 
 			if chain_spec.is_kusama() {
-				runtime.run_subcommand(subcommand, |config|
+				runner.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
-						service::kusama_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else if chain_spec.is_westend() {
-				runtime.run_subcommand(subcommand, |config|
+				runner.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
 						service::WestendExecutor,
-						service::westend_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			} else {
-				runtime.run_subcommand(subcommand, |config|
+				runner.run_subcommand(subcommand, |config|
 					service::new_chain_ops::<
 						service::polkadot_runtime::RuntimeApi,
 						service::PolkadotExecutor,
-						service::polkadot_runtime::UncheckedExtrinsic,
 					>(config)
 				)
 			}
@@ -215,21 +193,21 @@ pub fn run() -> Result<()> {
 			}
 		},
 		Some(Subcommand::Benchmark(cmd)) => {
-			let runtime = cli.create_runner(cmd)?;
-			let chain_spec = &runtime.config().chain_spec;
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
 
 			if chain_spec.is_kusama() {
-				runtime.sync_run(|config| {
+				runner.sync_run(|config| {
 					cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 				})
 			} else if chain_spec.is_westend() {
-				runtime.sync_run(|config| {
+				runner.sync_run(|config| {
 					cmd.run::<service::westend_runtime::Block, service::WestendExecutor>(config)
 				})
 			} else {
-				runtime.sync_run(|config| {
+				runner.sync_run(|config| {
 					cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutor>(config)
 				})
 			}

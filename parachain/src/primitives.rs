@@ -28,13 +28,14 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
-/// The block number of the relay chain.
-/// 32-bits will allow for 136 years of blocks assuming 1 block per second.
-pub type RelayChainBlockNumber = u32;
+use polkadot_core_primitives::Hash;
+
+/// Block number type used by the relay chain.
+pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for HeadData {
@@ -45,7 +46,7 @@ impl From<Vec<u8>> for HeadData {
 
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for ValidationCode {
@@ -79,6 +80,36 @@ impl From<Id> for u32 {
 
 impl From<u32> for Id {
 	fn from(x: u32) -> Self { Id(x) }
+}
+
+impl From<usize> for Id {
+	fn from(x: usize) -> Self {
+		use sp_std::convert::TryInto;
+		// can't panic, so need to truncate
+		let x = x.try_into().unwrap_or(u32::MAX);
+		Id(x)
+	}
+}
+
+// When we added a second From impl for Id, type inference could no longer
+// determine which impl should apply for things like `5.into()`. It therefore
+// raised a bunch of errors in our test code, scattered throughout the
+// various modules' tests, that there is no impl of `From<i32>` (`i32` being
+// the default numeric type).
+//
+// We can't use `cfg(test)` here, because that configuration directive does not
+// propagate between crates, which would fail to fix tests in crates other than
+// this one.
+//
+// Instead, let's take advantage of the observation that what really matters for a
+// ParaId within a test context is that it is unique and constant. I believe that
+// there is no case where someone does `(-1).into()` anyway, but if they do, it
+// never matters whether the actual contained ID is `-1` or `4294967295`. Nobody
+// does arithmetic on a `ParaId`; doing so would be a bug.
+impl From<i32> for Id {
+	fn from(x: i32) -> Self {
+		Id(x as u32)
+	}
 }
 
 const USER_INDEX_START: u32 = 1000;
@@ -157,7 +188,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[repr(u8)]
 pub enum ParachainDispatchOrigin {
 	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
@@ -186,11 +217,7 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 
 /// A message from a parachain to its Relay Chain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(
-	any(feature = "std", feature = "wasm-api"),
-	derive(sp_runtime_interface::pass_by::PassByCodec,
-))]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
 	pub origin: ParachainDispatchOrigin,
@@ -203,22 +230,16 @@ pub struct UpwardMessage {
 #[derive(PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
-	/// The collation body.
-	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
+	/// The collation body.
+	pub block_data: BlockData,
 	/// The current relay-chain block number.
 	pub relay_chain_height: RelayChainBlockNumber,
-	/// Whether a code upgrade is allowed or not, and at which height the upgrade
-	/// would be applied after, if so. The parachain logic should apply any upgrade
-	/// issued in this block after the first block
-	/// with `relay_chain_height` at least this value, if `Some`. if `None`, issue
-	/// no upgrade.
-	pub code_upgrade_allowed: Option<RelayChainBlockNumber>,
+	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 /// The result of parachain validation.
@@ -230,4 +251,10 @@ pub struct ValidationResult {
 	pub head_data: HeadData,
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
+	/// Upward messages send by the Parachain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Number of downward messages that were processed by the Parachain.
+	///
+	/// It is expected that the Parachain processes them from first to last.
+	pub processed_downward_messages: u32,
 }

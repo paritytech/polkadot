@@ -24,7 +24,7 @@ release and download the binary that is provided.
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
-cargo install --force --git https://github.com/paritytech/polkadot --tag <version> polkadot
+cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot
 ```
 
 ### Build from Source
@@ -45,7 +45,7 @@ rustup update
 Once done, finish installing the support software:
 
 ```bash
-sudo apt install make clang pkg-config libssl-dev
+sudo apt install build-essential git clang libclang-dev pkg-config libssl-dev
 ```
 
 Build the client by cloning this repository and running the following commands from the root
@@ -61,9 +61,9 @@ cargo build --release
 
 This repo supports runtimes for Polkadot, Kusama, and Westend.
 
-### Connect to Polkadot Chain Candidate 1 (CC1)
+### Connect to Polkadot Mainnet
 
-Connect to the global Polkadot CC1 network by running:
+Connect to the global Polkadot Mainnet network by running:
 
 ```bash
 ./target/release/polkadot --chain=polkadot
@@ -71,7 +71,7 @@ Connect to the global Polkadot CC1 network by running:
 
 You can see your node on [telemetry] (set a custom name with `--name "my custom name"`).
 
-[telemetry]: https://telemetry.polkadot.io/#list/Polkadot%20CC1
+[telemetry]: https://telemetry.polkadot.io/#list/Polkadot
 
 ### Connect to the "Kusama" Canary Network
 

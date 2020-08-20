@@ -23,22 +23,21 @@
 #![warn(missing_docs)]
 
 use futures::prelude::*;
-use futures::{channel::{mpsc, oneshot}, task::Spawn};
+use futures::channel::{mpsc, oneshot};
 use keystore::KeyStorePtr;
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	Hash, Block,
-	parachain::{
-		PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
-		ParachainHost, AvailableData, OmittedValidationData,
-	},
+	PoVBlock, AbridgedCandidateReceipt, ErasureChunk,
+	ParachainHost, AvailableData, OmittedValidationData,
 };
 use sp_runtime::traits::HashFor;
-use sp_blockchain::{Result as ClientResult};
+use sp_blockchain::Result as ClientResult;
 use client::{
 	BlockchainEvents, BlockBackend,
 };
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use codec::{Encode, Decode};
+use sp_core::traits::SpawnNamed;
 
 use log::warn;
 
@@ -58,7 +57,7 @@ use worker::{
 	Worker, WorkerHandle, IncludedParachainBlocks, WorkerMsg, MakeAvailable, Chunks
 };
 
-use store::{Store as InnerStore};
+use store::Store as InnerStore;
 
 const LOG_TARGET: &str = "availability";
 
@@ -174,7 +173,7 @@ impl Store {
 		&self,
 		wrapped_block_import: I,
 		client: Arc<P>,
-		spawner: impl Spawn,
+		spawner: impl SpawnNamed,
 		keystore: KeyStorePtr,
 	) -> ClientResult<AvailabilityBlockImport<I, P>>
 	where

@@ -573,7 +573,7 @@ pub trait TestNetFactory: Sized {
 			Box::new(block_import.clone()),
 			justification_import,
 			finality_proof_import,
-			&sp_core::testing::SpawnBlockingExecutor::new(),
+			&sp_core::testing::TaskExecutor::new(),
 			None,
 		));
 
@@ -600,7 +600,7 @@ pub trait TestNetFactory: Sized {
 			transaction_pool: Arc::new(EmptyTransactionPool),
 			protocol_id: ProtocolId::from(&b"test-protocol-name"[..]),
 			import_queue,
-			block_announce_validator: Box::new(DefaultBlockAnnounceValidator::new(client.clone())),
+			block_announce_validator: Box::new(DefaultBlockAnnounceValidator),
 			metrics_registry: None,
 		}).unwrap();
 
@@ -650,7 +650,7 @@ pub trait TestNetFactory: Sized {
 			Box::new(block_import.clone()),
 			justification_import,
 			finality_proof_import,
-			&sp_core::testing::SpawnBlockingExecutor::new(),
+			&sp_core::testing::TaskExecutor::new(),
 			None,
 		));
 
@@ -677,7 +677,7 @@ pub trait TestNetFactory: Sized {
 			transaction_pool: Arc::new(EmptyTransactionPool),
 			protocol_id: ProtocolId::from(&b"test-protocol-name"[..]),
 			import_queue,
-			block_announce_validator: Box::new(DefaultBlockAnnounceValidator::new(client.clone())),
+			block_announce_validator: Box::new(DefaultBlockAnnounceValidator),
 			metrics_registry: None,
 		}).unwrap();
 
@@ -758,13 +758,13 @@ pub trait TestNetFactory: Sized {
 		futures::executor::block_on(futures::future::poll_fn::<(), _>(|cx| self.poll_until_idle(cx)));
 	}
 
-	/// Polls the testnet. Processes all the pending actions and returns `NotReady`.
+	/// Polls the testnet. Processes all the pending actions.
 	fn poll(&mut self, cx: &mut FutureContext) {
 		self.mut_peers(|peers| {
 			for peer in peers {
 				trace!(target: "sync", "-- Polling {}", peer.id());
-				if let Poll::Ready(res) = Pin::new(&mut peer.network).poll(cx) {
-					res.unwrap();
+				if let Poll::Ready(()) = peer.network.poll_unpin(cx) {
+					panic!("NetworkWorker has terminated unexpectedly.")
 				}
 				trace!(target: "sync", "-- Polling complete {}", peer.id());
 
@@ -804,7 +804,7 @@ impl TestNetFactory for TestNet {
 	fn make_verifier(&self, _client: PeersClient, _config: &ProtocolConfig, _peer_data: &())
 		-> Self::Verifier
 	{
-		PassThroughVerifier(false)
+		PassThroughVerifier::new(false)
 	}
 
 	fn peer(&mut self, i: usize) -> &mut Peer<()> {

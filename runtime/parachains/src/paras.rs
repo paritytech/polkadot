@@ -24,11 +24,12 @@
 //! only occur at session boundaries.
 
 use sp_std::prelude::*;
+#[cfg(feature = "std")]
 use sp_std::marker::PhantomData;
-use sp_runtime::traits::One;
-use primitives::{
-	parachain::{Id as ParaId, ValidationCode, HeadData},
+use primitives::v1::{
+	Id as ParaId, ValidationCode, HeadData,
 };
+use sp_runtime::traits::One;
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	traits::Get,
@@ -36,11 +37,12 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use crate::{configuration, initializer::SessionChangeNotification};
+use sp_core::RuntimeDebug;
 
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub trait Trait: system::Trait + configuration::Trait { }
+pub trait Trait: frame_system::Trait + configuration::Trait { }
 
 // the two key times necessary to track for every code replacement.
 #[derive(Default, Encode, Decode)]
@@ -155,7 +157,7 @@ impl<N: Ord + Copy> ParaPastCodeMeta<N> {
 }
 
 /// Arguments for initializing a para.
-#[derive(Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct ParaGenesisArgs {
 	/// The initial head data to use.
@@ -223,7 +225,7 @@ fn build<T: Trait>(config: &GenesisConfig<T>) {
 		.cloned()
 		.collect();
 
-	parachains.sort_unstable();
+	parachains.sort();
 	parachains.dedup();
 
 	Parachains::put(&parachains);
@@ -240,7 +242,7 @@ decl_error! {
 
 decl_module! {
 	/// The parachains configuration module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 	}
 }
@@ -256,7 +258,7 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(_notification: &SessionChangeNotification<T::BlockNumber>) {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let mut parachains = Self::clean_up_outgoing(now);
 		Self::apply_incoming(&mut parachains);
 		<Self as Store>::Parachains::set(parachains);
@@ -387,8 +389,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be initialized at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
+	pub fn schedule_para_initialize(id: ParaId, genesis: ParaGenesisArgs) -> Weight {
 		let dup = UpcomingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => true,
@@ -410,9 +411,20 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Schedule a para to be cleaned up at the start of the next session.
-	#[allow(unused)]
-	pub(crate) fn schedule_para_cleanup(id: ParaId) -> Weight {
-		OutgoingParas::mutate(|v| {
+	pub fn schedule_para_cleanup(id: ParaId) -> Weight {
+		let upcoming_weight = UpcomingParas::mutate(|v| {
+			match v.binary_search(&id) {
+				Ok(i) => {
+					v.remove(i);
+					UpcomingParasGenesis::remove(id);
+					// If a para was only in the pending state it should not be moved to `Outgoing`
+					return T::DbWeight::get().reads_writes(2, 2);
+				}
+				Err(_) => T::DbWeight::get().reads_writes(1, 0),
+			}
+		});
+
+		let outgoing_weight = OutgoingParas::mutate(|v| {
 			match v.binary_search(&id) {
 				Ok(_) => T::DbWeight::get().reads_writes(1, 0),
 				Err(i) => {
@@ -420,7 +432,9 @@ impl<T: Trait> Module<T> {
 					T::DbWeight::get().reads_writes(1, 1)
 				}
 			}
-		})
+		});
+
+		outgoing_weight + upcoming_weight
 	}
 
 	/// Schedule a future code upgrade of the given parachain, to be applied after inclusion
@@ -464,7 +478,7 @@ impl<T: Trait> Module<T> {
 				CurrentCode::insert(&id, &new_code);
 
 				// `now` is only used for registering pruning as part of `fn note_past_code`
-				let now = <system::Module<T>>::block_number();
+				let now = <frame_system::Module<T>>::block_number();
 
 				let weight = Self::note_past_code(
 					id,
@@ -496,7 +510,7 @@ impl<T: Trait> Module<T> {
 		at: T::BlockNumber,
 		assume_intermediate: Option<T::BlockNumber>,
 	) -> Option<ValidationCode> {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		if assume_intermediate.as_ref().map_or(false, |i| &at <= i) {
@@ -541,7 +555,7 @@ impl<T: Trait> Module<T> {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use primitives::BlockNumber;
+	use primitives::v1::BlockNumber;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 
 	use crate::mock::{new_test_ext, Paras, System, GenesisConfig as MockGenesisConfig};
@@ -1117,6 +1131,70 @@ mod tests {
 			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
 			assert_eq!(Paras::current_code(&c), Some(vec![3].into()));
 		})
+	}
+
+	#[test]
+	fn para_cleanup_removes_upcoming() {
+		new_test_ext(Default::default()).execute_with(|| {
+			run_to_block(1, None);
+
+			let b = ParaId::from(525);
+			let a = ParaId::from(999);
+			let c = ParaId::from(333);
+
+			Paras::schedule_para_initialize(
+				b,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![1].into(),
+					validation_code: vec![1].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				a,
+				ParaGenesisArgs {
+					parachain: false,
+					genesis_head: vec![2].into(),
+					validation_code: vec![2].into(),
+				},
+			);
+
+			Paras::schedule_para_initialize(
+				c,
+				ParaGenesisArgs {
+					parachain: true,
+					genesis_head: vec![3].into(),
+					validation_code: vec![3].into(),
+				},
+			);
+
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
+
+			// run to block without session change.
+			run_to_block(2, None);
+
+			assert_eq!(Paras::parachains(), Vec::new());
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), vec![c, b, a]);
+			assert!(<Paras as Store>::Parathreads::get(&a).is_none());
+
+			Paras::schedule_para_cleanup(c);
+
+			run_to_block(3, Some(vec![3]));
+
+			assert_eq!(Paras::parachains(), vec![b]);
+			assert_eq!(<Paras as Store>::OutgoingParas::get(), vec![]);
+			assert_eq!(<Paras as Store>::UpcomingParas::get(), Vec::new());
+			assert!(<Paras as Store>::UpcomingParasGenesis::get(a).is_none());
+
+			assert!(<Paras as Store>::Parathreads::get(&a).is_some());
+
+			assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
+			assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
+			assert!(Paras::current_code(&c).is_none());
+		});
 	}
 
 	#[test]

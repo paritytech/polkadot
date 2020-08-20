@@ -21,23 +21,27 @@
 use std::time::Duration;
 use futures::{
 	channel::oneshot,
-	pending, pin_mut, executor, select, stream,
+	pending, pin_mut, select, stream,
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
 use kv_log_macro as log;
 
-use polkadot_primitives::parachain::{BlockData, PoVBlock};
-use polkadot_overseer::{Overseer, Subsystem, SubsystemContext, SpawnedSubsystem};
+use polkadot_primitives::v1::{BlockData, PoV};
+use polkadot_overseer::{Overseer, AllSubsystems};
 
-use messages::{
-	AllMessages, CandidateBackingMessage, FromOverseer, CandidateValidationMessage
+use polkadot_subsystem::{
+	Subsystem, SubsystemContext, DummySubsystem,
+	SpawnedSubsystem, FromOverseer,
+};
+use polkadot_subsystem::messages::{
+	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
 
 struct Subsystem1;
 
 impl Subsystem1 {
-	async fn run(mut ctx: SubsystemContext<CandidateBackingMessage>)  {
+	async fn run(mut ctx: impl SubsystemContext<Message=CandidateBackingMessage>)  {
 		loop {
 			match ctx.try_recv().await {
 				Ok(Some(msg)) => {
@@ -56,13 +60,12 @@ impl Subsystem1 {
 			Delay::new(Duration::from_secs(1)).await;
 			let (tx, _) = oneshot::channel();
 
-			ctx.send_msg(AllMessages::CandidateValidation(
-				CandidateValidationMessage::Validate(
+			ctx.send_message(AllMessages::CandidateValidation(
+				CandidateValidationMessage::ValidateFromChainState(
 					Default::default(),
-					Default::default(),
-					PoVBlock {
+					PoV {
 						block_data: BlockData(Vec::new()),
-					},
+					}.into(),
 					tx,
 				)
 			)).await.unwrap();
@@ -70,24 +73,36 @@ impl Subsystem1 {
 	}
 }
 
-impl Subsystem<CandidateBackingMessage> for Subsystem1 {
-	fn start(&mut self, ctx: SubsystemContext<CandidateBackingMessage>) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+impl<C> Subsystem<C> for Subsystem1
+	where C: SubsystemContext<Message=CandidateBackingMessage>
+{
+	type Metrics = (); // no Prometheus metrics
+
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-1",
+			future,
+		}
 	}
 }
 
 struct Subsystem2;
 
 impl Subsystem2 {
-	async fn run(mut ctx: SubsystemContext<CandidateValidationMessage>)  {
-		ctx.spawn(Box::pin(async {
-			loop {
-				log::info!("Job tick");
-				Delay::new(Duration::from_secs(1)).await;
-			}
-		})).await.unwrap();
+	async fn run(mut ctx: impl SubsystemContext<Message=CandidateValidationMessage>)  {
+		ctx.spawn(
+			"subsystem-2-job",
+			Box::pin(async {
+				loop {
+					log::info!("Job tick");
+					Delay::new(Duration::from_secs(1)).await;
+				}
+			}),
+		).await.unwrap();
 
 		loop {
 			match ctx.try_recv().await {
@@ -105,27 +120,52 @@ impl Subsystem2 {
 	}
 }
 
-impl Subsystem<CandidateValidationMessage> for Subsystem2 {
-	fn start(&mut self, ctx: SubsystemContext<CandidateValidationMessage>) -> SpawnedSubsystem {
-		SpawnedSubsystem(Box::pin(async move {
+impl<C> Subsystem<C> for Subsystem2
+	where C: SubsystemContext<Message=CandidateValidationMessage>
+{
+	type Metrics = (); // no Prometheus metrics
+
+	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = Box::pin(async move {
 			Self::run(ctx).await;
-		}))
+		});
+
+		SpawnedSubsystem {
+			name: "subsystem-2",
+			future,
+		}
 	}
 }
 
 fn main() {
 	femme::with_level(femme::LevelFilter::Trace);
-	let spawner = executor::ThreadPool::new().unwrap();
-
+	let spawner = sp_core::testing::TaskExecutor::new();
 	futures::executor::block_on(async {
 		let timer_stream = stream::repeat(()).then(|_| async {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
+		let all_subsystems = AllSubsystems {
+			candidate_validation: Subsystem2,
+			candidate_backing: Subsystem1,
+			candidate_selection: DummySubsystem,
+			statement_distribution: DummySubsystem,
+			availability_distribution: DummySubsystem,
+			bitfield_signing: DummySubsystem,
+			bitfield_distribution: DummySubsystem,
+			provisioner: DummySubsystem,
+			pov_distribution: DummySubsystem,
+			runtime_api: DummySubsystem,
+			availability_store: DummySubsystem,
+			network_bridge: DummySubsystem,
+			chain_api: DummySubsystem,
+			collation_generation: DummySubsystem,
+			collator_protocol: DummySubsystem,
+		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
-			Box::new(Subsystem2),
-			Box::new(Subsystem1),
+			all_subsystems,
+			None,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

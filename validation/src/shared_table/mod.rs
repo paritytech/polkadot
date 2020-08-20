@@ -21,11 +21,12 @@ use std::collections::hash_map::{HashMap, Entry};
 use std::sync::Arc;
 
 use availability_store::{Store as AvailabilityStore};
-use table::{self, Table, Context as TableContextTrait};
-use polkadot_primitives::{Block, Hash};
-use polkadot_primitives::parachain::{
+use table::{v0 as table_v0, Table, Context as TableContextTrait};
+use polkadot_primitives::v0::{
+	Block, Hash,
 	Id as ParaId, AbridgedCandidateReceipt, ValidatorPair, ValidatorId,
 	AttestedCandidate, ParachainHost, PoVBlock, ValidatorIndex, SigningContext,
+	ValidatorSignature,
 };
 
 use parking_lot::Mutex;
@@ -36,7 +37,7 @@ use bitvec::bitvec;
 
 use super::GroupInfo;
 use self::includable::IncludabilitySender;
-use primitives::Pair;
+use primitives::{Pair, traits::SpawnNamed};
 use sp_api::ProvideRuntimeApi;
 
 use crate::pipeline::{FullOutput, ValidationPool};
@@ -44,7 +45,7 @@ use crate::Error;
 
 mod includable;
 
-pub use table::{SignedStatement, Statement};
+pub use table_v0::{SignedStatement, Statement};
 pub use table::generic::Statement as GenericStatement;
 
 struct TableContext {
@@ -54,9 +55,23 @@ struct TableContext {
 	validators: Vec<ValidatorId>,
 }
 
-impl table::Context for TableContext {
-	fn is_member_of(&self, authority: ValidatorIndex, group: &ParaId) -> bool {
-		let key = match self.validators.get(authority as usize) {
+impl TableContextTrait for TableContext {
+	type AuthorityId = ValidatorIndex;
+	type Digest = Hash;
+	type GroupId = ParaId;
+	type Signature = ValidatorSignature;
+	type Candidate = AbridgedCandidateReceipt;
+
+	fn candidate_digest(candidate: &AbridgedCandidateReceipt) -> Hash {
+		candidate.hash()
+	}
+
+	fn candidate_group(candidate: &AbridgedCandidateReceipt) -> ParaId {
+		candidate.parachain_index
+	}
+
+	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
+		let key = match self.validators.get(*authority as usize) {
 			Some(val) => val,
 			None => return false,
 		};
@@ -84,7 +99,7 @@ impl TableContext {
 		)
 	}
 
-	fn sign_statement(&self, statement: table::Statement) -> Option<table::SignedStatement> {
+	fn sign_statement(&self, statement: table_v0::Statement) -> Option<table_v0::SignedStatement> {
 		self.local_index().and_then(move |sender|
 			self.key.as_ref()
 				.map(|key| crate::sign_table_statement(
@@ -93,7 +108,7 @@ impl TableContext {
 						&self.signing_context,
 					).into()
 				)
-				.map(move |signature| table::SignedStatement { statement, signature, sender })
+				.map(move |signature| table_v0::SignedStatement { statement, signature, sender })
 		)
 	}
 }
@@ -145,7 +160,7 @@ impl SharedTableInner {
 		&mut self,
 		context: &TableContext,
 		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
-		statement: table::SignedStatement,
+		statement: table_v0::SignedStatement,
 		max_block_data_size: Option<u64>,
 	) -> Option<ParachainWork<
 		Fetch,
@@ -154,7 +169,7 @@ impl SharedTableInner {
 		self.update_trackers(&summary.candidate, context);
 
 		let local_index = context.local_index()?;
-		let para_member = context.is_member_of(local_index, &summary.group_id);
+		let para_member = context.is_member_of(&local_index, &summary.group_id);
 		let digest = &summary.candidate;
 
 		// TODO: consider a strategy based on the number of candidate votes as well.
@@ -216,7 +231,7 @@ impl SharedTableInner {
 /// Produced after validating a candidate.
 pub struct Validated {
 	/// A statement about the validity of the candidate.
-	statement: table::Statement,
+	statement: table_v0::Statement,
 	/// The result of validation.
 	result: Validation,
 }
@@ -272,8 +287,11 @@ pub struct ParachainWork<Fetch> {
 impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 	/// Prime the parachain work with an API reference for extracting
 	/// chain information.
-	pub fn prime<P: ProvideRuntimeApi<Block>>(self, api: Arc<P>)
-		-> PrimedParachainWork<
+	pub fn prime<P: ProvideRuntimeApi<Block>>(
+		self,
+		api: Arc<P>,
+		spawner: impl SpawnNamed + Clone + Unpin + 'static,
+	) -> PrimedParachainWork<
 			Fetch,
 			impl Send + FnMut(&PoVBlock, &AbridgedCandidateReceipt)
 				-> Result<FullOutput, Error> + Unpin,
@@ -297,6 +315,7 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 				&expected_relay_parent,
 				max_block_data_size,
 				n_validators,
+				spawner.clone(),
 			)?;
 
 			full_output.check_consistency(candidate)?;
@@ -461,7 +480,7 @@ impl SharedTable {
 	pub fn import_remote_statement<Fetch>(
 		&self,
 		fetch_pov_block: impl Fn(&AbridgedCandidateReceipt) -> Fetch,
-		statement: table::SignedStatement,
+		statement: table_v0::SignedStatement,
 	) -> Option<ParachainWork<
 		Fetch,
 	>> {
@@ -487,7 +506,7 @@ impl SharedTable {
 		iterable: I,
 	) -> U
 		where
-			I: IntoIterator<Item=table::SignedStatement>,
+			I: IntoIterator<Item=table_v0::SignedStatement>,
 			U: ::std::iter::FromIterator<Option<ParachainWork<
 				Fetch,
 			>>>,
@@ -539,7 +558,7 @@ impl SharedTable {
 	/// Get a set of candidates that can be proposed.
 	pub fn proposed_set(&self) -> Vec<AttestedCandidate> {
 		use table::generic::{ValidityAttestation as GAttestation};
-		use polkadot_primitives::parachain::ValidityAttestation;
+		use polkadot_primitives::v0::ValidityAttestation;
 
 		// we transform the types of the attestations gathered from the table
 		// into the type expected by the runtime. This may do signature
@@ -583,7 +602,7 @@ impl SharedTable {
 	}
 
 	/// Get all witnessed misbehavior.
-	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table::Misbehavior> {
+	pub fn get_misbehavior(&self) -> HashMap<ValidatorIndex, table_v0::Misbehavior> {
 		self.inner.lock().table.get_misbehavior().clone()
 	}
 
@@ -615,7 +634,7 @@ impl SharedTable {
 mod tests {
 	use super::*;
 	use sp_keyring::Sr25519Keyring;
-	use polkadot_primitives::parachain::{
+	use polkadot_primitives::v0::{
 		BlockData, ErasureChunk, AvailableData,
 	};
 	use polkadot_erasure_coding::{self as erasure};
@@ -706,7 +725,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,
@@ -763,7 +782,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,
@@ -860,7 +879,7 @@ mod tests {
 			omitted_validation: Default::default(),
 		};
 
-		let chunks = erasure::obtain_chunks(n_validators, &available_data).unwrap();
+		let chunks = erasure::obtain_chunks_v0(n_validators, &available_data).unwrap();
 
 		store.note_validator_index_and_n_validators(
 			&relay_parent,
@@ -947,7 +966,7 @@ mod tests {
 			&validity_other_key.into(),
 			&signing_context,
 		);
-		let signed_statement = ::table::generic::SignedStatement {
+		let signed_statement = table::generic::SignedStatement {
 			statement: candidate_statement,
 			signature: signature.into(),
 			sender: validity_other_index,

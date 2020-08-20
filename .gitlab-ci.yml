@@ -94,16 +94,12 @@ check-line-width:
   interruptible:                   true
   allow_failure:                   true
 
-publish-draft-release:
+test-deterministic-wasm:
   stage:                           test
-  only:
-    - tags
-    - /^v[0-9]+\.[0-9]+\.[0-9]+.*$/        # i.e. v1.0.1, v2.1.0rc1
+  <<:                              *docker-env
+  except:
   script:
-    - apt-get -y update; apt-get -y install jq
-    - ./scripts/gitlab/publish_draft_release.sh
-  interruptible:                   true
-  allow_failure:                   true
+    - ./scripts/gitlab/test_deterministic_wasm.sh
 
 test-linux-stable:                 &test
   stage:                           test
@@ -117,7 +113,7 @@ test-linux-stable:                 &test
     RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
     TARGET: native
   script:
-    - time cargo test --all --release --verbose --locked --features runtime-benchmarks
+    - ./scripts/gitlab/test_linux_stable.sh
     - sccache -s
 
 check-web-wasm:                    &test
@@ -128,14 +124,7 @@ check-web-wasm:                    &test
   script:
     # WASM support is in progress. As more and more crates support WASM, we
     # should add entries here. See https://github.com/paritytech/polkadot/issues/625
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/polkadot/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path runtime/kusama/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path erasure-coding/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path parachain/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path primitives/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path rpc/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path statement-table/Cargo.toml
-    - time cargo build --locked --target=wasm32-unknown-unknown --manifest-path cli/Cargo.toml --no-default-features --features browser
+    - ./scripts/gitlab/check_web_wasm.sh
     - sccache -s
 
 check-runtime-benchmarks:          &test
@@ -145,7 +134,7 @@ check-runtime-benchmarks:          &test
   <<:                              *compiler_info
   script:
     # Check that the node will compile with `runtime-benchmarks` feature flag.
-    - time cargo check --features runtime-benchmarks
+    - ./scripts/gitlab/check_runtime_benchmarks.sh
     - sccache -s
 
 build-wasm-release:
@@ -195,7 +184,7 @@ generate-impl-guide:
     name: michaelfbryan/mdbook-docker-image:latest
     entrypoint: [""]
   script:
-    - mdbook build roadmap/implementors-guide
+    - mdbook build roadmap/implementers-guide
 
 .publish-build:                    &publish-build
   stage:                           publish
@@ -253,8 +242,8 @@ publish-s3-release:
     - echo "uploading objects to https://${BUCKET}/${PREFIX}/${VERSION}"
     - aws s3 sync ./artifacts/ s3://${BUCKET}/${PREFIX}/${VERSION}/
     - echo "update objects at https://${BUCKET}/${PREFIX}/${EXTRATAG}"
-    - for file in ./artifacts/*; do
-      name="$(basename ${file})";
+    - find ./artifacts -type f | while read file; do
+      name="${file#./artifacts/}";
       aws s3api copy-object
         --copy-source ${BUCKET}/${PREFIX}/${VERSION}/${name}
         --bucket ${BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};

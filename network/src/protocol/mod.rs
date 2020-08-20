@@ -26,16 +26,14 @@ use codec::{Decode, Encode};
 use futures::channel::{mpsc, oneshot};
 use futures::future::Either;
 use futures::prelude::*;
-use futures::task::{Spawn, SpawnExt, Context, Poll};
+use futures::task::{Context, Poll};
 use futures::stream::{FuturesUnordered, StreamFuture};
 use log::{debug, trace};
 
-use polkadot_primitives::{
+use polkadot_primitives::v0::{
 	Hash, Block,
-	parachain::{
-		PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
-		ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
-	},
+	PoVBlock, ValidatorId, ValidatorIndex, Collation, AbridgedCandidateReceipt,
+	ErasureChunk, ParachainHost, Id as ParaId, CollatorId,
 };
 use polkadot_validation::{
 	SharedTable, TableRouter, Network as ParachainNetwork, Validated, GenericStatement, Collators,
@@ -44,6 +42,7 @@ use polkadot_validation::{
 use sc_network::{ObservedRole, Event, PeerId};
 use sp_api::ProvideRuntimeApi;
 use sp_runtime::ConsensusEngineId;
+use sp_core::traits::SpawnNamed;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::pin::Pin;
@@ -126,7 +125,9 @@ enum ServiceToWorkerMsg {
 /// Messages from a background task to the main worker task.
 enum BackgroundToWorkerMsg {
 	// Spawn a given future.
-	Spawn(future::BoxFuture<'static, ()>),
+	//
+	// The name is used for the future task.
+	Spawn(&'static str, future::BoxFuture<'static, ()>),
 }
 
 /// Operations that a handle to an underlying network service should provide.
@@ -221,7 +222,7 @@ pub fn start<C, Api, SP>(
 	C: ChainContext + 'static,
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	SP: Spawn + Clone + Send + 'static,
+	SP: SpawnNamed + Clone + Send + Unpin + 'static,
 {
 	const SERVICE_TO_WORKER_BUF: usize = 256;
 
@@ -234,67 +235,73 @@ pub fn start<C, Api, SP>(
 		chain_context,
 		&executor,
 	);
-	executor.spawn(worker_loop(
-		config,
-		service.clone(),
-		gossip_validator,
-		api,
-		worker_receiver,
-		executor.clone(),
-	))?;
+	executor.spawn(
+		"polkadot-network-worker",
+		worker_loop(
+			config,
+			service.clone(),
+			gossip_validator,
+			api,
+			worker_receiver,
+			executor.clone(),
+		).boxed(),
+	);
 
 	let polkadot_service = Service {
 		sender: worker_sender.clone(),
 		network_service: service.clone(),
 	};
 
-	executor.spawn(async move {
-		while let Some(event) = event_stream.next().await {
-			let res = match event {
-				Event::Dht(_) => continue,
-				Event::NotificationStreamOpened {
-					remote,
-					engine_id,
-					role,
-				} => {
-					if engine_id != POLKADOT_ENGINE_ID { continue }
+	executor.spawn(
+		"polkadot-network-notifications",
+		async move {
+			while let Some(event) = event_stream.next().await {
+				let res = match event {
+					Event::Dht(_) => continue,
+					Event::NotificationStreamOpened {
+						remote,
+						engine_id,
+						role,
+					} => {
+						if engine_id != POLKADOT_ENGINE_ID { continue }
 
-					worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, role)).await
-				},
-				Event::NotificationStreamClosed {
-					remote,
-					engine_id,
-				} => {
-					if engine_id != POLKADOT_ENGINE_ID { continue }
+						worker_sender.send(ServiceToWorkerMsg::PeerConnected(remote, role)).await
+					},
+					Event::NotificationStreamClosed {
+						remote,
+						engine_id,
+					} => {
+						if engine_id != POLKADOT_ENGINE_ID { continue }
 
-					worker_sender.send(ServiceToWorkerMsg::PeerDisconnected(remote)).await
-				},
-				Event::NotificationsReceived {
-					remote,
-					messages,
-				} => {
-					let our_notifications = messages.into_iter()
-						.filter_map(|(engine, message)| if engine == POLKADOT_ENGINE_ID {
-							Some(message)
-						} else {
-							None
-						})
-						.collect();
+						worker_sender.send(ServiceToWorkerMsg::PeerDisconnected(remote)).await
+					},
+					Event::NotificationsReceived {
+						remote,
+						messages,
+					} => {
+						let our_notifications = messages.into_iter()
+							.filter_map(|(engine, message)| if engine == POLKADOT_ENGINE_ID {
+								Some(message)
+							} else {
+								None
+							})
+							.collect();
 
-					worker_sender.send(
-						ServiceToWorkerMsg::PeerMessage(remote, our_notifications)
-					).await
-				}
-			};
+						worker_sender.send(
+							ServiceToWorkerMsg::PeerMessage(remote, our_notifications)
+						).await
+					}
+				};
 
-			if let Err(e) = res {
-				// full is impossible here, as we've `await`ed the value being sent.
-				if e.is_disconnected() {
-					break
+				if let Err(e) = res {
+					// full is impossible here, as we've `await`ed the value being sent.
+					if e.is_disconnected() {
+						break
+					}
 				}
 			}
-		}
-	})?;
+		}.boxed(),
+	);
 
 	Ok(polkadot_service)
 }
@@ -393,28 +400,6 @@ struct ConsensusNetworkingInstance {
 	relay_parent: Hash,
 	attestation_topic: Hash,
 	_drop_signal: exit_future::Signal,
-}
-
-/// A utility future that resolves when the receiving end of a channel has hung up.
-///
-/// This is an `.await`-friendly interface around `poll_canceled`.
-// TODO: remove in favor of https://github.com/rust-lang/futures-rs/pull/2092/
-// once published.
-#[must_use = "futures do nothing unless you `.await` or poll them"]
-#[derive(Debug)]
-pub struct AwaitCanceled<'a, T> {
-	inner: &'a mut oneshot::Sender<T>,
-}
-
-impl<T> Future for AwaitCanceled<'_, T> {
-	type Output = ();
-
-	fn poll(
-		mut self: Pin<&mut Self>,
-		cx: &mut futures::task::Context<'_>,
-	) -> futures::task::Poll<()> {
-		self.inner.poll_canceled(cx)
-	}
 }
 
 /// Protocol configuration.
@@ -845,7 +830,7 @@ struct Worker<Api, Sp, Gossip> {
 impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	Sp: Spawn + Clone,
+	Sp: SpawnNamed + Clone + Unpin + 'static,
 	Gossip: GossipOps,
 {
 	// spawns a background task to spawn consensus networking.
@@ -888,14 +873,18 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 
 		// glue the incoming messages, shared table, and validation
 		// work together.
-		let _ = self.executor.spawn(statement_import_loop(
-			relay_parent,
-			table,
-			self.api.clone(),
-			self.gossip_handle.clone(),
-			self.background_to_main_sender.clone(),
-			exit,
-		));
+		self.executor.spawn(
+			"polkadot-statement-import-loop",
+			statement_import_loop(
+				relay_parent,
+				table,
+				self.api.clone(),
+				self.gossip_handle.clone(),
+				self.background_to_main_sender.clone(),
+				exit,
+				self.executor.clone(),
+			).boxed(),
+		);
 	}
 
 	fn handle_service_message(&mut self, message: ServiceToWorkerMsg) {
@@ -932,12 +921,15 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 				// before placing in the pool, so we can safely check by candidate hash.
 				let get_msg = fetch_pov_from_gossip(&candidate, &self.gossip_handle);
 
-				let _ = self.executor.spawn(async move {
-					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
-					if let Either::Left((pov_block, _)) = res {
-						let _ = sender.send(pov_block);
-					}
-				});
+				self.executor.spawn(
+					"polkadot-fetch-pov-block",
+					async move {
+						let res = future::select(get_msg, sender.cancellation()).await;
+						if let Either::Left((pov_block, _)) = res {
+							let _ = sender.send(pov_block);
+						}
+					}.boxed(),
+				);
 			}
 			ServiceToWorkerMsg::FetchErasureChunk(candidate_hash, validator_index, mut sender) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
@@ -963,12 +955,15 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 						"gossip message streams do not conclude early; qed"
 					));
 
-				let _ = self.executor.spawn(async move {
-					let res = future::select(get_msg, AwaitCanceled { inner: &mut sender }).await;
-					if let Either::Left((chunk, _)) = res {
-						let _ = sender.send(chunk);
-					}
-				});
+				self.executor.spawn(
+					"polkadot-fetch-erasure-chunk",
+					async move {
+						let res = future::select(get_msg, sender.cancellation()).await;
+						if let Either::Left((chunk, _)) = res {
+							let _ = sender.send(chunk);
+						}
+					}.boxed(),
+				);
 			}
 			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, erasure_chunk) => {
 				let topic = crate::erasure_coding_topic(&candidate_hash);
@@ -1017,8 +1012,8 @@ impl<Api, Sp, Gossip> Worker<Api, Sp, Gossip> where
 
 	fn handle_background_message(&mut self, message: BackgroundToWorkerMsg) {
 		match message {
-			BackgroundToWorkerMsg::Spawn(task) => {
-				let _ = self.executor.spawn(task);
+			BackgroundToWorkerMsg::Spawn(name, task) => {
+				let _ = self.executor.spawn(name, task);
 			}
 		}
 	}
@@ -1068,7 +1063,7 @@ async fn worker_loop<Api, Sp>(
 ) where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
-	Sp: Spawn + Clone,
+	Sp: SpawnNamed + Clone + Unpin + 'static,
 {
 	const BACKGROUND_TO_MAIN_BUF: usize = 16;
 
@@ -1155,6 +1150,7 @@ async fn statement_import_loop<Api>(
 	gossip_handle: impl GossipOps,
 	mut to_worker: mpsc::Sender<BackgroundToWorkerMsg>,
 	mut exit: exit_future::Exit,
+	spawner: impl SpawnNamed + Clone + Unpin + 'static,
 ) where
 	Api: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	Api::Api: ParachainHost<Block, Error = sp_blockchain::Error>,
@@ -1227,7 +1223,7 @@ async fn statement_import_loop<Api>(
 					let table = table.clone();
 					let gossip_handle = gossip_handle.clone();
 
-					let work = producer.prime(api.clone()).validate().map(move |res| {
+					let work = producer.prime(api.clone(), spawner.clone()).validate().map(move |res| {
 						let validated = match res {
 							Err(e) => {
 								debug!(target: "p_net", "Failed to act on statement: {}", e);
@@ -1250,7 +1246,7 @@ async fn statement_import_loop<Api>(
 
 					let work = future::select(work.boxed(), exit.clone()).map(drop);
 					if let Err(_) = to_worker.send(
-						BackgroundToWorkerMsg::Spawn(work.boxed())
+						BackgroundToWorkerMsg::Spawn("polkadot-statement-import-loop-sub-task", work.boxed())
 					).await {
 						// can fail only if remote has hung up - worker is dead,
 						// we should die too. this is defensive, since the exit future
@@ -1489,6 +1485,16 @@ impl<N> av_store::ErasureNetworking for Service<N> {
 		let _ = self.sender.clone().try_send(
 			ServiceToWorkerMsg::DistributeErasureChunk(candidate_hash, chunk)
 		);
+	}
+}
+
+impl<N> sp_consensus::SyncOracle for Service<N> where for<'r> &'r N: sp_consensus::SyncOracle {
+	fn is_major_syncing(&mut self) -> bool {
+		self.network_service.is_major_syncing()
+	}
+
+	fn is_offline(&mut self) -> bool {
+		self.network_service.is_offline()
 	}
 }
 
