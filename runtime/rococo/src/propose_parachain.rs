@@ -119,6 +119,10 @@ decl_error! {
 		ValidatorAlreadyRegistered,
 		/// No information about the registered parachain found.
 		ParachainInfoNotFound,
+		/// Parachain is already approved for registration.
+		ParachainAlreadyApproved,
+		/// Parachain is already scheduled for registration.
+		ParachainAlreadyScheduled,
 	}
 }
 
@@ -217,6 +221,8 @@ decl_module! {
 				return Err(Error::<T>::ProposalNotFound.into())
 			}
 
+			Self::is_approved_or_scheduled(para_id)?;
+
 			ApprovedProposals::append(para_id);
 
 			Self::deposit_event(Event::ParachainApproved(para_id));
@@ -231,6 +237,8 @@ decl_module! {
 				Either::Left(_) => None,
 				Either::Right(who) => Some(who),
 			};
+
+			Self::is_approved_or_scheduled(para_id)?;
 
 			let proposal = Proposals::<T>::get(&para_id).ok_or(Error::<T>::ProposalNotFound)?;
 
@@ -263,6 +271,21 @@ decl_module! {
 
 			T::Currency::unreserve(&info.proposer, T::ProposeDeposit::get());
 		}
+	}
+}
+
+impl<T: Trait> Module<T> {
+	/// Returns wether the given `para_id` approval is approved or already scheduled.
+	fn is_approved_or_scheduled(para_id: ParaId) -> frame_support::dispatch::DispatchResult {
+		if ApprovedProposals::get().iter().any(|p| *p == para_id) {
+			return Err(Error::<T>::ParachainAlreadyApproved.into())
+		}
+
+		if ScheduledProposals::get(&Session::<T>::current_index() + 1).iter().any(|p| *p == para_id) {
+			return Err(Error::<T>::ParachainAlreadyScheduled.into())
+		}
+
+		Ok(())
 	}
 }
 
@@ -818,10 +841,14 @@ mod tests {
 
 			assert_eq!(ProposeParachain::approve_proposal(Origin::root(), 10.into()), Ok(()));
 			assert_eq!(vec![ParaId::from(10)], ApprovedProposals::get());
+			assert_noop!(ProposeParachain::approve_proposal(Origin::root(), 10.into()), Error::<Test>::ParachainAlreadyApproved);
+			assert_noop!(ProposeParachain::cancel_proposal(Origin::root(), 10.into()), Error::<Test>::ParachainAlreadyApproved);
 
 			run_to_block(1);
 			assert!(ApprovedProposals::get().is_empty());
 			assert_eq!(vec![ParaId::from(10)], ScheduledProposals::get(&2));
+			assert_noop!(ProposeParachain::approve_proposal(Origin::root(), 10.into()), Error::<Test>::ParachainAlreadyScheduled);
+			assert_noop!(ProposeParachain::cancel_proposal(Origin::root(), 10.into()), Error::<Test>::ParachainAlreadyScheduled);
 
 			run_to_block(2);
 			assert!(ScheduledProposals::get(&2).is_empty());
