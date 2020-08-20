@@ -59,7 +59,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 use std::task::Poll;
 use std::time::Duration;
-use std::collections::HashMap;
+use std::collections::{hash_map, HashMap};
 
 use futures::channel::{mpsc, oneshot};
 use futures::{
@@ -934,16 +934,24 @@ where
 	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
 		let mut update = ActiveLeavesUpdate::default();
 
-		if let Some(_number) = self.active_leaves.remove(&block.parent_hash) {
+		if let Some(number) = self.active_leaves.remove(&block.parent_hash) {
+			if let Some(expected_parent_number) = block.number.checked_sub(1) {
+				debug_assert_eq!(expected_parent_number, number);
+			}
 			update.deactivated.push(block.parent_hash);
 			self.on_head_deactivated(&block.parent_hash);
 		}
 
-		if self.active_leaves.get(&block.hash).is_none() {
-			update.activated.push(block.hash);
-			self.active_leaves.insert(block.hash, block.number);
-			self.on_head_activated(&block.hash);
-		}
+		match self.active_leaves.entry(block.hash) {
+			hash_map::Entry::Vacant(entry) => {
+				update.activated.push(block.hash);
+				entry.insert(block.number);
+				self.on_head_activated(&block.hash);
+			},
+			hash_map::Entry::Occupied(entry) => {
+				debug_assert_eq!(*entry.get(), block.number);
+			}
+	}
 
 		self.clean_up_external_listeners();
 
