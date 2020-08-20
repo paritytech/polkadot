@@ -153,7 +153,7 @@ decl_error! {
 }
 
 decl_event! {
-	pub enum Event<T> where <T as system::Trait>::Hash {
+	pub enum Event<T> where <T as frame_system::Trait>::Hash {
 		/// A candidate was backed. [candidate, head_data]
 		CandidateBacked(CandidateReceipt<Hash>, HeadData),
 		/// A candidate was included. [candidate, head_data]
