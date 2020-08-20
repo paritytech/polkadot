@@ -963,6 +963,8 @@ where
 			self.on_head_activated(&block.hash);
 		}
 
+		self.clean_up_external_listeners();
+
 		self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 
 		Ok(())
@@ -1151,6 +1153,14 @@ where
 			// clean up and signal to listeners the block is deactivated
 			drop(listeners);
 		}
+	}
+
+	fn clean_up_external_listeners(&mut self) {
+		self.activation_external_listeners.retain(|_, v| {
+			// remove dead listeners
+			v.retain(|c| !c.is_canceled());
+			!v.is_empty()
+		})
 	}
 
 	fn handle_external_request(&mut self, request: ExternalRequest) {
