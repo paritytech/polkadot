@@ -132,6 +132,9 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 	pub keystore: KeyStorePtr,
 	/// The maximum block-data size in bytes.
 	pub max_block_data_size: Option<u64>,
+	/// The validation worker is called on the same process using the subcommand `--nocapture validation_worker` instead
+	/// of `validation-worker`, suitable for test environment.
+	pub test_mode: bool,
 }
 
 impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
@@ -163,7 +166,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
-		let validation_pool = Some(ValidationPool::new());
+		let validation_pool = Some(ValidationPool::new(self.test_mode));
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,

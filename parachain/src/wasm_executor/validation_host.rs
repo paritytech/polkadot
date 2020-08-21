@@ -70,15 +70,17 @@ impl SpawnNamed for TaskExecutor {
 #[derive(Clone)]
 pub struct ValidationPool {
 	hosts: Arc<Vec<Mutex<ValidationHost>>>,
+	test_mode: bool,
 }
 
 const DEFAULT_NUM_HOSTS: usize = 8;
 
 impl ValidationPool {
 	/// Creates a validation pool with the default configuration.
-	pub fn new() -> ValidationPool {
+	pub fn new(test_mode: bool) -> ValidationPool {
 		ValidationPool {
 			hosts: Arc::new((0..DEFAULT_NUM_HOSTS).map(|_| Default::default()).collect()),
+			test_mode,
 		}
 	}
 
@@ -90,16 +92,15 @@ impl ValidationPool {
 		&self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		test_mode: bool,
 	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
-				return host.validate_candidate(validation_code, params, test_mode);
+				return host.validate_candidate(validation_code, params, self.test_mode);
 			}
 		}
 
 		// all workers are busy, just wait for the first one
-		self.hosts[0].lock().validate_candidate(validation_code, params, test_mode)
+		self.hosts[0].lock().validate_candidate(validation_code, params, self.test_mode)
 	}
 }
 

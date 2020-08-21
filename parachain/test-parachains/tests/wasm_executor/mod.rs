@@ -24,7 +24,7 @@ use parachain::{
 
 #[test]
 fn terminates_on_timeout() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = parachain::wasm_executor::ValidationPool::new(true);
 
 	let result = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -34,7 +34,7 @@ fn terminates_on_timeout() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	);
 	match result {
@@ -48,7 +48,7 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = parachain::wasm_executor::ValidationPool::new(true);
 
 	let start = std::time::Instant::now();
 
@@ -62,7 +62,7 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool2),
 		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -73,7 +73,7 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();

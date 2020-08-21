@@ -117,7 +117,7 @@ pub type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
-pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool) -> Result<
+pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test_mode: bool) -> Result<
 	service::PartialComponents<
 		FullClient<RuntimeApi, Executor>, FullBackend, FullSelectChain,
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
@@ -142,7 +142,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	if !test {
+	if !test_mode {
 		// If we're using prometheus, use a registry with a prefix of `polkadot`.
 		if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
 			*registry = Registry::new_custom(Some("polkadot".into()), None)?;
@@ -164,7 +164,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		client.clone(),
 	);
 
-	let grandpa_hard_forks = if config.chain_spec.is_kusama() && !test {
+	let grandpa_hard_forks = if config.chain_spec.is_kusama() && !test_mode {
 		crate::grandpa_support::kusama_hard_forks()
 	} else {
 		Vec::new()
@@ -253,7 +253,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	authority_discovery_enabled: bool,
 	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-	test: bool,
+	test_mode: bool,
 ) -> Result<(
 	TaskManager,
 	Arc<FullClient<RuntimeApi, Executor>>,
@@ -286,7 +286,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
-	} = new_partial::<RuntimeApi, Executor>(&mut config, test)?;
+	} = new_partial::<RuntimeApi, Executor>(&mut config, test_mode)?;
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
@@ -400,6 +400,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			select_chain: select_chain.clone(),
 			keystore: keystore.clone(),
 			max_block_data_size,
+			test_mode,
 		}.build();
 
 		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));

@@ -66,8 +66,6 @@ pub enum ExecutionMode<'a> {
 	Local,
 	/// Remote execution in a spawned process.
 	Remote(&'a ValidationPool),
-	/// Remote execution in a spawned test runner.
-	RemoteTest(&'a ValidationPool),
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
@@ -143,11 +141,7 @@ pub fn validate_candidate(
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::Remote(pool) => {
-			pool.validate_candidate(validation_code, params, false)
-		},
-		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::RemoteTest(pool) => {
-			pool.validate_candidate(validation_code, params, true)
+			pool.validate_candidate(validation_code, params)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		ExecutionMode::Remote(_pool) =>
