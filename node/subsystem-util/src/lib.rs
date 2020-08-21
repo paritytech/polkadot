@@ -987,9 +987,8 @@ mod tests {
 		stream::{self, StreamExt},
 		future, Future, FutureExt, SinkExt,
 	};
-	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
-	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
+	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context, TimeoutExt as _};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;
@@ -1157,19 +1156,15 @@ mod tests {
 
 		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, (), pool, Some(err_tx));
 		let test_future = test(overseer_handle, err_rx);
-		let timeout = Delay::new(Duration::from_secs(2));
 
-		futures::pin_mut!(subsystem, test_future, timeout);
+		futures::pin_mut!(subsystem, test_future);
 
-		executor::block_on(
-			future::select(
-				future::join(subsystem, test_future),
-				timeout,
-			).then(|either| match either {
-				future::Either::Right(_) => panic!("test timed out instead of completing"),
-				future::Either::Left(_) => future::ready(()),
-			})
-		);
+		executor::block_on(async move {
+			future::join(subsystem, test_future)
+				.timeout(Duration::from_secs(2))
+				.await
+				.expect("test timed out instead of completing")
+		});
 	}
 
 	#[test]
