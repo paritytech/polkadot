@@ -1235,16 +1235,14 @@ mod tests {
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
 			// send to a non running job
 			overseer_handle
-				.send(FromOverseer::Communication { 
+				.send(FromOverseer::Communication {
 					msg: Default::default(),
 				})
 				.await;
 
-			// the subsystem is still alive
-			assert_matches!(
-				overseer_handle.recv().await,
-				AllMessages::CandidateSelection(_)
-			);
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
 
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
