@@ -19,6 +19,7 @@ use log::trace;
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
+	metrics::{self, prometheus},
 	messages::{
 		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
@@ -79,10 +80,35 @@ impl CollatorProtocolSubsystem {
 	}
 }
 
+#[derive(Clone)]
+struct ValidatorMetrics;
+
+#[derive(Clone)]
+struct CollatorMetrics;
+
+#[derive(Clone)]
+enum MetricsInner {
+	ValidatorMetrics(ValidatorMetrics),
+	CollatorMetrics(CollatorMetrics),
+}
+
+/// Collator protocol metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) 
+		-> std::result::Result<Self, prometheus::PrometheusError> {
+		Ok(Metrics(None))
+	}
+}
+
 impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		match self.protocol_side {
 			ProtocolSide::Collator => SpawnedSubsystem {

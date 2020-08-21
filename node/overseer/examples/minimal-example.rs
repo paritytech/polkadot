@@ -76,6 +76,8 @@ impl Subsystem1 {
 impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
+	type Metrics = (); // no Prometheus metrics
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -121,6 +123,8 @@ impl Subsystem2 {
 impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
+	type Metrics = (); // no Prometheus metrics
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -145,7 +149,6 @@ fn main() {
 			candidate_validation: Subsystem2,
 			candidate_backing: Subsystem1,
 			candidate_selection: DummySubsystem,
-			collator_protocol: DummySubsystem,
 			statement_distribution: DummySubsystem,
 			availability_distribution: DummySubsystem,
 			bitfield_signing: DummySubsystem,
@@ -156,10 +159,13 @@ fn main() {
 			availability_store: DummySubsystem,
 			network_bridge: DummySubsystem,
 			chain_api: DummySubsystem,
+			collation_generation: DummySubsystem,
+			collator_protocol: DummySubsystem,
 		};
 		let (overseer, _handler) = Overseer::new(
 			vec![],
 			all_subsystems,
+			None,
 			spawner,
 		).unwrap();
 		let overseer_fut = overseer.run().fuse();

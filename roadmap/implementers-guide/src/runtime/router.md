@@ -10,16 +10,19 @@ Storage layout:
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
-/// Messages ready to be dispatched onto the relay chain.
+/// Dispatchable objects ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
+RelayDispatchQueues: map ParaId => Vec<RawDispatchable>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
 RelayDispatchQueueSize: map ParaId => (u32, u32);
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 NeedsDispatch: Vec<ParaId>;
+/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+/// execution round.
+NextDispatchRoundStartWith: Option<ParaId>;
 /// The downward messages addressed for a certain para.
 DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 ```
@@ -29,18 +32,8 @@ DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 HRMP related structs:
 
 ```rust,ignore
-/// A type used to designate a HRMP channel between a (sender, recipient).
-struct HrmpChannelId {
-    sender: ParaId,
-    recipient: ParaId,
-}
-
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
-    /// The sender and the initiator of this request.
-    sender: ParaId,
-    /// The recipient of the opened request.
-    recipient: ParaId,
     /// Indicates if this request was confirmed by the recipient.
     confirmed: bool,
     /// How many session boundaries ago this request was seen.
@@ -51,19 +44,6 @@ struct HrmpOpenChannelRequest {
     limit_used_places: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
-}
-
-/// A description of a request to close an opened HRMP channel.
-struct HrmpCloseChannelRequest {
-    /// The para which initiated closing an existing channel.
-    ///
-    /// Invariant: it should be equal to one of the following
-    /// - `Some(sender)`
-    /// - `Some(recipient)`
-    /// - `None` in case the request initiated by the runtime (including governance, migration, etc)
-    initiator: Option<ParaId>,
-    /// The identifier of an HRMP channel to be closed.
-    id: HrmpChannelId,
 }
 
 /// A metadata of an HRMP channel.
@@ -95,14 +75,30 @@ struct HrmpChannel {
 HRMP related storage layout
 
 ```rust,ignore
-/// Pending HRMP open channel requests.
-HrmpOpenChannelRequests: Vec<HrmpOpenChannelRequest>;
+/// The set of pending HRMP open channel requests.
+///
+/// The set is accompanied by a list for iteration.
+///
+/// Invariant:
+/// - There are no channels that exists in list but not in the set and vice versa.
+HrmpOpenChannelRequests: map HrmpChannelId => Option<HrmpOpenChannelRequest>;
+HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
+
 /// This mapping tracks how many open channel requests are inititated by a given sender para.
-/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `_.sender == X`
+/// Invariant: `HrmpOpenChannelRequestsList` should contain the same number of items that has `(X, _)`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
 HrmpOpenChannelRequestCount: map ParaId => u32;
-/// Pending HRMP close channel requests.
-HrmpCloseChannelRequests: Vec<HrmpCloseChannelRequest>;
+
+/// A set of pending HRMP close channel requests that are going to be closed during the session change.
+/// Used for checking if a given channel is registered for closure.
+///
+/// The set is accompanied by a list for iteration.
+///
+/// Invariant:
+/// - There are no channels that exists in list but not in the set and vice versa.
+HrmpCloseChannelRequests: map HrmpChannelId => Option<()>;
+HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
+
 /// The HRMP watermark associated with each para.
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
 /// HRMP channel data associated with each para.
@@ -126,38 +122,32 @@ HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 
 No initialization routine runs for this module.
 
-## Entry points
-
-The following routines are intended to be invoked by paras' upward messages.
-
-* `hrmp_init_open_channel(recipient)`:
-  1. Check that the origin of this message is a para. We say that the origin of this message is the `sender`.
-  1. Check that the `sender` is not `recipient`.
-  1. Check that the `recipient` para exists.
-  1. Check that there is no existing open channel request from sender to recipient.
-  1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of channels (`config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
-  1. Reserve the deposit for the `sender` according to `config.hrmp_sender_deposit`
-  1. Add a new entry to `HrmpOpenChannelRequests` and increase `HrmpOpenChannelRequestCount` by 1 for the `sender`.
-      1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-      1. Set `limit_used_places` to `config.hrmp_channel_max_places`
-      1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
-
-* `hrmp_accept_open_channel(i)`, `i` - is the index of open channel request:
-  1. Check that the designated open channel request exists
-  1. Check that the request's `recipient` corresponds to the origin of this message.
-  1. Reserve the deposit for the `recipient` according to `config.hrmp_recipient_deposit`
-  1. Set the request's `confirmed` flag to `true`.
-
-* `hrmp_close_channel(sender, recipient)`:
-  1. Check that the channel between `sender` and `recipient` exists
-  1. Check that the origin of the message is either `sender` or `recipient`
-  1. Check that there is no existing intention to close the channel between `sender` and `recipient`.
-  1. Add a new entry to `HrmpCloseChannelRequests` with initiator set to the `Some` variant with the origin of this message.
-
 ## Routines
 
 Candidate Acceptance Function:
 
+* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`:
+  1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
+  1. Checks each upward message `M` individually depending on its kind:
+  1. If the message kind is `Dispatchable`:
+      1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed
+      upward messages of the `Dispatchable` kind up to this point!)
+  1. If the message kind is `HrmpInitOpenChannel(recipient)`:
+      1. Check that the `P` is not `recipient`.
+      1. Check that `recipient` is a valid para.
+      1. Check that there is no existing open channel request (`P`, `recipient`) in `HrmpOpenChannelRequests`.
+      1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size
+      of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the
+      `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of
+      channels (`config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
+      1. Check that `P`'s balance is more or equal to `config.hrmp_sender_deposit`
+  1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
+      1. Check that there is existing request between (`sender`, `P`) in `HrmpOpenChannelRequests`
+      1. Check that `P`'s balance is more or equal to `config.hrmp_recipient_deposit`.
+  1. If the message kind is `HrmpCloseChannel(ch)`:
+      1. Check that `P` is either `ch.sender` or `ch.recipient`
+      1. Check that `HrmpChannels` for `ch` exists.
+      1. Check that `ch` is not in the `HrmpCloseChannelRequests` set.
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
   1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
   1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
@@ -190,14 +180,52 @@ Candidate Enactment:
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
   1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
-
-* `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
-  1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
+* `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
+  1. Process all upward messages in order depending on their kinds:
+  1. If the message kind is `Dispatchable`:
+      1. Append the message to `RelayDispatchQueues` for `P`
+      1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
+      1. Ensure that `P` is present in `NeedsDispatch`.
+  1. If the message kind is `HrmpInitOpenChannel(recipient)`:
+      1. Increase `HrmpOpenChannelRequestCount` by 1 for the `P`.
+      1. Append `(P, recipient)` to `HrmpOpenChannelRequestsList`.
+      1. Add a new entry to `HrmpOpenChannelRequests` for `(sender, recipient)`
+          1. Set `sender_deposit` to `config.hrmp_sender_deposit`
+          1. Set `limit_used_places` to `config.hrmp_channel_max_places`
+          1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
+      1. Reserve the deposit for the `P` according to `config.hrmp_sender_deposit`
+  1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
+      1. Reserve the deposit for the `P` according to `config.hrmp_recipient_deposit`
+      1. For the request in `HrmpOpenChannelRequests` identified by `(sender, P)`, set `confirmed` flag to `true`.
+  1. If the message kind is `HrmpCloseChannel(ch)`:
+      1. Insert a new entry `Some(())` to `HrmpCloseChannelRequests` for `ch`.
+      1. Append `ch` to `HrmpCloseChannelRequestsList`.
 
 The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
 `schedule_para_cleanup(ParaId)`:
     1. Add the para into the `OutgoingParas` vector maintaining the sorted order.
+
+The following routine is meant to execute pending entries in upward dispatchable queues. This function doesn't fail, even if
+any of dispatchables return an error.
+
+`process_upward_dispatchables()`:
+  1. Initialize a cumulative weight counter `T` to 0
+  1. Initialize a local in memory dictionary `R` that maps `ParaId` to a vector of `DispatchResult`.
+  1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
+      1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
+      1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
+      1. Decode `D` into a dispatchable. If failed append `DispatchResult::DecodeFailed` into `R` for `P`. Otherwise, if succeeded:
+          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then append `DispatchResult::CriticalWeightExceeded` into `R` for `P`. Otherwise:
+            1. Execute `D` and add the actual amount of weight consumed to `T`. Add the `DispatchResult` into `R` for `P`.
+      1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+      > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
+      > that could take place on the course of handling these dispatchables.
+      1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
+      1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
+  1. Then, for each `P` and the vector of `DispatchResult` in `R`:
+      1. Obtain a message by wrapping the vector into `DownwardMessage::DispatchResult`
+      1. Append the resulting message to `DownwardMessageQueues` for `P`.
 
 ## Session Change
 
@@ -207,24 +235,31 @@ The following routine is intended to be called in the same time when `Paras::sch
   1. Remove all `DownwardMessageQueues` of `P`.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
-  - Note that we don't remove the open/close requests since they are gon die out naturally.
-TODO: What happens with the deposits in channels or open requests?
-1. For each request `R` in `HrmpOpenChannelRequests`:
+  1. Remove `P` if it exists in `NeedsDispatch`.
+  1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
+  - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
+1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
         1. if `R.age` reached a preconfigured time-to-live limit `config.hrmp_open_request_ttl`, then:
             1. refund `R.sender_deposit` to the sender
-            1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
+            1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
             1. remove `R`
+            1. remove `D`
     2. if `R.confirmed = true`,
-        1. check that `R.sender` and `R.recipient` are not offboarded.
-        1. create a new channel `C` between `(R.sender, R.recipient)`.
-            1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit` with the value found in the configuration `config.hrmp_recipient_deposit`.
-            1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
-            1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
-        1. decrement `HrmpOpenChannelRequestCount` for `R.sender` by 1.
+        1. if both `D.sender` and `D.recipient` are not offboarded.
+          1. create a new channel `C` between `(D.sender, D.recipient)`.
+              1. Initialize the `C.sender_deposit` with `R.sender_deposit` and `C.recipient_deposit`
+              with the value found in the configuration `config.hrmp_recipient_deposit`.
+              1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
+              1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
+        1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
         1. remove `R`
-1. For each request `R` in `HrmpCloseChannelRequests` remove the channel identified by `R.id`, if exists.
+        1. remove `D`
+1. For each channel designator `D` in `HrmpCloseChannelRequestsList`
+    1. remove the channel identified by `D`, if exists.
+    1. remove `D` from `HrmpCloseChannelRequests`.
+    1. remove `D` from `HrmpCloseChannelRequestsList`
 
 To remove a channel `C` identified with a tuple `(sender, recipient)`:
 
@@ -234,7 +269,3 @@ To remove a channel `C` identified with a tuple `(sender, recipient)`:
 1. Remove `C` from `HrmpChannelContents`.
 1. Remove `recipient` from the set `HrmpEgressChannelsIndex` for `sender`.
 1. Remove `sender` from the set `HrmpIngressChannelsIndex` for `recipient`.
-
-## Finalization
-
-  1. Dispatch queued upward messages from `RelayDispatchQueues` in a FIFO order applying the `config.watermark_upward_queue_size` and `config.max_upward_queue_count` limits.

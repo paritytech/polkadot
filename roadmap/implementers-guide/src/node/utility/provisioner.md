@@ -64,7 +64,7 @@ To determine availability:
     - If the bitfields indicate availability and there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`.
     - If the bitfields do not indicate availability, and there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`.
   - If we did not make an `OccupiedCoreAssumption`, then continue on to the next core.
-  - Now compute the core's `validation_data_hash`: get the `LocalValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`; this can be combined with a cached `GlobalValidationData` to compute the hash.
+  - Now compute the core's `validation_data_hash`: get the `PersistedValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`;
   - Find an appropriate candidate for the core.
     - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
     - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.

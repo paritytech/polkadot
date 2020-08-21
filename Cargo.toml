@@ -37,7 +37,6 @@ members = [
 	"runtime/kusama",
 	"runtime/rococo-v1",
 	"runtime/westend",
-	"runtime/rococo",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
 	"service",
@@ -45,6 +44,7 @@ members = [
 	"service",
 	"validation",
 
+	"node/collation-generation",
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
@@ -71,7 +71,6 @@ members = [
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 	"parachain/test-parachains/adder/collator",
-	"parachain/test-parachains/code-upgrader",
 ]
 
 [badges]

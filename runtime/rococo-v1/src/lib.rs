@@ -24,9 +24,9 @@ use sp_std::prelude::*;
 use codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
-	GroupRotationInfo, CoreState, Id, GlobalValidationData, ValidationCode, CandidateEvent,
+	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	LocalValidationData,
+	PersistedValidationData,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -176,13 +176,14 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::availability_cores::<Runtime>()
 		}
 
-		fn global_validation_data() -> GlobalValidationData<BlockNumber> {
-			runtime_api_impl::global_validation_data::<Runtime>()
+		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>> {
+			runtime_api_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
 
-		fn local_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<LocalValidationData<BlockNumber>> {
-			runtime_api_impl::local_validation_data::<Runtime>(para_id, assumption)
+		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>> {
+			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
 		fn session_index_for_child() -> SessionIndex {
