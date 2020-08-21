@@ -985,7 +985,7 @@ mod tests {
 		channel::mpsc,
 		executor,
 		stream::{self, StreamExt},
-		Future, FutureExt, SinkExt,
+		future, Future, FutureExt, SinkExt,
 	};
 	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
@@ -1162,12 +1162,12 @@ mod tests {
 		futures::pin_mut!(subsystem, test_future, timeout);
 
 		executor::block_on(
-			futures::future::select(
-				futures::future::join(subsystem, test_future),
+			future::select(
+				future::join(subsystem, test_future),
 				timeout,
 			).then(|either| match either {
-				futures::future::Either::Right(_) => panic!("test timed out instead of completing"),
-				futures::future::Either::Left(_) => futures::future::ready(()),
+				future::Either::Right(_) => panic!("test timed out instead of completing"),
+				future::Either::Left(_) => future::ready(()),
 			})
 		);
 	}
