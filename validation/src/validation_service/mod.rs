@@ -132,7 +132,7 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 	pub keystore: KeyStorePtr,
 	/// The maximum block-data size in bytes.
 	pub max_block_data_size: Option<u64>,
-	/// The validation worker is called on the same process using the subcommand `--nocapture validation_worker` instead
+	/// The validation worker is called using the subcommand `--nocapture validation_worker` instead
 	/// of `validation-worker`, suitable for test environment.
 	pub test_mode: bool,
 }
