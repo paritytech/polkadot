@@ -17,7 +17,38 @@ We account for these requirements by having the validity module handle two kinds
 1. Local disputes: those contesting the validity of the current fork by disputing a parablock included within it.
 1. Remote disputes: a dispute that has partially or fully resolved on another fork which is transplanted to the local fork for completion and eventual slashing.
 
+## Approval
+
+We begin approval checks upon any candidate immediately once it becomes available.  
+
+Assigning approval checks involve VRF secret keys held by every validator, making it primarily an off-chain process.  All assignment criteria require specific data called "stories" about the relay chain block in which the candidate assigned by that criteria became available.  Among these criteria, the BABE VRF output provides the story for two, and the other's story consists of the candidate's block hash plus external knowledge that a relay chain equivocation exists with a conflicting candidate. 
+
+We liberate availability cores when their candidate becomes available of course, but one approval assignment criteria continues associating each candidate with the core number it occupied when it became available. 
+
+Assignment proceeds in loosely timed rounds called `DelayTranche`s roughly 12 times faster than block production, in which validators send assignment notices until all candidates have enough checkers assigned.  Assignment tracks when approval votes arrive too and assigns more checkers if some checkers run late.
+
+Approval checks provide more security than backing checks, so polkadot becomes more efficient when validators perform more approval checks per backing check.  If validators run 4 approval checks for every backing check, and run almost one backing check per relay chain block, then validators actually check almost 6 blocks per relay chain block.
+
+We should therefore reward approval checkers correctly because approval checks should actually represent our single largest workload.  It follows that both assignment notices and approval votes should be tracked on-chain.  
+
+We might track the assignments and approvals together as pairs in a simple rewards system.  There are however two reasons to witness approvals on chain by tracking assignments and approvals on-chain, rewards and finality integration.
+
+First, an approval that arrives too slowly prompts assigning extra "no show" replacement checkers.  Yet, we consider a block valid if the earlier checker completes their work, even if the extra checkers never quite finish, which complicates rewarding these extra checkers.  We could support more nuanced rewards for extra checkers if assignments are placed on-chain earlier.  Assignment delay tranches progress 12ish times faster than the relay chain, but no shows could still be witness by the relay chain because the no show delay takes longer than a relay chain slot. 
+
+Second, we know off-chain when the approval process completes based upon all gossiped assignment notices, not just the approving ones.  We need not-yet-approved assignment notices to appear on-chain if the chain should know about the validity of recently approved blocks.  Relay chain blocks become eligible for finality in GRANDPA only once all their included candidates pass approvals checks, meaning all assigned checkers either voted approve or else were declared "no show" and replaced by more assigned checkers.  A purely off-chain approvals scheme complicates GRANDPA with additional objections logic.  
+
+Integration with GRANDPA appears simplest if we witness approvals in chain:  Aside from inherents for assignment notices and approval votes, we provide an "Approved" inherent by which a relay chain block declares a past relay chain block approved.  In other words, it trigger the on-chain approval counting logic in a relay chain block `R1` to rerun the assignment and approval tracker logic for some ancestor `R0`, which then declares `R0` approved.  In this case, we could integrate with GRANDPA by gossiping messages that list the descendent `R1`, but then map this into the approved ancestor `R0` for GRANDPA itself.
+
+Approval votes could be recorded on-chain quickly because they represent a major commitments.  
+
+Assignment notices should be recorded on-chain only when relevant.  Any sent too early are retained but ignore until relevant by our off-chain assignment system.  Assignments are ignored completely by the dispute system because any dispute immediately escalates into all validators checking, but disputes count existing approval votes of course.
+
+
 ## Local Disputes
+
+There is little overlap between the approval system and the disputes systems since disputes cares only that two validators disagree.  We do however require that disputes count validity votes from elsewhere, both the backing votes and the approval votes.  
+
+We could approve, and even finalize, a relay chain block which then later disputes due to claims of some parachain being invalid.
 
 > TODO: store all included candidate and attestations on them here. accept additional backing after the fact. accept reports based on VRF. candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity
 
@@ -29,11 +60,9 @@ For each such parablock, it is guaranteed by the inclusion pipeline that the par
 
 Disputes may occur against blocks that have happened in the session prior to the current one, from the perspective of the chain. In this case, the prior validator set is responsible for handling the dispute and to do so with their keys from the last session. This means that validator duty actually extends 1 session beyond leaving the validator set.
 
-Validators self-select based on the BABE VRF output included by the block author in the block that the candidate became available.
+...
 
-> TODO: some more details from Jeff's paper.
-
-After enough validators have self-selected, the quorum will be clear and validators on the wrong side will be slashed. After concluding, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
+After concluding with enough validtors voting, the dispute will remain open for some time in order to collect further evidence of misbehaving validators, and then issue a signal in the header-chain that this fork should be abandoned along with the hash of the last ancestor before inclusion, which the chain should be reverted to, along with information about the invalid block that should be used to blacklist it from being included.
 
 ## Remote Disputes
 

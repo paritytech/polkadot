@@ -4447,7 +4447,6 @@ dependencies = [
  "polkadot-primitives",
  "sc-network",
  "smol 0.3.3",
- "smol-timeout",
  "sp-core",
  "streamunordered",
 ]
@@ -4473,7 +4472,6 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "smallvec 1.4.1",
- "smol-timeout",
  "sp-core",
  "sp-keyring",
  "streamunordered",
@@ -4787,6 +4785,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "derive_more 0.99.9",
+ "env_logger",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
@@ -7449,16 +7448,6 @@ dependencies = [
  "easy-parallel",
  "futures-lite",
  "num_cpus",
-]
-
-[[package]]
-name = "smol-timeout"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "024818c1f00b80e8171ddcfcee33860134293aa3aced60c9cbd7a5a2d41db392"
-dependencies = [
- "pin-project",
- "smol 0.1.18",
 ]
 
 [[package]]
