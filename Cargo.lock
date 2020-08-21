@@ -4891,6 +4891,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "derive_more 0.99.9",
+ "env_logger",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
