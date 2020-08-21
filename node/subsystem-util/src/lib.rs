@@ -1230,15 +1230,32 @@ mod tests {
 
 	#[test]
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
-		let run_args = HashMap::new();
+		let relay_parent = Hash::repeat_byte(0x01);
+		let mut run_args = HashMap::new();
+		run_args.insert(
+			relay_parent.clone(),
+			vec![FromJob::Test],
+		);
 
 		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(relay_parent),
+				)))
+				.await;
+
 			// send to a non running job
 			overseer_handle
 				.send(FromOverseer::Communication {
 					msg: Default::default(),
 				})
 				.await;
+
+			// the subsystem is still alive
+			assert_matches!(
+				overseer_handle.recv().await,
+				AllMessages::CandidateSelection(_)
+			);
 
 			overseer_handle
 				.send(FromOverseer::Signal(OverseerSignal::Conclude))
