@@ -33,9 +33,9 @@ use polkadot_node_primitives::{
 use polkadot_primitives::v1::{
 	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
 	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, ErasureChunk, GlobalValidationData, GroupRotationInfo,
-	Hash, Id as ParaId, LocalValidationData, OccupiedCoreAssumption, OmittedValidationData, PoV,
-	SessionIndex, SignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidatorIndex,
+	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
+	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
 	ValidatorSignature,
 };
 use std::sync::Arc;
@@ -107,7 +107,7 @@ pub struct ValidationFailed(pub String);
 pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters using relay-chain state.
 	///
-	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
+	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
 	///
@@ -120,10 +120,12 @@ pub enum CandidateValidationMessage {
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
-	/// Explicitly provide the `OmittedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain.
+	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
+	/// validation without needing to access the state of the relay-chain. Optionally provide the
+	/// `TransientValidationData` for further checks on the outputs.
 	ValidateFromExhaustive(
-		OmittedValidationData,
+		PersistedValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -136,7 +138,7 @@ impl CandidateValidationMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 		}
 	}
 }
@@ -357,15 +359,21 @@ pub enum RuntimeApiRequest {
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
 	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
-	/// Get the global validation data.
-	GlobalValidationData(RuntimeApiSender<GlobalValidationData>),
-	/// Get the local validation data for a particular para, taking the given
+	/// Get the persisted validation data for a particular para, taking the given
 	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
 	/// if the para currently occupies a core.
-	LocalValidationData(
+	PersistedValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<LocalValidationData>>,
+		RuntimeApiSender<Option<PersistedValidationData>>,
+	),
+	/// Get the full validation data for a particular para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
+	FullValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationData>>,
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),

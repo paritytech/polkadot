@@ -25,7 +25,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
+	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
 	HeadData, PoV, CollatorPair, Id as ParaId,
 };
 use polkadot_statement_table::{
@@ -118,10 +118,8 @@ pub struct FromTableMisbehavior {
 pub struct ValidationOutputs {
 	/// The head-data produced by validation.
 	pub head_data: HeadData,
-	/// The global validation schedule.
-	pub global_validation_data: GlobalValidationData,
-	/// The local validation data.
-	pub local_validation_data: LocalValidationData,
+	/// The persisted validation data.
+	pub validation_data: PersistedValidationData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Fees paid to the validators of the relay-chain.
@@ -153,6 +151,8 @@ pub enum InvalidCandidate {
 	NewCodeTooLarge(u64),
 	/// Head-data is over the limit.
 	HeadDataTooLarge(u64),
+	/// Code upgrade triggered but not allowed.
+	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.
@@ -285,7 +285,7 @@ pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
 	/// Collation function.
-	pub collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+	pub collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }
