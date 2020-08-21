@@ -640,12 +640,17 @@ where
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Option<Self::Item>> {
 		// pin-project the outgoing messages
-		self.project().outgoing_msgs.poll_next(cx).map(|opt| {
+		let result = self.project().outgoing_msgs.poll_next(cx).map(|opt| {
 			opt.and_then(|(stream_yield, _)| match stream_yield {
 				StreamYield::Item(msg) => Some(msg),
 				StreamYield::Finished(_) => None,
 			})
-		})
+		});
+		// we don't want the stream to end if the jobs are empty at some point
+		match result {
+			task::Poll::Ready(None) => task::Poll::Pending,
+			otherwise => otherwise,
+		}
 	}
 }
 
@@ -728,7 +733,7 @@ where
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &metrics, &mut err_tx).await { break },
-				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
+				outgoing = jobs.next().fuse() => Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
 				complete => break,
 			}
 		}
@@ -838,21 +843,16 @@ where
 		false
 	}
 
-	// handle an outgoing message. return true if we should break afterwards.
+	// handle an outgoing message.
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) -> bool {
-		match outgoing {
-			Some(msg) => {
-				if let Err(e) = ctx.send_message(msg.into()).await {
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
-				}
-			}
-			None => return true,
+	) {
+		let msg = outgoing.expect("the Jobs stream never ends; qed");
+		if let Err(e) = ctx.send_message(msg.into()).await {
+			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
 		}
-		false
 	}
 }
 
@@ -1152,13 +1152,15 @@ mod tests {
 		futures::pin_mut!(subsystem);
 		futures::pin_mut!(timeout);
 
-		executor::block_on(async move {
-			futures::select! {
-				_ = test_future.fuse() => (),
-				_ = subsystem.fuse() => (),
-				_ = timeout.fuse() => panic!("test timed out instead of completing"),
-			}
-		});
+		executor::block_on(
+			futures::future::select(
+				futures::future::join(subsystem, test_future),
+				timeout,
+			).then(|either| match either {
+				futures::future::Either::Right(_) => panic!("test timed out instead of completing"),
+				futures::future::Either::Left(_) => futures::future::ready(()),
+			})
+		);
 	}
 
 	#[test]
@@ -1184,6 +1186,10 @@ mod tests {
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::stop_work(relay_parent),
 				)))
+				.await;
+
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
 				.await;
 
 			let errs: Vec<_> = err_rx.collect().await;
