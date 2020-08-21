@@ -16,11 +16,16 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use parachain::primitives::{
-	RelayChainBlockNumber,
-	BlockData as GenericBlockData,
-	HeadData as GenericHeadData,
-	ValidationParams,
+const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
+
+use parachain::{
+	primitives::{
+		RelayChainBlockNumber,
+		BlockData as GenericBlockData,
+		HeadData as GenericHeadData,
+		ValidationParams,
+	},
+	wasm_executor::{ValidationPool, ValidationExecutionMode}
 };
 use codec::{Decode, Encode};
 
@@ -52,6 +57,15 @@ fn hash_head(head: &HeadData) -> [u8; 32] {
 	tiny_keccak::keccak256(head.encode().as_slice())
 }
 
+fn validation_pool() -> ValidationPool {
+	let execution_mode = ValidationExecutionMode::Remote {
+		binary: std::env::current_exe().unwrap(),
+		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+	};
+
+	ValidationPool::new(execution_mode)
+}
+
 #[test]
 pub fn execute_good_on_parent() {
 	let parent_head = HeadData {
@@ -65,7 +79,7 @@ pub fn execute_good_on_parent() {
 		add: 512,
 	};
 
-	let pool = parachain::wasm_executor::ValidationPool::new(true);
+	let pool = validation_pool();
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
@@ -91,7 +105,7 @@ fn execute_good_chain_on_parent() {
 	let mut number = 0;
 	let mut parent_hash = [0; 32];
 	let mut last_state = 0;
-	let pool = parachain::wasm_executor::ValidationPool::new(true);
+	let pool = validation_pool();
 
 	for add in 0..10 {
 		let parent_head = HeadData {
@@ -131,7 +145,7 @@ fn execute_good_chain_on_parent() {
 
 #[test]
 fn execute_bad_on_parent() {
-	let pool = parachain::wasm_executor::ValidationPool::new(true);
+	let pool = validation_pool();
 
 	let parent_head = HeadData {
 		number: 0,

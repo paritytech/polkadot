@@ -16,7 +16,7 @@
 
 #![cfg(not(any(target_os = "android", target_os = "unknown")))]
 
-use std::{process, env, sync::Arc, sync::atomic};
+use std::{process, env, sync::Arc, sync::atomic, path::PathBuf};
 use codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
 use super::{
@@ -29,7 +29,6 @@ use log::{debug, trace};
 use futures::executor::ThreadPool;
 use sp_core::traits::SpawnNamed;
 
-const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 /// CLI Argument to start in validation worker mode.
 const WORKER_ARG: &'static str = "validation-worker";
 const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
@@ -66,21 +65,38 @@ impl SpawnNamed for TaskExecutor {
 	}
 }
 
+/// The execution mode for the `ValidationPool`.
+#[derive(Debug, Clone)]
+pub enum ValidationExecutionMode {
+	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
+	/// following by the address of the shared memory.
+	Local,
+	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
+	/// memory is added at the end of the arguments.
+	Remote {
+		/// Path to the validation worker. The file must exists and be executable.
+		binary: PathBuf,
+		/// List of arguments passed to the validation worker. The address of the shared memory will be automatically
+		/// added after the arguments.
+		args: Vec<String>,
+	},
+}
+
 /// A pool of hosts.
 #[derive(Clone)]
 pub struct ValidationPool {
 	hosts: Arc<Vec<Mutex<ValidationHost>>>,
-	test_mode: bool,
+	execution_mode: ValidationExecutionMode,
 }
 
 const DEFAULT_NUM_HOSTS: usize = 8;
 
 impl ValidationPool {
 	/// Creates a validation pool with the default configuration.
-	pub fn new(test_mode: bool) -> ValidationPool {
+	pub fn new(execution_mode: ValidationExecutionMode) -> ValidationPool {
 		ValidationPool {
 			hosts: Arc::new((0..DEFAULT_NUM_HOSTS).map(|_| Default::default()).collect()),
-			test_mode,
+			execution_mode,
 		}
 	}
 
@@ -95,12 +111,12 @@ impl ValidationPool {
 	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
-				return host.validate_candidate(validation_code, params, self.test_mode);
+				return host.validate_candidate(validation_code, params, self.execution_mode.clone());
 			}
 		}
 
 		// all workers are busy, just wait for the first one
-		self.hosts[0].lock().validate_candidate(validation_code, params, self.test_mode)
+		self.hosts[0].lock().validate_candidate(validation_code, params, self.execution_mode.clone())
 	}
 }
 
@@ -234,7 +250,7 @@ impl ValidationHost {
 		Ok(mem_config.create()?)
 	}
 
-	fn start_worker(&mut self, test_mode: bool) -> Result<(), InternalError> {
+	fn start_worker(&mut self, execution_mode: ValidationExecutionMode) -> Result<(), InternalError> {
 		if let Some(ref mut worker) = self.worker {
 			// Check if still alive
 			if let Ok(None) = worker.try_wait() {
@@ -243,12 +259,17 @@ impl ValidationHost {
 			}
 		}
 		let memory = Self::create_memory()?;
-		let self_path = env::current_exe()?;
-		debug!("Starting worker at {:?}", self_path);
-		let mut args = if test_mode { WORKER_ARGS_TEST.to_vec() } else { WORKER_ARGS.to_vec() };
-		args.push(memory.get_os_path());
-		let worker = process::Command::new(self_path)
+		let (cmd, args) = match execution_mode {
+			ValidationExecutionMode::Local => (
+				env::current_exe()?,
+				WORKER_ARGS.iter().map(|x| x.to_string()).collect()
+			),
+			ValidationExecutionMode::Remote { binary, args } => (binary, args),
+		};
+		debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
+		let worker = process::Command::new(cmd)
 			.args(args)
+			.arg(memory.get_os_path())
 			.stdin(process::Stdio::piped())
 			.spawn()?;
 		self.id = worker.id();
@@ -269,13 +290,13 @@ impl ValidationHost {
 		&mut self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		test_mode: bool,
+		execution_mode: ValidationExecutionMode,
 	) -> Result<ValidationResult, ValidationError> {
 		if validation_code.len() > MAX_CODE_MEM {
 			return Err(ValidationError::InvalidCandidate(InvalidCandidate::CodeTooLarge(validation_code.len())));
 		}
 		// First, check if need to spawn the child process
-		self.start_worker(test_mode)?;
+		self.start_worker(execution_mode)?;
 		let memory = self.memory.as_mut()
 			.expect("memory is always `Some` after `start_worker` completes successfully");
 		{

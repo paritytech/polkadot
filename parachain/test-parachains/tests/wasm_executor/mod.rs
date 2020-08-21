@@ -16,15 +16,26 @@
 
 //! Basic parachain that adds a number as part of its state.
 
+const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
+
 use crate::adder;
 use parachain::{
 	primitives::{BlockData, ValidationParams},
-	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC},
+	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC, ValidationExecutionMode, ValidationPool},
 };
+
+fn validation_pool() -> ValidationPool {
+	let execution_mode = ValidationExecutionMode::Remote {
+		binary: std::env::current_exe().unwrap(),
+		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+	};
+
+	ValidationPool::new(execution_mode)
+}
 
 #[test]
 fn terminates_on_timeout() {
-	let pool = parachain::wasm_executor::ValidationPool::new(true);
+	let pool = validation_pool();
 
 	let result = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -48,7 +59,7 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
-	let pool = parachain::wasm_executor::ValidationPool::new(true);
+	let pool = validation_pool();
 
 	let start = std::time::Instant::now();
 

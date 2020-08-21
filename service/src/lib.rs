@@ -48,12 +48,14 @@ pub use polkadot_primitives::v0::{Block, CollatorId, ParachainHost};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
 #[cfg(feature = "full-node")]
-pub use consensus::run_validation_worker;
+pub use consensus::{run_validation_worker, pipeline::{ValidationPool, ValidationExecutionMode}};
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 pub use self::client::*;
+
+const VALIDATION_WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -391,6 +393,15 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		polkadot_network_service.register_availability_store(availability_store.clone());
 
+		let execution_mode = if test_mode {
+			ValidationExecutionMode::Remote {
+				binary: std::env::current_exe().unwrap(),
+				args: VALIDATION_WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+			}
+		} else {
+			ValidationExecutionMode::Local
+		};
+
 		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
 			client: client.clone(),
 			network: polkadot_network_service.clone(),
@@ -400,7 +411,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			select_chain: select_chain.clone(),
 			keystore: keystore.clone(),
 			max_block_data_size,
-			test_mode,
+			execution_mode,
 		}.build();
 
 		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));

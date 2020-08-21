@@ -28,7 +28,7 @@ use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
-pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, ValidationExecutionMode};
 
 mod validation_host;
 
