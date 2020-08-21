@@ -150,13 +150,6 @@ pub fn validate_candidate(
 					"Remote validator not available".to_string()
 				) as Box<_>
 			))),
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::RemoteTest(_pool) =>
-			Err(ValidationError::Internal(InternalError::System(
-				Box::<dyn std::error::Error + Send + Sync>::from(
-					"Remote validator not available".to_string()
-				) as Box<_>
-			))),
 	}
 }
 
