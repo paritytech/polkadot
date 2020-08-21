@@ -28,12 +28,14 @@ use serde::{Serialize, Deserialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
+use polkadot_core_primitives::Hash;
+
 /// Block number type used by the relay chain.
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for HeadData {
@@ -44,7 +46,7 @@ impl From<Vec<u8>> for HeadData {
 
 /// Parachain validation code.
 #[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
 impl From<Vec<u8>> for ValidationCode {
@@ -186,7 +188,7 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 #[repr(u8)]
 pub enum ParachainDispatchOrigin {
 	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
@@ -215,7 +217,7 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 
 /// A message from a parachain to its Relay Chain.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub struct UpwardMessage {
 	/// The origin for the message to be sent from.
 	pub origin: ParachainDispatchOrigin,
@@ -228,22 +230,16 @@ pub struct UpwardMessage {
 #[derive(PartialEq, Eq, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Encode))]
 pub struct ValidationParams {
-	/// The collation body.
-	pub block_data: BlockData,
 	/// Previous head-data.
 	pub parent_head: HeadData,
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
+	/// The collation body.
+	pub block_data: BlockData,
 	/// The current relay-chain block number.
-	pub relay_chain_height: polkadot_core_primitives::BlockNumber,
-	/// Whether a code upgrade is allowed or not, and at which height the upgrade
-	/// would be applied after, if so. The parachain logic should apply any upgrade
-	/// issued in this block after the first block
-	/// with `relay_chain_height` at least this value, if `Some`. if `None`, issue
-	/// no upgrade.
-	pub code_upgrade_allowed: Option<polkadot_core_primitives::BlockNumber>,
+	pub relay_chain_height: RelayChainBlockNumber,
+	/// The list of MQC heads for the inbound HRMP channels paired with the sender para ids. This
+	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
+	/// sender.
+	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
 }
 
 /// The result of parachain validation.
