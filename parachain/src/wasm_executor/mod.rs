@@ -178,7 +178,7 @@ pub fn validate_candidate_internal(
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
 	let executor = sc_executor::WasmExecutor::new(
-		sc_executor::WasmExecutionMethod::Interpreted,
+		sc_executor::WasmExecutionMethod::Compiled,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
 		Some(1024),
 		HostFunctions::host_functions(),
