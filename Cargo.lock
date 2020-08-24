@@ -5268,6 +5268,7 @@ dependencies = [
  "polkadot-rpc",
  "polkadot-runtime",
  "polkadot-test-runtime-client",
+ "rococo-v1-runtime",
  "sc-authority-discovery",
  "sc-block-builder",
  "sc-chain-spec",

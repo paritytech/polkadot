@@ -20,6 +20,7 @@ use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId};
 use polkadot_runtime as polkadot;
 use kusama_runtime as kusama;
+use rococo_runtime as rococo;
 use westend_runtime as westend;
 use polkadot::constants::currency::DOTS;
 use kusama::constants::currency::DOTS as KSM;
