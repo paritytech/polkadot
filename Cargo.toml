@@ -10,8 +10,6 @@ edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-# It looks like this is the only way to pass features to it
-collator = { package = "polkadot-collator", path = "collator" }
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -23,13 +21,9 @@ tempfile = "3.1.0"
 
 [workspace]
 members = [
-	"availability-store",
 	"cli",
-	"collator",
 	"core-primitives",
 	"erasure-coding",
-	"network",
-	"network/test",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
@@ -69,7 +63,6 @@ members = [
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
-	"parachain/test-parachains/adder/collator",
 ]
 
 [badges]
@@ -83,5 +76,4 @@ panic = "unwind"
 runtime-benchmarks=["cli/runtime-benchmarks"]
 service-rewr= [
 	"cli/service-rewr",
-	"collator/service-rewr",
 ]
