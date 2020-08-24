@@ -395,7 +395,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 		let execution_mode = if test_mode {
 			ValidationExecutionMode::Remote {
-				binary: std::env::current_exe().unwrap(),
+				binary: std::env::current_exe().map_err(|_| "Could not get current executable name")?,
 				args: VALIDATION_WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
 			}
 		} else {
