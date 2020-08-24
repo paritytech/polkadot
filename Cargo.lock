@@ -4722,7 +4722,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.8.19"
+version = "0.8.22"
 dependencies = [
  "assert_cmd",
  "futures 0.3.5",
