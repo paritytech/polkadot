@@ -187,7 +187,7 @@ struct TransientValidationData {
 
 struct HrmpChannelLimits {
 	/// Indicates if the channel is already full and cannot accept any more messages.
-	overfilled: bool,
+	is_full: bool,
 	/// A message sent to the channel can occupy only that many bytes.
 	available_size: u32,
 }
