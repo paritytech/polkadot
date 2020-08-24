@@ -1203,13 +1203,7 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
-			pallet: Vec<u8>,
-			benchmark: Vec<u8>,
-			lowest_range_values: Vec<u32>,
-			highest_range_values: Vec<u32>,
-			steps: Vec<u32>,
-			repeat: u32,
-			extra: bool,
+			config: frame_benchmarking::BenchmarkConfig
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
@@ -1239,16 +1233,7 @@ sp_api::impl_runtime_apis! {
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
-			let params = (
-				&pallet,
-				&benchmark,
-				&lowest_range_values,
-				&highest_range_values,
-				&steps,
-				repeat,
-				&whitelist,
-				extra,
-			);
+			let params = (&config, &whitelist);
 			// Polkadot
 			add_benchmark!(params, batches, claims, Claims);
 			// Substrate
