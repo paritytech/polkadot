@@ -144,9 +144,7 @@ pub fn run() -> Result<()> {
 					_ => service::build_full(
 						config,
 						None,
-						None,
 						authority_discovery_enabled,
-						6000,
 						grandpa_pause,
 					).map(|r| r.0),
 				}
