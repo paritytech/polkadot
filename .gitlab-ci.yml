@@ -193,6 +193,9 @@ build-linux-release:               &build
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
+  # only for rococo for this branch
+  only:
+    - rococo-branch
 
 
 generate-impl-guide:
