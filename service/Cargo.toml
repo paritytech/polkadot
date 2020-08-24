@@ -67,5 +67,10 @@ env_logger = "0.7.0"
 [features]
 default = ["db", "full-node"]
 db = ["service/db"]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
+runtime-benchmarks = [
+	"polkadot-runtime/runtime-benchmarks",
+	"kusama-runtime/runtime-benchmarks",
+	"westend-runtime/runtime-benchmarks",
+	"rococo-runtime/runtime-benchmarks"
+]
 full-node = ["av_store", "consensus", "polkadot-network"]

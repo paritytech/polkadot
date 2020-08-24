@@ -692,7 +692,7 @@ impl EnsureOrigin<Origin> for PriviledgedOrigin {
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn successful_origin() -> OuterOrigin { Origin::root() }
+	fn successful_origin() -> Origin { Origin::root() }
 }
 
 impl propose_parachain::Trait for Runtime {
@@ -1019,17 +1019,14 @@ sp_api::impl_runtime_apis! {
 			highest_range_values: Vec<u32>,
 			steps: Vec<u32>,
 			repeat: u32,
+			extra: bool,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark};
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
 			// To get around that, we separated the Session benchmarks into its own crate, which is why
 			// we need these two lines below.
-			use pallet_session_benchmarking::Module as SessionBench;
-			use pallet_offences_benchmarking::Module as OffencesBench;
 			use frame_system_benchmarking::Module as SystemBench;
 
-			impl pallet_session_benchmarking::Trait for Runtime {}
-			impl pallet_offences_benchmarking::Trait for Runtime {}
 			impl frame_system_benchmarking::Trait for Runtime {}
 
 			let whitelist: Vec<Vec<u8>> = vec![
@@ -1051,15 +1048,12 @@ sp_api::impl_runtime_apis! {
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
-			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist);
+			let params = (&pallet, &benchmark, &lowest_range_values, &highest_range_values, &steps, repeat, &whitelist, extra);
 
-			add_benchmark!(params, batches, balances,Balances);
-			add_benchmark!(params, batches, identity,Identity);
-			add_benchmark!(params, batches, im_online,ImOnline);
-			add_benchmark!(params, batches, offences,OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, balances, Balances);
+			add_benchmark!(params, batches, identity, Identity);
+			add_benchmark!(params, batches, im_online, ImOnline);
 			add_benchmark!(params, batches, scheduler, Scheduler);
-			add_benchmark!(params, batches, session, SessionBench::<Runtime>);
-			add_benchmark!(params, batches, staking, Staking);
 			add_benchmark!(params, batches, system, SystemBench::<Runtime>);
 			add_benchmark!(params, batches, timestamp, Timestamp);
 			add_benchmark!(params, batches, utility, Utility);
