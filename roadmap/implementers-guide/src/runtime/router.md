@@ -204,6 +204,7 @@ Candidate Enactment:
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, new_dmq_watermark)`:
   1. Remove all messages in `DownwardMessageQueues` for `P` up to (including) a message with `sent_at` equal to `new_dmq_watermark`.
+  1. Remove all block numbers up to (including) `new_dmq_watermark` in `DownwardMessagesDigest` for `P`
 * `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
   1. Process all upward messages in order depending on their kinds:
   1. If the message kind is `Dispatchable`:
