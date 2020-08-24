@@ -167,22 +167,37 @@ struct TransientValidationData {
 	///
 	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
-	/// A vector that enumerates the list of blocks in which there was at least one message
-	/// received. The first number is always after the watermark.
-	hrmp_digest: Vec<BlockNumber>,
-	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
-	/// sent to the parachain are processed.
-	hrmp_watermark: BlockNumber,
-	/// A mapping that specifies if the parachain can send an HRMP message to the given recipient
-	/// channel. A candidate can send a message only to the recipients that are present in this
-	/// mapping.
-	/// Since it's a mapping there can't be two items with same `ParaId`.
-	hrmp_egress_limits: Vec<(ParaId, HrmpChannelLimits)>,
 	/// A copy of `config.max_upward_message_num_per_candidate` for checking that a candidate doesn't
 	/// send more messages that permitted.
 	config_max_upward_message_num_per_candidate: u32,
 	/// The number of messages pending of the downward message queue.
 	dmq_length: u32,
+	/// A part of transient validaiton data related to HRMP.
+	hrmp: HrmpTransientValidationData,
+}
+
+struct HrmpTransientValidationData {
+	/// A vector that enumerates the list of blocks in which there was at least one HRMP message
+	/// received.
+	///
+	/// The first number in the vector, if any, is always greater than the HRMP watermark. The
+	/// elements are ordered by ascending the block number. The vector doesn't contain duplicates.
+	digest: Vec<BlockNumber>,
+	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
+	/// sent to the parachain are processed.
+	watermark: BlockNumber,
+	/// A mapping that specifies if the parachain can send an HRMP message to the given recipient
+	/// channel. A candidate can send a message only to the recipients that are present in this
+	/// mapping. The number elements in this vector corresponds to the number of egress channels.
+	/// Since it's a mapping there can't be two items with same `ParaId`.
+	egress_limits: Vec<(ParaId, HrmpChannelLimits)>,
+	/// The vector of paras that have a channel to this para. The number of elements in this vector
+	/// correponds to the number of egress channels.
+	ingress_senders: Vec<ParaId>,
+	/// A list of open requests in which the para participates either as sender or recipient.
+	open_requests: Vec<(HrmpChannelId, HrmpOpenChannelRequest)>,
+	/// A list of open requests in which the para participates either as sender or recipient.
+	close_requests: Vec<HrmpChannelId>,
 }
 
 struct HrmpChannelLimits {
