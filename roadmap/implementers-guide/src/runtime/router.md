@@ -23,8 +23,28 @@ NeedsDispatch: Vec<ParaId>;
 /// This is the para that gets will get dispatched first during the next upward dispatchable queue
 /// execution round.
 NextDispatchRoundStartWith: Option<ParaId>;
+```
+
+### DMP
+
+Storage layout required for implementation of DMP.
+
+```
 /// The downward messages addressed for a certain para.
-DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
+DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
+/// A mapping that stores the downward message queue MQC head for each para.
+///
+/// Each link in this chain has a form:
+/// `(prev_head, B, H(M))`, where
+/// - `prev_head`: is the previous head hash.
+/// - `B`: is the relay-chain block number in which a message was appended.
+/// - `H(M)`: is the hash of the message being appended.
+/// This value is initialized to a special value that consists of all zeroes which indicates
+/// that no messages were previously added.
+DownwardMessageQueueHeads: map ParaId => Option<Hash>;
+DownwardMessageQueueWatermarks: map ParaId => Option<BlockNumber>;
+/// A set of numbers of blocks in which at least one downward message were enqueued for a given para.
+DownwardMessagesDigest: map ParaId => Vec<BlockNumber>;
 ```
 
 ### HRMP
@@ -115,7 +135,7 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
-/// Invariant: The vector is never empty.
+/// Invariant: The para ids vector is never empty.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
@@ -151,9 +171,10 @@ Candidate Acceptance Function:
       1. Check that `P` is either `ch.sender` or `ch.recipient`
       1. Check that `HrmpChannels` for `ch` exists.
       1. Check that `ch` is not in the `HrmpCloseChannelRequests` set.
-* `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
-  1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
-  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
+* `check_dmq_watermark(P: ParaId, new_dmq_watermark)`:
+  1. `new_dmq_watermark` should be strictly greater than the value of `DownwardMessageQueueWatermarks` for `P` (if any).
+  1. `new_dmq_watermark` must be not greater than the context's block number.
+  1. in `DownwardMessagesDigest` for `P` an entry with the block number equal to `new_dmq_watermark` should exist.
 * `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
   1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
   1. `new_hrmp_watermark` must not be greater than the context's block number.
@@ -168,7 +189,7 @@ Candidate Enactment:
 
 * `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
-    1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
+    1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
     1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
     1. Increment `C.used_places`
     1. Increment `C.used_bytes` by `HM`'s payload size
@@ -181,8 +202,8 @@ Candidate Enactment:
       1. Decrement `C.used_places`
       1. Decrement `C.used_bytes` by `M`'s payload size.
   1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
-* `prune_dmq(P: ParaId, processed_downward_messages)`:
-  1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
+* `prune_dmq(P: ParaId, new_dmq_watermark)`:
+  1. Remove all messages in `DownwardMessageQueues` for `P` up to (including) a message with `sent_at` equal to `new_dmq_watermark`.
 * `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
   1. Process all upward messages in order depending on their kinds:
   1. If the message kind is `Dispatchable`:
@@ -228,7 +249,15 @@ any of dispatchables return an error.
       1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
   1. Then, for each `P` and the vector of `DispatchResult` in `R`:
       1. Obtain a message by wrapping the vector into `DownwardMessage::DispatchResult`
-      1. Append the resulting message to `DownwardMessageQueues` for `P`.
+      1. Call `enqueue_downward_message` with `P` and the resulting message.
+
+Utility routines.
+
+`queue_downward_message(P: ParaId, M: DownwardMessage)`:
+    1. Wrap `M` into `InboundDownwardMessage` using the current block number for `sent_at`.
+    1. Obtain a new MQC link for the resulting `InboundDownwardMessage` and replace `DownwardMessageQueueHeads` for `P` with the resulting hash.
+    1. Adds the current block number to the set `DownwardMessagesDigest` for `P`.
+    1. Add the resulting `InboundDownwardMessage` into `DownwardMessageQueues` for `P`.
 
 ## Session Change
 
@@ -236,6 +265,9 @@ any of dispatchables return an error.
   1. Remove all inbound channels of `P`, i.e. `(_, P)`,
   1. Remove all outbound channels of `P`, i.e. `(P, _)`,
   1. Remove all `DownwardMessageQueues` of `P`.
+  1. Remove `DownwardMessageQueueWatermarks` for `P`.
+  1. Remove `DownwardMessageQueueHeads` for `P`.
+  1. Remove `DownwardMessagesDigest` for `P`.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
   1. Remove `P` if it exists in `NeedsDispatch`.
@@ -259,12 +291,12 @@ any of dispatchables return an error.
         1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
         1. remove `R`
         1. remove `D`
-1. For each channel designator `D` in `HrmpCloseChannelRequestsList`
+1. For each HRMP channel designator `D` in `HrmpCloseChannelRequestsList`
     1. remove the channel identified by `D`, if exists.
     1. remove `D` from `HrmpCloseChannelRequests`.
     1. remove `D` from `HrmpCloseChannelRequestsList`
 
-To remove a channel `C` identified with a tuple `(sender, recipient)`:
+To remove a HRMP channel `C` identified with a tuple `(sender, recipient)`:
 
 1. Return `C.sender_deposit` to the `sender`.
 1. Return `C.recipient_deposit` to the `recipient`.

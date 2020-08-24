@@ -69,7 +69,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. Check the collator's signature on the candidate data.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. call `Router::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
-  1. call `Router::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
+  1. call `Router::check_dmq_watermark(para, commitments.dmq_watermark)` for each canddiate to check rules of processing the DMQ watermark.
   1. call `Router::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
   1. check that in the commitments of each candidate the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
   1. using `Router::verify_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate send a valid set of horizontal messages
@@ -82,7 +82,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. call `Router::enact_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
   1. call `Router::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. call `Router::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
-  1. call `Router::prune_dmq` with the para id of the candidate and the candidate's `processed_downward_messages`.
+  1. call `Router::prune_dmq` with the para id of the candidate and the candidate's `dmq_watermark`.
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
 * `collect_pending`:
 

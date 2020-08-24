@@ -129,9 +129,14 @@ struct PersistedValidationData {
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
 	///
-	/// The MQC heads will be used by the validation function to authorize the input messages passed
+	/// The HRMP MQC heads will be used by the validation function to authorize the input messages passed
 	/// by the collator.
 	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
+	/// The MQC head for the DMQ.
+	///
+	/// The DMQ MQC head will be used by the validation fnction to authorize the downward messages
+	/// passed by the collator.
+	dmq_mqc_head: Hash,
 }
 ```
 
@@ -170,9 +175,13 @@ struct TransientValidationData {
 	/// A copy of `config.max_upward_message_num_per_candidate` for checking that a candidate doesn't
 	/// send more messages that permitted.
 	config_max_upward_message_num_per_candidate: u32,
-	/// The number of messages pending of the downward message queue.
-	dmq_length: u32,
-	/// A part of transient validation data related to HRMP.
+	/// A vector that enumerates the list of blocks in which there was at least one DMQ messages
+	/// enqueued.
+	///
+	/// The first number in the vector, if any, is always greater than the DMQ watermark. The
+	/// elements are ordered by ascending the block number. The vector doesn't contain duplicates.
+	dmq_digest: Vec<BlockNumber>,
+	/// A part of transient validaiton data related to HRMP.
 	hrmp: HrmpTransientValidationData,
 }
 
@@ -246,8 +255,8 @@ struct CandidateCommitments {
 	new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	head_data: HeadData,
-	/// The number of messages processed from the DMQ.
-	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound DMP messages are processed.
+	dmq_watermark: BlockNumber,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	hrmp_watermark: BlockNumber,
 }
@@ -284,8 +293,8 @@ struct ValidationOutputs {
 	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
-	/// The number of messages processed from the DMQ.
-	processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound DMP messages are processed.
+	dmq_watermark: BlockNumber,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	hrmp_watermark: BlockNumber,
 }
