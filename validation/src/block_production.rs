@@ -22,36 +22,25 @@
 use std::{
 	pin::Pin,
 	sync::Arc,
-	time::{self, Duration, Instant},
+	time::Duration,
 };
 
 use sp_blockchain::HeaderBackend;
 use block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use consensus::{Proposal, RecordProof};
-use polkadot_primitives::v0::{Block, Header};
-use polkadot_primitives::v0::{
-	ParachainHost, NEW_HEADS_IDENTIFIER,
-};
+use polkadot_primitives::v0::{NEW_HEADS_IDENTIFIER, Block, Header, AttestedCandidate};
 use runtime_primitives::traits::{DigestFor, HashFor};
-use futures_timer::Delay;
 use txpool_api::TransactionPool;
 
 use futures::prelude::*;
 use inherents::InherentData;
-use sp_timestamp::TimestampInherentData;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use prometheus_endpoint::Registry as PrometheusRegistry;
 
-use crate::{
-	Error,
-	dynamic_inclusion::DynamicInclusion,
-	validation_service::ServiceHandle,
-};
+use crate::Error;
 
 // Polkadot proposer factory.
 pub struct ProposerFactory<Client, TxPool, Backend> {
-	service_handle: ServiceHandle,
-	babe_slot_duration: u64,
 	factory: sc_basic_authorship::ProposerFactory<TxPool, Backend, Client>,
 }
 
@@ -60,8 +49,6 @@ impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 	pub fn new(
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
-		service_handle: ServiceHandle,
-		babe_slot_duration: u64,
 		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		let factory = sc_basic_authorship::ProposerFactory::new(
@@ -70,8 +57,6 @@ impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 			prometheus,
 		);
 		ProposerFactory {
-			service_handle,
-			babe_slot_duration,
 			factory,
 		}
 	}
@@ -82,7 +67,7 @@ impl<Client, TxPool, Backend> consensus::Environment<Block>
 where
 	TxPool: TransactionPool<Block=Block> + 'static,
 	Client: BlockBuilderProvider<Backend, Block, Client> + ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block>
+	Client::Api: BlockBuilderApi<Block>
 		+ ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<
 		Block,
@@ -101,37 +86,24 @@ where
 		&mut self,
 		parent_header: &Header,
 	) -> Self::CreateProposer {
-		let parent_hash = parent_header.hash();
-		let slot_duration = self.babe_slot_duration.clone();
-		let proposer = self.factory.init(parent_header).into_inner();
+		let proposer = self.factory.init(parent_header)
+			.into_inner()
+			.map_err(Into::into)
+			.map(|proposer| Proposer { proposer });
 
-		let maybe_proposer = self.service_handle
-			.clone()
-			.get_validation_instance(parent_hash)
-			.and_then(move |tracker| future::ready(proposer
-				.map_err(Into::into)
-				.map(|proposer| Proposer {
-					tracker,
-					slot_duration,
-					proposer,
-				})
-			));
-
-		Box::pin(maybe_proposer)
+		Box::pin(future::ready(proposer))
 	}
 }
 
 /// The Polkadot proposer logic.
 pub struct Proposer<Client, TxPool: TransactionPool<Block=Block>, Backend> {
-	tracker: crate::validation_service::ValidationInstanceHandle,
-	slot_duration: u64,
 	proposer: sc_basic_authorship::Proposer<Backend, Block, Client, TxPool>,
 }
 
 impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, TxPool, Backend> where
 	TxPool: TransactionPool<Block=Block> + 'static,
 	Client: BlockBuilderProvider<Backend, Block, Client> + ProvideRuntimeApi<Block> + HeaderBackend<Block> + Send + Sync + 'static,
-	Client::Api: ParachainHost<Block> + BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
+	Client::Api: BlockBuilderApi<Block> + ApiExt<Block, Error = sp_blockchain::Error>,
 	Backend: sc_client_api::Backend<Block, State = sp_api::StateBackendFor<Client, Block>> + 'static,
 	// Rust bug: https://github.com/rust-lang/rust/issues/24159
 	sp_api::StateBackendFor<Client, Block>: sp_api::StateBackend<HashFor<Block>> + Send,
@@ -140,8 +112,11 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 	type Transaction = sp_api::TransactionFor<Client, Block>;
 	type Proposal = Pin<
 		Box<
-			dyn Future<Output = Result<Proposal<Block, sp_api::TransactionFor<Client, Block>>, Error>>
-				+ Send
+			dyn Future<Output = Result<
+				Proposal<Block, sp_api::TransactionFor<Client, Block>>,
+				Self::Error,
+			>>
+			+ Send
 		>
 	>;
 
@@ -152,57 +127,17 @@ impl<Client, TxPool, Backend> consensus::Proposer<Block> for Proposer<Client, Tx
 		max_duration: Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		const SLOT_DURATION_DENOMINATOR: u64 = 3; // wait up to 1/3 of the slot for candidates.
-
-		let initial_included = self.tracker.table().includable_count();
-		let now = Instant::now();
-
-		let dynamic_inclusion = DynamicInclusion::new(
-			self.tracker.table().num_parachains(),
-			self.tracker.started(),
-			Duration::from_millis(self.slot_duration / SLOT_DURATION_DENOMINATOR),
-		);
-
 		async move {
-			let enough_candidates = dynamic_inclusion.acceptable_in(
-				now,
-				initial_included,
-			).unwrap_or_else(|| Duration::from_millis(1));
-
-			let believed_timestamp = match inherent_data.timestamp_inherent_data() {
-				Ok(timestamp) => timestamp,
-				Err(e) => return Err(Error::InherentError(e)),
-			};
-
-			let deadline_diff = max_duration - max_duration / 3;
-
-			// set up delay until next allowed timestamp.
-			let current_timestamp = current_timestamp();
-			if current_timestamp < believed_timestamp {
-				Delay::new(Duration::from_millis(current_timestamp - believed_timestamp))
-					.await;
-			}
-
-			Delay::new(enough_candidates).await;
-
-			let proposed_candidates = self.tracker.table().proposed_set();
-
 			let mut inherent_data = inherent_data;
-			inherent_data.put_data(NEW_HEADS_IDENTIFIER, &proposed_candidates)
+			inherent_data.put_data(NEW_HEADS_IDENTIFIER, &Vec::<AttestedCandidate>::new())
 				.map_err(Error::InherentError)?;
 
 			self.proposer.propose(
 				inherent_data,
 				inherent_digests.clone(),
-				deadline_diff,
+				max_duration,
 				record_proof
 			).await.map_err(Into::into)
 		}.boxed()
 	}
-}
-
-fn current_timestamp() -> u64 {
-	time::SystemTime::now().duration_since(time::UNIX_EPOCH)
-		.expect("now always later than unix epoch; qed")
-		.as_millis() as u64
 }

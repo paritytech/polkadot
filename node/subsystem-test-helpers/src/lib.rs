@@ -275,16 +275,13 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	let overseer = overseer_factory(handle);
 	let test = test_factory(context);
 
-	let timeout = Delay::new(Duration::from_secs(2));
-
-	futures::pin_mut!(overseer, test, timeout);
+	futures::pin_mut!(overseer, test);
 
 	futures::executor::block_on(async move {
-		futures::select! {
-			_ = overseer.fuse() => (),
-			_ = test.fuse() => (),
-			_ = timeout.fuse() => panic!("test timed out instead of completing"),
-		}
+		future::join(overseer, test)
+			.timeout(Duration::from_secs(2))
+			.await
+			.expect("test timed out instead of completing")
 	});
 }
 
