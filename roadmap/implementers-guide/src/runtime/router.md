@@ -6,7 +6,7 @@ The Router module is responsible for all messaging mechanisms supported between 
 
 Storage layout:
 
-```rust,ignore
+```rust
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
@@ -31,7 +31,7 @@ DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 
 HRMP related structs:
 
-```rust,ignore
+```rust
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
     /// Indicates if this request was confirmed by the recipient.
@@ -74,7 +74,7 @@ struct HrmpChannel {
 ```
 HRMP related storage layout
 
-```rust,ignore
+```rust
 /// The set of pending HRMP open channel requests.
 ///
 /// The set is accompanied by a list for iteration.

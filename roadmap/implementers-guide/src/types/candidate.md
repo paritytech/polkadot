@@ -197,10 +197,15 @@ struct HrmpTransientValidationData {
 	/// A vector of open requests in which the para participates either as sender or recipient. The
 	/// items are ordered ascending by `HrmpChannelId`. The vector doesn't contain two entries
 	/// with the same `HrmpChannelId`.
-	open_requests: Vec<(HrmpChannelId, HrmpOpenChannelRequest)>,
+	open_requests: Vec<(HrmpChannelId, HrmpAbridgedOpenChannelRequest)>,
 	/// A vector of close requests in which the para participates either as sender or recipient.
 	/// The vector doesn't contain two entries with the same `HrmpChannelId`.
 	close_requests: Vec<HrmpChannelId>,
+}
+
+/// A shorter version of `HrmpOpenChannelRequest`.
+struct HrmpAbridgedOpenChannelRequest {
+	confirmed: bool,
 }
 
 struct HrmpChannelLimits {
