@@ -35,7 +35,7 @@ use runtime_common::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Permill, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -51,7 +51,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -59,7 +59,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureSignedBy, EnsureOneOf};
+use frame_system::{EnsureRoot};
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -740,7 +740,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::Module::<Runtime>::remove_pallet()
+		purchase::remove_pallet::<Runtime>()
 	}
 }
 

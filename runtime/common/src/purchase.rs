@@ -358,17 +358,6 @@ impl<T: Trait> Module<T> {
 			false => Err(Error::<T>::InvalidSignature)?,
 		}
 	}
-
-	/// WARNING: Executing this function will clear all storage used by this pallet.
-	/// Be sure this is what you want...
-	pub fn remove_pallet() -> Weight{
-		Accounts::<T>::remove_all();
-		PaymentAccount::<T>::remove();
-		Statement::remove();
-		UnlockBlock::<T>::remove();
-
-		T::MaximumBlockWeight::get()
-	}
 }
 
 // This function converts a 32 byte AccountId to its byte-array equivalent form.
@@ -380,6 +369,20 @@ fn account_to_bytes<AccountId>(account: &AccountId) -> Result<[u8; 32], Dispatch
 	let mut bytes = [0u8; 32];
 	bytes.copy_from_slice(&account_vec);
 	Ok(bytes)
+}
+
+/// WARNING: Executing this function will clear all storage used by this pallet.
+/// Be sure this is what you want...
+pub fn remove_pallet<T>() -> frame_support::weights::Weight
+	where T: frame_system::Trait
+{
+	use frame_support::migration::remove_storage_prefix;
+	remove_storage_prefix(b"Purchase", b"Accounts", b"");
+	remove_storage_prefix(b"Purchase", b"PaymentAccount", b"");
+	remove_storage_prefix(b"Purchase", b"Statement", b"");
+	remove_storage_prefix(b"Purchase", b"UnlockBlock", b"");
+
+	T::MaximumBlockWeight::get()
 }
 
 #[cfg(test)]
@@ -1020,6 +1023,42 @@ mod tests {
 				Origin::signed(payment_account()),
 				alice(),
 			), BalancesError::<Test, _>::InsufficientBalance);
+		});
+	}
+
+	#[test]
+	fn remove_pallet_works() {
+		new_test_ext().execute_with(|| {
+			let account_status = AccountStatus {
+				validity: AccountValidity::Completed,
+				free_balance: 1234,
+				locked_balance: 4321,
+				signature: b"my signature".to_vec(),
+				vat: Permill::from_percent(50),
+			};
+
+			// Add some storage.
+			Accounts::<Test>::insert(alice(), account_status.clone());
+			Accounts::<Test>::insert(bob(), account_status);
+			PaymentAccount::<Test>::put(alice());
+			Statement::put(b"hello, world!".to_vec());
+			UnlockBlock::<Test>::put(4);
+
+			// Verify storage exists.
+			assert_eq!(Accounts::<Test>::iter().count(), 2);
+			assert!(PaymentAccount::<Test>::exists());
+			assert!(Statement::exists());
+			assert!(UnlockBlock::<Test>::exists());
+
+			// Remove storage.
+			remove_pallet::<Test>();
+
+			// Verify storage is gone.
+			assert_eq!(Accounts::<Test>::iter().count(), 0);
+			assert!(!PaymentAccount::<Test>::exists());
+			assert!(!Statement::exists());
+			assert!(!UnlockBlock::<Test>::exists());
+
 		});
 	}
 }

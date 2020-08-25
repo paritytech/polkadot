@@ -50,11 +50,11 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use frame_system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
+use frame_system::{EnsureRoot, EnsureOneOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -109,7 +109,8 @@ impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
 			// Parachains stuff
-			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) =>
+			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) |
+			Call::DummyPurchase(_) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
@@ -121,9 +122,8 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
-			Call::Purchase(_) =>
-				true,
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_)
+			=> true,
 		}
 	}
 }
@@ -872,7 +872,7 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::Module::<Runtime>::remove_pallet()
+		purchase::remove_pallet::<Runtime>()
 	}
 }
 
