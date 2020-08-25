@@ -5,14 +5,14 @@ Polkadot/Kusama/Westend runtime or client:
 
 ### All Releases
 
-- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 24
+- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 12
   hours.
 - [ ] Add [build artifacts](#build-artifacts) to the release.
 
 ### Runtime Releases
 
 - [ ] List any [native runtime](#native-runtimes) versions associated with the release.
-- [ ] Increment [`spec_version`](#spec-version) for any native runtimes.
+- [ ] Has incremented  [`spec_version`](#spec-version) for any native runtimes from any existing use on public (non-private/test) networks.
 - [ ] Verify [new migrations](#new-migrations) complete successfully, and the runtime state is
   correctly updated.
 - [ ] Verify previously [completed migrations](#old-migrations-removed) are removed.
@@ -28,7 +28,7 @@ Polkadot/Kusama/Westend runtime or client:
 ### Burn In
 
 Ensure that Parity DevOps has run the new release on Westend, Kusama, and Polkadot validators for
-at least 24 hours prior to publishing the release.
+at least 12 hours prior to publishing the release.
 
 ### Build Artifacts
 
