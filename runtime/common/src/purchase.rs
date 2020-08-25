@@ -361,7 +361,7 @@ impl<T: Trait> Module<T> {
 
 	/// WARNING: Executing this function will clear all storage used by this pallet.
 	/// Be sure this is what you want...
-	fn remove_pallet() -> Weight{
+	pub fn remove_pallet() -> Weight{
 		Accounts::<T>::remove_all();
 		PaymentAccount::<T>::remove();
 		Statement::remove();
