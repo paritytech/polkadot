@@ -150,33 +150,172 @@ pub fn run() -> Result<()> {
 				}
 			})
 		},
-		Some(Subcommand::Base(subcommand)) => {
-			let runner = cli.create_runner(subcommand)?;
+		Some(Subcommand::BuildSpec(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
+		},
+		Some(Subcommand::CheckBlock(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 
 			set_default_ss58_version(chain_spec);
 
 			if chain_spec.is_kusama() {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
 						service::kusama_runtime::RuntimeApi,
 						service::KusamaExecutor,
-					>(config)
-				)
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
 			} else if chain_spec.is_westend() {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
 						service::westend_runtime::RuntimeApi,
 						service::WestendExecutor,
-					>(config)
-				)
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
 			} else {
-				runner.run_subcommand(subcommand, |config|
-					service::new_chain_ops::<
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
 						service::polkadot_runtime::RuntimeApi,
 						service::PolkadotExecutor,
-					>(config)
-				)
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
+			}
+		},
+		Some(Subcommand::ExportBlocks(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::kusama_runtime::RuntimeApi,
+						service::KusamaExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.database), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::westend_runtime::RuntimeApi,
+						service::WestendExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.database), task_manager))
+				})
+			} else {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::polkadot_runtime::RuntimeApi,
+						service::PolkadotExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.database), task_manager))
+				})
+			}
+		},
+		Some(Subcommand::ExportState(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::kusama_runtime::RuntimeApi,
+						service::KusamaExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.chain_spec), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::westend_runtime::RuntimeApi,
+						service::WestendExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.chain_spec), task_manager))
+				})
+			} else {
+				runner.async_run(|mut config| {
+					let (client, _, _, task_manager) = service::new_chain_ops::<
+						service::polkadot_runtime::RuntimeApi,
+						service::PolkadotExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, config.chain_spec), task_manager))
+				})
+			}
+		},
+		Some(Subcommand::ImportBlocks(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
+						service::kusama_runtime::RuntimeApi,
+						service::KusamaExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
+						service::westend_runtime::RuntimeApi,
+						service::WestendExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
+			} else {
+				runner.async_run(|mut config| {
+					let (client, _, import_queue, task_manager) = service::new_chain_ops::<
+						service::polkadot_runtime::RuntimeApi,
+						service::PolkadotExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, import_queue), task_manager))
+				})
+			}
+		},
+		Some(Subcommand::PurgeChain(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			runner.sync_run(|config| cmd.run(config.database))
+		},
+		Some(Subcommand::Revert(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
+			if chain_spec.is_kusama() {
+				runner.async_run(|mut config| {
+					let (client, backend, _, task_manager) = service::new_chain_ops::<
+						service::kusama_runtime::RuntimeApi,
+						service::KusamaExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, backend), task_manager))
+				})
+			} else if chain_spec.is_westend() {
+				runner.async_run(|mut config| {
+					let (client, backend, _, task_manager) = service::new_chain_ops::<
+						service::westend_runtime::RuntimeApi,
+						service::WestendExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, backend), task_manager))
+				})
+			} else {
+				runner.async_run(|mut config| {
+					let (client, backend, _, task_manager) = service::new_chain_ops::<
+						service::polkadot_runtime::RuntimeApi,
+						service::PolkadotExecutor,
+					>(&mut config)?;
+					Ok((cmd.run(client, backend), task_manager))
+				})
 			}
 		},
 		Some(Subcommand::ValidationWorker(cmd)) => {
