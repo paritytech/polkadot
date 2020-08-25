@@ -1,15 +1,12 @@
 # Release Checklist
 
 The following checks should be completed before publishing a new release of the
-Polkadot/Kusama/Westend runtime or client:
-
-### All Releases
-
-- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 12
-  hours.
-- [ ] Add [build artifacts](#build-artifacts) to the release.
+Polkadot/Kusama/Westend runtime or client.
 
 ### Runtime Releases
+
+The following should be done *prior* to tagging the potential release. Upon
+completion, tag the commit and proceed with the [All Releases](#all-releases) steps.
 
 - [ ] List any [native runtime](#native-runtimes) versions associated with the release.
 - [ ] Has incremented  [`spec_version`](#spec-version) for any native runtimes from any existing use on public (non-private/test) networks.
@@ -22,6 +19,13 @@ Polkadot/Kusama/Westend runtime or client:
   [proxy filters](#proxy-filtering).
 - [ ] Verify [benchmarks](#benchmarks) have been updated for any modified runtime logic.
 - [ ] Verify [Polkadot JS API](#polkadot-js) are up to date with the latest runtime changes.
+
+### All Releases
+
+- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 12
+  hours.
+- [ ] Check that a draft release has been created at https://github.com/paritytech/polkadot/releases with relevant [release notes](#release-notes)
+- [ ] Check that [build artifacts](#build-artifacts) have been added to the draft-release
 
 ## Notes
 
