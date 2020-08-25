@@ -52,7 +52,6 @@ The release notes may also list:
 
 - Free text at the beginning of the notes mentioning anything important regarding this release
 - Notable changes (those labelled with B[1-9]-* labels) separated into sections
-- 
 
 ### Spec Version
 
