@@ -737,7 +737,7 @@ decl_module! {
 			ensure_parachain(<T as Trait>::Origin::from(origin))?;
 			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
 			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
-			DownwardMessageQueue::<T>::append(to, DownwardMessage::XCMPMessage(msg));
+			DownwardMessageQueue::<T>::append(to, DownwardMessage::XcmpMessage(msg));
 		}
 	}
 }
