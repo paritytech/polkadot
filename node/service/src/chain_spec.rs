@@ -54,19 +54,25 @@ pub struct Extensions {
 	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v1::Block>,
 }
 
-/// The `ChainSpec parametrised for polkadot runtime`.
+/// The `ChainSpec` parametrised for the polkadot runtime.
 pub type PolkadotChainSpec = service::GenericChainSpec<
 	polkadot::GenesisConfig,
 	Extensions,
 >;
 
-/// The `ChainSpec parametrised for kusama runtime`.
+/// The `ChainSpec` parametrised for the kusama runtime.
 pub type KusamaChainSpec = service::GenericChainSpec<
 	kusama::GenesisConfig,
 	Extensions,
 >;
 
-/// The `ChainSpec parametrised for westend runtime`.
+/// The `ChainSpec` parametrised for the rococo runtime.
+pub type RococoChainSpec = service::GenericChainSpec<
+	rococo::GenesisConfig,
+	Extensions,
+>;
+
+/// The `ChainSpec` parametrised for the westend runtime.
 pub type WestendChainSpec = service::GenericChainSpec<
 	westend::GenesisConfig,
 	Extensions,
@@ -78,6 +84,10 @@ pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
 	KusamaChainSpec::from_json_bytes(&include_bytes!("../../../service/res/kusama.json")[..])
+}
+
+pub fn rococo_config() -> Result<RococoChainSpec, String> {
+	RococoChainSpec::from_json_bytes(&include_bytes!("../../../service/res/rococo.json")[..])
 }
 
 pub fn westend_config() -> Result<PolkadotChainSpec, String> {
@@ -102,6 +112,14 @@ fn kusama_session_keys(
 	authority_discovery: AuthorityDiscoveryId
 ) -> kusama::SessionKeys {
 	kusama::SessionKeys { babe, grandpa, im_online, parachain_validator, authority_discovery }
+}
+
+fn rococo_session_keys(
+	babe: BabeId,
+	im_online: ImOnlineId,
+	parachain_validator: ValidatorId,
+) -> rococo::SessionKeys {
+	rococo::SessionKeys { babe, im_online, parachain_validator }
 }
 
 fn westend_session_keys(
