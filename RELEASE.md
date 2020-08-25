@@ -1,11 +1,11 @@
 # Release Checklist
 
-The following checks should be completed before releasing a new version of the
+The following checks should be completed before publishing a new release of the
 Polkadot/Kusama/Westend runtime or client:
 
 ### All Releases
 
-- [ ] Check that the new client releases have [run on the network](#burn-in) without issue for 24
+- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 24
   hours.
 - [ ] Add [build artifacts](#build-artifacts) to the release.
 
@@ -35,14 +35,24 @@ at least 24 hours prior to publishing the release.
 Add any necessary assets to the release. They should include:
 
 - Linux binary
-- GPG signature
+- GPG signature of the Linux binary
 - SHA256 of binary
 - Source code
 - Wasm binaries of any runtimes
 
-### Native Runtimes
+### Release notes
 
-The release notes should list which native runtimes and their versions are included.
+The release notes should list:
+
+- The priority of the release (i.e., how quickly users should upgrade)
+- Which native runtimes and their versions are included
+- The proposal hashes of the runtimes as built with [srtool](https://gitlab.com/chevdor/srtool)
+
+The release notes may also list:
+
+- Free text at the beginning of the notes mentioning anything important regarding this release
+- Notable changes (those labelled with B[1-9]-* labels) separated into sections
+- 
 
 ### Spec Version
 
@@ -73,7 +83,7 @@ added to the end of a pallet (i.e., does not break any other call index).
 The runtime contains proxy filters that map proxy types to allowable calls. If the new runtime
 contains any new calls, verify that the proxy filters are up to date to include them.
 
-### Benchmarcks
+### Benchmarks
 
 Run the benchmarking suite with the new runtime and update any function weights if necessary.
 
