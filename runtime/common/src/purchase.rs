@@ -358,6 +358,17 @@ impl<T: Trait> Module<T> {
 			false => Err(Error::<T>::InvalidSignature)?,
 		}
 	}
+
+	/// WARNING: Executing this function will clear all storage used by this pallet.
+	/// Be sure this is what you want...
+	fn remove_pallet() -> Weight{
+		Accounts::<T>::remove_all();
+		PaymentAccount::<T>::remove();
+		Statement::remove();
+		UnlockBlock::<T>::remove();
+
+		T::MaximumBlockWeight::get()
+	}
 }
 
 // This function converts a 32 byte AccountId to its byte-array equivalent form.
