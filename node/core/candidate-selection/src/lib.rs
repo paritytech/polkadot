@@ -23,11 +23,10 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
-use polkadot_node_network_protocol::{PeerId, ReputationChange};
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		AllMessages, CandidateBackingMessage,
+		AllMessages, CandidateBackingMessage, CollatorProtocolMessage,
 		CandidateSelectionMessage, CandidateValidationMessage, NetworkBridgeMessage, RuntimeApiMessage,
 	},
 	metrics::{self, prometheus},
@@ -38,17 +37,15 @@ use polkadot_node_subsystem_util::{
 	JobTrait, ToJobTrait,
 };
 use polkadot_primitives::v1::{
-	Hash,
+	CollatorId, Hash,
 };
 use std::{convert::TryFrom, pin::Pin};
-
-const SUBMITTED_INVALID_COLLATION: ReputationChange = ReputationChange::new(-1000, "submitted an invalid collation");
 
 struct CandidateSelectionJob {
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
 	metrics: Metrics,
-	seconded_candidate: Option<(Hash, PeerId)>,
+	seconded_candidate: Option<(Hash, CollatorId)>,
 }
 
 /// This enum defines the messages that the provisioner is prepared to receive.
@@ -91,6 +88,7 @@ enum FromJob {
 	Validation(CandidateValidationMessage),
 	Backing(CandidateBackingMessage),
 	Network(NetworkBridgeMessage),
+	Collator(CollatorProtocolMessage),
 	Runtime(RuntimeApiMessage),
 }
 
@@ -99,6 +97,7 @@ impl From<FromJob> for AllMessages {
 		match from_job {
 			FromJob::Validation(msg) => AllMessages::CandidateValidation(msg),
 			FromJob::Backing(msg) => AllMessages::CandidateBacking(msg),
+			FromJob::Collator(msg) => AllMessages::CollatorProtocol(msg),
 			FromJob::Network(msg) => AllMessages::NetworkBridge(msg),
 			FromJob::Runtime(msg) => AllMessages::RuntimeApi(msg),
 		}
@@ -112,6 +111,7 @@ impl TryFrom<AllMessages> for FromJob {
 		match msg {
 			AllMessages::CandidateValidation(msg) => Ok(FromJob::Validation(msg)),
 			AllMessages::CandidateBacking(msg) => Ok(FromJob::Backing(msg)),
+			AllMessages::CollatorProtocol(msg) => Ok(FromJob::Collator(msg)),
 			AllMessages::NetworkBridge(msg) => Ok(FromJob::Network(msg)),
 			AllMessages::RuntimeApi(msg) => Ok(FromJob::Runtime(msg)),
 			_ => Err(()),
@@ -227,10 +227,10 @@ impl CandidateSelectionJob {
 // maximize availability. So basically, include all bitfields. And then
 // choose a coherent set of candidates along with that.
 async fn forward_invalidity_note(
-	received_from: PeerId,
+	received_from: CollatorId,
 	sender: &mut mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
-	sender.send(FromJob::Network(NetworkBridgeMessage::ReportPeer(received_from, SUBMITTED_INVALID_COLLATION))).await.map_err(Into::into)
+	sender.send(FromJob::Collator(CollatorProtocolMessage::ReportCollator(received_from))).await.map_err(Into::into)
 }
 
 
