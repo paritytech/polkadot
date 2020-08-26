@@ -37,8 +37,9 @@
 
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
-use primitives::{
-	parachain::{Id as ParaId, CollatorId, ValidatorIndex},
+use primitives::v1::{
+	Id as ParaId, ValidatorIndex, CoreOccupied, CoreIndex, CollatorId,
+	GroupIndex, ParathreadClaim, ParathreadEntry, GroupRotationInfo, ScheduledCore,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error,
@@ -51,41 +52,6 @@ use rand::{SeedableRng, seq::SliceRandom};
 use rand_chacha::ChaCha20Rng;
 
 use crate::{configuration, paras, initializer::SessionChangeNotification};
-
-/// The unique (during session) index of a core.
-#[derive(Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy)]
-#[cfg_attr(test, derive(Debug))]
-pub struct CoreIndex(u32);
-
-impl From<u32> for CoreIndex {
-	fn from(i: u32) -> CoreIndex {
-		CoreIndex(i)
-	}
-}
-
-/// The unique (during session) index of a validator group.
-#[derive(Encode, Decode, Default, Clone, Copy)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct GroupIndex(u32);
-
-impl From<u32> for GroupIndex {
-	fn from(i: u32) -> GroupIndex {
-		GroupIndex(i)
-	}
-}
-
-/// A claim on authoring the next block for a given parathread.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct ParathreadClaim(pub ParaId, pub CollatorId);
-
-/// An entry tracking a claim to ensure it does not pass the maximum number of retries.
-#[derive(Clone, Encode, Decode, Default)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct ParathreadEntry {
-	claim: ParathreadClaim,
-	retries: u32,
-}
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, Default)]
@@ -118,32 +84,41 @@ impl ParathreadClaimQueue {
 		})
 	}
 
-	// Take next queued entry with given core offset, if any.
+	/// Take next queued entry with given core offset, if any.
 	fn take_next_on_core(&mut self, core_offset: u32) -> Option<ParathreadEntry> {
 		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
 		pos.map(|i| self.queue.remove(i).claim)
 	}
+
+	/// Get the next queued entry with given core offset, if any.
+	fn get_next_on_core(&self, core_offset: u32) -> Option<&ParathreadEntry> {
+		let pos = self.queue.iter().position(|queued| queued.core_offset == core_offset);
+		pos.map(|i| &self.queue[i].claim)
+	}
 }
 
-/// What is occupying a specific availability core.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub(crate) enum CoreOccupied {
-	Parathread(ParathreadEntry),
-	Parachain,
+/// Reasons a core might be freed
+pub enum FreedReason {
+	/// The core's work concluded and the parablock assigned to it is considered available.
+	Concluded,
+	/// The core's work timed out.
+	TimedOut,
 }
+
 
 /// The assignment type.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum AssignmentKind {
+	/// A parachain.
 	Parachain,
+	/// A parathread.
 	Parathread(CollatorId, u32),
 }
 
 /// How a free core is scheduled to be assigned.
 #[derive(Clone, Encode, Decode)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
@@ -157,14 +132,15 @@ pub struct CoreAssignment {
 
 impl CoreAssignment {
 	/// Get the ID of a collator who is required to collate this block.
-	pub(crate) fn required_collator(&self) -> Option<&CollatorId> {
+	pub fn required_collator(&self) -> Option<&CollatorId> {
 		match self.kind {
 			AssignmentKind::Parachain => None,
 			AssignmentKind::Parathread(ref id, _) => Some(id),
 		}
 	}
 
-	fn to_core_occupied(&self) -> CoreOccupied {
+	/// Get the `CoreOccupied` from this.
+	pub fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
 			AssignmentKind::Parachain => CoreOccupied::Parachain,
 			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
@@ -177,15 +153,7 @@ impl CoreAssignment {
 	}
 }
 
-/// Reasons a core might be freed
-pub enum FreedReason {
-	/// The core's work concluded and the parablock assigned to it is considered available.
-	Concluded,
-	/// The core's work timed out.
-	TimedOut,
-}
-
-pub trait Trait: system::Trait + configuration::Trait + paras::Trait { }
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait { }
 
 decl_storage! {
 	trait Store for Module<T: Trait> as ParaScheduler {
@@ -193,7 +161,7 @@ decl_storage! {
 		///
 		/// Bound: The number of cores is the sum of the numbers of parachains and parathread multiplexers.
 		/// Reasonably, 100-1000. The dominant factor is the number of validators: safe upper bound at 10k.
-		ValidatorGroups: Vec<Vec<ValidatorIndex>>;
+		ValidatorGroups get(fn validator_groups): Vec<Vec<ValidatorIndex>>;
 
 		/// A queue of upcoming claims and which core they should be mapped onto.
 		///
@@ -206,14 +174,14 @@ decl_storage! {
 		/// parathread-multiplexers.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
-		AvailabilityCores: Vec<Option<CoreOccupied>>;
+		AvailabilityCores get(fn availability_cores): Vec<Option<CoreOccupied>>;
 		/// An index used to ensure that only one claim on a parathread exists in the queue or is
 		/// currently being handled by an occupied core.
 		///
 		/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
 		ParathreadClaimIndex: Vec<ParaId>;
 		/// The block number where the session start occurred. Used to track how many group rotations have occurred.
-		SessionStartBlock: T::BlockNumber;
+		SessionStartBlock get(fn session_start_block): T::BlockNumber;
 		/// Currently scheduled cores - free but up to be occupied. Ephemeral storage item that's wiped on finalization.
 		///
 		/// Bounded by the number of cores: one for each parachain and parathread multiplexer.
@@ -227,7 +195,7 @@ decl_error! {
 
 decl_module! {
 	/// The scheduler module.
-	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin {
+	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
 	}
 }
@@ -275,7 +243,7 @@ impl<T: Trait> Module<T> {
 		let n_parachains = <paras::Module<T>>::parachains().len() as u32;
 		let n_cores = n_parachains + config.parathread_cores;
 
-		<SessionStartBlock<T>>::set(<system::Module<T>>::block_number());
+		<SessionStartBlock<T>>::set(<frame_system::Module<T>>::block_number());
 		AvailabilityCores::mutate(|cores| {
 			// clear all occupied cores.
 			for maybe_occupied in cores.iter_mut() {
@@ -435,7 +403,7 @@ impl<T: Trait> Module<T> {
 		let parachains = <paras::Module<T>>::parachains();
 		let mut scheduled = Scheduled::get();
 		let mut parathread_queue = ParathreadQueue::get();
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 
 		if ValidatorGroups::get().is_empty() { return }
 
@@ -590,7 +558,7 @@ impl<T: Trait> Module<T> {
 
 		if at < session_start_block { return None }
 
-		if config.parachain_rotation_frequency.is_zero() {
+		if config.group_rotation_frequency.is_zero() {
 			// interpret this as "no rotations"
 			return Some(GroupIndex(core.0));
 		}
@@ -600,7 +568,7 @@ impl<T: Trait> Module<T> {
 		if core.0 as usize >= validator_groups.len() { return None }
 
 		let rotations_since_session_start: T::BlockNumber =
-			(at - session_start_block) / config.parachain_rotation_frequency.into();
+			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start
 			= match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start)
@@ -619,18 +587,26 @@ impl<T: Trait> Module<T> {
 	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
 	/// block number since which it has been occupied, and the respective parachain and parathread
 	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
-	/// of the last rotation would this return `Some`.
+	/// of the last rotation would this return `Some`, unless there are no rotations.
+	///
+	/// If there are no rotations (config.group_rotation_frequency == 0),
+	/// availability timeouts can occur at any block.
 	///
 	/// This really should not be a box, but is working around a compiler limitation filed here:
 	/// https://github.com/rust-lang/rust/issues/73226
 	/// which prevents us from testing the code if using `impl Trait`.
 	pub(crate) fn availability_timeout_predicate() -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
-		let now = <system::Module<T>>::block_number();
+		let now = <frame_system::Module<T>>::block_number();
 		let config = <configuration::Module<T>>::config();
 
 		let session_start = <SessionStartBlock<T>>::get();
 		let blocks_since_session_start = now.saturating_sub(session_start);
-		let blocks_since_last_rotation = blocks_since_session_start % config.parachain_rotation_frequency;
+		let no_rotation = config.group_rotation_frequency.is_zero();
+		let blocks_since_last_rotation = if no_rotation {
+			<T::BlockNumber>::zero()
+		} else {
+			blocks_since_session_start % config.group_rotation_frequency
+		};
 
 		let absolute_cutoff = sp_std::cmp::max(
 			config.chain_availability_period,
@@ -664,13 +640,93 @@ impl<T: Trait> Module<T> {
 			}))
 		}
 	}
+
+	/// Returns a helper for determining group rotation.
+	pub(crate) fn group_rotation_info() -> GroupRotationInfo<T::BlockNumber> {
+		let session_start_block = Self::session_start_block();
+		let now = <frame_system::Module<T>>::block_number();
+		let group_rotation_frequency = <configuration::Module<T>>::config()
+			.group_rotation_frequency;
+
+		GroupRotationInfo {
+			session_start_block,
+			now,
+			group_rotation_frequency,
+		}
+	}
+
+	/// Return the next thing that will be scheduled on this core assuming it is currently
+	/// occupied and the candidate occupying it became available.
+	///
+	/// For parachains, this is always the ID of the parachain and no specified collator.
+	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// core, and is None if there isn't one.
+	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
+		let parachains = <paras::Module<T>>::parachains();
+		if (core.0 as usize) < parachains.len() {
+			Some(ScheduledCore {
+				para_id: parachains[core.0 as usize],
+				collator: None,
+			})
+		} else {
+			let queue = ParathreadQueue::get();
+			let core_offset = (core.0 as usize - parachains.len()) as u32;
+			queue.get_next_on_core(core_offset).map(|entry| ScheduledCore {
+				para_id: entry.claim.0,
+				collator: Some(entry.claim.1.clone()),
+			})
+		}
+	}
+
+	/// Return the next thing that will be scheduled on this core assuming it is currently
+	/// occupied and the candidate occupying it became available.
+	///
+	/// For parachains, this is always the ID of the parachain and no specified collator.
+	/// For parathreads, this is based on the next item in the ParathreadQueue assigned to that
+	/// core, or if there isn't one, the claim that is currently occupying the core, as long
+	/// as the claim's retries would not exceed the limit. Otherwise None.
+	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
+		let parachains = <paras::Module<T>>::parachains();
+		if (core.0 as usize) < parachains.len() {
+			Some(ScheduledCore {
+				para_id: parachains[core.0 as usize],
+				collator: None,
+			})
+		} else {
+			let queue = ParathreadQueue::get();
+
+			// This is the next scheduled para on this core.
+			let core_offset = (core.0 as usize - parachains.len()) as u32;
+			queue.get_next_on_core(core_offset)
+				.map(|entry| ScheduledCore {
+					para_id: entry.claim.0,
+					collator: Some(entry.claim.1.clone()),
+				})
+				.or_else(|| {
+					// Or, if none, the claim currently occupying the core,
+					// as it would be put back on the queue after timing out.
+					let cores = AvailabilityCores::get();
+					cores.get(core.0 as usize).and_then(|c| c.as_ref()).and_then(|o| {
+						match o {
+							CoreOccupied::Parathread(entry) => {
+								Some(ScheduledCore {
+									para_id: entry.claim.0,
+									collator: Some(entry.claim.1.clone()),
+								})
+							}
+							CoreOccupied::Parachain => None, // defensive; not possible.
+						}
+					})
+				})
+		}
+	}
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 
-	use primitives::{BlockNumber, parachain::ValidatorId};
+	use primitives::v1::{BlockNumber, ValidatorId, CollatorId};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 
@@ -707,7 +763,7 @@ mod tests {
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		HostConfiguration {
 			parathread_cores: 3,
-			parachain_rotation_frequency: 10,
+			group_rotation_frequency: 10,
 			chain_availability_period: 3,
 			thread_availability_period: 5,
 			scheduling_lookahead: 2,
@@ -1278,12 +1334,12 @@ mod tests {
 			let mut config = default_config();
 
 			// make sure parathread requests don't retry-out
-			config.parathread_retries = config.parachain_rotation_frequency * 3;
+			config.parathread_retries = config.group_rotation_frequency * 3;
 			config.parathread_cores = 2;
 			config
 		};
 
-		let rotation_frequency = config.parachain_rotation_frequency;
+		let rotation_frequency = config.group_rotation_frequency;
 		let parathread_cores = config.parathread_cores;
 
 		let genesis_config = MockGenesisConfig {
@@ -1429,7 +1485,7 @@ mod tests {
 		};
 
 		let HostConfiguration {
-			parachain_rotation_frequency,
+			group_rotation_frequency,
 			chain_availability_period,
 			thread_availability_period,
 			..
@@ -1437,7 +1493,7 @@ mod tests {
 		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 		assert!(chain_availability_period < thread_availability_period &&
-			thread_availability_period < parachain_rotation_frequency);
+			thread_availability_period < group_rotation_frequency);
 
 		let chain_a = ParaId::from(1);
 		let thread_a = ParaId::from(2);
@@ -1482,7 +1538,7 @@ mod tests {
 			run_to_block(1 + thread_availability_period, |_| None);
 			assert!(Scheduler::availability_timeout_predicate().is_none());
 
-			run_to_block(1 + parachain_rotation_frequency, |_| None);
+			run_to_block(1 + group_rotation_frequency, |_| None);
 
 			{
 				let pred = Scheduler::availability_timeout_predicate()
@@ -1509,7 +1565,7 @@ mod tests {
 				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
 			}
 
-			run_to_block(1 + parachain_rotation_frequency + chain_availability_period, |_| None);
+			run_to_block(1 + group_rotation_frequency + chain_availability_period, |_| None);
 
 			{
 				let pred = Scheduler::availability_timeout_predicate()
@@ -1521,9 +1577,392 @@ mod tests {
 				assert!(pred(CoreIndex(1), would_be_timed_out)); // but threads can.
 			}
 
-			run_to_block(1 + parachain_rotation_frequency + thread_availability_period, |_| None);
+			run_to_block(1 + group_rotation_frequency + thread_availability_period, |_| None);
 
 			assert!(Scheduler::availability_timeout_predicate().is_none());
+		});
+	}
+
+	#[test]
+	fn availability_predicate_no_rotation() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: HostConfiguration {
+					group_rotation_frequency: 0, // no rotation
+					..default_config()
+				},
+				..Default::default()
+			},
+			..Default::default()
+		};
+		let HostConfiguration {
+			chain_availability_period,
+			thread_availability_period,
+			..
+		} = default_config();
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let chain_a = ParaId::from(1);
+		let thread_a = ParaId::from(2);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(thread_a, false);
+
+			// start a new session with our chain & thread registered.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: HostConfiguration{
+						// Note: the `group_rotation_frequency` config change
+						// is not accounted for on session change
+						// group_rotation_frequency: 0,
+						..default_config()
+					},
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			// assign some availability cores.
+			{
+				AvailabilityCores::mutate(|cores| {
+					cores[0] = Some(CoreOccupied::Parachain);
+					cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
+						claim: ParathreadClaim(thread_a, collator),
+						retries: 0,
+					}))
+				});
+			}
+			run_to_block(1 + 1, |_| None);
+			run_to_block(1 + 1 + 100500, |_| None);
+			{
+				let pred = Scheduler::availability_timeout_predicate()
+					.expect("predicate exists with no rotation");
+
+				let now = System::block_number();
+
+				assert!(!pred(CoreIndex(0), now)); // assigned: chain
+				assert!(!pred(CoreIndex(1), now)); // assigned: thread
+				assert!(pred(CoreIndex(2), now));
+
+				// check the tighter bound on chains vs threads.
+				assert!(pred(CoreIndex(0), now - chain_availability_period));
+				assert!(pred(CoreIndex(1), now - thread_availability_period));
+
+				// check the threshold is exact.
+				assert!(!pred(CoreIndex(0), now - chain_availability_period + 1));
+				assert!(!pred(CoreIndex(1), now - thread_availability_period + 1));
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
+		let mut config = default_config();
+		config.parathread_cores = 1;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
+			let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
+
+			Scheduler::add_parathread_claim(thread_claim_a.clone());
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
+					_ => panic!("with no chains, only core should be a thread core"),
+				}
+
+				assert!(Scheduler::next_up_on_available(CoreIndex(0)).is_none());
+
+				Scheduler::add_parathread_claim(thread_claim_b);
+
+				let queue = ParathreadQueue::get();
+				assert_eq!(
+					queue.get_next_on_core(0).unwrap().claim,
+					ParathreadClaim(thread_b, collator.clone()),
+				);
+
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para_id: thread_b,
+						collator: Some(collator.clone()),
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
+		let mut config = default_config();
+		config.parathread_cores = 1;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let thread_a = ParaId::from(1);
+		let thread_b = ParaId::from(2);
+
+		let collator = CollatorId::from(Sr25519Keyring::Alice.public());
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(thread_a, false);
+			schedule_blank_para(thread_b, false);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
+			let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
+
+			Scheduler::add_parathread_claim(thread_claim_a.clone());
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parathread(entry) => assert_eq!(entry.claim, thread_claim_a),
+					_ => panic!("with no chains, only core should be a thread core"),
+				}
+
+				let queue = ParathreadQueue::get();
+				assert!(queue.get_next_on_core(0).is_none());
+				assert_eq!(
+					Scheduler::next_up_on_time_out(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para_id: thread_a,
+						collator: Some(collator.clone()),
+					}
+				);
+
+				Scheduler::add_parathread_claim(thread_claim_b);
+
+				let queue = ParathreadQueue::get();
+				assert_eq!(
+					queue.get_next_on_core(0).unwrap().claim,
+					ParathreadClaim(thread_b, collator.clone()),
+				);
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para_id: thread_b,
+						collator: Some(collator.clone()),
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_available_is_parachain_always() {
+		let mut config = default_config();
+		config.parathread_cores = 0;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parachain => {},
+					_ => panic!("with no threads, only core should be a chain core"),
+				}
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para_id: chain_a,
+						collator: None,
+					}
+				);
+			}
+		});
+	}
+
+	#[test]
+	fn next_up_on_time_out_is_parachain_always() {
+		let mut config = default_config();
+		config.parathread_cores = 0;
+
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: config.clone(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			schedule_blank_para(chain_a, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: config.clone(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			{
+				assert_eq!(Scheduler::scheduled().len(), 1);
+				assert_eq!(Scheduler::availability_cores().len(), 1);
+
+				Scheduler::occupied(&[CoreIndex(0)]);
+
+				let cores = Scheduler::availability_cores();
+				match cores[0].as_ref().unwrap() {
+					CoreOccupied::Parachain => {},
+					_ => panic!("with no threads, only core should be a chain core"),
+				}
+
+				// Now that there is an earlier next-up, we use that.
+				assert_eq!(
+					Scheduler::next_up_on_available(CoreIndex(0)).unwrap(),
+					ScheduledCore {
+						para_id: chain_a,
+						collator: None,
+					}
+				);
+			}
 		});
 	}
 }

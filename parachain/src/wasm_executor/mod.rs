@@ -21,12 +21,11 @@
 //! a WASM VM for re-execution of a parachain candidate.
 
 use std::any::{TypeId, Any};
-use crate::primitives::{ValidationParams, ValidationResult, UpwardMessage};
+use crate::primitives::{ValidationParams, ValidationResult};
 use codec::{Decode, Encode};
-use sp_core::storage::ChildInfo;
-use sp_core::traits::CallInWasm;
-use sp_wasm_interface::HostFunctions as _;
+use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
+use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
 pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
@@ -36,18 +35,7 @@ mod validation_host;
 // maximum memory in bytes
 const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
-
-sp_externalities::decl_extension! {
-	/// The extension that is registered at the `Externalities` when validating a parachain state
-	/// transition.
-	pub(crate) struct ParachainExt(Box<dyn Externalities>);
-}
-
-impl ParachainExt {
-	pub fn new<T: Externalities + 'static>(ext: T) -> Self {
-		Self(Box::new(ext))
-	}
-}
+const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
 /// A stub validation-pool defined when compiling for Android or WASM.
 #[cfg(any(target_os = "android", target_os = "unknown"))]
@@ -82,9 +70,18 @@ pub enum ExecutionMode<'a> {
 	RemoteTest(&'a ValidationPool),
 }
 
-/// Error type for the wasm executor
 #[derive(Debug, derive_more::Display, derive_more::From)]
-pub enum Error {
+/// Candidate validation error.
+pub enum ValidationError {
+	/// Validation failed due to internal reasons. The candidate might still be valid.
+	Internal(InternalError),
+	/// Candidate is invalid.
+	InvalidCandidate(InvalidCandidate),
+}
+
+/// Error type that indicates invalid candidate.
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum InvalidCandidate {
 	/// Wasm executor error.
 	#[display(fmt = "WASM executor error: {:?}", _0)]
 	WasmExecutor(sc_executor::error::Error),
@@ -95,95 +92,91 @@ pub enum Error {
 	/// Code size it too large.
 	#[display(fmt = "WASM code is {} bytes, max allowed is {}", _0, MAX_CODE_MEM)]
 	CodeTooLarge(usize),
-	/// Bad return data or type.
+	/// Error decoding returned data.
 	#[display(fmt = "Validation function returned invalid data.")]
 	BadReturn,
 	#[display(fmt = "Validation function timeout.")]
 	Timeout,
+	#[display(fmt = "External WASM execution error: {}", _0)]
+	ExternalWasmExecutor(String),
+}
+
+/// Host error during candidate validation. This does not indicate an invalid candidate.
+#[derive(Debug, derive_more::Display, derive_more::From)]
+pub enum InternalError {
 	#[display(fmt = "IO error: {}", _0)]
 	Io(std::io::Error),
 	#[display(fmt = "System error: {}", _0)]
 	System(Box<dyn std::error::Error + Send>),
-	#[display(fmt = "WASM worker error: {}", _0)]
-	External(String),
 	#[display(fmt = "Shared memory error: {}", _0)]
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	SharedMem(shared_memory::SharedMemError),
+	#[display(fmt = "WASM worker error: {}", _0)]
+	WasmWorker(String),
 }
 
-impl std::error::Error for Error {
+impl std::error::Error for ValidationError {
 	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
 		match self {
-			Error::WasmExecutor(ref err) => Some(err),
-			Error::Io(ref err) => Some(err),
-			Error::System(ref err) => Some(&**err),
+			ValidationError::Internal(InternalError::Io(ref err)) => Some(err),
+			ValidationError::Internal(InternalError::System(ref err)) => Some(&**err),
 			#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-			Error::SharedMem(ref err) => Some(err),
+			ValidationError::Internal(InternalError::SharedMem(ref err)) => Some(err),
+			ValidationError::InvalidCandidate(InvalidCandidate::WasmExecutor(ref err)) => Some(err),
 			_ => None,
 		}
 	}
 }
 
-/// Externalities for parachain validation.
-pub trait Externalities: Send {
-	/// Called when a message is to be posted to the parachain's relay chain.
-	fn post_upward_message(&mut self, message: UpwardMessage) -> Result<(), String>;
-}
-
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate<E: Externalities + 'static>(
+pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
-	ext: E,
 	options: ExecutionMode<'_>,
-) -> Result<ValidationResult, Error> {
+	spawner: impl SpawnNamed + 'static,
+) -> Result<ValidationResult, ValidationError> {
 	match options {
 		ExecutionMode::Local => {
-			validate_candidate_internal(validation_code, &params.encode(), ext)
+			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::Remote(pool) => {
-			pool.validate_candidate(validation_code, params, ext, false)
+			pool.validate_candidate(validation_code, params, false)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		ExecutionMode::RemoteTest(pool) => {
-			pool.validate_candidate(validation_code, params, ext, true)
+			pool.validate_candidate(validation_code, params, true)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::Remote(pool) =>
-			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::Remote(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::RemoteTest(pool) =>
-			Err(Error::System(Box::<dyn std::error::Error + Send + Sync>::from(
-				"Remote validator not available".to_string()
-			) as Box<_>)),
+		ExecutionMode::RemoteTest(_pool) =>
+			Err(ValidationError::Internal(InternalError::System(
+				Box::<dyn std::error::Error + Send + Sync>::from(
+					"Remote validator not available".to_string()
+				) as Box<_>
+			))),
 	}
 }
 
 /// The host functions provided by the wasm executor to the parachain wasm blob.
-type HostFunctions = (
-	sp_io::SubstrateHostFunctions,
-	crate::wasm_api::parachain::HostFunctions,
-);
+type HostFunctions = sp_io::SubstrateHostFunctions;
 
 /// Validate a candidate under the given validation code.
 ///
 /// This will fail if the validation code is not a proper parachain validation module.
-pub fn validate_candidate_internal<E: Externalities + 'static>(
+pub fn validate_candidate_internal(
 	validation_code: &[u8],
 	encoded_call_data: &[u8],
-	externalities: E,
-) -> Result<ValidationResult, Error> {
-	let mut extensions = Extensions::new();
-	extensions.register(ParachainExt::new(externalities));
-	extensions.register(sp_core::traits::TaskExecutorExt(sp_core::tasks::executor()));
-
-	let mut ext = ValidationExternalities(extensions);
-
+	spawner: impl SpawnNamed + 'static,
+) -> Result<ValidationResult, ValidationError> {
 	let executor = sc_executor::WasmExecutor::new(
 		sc_executor::WasmExecutionMethod::Interpreted,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
@@ -191,6 +184,13 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		HostFunctions::host_functions(),
 		8
 	);
+
+	let mut extensions = Extensions::new();
+	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
+	extensions.register(sp_core::traits::CallInWasmExt::new(executor.clone()));
+
+	let mut ext = ValidationExternalities(extensions);
+
 	let res = executor.call_in_wasm(
 		validation_code,
 		None,
@@ -198,9 +198,10 @@ pub fn validate_candidate_internal<E: Externalities + 'static>(
 		encoded_call_data,
 		&mut ext,
 		sp_core::traits::MissingHostFunctions::Allow,
-	)?;
+	).map_err(|e| ValidationError::InvalidCandidate(e.into()))?;
 
-	ValidationResult::decode(&mut &res[..]).map_err(|_| Error::BadReturn.into())
+	ValidationResult::decode(&mut &res[..])
+		.map_err(|_| ValidationError::InvalidCandidate(InvalidCandidate::BadReturn).into())
 }
 
 /// The validation externalities that will panic on any storage related access. They just provide
@@ -304,7 +305,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("reset_read_write_count: unsupported feature for parachain validation")
 	}
 
-	fn set_whitelist(&mut self, _: Vec<Vec<u8>>) {
+	fn get_whitelist(&self) -> Vec<TrackedStorageKey> {
+		panic!("get_whitelist: unsupported feature for parachain validation")
+	}
+
+	fn set_whitelist(&mut self, _: Vec<TrackedStorageKey>) {
 		panic!("set_whitelist: unsupported feature for parachain validation")
 	}
 

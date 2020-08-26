@@ -16,15 +16,11 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use crate::{
-	DummyExt,
-	parachain,
-	parachain::primitives::{
-		RelayChainBlockNumber,
-		BlockData as GenericBlockData,
-		HeadData as GenericHeadData,
-		ValidationParams,
-	},
+use parachain::primitives::{
+	RelayChainBlockNumber,
+	BlockData as GenericBlockData,
+	HeadData as GenericHeadData,
+	ValidationParams,
 };
 use codec::{Decode, Encode};
 
@@ -47,8 +43,6 @@ struct BlockData {
 	/// Amount to add (overflowing)
 	add: u64,
 }
-
-const TEST_CODE: &[u8] = adder::WASM_BINARY;
 
 fn hash_state(state: u64) -> [u8; 32] {
 	tiny_keccak::keccak256(state.encode().as_slice())
@@ -74,17 +68,15 @@ pub fn execute_good_on_parent() {
 	let pool = parachain::wasm_executor::ValidationPool::new();
 
 	let ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
+		adder::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
+			hrmp_mqc_heads: Vec::new(),
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -114,17 +106,15 @@ fn execute_good_chain_on_parent() {
 		};
 
 		let ret = parachain::wasm_executor::validate_candidate(
-			TEST_CODE,
+			adder::wasm_binary_unwrap(),
 			ValidationParams {
 				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
-				max_code_size: 1024,
-				max_head_data_size: 1024,
 				relay_chain_height: number as RelayChainBlockNumber + 1,
-				code_upgrade_allowed: None,
+				hrmp_mqc_heads: Vec::new(),
 			},
-			DummyExt,
 			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
@@ -155,16 +145,14 @@ fn execute_bad_on_parent() {
 	};
 
 	let _ret = parachain::wasm_executor::validate_candidate(
-		TEST_CODE,
+		adder::wasm_binary_unwrap(),
 		ValidationParams {
 			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			max_code_size: 1024,
-			max_head_data_size: 1024,
 			relay_chain_height: 1,
-			code_upgrade_allowed: None,
+			hrmp_mqc_heads: Vec::new(),
 		},
-		DummyExt,
 		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		sp_core::testing::TaskExecutor::new(),
 	).unwrap_err();
 }

@@ -4,14 +4,12 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.8.12"
+version = "0.8.22"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
-# It looks like this is the only way to pass features to it
-collator = { package = "polkadot-collator", path = "collator" }
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -23,17 +21,15 @@ tempfile = "3.1.0"
 
 [workspace]
 members = [
-	"availability-store",
 	"cli",
-	"collator",
+	"core-primitives",
 	"erasure-coding",
-	"network",
-	"network/test",
 	"primitives",
 	"runtime/common",
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
+	"runtime/rococo-v1",
 	"runtime/westend",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
@@ -42,21 +38,31 @@ members = [
 	"service",
 	"validation",
 
-	"node/messages",
+	"node/collation-generation",
+	"node/core/av-store",
+	"node/core/backing",
+	"node/core/bitfield-signing",
+	"node/core/candidate-validation",
+	"node/core/chain-api",
+	"node/core/proposer",
+	"node/core/provisioner",
+	"node/core/runtime-api",
+	"node/network/bridge",
+	"node/network/pov-distribution",
+	"node/network/protocol",
+	"node/network/statement-distribution",
+	"node/network/bitfield-distribution",
+	"node/network/availability-distribution",
 	"node/overseer",
 	"node/primitives",
 	"node/service",
+	"node/subsystem",
+	"node/subsystem-test-helpers",
+	"node/subsystem-util",
+	"node/test-service",
 
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
-	"parachain/test-parachains/adder/collator",
-	"parachain/test-parachains/code-upgrader",
-]
-exclude = [
-	"runtime/polkadot/wasm",
-	"runtime/kusama/wasm",
-	"runtime/westend/wasm",
-	"parachain/test-parachains/adder/wasm",
 ]
 
 [badges]
@@ -70,5 +76,4 @@ panic = "unwind"
 runtime-benchmarks=["cli/runtime-benchmarks"]
 service-rewr= [
 	"cli/service-rewr",
-	"collator/service-rewr",
 ]
