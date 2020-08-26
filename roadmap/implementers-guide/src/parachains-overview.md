@@ -36,13 +36,15 @@ This process can be divided further down. Steps 2 & 3 relate to the work of the 
 
 This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that (secondary) approval checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
 
-The Approval Process looks like this:
+The Approval Process, at a glance, looks like this:
 
 1. Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.
 1. During the secondary-checking window, validators randomly self-select to perform secondary checks on the parablock.
 1. These validators, known in this context as secondary checkers, acquire the parablock and its PoV, and re-run the validation function.
-1. The secondary checkers submit the result of their checks to the relay chain. Contradictory results lead to escalation, where even more secondary checkers are selected and the secondary-checking window is extended.
+1. The secondary checkers submit the result of their checks to the relay chain. Contradictory results lead to escalation, where all validators are required to check the block. The validators on the losing side of the dispute are slashed.
 1. At the end of the Approval Process, the parablock is either Approved or it is rejected. More on the rejection process later.
+
+More information on the Approval Process can be found in the dedicated section on [Approval](approval.md).
 
 These two pipelines sum up the sequence of events necessary to extend and acquire full security on a Parablock. Note that the Inclusion Pipeline must conclude for a specific parachain before a new block can be accepted on that parachain. After inclusion, the Approval Process kicks off, and can be running for many parachain blocks at once.
 
