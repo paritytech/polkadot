@@ -639,7 +639,9 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
+	type Event = Event;
+}
 
 construct_runtime! {
 	pub enum Runtime where
@@ -671,9 +673,9 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 
 		// Old Parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call},
-		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummyRegistrar: dummy::<Instance2>::{Module, Call},
+		DummyParachains: dummy::<Instance0>::{Module, Call, Event<T>},
+		DummyAttestations: dummy::<Instance1>::{Module, Call, Event<T>},
+		DummyRegistrar: dummy::<Instance2>::{Module, Call, Event<T>},
 
 		// Utility module.
 		Utility: pallet_utility::{Module, Call, Event},

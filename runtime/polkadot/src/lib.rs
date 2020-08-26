@@ -746,7 +746,9 @@ parameter_types! {
 	pub const MaxPending: u16 = 32;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
+	type Event = Event;
+}
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -915,10 +917,10 @@ construct_runtime! {
 		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>},
 
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call},
-		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::<Instance2>::{Module, Call},
-		DummyRegistrar: dummy::<Instance3>::{Module, Call},
+		DummyParachains: dummy::<Instance0>::{Module, Call, Event<T>},
+		DummyAttestations: dummy::<Instance1>::{Module, Call, Event<T>},
+		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
+		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -928,7 +930,7 @@ construct_runtime! {
 		Utility: pallet_utility::{Module, Call, Event},
 
 		// Old spot for the purchase pallet. Can be replaced later by a new pallet.
-		DummyPurchase: dummy::<Instance4>::{Module, Call},
+		DummyPurchase: dummy::<Instance4>::{Module, Call, Event<T>},
 
 		// Identity. Late addition.
 		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
