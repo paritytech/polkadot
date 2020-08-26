@@ -10,15 +10,17 @@ Validation of candidates is a heavy task, and furthermore, the [`PoV`][PoV] itse
 
 > TODO: note the incremental validation function Ximin proposes at https://github.com/paritytech/polkadot/issues/1348
 
-As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate with the [`CandidateBacking`][CB] subsystem.
+As this network protocol serves as a bridge between collators and validators, it communicates primarily with one subsystem on behalf of each. As a collator, this will receive messages from the [`CollationGeneration`][CG] subsystem. As a validator, this will communicate with the [`CandidateBacking`][CB] and [`CandidateSelection`][CS] subsystems.
 
 ## Protocol
 
 Input: [`CollatorProtocolMessage`][CPM]
 
 Output:
-  - [`RuntimeApiMessage`][RAM]
-  - [`NetworkBridgeMessage`][NBM]
+
+- [`RuntimeApiMessage`][RAM]
+- [`NetworkBridgeMessage`][NBM]
+- [`CandidateSelectionMessage`][CSM]
 
 ## Functionality
 
@@ -102,18 +104,22 @@ When peers connect to us, they can `Declare` that they represent a collator with
 
 The protocol tracks advertisements received and the source of the advertisement. The advertisement source is the `PeerId` of the peer who sent the message. We accept one advertisement per collator per source per relay-parent.
 
+As new collations are received, we notify the Candidate Selection subsystem with a [`CandidateSelection`][CSM]`::Available` message.
+
 As a validator, we will handle requests from other subsystems to fetch a collation on a specific `ParaId` and relay-parent. These requests are made with the [`CollatorProtocolMessage`][CPM]`::FetchCollation`. To do so, we need to first check if we have already gathered a collation on that `ParaId` and relay-parent. If not, we need to select one of the advertisements and issue a request for it. If we've already issued a request, we shouldn't issue another one until the first has returned.
 
 When acting on an advertisement, we issue a `WireMessage::RequestCollation`. If the request times out, we need to note the collator as being unreliable and reduce its priority relative to other collators. And then make another request - repeat until we get a response or the chain has moved on.
 
 As a validator, once the collation has been fetched some other subsystem will inspect and do deeper validation of the collation. The subsystem will report to this subsystem with a [`CollatorProtocolMessage`][CPM]`::ReportCollator` or `NoteGoodCollation` message. In that case, if we are connected directly to the collator, we apply a cost to the `PeerId` associated with the collator and potentially disconnect or blacklist it.
 
-[PoV]: ../../types/availability.md#proofofvalidity
-[CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage
-[CG]: collation-generation.md
 [CB]: ../backing/candidate-backing.md
+[CBM]: ../../types/overseer-protocol.md#candidate-backing-mesage
+[CG]: collation-generation.md
+[CPM]: ../../types/overseer-protocol.md#collator-protocol-message
+[CS]: ../backing/candidate-selection.md
+[CSM]: ../../types/overseer-protocol.md#candidate-selection-message
 [NB]: ../utility/network-bridge.md
-[CBM]: ../../types/overseer-protocol.md#candidatebackingmesage
-[RAM]: ../../types/overseer-protocol.md#runtimeapimessage
-[NBM]: ../../types/overseer-protocol.md#networkbridgemessage
+[NBM]: ../../types/overseer-protocol.md#network-bridge-message
+[PoV]: ../../types/availability.md#proofofvalidity
+[RAM]: ../../types/overseer-protocol.md#runtime-api-message
 [SCH]: ../../runtime/scheduler.md
