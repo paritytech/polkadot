@@ -124,8 +124,8 @@ These messages are sent to the [Candidate Selection subsystem](../node/backing/c
 
 ```rust
 enum CandidateSelectionMessage {
-  /// A candidate is available and should be considered for seconding.
-  Available(RelayParentHash, CandidateReceipt, CollatorId),
+  /// A candidate collation can be fetched from a collator and should be considered for seconding.
+  Collation(RelayParent, ParaId, CollatorId),
   /// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
   Invalid(CandidateReceipt),
 }
