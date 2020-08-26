@@ -14,15 +14,15 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-keystore = { git = "https://github.com/mxinden/substrate", branch = "update-prometheus" }
 derive_more = "0.99.9"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "update-prometheus", features = ["std"]  }
 
 [dev-dependencies]
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "update-prometheus", features = ["std"] }
+sp-keyring = { git = "https://github.com/mxinden/substrate", branch = "update-prometheus" }
 parking_lot = "0.11.0"
 futures-timer = "3.0.2"
 env_logger = "0.7.1"
