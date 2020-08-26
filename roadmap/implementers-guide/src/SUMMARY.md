@@ -42,7 +42,7 @@
     - [Bitfield Signing](node/availability/bitfield-signing.md)
   - [Validity](node/validity/README.md)
     - [Approvals](node/validity/approvals.md)
-    - [Approval assignments](node/validity/assignmets.md)
+    - [Approval assignments](node/validity/assignments.md)
   - [Utility Subsystems](node/utility/README.md)
     - [Availability Store](node/utility/availability-store.md)
     - [Candidate Validation](node/utility/candidate-validation.md)
