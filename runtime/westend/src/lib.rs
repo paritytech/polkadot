@@ -673,8 +673,8 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 
 		// Old Parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call, Event<T>},
-		DummyAttestations: dummy::<Instance1>::{Module, Call, Event<T>},
+		DummyParachains: dummy::<Instance0>::{Module, Call},
+		DummyAttestations: dummy::<Instance1>::{Module, Call},
 		DummyRegistrar: dummy::<Instance2>::{Module, Call, Event<T>},
 
 		// Utility module.

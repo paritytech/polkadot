@@ -911,8 +911,8 @@ construct_runtime! {
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call, Event<T>},
-		DummyAttestations: dummy::<Instance1>::{Module, Call, Event<T>},
+		DummyParachains: dummy::<Instance0>::{Module, Call},
+		DummyAttestations: dummy::<Instance1>::{Module, Call},
 		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
 		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
 
