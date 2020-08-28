@@ -470,7 +470,7 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
-	type WeightInfo = weights::collective::WeightInfo;
+	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
 parameter_types! {
@@ -518,7 +518,7 @@ impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
-	type WeightInfo = weights::collective::WeightInfo;
+	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
 impl pallet_membership::Trait<pallet_membership::Instance1> for Runtime {
