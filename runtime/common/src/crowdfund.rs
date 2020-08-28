@@ -187,12 +187,19 @@ decl_event! {
 		<T as frame_system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
 	{
+		/// Create a new crowdfunding campaign. [fund_index]
 		Created(FundIndex),
+		/// Contributed to a crowd sale. [who, fund_index, amount]
 		Contributed(AccountId, FundIndex, Balance),
+		/// Withdrew full balance of a contributor. [who, fund_index, amount]
 		Withdrew(AccountId, FundIndex, Balance),
+		/// Fund is placed into retirement. [fund_index]
 		Retiring(FundIndex),
+		/// Fund is dissolved. [fund_index]
 		Dissolved(FundIndex),
+		/// The deploy data of the funded parachain is setted. [fund_index]
 		DeployDataFixed(FundIndex),
+		/// Onboarding process for a winning parachain fund is completed. [find_index, parachain_id]
 		Onboarded(FundIndex, ParaId),
 	}
 }

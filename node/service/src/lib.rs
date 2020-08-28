@@ -33,6 +33,7 @@ use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
 use sp_core::traits::SpawnNamed;
+use sc_client_api::ExecutorProvider;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -225,6 +226,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 	)?;
 
 	let justification_stream = grandpa_link.justification_stream();
@@ -275,13 +277,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 fn real_overseer<S: SpawnNamed>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
+	prometheus_registry: Option<&Registry>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
 	let all_subsystems = AllSubsystems {
 		candidate_validation: DummySubsystem,
 		candidate_backing: DummySubsystem,
 		candidate_selection: DummySubsystem,
-		collator_protocol: DummySubsystem,
 		statement_distribution: DummySubsystem,
 		availability_distribution: DummySubsystem,
 		bitfield_signing: DummySubsystem,
@@ -292,10 +294,14 @@ fn real_overseer<S: SpawnNamed>(
 		availability_store: DummySubsystem,
 		network_bridge: DummySubsystem,
 		chain_api: DummySubsystem,
+		collation_generation: DummySubsystem,
+		collator_protocol: DummySubsystem,
 	};
+
 	Overseer::new(
 		leaves,
 		all_subsystems,
+		prometheus_registry,
 		s,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
@@ -318,7 +324,6 @@ fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	use sc_client_api::ExecutorProvider;
 	use sp_core::traits::BareCryptoStorePtr;
 
 	let is_collator = collating_for.is_some();
@@ -397,7 +402,7 @@ fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(leaves, spawner)?;
+	let (overseer, handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
 	let handler_clone = handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
@@ -500,7 +505,7 @@ fn new_full<RuntimeApi, Executor>(
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
-			prometheus_registry: prometheus_registry,
+			prometheus_registry,
 			shared_voter_state,
 		};
 
@@ -531,7 +536,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<LightBackend, Block>>,
 		Dispatch: NativeExecutionDispatch + 'static,
 {
-	crate::set_prometheus_registry(&mut config)?;
+	set_prometheus_registry(&mut config)?;
 	use sc_client_api::backend::RemoteBackend;
 
 	let (client, backend, keystore, mut task_manager, on_demand) =
@@ -575,6 +580,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::NeverCanAuthor,
 	)?;
 
 	let finality_proof_provider =

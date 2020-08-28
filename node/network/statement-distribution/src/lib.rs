@@ -65,6 +65,8 @@ pub struct StatementDistribution;
 impl<C> Subsystem<C> for StatementDistribution
 	where C: SubsystemContext<Message=StatementDistributionMessage>
 {
+	type Metrics = ();
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
