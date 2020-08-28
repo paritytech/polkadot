@@ -23,29 +23,26 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
-		AllMessages, CandidateBackingMessage, CollatorProtocolMessage,
-		CandidateSelectionMessage, CandidateValidationMessage, NetworkBridgeMessage, RuntimeApiMessage,
+		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
+		CandidateValidationMessage, CollatorProtocolMessage,
 	},
 	metrics::{self, prometheus},
 };
-use polkadot_node_subsystem_util::{
-	self as util,
-	delegated_subsystem,
-	JobTrait, ToJobTrait,
-};
+use polkadot_node_subsystem_util::{self as util, delegated_subsystem, JobTrait, ToJobTrait};
 use polkadot_primitives::v1::{
-	CollatorId, Hash,
+	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
-use std::{convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin, sync::Arc};
 
 struct CandidateSelectionJob {
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
 	metrics: Metrics,
-	seconded_candidate: Option<(Hash, CollatorId)>,
+	seconded_candidate: Option<CollatorId>,
 }
 
 /// This enum defines the messages that the provisioner is prepared to receive.
@@ -87,9 +84,7 @@ impl From<CandidateSelectionMessage> for ToJob {
 enum FromJob {
 	Validation(CandidateValidationMessage),
 	Backing(CandidateBackingMessage),
-	Network(NetworkBridgeMessage),
 	Collator(CollatorProtocolMessage),
-	Runtime(RuntimeApiMessage),
 }
 
 impl From<FromJob> for AllMessages {
@@ -98,8 +93,6 @@ impl From<FromJob> for AllMessages {
 			FromJob::Validation(msg) => AllMessages::CandidateValidation(msg),
 			FromJob::Backing(msg) => AllMessages::CandidateBacking(msg),
 			FromJob::Collator(msg) => AllMessages::CollatorProtocol(msg),
-			FromJob::Network(msg) => AllMessages::NetworkBridge(msg),
-			FromJob::Runtime(msg) => AllMessages::RuntimeApi(msg),
 		}
 	}
 }
@@ -112,8 +105,6 @@ impl TryFrom<AllMessages> for FromJob {
 			AllMessages::CandidateValidation(msg) => Ok(FromJob::Validation(msg)),
 			AllMessages::CandidateBacking(msg) => Ok(FromJob::Backing(msg)),
 			AllMessages::CollatorProtocol(msg) => Ok(FromJob::Collator(msg)),
-			AllMessages::NetworkBridge(msg) => Ok(FromJob::Network(msg)),
-			AllMessages::RuntimeApi(msg) => Ok(FromJob::Runtime(msg)),
 			_ => Err(()),
 		}
 	}
@@ -180,26 +171,19 @@ impl CandidateSelectionJob {
 	async fn run_loop(mut self) -> Result<(), Error> {
 		while let Some(msg) = self.receiver.next().await {
 			match msg {
-				ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(_, receipt)) => {
-					let (seconded_candidate, received_from) = match &self.seconded_candidate {
-						Some((backed, peer)) => (backed, peer),
-						None => {
-							log::warn!(target: "candidate_selection", "received invalidity notice for a candidate ({}) we don't remember recommending for seconding", receipt.hash());
-							continue
-						},
-					};
-					log::info!(target: "candidate_selection", "received invalidity note for candidate {}", seconded_candidate);
-					if let Err(err) = forward_invalidity_note(
-						received_from.clone(),
-						&mut self.sender,
-					)
-					.await
-					{
-						log::warn!(target: "candidate_selection", "failed to forward invalidity note: {:?}", err);
-						self.metrics.on_invalid_selection(false);
-					} else {
-						self.metrics.on_invalid_selection(true);
-					}
+				ToJob::CandidateSelection(CandidateSelectionMessage::Collation(
+					relay_parent,
+					para_id,
+					collator_id,
+				)) => {
+					self.handle_collation(relay_parent, para_id, collator_id)
+						.await;
+				}
+				ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(
+					_,
+					candidate_receipt,
+				)) => {
+					self.handle_invalid(candidate_receipt).await;
 				}
 				ToJob::Stop => break,
 			}
@@ -207,35 +191,170 @@ impl CandidateSelectionJob {
 
 		Ok(())
 	}
+
+	async fn handle_collation(
+		&mut self,
+		relay_parent: Hash,
+		para_id: ParaId,
+		collator_id: CollatorId,
+	) {
+		if self.seconded_candidate.is_none() {
+			let (candidate_receipt, pov) = match get_collation(
+				relay_parent,
+				para_id,
+				self.sender.clone(),
+			)
+			.await
+			{
+				Ok(response) => response,
+				Err(err) => {
+					log::warn!(target: "candidate_selection", "failed to get collation from collator protocol subsystem: {:?}", err);
+					return;
+				}
+			};
+
+			let pov = Arc::new(pov);
+
+			if !candidate_is_valid(
+				candidate_receipt.descriptor.clone(),
+				pov.clone(),
+				self.sender.clone(),
+			)
+			.await
+			{
+				return;
+			}
+
+			let pov = Arc::try_unwrap(pov)
+				.expect("only clone went to fn candidate_is_valid, which is complete; qed");
+
+			match second_candidate(
+				relay_parent,
+				candidate_receipt,
+				pov,
+				&mut self.sender,
+				&self.metrics,
+			)
+			.await
+			{
+				Err(err) => {
+					log::warn!(target: "candidate_selection", "failed to second a candidate: {:?}", err)
+				}
+				Ok(()) => self.seconded_candidate = Some(collator_id),
+			}
+		}
+	}
+
+	async fn handle_invalid(&mut self, candidate_receipt: CandidateReceipt) {
+		let received_from = match &self.seconded_candidate {
+			Some(peer) => peer,
+			None => {
+				log::warn!(target: "candidate_selection", "received invalidity notice for a candidate we don't remember seconding");
+				return;
+			}
+		};
+		log::info!(target: "candidate_selection", "received invalidity note for candidate {:?}", candidate_receipt);
+		let succeeded;
+		if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
+			log::warn!(target: "candidate_selection", "failed to forward invalidity note: {:?}", err);
+			succeeded = false;
+		} else {
+			succeeded = true;
+		}
+		self.metrics.on_invalid_selection(succeeded);
+	}
 }
 
-// The provisioner is the subsystem best suited to choosing which specific
-// backed candidates and availability bitfields should be assembled into the
-// block. To engage this functionality, a
-// `CandidateSelectionMessage::RequestInherentData` is sent; the response is a set of
-// non-conflicting candidates and the appropriate bitfields. Non-conflicting
-// means that there are never two distinct parachain candidates included for
-// the same parachain and that new parachain candidates cannot be included
-// until the previous one either gets declared available or expired.
+// get a collation from the Collator Protocol subsystem
 //
-// The main complication here is going to be around handling
-// occupied-core-assumptions. We might have candidates that are only
-// includable when some bitfields are included. And we might have candidates
-// that are not includable when certain bitfields are included.
-//
-// When we're choosing bitfields to include, the rule should be simple:
-// maximize availability. So basically, include all bitfields. And then
-// choose a coherent set of candidates along with that.
+// note that this gets an owned clone of the sender; that's becuase unlike `forward_invalidity_note`, it's expected to take a while longer
+async fn get_collation(
+	relay_parent: Hash,
+	para_id: ParaId,
+	mut sender: mpsc::Sender<FromJob>,
+) -> Result<(CandidateReceipt, PoV), Error> {
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send(FromJob::Collator(CollatorProtocolMessage::FetchCollation(
+			relay_parent,
+			para_id,
+			tx,
+		)))
+		.await?;
+	rx.await.map_err(Into::into)
+}
+
+// find out whether a candidate is valid or not
+async fn candidate_is_valid(
+	candidate_descriptor: CandidateDescriptor,
+	pov: Arc<PoV>,
+	sender: mpsc::Sender<FromJob>,
+) -> bool {
+	std::matches!(
+		candidate_is_valid_inner(candidate_descriptor, pov, sender).await,
+		Ok(true)
+	)
+}
+
+// find out whether a candidate is valid or not, with a worse interface
+// the external interface is worse, but the internal implementation is easier
+async fn candidate_is_valid_inner(
+	candidate_descriptor: CandidateDescriptor,
+	pov: Arc<PoV>,
+	mut sender: mpsc::Sender<FromJob>,
+) -> Result<bool, Error> {
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send(FromJob::Validation(
+			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
+		))
+		.await?;
+	Ok(std::matches!(rx.await, Ok(Ok(ValidationResult::Valid(_)))))
+}
+
+async fn second_candidate(
+	relay_parent: Hash,
+	candidate_receipt: CandidateReceipt,
+	pov: PoV,
+	sender: &mut mpsc::Sender<FromJob>,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	// CandidateBackingMessage::Second(Hash, CandidateReceipt, PoV),
+	match sender
+		.send(FromJob::Backing(CandidateBackingMessage::Second(
+			relay_parent,
+			candidate_receipt,
+			pov,
+		)))
+		.await
+	{
+		Err(err) => {
+			log::warn!(target: "candidate_selection", "failed to send a seconding message");
+			metrics.on_second(false);
+			Err(err.into())
+		}
+		Ok(_) => {
+			metrics.on_second(true);
+			Ok(())
+		}
+	}
+}
+
 async fn forward_invalidity_note(
-	received_from: CollatorId,
+	received_from: &CollatorId,
 	sender: &mut mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
-	sender.send(FromJob::Collator(CollatorProtocolMessage::ReportCollator(received_from))).await.map_err(Into::into)
+	sender
+		.send(FromJob::Collator(CollatorProtocolMessage::ReportCollator(
+			received_from.clone(),
+		)))
+		.await
+		.map_err(Into::into)
 }
-
 
 #[derive(Clone)]
 struct MetricsInner {
+	seconds: prometheus::CounterVec<prometheus::U64>,
 	invalid_selections: prometheus::CounterVec<prometheus::U64>,
 }
 
@@ -244,6 +363,13 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
+	fn on_second(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			let label = if succeeded { "succeeded" } else { "failed" };
+			metrics.seconds.with_label_values(&[label]).inc();
+		}
+	}
+
 	fn on_invalid_selection(&self, succeeded: bool) {
 		if let Some(metrics) = &self.0 {
 			let label = if succeeded { "succeeded" } else { "failed" };
@@ -255,6 +381,16 @@ impl Metrics {
 impl metrics::Metrics for Metrics {
 	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
+			seconds: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"candidate_selection_invalid_selections_total",
+						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?,
 			invalid_selections: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
@@ -269,6 +405,5 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
 
 delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSelectionSubsystem);
