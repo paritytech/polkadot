@@ -107,19 +107,19 @@ decl_event!(
 		Balance = BalanceOf<T>,
 		BlockNumber = <T as frame_system::Trait>::BlockNumber,
 	{
-		/// A new account was created
+		/// A [new] account was created.
 		AccountCreated(AccountId),
-		/// Someone's account validity was updated
+		/// Someone's account validity was updated. [who, validity]
 		ValidityUpdated(AccountId, AccountValidity),
-		/// Someone's purchase balance was updated. (Free, Locked)
+		/// Someone's purchase balance was updated. [who, free, locked]
 		BalanceUpdated(AccountId, Balance, Balance),
-		/// A payout was made to a purchaser.
+		/// A payout was made to a purchaser. [who, free, locked]
 		PaymentComplete(AccountId, Balance, Balance),
-		/// A new payment account was set.
+		/// A new payment account was set. [who]
 		PaymentAccountSet(AccountId),
 		/// A new statement was set.
 		StatementUpdated,
-		/// A new statement was set.
+		/// A new statement was set. [block_number]
 		UnlockBlockUpdated(BlockNumber),
 	}
 );

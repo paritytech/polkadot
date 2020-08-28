@@ -12,7 +12,6 @@ codec = { package = "parity-scale-codec", version = "1.3.4", default-features = 
 parachain = { package = "polkadot-parachain", path = ".." }
 adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
-code-upgrader = { package = "test-parachain-code-upgrader", path = "code-upgrader" }
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -22,5 +21,4 @@ default = [ "std" ]
 std = [
 	"adder/std",
 	"halt/std",
-	"code-upgrader/std",
 ]

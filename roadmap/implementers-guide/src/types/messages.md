@@ -5,6 +5,22 @@ Types of messages that are passed between parachains and the relay chain: UMP, D
 There is also HRMP (Horizontally Relay-routed Message Passing) which provides the same functionality
 although with smaller scalability potential.
 
+## HrmpChannelId
+
+A type that uniquely identifies a HRMP channel. A HRMP channel is established between two paras.
+In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
+unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
+that we use the first item tuple for the sender and the second for the recipient. Only one channel
+is allowed between two participants in one direction, i.e. there cannot be 2 different channels
+identified by `(A, B)`.
+
+```rust,ignore
+struct HrmpChannelId {
+    sender: ParaId,
+    recipient: ParaId,
+}
+```
+
 ## Upward Message
 
 A type of messages dispatched from a parachain to the relay chain.
@@ -37,9 +53,23 @@ enum UpwardMessage {
 		/// The dispatchable to be executed in its raw form.
 		dispatchable: RawDispatchable,
 	},
-	// Examples:
-	// HrmpOpenChannel { .. },
-	// HrmpCloseChannel { .. },
+	/// A message for initiation of opening a new HRMP channel between the origin para and the
+	/// given `recipient`.
+	///
+	/// Let `origin` be the parachain that sent this upward message. In that case the channel
+	/// to be opened is (`origin` -> `recipient`).
+	HrmpInitOpenChannel(ParaId),
+	/// A message that is meant to confirm the HRMP open channel request initiated earlier by the
+	/// `HrmpInitOpenChannel` by the given `sender`.
+	///
+	/// Let `origin` be the parachain that sent this upward message. In that case the channel
+	/// (`origin` -> `sender`) will be opened during the session change.
+	HrmpAcceptOpenChannel(ParaId),
+	/// A message for closing the specified existing channel `ch`.
+	///
+	/// The channel to be closed is `(ch.sender -> ch.recipient)`. The parachain that sent this
+	/// upward message must be either `ch.sender` or `ch.recipient`.
+	HrmpCloseChannel(HrmpChannelId),
 }
 ```
 

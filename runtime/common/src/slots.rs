@@ -268,22 +268,25 @@ decl_event!(
 		ParaId = ParaId,
 		Balance = BalanceOf<T>,
 	{
-		/// A new lease period is beginning.
+		/// A new [lease_period] is beginning.
 		NewLeasePeriod(LeasePeriod),
 		/// An auction started. Provides its index and the block number where it will begin to
 		/// close and the first lease period of the quadruplet that is auctioned.
+		/// [auction_index, lease_period, ending]
 		AuctionStarted(AuctionIndex, LeasePeriod, BlockNumber),
-		/// An auction ended. All funds become unreserved.
+		/// An auction ended. All funds become unreserved. [auction_index]
 		AuctionClosed(AuctionIndex),
 		/// Someone won the right to deploy a parachain. Balance amount is deducted for deposit.
+		/// [bidder, range, parachain_id, amount]
 		WonDeploy(NewBidder<AccountId>, SlotRange, ParaId, Balance),
 		/// An existing parachain won the right to continue.
 		/// First balance is the extra amount reseved. Second is the total amount reserved.
+		/// [parachain_id, range, extra_reseved, total_amount]
 		WonRenewal(ParaId, SlotRange, Balance, Balance),
 		/// Funds were reserved for a winning bid. First balance is the extra amount reserved.
-		/// Second is the total.
+		/// Second is the total. [bidder, extra_reserved, total_amount]
 		Reserved(AccountId, Balance, Balance),
-		/// Funds were unreserved since bidder is no longer active.
+		/// Funds were unreserved since bidder is no longer active. [bidder, amount]
 		Unreserved(AccountId, Balance),
 	}
 );

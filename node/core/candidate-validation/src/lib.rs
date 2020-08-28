@@ -23,15 +23,17 @@
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
 	FromOverseer, OverseerSignal,
-};
-use polkadot_subsystem::messages::{
-	AllMessages, CandidateValidationMessage, RuntimeApiMessage, ValidationFailed, RuntimeApiRequest,
+	messages::{
+		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
+		ValidationFailed, RuntimeApiRequest,
+	},
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
 use polkadot_primitives::v1::{
-	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,
-	GlobalValidationData, OccupiedCoreAssumption, Hash, validation_data_hash,
+	ValidationCode, PoV, CandidateDescriptor, ValidationData, PersistedValidationData,
+	TransientValidationData, OccupiedCoreAssumption, Hash,
 };
 use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode, ValidationError,
 	InvalidCandidate as WasmInvalidCandidate};
@@ -45,13 +47,63 @@ use futures::prelude::*;
 
 use std::sync::Arc;
 
+const LOG_TARGET: &'static str = "candidate_validation";
+
 /// The candidate validation subsystem.
-pub struct CandidateValidationSubsystem<S>(S);
+pub struct CandidateValidationSubsystem<S> {
+	spawn: S,
+	metrics: Metrics,
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["failed"]).inc();
+				},
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_validation_requests_total",
+						"Number of validation requests served.",
+					),
+					&["valid", "invalid", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S) -> Self {
-		CandidateValidationSubsystem(spawn)
+	pub fn new(spawn: S, metrics: Metrics) -> Self {
+		CandidateValidationSubsystem { spawn, metrics }
 	}
 }
 
@@ -59,10 +111,12 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
 	S: SpawnNamed + Clone + 'static,
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx, self.0).map(|_| ()).boxed(),
+			future: run(ctx, self.spawn, self.metrics).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -70,6 +124,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
+	metrics: Metrics,
 )
 	-> SubsystemResult<()>
 {
@@ -95,12 +150,16 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => { let _ = response_sender.send(x); }
-						Err(e)=> return Err(e),
+						Ok(x) => {
+							metrics.on_validation_event(&x);
+							let _ = response_sender.send(x);
+						}
+						Err(e) => return Err(e),
 					}
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
-					omitted_validation,
+					persisted_validation_data,
+					transient_validation_data,
 					validation_code,
 					descriptor,
 					pov,
@@ -109,7 +168,8 @@ async fn run(
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
 						Some(pool.clone()),
-						omitted_validation,
+						persisted_validation_data,
+						transient_validation_data,
 						validation_code,
 						descriptor,
 						pov,
@@ -117,13 +177,16 @@ async fn run(
 					).await;
 
 					match res {
-						Ok(x) => if let Err(_e) = response_sender.send(x) {
-							log::warn!(
-								target: "candidate_validation",
-								"Requester of candidate validation dropped",
-							)
+						Ok(x) => {
+							metrics.on_validation_event(&x);
+							if let Err(_e) = response_sender.send(x) {
+								log::warn!(
+									target: LOG_TARGET,
+									"Requester of candidate validation dropped",
+								)
+							}
 						},
-						Err(e)=> return Err(e),
+						Err(e) => return Err(e),
 					}
 				}
 			}
@@ -149,7 +212,7 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	Matches(OmittedValidationData, ValidationCode),
+	Matches(ValidationData, ValidationCode),
 	DoesNotMatch,
 	BadRequest,
 }
@@ -157,15 +220,14 @@ enum AssumptionCheckOutcome {
 async fn check_assumption_validation_data(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	descriptor: &CandidateDescriptor,
-	global_validation_data: &GlobalValidationData,
 	assumption: OccupiedCoreAssumption,
 ) -> SubsystemResult<AssumptionCheckOutcome> {
-	let local_validation_data = {
+	let validation_data = {
 		let (tx, rx) = oneshot::channel();
 		let d = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::LocalValidationData(
+			RuntimeApiRequest::FullValidationData(
 				descriptor.para_id,
 				assumption,
 				tx,
@@ -181,17 +243,9 @@ async fn check_assumption_validation_data(
 		}
 	};
 
-	let validation_data_hash = validation_data_hash(
-		&global_validation_data,
-		&local_validation_data,
-	);
+	let persisted_validation_data_hash = validation_data.persisted.hash();
 
-	SubsystemResult::Ok(if descriptor.validation_data_hash == validation_data_hash {
-		let omitted_validation = OmittedValidationData {
-			global_validation: global_validation_data.clone(),
-			local_validation: local_validation_data,
-		};
-
+	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
 		let (code_tx, code_rx) = oneshot::channel();
 		let validation_code = runtime_api_request(
 			ctx,
@@ -206,7 +260,7 @@ async fn check_assumption_validation_data(
 
 		match validation_code {
 			Ok(None) | Err(_) => AssumptionCheckOutcome::BadRequest,
-			Ok(Some(v)) => AssumptionCheckOutcome::Matches(omitted_validation, v),
+			Ok(Some(v)) => AssumptionCheckOutcome::Matches(validation_data, v),
 		}
 	} else {
 		AssumptionCheckOutcome::DoesNotMatch
@@ -220,44 +274,21 @@ async fn spawn_validate_from_chain_state(
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	// The candidate descriptor has a `validation_data_hash` which corresponds to
+	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
-	// relay-parent. We can fetch these values by getting the `global_validation_data`,
-	// and both `local_validation_data` based on the different `OccupiedCoreAssumption`s.
-	let global_validation_data = {
-		let (tx, rx) = oneshot::channel();
-		let res = runtime_api_request(
-			ctx,
-			descriptor.relay_parent,
-			RuntimeApiRequest::GlobalValidationData(tx),
-			rx,
-		).await?;
-
-		match res {
-			Ok(g) => g,
-			Err(e) => {
-				log::warn!(
-					target: "candidate_validation",
-					"Error making runtime API request: {:?}",
-					e,
-				);
-
-				return Ok(Err(ValidationFailed("Error making API request".into())));
-			}
-		}
-	};
-
+	// relay-parent. We can fetch these values by getting the persisted validation data
+	// based on the different `OccupiedCoreAssumption`s.
 	match check_assumption_validation_data(
 		ctx,
 		&descriptor,
-		&global_validation_data,
 		OccupiedCoreAssumption::Included,
 	).await? {
-		AssumptionCheckOutcome::Matches(omitted_validation, validation_code) => {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
 				validation_pool,
-				omitted_validation,
+				validation_data.persisted,
+				Some(validation_data.transient),
 				validation_code,
 				descriptor,
 				pov,
@@ -271,14 +302,14 @@ async fn spawn_validate_from_chain_state(
 	match check_assumption_validation_data(
 		ctx,
 		&descriptor,
-		&global_validation_data,
 		OccupiedCoreAssumption::TimedOut,
 	).await? {
-		AssumptionCheckOutcome::Matches(omitted_validation, validation_code) => {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
 				validation_pool,
-				omitted_validation,
+				validation_data.persisted,
+				Some(validation_data.transient),
 				validation_code,
 				descriptor,
 				pov,
@@ -290,7 +321,7 @@ async fn spawn_validate_from_chain_state(
 	}
 
 	// If neither the assumption of the occupied core having the para included or the assumption
-	// of the occupied core timing out are valid, then the validation_data_hash in the descriptor
+	// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
 	// is not based on the relay parent and is thus invalid.
 	Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
 }
@@ -298,7 +329,8 @@ async fn spawn_validate_from_chain_state(
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_pool: Option<ValidationPool>,
-	omitted_validation: OmittedValidationData,
+	persisted_validation_data: PersistedValidationData,
+	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -308,7 +340,8 @@ async fn spawn_validate_exhaustive(
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			validation_pool,
-			omitted_validation,
+			persisted_validation_data,
+			transient_validation_data,
 			validation_code,
 			descriptor,
 			pov,
@@ -318,7 +351,7 @@ async fn spawn_validate_exhaustive(
 		let _ = tx.send(res);
 	};
 
-	ctx.spawn("blocking-candidate-validation-task", fut.boxed()).await?;
+	ctx.spawn_blocking("blocking-candidate-validation-task", fut.boxed()).await?;
 	rx.await.map_err(Into::into)
 }
 
@@ -353,16 +386,19 @@ fn perform_basic_checks(
 ///
 /// Returns `Ok(())` if checks pass, error otherwise.
 fn check_wasm_result_against_constraints(
-	global_validation_data: &GlobalValidationData,
-	_local_validation_data: &LocalValidationData,
+	transient_params: &TransientValidationData,
 	result: &WasmValidationResult,
 ) -> Result<(), InvalidCandidate> {
-	if result.head_data.0.len() > global_validation_data.max_head_data_size as _ {
+	if result.head_data.0.len() > transient_params.max_head_data_size as _ {
 		return Err(InvalidCandidate::HeadDataTooLarge(result.head_data.0.len() as u64))
 	}
 
 	if let Some(ref code) = result.new_validation_code {
-		if code.0.len() > global_validation_data.max_code_size as _ {
+		if transient_params.code_upgrade_allowed.is_none() {
+			return Err(InvalidCandidate::CodeUpgradeNotAllowed)
+		}
+
+		if code.0.len() > transient_params.max_code_size as _ {
 			return Err(InvalidCandidate::NewCodeTooLarge(code.0.len() as u64))
 		}
 	}
@@ -410,7 +446,8 @@ impl ValidationBackend for RealValidationBackend {
 /// Sends the result of validation on the channel once complete.
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
-	omitted_validation: OmittedValidationData,
+	persisted_validation_data: PersistedValidationData,
+	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -420,15 +457,11 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		return Ok(ValidationResult::Invalid(e))
 	}
 
-	let OmittedValidationData { global_validation, local_validation } = omitted_validation;
-
 	let params = ValidationParams {
-		parent_head: local_validation.parent_head.clone(),
+		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
-		max_code_size: global_validation.max_code_size,
-		max_head_data_size: global_validation.max_head_data_size,
-		relay_chain_height: global_validation.block_number,
-		code_upgrade_allowed: local_validation.code_upgrade_allowed,
+		relay_chain_height: persisted_validation_data.block_number,
+		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
@@ -446,17 +479,19 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let post_check_result = check_wasm_result_against_constraints(
-				&global_validation,
-				&local_validation,
-				&res,
-			);
+			let post_check_result = if let Some(transient) = transient_validation_data {
+				check_wasm_result_against_constraints(
+					&transient,
+					&res,
+				)
+			} else {
+				Ok(())
+			};
 
 			Ok(match post_check_result {
 				Ok(()) => ValidationResult::Valid(ValidationOutputs {
 					head_data: res.head_data,
-					global_validation_data: global_validation,
-					local_validation_data: local_validation,
+					validation_data: persisted_validation_data,
 					upward_messages: res.upward_messages,
 					fees: 0,
 					new_validation_code: res.new_validation_code,
@@ -501,7 +536,7 @@ mod tests {
 		let payload = polkadot_primitives::v1::collator_signature_payload(
 			&descriptor.relay_parent,
 			&descriptor.para_id,
-			&descriptor.validation_data_hash,
+			&descriptor.persisted_validation_data_hash,
 			&descriptor.pov_hash,
 		);
 
@@ -511,17 +546,16 @@ mod tests {
 
 	#[test]
 	fn correctly_checks_included_assumption() {
-		let local_validation_data = LocalValidationData::default();
-		let global_validation_data = GlobalValidationData::default();
+		let validation_data: ValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -530,22 +564,20 @@ mod tests {
 		let (check_fut, check_result) = check_assumption_validation_data(
 			&mut ctx,
 			&candidate,
-			&global_validation_data,
 			OccupiedCoreAssumption::Included,
 		).remote_handle();
 
-		let global_validation_data = global_validation_data.clone();
 		let test_fut = async move {
 			assert_matches!(
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(local_validation_data.clone())));
+					let _ = tx.send(Ok(Some(validation_data.clone())));
 				}
 			);
 
@@ -563,11 +595,7 @@ mod tests {
 			);
 
 			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
-				assert_eq!(o, OmittedValidationData {
-					local_validation: local_validation_data,
-					global_validation: global_validation_data,
-				});
-
+				assert_eq!(o, validation_data);
 				assert_eq!(v, validation_code);
 			});
 		};
@@ -578,17 +606,16 @@ mod tests {
 
 	#[test]
 	fn correctly_checks_timed_out_assumption() {
-		let local_validation_data = LocalValidationData::default();
-		let global_validation_data = GlobalValidationData::default();
+		let validation_data: ValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -597,22 +624,20 @@ mod tests {
 		let (check_fut, check_result) = check_assumption_validation_data(
 			&mut ctx,
 			&candidate,
-			&global_validation_data,
 			OccupiedCoreAssumption::TimedOut,
 		).remote_handle();
 
-		let global_validation_data = global_validation_data.clone();
 		let test_fut = async move {
 			assert_matches!(
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(local_validation_data.clone())));
+					let _ = tx.send(Ok(Some(validation_data.clone())));
 				}
 			);
 
@@ -630,11 +655,7 @@ mod tests {
 			);
 
 			assert_matches!(check_result.await.unwrap(), AssumptionCheckOutcome::Matches(o, v) => {
-				assert_eq!(o, OmittedValidationData {
-					local_validation: local_validation_data,
-					global_validation: global_validation_data,
-				});
-
+				assert_eq!(o, validation_data);
 				assert_eq!(v, validation_code);
 			});
 		};
@@ -645,16 +666,14 @@ mod tests {
 
 	#[test]
 	fn check_is_bad_request_if_no_validation_data() {
-		let local_validation_data = LocalValidationData::default();
-		let global_validation_data = GlobalValidationData::default();
-
-		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let validation_data: ValidationData = Default::default();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -663,7 +682,6 @@ mod tests {
 		let (check_fut, check_result) = check_assumption_validation_data(
 			&mut ctx,
 			&candidate,
-			&global_validation_data,
 			OccupiedCoreAssumption::Included,
 		).remote_handle();
 
@@ -672,7 +690,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -690,16 +708,14 @@ mod tests {
 
 	#[test]
 	fn check_is_bad_request_if_no_validation_code() {
-		let local_validation_data = LocalValidationData::default();
-		let global_validation_data = GlobalValidationData::default();
-
-		let validation_data_hash = validation_data_hash(&global_validation_data, &local_validation_data);
+		let validation_data: ValidationData = Default::default();
+		let persisted_validation_data_hash = validation_data.persisted.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = validation_data_hash;
+		candidate.persisted_validation_data_hash = persisted_validation_data_hash;
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -708,7 +724,6 @@ mod tests {
 		let (check_fut, check_result) = check_assumption_validation_data(
 			&mut ctx,
 			&candidate,
-			&global_validation_data,
 			OccupiedCoreAssumption::TimedOut,
 		).remote_handle();
 
@@ -717,12 +732,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(local_validation_data.clone())));
+					let _ = tx.send(Ok(Some(validation_data.clone())));
 				}
 			);
 
@@ -748,15 +763,13 @@ mod tests {
 
 	#[test]
 	fn check_does_not_match() {
-		let local_validation_data = LocalValidationData::default();
-		let global_validation_data = GlobalValidationData::default();
-
+		let validation_data: ValidationData = Default::default();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
 		let mut candidate = CandidateDescriptor::default();
 		candidate.relay_parent = relay_parent;
-		candidate.validation_data_hash = [3; 32].into();
+		candidate.persisted_validation_data_hash = [3; 32].into();
 		candidate.para_id = para_id;
 
 		let pool = TaskExecutor::new();
@@ -765,7 +778,6 @@ mod tests {
 		let (check_fut, check_result) = check_assumption_validation_data(
 			&mut ctx,
 			&candidate,
-			&global_validation_data,
 			OccupiedCoreAssumption::Included,
 		).remote_handle();
 
@@ -774,12 +786,12 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::LocalValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
 
-					let _ = tx.send(Ok(Some(local_validation_data.clone())));
+					let _ = tx.send(Ok(Some(validation_data.clone())));
 				}
 			);
 
@@ -792,13 +804,10 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let mut omitted_validation = OmittedValidationData {
-			local_validation: Default::default(),
-			global_validation: Default::default(),
-		};
-
-		omitted_validation.global_validation.max_head_data_size = 1024;
-		omitted_validation.global_validation.max_code_size = 1024;
+		let mut validation_data: ValidationData = Default::default();
+		validation_data.transient.max_head_data_size = 1024;
+		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -816,14 +825,14 @@ mod tests {
 		};
 
 		assert!(check_wasm_result_against_constraints(
-			&omitted_validation.global_validation,
-			&omitted_validation.local_validation,
+			&validation_data.transient,
 			&validation_result,
 		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
-			omitted_validation.clone(),
+			validation_data.persisted.clone(),
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -832,8 +841,7 @@ mod tests {
 
 		assert_matches!(v, ValidationResult::Valid(outputs) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.global_validation_data, omitted_validation.global_validation);
-			assert_eq!(outputs.local_validation_data, omitted_validation.local_validation);
+			assert_eq!(outputs.validation_data, validation_data.persisted);
 			assert_eq!(outputs.upward_messages, Vec::new());
 			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
@@ -842,13 +850,11 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let mut omitted_validation = OmittedValidationData {
-			local_validation: Default::default(),
-			global_validation: Default::default(),
-		};
+		let mut validation_data: ValidationData = Default::default();
 
-		omitted_validation.global_validation.max_head_data_size = 1024;
-		omitted_validation.global_validation.max_code_size = 1024;
+		validation_data.transient.max_head_data_size = 1024;
+		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -866,8 +872,7 @@ mod tests {
 		};
 
 		assert!(check_wasm_result_against_constraints(
-			&omitted_validation.global_validation,
-			&omitted_validation.local_validation,
+			&validation_data.transient,
 			&validation_result,
 		).is_ok());
 
@@ -877,7 +882,8 @@ mod tests {
 					WasmInvalidCandidate::BadReturn
 				))
 			},
-			omitted_validation.clone(),
+			validation_data.persisted,
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -890,13 +896,11 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let mut omitted_validation = OmittedValidationData {
-			local_validation: Default::default(),
-			global_validation: Default::default(),
-		};
+		let mut validation_data: ValidationData = Default::default();
 
-		omitted_validation.global_validation.max_head_data_size = 1024;
-		omitted_validation.global_validation.max_code_size = 1024;
+		validation_data.transient.max_head_data_size = 1024;
+		validation_data.transient.max_code_size = 1024;
+		validation_data.transient.code_upgrade_allowed = Some(20);
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -914,8 +918,7 @@ mod tests {
 		};
 
 		assert!(check_wasm_result_against_constraints(
-			&omitted_validation.global_validation,
-			&omitted_validation.local_validation,
+			&validation_data.transient,
 			&validation_result,
 		).is_ok());
 
@@ -925,7 +928,8 @@ mod tests {
 					WasmInvalidCandidate::Timeout
 				))
 			},
-			omitted_validation.clone(),
+			validation_data.persisted,
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -933,5 +937,50 @@ mod tests {
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
+	}
+
+	#[test]
+	fn candidate_validation_ok_does_not_validate_outputs_if_no_transient() {
+		let mut validation_data: ValidationData = Default::default();
+		validation_data.transient.max_head_data_size = 1;
+		validation_data.transient.max_code_size = 1;
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+
+		let validation_result = WasmValidationResult {
+			head_data: HeadData(vec![1, 1, 1]),
+			new_validation_code: Some(vec![2, 2, 2].into()),
+			upward_messages: Vec::new(),
+			processed_downward_messages: 0,
+		};
+
+		assert!(check_wasm_result_against_constraints(
+			&validation_data.transient,
+			&validation_result,
+		).is_err());
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
+			validation_data.persisted.clone(),
+			None,
+			vec![1, 2, 3].into(),
+			descriptor,
+			Arc::new(pov),
+			TaskExecutor::new(),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Valid(outputs) => {
+			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
+			assert_eq!(outputs.validation_data, validation_data.persisted);
+			assert_eq!(outputs.upward_messages, Vec::new());
+			assert_eq!(outputs.fees, 0);
+			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+		});
 	}
 }
