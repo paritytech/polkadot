@@ -23,12 +23,14 @@ use std::sync::Arc;
 use polkadot_primitives::v0::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
+use sp_block_builder::BlockBuilder;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
+use sp_runtime::traits::BlakeTwo256;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
-use sp_block_builder::BlockBuilder;
+use sc_finality_grandpa::FinalityProofProvider;
 pub use sc_rpc::DenyUnsafe;
 pub use jsonrpc_pubsub::manager::SubscriptionManager;
 
@@ -58,7 +60,7 @@ pub struct BabeDeps {
 }
 
 /// Dependencies for GRANDPA
-pub struct GrandpaDeps {
+pub struct GrandpaDeps<B> {
 	/// Voting round info.
 	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
 	/// Authority set info.
@@ -67,10 +69,12 @@ pub struct GrandpaDeps {
 	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
 	/// Subscription manager to keep track of pubsub subscribers.
 	pub subscriptions: jsonrpc_pubsub::manager::SubscriptionManager,
+	/// Finality proof provider.
+	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
 /// Full client dependencies
-pub struct FullDeps<C, P, SC> {
+pub struct FullDeps<C, P, SC, B> {
 	/// The client instance to use.
 	pub client: Arc<C>,
 	/// Transaction pool instance.
@@ -82,11 +86,11 @@ pub struct FullDeps<C, P, SC> {
 	/// BABE specific dependencies.
 	pub babe: BabeDeps,
 	/// GRANDPA specific dependencies.
-	pub grandpa: GrandpaDeps,
+	pub grandpa: GrandpaDeps<B>,
 }
 
 /// Instantiate all RPC extensions.
-pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
+pub fn create_full<C, P, SC, B>(deps: FullDeps<C, P, SC, B>) -> RpcExtension where
 	C: ProvideRuntimeApi<Block>,
 	C: HeaderBackend<Block> + HeaderMetadata<Block, Error=BlockChainError>,
 	C: Send + Sync + 'static,
@@ -96,6 +100,8 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 	C::Api: BlockBuilder<Block>,
 	P: TransactionPool + Sync + Send + 'static,
 	SC: SelectChain<Block> + 'static,
+	B: Send + Sync + 'static + sc_client_api::Backend<Block>,
+	<B as sc_client_api::Backend<Block>>::State: sp_state_machine::Backend<BlakeTwo256>,
 {
 	use frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
@@ -121,6 +127,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		shared_authority_set,
 		justification_stream,
 		subscriptions,
+		finality_provider,
 	} = grandpa;
 
 	io.extend_with(
@@ -147,6 +154,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 			shared_voter_state,
 			justification_stream,
 			subscriptions,
+			finality_provider,
 		))
 	);
 	io
