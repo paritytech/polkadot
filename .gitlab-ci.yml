@@ -177,6 +177,18 @@ build-linux-release:               &build
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
 
+build-linux-release-pr:            &build
+  stage:                           build
+  <<:                              *collect-artifacts
+  <<:                              *test-refs
+  <<:                              *docker-env
+  <<:                              *compiler_info
+  script:
+    - time cargo build --release --verbose
+    - mkdir -p ./artifacts
+    - mv ./target/release/polkadot ./artifacts/.
+    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
+  when: manual
 
 generate-impl-guide:
   stage:                          build
