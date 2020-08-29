@@ -34,6 +34,7 @@ offences = { package = "pallet-offences", git = "https://github.com/paritytech/s
 transaction-payment = { package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, optional = true }
 
+polkadot-parachain = { path = "../../parachain", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
@@ -79,6 +80,7 @@ std = [
 	"timestamp/std",
 	"vesting/std",
 	"transaction-payment/std",
+	"polkadot-parachain/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",

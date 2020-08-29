@@ -72,29 +72,6 @@ pub type BlockId = generic::BlockId<Block>;
 /// Opaque, encoded, unchecked extrinsic.
 pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
-/// The information that goes alongside a transfer_into_parachain operation. Entirely opaque, it
-/// will generally be used for identifying the reason for the transfer. Typically it will hold the
-/// destination account to which the transfer should be credited. If still more information is
-/// needed, then this should be a hash with the pre-image presented via an off-chain mechanism on
-/// the parachain.
-pub type Remark = [u8; 32];
-
-/// These are special "control" messages that can be passed from the Relaychain to a parachain.
-/// They should be handled by all parachains.
-#[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
-pub enum DownwardMessage<AccountId = crate::AccountId> {
-	/// Some funds were transferred into the parachain's account. The hash is the identifier that
-	/// was given with the transfer.
-	TransferInto(AccountId, Balance, Remark),
-	/// An opaque blob of data. The relay chain must somehow know how to form this so that the
-	/// destination parachain does something sensible.
-	///
-	/// NOTE: Be very careful not to allow users to place arbitrary size information in here.
-	Opaque(sp_std::vec::Vec<u8>),
-	/// XCMP message for the Parachain.
-	XcmpMessage(sp_std::vec::Vec<u8>),
-}
-
 /// V1 primitives.
 pub mod v1 {
 	pub use super::*;

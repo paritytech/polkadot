@@ -189,12 +189,12 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 #[cfg_attr(feature = "std", derive(Debug))]
 #[repr(u8)]
 pub enum ParachainDispatchOrigin {
-	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
-	/// interacting with standard modules such as `balances`.
-	Signed,
 	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
 	/// aware modules which need to succinctly verify that the origin is a parachain.
 	Parachain,
+	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
+	/// interacting with standard modules such as `balances`.
+	Signed,
 	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
 	/// parachains.
 	Root,
@@ -211,16 +211,6 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 			_ => return Err(()),
 		})
 	}
-}
-
-/// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
-pub struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
 }
 
 /// Validation parameters for evaluating the parachain validity function.
@@ -256,7 +246,7 @@ pub struct ValidationResult {
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: Vec<Vec<u8>>,
 	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.

@@ -773,7 +773,7 @@ sp_api::decl_runtime_apis! {
 		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
 		fn signing_context() -> SigningContext;
 		/// Get the `DownwardMessage`'s for the given parachain.
-		fn downward_messages(id: Id) -> Vec<DownwardMessage>;
+		fn downward_messages(id: Id) -> Vec<Vec<u8>>;
 	}
 }
 
