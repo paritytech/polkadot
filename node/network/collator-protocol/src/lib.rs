@@ -14,11 +14,12 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use futures::FutureExt;
+use futures::{channel::oneshot, FutureExt};
 use log::trace;
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
+	errors::RuntimeApiError,
 	metrics::{self, prometheus},
 	messages::{
 		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
@@ -27,6 +28,8 @@ use polkadot_subsystem::{
 use polkadot_node_network_protocol::{
 	PeerId, ReputationChange as Rep,
 };
+use polkadot_primitives::v1::CollatorId;
+use polkadot_node_subsystem_util as util;
 
 mod collator_side;
 mod validator_side;
@@ -37,24 +40,31 @@ const TARGET: &'static str = "colp";
 enum Error {
 	#[from]
 	Subsystem(SubsystemError),
+	#[from]
+	Oneshot(oneshot::Canceled),
+	#[from]
+	RuntimeApi(RuntimeApiError),
+	#[from]
+	UtilError(util::Error),
 }
 
 type Result<T> = std::result::Result<T, Error>;
 
 enum ProtocolSide {
 	Validator,
-	Collator,
+	Collator(CollatorId),
 }
 
+/// The collator protocol subsystem.
 pub struct CollatorProtocolSubsystem {
 	protocol_side: ProtocolSide, 
 }
 
 impl CollatorProtocolSubsystem {
 	/// Instantiate the collator protocol side of this subsystem
-	pub fn new_collator_side() -> Self {
+	pub fn new_collator_side(id: CollatorId) -> Self {
 		Self {
-			protocol_side: ProtocolSide::Collator,
+			protocol_side: ProtocolSide::Collator(id),
 		}
 	}
 
@@ -65,41 +75,25 @@ impl CollatorProtocolSubsystem {
 		}
 	}
 
-	async fn run_collator_side<Context>(self, ctx: Context) -> Result<()>
+	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
-		collator_side::run(ctx).await
+		match self.protocol_side {
+		    ProtocolSide::Validator => validator_side::run(ctx).await,
+		    ProtocolSide::Collator(id) => collator_side::run(ctx, id).await,
+		}
 	}
-
-	async fn run_validator_side<Context>(self, ctx: Context) -> Result<()>
-	where
-		Context: SubsystemContext<Message = CollatorProtocolMessage>,
-	{
-		validator_side::run(ctx).await
-	}
-}
-
-#[derive(Clone)]
-struct ValidatorMetrics;
-
-#[derive(Clone)]
-struct CollatorMetrics;
-
-#[derive(Clone)]
-enum MetricsInner {
-	ValidatorMetrics(ValidatorMetrics),
-	CollatorMetrics(CollatorMetrics),
 }
 
 /// Collator protocol metrics.
 #[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
+pub struct Metrics;
 
 impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) 
+	fn try_register(_registry: &prometheus::Registry) 
 		-> std::result::Result<Self, prometheus::PrometheusError> {
-		Ok(Metrics(None))
+		Ok(Metrics)
 	}
 }
 
@@ -110,15 +104,9 @@ where
 	type Metrics = Metrics;
 
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		match self.protocol_side {
-			ProtocolSide::Collator => SpawnedSubsystem {
-				name: "collator-protocol-subsystem",
-				future: Box::pin(async move { self.run_collator_side(ctx) }.map(|_| ())),
-			},
-			ProtocolSide::Validator => SpawnedSubsystem {
-				name: "collator-protocol-subsystem",
-				future: Box::pin(async move { self.run_validator_side(ctx) }.map(|_| ())),
-			}
+		SpawnedSubsystem {
+			name: "collator-protocol-subsystem",
+			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
 		}
 	}
 }

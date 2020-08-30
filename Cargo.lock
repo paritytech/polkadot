@@ -4470,6 +4470,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
  "smallvec 1.4.2",
@@ -4573,10 +4574,12 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "smallvec 1.4.2",
  "smol-timeout",
  "sp-core",
+ "sp-keyring",
 ]
 
 [[package]]
