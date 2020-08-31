@@ -115,4 +115,13 @@ enum DownwardMessage {
 	/// paras.
 	ParachainSpecific(Vec<u8>),
 }
+
+/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
+/// the message was sent.
+struct InboundDownwardMessage {
+	/// The block number at which this messages was put into the downward message queue.
+	pub sent_at: BlockNumber,
+	/// The actual downward message to processes.
+	pub msg: DownwardMessage,
+}
 ```
