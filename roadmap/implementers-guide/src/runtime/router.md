@@ -238,6 +238,7 @@ any of dispatchables return an error.
   1. Remove all `DownwardMessageQueues` of `P`.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
+  1. Remove `HrmpOpenChannelRequestCount` for `P`
   1. Remove `P` if it exists in `NeedsDispatch`.
   1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
   - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
