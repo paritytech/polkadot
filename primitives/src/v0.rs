@@ -37,8 +37,7 @@ pub use polkadot_core_primitives::*;
 pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, HeadData, BlockData, ValidationCode,
 };
 
 /// The key type ID for a collator key.
@@ -218,12 +217,12 @@ pub struct CandidateCommitments<H = Hash> {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: Vec<Vec<u8>>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: H,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
-	/// Number of `DownwardMessage`'s that were processed by the Parachain.
+	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.
 	pub processed_downward_messages: u32,

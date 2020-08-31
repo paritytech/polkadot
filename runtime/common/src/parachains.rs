@@ -16,8 +16,7 @@
 
 //! Main parachains logic. For now this is just the determination of which validators do what.
 
-use sp_std::prelude::*;
-use sp_std::result;
+use sp_std::{prelude::*, result, convert::TryInto};
 use codec::{Decode, Encode};
 use sp_runtime::{
 	KeyTypeId, Perbill, RuntimeDebug,
@@ -39,7 +38,7 @@ use frame_support::{
 };
 use primitives::v0::{
 	Balance, BlockNumber,
-	Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement, ParachainDispatchOrigin,
+	Id as ParaId, Chain, DutyRoster, AttestedCandidate, CompactStatement as Statement,
 	ValidatorId, ActiveParas, CollatorId, Retriable, OmittedValidationData,
 	CandidateReceipt, GlobalValidationData, AbridgedCandidateReceipt,
 	LocalValidationData, Scheduling, ValidityAttestation, NEW_HEADS_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
@@ -47,7 +46,7 @@ use primitives::v0::{
 };
 use frame_support::{
 	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
-	traits::{Currency, Get, WithdrawReason, ExistenceRequirement, Randomness},
+	traits::{Currency, Get, WithdrawReason, ExistenceRequirement::{self, AllowDeath, KeepAlive}, Randomness},
 };
 use sp_runtime::transaction_validity::InvalidTransaction;
 
@@ -59,7 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use polkadot_parachain::xcm::{VersionedXcm, v0::Xcm};
+use polkadot_parachain::xcm::{VersionedXcm, VersionedMultiLocation, v0::Xcm};
 use polkadot_parachain::xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
 
 // ranges for iteration of general block number don't work, so this
@@ -121,7 +120,7 @@ impl<AccountId, T: Currency<AccountId>> ParachainCurrency<AccountId> for T where
 			&para_account,
 			amount.into(),
 			WithdrawReason::Fee.into(),
-			ExistenceRequirement::KeepAlive,
+			KeepAlive,
 		)?;
 
 		Ok(())
@@ -256,7 +255,7 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 
 	/// The outer origin type.
 	type Origin: From<Origin>
-		+ From<<Self as system::Trait>::Origin>
+		+ From<system::RawOrigin<Self::AccountId>>
 		+ Into<result::Result<Origin, <Self as Trait>::Origin>>;
 
 	/// The outer call dispatch type.
@@ -568,6 +567,8 @@ decl_error! {
 		UnexpectedRelayParent,
 		/// Downward message queue is full for the Parachain.
 		DownwardMessageQueueFull,
+		/// Destination given for transfer is not in a comprehensible format.
+		BadDestination,
 	}
 }
 
@@ -717,34 +718,17 @@ decl_module! {
 			origin,
 			to: ParaId,
 			amount: Balance,
-			dest: [u8; 32],
+			dest: VersionedMultiLocation,
 		) {
 			let who = ensure_signed(origin)?;
-			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
+			let downward_queue_count = DownwardMessageQueue::decode_len(to).unwrap_or(0);
 			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
-			T::ParachainCurrency::transfer_in(&who, to, amount, ExistenceRequirement::AllowDeath)?;
-			use polkadot_parachain::xcm::v0::{MultiAsset, MultiLocation, MultiNetwork, Ai};
-			let asset = MultiAsset::ConcreteFungible { id: MultiLocation::Parent, amount: amount.into() };
-			let dest = MultiLocation::AccountId32 { network: MultiNetwork::Wildcard, id: dest };
-			let ai = Ai::DepositAsset { asset: MultiAsset::Wild, dest_: dest };
-			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset, ai });
-			DownwardMessageQueue::<T>::append(to, msg.encode());
-		}
-
-		// TODO: Should be done via XCM interpreting.
-		/// Send a XCMP message to the given parachain.
-		///
-		/// The origin must be another parachain.
-		#[weight = 100_000]
-		pub fn send_xcmp_message(
-			origin,
-			to: ParaId,
-			msg: Vec<u8>,
-		) {
-			ensure_parachain(<T as Trait>::Origin::from(origin))?;
-			let downward_queue_count = DownwardMessageQueue::<T>::decode_len(to).unwrap_or(0);
-			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
-			DownwardMessageQueue::<T>::append(to, DownwardMessage::XCMPMessage(msg));
+			let dest = dest.try_into().map_err(|_| Error::<T>::BadDestination)?;
+			T::ParachainCurrency::transfer_in(&who, to, amount, AllowDeath)?;
+			let asset = MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount: amount.into() };
+			let effect = Ai::DepositAsset { asset: MultiAsset::Wild, dest_: dest };
+			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset, effect });
+			DownwardMessageQueue::append(to, msg.encode());
 		}
 	}
 }
@@ -948,27 +932,24 @@ impl<T: Trait> Module<T> {
 
 	/// Dispatch some messages from a parachain.
 	fn dispatch_message(from: ParaId, data: &[u8]) {
-		use sp_std::convert::TryInto;
-		match VersionedXcm::decode(&mut &data[..]).map(Xcm::try_into) {
+		use sp_std::convert::TryFrom;
+		match VersionedXcm::decode(&mut &data[..]).map(Xcm::try_from) {
 			Ok(Ok(Xcm::ForwardToParachain { id, inner })) => {
-				let downward_queue_count = DownwardMessageQueue::<T>::decode_len(id).unwrap_or(0);
-				ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
+				let id = ParaId::from(id);
+				let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
+				if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
+					return
+				}
 				let msg = VersionedXcm::from(Xcm::ForwardedFromParachain{ id: from.into(), inner });
-				DownwardMessageQueue::<T>::append(id, msg.encode());
+				DownwardMessageQueue::append(id, msg.encode());
 			}
 			Ok(Ok(Xcm::Transact{ origin_type, call })) => {
 				if let Ok(message_call) = <T as Trait>::Call::decode(&mut &call[..]) {
 					let origin: <T as Trait>::Origin = match origin_type {
-						MultiOrigin::SovereignAccount => {
-							let raw = system::RawOrigin::Signed(from.into_account());
-							<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(raw))
-						}
-						MultiOrigin::Native =>
-							Origin::Parachain(from).into(),
-						MultiOrigin::Superuser => {
-							// TODO: Restrict this to only those allowed to issue Root calls.
-							<T as Trait>::Origin::from(<T as system::Trait>::Origin::from(system::RawOrigin::Root))
-						}
+						MultiOrigin::SovereignAccount => system::RawOrigin::Signed(from.into_account()).into(),
+						MultiOrigin::Native => Origin::Parachain(from).into(),
+						MultiOrigin::Superuser if from.is_system() => system::RawOrigin::Root.into(),
+						_ => return,
 					};
 					let _ok = message_call.dispatch(origin).is_ok();
 					// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -982,19 +963,21 @@ impl<T: Trait> Module<T> {
 				};
 				let (onward_asset, dest) = match dest_ {
 					// Only destination we support for reserve asset transfers is into a parachain.
-					MultiLocation::Parachain { id } => {
-						if T::ParachainCurrency::transfer_out(from, &dest.into_account(), amount, ExistenceRequirement::AllowDeath).is_err() {
+					MultiLocation::X1(Junction::Parachain { id }) => {
+						let dest_id = ParaId::from(id);
+						let dest_account = dest_id.into_account();
+						if T::ParachainCurrency::transfer_out(from, &dest_account, amount, AllowDeath).is_err() {
 							return
 						}
 						// The onward asset, since it's the Relay-chain's native currency, is identified as
 						// the chain itself (from our context, it's therefore `Null`). From the parachain's context,
 						// it is identified as `Parent`.
-						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, id)
+						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, dest_id)
 					},
 					_ => return,
 				};
 				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
-				DownwardMessageQueue::<T>::append(dest, msg.encode());
+				DownwardMessageQueue::append(dest, msg);
 			}
 			Ok(Ok(Xcm::WithdrawAsset { asset, effect })) => {
 				let amount = match asset {
@@ -1009,13 +992,12 @@ impl<T: Trait> Module<T> {
 							Ok(x) => x,
 							Err(_) => return,
 						};
-						if T::ParachainCurrency::transfer_out(from, dest, amount, ExistenceRequirement::AllowDeath).is_err() {
+						if T::ParachainCurrency::transfer_out(from, &dest, amount, AllowDeath).is_err() {
 							return
 						}
 					},
 					_ => return,
-				};
-				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
+				}
 			}
 			Ok(Ok(_)) => (),	// Unhandled XCM message type.
 			Ok(Err(_)) => (),	// Unsupported XCM version.
@@ -1045,23 +1027,18 @@ impl<T: Trait> Module<T> {
 					// ...and the total size of the payloads in the queue ends up being no
 					// greater than the limit.
 					upward_messages.iter()
-						.fold(size as usize, |a, x| a + x.data.len())
+						.fold(size as usize, |a, x| a + x.len())
 					<= watermark_queue_size
 				),
 				Error::<T>::QueueFull
 			);
-			if !id.is_system() {
-				for m in upward_messages.iter() {
-					ensure!(m.origin != ParachainDispatchOrigin::Root, Error::<T>::InvalidMessageOrigin);
-				}
-			}
 		}
 		Ok(())
 	}
 
 	/// Remove processed downward messages from the `DownwardMessageQueue`.
 	fn remove_processed_downward_messages(id: ParaId, processed: usize) {
-		DownwardMessageQueue::<T>::mutate(id, |v| {
+		DownwardMessageQueue::mutate(id, |v| {
 			if processed > v.len() {
 				v.clear();
 			} else {
@@ -1108,7 +1085,7 @@ impl<T: Trait> Module<T> {
 			RelayDispatchQueueSize::mutate(id, |&mut(ref mut count, ref mut len)| {
 				*count += upward_messages.len() as u32;
 				*len += upward_messages.iter()
-					.fold(0, |a, x| a + x.data.len()) as u32;
+					.fold(0, |a, x| a + x.len()) as u32;
 			});
 
 			upward_messages.iter().for_each(|m| RelayDispatchQueue::append(id, m));
@@ -1288,8 +1265,8 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Returns the `DownwardMessage`'s for the given parachain.
-	pub fn downward_messages(id: ParaId) -> Vec<DownwardMessage<T::AccountId>> {
-		DownwardMessageQueue::<T>::get(id)
+	pub fn downward_messages(id: ParaId) -> Vec<Vec<u8>> {
+		DownwardMessageQueue::get(id)
 	}
 
 	/// Get the local validation data for a particular parent w.r.t. the current
@@ -1723,7 +1700,7 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 	}
 }
 
-
+/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -3692,3 +3669,4 @@ mod tests {
 		});
 	}
 }
+*/

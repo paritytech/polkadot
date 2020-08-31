@@ -35,8 +35,7 @@ pub use polkadot_core_primitives::v1::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	Id, ParachainDispatchOrigin, LOWEST_USER_ID, HeadData, BlockData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
@@ -270,7 +269,7 @@ pub struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: Vec<Vec<u8>>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.

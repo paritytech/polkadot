@@ -21,6 +21,7 @@
 /// Offset and length must have been provided by the validation
 /// function's entry point.
 #[cfg(not(feature = "std"))]
+#[allow(dead_code)]
 pub unsafe fn load_params(params: *const u8, len: usize)
 	-> crate::primitives::ValidationParams
 {
@@ -34,6 +35,7 @@ pub unsafe fn load_params(params: *const u8, len: usize)
 /// As described in the crate docs, this is a pointer to the appended length
 /// of the vector.
 #[cfg(not(feature = "std"))]
+#[allow(dead_code)]
 pub fn write_result(result: &crate::primitives::ValidationResult) -> u64 {
 	sp_core::to_substrate_wasm_fn_return_value(&result)
 }

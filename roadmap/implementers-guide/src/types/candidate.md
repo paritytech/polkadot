@@ -174,7 +174,7 @@ struct CandidateCommitments {
 	/// Fees paid from the chain to the relay chain validators.
 	fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
-	upward_messages: Vec<UpwardMessage>,
+	upward_messages: Vec<Vec<u8>>,
 	/// The root of a block's erasure encoding Merkle tree.
 	erasure_root: Hash,
 	/// New validation code.

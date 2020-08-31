@@ -16,6 +16,8 @@
 
 //! Cross-Consensus Message format data structures.
 
+use sp_std::{boxed::Box, vec::Vec, convert::TryFrom};
+use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode, Input, Output};
 use crate::primitives::ParachainDispatchOrigin;
 
@@ -49,29 +51,21 @@ pub enum VersionedXcm {
 }
 
 /// A versioned multi-location, a relative location of a cross-consensus system identifier.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum VersionedMultiLocation {
 	V0(v0::MultiLocation),
 }
 
-/// A versioned multi-network, an identifier for a consensus network.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
-pub enum VersionedMultiNetwork {
-	V0(v0::MultiNetwork),
-}
-
 /// A versioned multi-asset, an identifier for an asset within a consensus system.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum VersionedMultiAsset {
 	V0(v0::MultiAsset),
 }
 
 pub mod v0 {
 	use super::*;
-	use sp_std::convert::TryInto;
 
-	/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`/
-	/// `UpwardMessageOrigin`.
+	/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum MultiOrigin {
 		/// Origin should just be the native origin for the sender. For Cumulus/Frame chains this is
@@ -105,13 +99,13 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum MultiNetwork {
 		Wildcard,
 		Identified(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum MultiLocation {
 		Null,
 		X1(Junction),
@@ -120,7 +114,7 @@ pub mod v0 {
 		X4(Junction, Junction, Junction, Junction),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum Junction {
 		Parent,
 		Parachain { #[codec(compact)] id: u32 },
@@ -142,7 +136,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum AssetInstance {
 		Undefined,
 		Index8(u8),
@@ -157,7 +151,7 @@ pub mod v0 {
 		Blob(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum MultiAsset {
 		Wild,
 		WildFungible,
@@ -203,12 +197,26 @@ pub mod v0 {
 		}
 	}
 
-	impl TryInto<Xcm> for VersionedXcm {
+	impl TryFrom<VersionedXcm> for Xcm {
 		type Error = ();
-		fn try_into(self) -> Result<Xcm, ()> {
-			match self {
+		fn try_from(x: VersionedXcm) -> Result<Self, ()> {
+			match x {
 				VersionedXcm::V0(x) => Ok(x),
-				_ => Err(()),
+			}
+		}
+	}
+
+	impl From<MultiLocation> for VersionedMultiLocation {
+		fn from(x: MultiLocation) -> Self {
+			VersionedMultiLocation::V0(x)
+		}
+	}
+
+	impl TryFrom<VersionedMultiLocation> for MultiLocation {
+		type Error = ();
+		fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+			match x {
+				VersionedMultiLocation::V0(x) => Ok(x),
 			}
 		}
 	}

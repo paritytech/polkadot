@@ -927,7 +927,7 @@ sp_api::impl_runtime_apis! {
 		fn signing_context() -> SigningContext {
 			Parachains::signing_context()
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
+		fn downward_messages(id: parachain::Id) -> Vec<Vec<u8>> {
 			Parachains::downward_messages(id)
 		}
 	}

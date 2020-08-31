@@ -12,7 +12,7 @@ Storage layout:
 /// Messages ready to be dispatched onto the relay chain.
 /// This is subject to `max_upward_queue_count` and
 /// `watermark_queue_size` from `HostConfiguration`.
-RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
+RelayDispatchQueues: map ParaId => Vec<Vec<u8>>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
@@ -27,7 +27,7 @@ No initialization routine runs for this module.
 
 ## Routines
 
-* `queue_upward_messages(ParaId, Vec<UpwardMessage>)`:
+* `queue_upward_messages(ParaId, Vec<Vec<u8>>)`:
   1. Updates `NeedsDispatch`, and enqueues upward messages into `RelayDispatchQueue` and modifies the respective entry in `RelayDispatchQueueSize`.
 
 ## Finalization

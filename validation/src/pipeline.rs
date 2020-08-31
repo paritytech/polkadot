@@ -27,7 +27,7 @@ use polkadot_primitives::v0::{
 use polkadot_primitives::v0::{Block, BlockId, Balance, Hash};
 use parachain::{
 	wasm_executor::{self, ExecutionMode},
-	primitives::{UpwardMessage, ValidationParams},
+	primitives::ValidationParams,
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 use sp_api::ProvideRuntimeApi;
@@ -98,7 +98,7 @@ pub struct ValidatedCandidate<'a> {
 	pov_block: &'a PoVBlock,
 	global_validation: &'a GlobalValidationData,
 	local_validation: &'a LocalValidationData,
-	upward_messages: Vec<UpwardMessage>,
+	upward_messages: Vec<Vec<u8>>,
 	fees: Balance,
 	processed_downward_messages: u32,
 	new_validation_code: Option<ValidationCode>,
@@ -165,12 +165,12 @@ impl<'a> ValidatedCandidate<'a> {
 	}
 }
 
-/// Validate that the given `UpwardMessage`s are covered by the given `free_balance`.
+/// Validate that the given upward messages are covered by the given `free_balance`.
 ///
 /// Will return an error if the `free_balance` does not cover the required fees to the
 /// given `msgs`. On success it returns the fees that need to be charged for the `msgs`.
 fn validate_upward_messages(
-	msgs: &[UpwardMessage],
+	msgs: &[Vec<u8>],
 	fee_schedule: FeeSchedule,
 	free_balance: Balance,
 ) -> Result<Balance, Error> {
@@ -336,8 +336,8 @@ mod tests {
 	use super::*;
 	use parachain::primitives::ParachainDispatchOrigin;
 
-	fn add_msg(size: usize, msgs: &mut Vec<UpwardMessage>) {
-		let msg = UpwardMessage { data: vec![0; size], origin: ParachainDispatchOrigin::Parachain };
+	fn add_msg(size: usize, msgs: &mut Vec<Vec<u8>>) {
+		let msg = vec![0; size];
 		msgs.push(msg);
 	}
 

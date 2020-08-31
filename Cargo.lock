@@ -4773,6 +4773,7 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-io",
+ "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
 ]

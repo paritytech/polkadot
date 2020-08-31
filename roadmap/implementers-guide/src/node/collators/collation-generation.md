@@ -15,7 +15,7 @@ The process of generating a collation for a parachain is very parachain-specific
 ```rust
 struct CollationGenerationConfig {
 	key: CollatorPair,
-	collation_producer: Fn(params) -> async (HeadData, Vec<UpwardMessage>, PoV),
+	collation_producer: Fn(params) -> async (HeadData, Vec<Vec<u8>>, PoV),
 }
 ```
 
