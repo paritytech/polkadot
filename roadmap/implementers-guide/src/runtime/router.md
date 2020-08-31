@@ -168,7 +168,7 @@ Candidate Enactment:
 
 * `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
-    1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
+    1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
     1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
     1. Increment `C.used_places`
     1. Increment `C.used_bytes` by `HM`'s payload size
