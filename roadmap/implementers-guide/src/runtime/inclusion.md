@@ -69,7 +69,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. Check the collator's signature on the candidate data.
   1. check the backing of the candidate using the signatures and the bitfields, comparing against the validators assigned to the groups, fetched with the `group_validators` lookup.
   1. call `Router::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
-  1. call `Router::check_dmq_watermark(para, commitments.dmq_watermark)` for each canddiate to check rules of processing the DMQ watermark.
+  1. call `Router::check_dmq_watermark(para, commitments.dmq_watermark)` for each candidate to check rules of processing the DMQ watermark.
   1. call `Router::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
   1. check that in the commitments of each candidate the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
   1. using `Router::verify_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate send a valid set of horizontal messages

@@ -173,7 +173,7 @@ struct TransientValidationData {
 	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
 	/// A copy of `config.max_upward_message_num_per_candidate` for checking that a candidate doesn't
-	/// send more messages that permitted.
+	/// send more messages than permitted.
 	config_max_upward_message_num_per_candidate: u32,
 	/// A vector that enumerates the list of blocks in which there was at least one DMQ messages
 	/// enqueued.

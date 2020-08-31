@@ -25,7 +25,7 @@ NeedsDispatch: Vec<ParaId>;
 NextDispatchRoundStartWith: Option<ParaId>;
 ```
 
-### DMP
+### Downward Message Passing (DMP)
 
 Storage layout required for implementation of DMP.
 
