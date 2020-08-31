@@ -181,7 +181,7 @@ struct TransientValidationData {
 	/// The first number in the vector, if any, is always greater than the DMQ watermark. The
 	/// elements are ordered by ascending the block number. The vector doesn't contain duplicates.
 	dmq_digest: Vec<BlockNumber>,
-	/// A part of transient validaiton data related to HRMP.
+	/// A part of transient validation data related to HRMP.
 	hrmp: HrmpTransientValidationData,
 }
 
