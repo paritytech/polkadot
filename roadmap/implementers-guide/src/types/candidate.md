@@ -192,7 +192,8 @@ struct HrmpTransientValidationData {
 	/// Since it's a mapping there can't be two items with same `ParaId`.
 	egress_limits: Vec<(ParaId, HrmpChannelLimits)>,
 	/// A vector of paras that have a channel to this para. The number of elements in this vector
-	/// correponds to the number of ingress channels.
+	/// correponds to the number of ingress channels. The items are ordered ascending by `ParaId`.
+	/// The vector doesn't contain two entries with the same `ParaId`.
 	ingress_senders: Vec<ParaId>,
 	/// A vector of open requests in which the para participates either as sender or recipient. The
 	/// items are ordered ascending by `HrmpChannelId`. The vector doesn't contain two entries
