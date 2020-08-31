@@ -220,4 +220,19 @@ pub mod v0 {
 			}
 		}
 	}
+
+	impl From<MultiAsset> for VersionedMultiAsset {
+		fn from(x: MultiAsset) -> Self {
+			VersionedMultiAsset::V0(x)
+		}
+	}
+
+	impl TryFrom<VersionedMultiAsset> for MultiAsset {
+		type Error = ();
+		fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+			match x {
+				VersionedMultiAsset::V0(x) => Ok(x),
+			}
+		}
+	}
 }
