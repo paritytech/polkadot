@@ -38,6 +38,8 @@ use polkadot_primitives::v1::{
 };
 use std::{convert::TryFrom, pin::Pin, sync::Arc};
 
+const TARGET: &'static str = "candidate_selection";
+
 struct CandidateSelectionJob {
 	sender: mpsc::Sender<FromJob>,
 	receiver: mpsc::Receiver<ToJob>,
@@ -208,7 +210,7 @@ impl CandidateSelectionJob {
 			{
 				Ok(response) => response,
 				Err(err) => {
-					log::warn!(target: "candidate_selection", "failed to get collation from collator protocol subsystem: {:?}", err);
+					log::warn!(target: TARGET, "failed to get collation from collator protocol subsystem: {:?}", err);
 					return;
 				}
 			};
@@ -225,8 +227,12 @@ impl CandidateSelectionJob {
 				return;
 			}
 
-			let pov = Arc::try_unwrap(pov)
-				.expect("only clone went to fn candidate_is_valid, which is complete; qed");
+			let pov = if let Ok(pov) = Arc::try_unwrap(pov) {
+				pov
+			} else {
+				log::warn!(target: TARGET, "Arc unwrapping is expected to succeed, the other fns should have already run to completion by now.");
+				return;
+			};
 
 			match second_candidate(
 				relay_parent,
@@ -238,7 +244,7 @@ impl CandidateSelectionJob {
 			.await
 			{
 				Err(err) => {
-					log::warn!(target: "candidate_selection", "failed to second a candidate: {:?}", err)
+					log::warn!(target: TARGET, "failed to second a candidate: {:?}", err)
 				}
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
@@ -249,18 +255,18 @@ impl CandidateSelectionJob {
 		let received_from = match &self.seconded_candidate {
 			Some(peer) => peer,
 			None => {
-				log::warn!(target: "candidate_selection", "received invalidity notice for a candidate we don't remember seconding");
+				log::warn!(target: TARGET, "received invalidity notice for a candidate we don't remember seconding");
 				return;
 			}
 		};
-		log::info!(target: "candidate_selection", "received invalidity note for candidate {:?}", candidate_receipt);
-		let succeeded;
-		if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
-			log::warn!(target: "candidate_selection", "failed to forward invalidity note: {:?}", err);
-			succeeded = false;
+		log::info!(target: TARGET, "received invalidity note for candidate {:?}", candidate_receipt);
+
+		let succeeded = if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
+			log::warn!(target: TARGET, "failed to forward invalidity note: {:?}", err);
+			false
 		} else {
-			succeeded = true;
-		}
+			true
+		};
 		self.metrics.on_invalid_selection(succeeded);
 	}
 }
@@ -319,7 +325,7 @@ async fn second_candidate(
 	sender: &mut mpsc::Sender<FromJob>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-	// CandidateBackingMessage::Second(Hash, CandidateReceipt, PoV),
+
 	match sender
 		.send(FromJob::Backing(CandidateBackingMessage::Second(
 			relay_parent,
@@ -329,7 +335,7 @@ async fn second_candidate(
 		.await
 	{
 		Err(err) => {
-			log::warn!(target: "candidate_selection", "failed to send a seconding message");
+			log::warn!(target: TARGET, "failed to send a seconding message");
 			metrics.on_second(false);
 			Err(err.into())
 		}
