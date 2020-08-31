@@ -14,6 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! The Collator Protocol allows collators and validators talk to each other.
+//! This subsystem implements both sides of the collator protocol.
+
+#![deny(missing_docs)]
+
 use futures::{channel::oneshot, FutureExt};
 use log::trace;
 

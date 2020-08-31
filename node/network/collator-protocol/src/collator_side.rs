@@ -17,7 +17,7 @@
 use std::collections::HashMap;
 
 use futures::channel::oneshot;
-use log::warn;
+use log::{trace, warn};
 use polkadot_primitives::v1::{
 	CollatorId, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
 };
@@ -53,16 +53,20 @@ struct State {
 	/// Our own view.
 	view: View,
 
-	/// Posessed collations by relay parent.
+	/// Posessed collations.
+	///
+	/// We will keep up to one local collation per relay-parent.
 	collations: HashMap<Hash, (CandidateReceipt, PoV)>,
 
-	/// Our validator groups by relay parent.
+	/// Our validator groups active leafs. 
 	our_validators_groups: HashMap<Hash, Vec<ValidatorId>>,
 
 	/// Validators we know about via `ConnectToValidators` message.
 	/// 
 	/// These are the only validators we are interested in talking to and as such
 	/// all actions from peers not in this map will be ignored.
+	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
+	/// go out of scope with their respective deactivated leafs.
 	known_validators: HashMap<PeerId, ValidatorId>,
 }
 
@@ -70,6 +74,10 @@ struct State {
 /// 
 /// Figure out the core our para is assigned to and the relevant validators.
 /// Issue a connection request to these validators.
+/// If the para is not scheduled or next up on any core, at the relay-parent,
+/// or the relay-parent isn't in the active-leaves set, we ignore the message
+/// as it must be invalid in that case - although this indicates a logic error
+/// elsewhere in the node.
 async fn distribute_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -82,7 +90,7 @@ where
 {
 	let relay_parent = receipt.descriptor.relay_parent;
 
-	// This collation is outside of our view.
+	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
 		warn!(
 			target: TARGET,
@@ -99,6 +107,7 @@ where
 	}
 
 	// Determine which core the para collated-on is assigned to.
+	// If it is not scheduled then ignore the message.
 	let our_core = match determine_core(ctx, id, relay_parent).await? {
 	    Some(core) => core,
 	    None => {
@@ -288,6 +297,8 @@ where
 		DistributeCollation(receipt, pov) => {
 			match state.collating_on {
 				Some(id) if receipt.descriptor.para_id != id => {
+					// If the ParaId of a collation requested to be distributed does not match
+					// the one we expect, we ignore the message.
 					warn!(
 						target: TARGET,
 						"DistributeCollation message for para {:?} while collating on {:?}",
@@ -467,6 +478,8 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if !state.known_validators.contains_key(&peer_id) {
+		trace!(target: TARGET, "An unknown peer has connected {:?}", peer_id);
+
 		return Ok(())
 	}
 
@@ -522,7 +535,9 @@ async fn handle_our_view_change(
 
 	for removed in removed.into_iter() {
 		state.collations.remove(&removed);
-		state.our_validators_groups.remove(&removed);
+		if let Some(group) = state.our_validators_groups.remove(&removed) {
+			state.known_validators.retain(|_, v| !group.contains(v));
+		}
 	}
 
 	Ok(())
