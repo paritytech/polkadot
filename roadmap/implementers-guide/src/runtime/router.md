@@ -85,7 +85,7 @@ HrmpOpenChannelRequests: map HrmpChannelId => Option<HrmpOpenChannelRequest>;
 HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
 
 /// This mapping tracks how many open channel requests are inititated by a given sender para.
-/// Invariant: `HrmpOpenChannelRequestsList` should contain the same number of items that has `(X, _)`
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
 HrmpOpenChannelRequestCount: map ParaId => u32;
 
