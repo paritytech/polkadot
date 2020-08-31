@@ -89,8 +89,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 2,
+	apis: version::create_apis_vec![[]],
+	transaction_version: 3,
 };
 
 /// Native version.
@@ -543,6 +543,9 @@ parameter_types! {
 	// Additional storage item size of 33 bytes.
 	pub const ProxyDepositFactor: Balance = deposit(0, 33);
 	pub const MaxProxies: u16 = 32;
+	pub const AnnouncementDepositBase: Balance = deposit(1, 8);
+	pub const AnnouncementDepositFactor: Balance = deposit(0, 66);
+	pub const MaxPending: u16 = 32;
 }
 
 /// The type used to represent the kinds of proxying allowed.
@@ -629,7 +632,11 @@ impl pallet_proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_proxy::WeightInfo;
+	type MaxPending = MaxPending;
+	type CallHasher = BlakeTwo256;
+	type AnnouncementDepositBase = AnnouncementDepositBase;
+	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
 parameter_types! {
@@ -993,13 +1000,7 @@ sp_api::impl_runtime_apis! {
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
 		fn dispatch_benchmark(
-			pallet: Vec<u8>,
-			benchmark: Vec<u8>,
-			lowest_range_values: Vec<u32>,
-			highest_range_values: Vec<u32>,
-			steps: Vec<u32>,
-			repeat: u32,
-			extra: bool,
+			config: frame_benchmarking::BenchmarkConfig,
 		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
 			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency issues.
@@ -1029,16 +1030,7 @@ sp_api::impl_runtime_apis! {
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
-			let params = (
-				&pallet,
-				&benchmark,
-				&lowest_range_values,
-				&highest_range_values,
-				&steps,
-				repeat,
-				&whitelist,
-				extra,
-			);
+			let params = (&config, &whitelist);
 
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_identity, Identity);

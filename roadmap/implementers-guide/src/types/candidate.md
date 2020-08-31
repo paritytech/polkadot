@@ -96,6 +96,10 @@ Persisted validation data are generally derived from some relay-chain state to f
 
 The validation data also serve the purpose of giving collators a means of ensuring that their produced candidate and the commitments submitted to the relay-chain alongside it will pass the checks done by the relay-chain when backing, and give validators the same understanding when determining whether to second or attest to a candidate.
 
+Furthermore, the validation data acts as a way to authorize the additional data the collator needs to pass to the validation
+function. For example, the validation function can check whether the incoming messages (e.g. downward messages) were actually
+sent by using the data provided in the validation data using so called MQC heads.
+
 Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system. Nevertheless, we expose it so the backing validators can validate the outputs of a candidate before voting to submit it to the relay-chain and so collators can collate candidates that satisfy the criteria implied these transient validation data.
 
 Design-wise we should maintain two properties about this data structure:
@@ -121,10 +125,12 @@ struct PersistedValidationData {
 	parent_head: HeadData,
 	/// The relay-chain block number this is in the context of. This informs the collator.
 	block_number: BlockNumber,
-	/// The relay-chain 
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
+	///
+	/// The MQC heads will be used by the validation function to authorize the input messages passed
+	/// by the collator.
 	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
 ```
@@ -132,6 +138,8 @@ struct PersistedValidationData {
 ## TransientValidationData
 
 These validation data are derived from some relay-chain state to check outputs of the validation function.
+
+It's worth noting that all the data is collected **before** the candidate execution.
 
 ```rust
 struct TransientValidationData {
@@ -159,6 +167,53 @@ struct TransientValidationData {
 	///
 	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
+	/// A copy of `config.max_upward_message_num_per_candidate` for checking that a candidate doesn't
+	/// send more messages that permitted.
+	config_max_upward_message_num_per_candidate: u32,
+	/// The number of messages pending of the downward message queue.
+	dmq_length: u32,
+	/// A part of transient validation data related to HRMP.
+	hrmp: HrmpTransientValidationData,
+}
+
+struct HrmpTransientValidationData {
+	/// A vector that enumerates the list of blocks in which there was at least one HRMP message
+	/// received.
+	///
+	/// The first number in the vector, if any, is always greater than the HRMP watermark. The
+	/// elements are ordered by ascending the block number. The vector doesn't contain duplicates.
+	digest: Vec<BlockNumber>,
+	/// The watermark of the HRMP. That is, the block number up to which (inclusive) all HRMP messages
+	/// sent to the parachain are processed.
+	watermark: BlockNumber,
+	/// A mapping that specifies if the parachain can send an HRMP message to the given recipient
+	/// channel. A candidate can send a message only to the recipients that are present in this
+	/// mapping. The number elements in this vector corresponds to the number of egress channels.
+	/// Since it's a mapping there can't be two items with same `ParaId`.
+	egress_limits: Vec<(ParaId, HrmpChannelLimits)>,
+	/// A vector of paras that have a channel to this para. The number of elements in this vector
+	/// correponds to the number of ingress channels. The items are ordered ascending by `ParaId`.
+	/// The vector doesn't contain two entries with the same `ParaId`.
+	ingress_senders: Vec<ParaId>,
+	/// A vector of open requests in which the para participates either as sender or recipient. The
+	/// items are ordered ascending by `HrmpChannelId`. The vector doesn't contain two entries
+	/// with the same `HrmpChannelId`.
+	open_requests: Vec<(HrmpChannelId, HrmpAbridgedOpenChannelRequest)>,
+	/// A vector of close requests in which the para participates either as sender or recipient.
+	/// The vector doesn't contain two entries with the same `HrmpChannelId`.
+	close_requests: Vec<HrmpChannelId>,
+}
+
+/// A shorter version of `HrmpOpenChannelRequest`.
+struct HrmpAbridgedOpenChannelRequest {
+	confirmed: bool,
+}
+
+struct HrmpChannelLimits {
+	/// Indicates if the channel is already full and cannot accept any more messages.
+	is_full: bool,
+	/// A message sent to the channel can occupy only that many bytes.
+	available_size: u32,
 }
 ```
 

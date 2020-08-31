@@ -6,7 +6,7 @@ The Router module is responsible for all messaging mechanisms supported between 
 
 Storage layout:
 
-```rust,ignore
+```rust
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
@@ -31,7 +31,7 @@ DownwardMessageQueues: map ParaId => Vec<DownwardMessage>;
 
 HRMP related structs:
 
-```rust,ignore
+```rust
 /// A description of a request to open an HRMP channel.
 struct HrmpOpenChannelRequest {
     /// Indicates if this request was confirmed by the recipient.
@@ -74,7 +74,7 @@ struct HrmpChannel {
 ```
 HRMP related storage layout
 
-```rust,ignore
+```rust
 /// The set of pending HRMP open channel requests.
 ///
 /// The set is accompanied by a list for iteration.
@@ -115,6 +115,7 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
+/// Invariant: The vector is never empty.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
@@ -135,6 +136,7 @@ Candidate Acceptance Function:
   1. If the message kind is `HrmpInitOpenChannel(recipient)`:
       1. Check that the `P` is not `recipient`.
       1. Check that `recipient` is a valid para.
+      1. Check that there is no existing channel for `(P, recipient)` in `HrmpChannels`.
       1. Check that there is no existing open channel request (`P`, `recipient`) in `HrmpOpenChannelRequests`.
       1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size
       of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the
@@ -142,7 +144,8 @@ Candidate Acceptance Function:
       channels (`config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
       1. Check that `P`'s balance is more or equal to `config.hrmp_sender_deposit`
   1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
-      1. Check that there is existing request between (`sender`, `P`) in `HrmpOpenChannelRequests`
+      1. Check that there is an existing request between (`sender`, `P`) in `HrmpOpenChannelRequests`
+          1. Check that it is not confirmed.
       1. Check that `P`'s balance is more or equal to `config.hrmp_recipient_deposit`.
   1. If the message kind is `HrmpCloseChannel(ch)`:
       1. Check that `P` is either `ch.sender` or `ch.recipient`
