@@ -60,7 +60,7 @@ use system::{
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 use polkadot_parachain::xcm::{VersionedXcm, v0::Xcm};
-use polkadot_parachain::xcm::v0::{MultiOrigin, MultiAsset, MultiLocation};
+use polkadot_parachain::xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -953,7 +953,7 @@ impl<T: Trait> Module<T> {
 			Ok(Ok(Xcm::ForwardToParachain { id, inner })) => {
 				let downward_queue_count = DownwardMessageQueue::<T>::decode_len(id).unwrap_or(0);
 				ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
-				let msg = VersionedXcm::from(Xcm::ForwardedFromParachain({ id: from, inner }));
+				let msg = VersionedXcm::from(Xcm::ForwardedFromParachain{ id: from.into(), inner });
 				DownwardMessageQueue::<T>::append(id, msg.encode());
 			}
 			Ok(Ok(Xcm::Transact{ origin_type, call })) => {
@@ -977,7 +977,7 @@ impl<T: Trait> Module<T> {
 			}
 			Ok(Ok(Xcm::ReserveAssetTransfer { asset, dest_, effect })) => {
 				let amount = match asset {
-					MultiAsset::ConcreteFungible { id, amount} if id == MultiLocation::Null => amount,
+					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
 				};
 				let (onward_asset, dest) = match dest_ {
@@ -986,15 +986,38 @@ impl<T: Trait> Module<T> {
 						if T::ParachainCurrency::transfer_out(from, &dest.into_account(), amount, ExistenceRequirement::AllowDeath).is_err() {
 							return
 						}
-						(MultiAsset::ConcreateFungible(MultiLocation::Parent, amount), id)
+						// The onward asset, since it's the Relay-chain's native currency, is identified as
+						// the chain itself (from our context, it's therefore `Null`). From the parachain's context,
+						// it is identified as `Parent`.
+						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, id)
 					},
 					_ => return,
 				};
 				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
 				DownwardMessageQueue::<T>::append(dest, msg.encode());
 			}
-			// TODO: Support withdraw-deposit
-			Ok(Ok(_)) => (),	// Unhandled XCM message.
+			Ok(Ok(Xcm::WithdrawAsset { asset, effect })) => {
+				let amount = match asset {
+					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
+					_ => return,	// Bail as we don't support being a reserve for this asset.
+				};
+				match effect {
+					// Only effect we support for now is a straight wildcard deposit into an AccountId32.
+					// TODO: Consider caring about the `network`.
+					Ai::DepositAsset { asset: MultiAsset::Wild, dest_: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
+						let dest = match T::AccountId::decode(&mut &id[..]) {
+							Ok(x) => x,
+							Err(_) => return,
+						};
+						if T::ParachainCurrency::transfer_out(from, dest, amount, ExistenceRequirement::AllowDeath).is_err() {
+							return
+						}
+					},
+					_ => return,
+				};
+				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
+			}
+			Ok(Ok(_)) => (),	// Unhandled XCM message type.
 			Ok(Err(_)) => (),	// Unsupported XCM version.
 			Err(_) => (),		// Bad format (can't decode).
 		}

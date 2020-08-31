@@ -114,17 +114,32 @@ pub mod v0 {
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum MultiLocation {
 		Null,
+		X1(Junction),
+		X2(Junction, Junction),
+		X3(Junction, Junction, Junction),
+		X4(Junction, Junction, Junction, Junction),
+	}
+
+	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	pub enum Junction {
 		Parent,
-		ChildOf { primary: Box<MultiLocation>, subordinate: Box<MultiLocation> },
-		SiblingOf(Box<MultiLocation>),
-		Reserved4,
-		Reserved5,
-		Reserved6,
+		Parachain { #[codec(compact)] id: u32 },
 		OpaqueRemark(Vec<u8>),
 		AccountId32 { network: MultiNetwork, id: [u8; 32] },
 		AccountIndex64 { network: MultiNetwork, #[codec(compact)] index: u64 },
-		Parachain { #[codec(compact)] id: u32 },
 		AccountKey20 { network: MultiNetwork, key: [u8; 20] },
+		/// An instanced Pallet on a Frame-based chain.
+		PalletInstance { id: u8 },
+		/// A nondescript index within the context location.
+		GeneralIndex { #[codec(compact)] id: u128 },
+		/// A nondescript datum acting as a key within the context location.
+		GeneralKey(Vec<u8>),
+	}
+
+	impl From<Junction> for MultiLocation {
+		fn from(x: Junction) -> Self {
+			MultiLocation::X1(x)
+		}
 	}
 
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
