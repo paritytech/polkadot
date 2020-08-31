@@ -115,7 +115,7 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
-/// Invariant: The vector is never empty.
+/// Invariant: The para ids vector is never empty.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
@@ -259,12 +259,12 @@ any of dispatchables return an error.
         1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
         1. remove `R`
         1. remove `D`
-1. For each channel designator `D` in `HrmpCloseChannelRequestsList`
+1. For each HRMP channel designator `D` in `HrmpCloseChannelRequestsList`
     1. remove the channel identified by `D`, if exists.
     1. remove `D` from `HrmpCloseChannelRequests`.
     1. remove `D` from `HrmpCloseChannelRequestsList`
 
-To remove a channel `C` identified with a tuple `(sender, recipient)`:
+To remove a HRMP channel `C` identified with a tuple `(sender, recipient)`:
 
 1. Return `C.sender_deposit` to the `sender`.
 1. Return `C.recipient_deposit` to the `recipient`.

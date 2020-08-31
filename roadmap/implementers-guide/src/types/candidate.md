@@ -129,7 +129,7 @@ struct PersistedValidationData {
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
 	///
-	/// The MQC heads will be used by the validation function to authorize the input messages passed
+	/// The HRMP MQC heads will be used by the validation function to authorize the input messages passed
 	/// by the collator.
 	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
@@ -172,7 +172,7 @@ struct TransientValidationData {
 	config_max_upward_message_num_per_candidate: u32,
 	/// The number of messages pending of the downward message queue.
 	dmq_length: u32,
-	/// A part of transient validation data related to HRMP.
+	/// A part of transient validaiton data related to HRMP.
 	hrmp: HrmpTransientValidationData,
 }
 
