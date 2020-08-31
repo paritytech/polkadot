@@ -90,6 +90,9 @@ struct OutboundHrmpMessage {
 }
 
 struct InboundHrmpMessage {
+	/// The block number at which this message was sent.
+	/// Specifically, it is the block number at which the candidate that sends this message was
+	/// enacted.
 	pub sent_at: BlockNumber,
 	/// The message payload.
 	pub data: Vec<u8>,

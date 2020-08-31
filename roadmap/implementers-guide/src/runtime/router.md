@@ -85,7 +85,7 @@ HrmpOpenChannelRequests: map HrmpChannelId => Option<HrmpOpenChannelRequest>;
 HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
 
 /// This mapping tracks how many open channel requests are inititated by a given sender para.
-/// Invariant: `HrmpOpenChannelRequestsList` should contain the same number of items that has `(X, _)`
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
 HrmpOpenChannelRequestCount: map ParaId => u32;
 
@@ -115,7 +115,7 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
-/// Invariant: The vector is never empty.
+/// Invariant: The para ids vector is never empty.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
@@ -168,7 +168,7 @@ Candidate Enactment:
 
 * `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
-    1. Append `HM` into `HrmpChannelContents` that corresponds to `C`.
+    1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
     1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
     1. Increment `C.used_places`
     1. Increment `C.used_bytes` by `HM`'s payload size
@@ -238,6 +238,7 @@ any of dispatchables return an error.
   1. Remove all `DownwardMessageQueues` of `P`.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
+  1. Remove `HrmpOpenChannelRequestCount` for `P`
   1. Remove `P` if it exists in `NeedsDispatch`.
   1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
   - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
@@ -259,12 +260,12 @@ any of dispatchables return an error.
         1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
         1. remove `R`
         1. remove `D`
-1. For each channel designator `D` in `HrmpCloseChannelRequestsList`
+1. For each HRMP channel designator `D` in `HrmpCloseChannelRequestsList`
     1. remove the channel identified by `D`, if exists.
     1. remove `D` from `HrmpCloseChannelRequests`.
     1. remove `D` from `HrmpCloseChannelRequestsList`
 
-To remove a channel `C` identified with a tuple `(sender, recipient)`:
+To remove a HRMP channel `C` identified with a tuple `(sender, recipient)`:
 
 1. Return `C.sender_deposit` to the `sender`.
 1. Return `C.recipient_deposit` to the `recipient`.

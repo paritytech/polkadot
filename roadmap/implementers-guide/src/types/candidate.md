@@ -129,7 +129,7 @@ struct PersistedValidationData {
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
 	///
-	/// The MQC heads will be used by the validation function to authorize the input messages passed
+	/// The HRMP MQC heads will be used by the validation function to authorize the input messages passed
 	/// by the collator.
 	hrmp_mqc_heads: Vec<(ParaId, Hash)>,
 }
@@ -168,7 +168,7 @@ struct TransientValidationData {
 	/// This informs a relay-chain backing check and the parachain logic.
 	code_upgrade_allowed: Option<BlockNumber>,
 	/// A copy of `config.max_upward_message_num_per_candidate` for checking that a candidate doesn't
-	/// send more messages that permitted.
+	/// send more messages than permitted.
 	config_max_upward_message_num_per_candidate: u32,
 	/// The number of messages pending of the downward message queue.
 	dmq_length: u32,
