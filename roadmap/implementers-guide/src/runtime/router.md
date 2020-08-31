@@ -214,21 +214,17 @@ any of dispatchables return an error.
 
 `process_upward_dispatchables()`:
   1. Initialize a cumulative weight counter `T` to 0
-  1. Initialize a local in memory dictionary `R` that maps `ParaId` to a vector of `DispatchResult`.
   1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
       1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
       1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
-      1. Decode `D` into a dispatchable. If failed append `DispatchResult::DecodeFailed` into `R` for `P`. Otherwise, if succeeded:
-          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then append `DispatchResult::CriticalWeightExceeded` into `R` for `P`. Otherwise:
-            1. Execute `D` and add the actual amount of weight consumed to `T`. Add the `DispatchResult` into `R` for `P`.
-      1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
-      > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
-      > that could take place on the course of handling these dispatchables.
+      1. Decode `D` into a dispatchable. Otherwise, if succeeded:
+          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then skip the dispatchable. Otherwise:
+            1. Execute `D` and add the actual amount of weight consumed to `T`.
+          1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+          > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
+          > that could take place on the course of handling these dispatchables.
       1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
       1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
-  1. Then, for each `P` and the vector of `DispatchResult` in `R`:
-      1. Obtain a message by wrapping the vector into `DownwardMessage::DispatchResult`
-      1. Append the resulting message to `DownwardMessageQueues` for `P`.
 
 ## Session Change
 

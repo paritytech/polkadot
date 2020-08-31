@@ -106,20 +106,7 @@ could be seen as a notification, however, it is conceivable that they might be u
 chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
 
 ```rust,ignore
-enum DispatchResult {
-	Executed {
-		success: bool,
-	},
-	/// Decoding `RawDispatchable` into an executable runtime representation has failed.
-	DecodeFailed,
-	/// A dispatchable in question exceeded the maximum amount of weight allowed.
-	CriticalWeightExceeded,
-}
-
 enum DownwardMessage {
-	/// The parachain receives a dispatch result for each sent dispatchable upward message in order
-	/// they were sent.
-	DispatchResult(Vec<DispatchResult>),
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
 	TransferInto(AccountId, Balance, Remark),
