@@ -52,11 +52,11 @@ const MAX_VIEW_HEADS: usize = 5;
 /// The engine ID of the validation protocol.
 pub const VALIDATION_PROTOCOL_ID: ConsensusEngineId = *b"pvn1";
 /// The protocol name for the validation peer-set.
-pub const VALIDATION_PROTOCOL_NAME: &[u8] = b"/polkadot/validation/1";
+pub const VALIDATION_PROTOCOL_NAME: &'static str = "/polkadot/validation/1";
 /// The engine ID of the collation protocol.
 pub const COLLATION_PROTOCOL_ID: ConsensusEngineId = *b"pcn1";
 /// The protocol name for the collation peer-set.
-pub const COLLATION_PROTOCOL_NAME: &[u8] = b"/polkadot/collation/1";
+pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
@@ -81,7 +81,7 @@ pub enum WireMessage<M> {
 
 /// Information about the notifications protocol. Should be used during network configuration
 /// or shortly after startup to register the protocol with the network service.
-pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, [u8]>)> {
+pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, str>)> {
 	vec![
 		(VALIDATION_PROTOCOL_ID, VALIDATION_PROTOCOL_NAME.into()),
 		(COLLATION_PROTOCOL_ID, COLLATION_PROTOCOL_NAME.into()),
