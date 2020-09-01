@@ -515,7 +515,6 @@ pub fn new_full_nongeneric(
 	}
 }
 
-
 /// Builds a new service for a light client.
 fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, RpcHandlers), Error>
 	where
