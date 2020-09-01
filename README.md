@@ -12,12 +12,43 @@ information about installing the `polkadot` binary and developing on the codebas
 specific guides, like how to be a validator, see the
 [Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
 
+## Installation
+
+If you just wish to run a Polkadot node without compiling it yourself, you may
+either run the latest binary from our
+[releases](https://github.com/paritytech/polkadot/releases) page, or install
+Polkadot from one of our package repositories.
+
+### Debian-based (Debian, Ubuntu)
+
+Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and derivatives.
+
+```
+# Import the security@parity.io GPG key
+curl -fsSL 'https://keys.mailvelope.com/pks/lookup?op=get&search=security%40parity.io&options=mr&exact=on' | apt-key add -
+# Add the Parity repository and update the package index
+echo 'deb https://releases.parity.io/deb buster main' >> /etc/apt/sources.list.d/parity.list
+apt update
+# Install polkadot
+apt install polkadot
+
+```
+
+### RPM-based (Fedora, CentOS)
+
+Currently supports Fedora 32 and CentOS 8, and derivatives.
+
+```
+# Install dnf-plugins-core (This might already be installed)
+dnf install dnf-plugins-core
+# Add the repository and enable it
+dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
+dnf config-manager --set-enabled polkadot
+# Install polkadot (You may have to confirm the import of the GPG key)
+dnf install polkadot
+```
+
 ## Building
-
-### Use a Provided Binary
-
-If you want to connect to one of the networks supported by this repo, you can go to the latest
-release and download the binary that is provided.
 
 ### Install via Cargo
 
