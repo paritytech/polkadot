@@ -4,6 +4,8 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
+description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+license = "GPL-3.0-only"
 version = "0.8.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -77,3 +79,23 @@ runtime-benchmarks=["cli/runtime-benchmarks"]
 service-rewr= [
 	"cli/service-rewr",
 ]
+
+# Configuration for building a .deb package - for use with `cargo-deb`
+[package.metadata.deb]
+name = "polkadot"
+extended-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+maintainer = "martin@parity.io"
+license-file = ["LICENSE", "0"]
+assets = [
+	["target/release/polkadot", "usr/bin/", "755"]
+]
+
+# Configuration for building an .rpm package - for use with `cargo-rpm`
+[package.metadata.rpm]
+package = "polkadot"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+polkadot = { path = "/usr/bin/polkadot" }
