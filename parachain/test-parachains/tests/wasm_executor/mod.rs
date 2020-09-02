@@ -54,7 +54,7 @@ fn terminates_on_timeout() {
 	}
 
 	// check that another parachain can validate normaly
-	adder::execute_good_on_parent();
+	adder::execute_good_on_parent_with_external_process_validation();
 }
 
 #[test]

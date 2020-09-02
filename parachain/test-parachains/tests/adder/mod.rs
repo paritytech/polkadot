@@ -67,7 +67,18 @@ fn validation_pool() -> ValidationPool {
 }
 
 #[test]
-pub fn execute_good_on_parent() {
+pub fn execute_good_on_parent_with_inprocess_validation() {
+	let pool = ValidationPool::new(ValidationExecutionMode::InProcess);
+	execute_good_on_parent(pool);
+}
+
+#[test]
+pub fn execute_good_on_parent_with_external_process_validation() {
+	let pool = validation_pool();
+	execute_good_on_parent(pool);
+}
+
+fn execute_good_on_parent(pool: ValidationPool) {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -79,7 +90,6 @@ pub fn execute_good_on_parent() {
 		add: 512,
 	};
 
-	let pool = validation_pool();
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
