@@ -66,6 +66,10 @@ struct HostConfiguration {
 	pub hrmp_channel_max_places: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
 	pub hrmp_channel_max_size: u32,
+	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	pub hrmp_max_parachain_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.

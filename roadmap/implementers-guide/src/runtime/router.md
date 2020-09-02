@@ -88,6 +88,10 @@ HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
 /// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
 /// as the number of `HrmpOpenChannelRequestCount` for `X`.
 HrmpOpenChannelRequestCount: map ParaId => u32;
+/// This mapping tracks how many open channel requests were accepted by a given recipient para.
+/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items `(_, X)` with
+/// `confirmed` set to true, as the number of `HrmpAcceptedChannelRequestCount` for `X`.
+HrmpAcceptedChannelRequestCount: map ParaId => u32;
 
 /// A set of pending HRMP close channel requests that are going to be closed during the session change.
 /// Used for checking if a given channel is registered for closure.
@@ -127,7 +131,7 @@ No initialization routine runs for this module.
 
 Candidate Acceptance Function:
 
-* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`:
+* `check_upward_messages(P: ParaId, Vec<UpwardMessage>`):
   1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
   1. Checks each upward message `M` individually depending on its kind:
   1. If the message kind is `Dispatchable`:
@@ -138,15 +142,20 @@ Candidate Acceptance Function:
       1. Check that `recipient` is a valid para.
       1. Check that there is no existing channel for `(P, recipient)` in `HrmpChannels`.
       1. Check that there is no existing open channel request (`P`, `recipient`) in `HrmpOpenChannelRequests`.
-      1. Check that the sum of the number of already opened HRMP channels by the `sender` (the size
-      of the set found `HrmpEgressChannelsIndex` for `sender`) and the number of open requests by the
-      `sender` (the value from `HrmpOpenChannelRequestCount` for `sender`) doesn't exceed the limit of
+      1. Check that the sum of the number of already opened HRMP channels by the `P` (the size
+      of the set found `HrmpEgressChannelsIndex` for `P`) and the number of open requests by the
+      `P` (the value from `HrmpOpenChannelRequestCount` for `P`) doesn't exceed the limit of
       channels (`config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`) minus 1.
       1. Check that `P`'s balance is more or equal to `config.hrmp_sender_deposit`
   1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
       1. Check that there is an existing request between (`sender`, `P`) in `HrmpOpenChannelRequests`
           1. Check that it is not confirmed.
       1. Check that `P`'s balance is more or equal to `config.hrmp_recipient_deposit`.
+      1. Check that the sum of the number of inbound HRMP channels opened to `P` (the size of the set
+      found in `HrmpIngressChannelsIndex` for `P`) and the number of accepted open requests by the `P`
+      (the value from `HrmpAcceptedChannelRequestCount` for `P`) doesn't exceed the limit of channels
+      (`config.hrmp_max_parachain_inbound_channels` or `config.hrmp_max_parathread_inbound_channels`)
+      minus 1.
   1. If the message kind is `HrmpCloseChannel(ch)`:
       1. Check that `P` is either `ch.sender` or `ch.recipient`
       1. Check that `HrmpChannels` for `ch` exists.
@@ -190,7 +199,7 @@ Candidate Enactment:
       1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
       1. Ensure that `P` is present in `NeedsDispatch`.
   1. If the message kind is `HrmpInitOpenChannel(recipient)`:
-      1. Increase `HrmpOpenChannelRequestCount` by 1 for the `P`.
+      1. Increase `HrmpOpenChannelRequestCount` by 1 for `P`.
       1. Append `(P, recipient)` to `HrmpOpenChannelRequestsList`.
       1. Add a new entry to `HrmpOpenChannelRequests` for `(sender, recipient)`
           1. Set `sender_deposit` to `config.hrmp_sender_deposit`
@@ -200,9 +209,10 @@ Candidate Enactment:
   1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
       1. Reserve the deposit for the `P` according to `config.hrmp_recipient_deposit`
       1. For the request in `HrmpOpenChannelRequests` identified by `(sender, P)`, set `confirmed` flag to `true`.
+      1. Increase `HrmpAcceptedChannelRequestCount` by 1 for `P`.
   1. If the message kind is `HrmpCloseChannel(ch)`:
-      1. Insert a new entry `Some(())` to `HrmpCloseChannelRequests` for `ch`.
-      1. Append `ch` to `HrmpCloseChannelRequestsList`.
+      1. If not already there, insert a new entry `Some(())` to `HrmpCloseChannelRequests` for `ch`
+      and append `ch` to `HrmpCloseChannelRequestsList`.
 
 The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
@@ -235,6 +245,7 @@ any of dispatchables return an error.
   1. Remove `RelayDispatchQueueSize` of `P`.
   1. Remove `RelayDispatchQueues` of `P`.
   1. Remove `HrmpOpenChannelRequestCount` for `P`
+  1. Remove `HrmpAcceptedChannelRequestCount` for `P`.
   1. Remove `P` if it exists in `NeedsDispatch`.
   1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
   - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
@@ -254,6 +265,7 @@ any of dispatchables return an error.
               1. Insert `sender` into the set `HrmpIngressChannelsIndex` for the `recipient`.
               1. Insert `recipient` into the set `HrmpEgressChannelsIndex` for the `sender`.
         1. decrement `HrmpOpenChannelRequestCount` for `D.sender` by 1.
+        1. decrement `HrmpAcceptedChannelRequestCount` for `D.recipient` by 1.
         1. remove `R`
         1. remove `D`
 1. For each HRMP channel designator `D` in `HrmpCloseChannelRequestsList`

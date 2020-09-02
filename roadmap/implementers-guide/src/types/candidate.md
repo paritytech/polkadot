@@ -202,6 +202,14 @@ struct HrmpTransientValidationData {
 	/// A vector of close requests in which the para participates either as sender or recipient.
 	/// The vector doesn't contain two entries with the same `HrmpChannelId`.
 	close_requests: Vec<HrmpChannelId>,
+	/// The maximum number of inbound channels the para is allowed to have. This is a copy of either
+	/// `config.hrmp_max_parachain_inbound_channels` or `config.hrmp_max_parathread_inbound_channels`
+	/// depending on the type of this para.
+	config_max_inbound_channels: u32,
+	/// The maximum number of outbound channels the para is allowed to have. This is a copy of either
+	/// `config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`
+	/// depending on the type of this para.
+	config_max_outbound_channels: u32,
 }
 
 /// A shorter version of `HrmpOpenChannelRequest`.
