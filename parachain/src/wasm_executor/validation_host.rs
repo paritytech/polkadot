@@ -68,12 +68,14 @@ impl SpawnNamed for TaskExecutor {
 /// The execution mode for the `ValidationPool`.
 #[derive(Debug, Clone)]
 pub enum ValidationExecutionMode {
+	/// The validation worker is ran in a thread inside the same process.
+	InProcess,
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
 	/// following by the address of the shared memory.
-	Local,
+	ExternalProcessSelfHost,
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
-	Remote {
+	ExternalProcessCustomHost {
 		/// Path to the validation worker. The file must exists and be executable.
 		binary: PathBuf,
 		/// List of arguments passed to the validation worker. The address of the shared memory will be automatically
@@ -260,11 +262,12 @@ impl ValidationHost {
 		}
 		let memory = Self::create_memory()?;
 		let (cmd, args) = match execution_mode {
-			ValidationExecutionMode::Local => (
+			ValidationExecutionMode::InProcess => todo!(),
+			ValidationExecutionMode::ExternalProcessSelfHost => (
 				env::current_exe()?,
 				WORKER_ARGS.iter().map(|x| x.to_string()).collect()
 			),
-			ValidationExecutionMode::Remote { binary, args } => (binary, args),
+			ValidationExecutionMode::ExternalProcessCustomHost { binary, args } => (binary, args),
 		};
 		debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
 		let worker = process::Command::new(cmd)

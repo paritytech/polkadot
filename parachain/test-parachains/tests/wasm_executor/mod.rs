@@ -25,7 +25,7 @@ use parachain::{
 };
 
 fn validation_pool() -> ValidationPool {
-	let execution_mode = ValidationExecutionMode::Remote {
+	let execution_mode = ValidationExecutionMode::ExternalProcessCustomHost {
 		binary: std::env::current_exe().unwrap(),
 		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
 	};

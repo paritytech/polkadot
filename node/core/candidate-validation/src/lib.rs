@@ -130,7 +130,7 @@ async fn run(
 )
 	-> SubsystemResult<()>
 {
-	let pool = ValidationPool::new(ValidationExecutionMode::Local);
+	let pool = ValidationPool::new(ValidationExecutionMode::ExternalProcessSelfHost);
 
 	loop {
 		match ctx.recv().await? {
