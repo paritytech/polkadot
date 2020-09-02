@@ -60,7 +60,14 @@ enum UpwardMessage {
 	///
 	/// Let `origin` be the parachain that sent this upward message. In that case the channel
 	/// to be opened is (`origin` -> `recipient`).
-	HrmpInitOpenChannel(ParaId),
+	HrmpInitOpenChannel {
+		/// The receiving party in the channel.
+		recipient: ParaId,
+		/// How many messages can be stored in the channel at most.
+		max_places: u32,
+		/// The maximum size of a message in this channel.
+		max_message_size: u32,
+	},
 	/// A message that is meant to confirm the HRMP open channel request initiated earlier by the
 	/// `HrmpInitOpenChannel` by the given `sender`.
 	///

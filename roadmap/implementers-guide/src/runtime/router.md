@@ -71,6 +71,8 @@ struct HrmpChannel {
     limit_used_places: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
     limit_used_bytes: u32,
+    /// The maximum message size that could be put into the channel.
+    limit_message_size: u32,
     /// The current number of messages pending in the channel.
     /// Invariant: should be less or equal to `limit_used_places`.
     used_places: u32,
@@ -152,8 +154,10 @@ Candidate Acceptance Function:
   1. If the message kind is `Dispatchable`:
       1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the message (NOTE that should include all processed
       upward messages of the `Dispatchable` kind up to this point!)
-  1. If the message kind is `HrmpInitOpenChannel(recipient)`:
+  1. If the message kind is `HrmpInitOpenChannel(recipient, max_places, max_message_size)`:
       1. Check that the `P` is not `recipient`.
+      1. Check that `max_places` is less or equal to `config.hrmp_channel_max_places`.
+      1. Check that `max_message_size` is less or equal to `config.hrmp_channel_max_message_size`.
       1. Check that `recipient` is a valid para.
       1. Check that there is no existing channel for `(P, recipient)` in `HrmpChannels`.
       1. Check that there is no existing open channel request (`P`, `recipient`) in `HrmpOpenChannelRequests`.
@@ -185,6 +189,7 @@ Candidate Acceptance Function:
 * `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
       1. exists
+      1. `M`'s payload size doesn't exceed a preconfigured limit `C.limit_message_size`
       1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
       1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
 
@@ -213,13 +218,14 @@ Candidate Enactment:
       1. Append the message to `RelayDispatchQueues` for `P`
       1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
       1. Ensure that `P` is present in `NeedsDispatch`.
-  1. If the message kind is `HrmpInitOpenChannel(recipient)`:
+  1. If the message kind is `HrmpInitOpenChannel(recipient, max_places, max_message_size)`:
       1. Increase `HrmpOpenChannelRequestCount` by 1 for `P`.
       1. Append `(P, recipient)` to `HrmpOpenChannelRequestsList`.
       1. Add a new entry to `HrmpOpenChannelRequests` for `(sender, recipient)`
           1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-          1. Set `limit_used_places` to `config.hrmp_channel_max_places`
-          1. Set `limit_limit_used_bytes` to `config.hrmp_channel_max_size`
+          1. Set `limit_used_places` to `max_places`
+          1. Set `limit_message_size` to `max_message_size`
+          1. Set `limit_used_bytes` to `config.hrmp_channel_max_size`
       1. Reserve the deposit for the `P` according to `config.hrmp_sender_deposit`
   1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
       1. Reserve the deposit for the `P` according to `config.hrmp_recipient_deposit`
