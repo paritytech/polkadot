@@ -227,6 +227,7 @@ unsafe impl Send for ValidationHost {}
 #[derive(Default)]
 struct ValidationHost {
 	worker: Option<process::Child>,
+	worker_thread: Option<std::thread::JoinHandle<Result<(), String>>>,
 	memory: Option<SharedMem>,
 	id: u32,
 }
@@ -260,23 +261,38 @@ impl ValidationHost {
 				return Ok(());
 			}
 		}
+		if self.worker_thread.is_some() {
+			return Ok(());
+		}
+
 		let memory = Self::create_memory()?;
-		let (cmd, args) = match execution_mode {
-			ValidationExecutionMode::InProcess => todo!(),
-			ValidationExecutionMode::ExternalProcessSelfHost => (
-				env::current_exe()?,
-				WORKER_ARGS.iter().map(|x| x.to_string()).collect()
-			),
-			ValidationExecutionMode::ExternalProcessCustomHost { binary, args } => (binary, args),
+
+		let mut run_worker_process = |cmd: PathBuf, args: Vec<String>| -> Result<(), std::io::Error> {
+			debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
+			let worker = process::Command::new(cmd)
+				.args(args)
+				.arg(memory.get_os_path())
+				.stdin(process::Stdio::piped())
+				.spawn()?;
+			self.id = worker.id();
+			self.worker = Some(worker);
+			Ok(())
 		};
-		debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
-		let worker = process::Command::new(cmd)
-			.args(args)
-			.arg(memory.get_os_path())
-			.stdin(process::Stdio::piped())
-			.spawn()?;
-		self.id = worker.id();
-		self.worker = Some(worker);
+
+		match execution_mode {
+			ValidationExecutionMode::InProcess => {
+				let mem_id = memory.get_os_path().to_string();
+				self.worker_thread = Some(std::thread::spawn(move || run_worker(mem_id.as_str())));
+			},
+			ValidationExecutionMode::ExternalProcessSelfHost => run_worker_process(
+				env::current_exe()?,
+				WORKER_ARGS.iter().map(|x| x.to_string()).collect(),
+			)?,
+			ValidationExecutionMode::ExternalProcessCustomHost { binary, args } => run_worker_process(
+				binary,
+				args,
+			)?,
+		};
 
 		memory.wait(
 			Event::WorkerReady as usize,
