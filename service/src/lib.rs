@@ -567,25 +567,30 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch>(mut config: Configuration) -> Result<
+pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 	(
-		Arc<FullClient<Runtime, Dispatch>>,
+		Arc<crate::Client>,
 		Arc<FullBackend>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
 	ServiceError
->
-where
-	Runtime: ConstructRuntimeApi<Block, FullClient<Runtime, Dispatch>> + Send + Sync + 'static,
-	Runtime::RuntimeApi:
-	RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	Dispatch: NativeExecutionDispatch + 'static,
-{
+> {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch>(&mut config, false)?;
-	Ok((client, backend, import_queue, task_manager))
+
+	if config.chain_spec.is_kusama() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config, false)?;
+		Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
+	} else if config.chain_spec.is_westend() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config, false)?;
+		Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
+	} else {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config, false)?;
+		Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
+	}
 }
 
 /// Create a new Polkadot service for a full node.

@@ -1,4 +1,50 @@
-# Approval assignments
+# Approval Overview
+
+The Approval Process is the mechanism by which the relay-chain ensures that only valid parablocks are finalized and that backing validators are held accountable for managing to get bad blocks included into the relay chain.
+
+Having a parachain include a bad block into a fork of the relay-chain is not catastrophic as long as the block isn't finalized by the relay-chain's finality gadget, GRANDPA. If the block isn't finalized, that means that the fork of the relay-chain can be reverted in favor of another by means of a dynamic fork-choice rule which leads honest validators to ignore any forks containing that parablock.
+
+Dealing with a bad parablock proceeds in these stages:
+1. Detection
+2. Escalation
+3. Consequences
+
+First, the bad block must be detected by an honest party. Second, the honest party must escalate the bad block to be checked by all validators. And last, the correct consequences of a bad block must occur. The first consequence, as mentioned above, is to revert the chain so what full nodes perceive to be best no longer contains the bad parablock. The second consequence is to slash all malicious validators. Note that, if the chain containing the bad block is reverted, that the result of the dispute needs to be transplanted or at least transplantable to all other forks of the chain so that malicious validators are slashed in all possible histories. Phrased alternatively, there needs to be no possible relay-chain in which malicious validators get away cost-free.
+
+Accepting a parablock is the end result of having passed through the detection stage without dispute, or having passed through the escalation/dispute stage with a positive outcome. For this to work, we need the detection procedure to have the properties that enough honest validators are always selected to check the parablock and that they cannot be interfered with by an adversary. This needs to be balanced with the scaling concern of parachains in general: the easiest way to get the first property is to have everyone check everything, but that is clearly too heavy. So we also have a desired constraint on the other property that we have as few validators as possible check any particular parablock. Our assignment function is the method by which we select validators to do approval checks on parablocks.
+
+It often makes more sense to think of relay-chain blocks as having been approved or not as opposed to thinking about whether parablocks have been approved. A relay-chain block containing a single bad parablock needs to be reverted, and a relay-chain block that contains only approved parablocks can be called approved, as long as its parent relay-chain block is also approved. It is important that the validity of any particular relay-chain block depend on the validity of its ancestry, so we do not finalize a block which has a bad block in its ancestry.
+
+```dot process Approval Process
+digraph {
+  Included -> Assignments -> Approval -> Finality
+  Assignments -> Escalation -> Consequences
+}
+```
+
+Approval has roughly two parts:
+
+- **Assignments** determines which validators performs approval checks on which candidates.  It ensures that each candidate receives enough random checkers, while reducing adversaries' odds for obtaining enough checkers, and limiting adversaries' foreknowledge.  It tracks approval votes to identify when "no show" approval check takes suspiciously long, perhaps indicating the node being under attack, and assigns more checks in this case.  It tracks relay chain equivocations to determine when adversaries possibly gained foreknowledge about assignments, and adds additional checks in this case.
+
+- **Approval checks** listens to the assignments subsystem for outgoing assignment notices that we shall check specific candidates.  It then performs these checks by first invoking the reconstruction subsystem to obtain the candidate, second invoking the candidate validity utility subsystem upon the candidate, and finally sending out an approval vote, or perhaps initiating a dispute.
+
+These both run first as off-chain consensus protocols using messages gossiped among all validators, and second as an on-chain record of this off-chain protocols' progress after the fact.  We need the on-chain protocol to provide rewards for the on-chain protocol, and doing an on-chain protocol simplify interaction with GRANDPA.  
+
+Approval requires two gossiped message types, assignment notices created by its assignments subsystem, and approval votes sent by our approval checks subsystem when authorized by the candidate validity utility subsystem.  
+
+### Approval keys
+
+We need two separate keys for the approval subsystem:
+
+- **Approval assignment keys** are sr25519/schnorrkel keys used only for the assignment criteria VRFs.  We implicitly sign assignment notices with approval assignment keys by including their relay chain context and additional data in the VRF's extra message, but exclude these from its VRF input.  
+
+- **Approval vote keys** would only sign off on candidate parablock validity and has no natural key type restrictions.  We could reuse the ed25519 grandpa keys for this purpose since these signatures control access to grandpa, although distant future node configurations might favor separate roles.
+
+Approval vote keys could relatively easily be handled by some hardened signer tooling, perhaps even HSMs assuming we select ed25519 for approval vote keys.  Approval assignment keys might or might not support hardened signer tooling, but doing so sounds far more complex.  In fact, assignment keys determine only VRF outputs that determine approval checker assignments, for which they can only act or not act, so they cannot equivocate, lie, etc. and represent little if any slashing risk for validator operators. 
+
+In future, we shall determine which among the several hardening techniques best benefits the netwrok as a whole.  We could provide a multi-process multi-machine architecture for validators, perhaps even reminiscent of GNUNet, or perhaps more resembling smart HSM tooling.  We might instead design a system that more resembled full systems, like like Cosmos' sentry nodes.  In either case, approval assignments might be handled by a slightly hardened machine, but not necessarily nearly as hardened as approval votes, but approval votes machines must similarly run foreign WASM code, which increases their risk, so assignments being separate sounds helpful.  
+
+## Assignments
 
 Approval assignment determines on which candidate parachain blocks each validator performs approval checks.  An approval session considers only one relay chain block and assigns only those candidates that relay chain block declares available.
 
@@ -106,7 +152,7 @@ TODO: When?  Is this optimal for the network?  etc.
 
 ## On-chain verification
 
-We should verify approval on-chain to reward approval checkers and to simplify integration with GRADPA.  We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with both these goals.
+We should verify approval on-chain to reward approval checkers and to simplify integration with GRANDPA.  We therefore require the "no show" timeout to be longer than a relay chain slot so that we can witness "no shows" on-chain, which helps with both these goals.
 
 In principle, all validators have some "tranche" at which they're assigned to the parachain candidate, which ensures we reach enough validators eventually.  As noted above, we often retract "no shows" when the slow validator eventually shows up, so witnessing their initially being a "no show" helps manage rewards.
 
@@ -116,7 +162,7 @@ We now encounter one niche concern in the interaction between postponement and o
 
 We need the chain to win in this case, but doing this requires imposing an annoyingly long overarching delay upon finality.  We might explore limits on postponement too, but this sounds much harder.
 
-## Paramaters
+## Parameters
 
 We prefer doing approval checkers assignments under `RelayVRFModulo` as opposed to `RelayVRFDelay` because `RelayVRFModulo` avoids giving individual checkers too many assignments and tranche zero assignments benefit security the most.  We suggest assigning at least 16 checkers under `RelayVRFModulo` although assignment levels have never been properly analysed. 
 
@@ -138,7 +184,11 @@ VRFs though require adversaries wait far longer between such attacks, which also
 
 Any validator could send their assignment notices and/or approval votes too early.  We gossip the approval votes because they represent a major commitment by the validator.  We retain but delay gossiping the assignment notices until they agree with our local clock.  
 
-Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploite the relative time scheme that synchronises our clocks, which conceivably permits just dropoing excessively early assignments. 
+Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploit the relative time scheme that synchronises our clocks, which conceivably permits just dropping excessively early assignments. 
 
+### Future work
 
+We could consider additional gossip messages with which nodes claims "slow availability" and/or "slow candidate" to fine tune the assignments "no show" system, but long enough "no show" delays suffice probably.
 
+We shall develop more practical experience with UDP once the availability system works using direct UDP connections.  In this, we should discover if reconstruction performs adequately with a complete graphs or  
+benefits from topology restrictions.  At this point, an assignment notices could implicitly request pieces from a random 1/3rd, perhaps topology restricted, which saves one gossip round.  If this preliminary fast reconstruction fails, then nodes' request alternative pieces directly.  There is an interesting design space in how this overlaps with "slow availability" claims.

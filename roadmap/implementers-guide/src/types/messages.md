@@ -14,6 +14,8 @@ that we use the first item tuple for the sender and the second for the recipient
 is allowed between two participants in one direction, i.e. there cannot be 2 different channels
 identified by `(A, B)`.
 
+`HrmpChannelId` has a defined ordering: first `sender` and tie is resolved by `recipient`.
+
 ```rust,ignore
 struct HrmpChannelId {
     sender: ParaId,
@@ -88,6 +90,9 @@ struct OutboundHrmpMessage {
 }
 
 struct InboundHrmpMessage {
+	/// The block number at which this message was sent.
+	/// Specifically, it is the block number at which the candidate that sends this message was
+	/// enacted.
 	pub sent_at: BlockNumber,
 	/// The message payload.
 	pub data: Vec<u8>,
