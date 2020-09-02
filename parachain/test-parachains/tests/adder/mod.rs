@@ -67,7 +67,7 @@ fn validation_pool() -> ValidationPool {
 }
 
 #[test]
-pub fn execute_good_on_parent_with_inprocess_validation() {
+fn execute_good_on_parent_with_inprocess_validation() {
 	let pool = ValidationPool::new(ValidationExecutionMode::InProcess);
 	execute_good_on_parent(pool);
 }
