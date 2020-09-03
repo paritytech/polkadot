@@ -19,6 +19,7 @@
 
 #![deny(missing_docs)]
 
+use std::time::Duration;
 use futures::{channel::oneshot, FutureExt};
 use log::trace;
 
@@ -40,6 +41,7 @@ mod collator_side;
 mod validator_side;
 
 const TARGET: &'static str = "colp";
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, derive_more::From)]
 enum Error {
@@ -85,7 +87,7 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-		    ProtocolSide::Validator => validator_side::run(ctx).await,
+		    ProtocolSide::Validator => validator_side::run(ctx, REQUEST_TIMEOUT).await,
 		    ProtocolSide::Collator(id) => collator_side::run(ctx, id).await,
 		}
 	}

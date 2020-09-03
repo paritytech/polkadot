@@ -318,7 +318,7 @@ where
 				}
 			}
 		}
-		FetchCollation(_, _, _) => {
+		FetchCollations(_, _, _) => {
 			warn!(
 				target: TARGET,
 				"FetchCollation message is not expected on the collator side of the protocol",
