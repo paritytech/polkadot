@@ -6,14 +6,14 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-throttling" }
+sp-blockchain = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-throttling" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "auth-disc-throttling" }
 futures = { version = "0.3.5", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
