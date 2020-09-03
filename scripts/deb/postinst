@@ -1,0 +1,8 @@
+#!/bin/sh
+
+set -e
+
+getent group polkadot >/dev/null 2>&1 || addgroup --system polkadot
+getent passwd polkadot >/dev/null 2>&1 ||
+  adduser --system --home /home/polkadot --disabled-password \
+  --ingroup polkadot polkadot

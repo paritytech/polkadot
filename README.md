@@ -21,7 +21,15 @@ Polkadot from one of our package repositories.
 
 ### Debian-based (Debian, Ubuntu)
 
-Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and derivatives.
+Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
+derivatives.
+
+Installation from the repository will create a `systemd` service that can be
+used to run a Polkadot node. By default, it will run as the `polkadot` user,
+with no additional flags. The service file located at
+`/etc/systemd/system/polkadot.service` can be edited to customise this as
+necessary. This file will not be overwritten on updating polkadot. Conversely,
+you may also just run the node directly from the command-line.
 
 ```
 # Import the security@parity.io GPG key

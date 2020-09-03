@@ -1,0 +1,16 @@
+[Unit]
+Description=Polkadot Node
+After=network.target
+Documentation=https://github.com/paritytech/polkadot
+
+[Service]
+ExecStart=/usr/bin/polkadot
+Restart=always
+RestartSec=120
+User=polkadot
+Group=polkadot
+MemoryHigh=5400M
+MemoryMax=5500M
+
+[Install]
+WantedBy=multi-user.target

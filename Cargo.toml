@@ -9,6 +9,7 @@ license = "GPL-3.0-only"
 version = "0.8.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
@@ -84,10 +85,16 @@ service-rewr= [
 [package.metadata.deb]
 name = "polkadot"
 extended-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+section = "misc"
 maintainer = "martin@parity.io"
 license-file = ["LICENSE", "0"]
+maintainer-scripts = "scripts/deb/"
 assets = [
-	["target/release/polkadot", "usr/bin/", "755"]
+	["target/release/polkadot", "usr/bin/", "755"],
+	["scripts/polkadot.service", "etc/systemd/system/", "644"]
+]
+conf-files = [
+	"/etc/systemd/system/polkadot.service"
 ]
 
 # Configuration for building an .rpm package - for use with `cargo-rpm`
