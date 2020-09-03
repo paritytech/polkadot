@@ -717,20 +717,6 @@ mod tests {
 
 	const TIMEOUT: Duration = Duration::from_millis(100);
 
-	/*
-	async fn overseer_signal(
-		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
-		signal: OverseerSignal,
-	) {
-		log::trace!("Sending signal:\n{:?}", signal);
-		overseer
-			.send(FromOverseer::Signal(signal))
-			.timeout(TIMEOUT)
-			.await
-			.expect("Is more than enough for sending signals");
-	}
-	*/
-
 	async fn overseer_send(
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
@@ -766,6 +752,7 @@ mod tests {
 			.await
 	}
 
+	// As we receive a relevan advertisment act on it and issue a collation request.
 	#[test]
 	fn act_on_advertisment() {
 		let test_state = TestState::default();
@@ -848,6 +835,7 @@ mod tests {
 		});
 	}
 
+	// Test that an issued request times out a number of times until our view moves on.
 	#[test]
 	fn collation_request_times_out() {
 		let test_state = TestState::default();
@@ -963,6 +951,7 @@ mod tests {
 		});
 	}
 
+	// Test that other subsystems may modify collators' reputations.
 	#[test]
 	fn collator_reporting_works() {
 		let test_state = TestState::default();
@@ -1038,6 +1027,13 @@ mod tests {
 		});
 	}
 
+	// A test scenario that takes the following steps
+	//  - Two collators connect, declare themselves and advertise a collation relevant to
+	//    our view.
+	//  - This results subsystem acting upon these advertisments and issuing two collation requests.
+	//  - The collations are sent to it.
+	//  - A `FetchCollations` message is sent to the subsystem.
+	//  - Collations are fetched correctly.
 	#[test]
 	fn fetch_collations_works() {
 		let test_state = TestState::default();
@@ -1202,6 +1198,10 @@ mod tests {
 		});
 	}
 
+	// A test quite similar to `fetch_collation_works` but collations are not
+	// delivered immediately but after `FetchCollations` message is sent.
+	// This tests that reporting results into the `mpsc` channel send in `FetchCollation` still
+	// works properly upon delayed receiving of the collations.
 	#[test]
 	fn fetch_collation_and_delay_works() {
 		let test_state = TestState::default();
