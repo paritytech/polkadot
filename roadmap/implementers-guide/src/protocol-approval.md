@@ -1,4 +1,4 @@
-# Approval Overview
+# Approval Process
 
 The Approval Process is the mechanism by which the relay-chain ensures that only valid parablocks are finalized and that backing validators are held accountable for managing to get bad blocks included into the relay chain.
 

@@ -3,10 +3,10 @@
 [Preamble](README.md)
 
 - [Whence Parachains](whence-parachains.md)
-- [Parachains Overview](parachains-overview.md)
+- [Protocol Overview](protocol-overview.md)
+  - [Approval Process](protocol-approval.md)
 - [Architecture Overview](architecture.md)
-- [Approval Overview](approval.md)
-- [Messaging Overview](messaging.md)
+  - [Messaging Overview](messaging.md)
 - [Runtime Architecture](runtime/README.md)
   - [Initializer Module](runtime/initializer.md)
   - [Configuration Module](runtime/configuration.md)
