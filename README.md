@@ -30,13 +30,14 @@ the command-line.
 ### Debian-based (Debian, Ubuntu)
 
 Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
-derivatives.
+derivatives. Run the following commands as the `root` user.
 
 ```
 # Import the security@parity.io GPG key
-curl -fsSL 'https://keys.mailvelope.com/pks/lookup?op=get&search=security%40parity.io&options=mr&exact=on' | apt-key add -
+gpg --recv-keys --keyserver hkps://keys.mailvelope.com FF0812D491B96798
+gpg --export security@parity.io > /usr/share/keyrings/parity.gpg
 # Add the Parity repository and update the package index
-echo 'deb https://releases.parity.io/deb buster main' >> /etc/apt/sources.list.d/parity.list
+echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb buster main' > /etc/apt/sources.list.d/parity.list
 apt update
 # Install polkadot
 apt install polkadot
