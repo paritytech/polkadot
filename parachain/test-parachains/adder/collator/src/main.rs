@@ -26,7 +26,7 @@ use primitives::v0::{
 	Block, Hash, DownwardMessage,
 	HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationData,
 };
-use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
+use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli, SyncOracle};
 use parking_lot::Mutex;
 use futures::future::{Ready, ready, FutureExt};
 use sp_runtime::traits::BlakeTwo256;
@@ -105,11 +105,11 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<SP, Client, Backend>(
+	fn build<SP, Client, Backend, PNetwork>(
 		self,
 		_: Arc<Client>,
 		_: SP,
-		network: impl Network + Clone + 'static,
+		network: PNetwork,
 	) -> Result<Self::ParachainContext, ()>
 	where
 		SP: SpawnNamed + Clone + Send + Sync + 'static,
@@ -117,6 +117,7 @@ impl BuildParachainContext for AdderContext {
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
 		Client: service::AbstractClient<Block, Backend> + 'static,
 		Client::Api: service::RuntimeApiCollection<StateBackend = Backend::State>,
+		PNetwork: Network + SyncOracle + Clone + 'static,
 	{
 		Ok(Self { _network: Some(Arc::new(network)), ..self })
 	}

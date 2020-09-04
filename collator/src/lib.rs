@@ -76,7 +76,7 @@ use polkadot_service_new::{
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::BlakeTwo256;
-use consensus_common::SyncOracle;
+pub use consensus_common::SyncOracle;
 use sc_client_api::Backend as BackendT;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
@@ -118,11 +118,11 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<SP, Client, Backend>(
+	fn build<SP, Client, Backend, PNetwork>(
 		self,
 		client: Arc<Client>,
 		spawner: SP,
-		network: impl Network + SyncOracle + Clone + 'static,
+		network: PNetwork,
 	) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static,
@@ -130,6 +130,7 @@ pub trait BuildParachainContext {
 			Backend::State: sp_api::StateBackend<BlakeTwo256>,
 			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
 			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+			PNetwork: Network + SyncOracle + Clone + 'static,
 		;
 }
 
@@ -460,11 +461,11 @@ mod tests {
 	impl BuildParachainContext for BuildDummyParachainContext {
 		type ParachainContext = DummyParachainContext;
 
-		fn build<SP, Client, Backend>(
+		fn build<SP, Client, Backend, PNetwork>(
 			self,
 			_: Arc<Client>,
 			_: SP,
-			_: impl Network + Clone + 'static,
+			_: PNetwork,
 		) -> Result<Self::ParachainContext, ()>
 		where
 			SP: SpawnNamed + Clone + Send + Sync + 'static,
@@ -472,6 +473,7 @@ mod tests {
 			Backend::State: sp_api::StateBackend<BlakeTwo256>,
 			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
 			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+			PNetwork: Network + SyncOracle + Clone + 'static,
 		{
 			Ok(DummyParachainContext)
 		}
