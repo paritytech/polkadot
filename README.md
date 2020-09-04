@@ -19,17 +19,18 @@ either run the latest binary from our
 [releases](https://github.com/paritytech/polkadot/releases) page, or install
 Polkadot from one of our package repositories.
 
+Installation from the debian or rpm repositories will create a `systemd`
+service that can be used to run a Polkadot node. This is disabled by default,
+and can be started by running `systemctl start polkadot`. By default, it will
+run as the `polkadot` user.  Command-line flags passed to the binary can be
+customised by editing `/etc/default/polkadot`. This file will not be
+overwritten on updating polkadot. You may also just run the node directly from
+the command-line.
+
 ### Debian-based (Debian, Ubuntu)
 
 Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
 derivatives.
-
-Installation from the repository will create a `systemd` service that can be
-used to run a Polkadot node. This is disabled by default, and can be started by
-running `systemctl start polkadot`. By default, it will run as the `polkadot`
-user.  Command-line flags passed to the binary can be customised by editing
-`/etc/default/polkadot`. This file will not be overwritten on updating
-polkadot. You may also just run the node directly from the command-line.
 
 ```
 # Import the security@parity.io GPG key

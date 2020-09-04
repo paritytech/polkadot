@@ -107,3 +107,6 @@ buildflags = ["--release"]
 
 [package.metadata.rpm.targets]
 polkadot = { path = "/usr/bin/polkadot" }
+
+[package.metadata.rpm.files]
+"../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
