@@ -771,7 +771,7 @@ sp_api::decl_runtime_apis! {
 			-> Option<Vec<AbridgedCandidateReceipt>>;
 		/// Get a `SigningContext` with current `SessionIndex` and parent hash.
 		fn signing_context() -> SigningContext;
-		/// Get the `DownwardMessage`'s for the given parachain.
+		/// Get the downward messages for the given parachain.
 		fn downward_messages(id: Id) -> Vec<Vec<u8>>;
 	}
 }

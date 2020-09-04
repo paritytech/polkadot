@@ -1264,7 +1264,7 @@ impl<T: Trait> Module<T> {
 		})
 	}
 
-	/// Returns the `DownwardMessage`'s for the given parachain.
+	/// Returns the downward messages for the given parachain.
 	pub fn downward_messages(id: ParaId) -> Vec<Vec<u8>> {
 		DownwardMessageQueue::get(id)
 	}
@@ -3648,9 +3648,9 @@ mod tests {
 			DownwardMessageQueue::<Test>::insert(
 				&id,
 				vec![
-					DownwardMessage::Opaque(vec![1]),
-					DownwardMessage::Opaque(vec![2]),
-					DownwardMessage::Opaque(vec![3])
+					vec![1],
+					vec![2],
+					vec![3],
 				]
 			);
 
@@ -3663,7 +3663,8 @@ mod tests {
 
 			assert_ok!(Parachains::set_heads(Origin::none(), candidates));
 			assert_eq!(
-				vec![DownwardMessage::Opaque(vec![3])],
+				vec![vidlbgflib
+				::Opaque(vec![3])],
 				DownwardMessageQueue::<Test>::get(&id),
 			);
 		});

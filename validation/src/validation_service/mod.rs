@@ -716,7 +716,7 @@ mod tests {
 			fn signing_context() -> SigningContext {
 				Default::default()
 			}
-			fn downward_messages(_: ParaId) -> Vec<polkadot_primitives::v0::DownwardMessage> {
+			fn downward_messages(_: ParaId) -> Vec<Vec<u8>> {
 				Vec::new()
 			}
 		}

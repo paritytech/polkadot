@@ -53,7 +53,7 @@ use std::pin::Pin;
 use futures::{future, Future, Stream, FutureExt, StreamExt};
 use sp_core::Pair;
 use polkadot_primitives::v0::{
-	BlockId, Hash, Block, DownwardMessage,
+	BlockId, Hash, Block,
 	BlockData, DutyRoster, HeadData, Id as ParaId,
 	PoVBlock, ValidatorId, CollatorPair, LocalValidationData, GlobalValidationData,
 	Collation, CollationInfo, collator_signature_payload,
@@ -141,7 +141,7 @@ pub trait ParachainContext: Clone {
 		relay_parent: Hash,
 		global_validation: GlobalValidationData,
 		local_validation: LocalValidationData,
-		downward_messages: Vec<DownwardMessage>,
+		downward_messages: Vec<Vec<u8>>,
 	) -> Self::ProduceCandidate;
 }
 
@@ -151,7 +151,7 @@ pub async fn collate<P>(
 	local_id: ParaId,
 	global_validation: GlobalValidationData,
 	local_validation_data: LocalValidationData,
-	downward_messages: Vec<DownwardMessage>,
+	downward_messages: Vec<Vec<u8>>,
 	mut para_context: P,
 	key: Arc<CollatorPair>,
 ) -> Option<Collation>
@@ -439,7 +439,7 @@ mod tests {
 			_relay_parent: Hash,
 			_global: GlobalValidationData,
 			_local_validation: LocalValidationData,
-			_: Vec<DownwardMessage>,
+			_: Vec<Vec<u8>>,
 		) -> Self::ProduceCandidate {
 			// send messages right back.
 			future::ready(Some((

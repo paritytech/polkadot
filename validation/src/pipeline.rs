@@ -175,7 +175,7 @@ fn validate_upward_messages(
 	free_balance: Balance,
 ) -> Result<Balance, Error> {
 	msgs.iter().try_fold(Balance::from(0u128), |fees_charged, msg| {
-		let fees = fee_schedule.compute_message_fee(msg.data.len());
+		let fees = fee_schedule.compute_message_fee(msg.len());
 		let fees_charged = fees_charged.saturating_add(fees);
 
 		if fees_charged > free_balance {
