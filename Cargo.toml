@@ -88,13 +88,14 @@ extended-description = "Implementation of a https://polkadot.network node in Rus
 section = "misc"
 maintainer = "martin@parity.io"
 license-file = ["LICENSE", "0"]
-maintainer-scripts = "scripts/deb/"
+# https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
 assets = [
-	["target/release/polkadot", "usr/bin/", "755"],
-	["scripts/polkadot.service", "etc/systemd/system/", "644"]
+	["target/release/polkadot", "/usr/bin/", "755"],
+	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
 ]
 conf-files = [
-	"/etc/systemd/system/polkadot.service"
+	"/etc/default/polkadot"
 ]
 
 # Configuration for building an .rpm package - for use with `cargo-rpm`
