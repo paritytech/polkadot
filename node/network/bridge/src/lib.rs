@@ -23,6 +23,7 @@ use futures::stream::BoxStream;
 use futures::channel::oneshot;
 
 use sc_network::Event as NetworkEvent;
+use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
@@ -188,15 +189,19 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 }
 
 /// The network bridge subsystem.
-pub struct NetworkBridge<N>(N);
+// TODO: does it need to be generic over AuthorityDiscoveryService?
+pub struct NetworkBridge<N> {
+	network_service: N,
+	authority_discovery_service: AuthorityDiscoveryService,
+}
 
 impl<N> NetworkBridge<N> {
-	/// Create a new network bridge subsystem with underlying network service.
+	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
-	pub fn new(net_service: N) -> Self {
-		NetworkBridge(net_service)
+	pub fn new(network_service: N, authority_discovery_service: AuthorityDiscoveryService) -> Self {
+		NetworkBridge { network_service, authority_discovery_service }
 	}
 }
 
@@ -212,7 +217,7 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 		// within `run_network`.
 		SpawnedSubsystem {
 			name: "network-bridge-subsystem",
-			future: run_network(self.0, ctx).map(|_| ()).boxed(),
+			future: run_network(self, ctx).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -541,10 +546,10 @@ async fn dispatch_collation_events_to_all<I>(
 }
 
 async fn run_network<N: Network>(
-	mut net: N,
+	mut net: NetworkBridge<N>,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
 ) -> SubsystemResult<()> {
-	let mut event_stream = net.event_stream().fuse();
+	let mut event_stream = net.network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
 	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
@@ -570,31 +575,35 @@ async fn run_network<N: Network>(
 			Action::Abort => return Ok(()),
 
 			Action::SendValidationMessage(peers, msg) => send_message(
-					&mut net,
+					&mut net.network_service,
 					peers,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
 			Action::SendCollationMessage(peers, msg) => send_message(
-					&mut net,
+					&mut net.network_service,
 					peers,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToValidators(_peer_set, _validators, _res) => {
+			Action::ConnectToValidators(peer_set, validators, res) => {
+				let priority_group = match peer_set {
+					PeerSet::Collation => "parachain_collation",
+					PeerSet::Validators => "parachain_validation",
+				};
 				// TODO: https://github.com/paritytech/polkadot/issues/1461
 			}
 
-			Action::ReportPeer(peer, rep) => net.report_peer(peer, rep).await?,
+			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(h));
 
 				update_view(
-					&mut net,
+					&mut net.network_service,
 					&mut ctx,
 					&live_heads,
 					&mut local_view,
@@ -679,7 +688,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut validation_peers,
 						v_messages,
-						&mut net,
+						&mut net.network_service,
 					).await?;
 
 					if let Err(e) = dispatch_validation_events_to_all(
@@ -699,7 +708,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut collation_peers,
 						c_messages,
-						&mut net,
+						&mut net.network_service,
 					).await?;
 
 					if let Err(e) = dispatch_collation_events_to_all(

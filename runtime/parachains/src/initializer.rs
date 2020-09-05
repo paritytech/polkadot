@@ -20,12 +20,15 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use frame_support::weights::Weight;
 use primitives::v1::ValidatorId;
 use frame_support::{
 	decl_storage, decl_module, decl_error, traits::Randomness,
 };
 use sp_runtime::traits::One;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use pallet_authority_discovery::Module as AuthorityDiscovery;
 use codec::{Encode, Decode};
 use crate::{configuration::{self, HostConfiguration}, paras, scheduler, inclusion};
 
@@ -80,6 +83,15 @@ decl_storage! {
 		/// However this is a `Vec` regardless to handle various edge cases that may occur at runtime
 		/// upgrade boundaries or if governance intervenes.
 		BufferedSessionChanges: Vec<BufferedSessionChange<T::BlockNumber>>;
+		/// TODO: docs
+		// XXX: how to avoid this transient storage value?
+		Validators: Vec<(T::AccountId, ValidatorId)>;
+		/// TODO: docs
+		// TODO: is identity hasher ok?
+		// TODO: => Vec<AuthorityDiscoveryId> for previous sessions?
+		// TODO: how to deal with races, e.g. partially initialized?
+		// TODO: instead of storing, change <Module<T>>::on_new_session?
+		Authorities get(fn authorities): map hasher(identity) ValidatorId => AuthorityDiscoveryId;
 	}
 }
 
@@ -205,17 +217,68 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
-	fn on_genesis_session<'a, I: 'a>(_validators: I)
+	fn on_genesis_session<'a, I: 'a>(validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
-
+		// TODO: do we need this?
+		let collected: Vec<(T::AccountId, Self::Key)> = validators.map(|(k, v)| (k.clone(), v)).collect();
+		<Validators<T>>::put(collected)
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
+		// XXX: this is a stupid workaround for cloning an iterator, can we do better?
+		let validators_collected: Vec<(&T::AccountId, Self::Key)> = validators.collect();
+		let queued_collected: Vec<(&T::AccountId, Self::Key)> = queued.collect();
+		let cloned: Vec<(T::AccountId, Self::Key)> = validators_collected.clone().into_iter().map(|(k, v)| (k.clone(), v)).collect();
+		<Validators<T>>::put(cloned);
+		// clean up
+		Authorities::drain().for_each(|_| {});
+
 		let session_index = <pallet_session::Module<T>>::current_index();
-		<Module<T>>::on_new_session(changed, session_index, validators, Some(queued));
+		<Module<T>>::on_new_session(changed, session_index, validators_collected.into_iter(), Some(queued_collected.into_iter()));
+	}
+
+	fn on_disabled(_i: usize) { }
+}
+
+/// A wrapper around `AuthorityDiscovery` and a `OneSessionHandler` for the `Initializer`.
+pub struct ValidatorDiscovery<I>(sp_std::marker::PhantomData<I>);
+
+impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for ValidatorDiscovery<Module<T>> {
+	type Public = AuthorityDiscoveryId;
+}
+
+impl<T> pallet_session::OneSessionHandler<T::AccountId> for ValidatorDiscovery<Module<T>>
+where 
+	T: pallet_session::Trait + pallet_authority_discovery::Trait + Trait,
+{
+	type Key = AuthorityDiscoveryId;
+
+	fn on_genesis_session<'a, I: 'a>(validators: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		<AuthorityDiscovery<T>>::on_genesis_session(validators)
+	}
+
+	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
+		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
+	{
+		// XXX: this is a stupid workaround for cloning an iterator, can we do better?
+		let validators_collected: Vec<(&T::AccountId, Self::Key)> = validators.collect();
+		let queued_collected: Vec<(&T::AccountId, Self::Key)> = queued.collect();
+
+		<AuthorityDiscovery<T>>::on_new_session(changed, validators_collected.clone().into_iter(), queued_collected.into_iter());
+
+		// This was initialized by `OneSessionHandler` with `Key = ValidatorId`,
+		// assuming the execution is sequential.
+		let mut validator_map: BTreeMap<T::AccountId, ValidatorId> = <Validators<T>>::take().into_iter().collect();
+		for (account, authority) in &validators_collected {
+			if let Some(validator) = validator_map.remove(account) {
+				Authorities::insert(validator, authority.clone());
+			}
+		}
 	}
 
 	fn on_disabled(_i: usize) { }

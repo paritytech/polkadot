@@ -25,6 +25,7 @@ use primitives::v1::{
 	GroupIndex, CandidateEvent, PersistedValidationData,
 };
 use sp_runtime::traits::Zero;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
@@ -265,4 +266,12 @@ where
 			RawEvent::<T>::CandidateTimedOut(c, h) => CandidateEvent::CandidateTimedOut(c, h),
 		})
 		.collect()
+}
+
+/// Given the `ValidatorId` return the corresponding `AuthorityDiscoveryId`.
+pub fn authorities<T>(validator_id: &ValidatorId) -> AuthorityDiscoveryId
+where 
+	T: initializer::Trait
+{
+	<initializer::Module<T>>::authorities(&validator_id)
 }
