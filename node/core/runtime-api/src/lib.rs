@@ -22,6 +22,7 @@
 use polkadot_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
 	RuntimeApiMessage, RuntimeApiRequest as Request,
@@ -34,12 +35,15 @@ use sp_api::{ProvideRuntimeApi};
 use futures::prelude::*;
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
-pub struct RuntimeApiSubsystem<Client>(Client);
+pub struct RuntimeApiSubsystem<Client> {
+	client: Client,
+	metrics: Metrics,
+}
 
 impl<Client> RuntimeApiSubsystem<Client> {
-	/// Create a new Runtime API subsystem wrapping the given client.
-	pub fn new(client: Client) -> Self {
-		RuntimeApiSubsystem(client)
+	/// Create a new Runtime API subsystem wrapping the given client and metrics.
+	pub fn new(client: Client, metrics: Metrics) -> Self {
+		RuntimeApiSubsystem { client, metrics }
 	}
 }
 
@@ -48,9 +52,11 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			future: run(ctx, self.0).map(|_| ()).boxed(),
+			future: run(ctx, self).map(|_| ()).boxed(),
 			name: "runtime-api-subsystem",
 		}
 	}
@@ -58,7 +64,7 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = RuntimeApiMessage>,
-	client: Client,
+	subsystem: RuntimeApiSubsystem<Client>,
 ) -> SubsystemResult<()> where
 	Client: ProvideRuntimeApi<Block>,
 	Client::Api: ParachainHost<Block>,
@@ -70,7 +76,8 @@ async fn run<Client>(
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				RuntimeApiMessage::Request(relay_parent, request) => make_runtime_api_request(
-					&client,
+					&subsystem.client,
+					&subsystem.metrics,
 					relay_parent,
 					request,
 				),
@@ -81,6 +88,7 @@ async fn run<Client>(
 
 fn make_runtime_api_request<Client>(
 	client: &Client,
+	metrics: &Metrics,
 	relay_parent: Hash,
 	request: Request,
 ) where
@@ -93,7 +101,7 @@ fn make_runtime_api_request<Client>(
 			let api = client.runtime_api();
 			let res = api.$api_name(&BlockId::Hash(relay_parent), $($param),*)
 				.map_err(|e| RuntimeApiError::from(format!("{:?}", e)));
-
+			metrics.on_request(res.is_ok());
 			let _ = sender.send(res);
 		}}
 	}
@@ -102,9 +110,10 @@ fn make_runtime_api_request<Client>(
 		Request::Validators(sender) => query!(validators(), sender),
 		Request::ValidatorGroups(sender) => query!(validator_groups(), sender),
 		Request::AvailabilityCores(sender) => query!(availability_cores(), sender),
-		Request::GlobalValidationData(sender) => query!(global_validation_data(), sender),
-		Request::LocalValidationData(para, assumption, sender) =>
-			query!(local_validation_data(para, assumption), sender),
+		Request::PersistedValidationData(para, assumption, sender) =>
+			query!(persisted_validation_data(para, assumption), sender),
+		Request::FullValidationData(para, assumption, sender) =>
+			query!(full_validation_data(para, assumption), sender),
 		Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(validation_code(para, assumption), sender),
@@ -114,16 +123,55 @@ fn make_runtime_api_request<Client>(
 	}
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	chain_api_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Runtime API metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_request(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			if succeeded {
+				metrics.chain_api_requests.with_label_values(&["succeeded"]).inc();
+			} else {
+				metrics.chain_api_requests.with_label_values(&["failed"]).inc();
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			chain_api_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_runtime_api_requests_total",
+						"Number of Runtime API requests served.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 
 	use polkadot_primitives::v1::{
-		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, GlobalValidationData,
-		Id as ParaId, OccupiedCoreAssumption, LocalValidationData, SessionIndex, ValidationCode,
+		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
+		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent,
 	};
-	use polkadot_subsystem::test_helpers;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
 
 	use std::collections::HashMap;
@@ -134,8 +182,7 @@ mod tests {
 		validators: Vec<ValidatorId>,
 		validator_groups: Vec<Vec<ValidatorIndex>>,
 		availability_cores: Vec<CoreState>,
-		global_validation_data: GlobalValidationData,
-		local_validation_data: HashMap<ParaId, LocalValidationData>,
+		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
 		validation_code: HashMap<ParaId, ValidationCode>,
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
@@ -173,16 +220,20 @@ mod tests {
 				self.availability_cores.clone()
 			}
 
-			fn global_validation_data(&self) -> GlobalValidationData {
-				self.global_validation_data.clone()
-			}
-
-			fn local_validation_data(
+			fn persisted_validation_data(
 				&self,
 				para: ParaId,
 				_assumption: OccupiedCoreAssumption,
-			) -> Option<LocalValidationData> {
-				self.local_validation_data.get(&para).map(|l| l.clone())
+			) -> Option<PersistedValidationData> {
+				self.validation_data.get(&para).map(|l| l.persisted.clone())
+			}
+
+			fn full_validation_data(
+				&self,
+				para: ParaId,
+				_assumption: OccupiedCoreAssumption,
+			) -> Option<ValidationData> {
+				self.validation_data.get(&para).map(|l| l.clone())
 			}
 
 			fn session_index_for_child(&self) -> SessionIndex {
@@ -216,7 +267,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -238,7 +290,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -260,7 +313,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -277,45 +331,24 @@ mod tests {
 	}
 
 	#[test]
-	fn requests_global_validation_data() {
-		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
-		let relay_parent = [1; 32].into();
-
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
-		let test_task = async move {
-			let (tx, rx) = oneshot::channel();
-
-			ctx_handle.send(FromOverseer::Communication {
-				msg: RuntimeApiMessage::Request(relay_parent, Request::GlobalValidationData(tx))
-			}).await;
-
-			assert_eq!(rx.await.unwrap().unwrap(), runtime_api.global_validation_data);
-
-			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
-		};
-
-		futures::executor::block_on(future::join(subsystem_task, test_task));
-	}
-
-	#[test]
-	fn requests_local_validation_data() {
+	fn requests_persisted_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
 		let mut runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.local_validation_data.insert(para_a, Default::default());
+		runtime_api.validation_data.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
 			ctx_handle.send(FromOverseer::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
-					Request::LocalValidationData(para_a, OccupiedCoreAssumption::Included, tx)
+					Request::PersistedValidationData(para_a, OccupiedCoreAssumption::Included, tx)
 				),
 			}).await;
 
@@ -325,7 +358,47 @@ mod tests {
 			ctx_handle.send(FromOverseer::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
-					Request::LocalValidationData(para_b, OccupiedCoreAssumption::Included, tx)
+					Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_full_validation_data() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		runtime_api.validation_data.insert(para_a, Default::default());
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::FullValidationData(para_a, OccupiedCoreAssumption::Included, tx)
+				),
+			}).await;
+
+			assert_eq!(rx.await.unwrap().unwrap(), Some(Default::default()));
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::FullValidationData(para_b, OccupiedCoreAssumption::Included, tx)
 				),
 			}).await;
 
@@ -343,7 +416,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -369,7 +443,8 @@ mod tests {
 
 		runtime_api.validation_code.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -408,7 +483,8 @@ mod tests {
 
 		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 
@@ -444,7 +520,8 @@ mod tests {
 		let runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 
-		let subsystem_task = run(ctx, runtime_api.clone()).map(|x| x.unwrap());
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
 			let (tx, rx) = oneshot::channel();
 

@@ -79,7 +79,7 @@ use sp_runtime::{ModuleId,
 use crate::slots;
 use codec::{Encode, Decode};
 use sp_std::vec::Vec;
-use primitives::v0::{Id as ParaId, HeadData};
+use primitives::v1::{Id as ParaId, HeadData};
 
 pub type BalanceOf<T> =
 	<<T as slots::Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
@@ -187,12 +187,19 @@ decl_event! {
 		<T as frame_system::Trait>::AccountId,
 		Balance = BalanceOf<T>,
 	{
+		/// Create a new crowdfunding campaign. [fund_index]
 		Created(FundIndex),
+		/// Contributed to a crowd sale. [who, fund_index, amount]
 		Contributed(AccountId, FundIndex, Balance),
+		/// Withdrew full balance of a contributor. [who, fund_index, amount]
 		Withdrew(AccountId, FundIndex, Balance),
+		/// Fund is placed into retirement. [fund_index]
 		Retiring(FundIndex),
+		/// Fund is dissolved. [fund_index]
 		Dissolved(FundIndex),
+		/// The deploy data of the funded parachain is setted. [fund_index]
 		DeployDataFixed(FundIndex),
+		/// Onboarding process for a winning parachain fund is completed. [find_index, parachain_id]
 		Onboarded(FundIndex, ParaId),
 	}
 }
@@ -568,14 +575,14 @@ mod tests {
 	};
 	use frame_support::traits::{Contains, ContainsLengthBound};
 	use sp_core::H256;
-	use primitives::v0::{Info as ParaInfo, Id as ParaId, Scheduling, ValidationCode};
+	use primitives::v1::{Id as ParaId, ValidationCode};
 	// The testing primitives are very useful for avoiding having to work with signatures
 	// or public keys. `u64` is used as the `AccountId` and no `Signature`s are requried.
 	use sp_runtime::{
 		Perbill, Permill, Percent, testing::Header, DispatchResult,
 		traits::{BlakeTwo256, IdentityLookup},
 	};
-	use crate::registrar::Registrar;
+	use crate::slots::Registrar;
 
 	impl_outer_origin! {
 		pub enum Origin for Test {}
@@ -699,13 +706,9 @@ mod tests {
 			code_size <= MAX_CODE_SIZE
 		}
 
-		fn para_info(_id: ParaId) -> Option<ParaInfo> {
-			Some(ParaInfo { scheduling: Scheduling::Always })
-		}
-
 		fn register_para(
 			id: ParaId,
-			_info: ParaInfo,
+			_parachain: bool,
 			code: ValidationCode,
 			initial_head_data: HeadData,
 		) -> DispatchResult {

@@ -38,7 +38,7 @@
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
 use primitives::v1::{
-	Id as ParaId, ValidatorIndex, CoreAssignment, CoreOccupied, CoreIndex, AssignmentKind,
+	Id as ParaId, ValidatorIndex, CoreOccupied, CoreIndex, CollatorId,
 	GroupIndex, ParathreadClaim, ParathreadEntry, GroupRotationInfo, ScheduledCore,
 };
 use frame_support::{
@@ -103,6 +103,54 @@ pub enum FreedReason {
 	Concluded,
 	/// The core's work timed out.
 	TimedOut,
+}
+
+
+/// The assignment type.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub enum AssignmentKind {
+	/// A parachain.
+	Parachain,
+	/// A parathread.
+	Parathread(CollatorId, u32),
+}
+
+/// How a free core is scheduled to be assigned.
+#[derive(Clone, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+pub struct CoreAssignment {
+	/// The core that is assigned.
+	pub core: CoreIndex,
+	/// The unique ID of the para that is assigned to the core.
+	pub para_id: ParaId,
+	/// The kind of the assignment.
+	pub kind: AssignmentKind,
+	/// The index of the validator group assigned to the core.
+	pub group_idx: GroupIndex,
+}
+
+impl CoreAssignment {
+	/// Get the ID of a collator who is required to collate this block.
+	pub fn required_collator(&self) -> Option<&CollatorId> {
+		match self.kind {
+			AssignmentKind::Parachain => None,
+			AssignmentKind::Parathread(ref id, _) => Some(id),
+		}
+	}
+
+	/// Get the `CoreOccupied` from this.
+	pub fn to_core_occupied(&self) -> CoreOccupied {
+		match self.kind {
+			AssignmentKind::Parachain => CoreOccupied::Parachain,
+			AssignmentKind::Parathread(ref collator, retries) => CoreOccupied::Parathread(
+				ParathreadEntry {
+					claim: ParathreadClaim(self.para_id, collator.clone()),
+					retries,
+				}
+			),
+		}
+	}
 }
 
 pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait { }

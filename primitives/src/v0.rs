@@ -612,7 +612,7 @@ pub struct AvailableData {
 
 /// A chunk of erasure-encoded block data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, Default)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, Hash))]
 pub struct ErasureChunk {
 	/// The erasure-encoded chunk of data belonging to the candidate block.
 	pub chunk: Vec<u8>,
@@ -624,8 +624,8 @@ pub struct ErasureChunk {
 
 /// Statements that can be made about parachain candidates. These are the
 /// actual values that are signed.
-#[derive(Clone, PartialEq, Eq, Encode, Decode, Hash)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(Clone, PartialEq, Eq, Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Debug, Hash))]
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]

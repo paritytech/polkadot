@@ -316,13 +316,18 @@ enum RuntimeApiRequest {
 	SessionIndex(ResponseChannel<SessionIndex>),
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Get the global validation schedule at the state of a given block.
-	GlobalValidationData(ResponseChannel<GlobalValidationData>),
-	/// Get the local validation data for a specific para, with the given occupied core assumption.
-	LocalValidationData(
+	/// Get the persisted validation data at the state of a given block for a specific para,
+	/// with the given occupied core assumption.
+	PersistedValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
-		ResponseChannel<Option<LocalValidationData>>,
+		ResponseChannel<Option<PersistedValidationData>>,
+	),
+	/// Get the full validation data for a specific para, with the given occupied core assumption.
+	FullValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		ResponseChannel<Option<ValidationData>>,
 	),
 	/// Get information about all availability cores.
 	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
@@ -388,11 +393,13 @@ enum CandidateValidationMessage {
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
 
-	/// Validate a candidate with provided parameters. Explicitly provide the `OmittedValidationData`
+	/// Validate a candidate with provided parameters. Explicitly provide the `PersistedValidationData`
 	/// and `ValidationCode` so this can do full validation without needing to access the state of
-	/// the relay-chain.
+	/// the relay-chain. Optionally provide the `TransientValidationData` which will lead to checks
+	/// on the output.
 	ValidateFromExhaustive(
-		OmittedValidationData,
+		PersistedValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		PoV,

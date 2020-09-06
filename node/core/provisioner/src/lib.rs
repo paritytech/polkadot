@@ -25,19 +25,20 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	delegated_subsystem,
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{
 		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
-	util::{
-		self, request_availability_cores, request_global_validation_data,
-		request_local_validation_data, JobTrait, ToJobTrait,
-	},
+	metrics::{self, prometheus},
+};
+use polkadot_node_subsystem_util::{
+	self as util,
+	delegated_subsystem,
+	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
 };
 use polkadot_primitives::v1::{
-	validation_data_hash, BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
@@ -49,6 +50,7 @@ struct ProvisioningJob {
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
+	metrics: Metrics,
 }
 
 /// This enum defines the messages that the provisioner is prepared to receive.
@@ -133,6 +135,7 @@ impl JobTrait for ProvisioningJob {
 	type FromJob = FromJob;
 	type Error = Error;
 	type RunArgs = ();
+	type Metrics = Metrics;
 
 	const NAME: &'static str = "ProvisioningJob";
 
@@ -142,11 +145,12 @@ impl JobTrait for ProvisioningJob {
 	fn run(
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,
+		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		async move {
-			let job = ProvisioningJob::new(relay_parent, sender, receiver);
+			let job = ProvisioningJob::new(relay_parent, metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
@@ -159,6 +163,7 @@ impl JobTrait for ProvisioningJob {
 impl ProvisioningJob {
 	pub fn new(
 		relay_parent: Hash,
+		metrics: Metrics,
 		sender: mpsc::Sender<FromJob>,
 		receiver: mpsc::Receiver<ToJob>,
 	) -> Self {
@@ -169,6 +174,7 @@ impl ProvisioningJob {
 			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
+			metrics,
 		}
 	}
 
@@ -189,7 +195,10 @@ impl ProvisioningJob {
 					)
 					.await
 					{
-						log::warn!(target: "provisioner", "failed to send inherent data: {:?}", err);
+						log::warn!(target: "provisioner", "failed to assemble or send inherent data: {:?}", err);
+						self.metrics.on_inherent_data_request(false);
+					} else {
+						self.metrics.on_inherent_data_request(true);
 					}
 				}
 				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
@@ -274,17 +283,9 @@ async fn send_inherent_data(
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
-	let availability_cores = match request_availability_cores(relay_parent, &mut from_job)
+	let availability_cores = request_availability_cores(relay_parent, &mut from_job)
 		.await?
-		.await?
-	{
-		Ok(cores) => cores,
-		Err(runtime_err) => {
-			// Don't take down the node on runtime API errors.
-			log::warn!(target: "provisioner", "Encountered a runtime API error: {:?}", runtime_err);
-			return Ok(());
-		}
-	};
+		.await??;
 
 	let bitfields = select_availability_bitfields(&availability_cores, bitfields);
 	let candidates = select_candidates(
@@ -353,10 +354,6 @@ async fn select_candidates(
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
-	let global_validation_data = request_global_validation_data(relay_parent, sender)
-		.await?
-		.await??;
-
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
 
@@ -385,7 +382,7 @@ async fn select_candidates(
 			_ => continue,
 		};
 
-		let local_validation_data = match request_local_validation_data(
+		let validation_data = match request_persisted_validation_data(
 			relay_parent,
 			scheduled_core.para_id,
 			assumption,
@@ -394,18 +391,17 @@ async fn select_candidates(
 		.await?
 		.await??
 		{
-			Some(local_validation_data) => local_validation_data,
+			Some(v) => v,
 			None => continue,
 		};
 
-		let computed_validation_data_hash =
-			validation_data_hash(&global_validation_data, &local_validation_data);
+		let computed_validation_data_hash = validation_data.hash();
 
 		// we arbitrarily pick the first of the backed candidates which match the appropriate selection criteria
 		if let Some(candidate) = candidates.iter().find(|backed_candidate| {
 			let descriptor = &backed_candidate.candidate.descriptor;
 			descriptor.para_id == scheduled_core.para_id
-				&& descriptor.validation_data_hash == computed_validation_data_hash
+				&& descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
 			selected_candidates.push(candidate.clone());
 		}
@@ -466,7 +462,47 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-delegated_subsystem!(ProvisioningJob(()) <- ToJob as ProvisioningSubsystem);
+#[derive(Clone)]
+struct MetricsInner {
+	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Candidate backing metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_inherent_data_request(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			if succeeded {
+				metrics.inherent_data_requests.with_label_values(&["succeded"]).inc();
+			} else {
+				metrics.inherent_data_requests.with_label_values(&["failed"]).inc();
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			inherent_data_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_inherent_data_requests_total",
+						"Number of InherentData requests served by provisioner.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
+
+delegated_subsystem!(ProvisioningJob((), Metrics) <- ToJob as ProvisioningSubsystem);
 
 #[cfg(test)]
 mod tests {
@@ -615,10 +651,10 @@ mod tests {
 		use super::super::*;
 		use super::{build_occupied_core, default_bitvec, occupied_core, scheduled_core};
 		use polkadot_node_subsystem::messages::RuntimeApiRequest::{
-			AvailabilityCores, GlobalValidationData, LocalValidationData,
+			AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
 		};
 		use polkadot_primitives::v1::{
-			BlockNumber, CandidateDescriptor, CommittedCandidateReceipt,
+			BlockNumber, CandidateDescriptor, CommittedCandidateReceipt, PersistedValidationData,
 		};
 		use FromJob::{ChainApi, Runtime};
 
@@ -729,12 +765,9 @@ mod tests {
 					ChainApi(BlockNumber(_relay_parent, tx)) => {
 						tx.send(Ok(Some(BLOCK_UNDER_PRODUCTION - 1))).unwrap()
 					}
-					Runtime(Request(_parent_hash, GlobalValidationData(tx))) => {
-						tx.send(Ok(Default::default())).unwrap()
-					}
 					Runtime(Request(
 						_parent_hash,
-						LocalValidationData(_para_id, _assumption, tx),
+						PersistedValidationDataReq(_para_id, _assumption, tx),
 					)) => tx.send(Ok(Some(Default::default()))).unwrap(),
 					Runtime(Request(_parent_hash, AvailabilityCores(tx))) => {
 						tx.send(Ok(mock_availability_cores())).unwrap()
@@ -781,14 +814,12 @@ mod tests {
 		fn selects_correct_candidates() {
 			let mock_cores = mock_availability_cores();
 
-			let empty_hash =
-				validation_data_hash::<BlockNumber>(&Default::default(), &Default::default());
-			dbg!(empty_hash);
+			let empty_hash = PersistedValidationData::<BlockNumber>::default().hash();
 
 			let candidate_template = BackedCandidate {
 				candidate: CommittedCandidateReceipt {
 					descriptor: CandidateDescriptor {
-						validation_data_hash: empty_hash,
+						persisted_validation_data_hash: empty_hash,
 						..Default::default()
 					},
 					..Default::default()
@@ -813,7 +844,8 @@ mod tests {
 						candidate
 					} else if idx < mock_cores.len() * 2 {
 						// for the second repetition of the candidates, give them the wrong hash
-						candidate.candidate.descriptor.validation_data_hash = Default::default();
+						candidate.candidate.descriptor.persisted_validation_data_hash
+							= Default::default();
 						candidate
 					} else {
 						// third go-around: right hash, wrong para_id

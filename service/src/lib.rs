@@ -22,14 +22,14 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::v0::{self as parachain, Hash, BlockId};
-#[cfg(feature = "full-node")]
-use polkadot_network::{legacy::gossip::Known, protocol as network_protocol};
-use service::{error::Error as ServiceError};
+use polkadot_primitives::v0 as parachain;
+use service::error::Error as ServiceError;
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_trie::PrefixedMemoryDB;
+use sc_client_api::ExecutorProvider;
+use prometheus_endpoint::Registry;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -51,7 +51,6 @@ pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
-use prometheus_endpoint::Registry;
 pub use self::client::*;
 
 native_executor_instance!(
@@ -75,13 +74,6 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
-native_executor_instance!(
-	pub RococoExecutor,
-	rococo_runtime::api::dispatch,
-	rococo_runtime::native_version,
-	frame_benchmarking::benchmarking::HostFunctions,
-);
-
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Kusama` network.
@@ -89,9 +81,6 @@ pub trait IdentifyVariant {
 
 	/// Returns if this is a configuration for the `Westend` network.
 	fn is_westend(&self) -> bool;
-
-	/// Returns if this is a configuration for the `Rococo` network.
-	fn is_rococo(&self) -> bool;
 }
 
 impl IdentifyVariant for Box<dyn ChainSpec> {
@@ -102,22 +91,27 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_westend(&self) -> bool {
 		self.id().starts_with("westend") || self.id().starts_with("wnd")
 	}
-
-	fn is_rococo(&self) -> bool {
-		self.id().starts_with("rococo") || self.id().starts_with("roc")
-	}
 }
 
-type FullBackend = service::TFullBackend<Block>;
-type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
-type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
+/// Polkadot's full backend.
+pub type FullBackend = service::TFullBackend<Block>;
+
+/// Polkadot's select chain.
+pub type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
+
+/// Polkadot's full client.
+pub type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
+
+/// Polkadot's full Grandpa block import.
+pub type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
 
-type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
+/// Polkadot's light backend.
+pub type LightBackend = service::TLightBackendWithHash<Block, sp_runtime::traits::BlakeTwo256>;
 
-type LightClient<RuntimeApi, Executor> =
+/// Polkadot's light client.
+pub type LightClient<RuntimeApi, Executor> =
 	service::TLightClientWithBackend<Block, RuntimeApi, Executor, LightBackend>;
 
 #[cfg(feature = "full-node")]
@@ -127,7 +121,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(polkadot_rpc::DenyUnsafe) -> polkadot_rpc::RpcExtension,
+			impl Fn(polkadot_rpc::DenyUnsafe, polkadot_rpc::SubscriptionManager) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -200,8 +194,10 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone()),
 	)?;
 
+	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
 
@@ -217,7 +213,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		move |deny_unsafe| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -231,6 +227,8 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 				grandpa: polkadot_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
+					justification_stream: justification_stream.clone(),
+					subscriptions,
 				},
 			};
 
@@ -249,9 +247,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 	test: bool,
 ) -> Result<(
@@ -259,7 +255,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	Arc<FullClient<RuntimeApi, Executor>>,
 	FullNodeHandles,
 	Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	Arc<RpcHandlers>,
+	RpcHandlers,
 ), Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -268,7 +264,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		Executor: NativeExecutionDispatch + 'static,
 {
 	use sc_network::Event;
-	use sc_client_api::ExecutorProvider;
 	use futures::stream::StreamExt;
 	use sp_core::traits::BareCryptoStorePtr;
 
@@ -276,10 +271,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	let role = config.role.clone();
 	let is_authority = role.is_authority() && !is_collator;
 	let force_authoring = config.force_authoring;
-	let db_path = match config.database.path() {
-		Some(path) => std::path::PathBuf::from(path),
-		None => return Err("Starting a Polkadot service with a custom database isn't supported".to_string().into()),
-	};
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
@@ -334,106 +325,15 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let shared_voter_state = rpc_setup;
 
-	let known_oracle = client.clone();
-
-	let mut handles = FullNodeHandles::default();
-	let gossip_validator_select_chain = select_chain.clone();
-
-	let is_known = move |block_hash: &Hash| {
-		use consensus_common::BlockStatus;
-
-		match known_oracle.block_status(&BlockId::hash(*block_hash)) {
-			Err(_) | Ok(BlockStatus::Unknown) | Ok(BlockStatus::Queued) => None,
-			Ok(BlockStatus::KnownBad) => Some(Known::Bad),
-			Ok(BlockStatus::InChainWithState) | Ok(BlockStatus::InChainPruned) => {
-				match gossip_validator_select_chain.leaves() {
-					Err(_) => None,
-					Ok(leaves) => if leaves.contains(block_hash) {
-						Some(Known::Leaf)
-					} else {
-						Some(Known::Old)
-					},
-				}
-			}
-		}
-	};
-
-	let polkadot_network_service = network_protocol::start(
-		network.clone(),
-		network_protocol::Config {
-			collating_for: collating_for,
-		},
-		(is_known, client.clone()),
-		client.clone(),
-		task_manager.spawn_handle(),
-	).map_err(|e| format!("Could not spawn network worker: {:?}", e))?;
-
-	let authority_handles = if is_collator || role.is_authority() {
-		let availability_store = {
-			use std::path::PathBuf;
-
-			let mut path = PathBuf::from(db_path);
-			path.push("availability");
-
-			#[cfg(not(target_os = "unknown"))]
-			{
-				av_store::Store::new(
-					::av_store::Config {
-						cache_size: None,
-						path,
-					},
-					polkadot_network_service.clone(),
-				)?
-			}
-
-			#[cfg(target_os = "unknown")]
-			av_store::Store::new_in_memory(gossip)
-		};
-
-		polkadot_network_service.register_availability_store(availability_store.clone());
-
-		let (validation_service_handle, validation_service) = consensus::ServiceBuilder {
-			client: client.clone(),
-			network: polkadot_network_service.clone(),
-			collators: polkadot_network_service.clone(),
-			spawner: task_manager.spawn_handle(),
-			availability_store: availability_store.clone(),
-			select_chain: select_chain.clone(),
-			keystore: keystore.clone(),
-			max_block_data_size,
-		}.build();
-
-		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));
-
-		handles.validation_service_handle = Some(validation_service_handle.clone());
-
-		Some((validation_service_handle, availability_store))
-	} else {
-		None
-	};
-
 	if role.is_authority() {
-		let (validation_service_handle, availability_store) = authority_handles
-			.clone()
-			.expect("Authority handles are set for authority nodes; qed");
-
 		let proposer = consensus::ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
-			validation_service_handle,
-			slot_duration,
 			prometheus_registry.as_ref(),
 		);
 
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
-
-		let block_import = availability_store.block_import(
-			block_import,
-			client.clone(),
-			task_manager.spawn_handle(),
-			keystore.clone(),
-		)?;
 
 		let babe_config = babe::BabeParams {
 			keystore: keystore.clone(),
@@ -473,7 +373,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}}).boxed();
-			let authority_discovery = authority_discovery::AuthorityDiscovery::new(
+			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
 				client.clone(),
 				network.clone(),
 				sentries,
@@ -482,7 +382,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				prometheus_registry.clone(),
 			);
 
-			task_manager.spawn_handle().spawn("authority-discovery", authority_discovery);
+			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker);
 		}
 	}
 
@@ -557,12 +457,11 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	network_starter.start_network();
 
-	handles.polkadot_network = Some(polkadot_network_service);
-	Ok((task_manager, client, handles, network, rpc_handlers))
+	Ok((task_manager, client, FullNodeHandles, network, rpc_handlers))
 }
 
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, RpcHandlers), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -617,6 +516,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		inherent_data_providers.clone(),
 		&task_manager.spawn_handle(),
 		config.prometheus_registry(),
+		consensus_common::NeverCanAuthor,
 	)?;
 
 	let finality_proof_provider =
@@ -667,25 +567,30 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch>(mut config: Configuration) -> Result<
+pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 	(
-		Arc<FullClient<Runtime, Dispatch>>,
+		Arc<crate::Client>,
 		Arc<FullBackend>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
 	ServiceError
->
-where
-	Runtime: ConstructRuntimeApi<Block, FullClient<Runtime, Dispatch>> + Send + Sync + 'static,
-	Runtime::RuntimeApi:
-	RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	Dispatch: NativeExecutionDispatch + 'static,
-{
+> {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch>(&mut config, false)?;
-	Ok((client, backend, import_queue, task_manager))
+
+	if config.chain_spec.is_kusama() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config, false)?;
+		Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
+	} else if config.chain_spec.is_westend() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config, false)?;
+		Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
+	} else {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config, false)?;
+		Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
+	}
 }
 
 /// Create a new Polkadot service for a full node.
@@ -693,9 +598,7 @@ where
 pub fn polkadot_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
@@ -707,9 +610,7 @@ pub fn polkadot_new_full(
 	let (service, client, handles, _, _) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		false,
 	)?;
@@ -722,9 +623,7 @@ pub fn polkadot_new_full(
 pub fn kusama_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 		TaskManager,
@@ -735,9 +634,7 @@ pub fn kusama_new_full(
 	let (service, client, handles, _, _) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		false,
 	)?;
@@ -750,9 +647,7 @@ pub fn kusama_new_full(
 pub fn westend_new_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 )
 	-> Result<(
@@ -764,38 +659,7 @@ pub fn westend_new_full(
 	let (service, client, handles, _, _) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 		config,
 		collating_for,
-		max_block_data_size,
 		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-		false,
-	)?;
-
-	Ok((service, client, handles))
-}
-
-/// Create a new Rococo service for a full node.
-#[cfg(feature = "full-node")]
-pub fn rococo_new_full(
-	config: Configuration,
-	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-)
-	-> Result<(
-		TaskManager,
-		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (service, client, handles, _, _) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
 		grandpa_pause,
 		false,
 	)?;
@@ -807,21 +671,14 @@ pub fn rococo_new_full(
 /// of the node may use.
 #[cfg(feature = "full-node")]
 #[derive(Default)]
-pub struct FullNodeHandles {
-	/// A handle to the Polkadot networking protocol.
-	pub polkadot_network: Option<network_protocol::Service>,
-	/// A handle to the validation service.
-	pub validation_service_handle: Option<consensus::ServiceHandle>,
-}
+pub struct FullNodeHandles;
 
 /// Build a new light node.
-pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandlers>), ServiceError> {
+pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
 	} else if config.chain_spec.is_westend() {
 		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
-	} else if config.chain_spec.is_rococo() {
-		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else {
 		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
 	}
@@ -832,18 +689,14 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, Arc<RpcHandler
 pub fn build_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
 	if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
 			collating_for,
-			max_block_data_size,
 			authority_discovery_enabled,
-			slot_duration,
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
@@ -851,29 +704,15 @@ pub fn build_full(
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
 			collating_for,
-			max_block_data_size,
 			authority_discovery_enabled,
-			slot_duration,
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
-	} else if config.chain_spec.is_rococo() {
-		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
-			config,
-			collating_for,
-			max_block_data_size,
-			authority_discovery_enabled,
-			slot_duration,
-			grandpa_pause,
-			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Rococo(client), handles))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
 			collating_for,
-			max_block_data_size,
 			authority_discovery_enabled,
-			slot_duration,
 			grandpa_pause,
 			false,
 		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Polkadot(client), handles))

@@ -34,6 +34,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::{
 	FromOverseer, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::AvailabilityStoreMessage;
 
@@ -59,6 +60,7 @@ enum Error {
 /// An implementation of the Availability Store subsystem.
 pub struct AvailabilityStoreSubsystem {
 	inner: Arc<dyn KeyValueDB>,
+	metrics: Metrics,
 }
 
 fn available_data_key(candidate_hash: &Hash) -> Vec<u8> {
@@ -85,7 +87,7 @@ pub struct Config {
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new_on_disk(config: Config) -> io::Result<Self> {
+	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
 		let mut db_config = DatabaseConfig::with_columns(columns::NUM_COLUMNS);
 
 		if let Some(cache_size) = config.cache_size {
@@ -106,6 +108,7 @@ impl AvailabilityStoreSubsystem {
 
 		Ok(Self {
 			inner: Arc::new(db),
+			metrics,
 		})
 	}
 
@@ -113,6 +116,7 @@ impl AvailabilityStoreSubsystem {
 	fn new_in_memory(inner: Arc<dyn KeyValueDB>) -> Self {
 		Self {
 			inner,
+			metrics: Metrics(None),
 		}
 	}
 }
@@ -130,7 +134,7 @@ where
 					Ok(FromOverseer::Signal(Conclude)) => break,
 					Ok(FromOverseer::Signal(_)) => (),
 					Ok(FromOverseer::Communication { msg }) => {
-						process_message(&subsystem.inner, msg)?;
+						process_message(&subsystem.inner, &subsystem.metrics, msg)?;
 					}
 					Err(_) => break,
 				}
@@ -142,7 +146,7 @@ where
 	Ok(())
 }
 
-fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> Result<(), Error> {
+fn process_message(db: &Arc<dyn KeyValueDB>, metrics: &Metrics, msg: AvailabilityStoreMessage) -> Result<(), Error> {
 	use AvailabilityStoreMessage::*;
 	match msg {
 		QueryAvailableData(hash, tx) => {
@@ -152,10 +156,10 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 			tx.send(available_data(db, &hash).is_some()).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunk(hash, id, tx) => {
-			tx.send(get_chunk(db, &hash, id)?).map_err(|_| oneshot::Canceled)?;
+			tx.send(get_chunk(db, &hash, id, metrics)?).map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunkAvailability(hash, id, tx) => {
-			tx.send(get_chunk(db, &hash, id)?.is_some()).map_err(|_| oneshot::Canceled)?;
+			tx.send(get_chunk(db, &hash, id, metrics)?.is_some()).map_err(|_| oneshot::Canceled)?;
 		}
 		StoreChunk(hash, id, chunk, tx) => {
 			match store_chunk(db, &hash, id, chunk) {
@@ -169,7 +173,7 @@ fn process_message(db: &Arc<dyn KeyValueDB>, msg: AvailabilityStoreMessage) -> R
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
-			match store_available_data(db, &hash, id, n_validators, av_data) {
+			match store_available_data(db, &hash, id, n_validators, av_data, metrics) {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
@@ -194,11 +198,12 @@ fn store_available_data(
 	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	available_data: AvailableData,
+	metrics: &Metrics,
 ) -> Result<(), Error> {
 	let mut tx = DBTransaction::new();
 
 	if let Some(index) = id {
-		let chunks = get_chunks(&available_data, n_validators as usize)?;
+		let chunks = get_chunks(&available_data, n_validators as usize, metrics)?;
 		store_chunk(db, candidate_hash, n_validators, chunks[index as usize].clone())?;
 	}
 
@@ -231,7 +236,7 @@ fn store_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, _n_validators: u
 	Ok(())
 }
 
-fn get_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, index: u32)
+fn get_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, index: u32, metrics: &Metrics)
 	-> Result<Option<ErasureChunk>, Error>
 {
 	if let Some(chunk) = query_inner(
@@ -242,7 +247,7 @@ fn get_chunk(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash, index: u32)
 	}
 
 	if let Some(data) = available_data(db, candidate_hash) {
-		let mut chunks = get_chunks(&data.data, data.n_validators as usize)?;
+		let mut chunks = get_chunks(&data.data, data.n_validators as usize, metrics)?;
 		let desired_chunk = chunks.get(index as usize).cloned();
 		for chunk in chunks.drain(..) {
 			store_chunk(db, candidate_hash, data.n_validators, chunk)?;
@@ -271,6 +276,8 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
+	type Metrics = Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			if let Err(e) = run(self, ctx).await {
@@ -285,8 +292,9 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	}
 }
 
-fn get_chunks(data: &AvailableData, n_validators: usize) -> Result<Vec<ErasureChunk>, Error> {
+fn get_chunks(data: &AvailableData, n_validators: usize, metrics: &Metrics) -> Result<Vec<ErasureChunk>, Error> {
 	let chunks = erasure::obtain_chunks_v1(n_validators, data)?;
+	metrics.on_chunks_received(chunks.len());
 	let branches = erasure::branches(chunks.as_ref());
 
 	Ok(chunks
@@ -302,6 +310,41 @@ fn get_chunks(data: &AvailableData, n_validators: usize) -> Result<Vec<ErasureCh
 	)
 }
 
+#[derive(Clone)]
+struct MetricsInner {
+	received_availability_chunks_total: prometheus::Counter<prometheus::U64>,
+}
+
+/// Availability metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_chunks_received(&self, count: usize) {
+		if let Some(metrics) = &self.0 {
+			use core::convert::TryFrom as _;
+			// assume usize fits into u64
+			let by = u64::try_from(count).unwrap_or_default();
+			metrics.received_availability_chunks_total.inc_by(by);
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			received_availability_chunks_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_received_availability_chunks_total",
+					"Number of availability chunks received.",
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -313,10 +356,9 @@ mod tests {
 	};
 	use std::cell::RefCell;
 	use polkadot_primitives::v1::{
-		AvailableData, BlockData, HeadData, GlobalValidationData, LocalValidationData, PoV,
-		OmittedValidationData,
+		AvailableData, BlockData, HeadData, PersistedValidationData, PoV,
 	};
-	use polkadot_subsystem::test_helpers;
+	use polkadot_node_subsystem_test_helpers as test_helpers;
 
 	struct TestHarness {
 		virtual_overseer: test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
@@ -327,29 +369,19 @@ mod tests {
 	}
 
 	struct TestState {
-		global_validation_schedule: GlobalValidationData,
-		local_validation_data: LocalValidationData,
+		persisted_validation_data: PersistedValidationData,
 	}
 
 	impl Default for TestState {
 		fn default() -> Self {
 
-			let local_validation_data = LocalValidationData {
+			let persisted_validation_data = PersistedValidationData {
 				parent_head: HeadData(vec![7, 8, 9]),
-				balance: Default::default(),
-				code_upgrade_allowed: None,
-				validation_code_hash: Default::default(),
-			};
-
-			let global_validation_schedule = GlobalValidationData {
-				max_code_size: 1000,
-				max_head_data_size: 1000,
 				block_number: Default::default(),
+				hrmp_mqc_heads: Vec::new(),
 			};
-
 			Self {
-				local_validation_data,
-				global_validation_schedule,
+				persisted_validation_data,
 			}
 		}
 	}
@@ -427,17 +459,9 @@ mod tests {
 				block_data: BlockData(vec![4, 5, 6]),
 			};
 
-			let global_validation = test_state.global_validation_schedule;
-			let local_validation = test_state.local_validation_data;
-
-			let omitted_validation = OmittedValidationData {
-				global_validation,
-				local_validation,
-			};
-
 			let available_data = AvailableData {
 				pov,
-				omitted_validation,
+				validation_data: test_state.persisted_validation_data,
 			};
 
 
@@ -488,20 +512,13 @@ mod tests {
 				block_data: BlockData(vec![4, 5, 6]),
 			};
 
-			let global_validation = test_state.global_validation_schedule;
-			let local_validation = test_state.local_validation_data;
-
-			let omitted_validation = OmittedValidationData {
-				global_validation,
-				local_validation,
-			};
-
 			let available_data = AvailableData {
 				pov,
-				omitted_validation,
+				validation_data: test_state.persisted_validation_data,
 			};
 
-			let chunks_expected = get_chunks(&available_data, n_validators as usize).unwrap();
+			let no_metrics = Metrics(None);
+			let chunks_expected = get_chunks(&available_data, n_validators as usize, &no_metrics).unwrap();
 
 			let (tx, rx) = oneshot::channel();
 			let block_msg = AvailabilityStoreMessage::StoreAvailableData(

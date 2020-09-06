@@ -22,27 +22,25 @@
 
 use rstd::prelude::*;
 use codec::{Encode, Decode};
-use primitives::v0::{
-	self as parachain,
+use primitives::v0 as p_v0;
+use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
-	ActiveParas, AbridgedCandidateReceipt, SigningContext, ValidityError,
 };
 use runtime_common::{
-	attestations, claims, parachains, registrar, slots, SlowAdjustingFeeUpdate,
-	impls::CurrencyToVoteHandler,
+	claims, SlowAdjustingFeeUpdate, impls::CurrencyToVoteHandler,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, Perbill, RuntimeDebug, KeyTypeId,
+	ApplyExtrinsicResult, Perbill, KeyTypeId,
 	transaction_validity::{
-		TransactionValidity, InvalidTransaction, TransactionValidityError, TransactionSource, TransactionPriority,
+		TransactionValidity, TransactionSource, TransactionPriority,
 	},
 	curve::PiecewiseLinear,
 	traits::{
-		BlakeTwo256, Block as BlockT, StaticLookup, SignedExtension, OpaqueKeys, ConvertInto,
-		DispatchInfoOf, Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+		BlakeTwo256, Block as BlockT, StaticLookup, OpaqueKeys, ConvertInto,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
 	},
 };
 use sp_version::RuntimeVersion;
@@ -66,8 +64,6 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
-pub use attestations::{Call as AttestationsCall, MORE_ATTESTATIONS_IDENTIFIER};
-pub use parachains::Call as ParachainsCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -94,35 +90,6 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
-	}
-}
-
-/// Avoid processing transactions from slots and parachain registrar.
-#[derive(Default, Encode, Decode, Clone, Eq, PartialEq, RuntimeDebug)]
-pub struct RestrictFunctionality;
-impl SignedExtension for RestrictFunctionality {
-	const IDENTIFIER: &'static str = "RestrictFunctionality";
-	type AccountId = AccountId;
-	type Call = Call;
-	type AdditionalSigned = ();
-	type Pre = ();
-
-	fn additional_signed(&self) -> rstd::result::Result<(), TransactionValidityError> { Ok(()) }
-
-	fn validate(
-		&self,
-		_: &Self::AccountId,
-		call: &Self::Call,
-		_: &DispatchInfoOf<Self::Call>,
-		_: usize
-	)
-		-> TransactionValidity
-	{
-		match call {
-			Call::Slots(_) | Call::Registrar(_)
-				=> Err(InvalidTransaction::Custom(ValidityError::NoPermission.into()).into()),
-			_ => Ok(Default::default()),
-		}
 	}
 }
 
@@ -261,7 +228,7 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: Parachains,
+		pub parachain_validator: ParachainSessionKeyPlaceholder<Runtime>,
 	}
 }
 
@@ -356,50 +323,6 @@ impl pallet_grandpa::Trait for Runtime {
 	type HandleEquivocation = ();
 }
 
-parameter_types! {
-	pub const AttestationPeriod: BlockNumber = 50;
-}
-
-impl attestations::Trait for Runtime {
-	type AttestationPeriod = AttestationPeriod;
-	type ValidatorIdentities = parachains::ValidatorIdentities<Runtime>;
-	type RewardAttestation = Staking;
-}
-
-parameter_types! {
-	pub storage MaxCodeSize: u32 = 10 * 1024 * 1024; // 10 MB
-	pub storage MaxHeadDataSize: u32 = 20 * 1024; // 20 KB
-
-	pub storage ValidationUpgradeFrequency: BlockNumber = 2;
-	pub storage ValidationUpgradeDelay: BlockNumber = 1;
-	pub storage SlashPeriod: BlockNumber = 1 * MINUTES;
-}
-
-impl parachains::Trait for Runtime {
-	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
-	type Origin = Origin;
-	type Call = Call;
-	type ParachainCurrency = Balances;
-	type BlockNumberConversion = sp_runtime::traits::Identity;
-	type Randomness = RandomnessCollectiveFlip;
-	type ActiveParachains = Registrar;
-	type Registrar = Registrar;
-	type MaxCodeSize = MaxCodeSize;
-	type MaxHeadDataSize = MaxHeadDataSize;
-
-	type ValidationUpgradeFrequency = ValidationUpgradeFrequency;
-	type ValidationUpgradeDelay = ValidationUpgradeDelay;
-	type SlashPeriod = SlashPeriod;
-
-	type Proof = sp_session::MembershipProof;
-	type KeyOwnerProofSystem = pallet_session::historical::Module<Self>;
-	type IdentificationTuple = <
-			Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>
-		>::IdentificationTuple;
-	type ReportOffence = Offences;
-	type BlockHashConversion = sp_runtime::traits::Identity;
-}
-
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
 	Call: From<LocalCall>,
 {
@@ -419,7 +342,6 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			.saturating_sub(1);
 		let tip = 0;
 		let extra: SignedExtra = (
-			RestrictFunctionality,
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -427,8 +349,6 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-			registrar::LimitParathreadCommits::<Runtime>::new(),
-			parachains::ValidateDoubleVoteReports::<Runtime>::new(),
 		);
 		let raw_payload = SignedPayload::new(call, extra).map_err(|e| {
 			debug::warn!("Unable to create signed payload: {:?}", e);
@@ -462,33 +382,8 @@ impl pallet_offences::Trait for Runtime {
 impl pallet_authority_discovery::Trait for Runtime {}
 
 parameter_types! {
-	pub storage ParathreadDeposit: Balance = 5 * DOLLARS;
-	pub const QueueSize: usize = 2;
-	pub storage MaxRetries: u32 = 3;
-}
-
-impl registrar::Trait for Runtime {
-	type Event = Event;
-	type Origin = Origin;
-	type Currency = Balances;
-	type ParathreadDeposit = ParathreadDeposit;
-	type SwapAux = Slots;
-	type QueueSize = QueueSize;
-	type MaxRetries = MaxRetries;
-}
-
-parameter_types! {
 	pub storage LeasePeriod: BlockNumber = 100_000;
 	pub storage EndingPeriod: BlockNumber = 1000;
-}
-
-impl slots::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type Parachains = Registrar;
-	type LeasePeriod = LeasePeriod;
-	type EndingPeriod = EndingPeriod;
-	type Randomness = RandomnessCollectiveFlip;
 }
 
 parameter_types! {
@@ -522,7 +417,7 @@ impl pallet_sudo::Trait for Runtime {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v0::Block,
+		NodeBlock = primitives::v1::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -549,13 +444,6 @@ construct_runtime! {
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
 
-		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
-		// have no public dispatchables.
-		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
-		Attestations: attestations::{Module, Call, Storage},
-		Slots: slots::{Module, Call, Storage, Event<T>},
-		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},
-
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
@@ -576,7 +464,6 @@ pub type SignedBlock = generic::SignedBlock<Block>;
 pub type BlockId = generic::BlockId<Block>;
 /// The SignedExtension to the basic transaction logic.
 pub type SignedExtra = (
-	RestrictFunctionality,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,
@@ -584,8 +471,6 @@ pub type SignedExtra = (
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment::<Runtime>,
-	registrar::LimitParathreadCommits<Runtime>,
-	parachains::ValidateDoubleVoteReports<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
@@ -666,45 +551,55 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl parachain::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<parachain::ValidatorId> {
-			Parachains::authorities()
-		}
-		fn duty_roster() -> parachain::DutyRoster {
-			Parachains::calculate_duty_roster().0
-		}
-		fn active_parachains() -> Vec<(parachain::Id, Option<(parachain::CollatorId, parachain::Retriable)>)> {
-			Registrar::active_paras()
-		}
-		fn global_validation_data() -> parachain::GlobalValidationData {
-			Parachains::global_validation_data()
-		}
-		fn local_validation_data(id: parachain::Id) -> Option<parachain::LocalValidationData> {
-			Parachains::current_local_validation_data(&id)
-		}
-		fn parachain_code(id: parachain::Id) -> Option<parachain::ValidationCode> {
-			Parachains::parachain_code(&id)
-		}
-		fn get_heads(extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<AbridgedCandidateReceipt>>
-		{
-			extrinsics
+	// Dummy implementation to continue supporting old parachains runtime temporarily.
+	impl p_v0::ParachainHost<Block> for Runtime {
+		fn validators() -> Vec<p_v0::ValidatorId> {
+			// this is a compile-time check of size equality. note that we don't invoke
+			// the function and nothing here is unsafe.
+			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
+
+			// Yes, these aren't actually the parachain session keys.
+			// It doesn't matter, but we shouldn't return a zero-sized vector here.
+			// As there are no parachains
+			Session::validators()
 				.into_iter()
-				.find_map(|ex| match UncheckedExtrinsic::decode(&mut ex.encode().as_slice()) {
-					Ok(ex) => match ex.function {
-						Call::Parachains(ParachainsCall::set_heads(heads)) => {
-							Some(heads.into_iter().map(|c| c.candidate).collect())
-						}
-						_ => None,
-					}
-					Err(_) => None,
-				})
+				.map(|k| k.using_encoded(|s| Decode::decode(&mut &s[..]))
+					.expect("correct size and raw-bytes; qed"))
+				.collect()
 		}
-		fn signing_context() -> SigningContext {
-			Parachains::signing_context()
+		fn duty_roster() -> p_v0::DutyRoster {
+			let v = Session::validators();
+			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
 		}
-		fn downward_messages(id: parachain::Id) -> Vec<primitives::v0::DownwardMessage> {
-			Parachains::downward_messages(id)
+		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
+			Vec::new()
+		}
+		fn global_validation_data() -> p_v0::GlobalValidationData {
+			p_v0::GlobalValidationData {
+				max_code_size: 1,
+				max_head_data_size: 1,
+				block_number: System::block_number().saturating_sub(1),
+			}
+		}
+		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
+			None
+		}
+		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
+			None
+		}
+		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
+			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
+		{
+			None
+		}
+		fn signing_context() -> p_v0::SigningContext {
+			p_v0::SigningContext {
+				parent_hash: System::parent_hash(),
+				session_index: Session::current_index(),
+			}
+		}
+		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
+			Vec::new()
 		}
 	}
 

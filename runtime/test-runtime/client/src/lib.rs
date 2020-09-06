@@ -326,20 +326,13 @@ pub fn new_native_executor() -> sc_executor::NativeExecutor<LocalExecutor> {
 /// The index of the block must be provided to calculate a valid timestamp for the block. The value starts at 0 and
 /// should be incremented by one for every block produced.
 pub fn needed_extrinsics(
-	heads: Vec<polkadot_primitives::v0::AttestedCandidate>,
 	i: u64,
 ) -> Vec<polkadot_test_runtime::UncheckedExtrinsic> {
-	use polkadot_runtime_common::parachains;
-
 	let timestamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH)
 		.expect("now always later than unix epoch; qed")
 		.as_millis() + (i * polkadot_test_runtime::constants::time::SLOT_DURATION / 2) as u128;
 
 	vec![
-		polkadot_test_runtime::UncheckedExtrinsic {
-			function: polkadot_test_runtime::Call::Parachains(parachains::Call::set_heads(heads)),
-			signature: None,
-		},
 		polkadot_test_runtime::UncheckedExtrinsic {
 			function: polkadot_test_runtime::Call::Timestamp(pallet_timestamp::Call::set(
 				u64::try_from(timestamp).expect("unexpected big timestamp"),

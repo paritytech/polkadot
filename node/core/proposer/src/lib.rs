@@ -119,6 +119,10 @@ where
 		let mut provisioner_inherent_data = async move {
 			let (sender, receiver) = futures::channel::oneshot::channel();
 
+			overseer.wait_for_activation(parent_header_hash, sender).await?;
+			receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+
+			let (sender, receiver) = futures::channel::oneshot::channel();
 			// strictly speaking, we don't _have_ to .await this send_msg before opening the
 			// receiver; it's possible that the response there would be ready slightly before
 			// this call completes. IMO it's not worth the hassle or overhead of spawning a
