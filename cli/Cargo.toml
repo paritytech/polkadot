@@ -23,6 +23,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../service", default-features = false, optional = true }
 service-new = { package = "polkadot-service-new", path = "../node/service", default-features = false, optional = true }
 
