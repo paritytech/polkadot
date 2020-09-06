@@ -1,10 +1,10 @@
-# Parachains Overview
+# Protocol Overview
 
-This section aims to describe, at a high level, the architecture, actors, and Subsystems involved in the implementation of parachains. It also illuminates certain subtleties and challenges faced in the design and implementation of those Subsystems. Our goal is to carry a parachain block from authoring to secure inclusion, and define a process which can be carried out repeatedly and in parallel for many different parachains to extend them over time. Understanding of the high-level approach taken here is important to provide context for the proposed architecture further on.
+This section aims to describe, at a high level, the actors and protocols involved in running parachains in Polkadot. Specifically, we describe how different actors communicate with each other, what data structures they keep both individually and collectively, and the high-level purpose on why they do these things.
 
-The Parachain Host is a blockchain, known as the relay-chain, and the actors which provide security and inputs to the blockchain.
+Our top-level goal is to carry a parachain block from authoring to secure inclusion, and define a process which can be carried out repeatedly and in parallel for many different parachains to extend them over time. Understanding of the high-level approach taken here is important to provide context for the proposed architecture further on. The key parts of Polkadot relevant to this are the main Polkadot blockchain, known as the relay-chain, and the actors which provide security and inputs to this blockchain.
 
-First, it's important to go over the main actors we have involved in the parachain host.
+First, it's important to go over the main actors we have involved in this protocol.
 
 1. Validators. These nodes are responsible for validating proposed parachain blocks. They do so by checking a Proof-of-Validity (PoV) of the block and ensuring that the PoV remains available. They put financial capital down as "skin in the game" which can be slashed (destroyed) if they are proven to have misvalidated.
 1. Collators. These nodes are responsible for creating the Proofs-of-Validity that validators know how to check. Creating a PoV typically requires familiarity with the transaction format and block authoring rules of the parachain, as well as having access to the full state of the parachain.
@@ -36,13 +36,15 @@ This process can be divided further down. Steps 2 & 3 relate to the work of the 
 
 This brings us to the second part of the process. Once a parablock is considered available and part of the parachain, it is still "pending approval". At this stage in the pipeline, the parablock has been backed by a majority of validators in the group assigned to that parachain, and its data has been guaranteed available by the set of validators as a whole. Once it's considered available, the host will even begin to accept children of that block. At this point, we can consider the parablock as having been tentatively included in the parachain, although more confirmations are desired. However, the validators in the parachain-group (known as the "Parachain Validators" for that parachain) are sampled from a validator set which contains some proportion of byzantine, or arbitrarily malicious members. This implies that the Parachain Validators for some parachain may be majority-dishonest, which means that (secondary) approval checks must be done on the block before it can be considered approved. This is necessary only because the Parachain Validators for a given parachain are sampled from an overall validator set which is assumed to be up to <1/3 dishonest - meaning that there is a chance to randomly sample Parachain Validators for a parachain that are majority or fully dishonest and can back a candidate wrongly. The Approval Process allows us to detect such misbehavior after-the-fact without allocating more Parachain Validators and reducing the throughput of the system. A parablock's failure to pass the approval process will invalidate the block as well as all of its descendents. However, only the validators who backed the block in question will be slashed, not the validators who backed the descendents.
 
-The Approval Process looks like this:
+The Approval Process, at a glance, looks like this:
 
 1. Parablocks that have been included by the Inclusion Pipeline are pending approval for a time-window known as the secondary checking window.
 1. During the secondary-checking window, validators randomly self-select to perform secondary checks on the parablock.
 1. These validators, known in this context as secondary checkers, acquire the parablock and its PoV, and re-run the validation function.
-1. The secondary checkers submit the result of their checks to the relay chain. Contradictory results lead to escalation, where even more secondary checkers are selected and the secondary-checking window is extended.
+1. The secondary checkers submit the result of their checks to the relay chain. Contradictory results lead to escalation, where all validators are required to check the block. The validators on the losing side of the dispute are slashed.
 1. At the end of the Approval Process, the parablock is either Approved or it is rejected. More on the rejection process later.
+
+More information on the Approval Process can be found in the dedicated section on [Approval](protocol-approval.md).
 
 These two pipelines sum up the sequence of events necessary to extend and acquire full security on a Parablock. Note that the Inclusion Pipeline must conclude for a specific parachain before a new block can be accepted on that parachain. After inclusion, the Approval Process kicks off, and can be running for many parachain blocks at once.
 
