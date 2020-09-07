@@ -43,7 +43,7 @@ use polkadot_node_network_protocol::{
 use super::{modify_reputation, TARGET, Result};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-10, "An unexpected message");
-const COST_REQUEST_TIMEDOUT: Rep = Rep::new(-20, "A collation request has timed out");
+const COST_REQUEST_TIMED_OUT: Rep = Rep::new(-20, "A collation request has timed out");
 const COST_REPORT_BAD: Rep = Rep::new(-50, "A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by another subsystem");
 
@@ -137,7 +137,7 @@ struct State {
 	/// Delay after which a collation request would time out.
 	request_timeout: Duration, 
 
-	/// Posessed collations.
+	/// Possessed collations.
 	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
 }
 
@@ -434,10 +434,8 @@ async fn remove_relay_parent(
 	state.requested_collations.retain(|k, v| {
 		if k.0 == relay_parent {
 			remove_these.push(*v);
-			false
-		} else {
-			true
 		}
+		k.0 != relay_parent
 	});
 
 	for id in remove_these.into_iter() {
@@ -446,13 +444,7 @@ async fn remove_relay_parent(
 		}
 	}
 
-	state.collations.retain(|k, _| {
-		if k.0 == relay_parent {
-			false
-		} else {
-			true
-		}
-	});
+	state.collations.retain(|k, _| k.0 != relay_parent);
 
 	Ok(())
 }
@@ -464,8 +456,7 @@ async fn handle_our_view_change(
 ) -> Result<()> {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
-	let cloned_view = state.view.clone();
-	let removed = old_view.difference(&cloned_view).collect::<Vec<_>>();
+	let removed = old_view.difference(&state.view).collect::<Vec<_>>();
 
 	for removed in removed {
 		remove_relay_parent(state, *removed).await?;

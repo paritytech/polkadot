@@ -53,7 +53,7 @@ struct State {
 	/// Our own view.
 	view: View,
 
-	/// Posessed collations.
+	/// Possessed collations.
 	///
 	/// We will keep up to one local collation per relay-parent.
 	collations: HashMap<Hash, (CandidateReceipt, PoV)>,
@@ -396,7 +396,7 @@ where
 	    Declare(_) => {
 			warn!(
 				target: TARGET,
-				"Declkre message is not expected on the collator side of the protocol",
+				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 	    AdvertiseCollation(_, _) => {
