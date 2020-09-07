@@ -209,7 +209,7 @@ decl_storage! {
 	}
 	add_extra_genesis {
 		config(paras): Vec<(ParaId, ParaGenesisArgs)>;
-		config(_phdata): PhantomData<T>;
+		config(_phdata): std::marker::PhantomData<T>;
 		build(build::<T>);
 	}
 }
