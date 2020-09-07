@@ -834,7 +834,7 @@ mod tests {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
 			assert_eq!(outputs.global_validation_data, omitted_validation.global_validation);
 			assert_eq!(outputs.local_validation_data, omitted_validation.local_validation);
-			assert_eq!(outputs.upward_messages, Vec::new());
+			assert!(outputs.upward_messages.is_empty());
 			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
 		});
