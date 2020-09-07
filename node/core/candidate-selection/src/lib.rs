@@ -171,6 +171,11 @@ impl CandidateSelectionJob {
 	}
 
 	async fn run_loop(mut self) -> Result<(), Error> {
+		self.run_loop_borrowed().await
+	}
+
+	/// this function exists for testing and should not generally be used; use `run_loop` instead.
+	async fn run_loop_borrowed(&mut self) -> Result<(), Error> {
 		while let Some(msg) = self.receiver.next().await {
 			match msg {
 				ToJob::CandidateSelection(CandidateSelectionMessage::Collation(
@@ -413,3 +418,49 @@ impl metrics::Metrics for Metrics {
 }
 
 delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSelectionSubsystem);
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(preconditions: Preconditions, test: TestBuilder, postconditions: Postconditions)
+	where
+		Preconditions: FnOnce(&mut CandidateSelectionJob),
+		TestBuilder: FnOnce(mpsc::Sender<ToJob>, mpsc::Receiver<FromJob>) -> Test,
+		Test: Future<Output = ()>,
+		Postconditions: FnOnce(CandidateSelectionJob, Result<(), Error>),
+	{
+		let (to_job_tx, to_job_rx) = mpsc::channel(0);
+		let (from_job_tx, from_job_rx) = mpsc::channel(0);
+		let mut job = CandidateSelectionJob {
+			sender: from_job_tx,
+			receiver: to_job_rx,
+			metrics: Default::default(),
+			seconded_candidate: None,
+		};
+
+		preconditions(&mut job);
+
+		let (_, job_result) = futures::executor::block_on(future::join(
+			test(to_job_tx, from_job_rx),
+			job.run_loop_borrowed(),
+		));
+
+		postconditions(job, job_result);
+	}
+
+	#[test]
+	fn fetches_and_seconds_a_collation() {
+		unimplemented!()
+	}
+
+	#[test]
+	fn ignores_collation_notifications_after_the_first() {
+		unimplemented!()
+	}
+
+	#[test]
+	fn propagates_invalidity_reports() {
+		unimplemented!()
+	}
+}
