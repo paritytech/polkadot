@@ -66,7 +66,7 @@ pub mod v0 {
 	use super::*;
 
 	/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum MultiOrigin {
 		/// Origin should just be the native origin for the sender. For Cumulus/Frame chains this is
 		/// the `Parachain` origin.

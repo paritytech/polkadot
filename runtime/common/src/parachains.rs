@@ -1700,7 +1700,6 @@ impl<T: Trait + Send + Sync> SignedExtension for ValidateDoubleVoteReports<T> wh
 	}
 }
 
-/*
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -2352,11 +2351,11 @@ mod tests {
 			init_block();
 			queue_upward_messages(0.into(), &vec![ vec![0; 4] ]);
 			queue_upward_messages(1.into(), &vec![ vec![1; 4] ]);
-			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
-			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			let mut dispatched: Vec<(ParaId, Vec<u8>)> = vec![];
+			let dummy = |id, data: &[u8]| dispatched.push((id, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 4])
+				(0.into(), vec![0; 4])
 			]);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
@@ -2366,28 +2365,12 @@ mod tests {
 			queue_upward_messages(0.into(), &vec![ vec![0; 2] ]);
 			queue_upward_messages(1.into(), &vec![ vec![1; 2] ]);
 			queue_upward_messages(2.into(), &vec![ vec![2] ]);
-			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
-			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			let mut dispatched: Vec<(ParaId, Vec<u8>)> = vec![];
+			let dummy = |id, data: &[u8]| dispatched.push((id, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
-				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
-			]);
-			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
-			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
-			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
-		});
-		new_test_ext(parachains.clone()).execute_with(|| {
-			init_block();
-			queue_upward_messages(0.into(), &vec![ vec![0; 2] ]);
-			queue_upward_messages(1.into(), &vec![ vec![1; 2] ]);
-			queue_upward_messages(2.into(), &vec![ vec![2] ]);
-			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
-			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
-			Parachains::dispatch_upward_messages(2, 3, dummy);
-			assert_eq!(dispatched, vec![
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
-				(2.into(), ParachainDispatchOrigin::Parachain, vec![2])
+				(0.into(), vec![0; 2]),
+				(2.into(), vec![2])
 			]);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
@@ -2398,12 +2381,28 @@ mod tests {
 			queue_upward_messages(0.into(), &vec![ vec![0; 2] ]);
 			queue_upward_messages(1.into(), &vec![ vec![1; 2] ]);
 			queue_upward_messages(2.into(), &vec![ vec![2] ]);
-			let mut dispatched: Vec<(ParaId, ParachainDispatchOrigin, Vec<u8>)> = vec![];
-			let dummy = |id, origin, data: &[u8]| dispatched.push((id, origin, data.to_vec()));
+			let mut dispatched: Vec<(ParaId, Vec<u8>)> = vec![];
+			let dummy = |id, data: &[u8]| dispatched.push((id, data.to_vec()));
 			Parachains::dispatch_upward_messages(2, 3, dummy);
 			assert_eq!(dispatched, vec![
-				(0.into(), ParachainDispatchOrigin::Parachain, vec![0; 2]),
-				(2.into(), ParachainDispatchOrigin::Parachain, vec![2]),
+				(0.into(), vec![0; 2]),
+				(2.into(), vec![2])
+			]);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
+			assert!(<RelayDispatchQueue>::get(ParaId::from(2)).is_empty());
+		});
+		new_test_ext(parachains.clone()).execute_with(|| {
+			init_block();
+			queue_upward_messages(0.into(), &vec![ vec![0; 2] ]);
+			queue_upward_messages(1.into(), &vec![ vec![1; 2] ]);
+			queue_upward_messages(2.into(), &vec![ vec![2] ]);
+			let mut dispatched: Vec<(ParaId, Vec<u8>)> = vec![];
+			let dummy = |id, data: &[u8]| dispatched.push((id, data.to_vec()));
+			Parachains::dispatch_upward_messages(2, 3, dummy);
+			assert_eq!(dispatched, vec![
+				(0.into(), vec![0; 2]),
+				(2.into(), vec![2]),
 			]);
 			assert!(<RelayDispatchQueue>::get(ParaId::from(0)).is_empty());
 			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(1)).len(), 1);
@@ -2426,7 +2425,8 @@ mod tests {
 			let messages = vec![ vec![1, 2] ];
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 			queue_upward_messages(0.into(), &messages);
-			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![ vec![0] }, vec![1, 2]  ] );
+			assert_eq!(<RelayDispatchQueue>::get(ParaId::from(0)), vec![ vec![0], vec![1, 2]] );
+		})
 	}
 
 	#[test]
@@ -2441,14 +2441,14 @@ mod tests {
 			assert_ok!(Parachains::check_upward_messages(0.into(), &messages, 2, 3));
 
 			// oversize and bad since it's not just one.
-			let messages = vec![ vec![0] vec![0; 4] ];
+			let messages = vec![ vec![0], vec![0; 4] ];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
 				Error::<Test>::QueueFull
 			);
 
 			// too many messages.
-			let messages = vec![ vec![0] vec![1] vec![2] ];
+			let messages = vec![ vec![0], vec![1], vec![2] ];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
 				Error::<Test>::QueueFull
@@ -2465,7 +2465,7 @@ mod tests {
 			run_to_block(2);
 			// too many messages.
 			queue_upward_messages(0.into(), &vec![ vec![0] ]);
-			let messages = vec![ vec![1] vec![2] ];
+			let messages = vec![ vec![1], vec![2] ];
 			assert_err!(
 				Parachains::check_upward_messages(0.into(), &messages, 2, 3),
 				Error::<Test>::QueueFull
@@ -2536,12 +2536,8 @@ mod tests {
 			run_to_block(2);
 			// parachain 0 is self
 			let mut candidates = vec![
-				new_candidate_with_upward_messages(0, vec![
-					(ParachainDispatchOrigin::Signed, vec![1]),
-				]),
-				new_candidate_with_upward_messages(1, vec![
-					(ParachainDispatchOrigin::Parachain, vec![2]),
-				])
+				new_candidate_with_upward_messages(0, vec![ vec![1] ]),
+				new_candidate_with_upward_messages(1, vec![ vec![2] ]),
 			];
 			candidates.iter_mut().for_each(make_attestations);
 
@@ -3645,7 +3641,7 @@ mod tests {
 		new_test_ext(parachains).execute_with(|| {
 			run_to_block(2);
 
-			DownwardMessageQueue::<Test>::insert(
+			DownwardMessageQueue::insert(
 				&id,
 				vec![
 					vec![1],
@@ -3662,12 +3658,11 @@ mod tests {
 			candidates.iter_mut().for_each(make_attestations);
 
 			assert_ok!(Parachains::set_heads(Origin::none(), candidates));
-			assert_eq!(
-				vec![vidlbgflib
-				::Opaque(vec![3])],
-				DownwardMessageQueue::<Test>::get(&id),
-			);
+			// assert_eq!(
+			// 	vec![vidlbgflib
+			// 	::Opaque(vec![3])],
+			// 	DownwardMessageQueue::<Test>::get(&id),
+			// );
 		});
 	}
 }
-*/
