@@ -4939,6 +4939,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sp-core",
 ]
 
 [[package]]

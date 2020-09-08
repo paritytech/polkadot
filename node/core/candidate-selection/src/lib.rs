@@ -48,6 +48,7 @@ struct CandidateSelectionJob {
 }
 
 /// This enum defines the messages that the provisioner is prepared to receive.
+#[derive(Debug)]
 pub enum ToJob {
 	/// The provisioner message is the main input to the provisioner.
 	CandidateSelection(CandidateSelectionMessage),
@@ -83,6 +84,7 @@ impl From<CandidateSelectionMessage> for ToJob {
 	}
 }
 
+#[derive(Debug)]
 enum FromJob {
 	Validation(CandidateValidationMessage),
 	Backing(CandidateBackingMessage),
@@ -196,6 +198,9 @@ impl CandidateSelectionJob {
 			}
 		}
 
+		// closing the sender here means that we don't deadlock in tests
+		self.sender.close_channel();
+
 		Ok(())
 	}
 
@@ -206,19 +211,18 @@ impl CandidateSelectionJob {
 		collator_id: CollatorId,
 	) {
 		if self.seconded_candidate.is_none() {
-			let (candidate_receipt, pov) = match get_collation(
-				relay_parent,
-				para_id,
-				self.sender.clone(),
-			)
-			.await
-			{
-				Ok(response) => response,
-				Err(err) => {
-					log::warn!(target: TARGET, "failed to get collation from collator protocol subsystem: {:?}", err);
-					return;
-				}
-			};
+			let (candidate_receipt, pov) =
+				match get_collation(relay_parent, para_id, self.sender.clone()).await {
+					Ok(response) => response,
+					Err(err) => {
+						log::warn!(
+							target: TARGET,
+							"failed to get collation from collator protocol subsystem: {:?}",
+							err
+						);
+						return;
+					}
+				};
 
 			let pov = Arc::new(pov);
 
@@ -248,9 +252,7 @@ impl CandidateSelectionJob {
 			)
 			.await
 			{
-				Err(err) => {
-					log::warn!(target: TARGET, "failed to second a candidate: {:?}", err)
-				}
+				Err(err) => log::warn!(target: TARGET, "failed to second a candidate: {:?}", err),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
 		}
@@ -260,18 +262,30 @@ impl CandidateSelectionJob {
 		let received_from = match &self.seconded_candidate {
 			Some(peer) => peer,
 			None => {
-				log::warn!(target: TARGET, "received invalidity notice for a candidate we don't remember seconding");
+				log::warn!(
+					target: TARGET,
+					"received invalidity notice for a candidate we don't remember seconding"
+				);
 				return;
 			}
 		};
-		log::info!(target: TARGET, "received invalidity note for candidate {:?}", candidate_receipt);
+		log::info!(
+			target: TARGET,
+			"received invalidity note for candidate {:?}",
+			candidate_receipt
+		);
 
-		let succeeded = if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
-			log::warn!(target: TARGET, "failed to forward invalidity note: {:?}", err);
-			false
-		} else {
-			true
-		};
+		let succeeded =
+			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
+				log::warn!(
+					target: TARGET,
+					"failed to forward invalidity note: {:?}",
+					err
+				);
+				false
+			} else {
+				true
+			};
 		self.metrics.on_invalid_selection(succeeded);
 	}
 }
@@ -330,7 +344,6 @@ async fn second_candidate(
 	sender: &mut mpsc::Sender<FromJob>,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
-
 	match sender
 		.send(FromJob::Backing(CandidateBackingMessage::Second(
 			relay_parent,
@@ -422,9 +435,16 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use futures::lock::Mutex;
+	use polkadot_node_primitives::ValidationOutputs;
+	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData};
+	use sp_core::crypto::Public;
 
-	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(preconditions: Preconditions, test: TestBuilder, postconditions: Postconditions)
-	where
+	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(
+		preconditions: Preconditions,
+		test: TestBuilder,
+		postconditions: Postconditions,
+	) where
 		Preconditions: FnOnce(&mut CandidateSelectionJob),
 		TestBuilder: FnOnce(mpsc::Sender<ToJob>, mpsc::Receiver<FromJob>) -> Test,
 		Test: Future<Output = ()>,
@@ -449,9 +469,108 @@ mod tests {
 		postconditions(job, job_result);
 	}
 
+	fn default_validation_outputs() -> ValidationOutputs {
+		let head_data: Vec<u8> = (0..32).rev().cycle().take(256).collect();
+		let parent_head_data = head_data
+			.iter()
+			.copied()
+			.map(|x| x.saturating_sub(1))
+			.collect();
+
+		ValidationOutputs {
+			head_data: HeadData(head_data),
+			validation_data: PersistedValidationData {
+				parent_head: HeadData(parent_head_data),
+				block_number: 123,
+				hrmp_mqc_heads: Vec::new(),
+			},
+			upward_messages: Vec::new(),
+			fees: 0,
+			new_validation_code: None,
+		}
+	}
+
+	/// when nothing is seconded so far, the collation is fetched and seconded
 	#[test]
 	fn fetches_and_seconds_a_collation() {
-		unimplemented!()
+		let relay_parent = Hash::random();
+		let para_id: ParaId = 123.into();
+		let collator_id: CollatorId = CollatorId::from_slice(&(0..32).collect::<Vec<u8>>());
+		let collator_id_clone = collator_id.clone();
+
+		let candidate_receipt = CandidateReceipt::default();
+		let pov = PoV {
+			block_data: BlockData((0..32).cycle().take(256).collect()),
+		};
+
+		let was_seconded = Arc::new(Mutex::new(false));
+		let was_seconded_clone = was_seconded.clone();
+
+		test_harness(
+			|_job| {},
+			|mut to_job, mut from_job| async move {
+				to_job
+					.send(ToJob::CandidateSelection(
+						CandidateSelectionMessage::Collation(
+							relay_parent,
+							para_id,
+							collator_id_clone,
+						),
+					))
+					.await
+					.unwrap();
+				std::mem::drop(to_job);
+
+				while let Some(msg) = from_job.next().await {
+					match msg {
+						FromJob::Collator(CollatorProtocolMessage::FetchCollation(
+							got_relay_parent,
+							got_para_id,
+							return_sender,
+						)) => {
+							assert_eq!(got_relay_parent, relay_parent);
+							assert_eq!(got_para_id, para_id);
+
+							return_sender
+								.send((candidate_receipt.clone(), pov.clone()))
+								.unwrap();
+						}
+						FromJob::Validation(
+							CandidateValidationMessage::ValidateFromChainState(
+								got_candidate_descriptor,
+								got_pov,
+								return_sender,
+							),
+						) => {
+							assert_eq!(got_candidate_descriptor, candidate_receipt.descriptor);
+							assert_eq!(got_pov.as_ref(), &pov);
+
+							return_sender
+								.send(Ok(ValidationResult::Valid(default_validation_outputs())))
+								.unwrap();
+						}
+						FromJob::Backing(CandidateBackingMessage::Second(
+							got_relay_parent,
+							got_candidate_receipt,
+							got_pov,
+						)) => {
+							assert_eq!(got_relay_parent, relay_parent);
+							assert_eq!(got_candidate_receipt, candidate_receipt);
+							assert_eq!(got_pov, pov);
+
+							*was_seconded_clone.lock().await = true;
+						}
+						other => panic!("unexpected message from job: {:?}", other),
+					}
+				}
+			},
+			|job, job_result| {
+				assert!(job_result.is_ok());
+				assert_eq!(job.seconded_candidate.unwrap(), collator_id);
+			},
+		);
+
+		assert!(Arc::try_unwrap(was_seconded).unwrap().into_inner());
 	}
 
 	#[test]
