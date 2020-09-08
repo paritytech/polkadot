@@ -47,6 +47,8 @@ pub struct NewBackedCandidate(pub BackedCandidate);
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
 pub enum CandidateSelectionMessage {
+	/// A candidate collation can be fetched from a collator and should be considered for seconding.
+	Collation(Hash, ParaId, CollatorId),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
@@ -56,6 +58,7 @@ impl CandidateSelectionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
+			Self::Collation(hash, ..) => Some(*hash),
 			Self::Invalid(hash, _) => Some(*hash),
 		}
 	}

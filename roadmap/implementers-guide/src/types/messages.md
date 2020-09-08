@@ -60,7 +60,14 @@ enum UpwardMessage {
 	///
 	/// Let `origin` be the parachain that sent this upward message. In that case the channel
 	/// to be opened is (`origin` -> `recipient`).
-	HrmpInitOpenChannel(ParaId),
+	HrmpInitOpenChannel {
+		/// The receiving party in the channel.
+		recipient: ParaId,
+		/// How many messages can be stored in the channel at most.
+		max_places: u32,
+		/// The maximum size of a message in this channel.
+		max_message_size: u32,
+	},
 	/// A message that is meant to confirm the HRMP open channel request initiated earlier by the
 	/// `HrmpInitOpenChannel` by the given `sender`.
 	///
@@ -90,6 +97,9 @@ struct OutboundHrmpMessage {
 }
 
 struct InboundHrmpMessage {
+	/// The block number at which this message was sent.
+	/// Specifically, it is the block number at which the candidate that sends this message was
+	/// enacted.
 	pub sent_at: BlockNumber,
 	/// The message payload.
 	pub data: Vec<u8>,
@@ -103,20 +113,7 @@ could be seen as a notification, however, it is conceivable that they might be u
 chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
 
 ```rust,ignore
-enum DispatchResult {
-	Executed {
-		success: bool,
-	},
-	/// Decoding `RawDispatchable` into an executable runtime representation has failed.
-	DecodeFailed,
-	/// A dispatchable in question exceeded the maximum amount of weight allowed.
-	CriticalWeightExceeded,
-}
-
 enum DownwardMessage {
-	/// The parachain receives a dispatch result for each sent dispatchable upward message in order
-	/// they were sent.
-	DispatchResult(Vec<DispatchResult>),
 	/// Some funds were transferred into the parachain's account. The hash is the identifier that
 	/// was given with the transfer.
 	TransferInto(AccountId, Balance, Remark),
@@ -124,5 +121,14 @@ enum DownwardMessage {
 	/// to be used as a basis for special protocols between the relay chain and, typically system,
 	/// paras.
 	ParachainSpecific(Vec<u8>),
+}
+
+/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
+/// the message was sent.
+struct InboundDownwardMessage {
+	/// The block number at which this messages was put into the downward message queue.
+	pub sent_at: BlockNumber,
+	/// The actual downward message to processes.
+	pub msg: DownwardMessage,
 }
 ```

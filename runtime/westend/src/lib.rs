@@ -35,7 +35,7 @@ use runtime_common::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Permill, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -51,7 +51,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -59,7 +59,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureSignedBy, EnsureOneOf};
+use frame_system::{EnsureRoot};
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -639,47 +639,9 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-parameter_types! {
-	pub const MaxStatementLength: usize = 1_000;
-	pub const UnlockedProportion: Permill = Permill::zero();
-	pub const MaxUnlocked: Balance = 0;
-}
-
-ord_parameter_types! {
-	pub const PurchaseValidity: AccountId = AccountId::from(
-		// 5CqSB6zNHcp3mvTAyh5Vr2MbSdb7DgLi9yWoAppHRveGcYQh
-		hex_literal::hex!("221d409ba60508368d4448ccda40182aca2744bcdfa0881944c08108a9fd966d")
-	);
-	pub const PurchaseConfiguration: AccountId = AccountId::from(
-		// 5FUP4BwQzi8F5WBTmaHsoobGbMSUTiX7Exwb7QzTjgNQypo1
-		hex_literal::hex!("96c34c8c60b3690701176bdbc9b16aced2898d754385a84ee0cfe7fb015db800")
-	);
-}
-
-type ValidityOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseValidity, AccountId>,
->;
-
-type ConfigurationOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseConfiguration, AccountId>,
->;
-
-impl purchase::Trait for Runtime {
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
 	type Event = Event;
-	type Currency = Balances;
-	type VestingSchedule = Vesting;
-	type ValidityOrigin = ValidityOrigin;
-	type ConfigurationOrigin = ConfigurationOrigin;
-	type MaxStatementLength = MaxStatementLength;
-	type UnlockedProportion = UnlockedProportion;
-	type MaxUnlocked = MaxUnlocked;
 }
-
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
 
 construct_runtime! {
 	pub enum Runtime where
@@ -713,7 +675,7 @@ construct_runtime! {
 		// Old Parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummyRegistrar: dummy::<Instance2>::{Module, Call},
+		DummyRegistrar: dummy::<Instance2>::{Module, Call, Event<T>},
 
 		// Utility module.
 		Utility: pallet_utility::{Module, Call, Event},
@@ -738,9 +700,6 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
-
-		// Purchase module. Late addition.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -769,9 +728,23 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	CustomOnRuntimeUpgrade,
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		purchase::remove_pallet::<Runtime>()
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
