@@ -5199,6 +5199,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
+ "sp-authority-discovery",
  "sp-core",
  "sp-inherents",
  "sp-runtime",

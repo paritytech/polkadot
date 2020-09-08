@@ -72,8 +72,6 @@ use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
 
-use parachains_initializer::ValidatorDiscovery;
-
 /// Constant values used within the runtime.
 pub mod constants;
 use constants::{time::*, currency::*, fee::*};
@@ -340,7 +338,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
-		pub authority_discovery: ValidatorDiscovery<Initializer>,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 

@@ -274,17 +274,18 @@ where
 /// which would allow us to establish point-to-point connection to given validators.
 ///
 /// Returns `None` for validators not found in the current session.
-fn validator_discovery_id<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
+pub fn validator_discovery_id<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
 where
 	T: initializer::Trait + pallet_authority_discovery::Trait,
 {
 	// FIXME: the mapping might be invalid if a session change happens in between the calls
-	let validators = <inclusion::Module<T>>::validators();
+	let current_validators = <inclusion::Module<T>>::validators();
 	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
 	// We assume the same ordering in authorities as in validators so we can do an index search
-	validators.map(|v| {
-		// FIXME: linear search is slow
-		let validator_index = validators.iter().position(|v| v == id);
-		validator_index.and_then(|i| authorities.get(i))
+	validators.iter().map(|id| {
+		// FIXME: linear search is slow O(n^2)
+		// We could sort validators and do one linear sweep
+		let validator_index = current_validators.iter().position(|v| v == id);
+		validator_index.and_then(|i| authorities.get(i).cloned())
 	}).collect()
 }
