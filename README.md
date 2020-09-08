@@ -56,7 +56,7 @@ dnf install dnf-plugins-core
 dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
 dnf config-manager --set-enabled polkadot
 # Install polkadot (You may have to confirm the import of the GPG key, which
-# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798
+# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798)
 dnf install polkadot
 ```
 
