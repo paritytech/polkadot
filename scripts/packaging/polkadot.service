@@ -12,6 +12,27 @@ Restart=always
 RestartSec=120
 MemoryHigh=5400M
 MemoryMax=5500M
+CapabilityBoundingSet=
+LockPersonality=true
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateMounts=true
+PrivateTmp=true
+PrivateUsers=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHostname=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RemoveIPC=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK AF_PACKET
+RestrictNamespaces=true
+RestrictSUIDSGID=true
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@clock @module @mount @reboot @swap @privileged
+UMask=0027
 
 [Install]
 WantedBy=multi-user.target
