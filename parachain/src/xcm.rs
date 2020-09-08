@@ -21,29 +21,6 @@ use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode, Input, Output};
 use crate::primitives::ParachainDispatchOrigin;
 
-/// An envelope for an XCM. This is only really useful if you're not integrating into the runtime's
-/// `Call` system.
-#[derive(Clone, Eq, PartialEq)]
-pub struct XcmEnvelope(VersionedXcm);
-
-impl Encode for XcmEnvelope {
-	fn encode_to<O: Output>(&self, dest: &mut O) {
-		// Just insert 0xff, 0x00 before the
-		dest.push_byte(0xff);
-		dest.push_byte(0x00);
-		dest.push(&self.0);
-	}
-}
-
-impl Decode for XcmEnvelope {
-	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
-		if input.read_byte()? != 0xff || input.read_byte()? != 0x00 {
-			return Err("Bad magic".into())
-		}
-		Ok(Self(Decode::decode(input)?))
-	}
-}
-
 /// A single XCM message, together with its version code.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub enum VersionedXcm {
