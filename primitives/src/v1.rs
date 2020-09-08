@@ -697,7 +697,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns `None` for validators not found in the current session.
 		// FIXME: handle previous sessions:
 		// https://github.com/paritytech/polkadot/issues/1461
-		fn validator_discovery_id(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 	}
 }
 

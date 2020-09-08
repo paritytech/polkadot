@@ -274,7 +274,7 @@ where
 /// which would allow us to establish point-to-point connection to given validators.
 ///
 /// Returns `None` for validators not found in the current session.
-pub fn validator_discovery_id<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
+pub fn validator_discovery<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
 where
 	T: initializer::Trait + pallet_authority_discovery::Trait,
 {

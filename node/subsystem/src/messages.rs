@@ -31,8 +31,8 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor,
+	CandidateEvent, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
 	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
 	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
@@ -389,6 +389,11 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+	/// Currently this request is limited to validators in the current session. 
+	///
+	/// Returns `None` for validators not found in the current session.
+	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>), 
 }
 
 /// A message to the Runtime API subsystem.

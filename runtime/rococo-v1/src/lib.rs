@@ -209,8 +209,8 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
-		fn validator_discovery_id(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_api_impl::validator_discovery_id::<Runtime>(validators)
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_api_impl::validator_discovery::<Runtime>(validators)
 		}
 	}
 
