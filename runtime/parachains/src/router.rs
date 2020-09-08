@@ -23,7 +23,9 @@
 use crate::{configuration, initializer};
 use sp_std::prelude::*;
 use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
-use primitives::v1::{Id as ParaId};
+use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash};
+
+mod dmp;
 
 pub trait Trait: frame_system::Trait + configuration::Trait {}
 
@@ -32,6 +34,23 @@ decl_storage! {
 		/// Paras that are to be cleaned up at the end of the session.
 		/// The entries are sorted ascending by the para id.
 		OutgoingParas: Vec<ParaId>;
+
+		/*
+		 * Downward Message Passing (DMP)
+		 *
+		 * Storage layout required for implementation of DMP.
+		 */
+
+		/// The downward messages addressed for a certain para.
+		DownwardMessageQueues: map hasher(twox_64_concat) ParaId => Vec<InboundDownwardMessage<T::BlockNumber>>;
+		/// A mapping that stores the downward message queue MQC head for each para.
+		///
+		/// Each link in this chain has a form:
+		/// `(prev_head, B, H(M))`, where
+		/// - `prev_head`: is the previous head hash or zero if none.
+		/// - `B`: is the relay-chain block number in which a message was appended.
+		/// - `H(M)`: is the hash of the message being appended.
+		DownwardMessageQueueHeads: map hasher(twox_64_concat) ParaId => Hash;
 	}
 }
 
@@ -60,8 +79,8 @@ impl<T: Trait> Module<T> {
 		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
 		let outgoing = OutgoingParas::take();
-		for _outgoing_para in outgoing {
-
+		for outgoing_para in outgoing {
+			Self::clean_dmp_after_outgoing(outgoing_para);
 		}
 	}
 
@@ -77,4 +96,36 @@ impl<T: Trait> Module<T> {
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+	use primitives::v1::BlockNumber;
+	use frame_support::traits::{OnFinalize, OnInitialize};
+
+	use crate::mock::{System, Router, GenesisConfig as MockGenesisConfig};
+
+	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		while System::block_number() < to {
+			let b = System::block_number();
+			Router::initializer_finalize();
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Router::initializer_on_new_session(&Default::default());
+			}
+			Router::initializer_initialize(b + 1);
+		}
+	}
+
+	pub(crate) fn default_genesis_config() -> MockGenesisConfig {
+		MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: crate::configuration::HostConfiguration {
+					..Default::default()
+				},
+			},
+			..Default::default()
+		}
+	}
 }

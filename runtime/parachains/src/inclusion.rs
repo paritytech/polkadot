@@ -36,7 +36,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, scheduler::CoreAssignment};
+use crate::{configuration, paras, router, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + router::Trait + configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -153,6 +153,8 @@ decl_error! {
 		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
+		/// The downward message queue is not processed correctly.
+		IncorrectDownwardMessageHandling,
 	}
 }
 
@@ -561,6 +563,12 @@ impl<T: Trait> Module<T> {
 			);
 		}
 
+		// enact the messaging facet of the candidate.
+		weight += <router::Module<T>>::prune_dmq(
+			receipt.descriptor.para_id,
+			commitments.processed_downward_messages,
+		);
+
 		Self::deposit_event(
 			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
 		);
@@ -703,7 +711,14 @@ impl<T: Trait> CandidateCheckContext<T> {
 			);
 		}
 
-		// TODO: messaging acceptance criteria rules will go here.
+		// check if the candidate passes the messaging acceptance criteria
+		ensure!(
+			<router::Module<T>>::check_processed_downward_messages(
+				para_id,
+				candidate.candidate.commitments.processed_downward_messages,
+			),
+			Error::<T>::IncorrectDownwardMessageHandling,
+		);
 
 		Ok(())
 	}
