@@ -5199,7 +5199,6 @@ name = "polkadot-rpc"
 version = "0.8.23"
 dependencies = [
  "jsonrpc-core",
- "jsonrpc-pubsub",
  "pallet-transaction-payment-rpc",
  "parity-scale-codec",
  "polkadot-primitives",

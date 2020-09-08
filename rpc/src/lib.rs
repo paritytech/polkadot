@@ -30,7 +30,7 @@ use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
 use sp_block_builder::BlockBuilder;
 pub use sc_rpc::DenyUnsafe;
-pub use jsonrpc_pubsub::manager::SubscriptionManager;
+pub use sc_rpc::SubscriptionTaskExecutor;
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
@@ -66,7 +66,7 @@ pub struct GrandpaDeps {
 	/// Receives notifications about justification events from Grandpa.
 	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
 	/// Subscription manager to keep track of pubsub subscribers.
-	pub subscriptions: jsonrpc_pubsub::manager::SubscriptionManager,
+	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 }
 
 /// Full client dependencies
@@ -120,7 +120,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 		shared_voter_state,
 		shared_authority_set,
 		justification_stream,
-		subscriptions,
+		subscription_executor,
 	} = grandpa;
 
 	io.extend_with(
@@ -146,7 +146,7 @@ pub fn create_full<C, P, SC>(deps: FullDeps<C, P, SC>) -> RpcExtension where
 			shared_authority_set,
 			shared_voter_state,
 			justification_stream,
-			subscriptions,
+			subscription_executor,
 		))
 	);
 	io
