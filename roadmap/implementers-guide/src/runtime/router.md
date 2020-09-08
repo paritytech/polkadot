@@ -260,6 +260,7 @@ any of dispatchables return an error.
 Utility routines.
 
 `queue_downward_message(P: ParaId, M: DownwardMessage)`:
+    1. Check if the serialized size of `M` exceeds the `config.critical_downward_message_size`. If so, return an error.
     1. Wrap `M` into `InboundDownwardMessage` using the current block number for `sent_at`.
     1. Obtain a new MQC link for the resulting `InboundDownwardMessage` and replace `DownwardMessageQueueHeads` for `P` with the resulting hash.
     1. Add the resulting `InboundDownwardMessage` into `DownwardMessageQueues` for `P`.
