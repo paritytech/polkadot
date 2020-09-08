@@ -622,8 +622,48 @@ mod tests {
 		assert!(!Arc::try_unwrap(was_seconded).unwrap().into_inner());
 	}
 
+	/// reports of invalidity from candidate backing are propagated
 	#[test]
 	fn propagates_invalidity_reports() {
-		unimplemented!()
+		let relay_parent = Hash::random();
+		let collator_id = CollatorId::from_slice(&(0..32).collect::<Vec<u8>>());
+		let collator_id_clone = collator_id.clone();
+
+		let candidate_receipt = CandidateReceipt::default();
+
+		let sent_report = Arc::new(Mutex::new(false));
+		let sent_report_clone = sent_report.clone();
+
+		test_harness(
+			|job| job.seconded_candidate = Some(collator_id.clone()),
+			|mut to_job, mut from_job| async move {
+				to_job
+					.send(ToJob::CandidateSelection(
+						CandidateSelectionMessage::Invalid(relay_parent, candidate_receipt),
+					))
+					.await
+					.unwrap();
+				std::mem::drop(to_job);
+
+				while let Some(msg) = from_job.next().await {
+					match msg {
+						FromJob::Collator(CollatorProtocolMessage::ReportCollator(
+							got_collator_id,
+						)) => {
+							assert_eq!(got_collator_id, collator_id_clone);
+
+							*sent_report_clone.lock().await = true;
+						}
+						other => panic!("unexpected message from job: {:?}", other),
+					}
+				}
+			},
+			|job, job_result| {
+				assert!(job_result.is_ok());
+				assert_eq!(job.seconded_candidate.unwrap(), collator_id);
+			},
+		);
+
+		assert!(Arc::try_unwrap(sent_report).unwrap().into_inner());
 	}
 }
