@@ -4,7 +4,7 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
-version = "0.8.19"
+version = "0.8.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -42,6 +42,7 @@ members = [
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
+	"node/core/candidate-selection",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
 	"node/core/proposer",
