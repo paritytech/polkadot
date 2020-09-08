@@ -599,9 +599,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(
-				"> Received a message {:?}", msg,
-			);
+			trace!(target: TARGET, "Received a message {:?}", msg);
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -612,7 +610,7 @@ where
 			continue;
 		}
 
-		if let Poll::Ready(Some(request)) = futures::poll!(state.requests_in_progress.next()) {
+		while let Poll::Ready(Some(request)) = futures::poll!(state.requests_in_progress.next()) {
 			// Request has timed out, we need to penalize the collator and re-send the request
 			// if the chain has not moved on yet.
 			match request {
@@ -624,7 +622,6 @@ where
 					state.requests_info.remove(&id);
 				}
 			}
-			continue;
 		}
 
 		futures::pending!();
