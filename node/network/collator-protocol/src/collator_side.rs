@@ -261,7 +261,7 @@ where
 	Ok(())
 }
 
-/// Advertise collation to a set of peers.
+/// Advertise collation to a set of relay chain validators.
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
 	state: &mut State,
@@ -596,7 +596,8 @@ mod tests {
 		ValidatorIndex, GroupRotationInfo,
 	};
 	use polkadot_subsystem::ActiveLeavesUpdate;
-	use polkadot_subsystem_testhelpers::{self as test_helpers, TimeoutExt};
+	use polkadot_node_subsystem_util::TimeoutExt;
+	use polkadot_subsystem_testhelpers::{self as test_helpers};
 	use polkadot_node_network_protocol::ObservedRole;
 
 	#[derive(Default)]

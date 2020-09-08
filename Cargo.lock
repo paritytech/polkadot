@@ -5102,6 +5102,7 @@ dependencies = [
  "pin-project",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-network",

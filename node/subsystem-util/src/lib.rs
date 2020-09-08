@@ -50,6 +50,7 @@ use std::{
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
+	task::{Poll, Context},
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
@@ -973,9 +974,51 @@ macro_rules! delegated_subsystem {
 	};
 }
 
+/// A future that wraps another future with a `Delay` allowing for time-limited futures.
+#[pin_project]
+pub struct Timeout<F: Future> {
+	#[pin]
+	future: F,
+	#[pin]
+	delay: Delay,
+}
+
+/// Extends `Future` to allow time-limited futures.
+pub trait TimeoutExt: Future {
+	fn timeout(self, duration: Duration) -> Timeout<Self>
+	where
+		Self: Sized,
+	{
+		Timeout {
+			future: self,
+			delay: Delay::new(duration),
+		}
+	}
+}
+
+impl<F: Future> TimeoutExt for F {}
+
+impl<F: Future> Future for Timeout<F> {
+	type Output = Option<F::Output>;
+
+	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+		let this = self.project();
+
+		if this.delay.poll(ctx).is_ready() {
+			return Poll::Ready(None);
+		}
+
+		if let Poll::Ready(output) = this.future.poll(ctx) {
+			return Poll::Ready(Some(output));
+		}
+
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use super::{Error as UtilError, JobManager, JobTrait, JobsError, ToJobTrait};
+	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -988,7 +1031,7 @@ mod tests {
 		future, Future, FutureExt, SinkExt,
 	};
 	use polkadot_primitives::v1::Hash;
-	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context, TimeoutExt as _};
+	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;

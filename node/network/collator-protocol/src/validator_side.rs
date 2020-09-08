@@ -15,15 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::{HashMap, HashSet};
-use std::pin::Pin;
-use std::task::{Context, Poll};
 use std::time::Duration;
+use std::task::Poll;
 
 use futures::{
-	Future, SinkExt, StreamExt,
-	channel::{mpsc, oneshot}, stream::FuturesUnordered,
+	SinkExt, StreamExt,
+	channel::{mpsc, oneshot},
+	future::BoxFuture,
+	stream::FuturesUnordered,
 };
-use futures_timer::Delay;
 use log::{trace, warn};
 
 use polkadot_primitives::v1::{
@@ -39,6 +39,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, RequestId,
 	NetworkBridgeEvent,
 };
+use polkadot_node_subsystem_util::TimeoutExt;
 
 use super::{modify_reputation, TARGET, Result};
 
@@ -62,31 +63,27 @@ struct CollationRequest {
 	received: oneshot::Receiver<()>,
 
 	// The timeout of this request.
-	timeout: Delay,
+	timeout: Duration,
 
 	// The id of this request.
 	request_id: RequestId,
 }
 
-impl Future for CollationRequest {
-	type Output = CollationRequestResult;
+impl CollationRequest {
+	async fn wait(self) -> CollationRequestResult {
+		use CollationRequestResult::*;
 
-	fn poll(mut self: Pin<&mut Self>, cx: &mut Context) -> Poll::<Self::Output> {
-		match Pin::new(&mut self.timeout).poll(cx) {
-			Poll::Pending => (),
-			Poll::Ready(_) => {
-				return Poll::Ready(CollationRequestResult::Timeout(self.request_id));
-			}
-		};
+		let CollationRequest {
+			received,
+			timeout,
+			request_id,
+		} = self;
 
-		match Pin::new(&mut self.received).poll(cx) {
-			Poll::Pending => (),
-			Poll::Ready(_) => {
-				return Poll::Ready(CollationRequestResult::Received(self.request_id));
-			}
-		};
 
-		Poll::Pending
+		match received.timeout(timeout).await {
+			None => Timeout(request_id),
+			Some(_) => Received(request_id),
+		}
 	}
 }
 
@@ -132,7 +129,7 @@ struct State {
 	requests_info: HashMap<RequestId, PerRequest>,
 
 	/// Collation requests that are currently in progress.
-	requests_in_progress: FuturesUnordered<CollationRequest>,
+	requests_in_progress: FuturesUnordered<BoxFuture<'static, CollationRequestResult>>,
 
 	/// Delay after which a collation request would time out.
 	request_timeout: Duration, 
@@ -363,7 +360,7 @@ where
 
 	let request = CollationRequest {
 		received: rx,
-		timeout: Delay::new(state.request_timeout),
+		timeout: state.request_timeout,
 		request_id,
 	};
 
@@ -371,7 +368,9 @@ where
 
 	state.requests_info.insert(request_id, per_request);
 
-	state.requests_in_progress.push(request);
+	state.requests_in_progress.push(Box::pin(async move {
+		request.wait().await
+	}));
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,
@@ -644,12 +643,13 @@ fn find_val_in_map<K: Clone, V: Eq>(map: &HashMap<K, V>, val: &V) -> Option<K> {
 mod tests {
 	use super::*;
 	use std::iter;
-	use futures::{executor, future};
+	use futures::{executor, future, Future};
 	use sp_core::crypto::Pair;
 	use assert_matches::assert_matches;
+	use futures_timer::Delay;
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair};
-	use polkadot_subsystem_testhelpers::{self as test_helpers, TimeoutExt};
+	use polkadot_subsystem_testhelpers::{self as test_helpers};
 
 	#[derive(Clone)]
 	struct TestState {
