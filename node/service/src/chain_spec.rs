@@ -79,19 +79,19 @@ pub type WestendChainSpec = service::GenericChainSpec<
 >;
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../../service/res/polkadot.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
 }
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../../../service/res/kusama.json")[..])
+	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
 }
 
 pub fn rococo_config() -> Result<RococoChainSpec, String> {
-	RococoChainSpec::from_json_bytes(&include_bytes!("../../../service/res/rococo.json")[..])
+	RococoChainSpec::from_json_bytes(&include_bytes!("../res/rococo.json")[..])
 }
 
 pub fn westend_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../../service/res/westend.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
 }
 
 fn polkadot_session_keys(
