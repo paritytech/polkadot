@@ -54,6 +54,8 @@ use sp_runtime::{
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+#[cfg(any(feature = "std", test))]
+use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -71,6 +73,7 @@ use runtime_parachains::paras as parachains_paras;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_staking::StakerStatus;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -396,6 +399,16 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 2,
 };
+
+/// Native version.
+#[cfg(any(feature = "std", test))]
+pub fn native_version() -> NativeVersion {
+	NativeVersion {
+		runtime_version: VERSION,
+		can_author_with: Default::default(),
+	}
+}
+
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;

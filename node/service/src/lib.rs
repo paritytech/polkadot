@@ -48,12 +48,13 @@ pub use sp_runtime::traits::{DigestFor, HashFor, NumberFor};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Id as ParaId};
 pub use sp_runtime::traits::{Block as BlockT, self as runtime_traits, BlakeTwo256};
-pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec};
+pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 #[cfg(feature = "full-node")]
 pub use codec::Codec;
 pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
+pub use rococo_runtime;
 use prometheus_endpoint::Registry;
 pub use self::client::PolkadotClient;
 
@@ -75,6 +76,13 @@ native_executor_instance!(
 	pub WestendExecutor,
 	westend_runtime::api::dispatch,
 	westend_runtime::native_version,
+	frame_benchmarking::benchmarking::HostFunctions,
+);
+
+native_executor_instance!(
+	pub RococoExecutor,
+	rococo_runtime::api::dispatch,
+	rococo_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
@@ -716,7 +724,7 @@ pub fn kusama_new_full(
 	Ok((components, client, FullNodeHandles))
 }
 
-/// Create a new Kusama service for a full node.
+/// Create a new Westend service for a full node.
 #[cfg(feature = "full-node")]
 pub fn westend_new_full(
 	config: Configuration,
@@ -748,6 +756,39 @@ pub fn westend_new_full(
 	Ok((components, client, FullNodeHandles))
 }
 
+/// Create a new Kusama service for a full node
+#[cfg(feature = "full-node")]
+pub fn rococo_new_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, ParaId)>,
+	max_block_data_size: Option<u64>,
+	authority_discovery_enabled: bool,
+	slot_duration: u64,
+	grandpa_pause: Option<(u32, u32)>,
+) -> Result<
+	(
+		TaskManager,
+		Arc<impl PolkadotClient<
+			Block,
+			FullBackend,
+			rococo_runtime::RuntimeApi,
+		>>,
+		FullNodeHandles,
+	),
+	ServiceError
+> {
+	let (components, client) = new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
+		config,
+		collating_for,
+		max_block_data_size,
+		authority_discovery_enabled,
+		slot_duration,
+		grandpa_pause,
+	)?;
+
+	Ok((components, client, FullNodeHandles))
+}
+
 /// Create a new Polkadot service for a light client.
 pub fn polkadot_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
@@ -761,7 +802,84 @@ pub fn kusama_new_light(config: Configuration) -> Result<TaskManager, ServiceErr
 }
 
 /// Create a new Westend service for a light client.
-pub fn westend_new_light(config: Configuration, ) -> Result<TaskManager, ServiceError>
+pub fn westend_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
 {
 	new_light::<westend_runtime::RuntimeApi, KusamaExecutor>(config)
+}
+
+/// Create a new Rococo service for a light client.
+pub fn rococo_new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
+	new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
+}
+
+
+/// Build a new light node.
+pub fn build_light(config: Configuration) -> Result<TaskManager, ServiceError> {
+	if config.chain_spec.is_kusama() {
+		kusama_new_light(config)
+	} else if config.chain_spec.is_westend() {
+		westend_new_light(config)
+	} else if config.chain_spec.is_rococo() {
+		rococo_new_light(config)
+	} else {
+		polkadot_new_light(config)
+	}
+}
+
+/// Build a new full node.
+#[cfg(feature = "full-node")]
+pub fn build_full(
+	config: Configuration,
+	collating_for: Option<(CollatorId, ParaId)>,
+	authority_discovery_enabled: bool,
+	grandpa_pause: Option<(u32, u32)>,
+) -> Result<
+(
+	TaskManager,
+	Arc<impl PolkadotClient<
+		Block,
+		FullBackend,
+		rococo_runtime::RuntimeApi,
+	>>,
+	FullNodeHandles,
+),
+ServiceError
+> {
+	if config.chain_spec.is_kusama() {
+		kusama_new_full(
+			config,
+			collating_for,
+			None,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		)
+	} else if config.chain_spec.is_westend() {
+		westend_new_full(
+			config,
+			collating_for,
+			None,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		)
+	} else if config.chain_spec.is_rococo() {
+		rococo_new_full(
+			config,
+			collating_for,
+			None,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		)
+	} else {
+		polkadot_new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+			config,
+			collating_for,
+			None,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		)
+	}
 }

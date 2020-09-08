@@ -26,7 +26,7 @@ use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_service::{
+use polkadot_service_new::{
 	new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
 };
 use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
