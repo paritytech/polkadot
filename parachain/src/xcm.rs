@@ -147,18 +147,18 @@ pub mod v0 {
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum Ai {
 		Each(Vec<Ai>),
-		DepositAsset { asset: MultiAsset, dest_: MultiLocation },
+		DepositAsset { asset: MultiAsset, dest: MultiLocation },
 		ExchangeAsset { give: MultiAsset, receive: MultiAsset },
-		InitiateReserveTransfer { asset: MultiAsset, dest_: MultiLocation, effect: Box<Ai> },
-		InitiateTeleport { asset: MultiAsset, dest_: MultiLocation, effect: Box<Ai> },
-		QueryHolding { #[codec(compact)] query_id: u64, dest_: MultiLocation, assets: Vec<MultiAsset> },
+		InitiateReserveTransfer { asset: MultiAsset, dest: MultiLocation, effect: Box<Ai> },
+		InitiateTeleport { asset: MultiAsset, dest: MultiLocation, effect: Box<Ai> },
+		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 	}
 
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum Xcm {
 		WithdrawAsset { asset: MultiAsset, effect: Ai },
-		// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest_, effect}
-		ReserveAssetTransfer { asset: MultiAsset, dest_: MultiLocation, effect: Ai },
+		// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest, effect}
+		ReserveAssetTransfer { asset: MultiAsset, dest: MultiLocation, effect: Ai },
 		ReserveAssetCredit { asset: MultiAsset, effect: Ai },
 		TeleportAsset { asset: MultiAsset, effect: Ai },
 		Balances { query_id: Vec<u8>, assets: Vec<MultiAsset> },

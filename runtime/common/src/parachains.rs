@@ -726,7 +726,7 @@ decl_module! {
 			let dest = dest.try_into().map_err(|_| Error::<T>::BadDestination)?;
 			T::ParachainCurrency::transfer_in(&who, to, amount, AllowDeath)?;
 			let asset = MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount: amount.into() };
-			let effect = Ai::DepositAsset { asset: MultiAsset::Wild, dest_: dest };
+			let effect = Ai::DepositAsset { asset: MultiAsset::Wild, dest: dest };
 			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset, effect });
 			DownwardMessageQueue::append(to, msg.encode());
 		}
@@ -956,23 +956,23 @@ impl<T: Trait> Module<T> {
 					// message makes sense.
 				}
 			}
-			Ok(Ok(Xcm::ReserveAssetTransfer { asset, dest_, effect })) => {
+			Ok(Ok(Xcm::ReserveAssetTransfer { asset, dest, effect })) => {
 				let amount = match asset {
 					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
 				};
-				let (onward_asset, dest) = match dest_ {
+				let (onward_asset, dest) = match dest {
 					// Only destination we support for reserve asset transfers is into a parachain.
 					MultiLocation::X1(Junction::Parachain { id }) => {
-						let dest_id = ParaId::from(id);
-						let dest_account = dest_id.into_account();
-						if T::ParachainCurrency::transfer_out(from, &dest_account, amount, AllowDeath).is_err() {
+						let destid = ParaId::from(id);
+						let destaccount = destid.into_account();
+						if T::ParachainCurrency::transfer_out(from, &destaccount, amount, AllowDeath).is_err() {
 							return
 						}
 						// The onward asset, since it's the Relay-chain's native currency, is identified as
 						// the chain itself (from our context, it's therefore `Null`). From the parachain's context,
 						// it is identified as `Parent`.
-						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, dest_id)
+						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, destid)
 					},
 					_ => return,
 				};
@@ -987,7 +987,7 @@ impl<T: Trait> Module<T> {
 				match effect {
 					// Only effect we support for now is a straight wildcard deposit into an AccountId32.
 					// TODO: Consider caring about the `network`.
-					Ai::DepositAsset { asset: MultiAsset::Wild, dest_: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
+					Ai::DepositAsset { asset: MultiAsset::Wild, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
 						let dest = match T::AccountId::decode(&mut &id[..]) {
 							Ok(x) => x,
 							Err(_) => return,

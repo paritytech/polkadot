@@ -334,7 +334,6 @@ pub fn full_output_validation_with_api<P>(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use parachain::primitives::ParachainDispatchOrigin;
 
 	fn add_msg(size: usize, msgs: &mut Vec<Vec<u8>>) {
 		let msg = vec![0; size];
