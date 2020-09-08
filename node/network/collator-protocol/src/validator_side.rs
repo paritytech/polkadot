@@ -456,10 +456,13 @@ async fn handle_our_view_change(
 ) -> Result<()> {
 	let old_view = std::mem::replace(&mut (state.view), view);
 
-	let removed = old_view.difference(&state.view).collect::<Vec<_>>();
+	let removed = old_view
+		.difference(&state.view)
+		.cloned()
+		.collect::<Vec<_>>();
 
-	for removed in removed {
-		remove_relay_parent(state, *removed).await?;
+	for removed in removed.into_iter() {
+		remove_relay_parent(state, removed).await?;
 	}
 
 	Ok(())
@@ -480,7 +483,7 @@ where
 			if let Some(request_info) = state.requests_info.remove(&id) {
 				let (relay_parent, para_id, peer_id) = key;
 
-				modify_reputation(ctx, peer_id.clone(), COST_REQUEST_TIMEDOUT).await?;
+				modify_reputation(ctx, peer_id.clone(), COST_REQUEST_TIMED_OUT).await?;
 
 				// the callee will check if the parent is still in view, so do no checks here.
 				request_collation(
@@ -899,7 +902,7 @@ mod tests {
 						NetworkBridgeMessage::ReportPeer(peer, rep)
 					) => {
 						assert_eq!(peer, peer_b);
-						assert_eq!(rep, COST_REQUEST_TIMEDOUT);
+						assert_eq!(rep, COST_REQUEST_TIMED_OUT);
 					}
 				);
 
