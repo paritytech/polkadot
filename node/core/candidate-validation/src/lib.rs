@@ -468,6 +468,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_chain_height: persisted_validation_data.block_number,
+		dmq_mqc_head: persisted_validation_data.dmq_mqc_head,
 		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
@@ -491,6 +492,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 				upward_messages: res.upward_messages,
 				fees: 0,
 				new_validation_code: res.new_validation_code,
+				processed_downward_messages: res.processed_downward_messages,
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}

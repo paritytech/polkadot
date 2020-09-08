@@ -35,6 +35,7 @@ pub fn make_persisted_validation_data<T: paras::Trait>(
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		block_number: relay_parent_number,
 		hrmp_mqc_heads: Vec::new(),
+		dmq_mqc_head: Default::default(), // TODO: will be fixed in the following commits
 	})
 }
 
@@ -67,5 +68,6 @@ pub fn make_transient_validation_data<T: paras::Trait>(
 		max_head_data_size: config.max_head_data_size,
 		balance: 0,
 		code_upgrade_allowed,
+		dmq_length: 0, // TODO: will be fixed in the following commits
 	})
 }

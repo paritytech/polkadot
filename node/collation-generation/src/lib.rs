@@ -277,6 +277,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
 					erasure_root,
+					processed_downward_messages: collation.processed_downward_messages,
 				};
 
 				let ccr = CandidateReceipt {
@@ -387,6 +388,7 @@ mod tests {
 				proof_of_validity: PoV {
 					block_data: BlockData(Vec::new()),
 				},
+				processed_downward_messages: Default::default(),
 			}
 		}
 

@@ -263,6 +263,8 @@ pub struct Collation {
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
 	pub proof_of_validity: PoV,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
 }
 
 /// Configuration for the collation generator
