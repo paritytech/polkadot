@@ -21,9 +21,10 @@ Polkadot from one of our package repositories.
 
 Installation from the debian or rpm repositories will create a `systemd`
 service that can be used to run a Polkadot node. This is disabled by default,
-and can be started by running `systemctl start polkadot`. By default, it will
-run as the `polkadot` user.  Command-line flags passed to the binary can be
-customised by editing `/etc/default/polkadot`. This file will not be
+and can be started by running `systemctl start polkadot` on demand (use
+`systemctl enable polkadot` to make it auto-start after reboot). By default, it
+will run as the `polkadot` user.  Command-line flags passed to the binary can
+be customised by editing `/etc/default/polkadot`. This file will not be
 overwritten on updating polkadot. You may also just run the node directly from
 the command-line.
 
@@ -34,8 +35,8 @@ derivatives. Run the following commands as the `root` user.
 
 ```
 # Import the security@parity.io GPG key
-gpg --recv-keys --keyserver hkps://keys.mailvelope.com FF0812D491B96798
-gpg --export security@parity.io > /usr/share/keyrings/parity.gpg
+gpg --recv-keys --keyserver hkps://keys.mailvelope.com 9D4B2B6EB8F97156D19669A9FF0812D491B96798
+gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
 # Add the Parity repository and update the package index
 echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb buster main' > /etc/apt/sources.list.d/parity.list
 apt update
@@ -54,7 +55,8 @@ dnf install dnf-plugins-core
 # Add the repository and enable it
 dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
 dnf config-manager --set-enabled polkadot
-# Install polkadot (You may have to confirm the import of the GPG key)
+# Install polkadot (You may have to confirm the import of the GPG key, which
+# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798
 dnf install polkadot
 ```
 
