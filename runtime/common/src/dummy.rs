@@ -16,9 +16,11 @@
 
 //! A dummy module for holding place of modules in a runtime.
 
-use frame_support::{decl_module, decl_storage};
+use frame_support::{decl_module, decl_storage, decl_event};
 
-pub trait Trait<I: Instance = DefaultInstance>: frame_system::Trait { }
+pub trait Trait<I: Instance = DefaultInstance>: frame_system::Trait {
+	type Event: Into<<Self as frame_system::Trait>::Event>;
+}
 
 decl_module! {
 	pub struct Module<T: Trait<I>, I: Instance = DefaultInstance> for enum Call where origin: T::Origin {
@@ -27,4 +29,12 @@ decl_module! {
 
 decl_storage! {
 	trait Store for Module<T: Trait<I>, I: Instance = DefaultInstance> as Dummy { }
+}
+
+decl_event!{
+	pub enum Event<T, I: Instance = DefaultInstance> where
+		<T as frame_system::Trait>::AccountId
+	{
+		Dummy(AccountId),
+	}
 }
