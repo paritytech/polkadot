@@ -22,10 +22,9 @@ use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
-	GroupIndex, CandidateEvent, PersistedValidationData,
+	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
 };
 use sp_runtime::traits::Zero;
-use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use frame_support::debug;
 use crate::{initializer, inclusion, scheduler, configuration, paras};
 
@@ -268,10 +267,24 @@ where
 		.collect()
 }
 
-/// Given the `ValidatorId` return the corresponding `AuthorityDiscoveryId`.
-pub fn authorities<T>(validator_id: &ValidatorId) -> AuthorityDiscoveryId
-where 
-	T: initializer::Trait
+/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+/// Currently this request is limited to validators in the current session. 
+///
+/// We assume that every validator runs authority discovery,
+/// which would allow us to establish point-to-point connection to given validators.
+///
+/// Returns `None` for validators not found in the current session.
+fn validator_discovery_id<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
+where
+	T: initializer::Trait + pallet_authority_discovery::Trait,
 {
-	<initializer::Module<T>>::authorities(&validator_id)
+	// FIXME: the mapping might be invalid if a session change happens in between the calls
+	let validators = <inclusion::Module<T>>::validators();
+	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
+	// We assume the same ordering in authorities as in validators so we can do an index search
+	validators.map(|v| {
+		// FIXME: linear search is slow
+		let validator_index = validators.iter().position(|v| v == id);
+		validator_index.and_then(|i| authorities.get(i))
+	}).collect()
 }

@@ -593,6 +593,7 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => "parachain_collation",
 					PeerSet::Validators => "parachain_validation",
 				};
+
 				// TODO: https://github.com/paritytech/polkadot/issues/1461
 			}
 
