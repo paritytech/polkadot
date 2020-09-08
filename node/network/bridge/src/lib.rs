@@ -33,7 +33,7 @@ use polkadot_subsystem::{
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage,
+	CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_primitives::v1::{Block, Hash, ValidatorId};
 use polkadot_node_network_protocol::{
@@ -588,14 +588,28 @@ async fn run_network<N: Network>(
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToValidators(peer_set, validators, res) => {
+			Action::ConnectToValidators(peer_set, validators, _res) => {
 				let priority_group = match peer_set {
 					PeerSet::Collation => "parachain_collation",
 					PeerSet::Validators => "parachain_validation",
 				};
 
-				// TODO: https://github.com/paritytech/polkadot/issues/1461
-			}
+				// ValidatorId -> AuthorityId
+				let (tx, rx) = oneshot::channel();
+				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx)
+				))).await?;
+				let authorities = tx.await?;
+				
+				// AuthorityId -> Option<Vec<Multiaddr>>
+				let mutiladdresses = validators.iter()
+					.filter_map(|m| m.and_then(|id| self.authority_discovery.get_addresses_for_authority_id(id).await))
+					.flatten()
+					.collect::<HashSet<_>>();;
+
+				self.network.set_priority_group(priority_group, multiaddresses)?;
+				// TODO: pass validators, authorities and _res to notification stream
+			},
 
 			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,
 
