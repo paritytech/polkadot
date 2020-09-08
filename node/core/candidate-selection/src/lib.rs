@@ -495,7 +495,7 @@ mod tests {
 	fn fetches_and_seconds_a_collation() {
 		let relay_parent = Hash::random();
 		let para_id: ParaId = 123.into();
-		let collator_id: CollatorId = CollatorId::from_slice(&(0..32).collect::<Vec<u8>>());
+		let collator_id = CollatorId::from_slice(&(0..32).collect::<Vec<u8>>());
 		let collator_id_clone = collator_id.clone();
 
 		let candidate_receipt = CandidateReceipt::default();
@@ -573,9 +573,53 @@ mod tests {
 		assert!(Arc::try_unwrap(was_seconded).unwrap().into_inner());
 	}
 
+	/// when something has been seconded, further collation notifications are ignored
 	#[test]
 	fn ignores_collation_notifications_after_the_first() {
-		unimplemented!()
+		let relay_parent = Hash::random();
+		let para_id: ParaId = 123.into();
+		let prev_collator_id = CollatorId::from_slice(&(0..32).rev().collect::<Vec<u8>>());
+		let collator_id = CollatorId::from_slice(&(0..32).collect::<Vec<u8>>());
+		let collator_id_clone = collator_id.clone();
+
+		let was_seconded = Arc::new(Mutex::new(false));
+		let was_seconded_clone = was_seconded.clone();
+
+		test_harness(
+			|job| job.seconded_candidate = Some(prev_collator_id.clone()),
+			|mut to_job, mut from_job| async move {
+				to_job
+					.send(ToJob::CandidateSelection(
+						CandidateSelectionMessage::Collation(
+							relay_parent,
+							para_id,
+							collator_id_clone,
+						),
+					))
+					.await
+					.unwrap();
+				std::mem::drop(to_job);
+
+				while let Some(msg) = from_job.next().await {
+					match msg {
+						FromJob::Backing(CandidateBackingMessage::Second(
+							_got_relay_parent,
+							_got_candidate_receipt,
+							_got_pov,
+						)) => {
+							*was_seconded_clone.lock().await = true;
+						}
+						other => panic!("unexpected message from job: {:?}", other),
+					}
+				}
+			},
+			|job, job_result| {
+				assert!(job_result.is_ok());
+				assert_eq!(job.seconded_candidate.unwrap(), prev_collator_id);
+			},
+		);
+
+		assert!(!Arc::try_unwrap(was_seconded).unwrap().into_inner());
 	}
 
 	#[test]
