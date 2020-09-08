@@ -29,8 +29,7 @@ use sp_consensus_babe::BabeApi;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
 use sp_block_builder::BlockBuilder;
-pub use sc_rpc::DenyUnsafe;
-pub use sc_rpc::SubscriptionTaskExecutor;
+pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 
 /// A type representing all RPC extensions.
 pub type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
