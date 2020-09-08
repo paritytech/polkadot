@@ -19,7 +19,8 @@ use std::collections::HashMap;
 use futures::channel::oneshot;
 use log::{trace, warn};
 use polkadot_primitives::v1::{
-	CollatorId, CoreState, Hash, Id as ParaId, CandidateReceipt, PoV, ValidatorId,
+	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
+	PoV, ValidatorId,
 };
 use super::{TARGET,  Result};
 use polkadot_subsystem::{
@@ -108,7 +109,7 @@ where
 
 	// Determine which core the para collated-on is assigned to.
 	// If it is not scheduled then ignore the message.
-	let our_core = match determine_core(ctx, id, relay_parent).await? {
+	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
 	    Some(core) => core,
 	    None => {
 			warn!(
@@ -119,9 +120,8 @@ where
 		}
 	};
 
-	// Determine the group on that core and
-	// TODO: the next group on that core.
-	let our_validators = match determine_our_validators(ctx, our_core, relay_parent).await? {
+	// Determine the group on that core and the next group on that core.
+	let our_validators = match determine_our_validators(ctx, our_core, num_cores, relay_parent).await? {
 	    Some(validators) => validators,
 	    None => {
 			warn!(
@@ -135,8 +135,7 @@ where
 
 	state.our_validators_groups.insert(relay_parent, our_validators.clone());
 
-	// Issue a discovery request for the validators of the current group and
-	// TODO: the next group.
+	// Issue a discovery request for the validators of the current group and the next group.
 	connect_to_validators(ctx, state, our_validators).await?;
 
 	state.collations.insert(relay_parent, (receipt, pov));
@@ -144,12 +143,13 @@ where
 	Ok(())
 }
 
-/// Get the Id of the Core that is assigned to the para being collated on if any.
+/// Get the Id of the Core that is assigned to the para being collated on if any
+/// and the total number of cores.
 async fn determine_core<Context>(
 	ctx: &mut Context,
 	para_id: ParaId,
 	relay_parent: Hash,
-) -> Result<Option<usize>>
+) -> Result<Option<(CoreIndex, usize)>>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -167,7 +167,7 @@ where
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
 			if occupied.para_id == para_id {
-				return Ok(Some(idx));
+				return Ok(Some(((idx as u32).into(), cores.len())));
 			}
 		}
 	}
@@ -176,9 +176,12 @@ where
 }
 
 /// Figure out a group of validators assigned to the para being collated on.
+/// 
+/// This returns validators for the current group and the next group.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
-	validator_group: usize,
+	core_index: CoreIndex,
+	cores: usize,
 	relay_parent: Hash,
 ) -> Result<Option<Vec<ValidatorId>>>
 where
@@ -188,18 +191,26 @@ where
 
 	let groups = groups.await??;
 
-	let our_group = match groups.0.get(validator_group) {
-		Some(group) => group,
+	let current_group_index = groups.1.group_for_core(core_index, cores);
+
+	let mut connect_to_validators = match groups.0.get(current_group_index.0 as usize) {
+		Some(group) => group.clone(),
 		None => return Ok(None),
 	};
+
+	let next_group_idx = (current_group_index.0 as usize + 1) % groups.0.len();
+
+	if let Some(next_group) = groups.0.get(next_group_idx) {
+		connect_to_validators.extend_from_slice(&next_group);
+	}
 
 	let validators = request_validators_ctx(relay_parent, ctx).await?;
 
 	let validators = validators.await??;
 
-	let validators = our_group 
+	let validators = connect_to_validators 
 		.into_iter()
-		.map(|idx| validators[*idx as usize].clone())
+		.map(|idx| validators[idx as usize].clone())
 		.collect();
 
 	Ok(Some(validators))
@@ -860,15 +871,17 @@ mod tests {
 					)
 				) => {
 					assert_eq!(peer_set, PeerSet::Collation);
-					assert_eq!(validators.len(), 3);
+					assert_eq!(validators.len(), 4);
 					assert!(validators.contains(&test_state.validator_public[2]));
 					assert!(validators.contains(&test_state.validator_public[0]));
 					assert!(validators.contains(&test_state.validator_public[4]));
+					assert!(validators.contains(&test_state.validator_public[1]));
 
 					tx.send(vec![
 						(test_state.validator_public[2].clone(), test_state.validator_peer_id[2].clone()),
 						(test_state.validator_public[0].clone(), test_state.validator_peer_id[0].clone()),
 						(test_state.validator_public[4].clone(), test_state.validator_peer_id[4].clone()),
+						(test_state.validator_public[1].clone(), test_state.validator_peer_id[1].clone()),
 					]).unwrap();
 				}
 			);
