@@ -45,7 +45,7 @@ impl Decode for XcmEnvelope {
 }
 
 /// A single XCM message, together with its version code.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum VersionedXcm {
 	V0(v0::Xcm),
 }
@@ -167,7 +167,7 @@ pub mod v0 {
 		Each(Vec<MultiAsset>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum Ai {
 		Each(Vec<Ai>),
 		DepositAsset { asset: MultiAsset, dest: MultiLocation },
@@ -177,7 +177,7 @@ pub mod v0 {
 		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum Xcm {
 		WithdrawAsset { asset: MultiAsset, effect: Ai },
 		// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest, effect}
