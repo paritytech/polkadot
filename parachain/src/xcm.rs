@@ -99,13 +99,13 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
 	pub enum MultiNetwork {
 		Wildcard,
 		Identified(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
 	pub enum MultiLocation {
 		Null,
 		X1(Junction),
@@ -114,7 +114,7 @@ pub mod v0 {
 		X4(Junction, Junction, Junction, Junction),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
 	pub enum Junction {
 		Parent,
 		Parachain { #[codec(compact)] id: u32 },
@@ -136,7 +136,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
 	pub enum AssetInstance {
 		Undefined,
 		Index8(u8),
@@ -151,40 +151,46 @@ pub mod v0 {
 		Blob(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum MultiAsset {
-		Wild,
-		WildFungible,
-		WildNonFungible,
-		WildAbstractFungible { id: Vec<u8> },
-		WildAbstractNonFungible { class: Vec<u8> },
-		WildConcreteFungible { id: MultiLocation },
-		WildConcreteNonFungible { class: MultiLocation },
+		None,
+		All,
+		AllFungible,
+		AllNonFungible,
+		AllAbstractFungible { id: Vec<u8> },
+		AllAbstractNonFungible { class: Vec<u8> },
+		AllConcreteFungible { id: MultiLocation },
+		AllConcreteNonFungible { class: MultiLocation },
 		AbstractFungible { id: Vec<u8>, #[codec(compact)] amount: u128 },
 		AbstractNonFungible { class: Vec<u8>, instance: AssetInstance },
 		ConcreteFungible { id: MultiLocation, #[codec(compact)] amount: u128 },
 		ConcreteNonFungible { class: MultiLocation, instance: AssetInstance },
-		Each(Vec<MultiAsset>),
 	}
+
+	pub type MultiAssets = Vec<MultiAsset>;
+	// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
 
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum Ai {
-		Each(Vec<Ai>),
-		DepositAsset { asset: MultiAsset, dest: MultiLocation },
-		ExchangeAsset { give: MultiAsset, receive: MultiAsset },
-		InitiateReserveTransfer { asset: MultiAsset, dest: MultiLocation, effect: Box<Ai> },
-		InitiateTeleport { asset: MultiAsset, dest: MultiLocation, effect: Box<Ai> },
-		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
+		Null,
+		DepositAsset { assets: MultiAssets, dest: MultiLocation },
+		ExchangeAsset { give: MultiAssets, receive: MultiAssets },
+		InitiateReserveTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
+		InitiateTeleport { assets: MultiAssets, dest: MultiLocation, effects: Ais },
+		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAssets> },
 	}
+
+	pub type Ais = Vec<Ai>;
+	// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
 
 	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
 	pub enum Xcm {
-		WithdrawAsset { asset: MultiAsset, effect: Ai },
+		WithdrawAsset { assets: MultiAssets, effects: Ais },
 		// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest, effect}
-		ReserveAssetTransfer { asset: MultiAsset, dest: MultiLocation, effect: Ai },
-		ReserveAssetCredit { asset: MultiAsset, effect: Ai },
-		TeleportAsset { asset: MultiAsset, effect: Ai },
-		Balances { query_id: Vec<u8>, assets: Vec<MultiAsset> },
+		ReserveAssetTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
+		ReserveAssetCredit { assets: MultiAssets, effects: Ais },
+		TeleportAsset { assets: MultiAssets, effects: Ais },
+		Balances { query_id: Vec<u8>, assets: MultiAssets },
 		Transact { origin_type: MultiOrigin, call: Vec<u8> },
 		// these won't be staying here for long. only v0 parachains with HRMP.
 		ForwardToParachain { id: u32, inner: Box<VersionedXcm> },
