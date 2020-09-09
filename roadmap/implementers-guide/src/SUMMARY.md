@@ -17,6 +17,7 @@
   - [Inclusion Module](runtime/inclusion.md)
   - [InclusionInherent Module](runtime/inclusioninherent.md)
   - [Router Module](runtime/router.md)
+  - [Session Info Module](runtime/session_info.md)
 - [Runtime APIs](runtime-api/README.md)
   - [Validators](runtime-api/validators.md)
   - [Validator Groups](runtime-api/validator-groups.md)

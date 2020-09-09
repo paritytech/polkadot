@@ -34,21 +34,7 @@ struct CandidateEntry {
     validator_approvals: Vec<Vec<AssignedValidator>>, 
     total_assigned: u32,
     approval_votes: u32,
-}
-
-struct SessionInfo {
-    // validators in canonical ordering.
-    validators: Vec<ValidatorId>,
-    // validators' authority discovery keys for the session in canonical ordering.
-    discovery_keys: Vec<DiscoveryId>,
-    // The assignment and approval keys for validators.
-    approval_keys: Vec<(AssignmentId, ApprovalId)>,
-    // validators in shuffled ordering
-    validator_groups: Vec<Vec<ValidatorIndex>>,
-    // the zeroth delay tranche width.
-    zeroth_delay_tranche_width: u32,
-    // The number of samples we do of relay_vrf_modulo.
-    relay_vrf_modulo_samples: u32,
+    disputed: bool,
 }
 ```
 
@@ -74,20 +60,7 @@ CurrentSessionIndex: SessionIndex,
 BlockEntries: map BlockNumber => BlockEntry,
 /// Approval metadata entries for every candidate in every block in the unapproved suffix.
 CandidateEntries: double_map BlockNumber, Hash => CandidateEntry,
-
-/// The earliest session for which previous session info is stored.
-EarliestStoredSession: SessionIndex,
-/// Previous session information. Should have an entry from `EarliestStoredSession..CurrentSessionIndex`
-PrevSessions: map SessionIndex => Option<SessionInfo>,
-/// Current session info.
-CurrentSessionInfo: SessionInfo,
 ```
-
-## Session Change
-
-1. Update the `CurrentSessionIndex`.
-1. Update `EarliestStoredSession` based on `config.dispute_period` and remove all entries from `PrevSessions` from the previous value up to the new value.
-1. Create a new entry in `PrevSessions` using the old value of `CurrentSessionInfo`, which should be replaced by updated information about the current session.
 
 ## Routines 
 
@@ -118,5 +91,5 @@ struct IncludedCandidate {
   1. Ensure each core had a candidate leaving it at that block.
   1. Check signatures on each approval vote.
   1. Update tallies assigned vs. approved
-  1. If the flag indicates that the block has been fully approved, sweep through and check all candidates to see if all assigned validators have approved and there were enough approval votes. If so, note the block as approved in `UnapprovedSuffix`.
+  1. If the flag indicates that the block has been fully approved and is not disputed, sweep through and check all candidates to see if all assigned validators have approved and there were enough approval votes. If so, note the block as approved in `UnapprovedSuffix`.
   1. Remove the 1-prefix of `UnapprovedSuffix`, removing all block entries and candidate entries associated.
