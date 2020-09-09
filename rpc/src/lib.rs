@@ -23,6 +23,7 @@ use std::sync::Arc;
 use polkadot_primitives::v0::{Block, BlockNumber, AccountId, Nonce, Balance, Hash};
 use sp_api::ProvideRuntimeApi;
 use txpool_api::TransactionPool;
+use sp_core::traits::SyncCryptoStore;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
@@ -54,7 +55,7 @@ pub struct BabeDeps {
 	/// BABE pending epoch changes.
 	pub shared_epoch_changes: sc_consensus_epochs::SharedEpochChanges<Block, Epoch>,
 	/// The keystore that manages the keys of the node.
-	pub keystore: sc_keystore::KeyStorePtr,
+	pub keystore: Arc<SyncCryptoStore>,
 }
 
 /// Dependencies for GRANDPA

@@ -18,19 +18,19 @@
 //! perspective.
 
 use sp_std::prelude::*;
+use sp_std::convert::TryInto;
+use sp_std::sync::Arc;
 use sp_std::cmp::Ordering;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
-
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-#[cfg(feature = "std")]
-use primitives::crypto::Pair;
 use primitives::RuntimeDebug;
+use primitives::traits::{SyncCryptoStore, Error as KeystoreError};
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
-use application_crypto::KeyTypeId;
+use application_crypto::{KeyTypeId, AppKey};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
 pub use polkadot_core_primitives::*;
@@ -864,19 +864,22 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
 	pub fn sign<H: Encode>(
+		keystore: Arc<SyncCryptoStore>,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
-		key: &ValidatorPair,
-	) -> Self {
+		key: &ValidatorId,
+	) -> Result<Self, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
-		let signature = key.sign(&data);
-		Self {
+		let signature: ValidatorSignature = keystore
+			.sign_with(ValidatorId::ID, &key.into(), &data)?
+			.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?;
+		Ok(Self {
 			payload,
 			validator_index,
-			signature,
+			signature: ValidatorSignature::from(signature),
 			real_payload: std::marker::PhantomData,
-		}
+		})
 	}
 
 	/// Validate the payload given the context and public key.

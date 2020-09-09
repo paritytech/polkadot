@@ -658,14 +658,17 @@ const fn availability_threshold(n_validators: usize) -> usize {
 mod tests {
 	use super::*;
 
+	use std::sync::Arc;
+	use primitives::v0::PARACHAIN_KEY_TYPE_ID;
 	use primitives::v1::{BlockNumber, Hash};
 	use primitives::v1::{
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
 	};
+	use sp_core::traits::SyncCryptoStore;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
-
+	use sc_keystore::LocalKeystore;
 	use crate::mock::{
 		new_test_ext, Configuration, Paras, System, Inclusion,
 		GenesisConfig as MockGenesisConfig, Test,
@@ -728,6 +731,7 @@ mod tests {
 		candidate: CommittedCandidateReceipt,
 		validators: &[Sr25519Keyring],
 		group: &[ValidatorIndex],
+		keystore: Arc<SyncCryptoStore>,
 		signing_context: &SigningContext,
 		kind: BackingKind,
 	) -> BackedCandidate {
@@ -748,11 +752,12 @@ mod tests {
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
 			let signature = SignedStatement::sign(
+				keystore.clone(),
 				Statement::Valid(candidate_hash),
 				signing_context,
 				*val_idx,
-				&key.pair().into(),
-			).signature().clone();
+				&key.public().into(),
+			).unwrap().signature().clone();
 
 			validity_votes.push(ValidityAttestation::Explicit(signature).into());
 		}
@@ -824,6 +829,7 @@ mod tests {
 	}
 
 	fn sign_bitfield(
+		keystore: Arc<SyncCryptoStore>,
 		key: &Sr25519Keyring,
 		validator_index: ValidatorIndex,
 		bitfield: AvailabilityBitfield,
@@ -832,11 +838,12 @@ mod tests {
 		-> SignedAvailabilityBitfield
 	{
 		SignedAvailabilityBitfield::sign(
+			keystore,
 			bitfield,
 			&signing_context,
 			validator_index,
-			&key.pair().into(),
-		)
+			&key.public().into(),
+		).unwrap()
 	}
 
 	#[derive(Default)]
@@ -931,6 +938,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -954,6 +965,7 @@ mod tests {
 				let mut bare_bitfield = default_bitfield();
 				bare_bitfield.0.push(false);
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -970,6 +982,7 @@ mod tests {
 			{
 				let bare_bitfield = default_bitfield();
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -986,6 +999,7 @@ mod tests {
 			{
 				let bare_bitfield = default_bitfield();
 				let signed_0 = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield.clone(),
@@ -993,6 +1007,7 @@ mod tests {
 				);
 
 				let signed_1 = sign_bitfield(
+					keystore.clone(),
 					&validators[1],
 					1,
 					bare_bitfield,
@@ -1010,6 +1025,7 @@ mod tests {
 				let mut bare_bitfield = default_bitfield();
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -1026,6 +1042,7 @@ mod tests {
 			{
 				let bare_bitfield = default_bitfield();
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -1056,6 +1073,7 @@ mod tests {
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -1088,6 +1106,7 @@ mod tests {
 
 				*bare_bitfield.0.get_mut(0).unwrap() = true;
 				let signed = sign_bitfield(
+					keystore.clone(),
 					&validators[0],
 					0,
 					bare_bitfield,
@@ -1120,6 +1139,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -1201,6 +1224,7 @@ mod tests {
 				};
 
 				Some(sign_bitfield(
+					keystore.clone(),
 					key,
 					i as ValidatorIndex,
 					to_sign,
@@ -1251,6 +1275,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -1312,6 +1340,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1357,6 +1386,7 @@ mod tests {
 					candidate_a,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1365,6 +1395,7 @@ mod tests {
 					candidate_b,
 					&validators,
 					group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1398,6 +1429,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Lacking,
 				);
@@ -1433,6 +1465,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1467,6 +1500,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1508,6 +1542,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1541,6 +1576,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1590,6 +1626,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1626,6 +1663,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1667,6 +1705,7 @@ mod tests {
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+					keystore.clone(),
 					&signing_context,
 					BackingKind::Threshold,
 				);
@@ -1697,6 +1736,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -1780,6 +1823,7 @@ mod tests {
 				candidate_a.clone(),
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				keystore.clone(),
 				&signing_context,
 				BackingKind::Threshold,
 			);
@@ -1788,6 +1832,7 @@ mod tests {
 				candidate_b.clone(),
 				&validators,
 				group_validators(GroupIndex::from(1)).unwrap().as_ref(),
+				keystore.clone(),
 				&signing_context,
 				BackingKind::Threshold,
 			);
@@ -1796,6 +1841,7 @@ mod tests {
 				candidate_c.clone(),
 				&validators,
 				group_validators(GroupIndex::from(2)).unwrap().as_ref(),
+				keystore.clone(),
 				&signing_context,
 				BackingKind::Threshold,
 			);
@@ -1871,6 +1917,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {
@@ -1913,6 +1963,7 @@ mod tests {
 				candidate_a.clone(),
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
+				keystore.clone(),
 				&signing_context,
 				BackingKind::Threshold,
 			);
@@ -1958,6 +2009,10 @@ mod tests {
 			Sr25519Keyring::Dave,
 			Sr25519Keyring::Ferdie,
 		];
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		for validator in validators.iter() {
+			keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed())).unwrap();
+		}
 		let validator_public = validator_pubkeys(&validators);
 
 		new_test_ext(genesis_config(paras)).execute_with(|| {

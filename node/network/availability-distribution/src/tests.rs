@@ -28,7 +28,9 @@ use polkadot_node_network_protocol::ObservedRole;
 use futures::{executor, future, Future};
 use futures_timer::Delay;
 use smallvec::smallvec;
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
+use sc_keystore::LocalKeystore;
+use sp_core::traits::SyncCryptoStore;
 
 macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -56,7 +58,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
-	keystore: KeyStorePtr,
+	keystore: Arc<SyncCryptoStore>,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -143,7 +145,7 @@ struct TestState {
 	validator_index: Option<ValidatorIndex>,
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	head_data: HashMap<ParaId, HeadData>,
-	keystore: KeyStorePtr,
+	keystore: Arc<SyncCryptoStore>,
 	relay_parent: Hash,
 	ancestors: Vec<Hash>,
 	availability_cores: Vec<CoreState>,
@@ -169,10 +171,9 @@ impl Default for TestState {
 			Sr25519Keyring::Dave,
 		];
 
-		let keystore = keystore::Store::new_in_memory();
+		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
 
 		keystore
-			.write()
 			.insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
 			.expect("Insert key into keystore");
 

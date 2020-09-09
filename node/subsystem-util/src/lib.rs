@@ -35,21 +35,21 @@ use futures::{
 	task,
 };
 use futures_timer::Delay;
-use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidatorPair,
 };
-use sp_core::{Pair, traits::SpawnNamed};
+use sp_core::{traits::{Error as KeystoreError, SpawnNamed, SyncCryptoStore}, Public};
+use sp_application_crypto::AppKey;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
+	sync::Arc,
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
@@ -276,11 +276,11 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
-	let keystore = keystore.read();
+pub fn signing_key(validators: &[ValidatorId], keystore: Arc<SyncCryptoStore>) -> Option<ValidatorId> {
 	validators
 		.iter()
-		.find_map(|v| keystore.key_pair::<ValidatorPair>(&v).ok())
+		.filter(|v| keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]))
+		.find_map(|v| Some(v.clone()))
 }
 
 /// Local validator information
@@ -289,7 +289,7 @@ pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option
 /// relay chain block.
 pub struct Validator {
 	signing_context: SigningContext,
-	key: ValidatorPair,
+	key: ValidatorId,
 	index: ValidatorIndex,
 }
 
@@ -297,7 +297,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: KeyStorePtr,
+		keystore: Arc<SyncCryptoStore>,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -328,13 +328,13 @@ impl Validator {
 	pub fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: KeyStorePtr,
+		keystore: Arc<SyncCryptoStore>,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, &keystore).ok_or(Error::NotAValidator)?;
+		let key = signing_key(validators, keystore).ok_or(Error::NotAValidator)?;
 		let index = validators
 			.iter()
 			.enumerate()
-			.find(|(_, k)| k == &&key.public())
+			.find(|(_, k)| k == &&key)
 			.map(|(idx, _)| idx as ValidatorIndex)
 			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
 
@@ -347,7 +347,7 @@ impl Validator {
 
 	/// Get this validator's id.
 	pub fn id(&self) -> ValidatorId {
-		self.key.public()
+		self.key.clone()
 	}
 
 	/// Get this validator's local index.
@@ -363,9 +363,10 @@ impl Validator {
 	/// Sign a payload with this validator
 	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
+		keystore: Arc<SyncCryptoStore>,
 		payload: Payload,
-	) -> Signed<Payload, RealPayload> {
-		Signed::sign(payload, &self.signing_context, self.index, &self.key)
+	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
+		Signed::sign(keystore, payload, &self.signing_context, self.index, &self.key)
 	}
 
 	/// Validate the payload with this validator
