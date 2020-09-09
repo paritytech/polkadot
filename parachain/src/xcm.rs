@@ -21,29 +21,6 @@ use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode, Input, Output};
 use crate::primitives::ParachainDispatchOrigin;
 
-/// An envelope for an XCM. This is only really useful if you're not integrating into the runtime's
-/// `Call` system.
-#[derive(Clone, Eq, PartialEq)]
-pub struct XcmEnvelope(VersionedXcm);
-
-impl Encode for XcmEnvelope {
-	fn encode_to<O: Output>(&self, dest: &mut O) {
-		// Just insert 0xff, 0x00 before the
-		dest.push_byte(0xff);
-		dest.push_byte(0x00);
-		dest.push(&self.0);
-	}
-}
-
-impl Decode for XcmEnvelope {
-	fn decode<I: Input>(input: &mut I) -> Result<Self, codec::Error> {
-		if input.read_byte()? != 0xff || input.read_byte()? != 0x00 {
-			return Err("Bad magic".into())
-		}
-		Ok(Self(Decode::decode(input)?))
-	}
-}
-
 /// A single XCM message, together with its version code.
 #[derive(Clone, Eq, PartialEq, Encode, Decode)]
 pub enum VersionedXcm {
@@ -64,6 +41,17 @@ pub enum VersionedMultiAsset {
 
 pub mod v0 {
 	use super::*;
+
+	pub type XcmError = ();
+	pub type XcmResult = Result<(), XcmError>;
+
+	pub trait ExecuteXcm {
+		fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult;
+	}
+
+	pub trait SendXcm {
+		fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult;
+	}
 
 	/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
 	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
@@ -112,6 +100,36 @@ pub mod v0 {
 		X2(Junction, Junction),
 		X3(Junction, Junction, Junction),
 		X4(Junction, Junction, Junction, Junction),
+	}
+
+	impl MultiLocation {
+		pub fn first(&self) -> Option<&Junction> {
+			match &self {
+				MultiLocation::Null => None,
+				MultiLocation::X1(ref a) => Some(a),
+				MultiLocation::X2(ref a, ..) => Some(a),
+				MultiLocation::X3(ref a, ..) => Some(a),
+				MultiLocation::X4(ref a, ..) => Some(a),
+			}
+		}
+		pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
+			match self {
+				MultiLocation::Null => (MultiLocation::Null, None),
+				MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
+				MultiLocation::X2(a, b) => (MultiLocation::X1(a), Some(b)),
+				MultiLocation::X3(a, b, c) => (MultiLocation::X2(a, b), Some(c)),
+				MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
+			}
+		}
+		pub fn pushed_with(self, new: Junction) -> Result<Self, Self> {
+			Ok(match self {
+				MultiLocation::Null => MultiLocation::X1(new),
+				MultiLocation::X1(a) => MultiLocation::X2(a, new),
+				MultiLocation::X2(a, b) => MultiLocation::X3(a, b, new),
+				MultiLocation::X3(a, b, c) => MultiLocation::X4(a, b, c, new),
+				s => Err(s)?,
+			})
+		}
 	}
 
 	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
