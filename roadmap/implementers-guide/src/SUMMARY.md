@@ -9,6 +9,7 @@
   - [Messaging Overview](messaging.md)
 - [Runtime Architecture](runtime/README.md)
   - [Approvals Module](runtime/approvals.md)
+  - [ApprovalsInherent Module](runtime/approvals_inherent.md)
   - [Initializer Module](runtime/initializer.md)
   - [Configuration Module](runtime/configuration.md)
   - [Disputes Module](runtime/disputes.md)
