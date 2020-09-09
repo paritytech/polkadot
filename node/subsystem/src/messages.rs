@@ -196,11 +196,13 @@ pub enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the collation peer-set.
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
-	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	/// Connect to peers who represent the given `AuthorityDiscoveryId`s.
+	/// Note: we might disconnect from the set of peers passed in a previous message.
 	///
 	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
-	/// validators.
-	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
+	/// authorities.
+	// TODO: s/Vec/Box<dyn Stream>?
+	ConnectToAuthorities(PeerSet, Vec<AuthorityDiscoveryId>, oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>),
 }
 
 impl NetworkBridgeMessage {
@@ -210,7 +212,7 @@ impl NetworkBridgeMessage {
 			Self::ReportPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
-			Self::ConnectToValidators(_, _, _) => None,
+			Self::ConnectToAuthorities(_, _, _) => None,
 		}
 	}
 }

@@ -22,7 +22,7 @@ use futures::future::BoxFuture;
 use futures::stream::BoxStream;
 use futures::channel::oneshot;
 
-use sc_network::Event as NetworkEvent;
+use sc_network::{Event as NetworkEvent, Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sp_runtime::ConsensusEngineId;
 
@@ -33,14 +33,14 @@ use polkadot_subsystem::{
 use polkadot_subsystem::messages::{
 	NetworkBridgeMessage, AllMessages, AvailabilityDistributionMessage,
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
-	CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
+	CollatorProtocolMessage,
 };
-use polkadot_primitives::v1::{Block, Hash, ValidatorId};
+use polkadot_primitives::v1::{Block, Hash, AuthorityDiscoveryId};
 use polkadot_node_network_protocol::{
 	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
 };
 
-use std::collections::hash_map::{HashMap, Entry as HEntry};
+use std::collections::{HashSet, HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -128,6 +128,10 @@ pub trait Network: Send + 'static {
 			self.action_sink().send(NetworkAction::WriteNotification(who, peer_set, message)).await
 		}.boxed()
 	}
+
+	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
+	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
+	// TODO: we might want to add `add_to_priority_group` and `remove_from_priority_group` 
 }
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
@@ -186,6 +190,10 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 
 		Box::pin(ActionSink(&**self))
 	}
+
+	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		sc_network::NetworkService::set_priority_group(&**self, group_id, multiaddresses)
+	}
 }
 
 /// The network bridge subsystem.
@@ -193,6 +201,9 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 pub struct NetworkBridge<N> {
 	network_service: N,
 	authority_discovery_service: AuthorityDiscoveryService,
+	// we assume one PeerId per AuthorityId is enough
+	// TODO: cleanup as in https://github.com/paritytech/polkadot/pull/1616
+	pending_discovery_requests: HashMap<AuthorityDiscoveryId, oneshot::Sender<(AuthorityDiscoveryId, PeerId)>>,
 }
 
 impl<N> NetworkBridge<N> {
@@ -201,7 +212,11 @@ impl<N> NetworkBridge<N> {
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
 	pub fn new(network_service: N, authority_discovery_service: AuthorityDiscoveryService) -> Self {
-		NetworkBridge { network_service, authority_discovery_service }
+		NetworkBridge {
+			network_service,
+			authority_discovery_service,
+			pending_discovery_requests: HashMap::new(),
+		}
 	}
 }
 
@@ -231,7 +246,7 @@ struct PeerData {
 enum Action {
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
-	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
+	ConnectToAuthorities(PeerSet, Vec<AuthorityDiscoveryId>, oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>),
 	ReportPeer(PeerId, ReputationChange),
 
 	ActiveLeaves(ActiveLeavesUpdate),
@@ -261,8 +276,8 @@ fn action_from_overseer_message(
 				=> Action::SendValidationMessage(peers, msg),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
 				=> Action::SendCollationMessage(peers, msg),
-			NetworkBridgeMessage::ConnectToValidators(peer_set, validators, res)
-				=> Action::ConnectToValidators(peer_set, validators, res),
+			NetworkBridgeMessage::ConnectToAuthorities(peer_set, authorities, res)
+				=> Action::ConnectToAuthorities(peer_set, authorities, res),
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -588,26 +603,31 @@ async fn run_network<N: Network>(
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToValidators(peer_set, validators, _res) => {
+			Action::ConnectToAuthorities(peer_set, authorities, _res) => {
 				let priority_group = match peer_set {
 					PeerSet::Collation => "parachain_collation",
-					PeerSet::Validators => "parachain_validation",
-				};
+					PeerSet::Validation => "parachain_validation",
+				}.to_owned();
 
-				// ValidatorId -> AuthorityId
-				let (tx, rx) = oneshot::channel();
-				ctx.send_message(AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx)
-				))).await?;
-				let authorities = tx.await?;
-				
 				// AuthorityId -> Option<Vec<Multiaddr>>
-				let mutiladdresses = validators.iter()
-					.filter_map(|m| m.and_then(|id| self.authority_discovery.get_addresses_for_authority_id(id).await))
-					.flatten()
-					.collect::<HashSet<_>>();;
+				let mut multiaddresses = HashSet::new();
+				for authority in authorities.into_iter() {
+					let result = net.authority_discovery_service.get_addresses_by_authority_id(authority).await;
+					if let Some(addresses) = result {
+						// we might have several `PeerId`s per `AuthorityId` depending on the number of sentry nodes,
+						// so in theory we might want to limit max number of sentries per node to connect to,
+						// in practice the number of sentries per node is low and they are going to be removed soon
+						// https://github.com/paritytech/substrate/issues/6845
+						for addr in addresses {
+							multiaddresses.insert(addr);
+						}
+					}
+				}
 
-				self.network.set_priority_group(priority_group, multiaddresses)?;
+				// ask the network to connect to these nodes and not disconnect from them until removed from the priority group
+				if let Err(e) = net.network_service.set_priority_group(priority_group, multiaddresses) {
+					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
+				}
 				// TODO: pass validators, authorities and _res to notification stream
 			},
 
@@ -634,8 +654,8 @@ async fn run_network<N: Network>(
 				};
 
 				match peer_map.entry(peer.clone()) {
-					HEntry::Occupied(_) => continue,
-					HEntry::Vacant(vacant) => {
+					hash_map::Entry::Occupied(_) => continue,
+					hash_map::Entry::Vacant(vacant) => {
 						vacant.insert(PeerData {
 							view: View(Vec::new()),
 						});
