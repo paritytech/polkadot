@@ -34,7 +34,7 @@ use sp_api::ProvideRuntimeApi;
 use crate::Error;
 use primitives::traits::SpawnNamed;
 
-pub use parachain::wasm_executor::ValidationPool;
+pub use parachain::wasm_executor::{ValidationPool, ValidationExecutionMode};
 
 /// Does basic checks of a collation. Provide the encoded PoV-block.
 pub fn basic_checks(

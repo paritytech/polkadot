@@ -8623,8 +8623,11 @@ dependencies = [
  "polkadot-collator",
  "polkadot-parachain",
  "polkadot-primitives",
+ "polkadot-service",
  "sc-client-api",
+ "sp-api",
  "sp-core",
+ "sp-runtime",
  "test-parachain-adder",
 ]
 

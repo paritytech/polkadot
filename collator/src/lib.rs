@@ -67,7 +67,7 @@ pub use sc_network::PeerId;
 pub use service::{RuntimeApiCollection, Client};
 pub use sc_cli::SubstrateCli;
 #[cfg(not(feature = "service-rewr"))]
-use polkadot_service::{FullNodeHandles, AbstractClient};
+use polkadot_service::{FullNodeHandles, AbstractClient, ClientHandle};
 #[cfg(feature = "service-rewr")]
 use polkadot_service_new::{
 	self as polkadot_service,
@@ -76,7 +76,8 @@ use polkadot_service_new::{
 use sc_service::SpawnTaskHandle;
 use sp_core::traits::SpawnNamed;
 use sp_runtime::traits::BlakeTwo256;
-use consensus_common::SyncOracle;
+pub use consensus_common::SyncOracle;
+use sc_client_api::Backend as BackendT;
 
 const COLLATION_TIMEOUT: Duration = Duration::from_secs(30);
 
@@ -117,14 +118,20 @@ pub trait BuildParachainContext {
 	type ParachainContext: self::ParachainContext;
 
 	/// Build the `ParachainContext`.
-	fn build<SP>(
+	fn build<SP, Client, Backend, PNetwork>(
 		self,
-		client: polkadot_service::Client,
+		client: Arc<Client>,
 		spawner: SP,
-		network: impl Network + SyncOracle + Clone + 'static,
+		network: PNetwork,
 	) -> Result<Self::ParachainContext, ()>
 		where
-			SP: SpawnNamed + Clone + Send + Sync + 'static;
+			SP: SpawnNamed + Clone + Send + Sync + 'static,
+			Backend: BackendT<Block>,
+			Backend::State: sp_api::StateBackend<BlakeTwo256>,
+			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
+			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+			PNetwork: Network + SyncOracle + Clone + 'static,
+		;
 }
 
 /// Parachain context needed for collation.
@@ -194,11 +201,12 @@ pub async fn collate<P>(
 	Some(collation)
 }
 
+/// Build a collator service based on the `ClientHandle`.
 #[cfg(feature = "service-rewr")]
-fn build_collator_service<P>(
+pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: polkadot_service::Client,
+	client: impl ClientHandle,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
@@ -217,7 +225,6 @@ struct BuildCollationWork<P> {
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
 	spawner: SpawnTaskHandle,
-	client: polkadot_service::Client,
 }
 
 impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
@@ -233,7 +240,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 		Backend: sc_client_api::Backend<Block>,
 		Backend::State: sp_api::StateBackend<BlakeTwo256>,
 		Api: RuntimeApiCollection<StateBackend = Backend::State>,
-		Client: AbstractClient<Block, Backend, Api = Api> + 'static
+		Client: AbstractClient<Block, Backend, Api = Api> + 'static,
 	{
 		let polkadot_network = self.handles
 			.polkadot_network
@@ -246,7 +253,7 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 			.ok_or_else(|| "Collator cannot run when validation networking has not been started")?;
 
 		let parachain_context = match self.build_parachain_context.build(
-			self.client,
+			client.clone(),
 			self.spawner.clone(),
 			polkadot_network.clone(),
 		) {
@@ -346,11 +353,12 @@ impl<P> polkadot_service::ExecuteWithClient for BuildCollationWork<P>
 	}
 }
 
+/// Build a collator service based on the `ClientHandle`.
 #[cfg(not(feature = "service-rewr"))]
-fn build_collator_service<P>(
+pub fn build_collator_service<P>(
 	spawner: SpawnTaskHandle,
 	handles: FullNodeHandles,
-	client: polkadot_service::Client,
+	client: impl ClientHandle,
 	para_id: ParaId,
 	key: Arc<CollatorPair>,
 	build_parachain_context: P,
@@ -366,7 +374,6 @@ fn build_collator_service<P>(
 		key,
 		build_parachain_context,
 		spawner,
-		client: client.clone(),
 	})
 }
 
@@ -454,12 +461,20 @@ mod tests {
 	impl BuildParachainContext for BuildDummyParachainContext {
 		type ParachainContext = DummyParachainContext;
 
-		fn build<SP>(
+		fn build<SP, Client, Backend, PNetwork>(
 			self,
-			_: polkadot_service::Client,
+			_: Arc<Client>,
 			_: SP,
-			_: impl Network + Clone + 'static,
-		) -> Result<Self::ParachainContext, ()> {
+			_: PNetwork,
+		) -> Result<Self::ParachainContext, ()>
+		where
+			SP: SpawnNamed + Clone + Send + Sync + 'static,
+			Backend: BackendT<Block>,
+			Backend::State: sp_api::StateBackend<BlakeTwo256>,
+			Client: polkadot_service::AbstractClient<Block, Backend> + 'static,
+			Client::Api: RuntimeApiCollection<StateBackend = Backend::State>,
+			PNetwork: Network + SyncOracle + Clone + 'static,
+		{
 			Ok(DummyParachainContext)
 		}
 	}

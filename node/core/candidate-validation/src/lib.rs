@@ -33,8 +33,10 @@ use polkadot_primitives::v1::{
 	ValidationCode, OmittedValidationData, PoV, CandidateDescriptor, LocalValidationData,
 	GlobalValidationData, OccupiedCoreAssumption, Hash, validation_data_hash,
 };
-use polkadot_parachain::wasm_executor::{self, ValidationPool, ExecutionMode, ValidationError,
-	InvalidCandidate as WasmInvalidCandidate};
+use polkadot_parachain::wasm_executor::{
+	self, ValidationPool, ExecutionMode, ValidationError,
+	InvalidCandidate as WasmInvalidCandidate, ValidationExecutionMode,
+};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
@@ -73,7 +75,7 @@ async fn run(
 )
 	-> SubsystemResult<()>
 {
-	let pool = ValidationPool::new();
+	let pool = ValidationPool::new(ValidationExecutionMode::ExternalProcessSelfHost);
 
 	loop {
 		match ctx.recv().await? {

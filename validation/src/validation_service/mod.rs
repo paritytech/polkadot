@@ -48,7 +48,7 @@ use log::{warn, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
-use crate::pipeline::ValidationPool;
+use crate::pipeline::{ValidationPool, ValidationExecutionMode};
 
 // Remote processes may request for a validation instance to be cloned or instantiated.
 // They send a oneshot channel.
@@ -132,6 +132,8 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 	pub keystore: KeyStorePtr,
 	/// The maximum block-data size in bytes.
 	pub max_block_data_size: Option<u64>,
+	/// Validation execution mode.
+	pub validation_execution_mode: ValidationExecutionMode,
 }
 
 impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
@@ -163,7 +165,7 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
-		let validation_pool = Some(ValidationPool::new());
+		let validation_pool = Some(ValidationPool::new(self.validation_execution_mode));
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
