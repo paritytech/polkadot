@@ -75,13 +75,13 @@ impl SubstrateCli for Cli {
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
 				if self.run.force_rococo || starts_with("rococo") {
-					Box::new(service::RococoChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+					Box::new(service::RococoChainSpec::from_json_file(path)?)
 				} else if self.run.force_kusama || starts_with("kusama") {
-					Box::new(service::KusamaChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+					Box::new(service::KusamaChainSpec::from_json_file(path)?)
 				} else if self.run.force_westend || starts_with("westend") {
-					Box::new(service::WestendChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+					Box::new(service::WestendChainSpec::from_json_file(path)?)
 				} else {
-					Box::new(service::PolkadotChainSpec::from_json_file(std::path::PathBuf::from(path))?)
+					Box::new(service::PolkadotChainSpec::from_json_file(path)?)
 				}
 			},
 		})
