@@ -132,7 +132,7 @@ decl_event!(
 		Balance = BalanceOf<T>,
 		AccountId = <T as frame_system::Trait>::AccountId
 	{
-		/// Someone claimed some DOTs.
+		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(AccountId, EthereumAddress, Balance),
 	}
 );

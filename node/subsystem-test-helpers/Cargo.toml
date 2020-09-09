@@ -13,7 +13,7 @@ futures-timer = "3.0.2"
 log = "0.4.8"
 parity-scale-codec = "1.3.4"
 parking_lot = "0.10.0"
-pin-project = "0.4.22"
+pin-project = "0.4.23"
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-primitives = { path = "../../primitives" }

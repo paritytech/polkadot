@@ -22,13 +22,12 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, HeadData, PersistedValidationData, OccupiedCore,
 	PoV, ScheduledCore, ValidatorPair,
 };
-use polkadot_subsystem_testhelpers as test_helpers;
+use polkadot_subsystem_testhelpers::{self as test_helpers, TimeoutExt};
 use polkadot_node_network_protocol::ObservedRole;
 
 use futures::{executor, future, Future};
 use futures_timer::Delay;
 use smallvec::smallvec;
-use smol_timeout::TimeoutExt;
 use std::time::Duration;
 
 macro_rules! view {
