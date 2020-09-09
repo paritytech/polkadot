@@ -53,7 +53,7 @@ struct SignedApprovalVote {
 
 ## RelayVRFStory
 
-Assignment criteria are based off of possible stories about the relay-chain block that included the candidate. More information on stories is available in [the informational page on approvals.](../approval.md#stories).
+Assignment criteria are based off of possible stories about the relay-chain block that included the candidate. More information on stories is available in [the informational page on approvals.](../protocol-approval.md#stories).
 
 ```rust
 /// A story based on the VRF that authorized the relay-chain block where the candidate was

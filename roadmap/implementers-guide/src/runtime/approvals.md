@@ -1,6 +1,6 @@
 # Approvals Module
 
-The approvals module implements the runtime component of the system described in the section on [Approvals](../approval.md).
+The approvals module implements the runtime component of the system described in the section on [Approvals](../protocol-approval.md).
 
 This module is responsible for tracking included candidates in the current chain which still need to be approved, which validators have submitted announcements of their assignment for those blocks, the approval votes cast by those validators on those blocks, and the highest ancestor of the current chain which has been approved.
 
