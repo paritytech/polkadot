@@ -5418,6 +5418,7 @@ dependencies = [
  "polkadot-node-core-proposer",
  "polkadot-node-subsystem",
  "polkadot-overseer",
+ "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime",

@@ -16,38 +16,39 @@
 
 //! Polkadot Client meta trait
 
-use sp_api::{ProvideRuntimeApi, ConstructRuntimeApi, CallApiAt};
+use sc_client_api::{Backend as BackendT, BlockchainEvents};
+use sp_api::{CallApiAt, ConstructRuntimeApi, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::traits::Block as BlockT;
-use sc_client_api::{Backend as BackendT, BlockchainEvents};
 
 /// Polkadot client abstraction, this super trait only pulls in functionality required for
 /// polkadot internal crates like polkadot-collator.
 pub trait PolkadotClient<Block, Backend, Runtime>:
-	BlockchainEvents<Block> + Sized + Send + Sync
+	BlockchainEvents<Block>
+	+ Sized
+	+ Send
+	+ Sync
 	+ ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
 	+ HeaderBackend<Block>
-	+ CallApiAt<
-		Block,
-		Error = sp_blockchain::Error,
-		StateBackend = Backend ::State
-	>
-	where
-		Block: BlockT,
-		Backend: BackendT<Block>,
-		Runtime: ConstructRuntimeApi<Block, Self>
-{}
+	+ CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>
+where
+	Block: BlockT,
+	Backend: BackendT<Block>,
+	Runtime: ConstructRuntimeApi<Block, Self>,
+{
+}
 
 impl<Block, Backend, Runtime, Client> PolkadotClient<Block, Backend, Runtime> for Client
-	where
-		Block: BlockT,
-		Runtime: ConstructRuntimeApi<Block, Self>,
-		Backend: BackendT<Block>,
-		Client: BlockchainEvents<Block> + ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi> + HeaderBackend<Block>
-			+ Sized + Send + Sync
-			+ CallApiAt<
-				Block,
-				Error = sp_blockchain::Error,
-				StateBackend = Backend ::State
-			>
-{}
+where
+	Block: BlockT,
+	Runtime: ConstructRuntimeApi<Block, Self>,
+	Backend: BackendT<Block>,
+	Client: BlockchainEvents<Block>
+		+ ProvideRuntimeApi<Block, Api = Runtime::RuntimeApi>
+		+ HeaderBackend<Block>
+		+ Sized
+		+ Send
+		+ Sync
+		+ CallApiAt<Block, Error = sp_blockchain::Error, StateBackend = Backend::State>,
+{
+}
