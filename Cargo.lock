@@ -4929,6 +4929,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "polkadot-node-core-candidate-selection"
+version = "0.1.0"
+dependencies = [
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "log 0.4.11",
+ "polkadot-node-primitives",
+ "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
+ "polkadot-primitives",
+ "sp-core",
+]
+
+[[package]]
 name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [

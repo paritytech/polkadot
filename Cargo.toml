@@ -42,6 +42,7 @@ members = [
 	"node/core/av-store",
 	"node/core/backing",
 	"node/core/bitfield-signing",
+	"node/core/candidate-selection",
 	"node/core/candidate-validation",
 	"node/core/chain-api",
 	"node/core/proposer",

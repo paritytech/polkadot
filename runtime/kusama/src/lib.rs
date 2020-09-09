@@ -889,7 +889,6 @@ impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	}
 }
 
-// TODO TODO: shceduler origin must be upgraded for council and technincalcomittee
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
