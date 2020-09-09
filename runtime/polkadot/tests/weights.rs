@@ -149,8 +149,7 @@ fn weight_of_phragmen_renounce_candidacy_is_correct() {
 
 #[test]
 fn weight_of_treasury_propose_spend_is_correct() {
-	// #[weight = 120_000_000 + T::DbWeight::get().reads_writes(1, 2)]
-	let expected_weight = 120_000_000 + DbWeight::get().read + 2 * DbWeight::get().write;
+	let expected_weight = 43830000 + DbWeight::get().read + 2 * DbWeight::get().write;
 	let weight =
 		TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
@@ -159,8 +158,7 @@ fn weight_of_treasury_propose_spend_is_correct() {
 
 #[test]
 fn weight_of_treasury_approve_proposal_is_correct() {
-	// #[weight = (34_000_000 + T::DbWeight::get().reads_writes(2, 1), DispatchClass::Operational)]
-	let expected_weight = 34_000_000 + 2 * DbWeight::get().read + DbWeight::get().write;
+	let expected_weight = 12744000 + 2 * DbWeight::get().read + DbWeight::get().write;
 	let weight = TreasuryCall::approve_proposal::<Runtime>(Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
@@ -170,9 +168,7 @@ fn weight_of_treasury_approve_proposal_is_correct() {
 fn weight_of_treasury_tip_is_correct() {
 	let max_len: Weight = <Runtime as pallet_treasury::Trait>::Tippers::max_len() as Weight;
 
-	// #[weight = 68_000_000 + 2_000_000 * T::Tippers::max_len() as Weight
-	// 	+ T::DbWeight::get().reads_writes(2, 1)]
-	let expected_weight = 68_000_000 + 2_000_000 * max_len + 2 * DbWeight::get().read + DbWeight::get().write;
+	let expected_weight = 26499000 + 675000 * max_len + 2 * DbWeight::get().read + DbWeight::get().write;
 	let weight = TreasuryCall::tip::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
