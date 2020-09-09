@@ -198,44 +198,8 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	}
 }
 
-/// Which origin a parachain's message to the relay chain should be dispatched from.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-#[repr(u8)]
-pub enum ParachainDispatchOrigin {
-	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
-	/// interacting with standard modules such as `balances`.
-	Signed,
-	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
-	/// aware modules which need to succinctly verify that the origin is a parachain.
-	Parachain,
-	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
-	/// parachains.
-	Root,
-}
-
-impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
-	type Error = ();
-	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
-		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;
-		const PARACHAIN: u8 = ParachainDispatchOrigin::Parachain as u8;
-		Ok(match x {
-			SIGNED => ParachainDispatchOrigin::Signed,
-			PARACHAIN => ParachainDispatchOrigin::Parachain,
-			_ => return Err(()),
-		})
-	}
-}
-
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-pub struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
-}
+pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
