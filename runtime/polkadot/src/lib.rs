@@ -865,7 +865,7 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		purchase::remove_pallet::<Runtime>();
 
 		// Update scheduler origin usage
 		#[derive(Encode, Decode)]

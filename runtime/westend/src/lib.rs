@@ -579,9 +579,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
-				Call::DummyParachains(..) |
-				Call::DummyAttestations(..) |
-				Call::DummyRegistrar(..) |
 				Call::Utility(..) |
 				Call::Identity(..) |
 				Call::Recovery(pallet_recovery::Call::as_recovered(..)) |
@@ -639,10 +636,6 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
-	type Event = Event;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -665,7 +658,7 @@ construct_runtime! {
 		Authorship: pallet_authorship::{Module, Call, Storage} = 5,
 		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
 		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
-		Historical: session_historical::{Module},
+		Historical: session_historical::{Module} = 27,
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
 		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 9,
 		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
