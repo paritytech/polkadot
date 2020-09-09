@@ -20,12 +20,17 @@
 //! routing the messages at their destinations and informing the parachains about the incoming
 //! messages.
 
-use crate::{configuration, initializer};
+use crate::{
+	configuration,
+	initializer,
+};
 use sp_std::prelude::*;
 use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
 use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash};
 
 mod dmp;
+
+pub use dmp::QueueDownwardMessageError;
 
 pub trait Trait: frame_system::Trait + configuration::Trait {}
 
@@ -122,6 +127,7 @@ mod tests {
 		MockGenesisConfig {
 			configuration: crate::configuration::GenesisConfig {
 				config: crate::configuration::HostConfiguration {
+					max_downward_message_size: 1024,
 					..Default::default()
 				},
 			},
