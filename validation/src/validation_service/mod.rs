@@ -749,7 +749,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		executor::block_on(parachain_validation.get_or_instantiate(Default::default(), &keystore, None))
@@ -789,7 +789,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		executor::block_on(parachain_validation.get_or_instantiate(Default::default(), &keystore, None))

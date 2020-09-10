@@ -711,7 +711,7 @@ mod tests {
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
-			None,
+			ExecutionMode::InProcess,
 		);
 
 		let mut candidate = AbridgedCandidateReceipt::default();
@@ -768,7 +768,7 @@ mod tests {
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
-			None,
+			ExecutionMode::InProcess,
 		);
 
 		let mut candidate = AbridgedCandidateReceipt::default();
@@ -826,7 +826,7 @@ mod tests {
 			availability_store: store.clone(),
 			max_block_data_size: None,
 			n_validators,
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		for i in 0..n_validators {
@@ -896,7 +896,7 @@ mod tests {
 			availability_store: store.clone(),
 			max_block_data_size: None,
 			n_validators,
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		let validated = block_on(producer.prime_with(|_, _| Ok(
@@ -951,7 +951,7 @@ mod tests {
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
-			None,
+			ExecutionMode::InProcess,
 		);
 
 		let mut candidate = AbridgedCandidateReceipt::default();
@@ -1019,7 +1019,7 @@ mod tests {
 			signing_context.clone(),
 			AvailabilityStore::new_in_memory(DummyErasureNetworking),
 			None,
-			None,
+			ExecutionMode::InProcess,
 		);
 
 		let mut candidate = AbridgedCandidateReceipt::default();
