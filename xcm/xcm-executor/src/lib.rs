@@ -37,7 +37,7 @@ pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
-		let (mut holding, effects) = match (origin, msg) {
+		let (mut holding, effects) = match (origin.clone(), msg) {
 			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
 				return Self::execute_xcm(new_origin, (*inner).try_into()?)

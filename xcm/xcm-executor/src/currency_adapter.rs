@@ -16,9 +16,9 @@
 
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
-use frame_support::traits::{Currency, ExistenceRequirement::AllowDeath, WithdrawReason};
+use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
 use crate::traits::{MatchesFungible, PunnFromLocation, TransactAsset};
-use sp_std::marker::PhantomData;
+use sp_std::{convert::TryInto, marker::PhantomData};
 
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<Currency>,
@@ -37,16 +37,18 @@ impl<
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
-		let who = AccountIdConverter::punn_from_location(who)?;
-		Currency::deposit_creating(&who, amount).map_err(|_| ())?;
+		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
+		let balance_amount = amount.try_into().map_err(|_| ())?;
+		let _imbalance = Currency::deposit_creating(&who, balance_amount);
 		Ok(())
 	}
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
-		let who = AccountIdConverter::punn_from_location(who)?;
-		Currency::withdraw(&who, amount, WithdrawReason::Transfer, AllowDeath).map_err(|_| ())?;
+		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
+		let balance_amount = amount.try_into().map_err(|_| ())?;
+		Currency::withdraw(&who, balance_amount, WithdrawReason::Transfer.into(), AllowDeath).map_err(|_| ())?;
 		Ok(what.clone())
 	}
 }
