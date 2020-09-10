@@ -290,7 +290,7 @@ async fn spawn_validate_from_chain_state(
 				ctx,
 				validation_pool,
 				validation_data.persisted,
-				Some(validation_data.transient),
+				validation_data.transient,
 				validation_code,
 				descriptor,
 				pov,
@@ -311,7 +311,7 @@ async fn spawn_validate_from_chain_state(
 				ctx,
 				validation_pool,
 				validation_data.persisted,
-				Some(validation_data.transient),
+				validation_data.transient,
 				validation_code,
 				descriptor,
 				pov,
@@ -332,7 +332,7 @@ async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_pool: Option<ValidationPool>,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: Option<TransientValidationData>,
+	transient_validation_data: TransientValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -449,7 +449,7 @@ impl ValidationBackend for RealValidationBackend {
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: Option<TransientValidationData>,
+	transient_validation_data: TransientValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -460,10 +460,11 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	}
 
 	let params = ValidationParams {
-		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
-		relay_chain_height: persisted_validation_data.block_number,
-		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
+		validation_data: ValidationData {
+			persisted: persisted_validation_data.clone(),
+			transient: transient_validation_data.clone(),
+		}
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
@@ -481,14 +482,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let post_check_result = if let Some(transient) = transient_validation_data {
-				check_wasm_result_against_constraints(
-					&transient,
-					&res,
-				)
-			} else {
-				Ok(())
-			};
+			let post_check_result = check_wasm_result_against_constraints(
+				&transient_validation_data,
+				&res,
+			);
 
 			Ok(match post_check_result {
 				Ok(()) => ValidationResult::Valid(ValidationOutputs {
@@ -834,7 +831,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.persisted.clone(),
-			Some(validation_data.transient),
+			validation_data.transient,
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -885,7 +882,7 @@ mod tests {
 				))
 			},
 			validation_data.persisted,
-			Some(validation_data.transient),
+			validation_data.transient,
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -931,7 +928,7 @@ mod tests {
 				))
 			},
 			validation_data.persisted,
-			Some(validation_data.transient),
+			validation_data.transient,
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -970,7 +967,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.persisted.clone(),
-			None,
+			validation_data.transient.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),

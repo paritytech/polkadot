@@ -37,7 +37,7 @@ pub use polkadot_core_primitives::v1::{
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
 	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	ValidationCode, ValidationData, PersistedValidationData, TransientValidationData,
 };
 
 // Export some basic parachain primitives from v0.
@@ -214,92 +214,6 @@ impl Ord for CommittedCandidateReceipt {
 		self.descriptor().para_id.cmp(&other.descriptor().para_id)
 			.then_with(|| self.commitments.head_data.cmp(&other.commitments.head_data))
 	}
-}
-
-/// The validation data provide information about how to validate both the inputs and
-/// outputs of a candidate.
-///
-/// There are two types of validation data: persisted and transient.
-/// Their respective sections of the guide elaborate on their functionality in more detail.
-///
-/// This information is derived from the chain state and will vary from para to para,
-/// although some of the fields may be the same for every para.
-///
-/// Persisted validation data are generally derived from some relay-chain state to form inputs
-/// to the validation function, and as such need to be persisted by the availability system to
-/// avoid dependence on availability of the relay-chain state. The backing phase of the
-/// inclusion pipeline ensures that everything that is included in a valid fork of the
-/// relay-chain already adheres to the transient constraints.
-///
-/// The validation data also serve the purpose of giving collators a means of ensuring that
-/// their produced candidate and the commitments submitted to the relay-chain alongside it
-/// will pass the checks done by the relay-chain when backing, and give validators
-/// the same understanding when determining whether to second or attest to a candidate.
-///
-/// Since the commitments of the validation function are checked by the
-/// relay-chain, secondary checkers can rely on the invariant that the relay-chain
-/// only includes para-blocks for which these checks have already been done. As such,
-/// there is no need for the validation data used to inform validators and collators about
-/// the checks the relay-chain will perform to be persisted by the availability system.
-/// Nevertheless, we expose it so the backing validators can validate the outputs of a
-/// candidate before voting to submit it to the relay-chain and so collators can
-/// collate candidates that satisfy the criteria implied these transient validation data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct ValidationData<N = BlockNumber> {
-	/// The persisted validation data.
-	pub persisted: PersistedValidationData<N>,
-	/// The transient validation data.
-	pub transient: TransientValidationData<N>,
-}
-
-/// Validation data that needs to be persisted for secondary checkers.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct PersistedValidationData<N = BlockNumber> {
-	/// The parent head-data.
-	pub parent_head: HeadData,
-	/// The relay-chain block number this is in the context of.
-	pub block_number: N,
-	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
-	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
-	/// sender.
-	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
-}
-
-impl<N: Encode> PersistedValidationData<N> {
-	/// Compute the blake2-256 hash of the persisted validation data.
-	pub fn hash(&self) -> Hash {
-		BlakeTwo256::hash_of(self)
-	}
-}
-
-/// Validation data for checking outputs of the validation-function.
-/// As such, they also inform the collator about how to construct the candidate.
-///
-/// These are transient because they are not necessary beyond the point where the
-/// candidate is backed.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
-pub struct TransientValidationData<N = BlockNumber> {
-	/// The maximum code size permitted, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size permitted, in bytes.
-	pub max_head_data_size: u32,
-	/// The balance of the parachain at the moment of validation.
-	pub balance: Balance,
-	/// Whether the parachain is allowed to upgrade its validation code.
-	///
-	/// This is `Some` if so, and contains the number of the minimum relay-chain
-	/// height at which the upgrade will be applied, if an upgrade is signaled
-	/// now.
-	///
-	/// A parachain should enact its side of the upgrade at the end of the first
-	/// parablock executing in the context of a relay-chain block with at least this
-	/// height. This may be equal to the current perceived relay-chain block height, in
-	/// which case the code upgrade should be applied at the end of the signaling
-	/// block.
-	pub code_upgrade_allowed: Option<N>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.

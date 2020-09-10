@@ -19,13 +19,13 @@
 use std::sync::Arc;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
 use sp_blockchain::HeaderBackend;
-use sp_runtime::traits::{Block as BlockT, BlakeTwo256};
-use sp_runtime::generic::{BlockId, SignedBlock};
+use sp_runtime::{
+	Justification, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
+};
 use consensus_common::BlockStatus;
-use sp_runtime::Justification;
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
-use polkadot_primitives::v0::{Block, ParachainHost, AccountId, Nonce, Balance};
+use polkadot_primitives::v0::{Block, AccountId, Nonce, Balance};
 
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
@@ -33,7 +33,6 @@ pub trait RuntimeApiCollection:
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -52,7 +51,6 @@ where
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -173,7 +171,7 @@ impl sc_client_api::UsageProvider<Block> for Client {
 
 impl sc_client_api::BlockBackend<Block> for Client {
 	fn block_body(
-		&self, 
+		&self,
 		id: &BlockId<Block>
 	) -> sp_blockchain::Result<Option<Vec<<Block as BlockT>::Extrinsic>>> {
 		match self {
@@ -200,7 +198,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 	}
 
 	fn justification(
-		&self, 
+		&self,
 		id: &BlockId<Block>
 	) -> sp_blockchain::Result<Option<Justification>> {
 		match self {
@@ -211,7 +209,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 	}
 
 	fn block_hash(
-		&self, 
+		&self,
 		number: NumberFor<Block>
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
 		match self {
@@ -224,9 +222,9 @@ impl sc_client_api::BlockBackend<Block> for Client {
 
 impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	fn storage(
-		&self, 
-		id: &BlockId<Block>, 
-		key: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		key: &StorageKey,
 	) -> sp_blockchain::Result<Option<StorageData>> {
 		match self {
 			Self::Polkadot(client) => client.storage(id, key),
@@ -236,9 +234,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn storage_keys(
-		&self, 
-		id: &BlockId<Block>, 
-		key_prefix: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		key_prefix: &StorageKey,
 	) -> sp_blockchain::Result<Vec<StorageKey>> {
 		match self {
 			Self::Polkadot(client) => client.storage_keys(id, key_prefix),
@@ -246,11 +244,11 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Kusama(client) => client.storage_keys(id, key_prefix),
 		}
 	}
-	
+
 	fn storage_hash(
-		&self, 
-		id: &BlockId<Block>, 
-		key: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		key: &StorageKey,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
 		match self {
 			Self::Polkadot(client) => client.storage_hash(id, key),
@@ -260,9 +258,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn storage_pairs(
-		&self, 
-		id: &BlockId<Block>, 
-		key_prefix: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		key_prefix: &StorageKey,
 	) -> sp_blockchain::Result<Vec<(StorageKey, StorageData)>> {
 		match self {
 			Self::Polkadot(client) => client.storage_pairs(id, key_prefix),
@@ -272,10 +270,10 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn storage_keys_iter<'a>(
-		&self, 
-		id: &BlockId<Block>, 
-		prefix: Option<&'a StorageKey>, 
-		start_key: Option<&StorageKey>
+		&self,
+		id: &BlockId<Block>,
+		prefix: Option<&'a StorageKey>,
+		start_key: Option<&StorageKey>,
 	) -> sp_blockchain::Result<KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>> {
 		match self {
 			Self::Polkadot(client) => client.storage_keys_iter(id, prefix, start_key),
@@ -285,10 +283,10 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn child_storage(
-		&self, 
-		id: &BlockId<Block>, 
-		child_info: &ChildInfo, 
-		key: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		child_info: &ChildInfo,
+		key: &StorageKey,
 	) -> sp_blockchain::Result<Option<StorageData>> {
 		match self {
 			Self::Polkadot(client) => client.child_storage(id, child_info, key),
@@ -298,10 +296,10 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn child_storage_keys(
-		&self, 
-		id: &BlockId<Block>, 
-		child_info: &ChildInfo, 
-		key_prefix: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		child_info: &ChildInfo,
+		key_prefix: &StorageKey,
 	) -> sp_blockchain::Result<Vec<StorageKey>> {
 		match self {
 			Self::Polkadot(client) => client.child_storage_keys(id, child_info, key_prefix),
@@ -311,10 +309,10 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn child_storage_hash(
-		&self, 
-		id: &BlockId<Block>, 
-		child_info: &ChildInfo, 
-		key: &StorageKey
+		&self,
+		id: &BlockId<Block>,
+		child_info: &ChildInfo,
+		key: &StorageKey,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
 		match self {
 			Self::Polkadot(client) => client.child_storage_hash(id, child_info, key),
@@ -324,9 +322,9 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn max_key_changes_range(
-		&self, 
-		first: NumberFor<Block>, 
-		last: BlockId<Block>
+		&self,
+		first: NumberFor<Block>,
+		last: BlockId<Block>,
 	) -> sp_blockchain::Result<Option<(NumberFor<Block>, BlockId<Block>)>> {
 		match self {
 			Self::Polkadot(client) => client.max_key_changes_range(first, last),
@@ -336,11 +334,11 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 	}
 
 	fn key_changes(
-		&self, 
-		first: NumberFor<Block>, 
-		last: BlockId<Block>, 
-		storage_key: Option<&PrefixedStorageKey>, 
-		key: &StorageKey
+		&self,
+		first: NumberFor<Block>,
+		last: BlockId<Block>,
+		storage_key: Option<&PrefixedStorageKey>,
+		key: &StorageKey,
 	) -> sp_blockchain::Result<Vec<(NumberFor<Block>, u32)>> {
 		match self {
 			Self::Polkadot(client) => client.key_changes(first, last, storage_key, key),
