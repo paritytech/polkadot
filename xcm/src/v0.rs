@@ -158,7 +158,7 @@ pub enum Ai {
 	Null,
 	DepositAsset { assets: MultiAssets, dest: MultiLocation },
 	ExchangeAsset { give: MultiAssets, receive: MultiAssets },
-	InitiateReserveTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
+	InitiateReserveTransfer { assets: MultiAssets, reserve: MultiLocation, dest: MultiLocation, effects: Ais },
 	InitiateTeleport { assets: MultiAssets, dest: MultiLocation, effects: Ais },
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: MultiAssets },
 }

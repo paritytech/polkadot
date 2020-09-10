@@ -19,7 +19,7 @@
 use sp_std::{marker::PhantomData, convert::TryInto};
 use frame_support::dispatch::Dispatchable;
 use codec::Decode;
-use xcm::v0::{Xcm, Ai, ExecuteXcm, XcmResult, MultiAsset, MultiLocation, Junction};
+use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, XcmResult, MultiAsset, MultiLocation, Junction};
 
 pub mod traits;
 mod assets;
@@ -103,26 +103,18 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		match effect {
 			Ai::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
-				for (id, amount) in deposited.fungible.into_iter() {
-					// TODO: extract into a From impl
-					let asset = match id {
-						AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
-						AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
-					};
+				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-				for (id, instance) in deposited.non_fungible {
-					// TODO: extract into a From impl
-					let asset = match id {
-						AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
-						AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
-					};
-					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
-				}
+				Ok(())
 			},
+			Ai::InitiateReserveTransfer { assets, reserve, dest, effects} => {
+				let transferred = holding.saturating_take(assets);
+				let assets = transferred.into_assets_iter().collect();
+				Config::XcmSender::send_xcm(reserve, Xcm::ReserveAssetTransfer { assets, dest, effects })
+			}
 			_ => Err(())?,
 		}
-		Ok(())
 	}
 }
 
