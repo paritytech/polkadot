@@ -160,7 +160,7 @@ pub enum CollatorProtocolMessage {
 	/// Provide a collation to distribute to validators.
 	DistributeCollation(CandidateReceipt, PoV),
 	/// Fetch a collation under the given relay-parent for the given ParaId.
-	FetchCollation(Hash, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
+	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
@@ -176,7 +176,7 @@ impl CollatorProtocolMessage {
 		match self {
 			Self::CollateOn(_) => None,
 			Self::DistributeCollation(receipt, _) => Some(receipt.descriptor().relay_parent),
-			Self::FetchCollation(relay_parent, _, _) => Some(*relay_parent),
+			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
 			Self::ReportCollator(_) => None,
 			Self::NoteGoodCollation(_) => None,
 			Self::NetworkBridgeUpdateV1(_) => None,
