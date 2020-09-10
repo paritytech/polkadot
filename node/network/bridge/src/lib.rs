@@ -846,11 +846,14 @@ impl ConnectToAuthoritiesState {
 
 	/// Returns `true` if ready to send.
 	pub fn is_ready(&self) -> bool {
-		self.pending.is_empty()
+		self.pending.is_empty() || self.sender.is_canceled()
 	}
 
 	/// Fulfill the request.
 	pub fn send(self) {
+		if self.sender.is_canceled() {
+			return;
+		}
 		// TODO: maybe we actually want this if there is a timeout
 		debug_assert!(self.is_ready(), "calling `send` when not ready");
 
