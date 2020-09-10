@@ -59,7 +59,8 @@ pub fn run_worker(_: &str) -> Result<(), String> {
 }
 
 /// The execution mode for the `ValidationPool`.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
+#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug)]
 pub enum ExecutionMode {
 	/// The validation worker is ran in a thread inside the same process.
 	InProcess,
@@ -161,7 +162,7 @@ pub fn validate_candidate(
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::ExternalProcessSelfHost(_pool) | ExecutionMode::ExternalProcessCustomHost { .. } =>
+		ExecutionMode::ExternalProcessSelfHost(_) | ExecutionMode::ExternalProcessCustomHost { .. } =>
 			Err(ValidationError::Internal(InternalError::System(
 				Box::<dyn std::error::Error + Send + Sync>::from(
 					"Remote validator not available".to_string()
@@ -183,7 +184,7 @@ pub fn validate_candidate_internal(
 ) -> Result<ValidationResult, ValidationError> {
 	let executor = sc_executor::WasmExecutor::new(
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		sc_executor::WasmExecutionMethod::Compiled,
+		sc_executor::WasmExecutionMethod::Interpreted,
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		Default::default(),
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
