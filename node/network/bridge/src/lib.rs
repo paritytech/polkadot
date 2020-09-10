@@ -618,7 +618,7 @@ async fn run_network<N: Network>(
 
 				// collect multiaddress of authorities
 				let mut multiaddresses = HashSet::new();
-				for authority in authorities.clone().into_iter() {
+				for authority in authorities.iter().cloned() {
 					let result = net.authority_discovery_service.get_addresses_by_authority_id(authority).await;
 					if let Some(addresses) = result {
 						// we might have several `PeerId`s per `AuthorityId` depending on the number of sentry nodes,
