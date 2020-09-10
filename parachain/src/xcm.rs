@@ -87,13 +87,13 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum MultiNetwork {
 		Wildcard,
 		Identified(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum MultiLocation {
 		Null,
 		X1(Junction),
@@ -132,7 +132,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum Junction {
 		Parent,
 		Parachain { #[codec(compact)] id: u32 },
@@ -154,7 +154,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum AssetInstance {
 		Undefined,
 		Index8(u8),

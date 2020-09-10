@@ -725,9 +725,9 @@ decl_module! {
 			ensure!(downward_queue_count < MAX_DOWNWARD_QUEUE_COUNT, Error::<T>::DownwardMessageQueueFull);
 			let dest = dest.try_into().map_err(|_| Error::<T>::BadDestination)?;
 			T::ParachainCurrency::transfer_in(&who, to, amount, AllowDeath)?;
-			let asset = MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount: amount.into() };
-			let effect = Ai::DepositAsset { asset: MultiAsset::Wild, dest: dest };
-			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset, effect });
+			let assets = vec![MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount }];
+			let effects = vec![Ai::DepositAsset { assets: vec![MultiAsset::All], dest }];
+			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { assets, effects });
 			DownwardMessageQueue::append(to, msg.encode());
 		}
 	}
@@ -956,7 +956,7 @@ impl<T: Trait> Module<T> {
 					// message makes sense.
 				}
 			}
-			Ok(Ok(Xcm::ReserveAssetTransfer { asset, dest, effect })) => {
+			Ok(Ok(Xcm::ReserveAssetTransfer { assets, dest, effects })) => {
 				let amount = match asset {
 					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
@@ -979,7 +979,7 @@ impl<T: Trait> Module<T> {
 				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
 				DownwardMessageQueue::append(dest, msg);
 			}
-			Ok(Ok(Xcm::WithdrawAsset { asset, effect })) => {
+			Ok(Ok(Xcm::WithdrawAsset { assets, effects })) => {
 				let amount = match asset {
 					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
@@ -987,7 +987,7 @@ impl<T: Trait> Module<T> {
 				match effect {
 					// Only effect we support for now is a straight wildcard deposit into an AccountId32.
 					// TODO: Consider caring about the `network`.
-					Ai::DepositAsset { asset: MultiAsset::Wild, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
+					Ai::DepositAsset { assets: MultiAsset::All, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
 						let dest = match T::AccountId::decode(&mut &id[..]) {
 							Ok(x) => x,
 							Err(_) => return,
