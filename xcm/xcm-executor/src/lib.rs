@@ -38,13 +38,13 @@ use sp_std::marker::PhantomData;
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
-	fn execute_xcm(origin: MultiLocation, msg: VersionedXcm) -> XcmResult {
-		let (mut holding, effects) = match (origin, Xcm::try_from(msg)) {
-			(origin, Ok(Xcm::ForwardedFromParachain { id, inner })) => {
+	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
+		let (mut holding, effects) = match (origin, msg) {
+			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
 				Self::execute_xcm(new_origin, *inner)
 			}
-			(_origin, Ok(Xcm::WithdrawAsset { assets, effects })) => {
+			(_origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
 				for asset in assets {
@@ -53,7 +53,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				}
 				(holding, effects)
 			}
-			(origin, Ok(Xcm::ReserveAssetCredit { assets, effects })) => {
+			(origin, Xcm::ReserveAssetCredit { assets, effects }) => {
 				// TODO: check whether we trust origin to be our reserve location for this asset via
 				//   config trait.
 				if assets.len() == 1 &&
@@ -66,11 +66,11 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 					Err(())?
 				}
 			}
-			(_origin, Ok(Xcm::TeleportAsset { assets, effects })) => {
+			(_origin, Xcm::TeleportAsset { assets, effects }) => {
 				// TODO: check whether we trust origin to teleport this asset to us via config trait.
 				Err(())?	// << we don't trust any chains, for now.
 			}
-			(origin, Ok(Xcm::Transact { origin_type, call })) => {
+			(origin, Xcm::Transact { origin_type, call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 
 				// TODO: Weight fees should be paid.
