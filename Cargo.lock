@@ -5563,7 +5563,6 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-test-runtime",
- "polkadot-test-service",
  "sc-block-builder",
  "sc-client-api",
  "sc-consensus",
@@ -5574,53 +5573,6 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "substrate-test-client",
-]
-
-[[package]]
-name = "polkadot-test-service"
-version = "0.8.2"
-dependencies = [
- "frame-benchmarking",
- "frame-system",
- "futures 0.1.29",
- "futures 0.3.5",
- "hex",
- "log 0.4.11",
- "pallet-balances",
- "pallet-staking",
- "pallet-transaction-payment",
- "polkadot-primitives",
- "polkadot-rpc",
- "polkadot-runtime-common",
- "polkadot-service-new",
- "polkadot-test-runtime",
- "rand 0.7.3",
- "sc-authority-discovery",
- "sc-chain-spec",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-informant",
- "sc-network",
- "sc-service",
- "sc-transaction-pool",
- "serde_json",
- "sp-arithmetic",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
- "substrate-test-client",
- "substrate-test-utils",
- "tempfile",
- "tokio 0.2.21",
 ]
 
 [[package]]
@@ -8621,26 +8573,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "substrate-test-utils"
-version = "2.0.0-rc6"
-source = "git+https://github.com/paritytech/substrate#e473c5bb6525f0480f415bf58ed5a03f20367d6c"
-dependencies = [
- "futures 0.3.5",
- "substrate-test-utils-derive",
- "tokio 0.2.21",
-]
-
-[[package]]
-name = "substrate-test-utils-derive"
-version = "0.8.0-rc6"
-source = "git+https://github.com/paritytech/substrate#e473c5bb6525f0480f415bf58ed5a03f20367d6c"
-dependencies = [
- "proc-macro-crate",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
 name = "substrate-wasm-builder-runner"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8921,7 +8853,6 @@ dependencies = [
  "pin-project-lite",
  "signal-hook-registry",
  "slab",
- "tokio-macros",
  "winapi 0.3.9",
 ]
 
@@ -8998,17 +8929,6 @@ dependencies = [
  "bytes 0.4.12",
  "futures 0.1.29",
  "log 0.4.11",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "0.2.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
 ]
 
 [[package]]
