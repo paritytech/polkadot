@@ -4491,6 +4491,17 @@ dependencies = [
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
+source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#75a4d547a99b8c368dd7a75ca953df002820028f"
+dependencies = [
+ "parity-scale-codec",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "polkadot-core-primitives"
+version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -4646,7 +4657,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
@@ -4760,13 +4771,34 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#75a4d547a99b8c368dd7a75ca953df002820028f"
 dependencies = [
  "derive_more 0.99.9",
  "futures 0.3.5",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "polkadot-core-primitives",
+ "polkadot-core-primitives 0.7.30 (git+https://github.com/paritytech/polkadot?branch=rococo-branch)",
+ "sc-executor",
+ "serde",
+ "shared_memory",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-std",
+ "sp-wasm-interface",
+]
+
+[[package]]
+name = "polkadot-parachain"
+version = "0.8.22"
+dependencies = [
+ "derive_more 0.99.9",
+ "futures 0.3.5",
+ "log 0.4.8",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "polkadot-core-primitives 0.7.30",
  "sc-executor",
  "serde",
  "shared_memory",
@@ -4776,6 +4808,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
+ "xcm",
 ]
 
 [[package]]
@@ -4804,8 +4837,8 @@ dependencies = [
  "bitvec",
  "frame-system",
  "parity-scale-codec",
- "polkadot-core-primitives",
- "polkadot-parachain",
+ "polkadot-core-primitives 0.7.30",
+ "polkadot-parachain 0.8.22",
  "pretty_assertions",
  "serde",
  "sp-api",
@@ -4945,7 +4978,7 @@ dependencies = [
  "pallet-treasury",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",
@@ -4965,6 +4998,7 @@ dependencies = [
  "sp-trie",
  "static_assertions",
  "trie-db",
+ "xcm",
 ]
 
 [[package]]
@@ -5195,7 +5229,7 @@ dependencies = [
  "pallet-transaction-payment-rpc-runtime-api",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
@@ -5311,7 +5345,7 @@ dependencies = [
  "parking_lot 0.9.0",
  "polkadot-availability-store",
  "polkadot-erasure-coding",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-statement-table",
  "sc-basic-authorship",
@@ -6045,7 +6079,7 @@ dependencies = [
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
@@ -6098,7 +6132,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
@@ -8608,7 +8642,7 @@ version = "0.8.22"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "sp-io",
  "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8623,7 +8657,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "polkadot-collator",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "sc-client-api",
  "sp-core",
@@ -8636,7 +8670,7 @@ version = "0.7.22"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "sp-io",
  "sp-std",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -8655,7 +8689,7 @@ name = "test-parachains"
 version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "sp-core",
  "test-parachain-adder",
  "test-parachain-code-upgrader",
@@ -9722,7 +9756,7 @@ dependencies = [
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.8.22",
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
@@ -9840,6 +9874,31 @@ dependencies = [
  "curve25519-dalek",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "xcm"
+version = "0.8.22"
+dependencies = [
+ "parity-scale-codec",
+ "shared_memory",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "xcm-executor"
+version = "0.8.22"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "polkadot-parachain 0.8.22 (git+https://github.com/paritytech/polkadot?branch=rococo-branch)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
 ]
 
 [[package]]
