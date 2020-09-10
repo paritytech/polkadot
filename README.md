@@ -12,12 +12,55 @@ information about installing the `polkadot` binary and developing on the codebas
 specific guides, like how to be a validator, see the
 [Polkadot Wiki](https://wiki.polkadot.network/docs/en/).
 
+## Installation
+
+If you just wish to run a Polkadot node without compiling it yourself, you may
+either run the latest binary from our
+[releases](https://github.com/paritytech/polkadot/releases) page, or install
+Polkadot from one of our package repositories.
+
+Installation from the debian or rpm repositories will create a `systemd`
+service that can be used to run a Polkadot node. This is disabled by default,
+and can be started by running `systemctl start polkadot` on demand (use
+`systemctl enable polkadot` to make it auto-start after reboot). By default, it
+will run as the `polkadot` user.  Command-line flags passed to the binary can
+be customised by editing `/etc/default/polkadot`. This file will not be
+overwritten on updating polkadot. You may also just run the node directly from
+the command-line.
+
+### Debian-based (Debian, Ubuntu)
+
+Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
+derivatives. Run the following commands as the `root` user.
+
+```
+# Import the security@parity.io GPG key
+gpg --recv-keys --keyserver hkps://keys.mailvelope.com 9D4B2B6EB8F97156D19669A9FF0812D491B96798
+gpg --export 9D4B2B6EB8F97156D19669A9FF0812D491B96798 > /usr/share/keyrings/parity.gpg
+# Add the Parity repository and update the package index
+echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' > /etc/apt/sources.list.d/parity.list
+apt update
+# Install polkadot
+apt install polkadot
+
+```
+
+### RPM-based (Fedora, CentOS)
+
+Currently supports Fedora 32 and CentOS 8, and derivatives.
+
+```
+# Install dnf-plugins-core (This might already be installed)
+dnf install dnf-plugins-core
+# Add the repository and enable it
+dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
+dnf config-manager --set-enabled polkadot
+# Install polkadot (You may have to confirm the import of the GPG key, which
+# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798)
+dnf install polkadot
+```
+
 ## Building
-
-### Use a Provided Binary
-
-If you want to connect to one of the networks supported by this repo, you can go to the latest
-release and download the binary that is provided.
 
 ### Install via Cargo
 

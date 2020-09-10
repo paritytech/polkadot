@@ -4,9 +4,12 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
+description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+license = "GPL-3.0-only"
 version = "0.8.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
@@ -79,3 +82,33 @@ runtime-benchmarks=["cli/runtime-benchmarks"]
 service-rewr= [
 	"cli/service-rewr",
 ]
+
+# Configuration for building a .deb package - for use with `cargo-deb`
+[package.metadata.deb]
+name = "polkadot"
+extended-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+section = "misc"
+maintainer = "martin@parity.io"
+license-file = ["LICENSE", "0"]
+# https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
+maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
+assets = [
+	["target/release/polkadot", "/usr/bin/", "755"],
+	["scripts/packaging/polkadot.service", "/lib/systemd/system/", "644"]
+]
+conf-files = [
+	"/etc/default/polkadot"
+]
+
+# Configuration for building an .rpm package - for use with `cargo-rpm`
+[package.metadata.rpm]
+package = "polkadot"
+
+[package.metadata.rpm.cargo]
+buildflags = ["--release"]
+
+[package.metadata.rpm.targets]
+polkadot = { path = "/usr/bin/polkadot" }
+
+[package.metadata.rpm.files]
+"../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
