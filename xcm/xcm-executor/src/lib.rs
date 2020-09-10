@@ -18,18 +18,15 @@
 
 use sp_std::convert::TryInto;
 use frame_support::dispatch::Dispatchable;
-use codec::{Encode, Decode};
-use xcm::{VersionedXcm, v0::{
-	Xcm, Ais, Ai, SendXcm, ExecuteXcm, XcmError, XcmResult,
-	MultiOrigin, MultiAssets, MultiAsset, AssetInstance, MultiLocation, Junction,
-}};
+use codec::Decode;
+use xcm::v0::{Xcm, Ai, ExecuteXcm, XcmResult, MultiAsset, MultiLocation, Junction};
 
 mod traits;
 mod assets;
 mod config;
 mod currency_adapter;
 
-use traits::TransactAsset;
+use traits::{TransactAsset, ConvertOrigin};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 pub use currency_adapter::CurrencyAdapter;
@@ -79,7 +76,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// TODO: allow this to be configurable in the trait.
 				// TODO: allow the trait to issue filters for the relay-chain
 				let message_call = Config::Call::decode(&mut &call[..]).map_err(|_| ())?;
-				let dispatch_origin = Config::OriginConverter::convert((origin_type, origin))?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)?;
 				let _ok = message_call.dispatch(dispatch_origin).is_ok();
 				// Not much to do with the result as it is. It's up to the parachain to ensure that the
 				// message makes sense.
@@ -123,7 +120,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 			},
-			_ => Err(()),
+			_ => Err(())?,
 		}
 		Ok(())
 	}
