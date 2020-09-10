@@ -7,25 +7,25 @@ edition = "2018"
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
 parachain = { package = "polkadot-parachain", path = "../parachain" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+sp-timestamp = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+sc-basic-authorship = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+sp-api = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+consensus = { package = "sp-consensus", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
 futures = "0.3.4"
 log = "0.4.8"
 derive_more = "0.14.1"
 codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-block-builder = { package = "sc-block-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
-trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+inherents = { package = "sp-inherents", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+primitives = { package = "sp-core", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+txpool-api = { package = "sp-transaction-pool", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+sc-client-api = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+block-builder = { package = "sc-block-builder", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+trie = { package = "sp-trie", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "allow-no-legacy" }
