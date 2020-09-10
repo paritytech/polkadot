@@ -186,6 +186,12 @@ Any validator could send their assignment notices and/or approval votes too earl
 
 Assignment notices being gossiped too early might create a denial of service vector.  If so, we might exploit the relative time scheme that synchronises our clocks, which conceivably permits just dropping excessively early assignments. 
 
+## Finality GRANDPA Voting Rule
+
+The relay-chain requires validators to participate in GRANDPA. In GRANDPA, validators submit off-chain votes on what they believe to be the best block of the chain, and GRANDPA determines the common block contained by a supermajority of sub-chains. There are also additional constraints on what can be submitted based on results of previous rounds of voting.
+
+In order to avoid finalizing anything which has not received enough approval votes or is disputed, we will pair the approval protocol with an alteration to the GRANDPA voting strategy for honest nodes which causes them to vote only on chains where every parachain candidate within has been approved. Thus, the finalized relay-chain should contain only relay-chain blocks where a majority believe that every block within has been sufficiently approved.
+
 ### Future work
 
 We could consider additional gossip messages with which nodes claims "slow availability" and/or "slow candidate" to fine tune the assignments "no show" system, but long enough "no show" delays suffice probably.
