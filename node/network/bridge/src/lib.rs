@@ -201,9 +201,6 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 pub struct NetworkBridge<N> {
 	network_service: N,
 	authority_discovery_service: AuthorityDiscoveryService,
-	// we assume one PeerId per AuthorityId is enough
-	// TODO: cleanup as in https://github.com/paritytech/polkadot/pull/1616
-	pending_discovery_requests: HashMap<AuthorityDiscoveryId, oneshot::Sender<(AuthorityDiscoveryId, PeerId)>>,
 }
 
 impl<N> NetworkBridge<N> {
@@ -215,7 +212,6 @@ impl<N> NetworkBridge<N> {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
-			pending_discovery_requests: HashMap::new(),
 		}
 	}
 }
@@ -573,6 +569,14 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
+	// we assume one PeerId per AuthorityId is enough
+	// TODO: cleanup as in https://github.com/paritytech/polkadot/pull/1616
+	let mut pending_discovery_requests: HashMap<
+		AuthorityDiscoveryId, 
+		oneshot::Sender<(AuthorityDiscoveryId, PeerId)>
+	> = HashMap::new();
+	let mut connected_authority_peers: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
+
 	loop {
 		let action = {
 			let subsystem_next = ctx.recv().fuse();
@@ -653,6 +657,16 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => &mut collation_peers,
 				};
 
+				// check if it's an authority we've been waiting for
+				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
+				if let Some(authority) = maybe_authority {
+					if let Some(sender) = pending_discovery_requests.remove(&authority) {
+						// TODO: why we ignore the error
+						let _ = sender.send((authority.clone(), peer.clone()));
+					}
+					connected_authority_peers.insert(authority, peer.clone());
+				}
+
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
 					hash_map::Entry::Vacant(vacant) => {
@@ -695,6 +709,11 @@ async fn run_network<N: Network>(
 					PeerSet::Validation => &mut validation_peers,
 					PeerSet::Collation => &mut collation_peers,
 				};
+
+				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
+				if let Some(authority) = maybe_authority {
+					connected_authority_peers.remove(&authority);
+				}
 
 				if peer_map.remove(&peer).is_some() {
 					let res = match peer_set {
