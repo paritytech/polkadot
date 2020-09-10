@@ -42,7 +42,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 		let (mut holding, effects) = match (origin, msg) {
 			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
-				Self::execute_xcm(new_origin, *inner)
+				Self::execute_xcm(new_origin, inner.into())
 			}
 			(_origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
