@@ -19,7 +19,7 @@
 use sp_std::{marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
 use codec::Decode;
-use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, XcmResult, MultiLocation, Junction};
+use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, Junction};
 
 pub mod traits;
 mod assets;
@@ -91,14 +91,14 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 			}
 			(origin, Xcm::RelayToParachain { id, inner }) => {
 				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
-				Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
+				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
 			},
 			(origin, Xcm::ReserveAssetTransfer { mut assets, dest, effects }) => {
 				for asset in assets.iter_mut() {
 					*asset = Config::AssetTransactor::transfer_asset(asset, &origin, &dest)?;
 				}
 				let msg = Xcm::ReserveAssetCredit { assets, effects }.into();
-				Config::XcmSender::send_xcm(dest, msg)
+				return Config::XcmSender::send_xcm(dest, msg)
 			},
 			_ => Err(())?,	// Unhandled XCM message.
 		};

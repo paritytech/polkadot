@@ -14,11 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation};
+use sp_std::{result, convert::TryInto, marker::PhantomData};
+use xcm::v0::{Error, Result, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
 use crate::traits::{MatchesFungible, PunnFromLocation, TransactAsset};
-use sp_std::{convert::TryInto, marker::PhantomData};
 
 // TODO: Will need some way of punning a `Junction::Parachain` into the sovereign parachain account.
 //   Right now it only works with `Junction::AccountId32`.
@@ -37,7 +37,7 @@ impl<
 	AccountId,	// can't get away without it since Currency is generic over it.
 > TransactAsset for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId> {
 
-	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
+	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
@@ -46,7 +46,7 @@ impl<
 		Ok(())
 	}
 
-	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
+	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<MultiAsset, Error> {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
