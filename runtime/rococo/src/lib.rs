@@ -404,11 +404,12 @@ use xcm_executor::{CurrencyAdapter, XcmExecutor, traits::{
 	IsConcrete, PunnFromLocation, PunnIntoLocation, ConvertOrigin}
 };
 
-// TODO: Maybe make a
+// TODO: Maybe make something generic for this.
 pub struct LocalPunner;
 impl PunnFromLocation<AccountId> for LocalPunner {
 	fn punn_from_location(location: &MultiLocation) -> Option<AccountId> {
 		Some(match location {
+			MultiLocation::X1(Junction::Parent) => AccountId::default(),
 			MultiLocation::X1(Junction::Parachain { id }) => ParaId::from(*id).into_account(),
 			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Polkadot }) |
 			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Any }) => (*id).into(),
@@ -418,6 +419,9 @@ impl PunnFromLocation<AccountId> for LocalPunner {
 }
 impl PunnIntoLocation<AccountId> for LocalPunner {
 	fn punn_into_location(who: AccountId) -> Option<MultiLocation> {
+		if who == AccountId::default() {
+			return Some(Junction::Parent.into())
+		}
 		if let Some(id) = ParaId::try_from_account(&who) {
 			return Some(Junction::Parachain { id: id.into() }.into())
 		}
