@@ -290,7 +290,7 @@ async fn spawn_validate_from_chain_state(
 				ctx,
 				validation_pool,
 				validation_data.persisted,
-				validation_data.transient,
+				Some(validation_data.transient),
 				validation_code,
 				descriptor,
 				pov,
@@ -311,7 +311,7 @@ async fn spawn_validate_from_chain_state(
 				ctx,
 				validation_pool,
 				validation_data.persisted,
-				validation_data.transient,
+				Some(validation_data.transient),
 				validation_code,
 				descriptor,
 				pov,
@@ -332,7 +332,7 @@ async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	validation_pool: Option<ValidationPool>,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: TransientValidationData,
+	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -449,7 +449,7 @@ impl ValidationBackend for RealValidationBackend {
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: TransientValidationData,
+	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -460,11 +460,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	}
 
 	let params = ValidationParams {
+		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
-		validation_data: ValidationData {
-			persisted: persisted_validation_data.clone(),
-			transient: transient_validation_data.clone(),
-		}
+		relay_chain_height: persisted_validation_data.block_number,
+		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
 	match B::validate(backend_arg, &validation_code, params, spawn) {
@@ -482,10 +481,14 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let post_check_result = check_wasm_result_against_constraints(
-				&transient_validation_data,
-				&res,
-			);
+			let post_check_result = if let Some(transient) = transient_validation_data {
+				check_wasm_result_against_constraints(
+					&transient,
+					&res,
+				)
+			} else {
+				Ok(())
+			};
 
 			Ok(match post_check_result {
 				Ok(()) => ValidationResult::Valid(ValidationOutputs {
@@ -831,7 +834,7 @@ mod tests {
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
 			validation_data.persisted.clone(),
-			validation_data.transient,
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -882,7 +885,7 @@ mod tests {
 				))
 			},
 			validation_data.persisted,
-			validation_data.transient,
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -928,7 +931,7 @@ mod tests {
 				))
 			},
 			validation_data.persisted,
-			validation_data.transient,
+			Some(validation_data.transient),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -936,5 +939,50 @@ mod tests {
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
+	}
+
+	#[test]
+	fn candidate_validation_ok_does_not_validate_outputs_if_no_transient() {
+		let mut validation_data: ValidationData = Default::default();
+		validation_data.transient.max_head_data_size = 1;
+		validation_data.transient.max_code_size = 1;
+
+		let pov = PoV { block_data: BlockData(vec![1; 32]) };
+
+		let mut descriptor = CandidateDescriptor::default();
+		descriptor.pov_hash = pov.hash();
+		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
+
+		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
+
+		let validation_result = WasmValidationResult {
+			head_data: HeadData(vec![1, 1, 1]),
+			new_validation_code: Some(vec![2, 2, 2].into()),
+			upward_messages: Vec::new(),
+			processed_downward_messages: 0,
+		};
+
+		assert!(check_wasm_result_against_constraints(
+			&validation_data.transient,
+			&validation_result,
+		).is_err());
+
+		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
+			MockValidationArg { result: Ok(validation_result) },
+			validation_data.persisted.clone(),
+			None,
+			vec![1, 2, 3].into(),
+			descriptor,
+			Arc::new(pov),
+			TaskExecutor::new(),
+		).unwrap();
+
+		assert_matches!(v, ValidationResult::Valid(outputs) => {
+			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
+			assert_eq!(outputs.validation_data, validation_data.persisted);
+			assert_eq!(outputs.upward_messages, Vec::new());
+			assert_eq!(outputs.fees, 0);
+			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+		});
 	}
 }
