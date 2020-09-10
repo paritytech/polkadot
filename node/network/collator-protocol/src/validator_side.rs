@@ -300,7 +300,8 @@ where
 			}
 		}
 	} else {
-		// TODO: This is tricky. If our chain has moved on, we have already canceled
+		// TODO: https://github.com/paritytech/polkadot/issues/1694
+		// This is tricky. If our chain has moved on, we have already canceled
 		// the relevant request and removed it from the map; so and we are not expecting
 		// this reply although technically it is not a malicious behaviur.
 		modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
@@ -499,20 +500,10 @@ where
 	// We have to go backwards in the map, again.
 	if let Some(key) = find_val_in_map(&state.requested_collations, &id) {
 		if let Some(_) = state.requested_collations.remove(&key) {
-			if let Some(request_info) = state.requests_info.remove(&id) {
-				let (relay_parent, para_id, peer_id) = key;
+			if let Some(_) = state.requests_info.remove(&id) {
+				let peer_id = key.2;
 
-				modify_reputation(ctx, peer_id.clone(), COST_REQUEST_TIMED_OUT).await?;
-
-				// the callee will check if the parent is still in view, so do no checks here.
-				request_collation(
-					ctx,
-					state,
-					relay_parent,
-					para_id,
-					peer_id,
-					request_info.result,
-				).await?;
+				modify_reputation(ctx, peer_id, COST_REQUEST_TIMED_OUT).await?;
 			}
 		}
 	}
@@ -893,7 +884,7 @@ mod tests {
 				)
 			).await;
 
-			let request_id = assert_matches!(
+			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(NetworkBridgeMessage::SendCollationMessage(
 					peers,
@@ -909,42 +900,20 @@ mod tests {
 				assert_eq!(relay_parent, test_state.relay_parent);
 				assert_eq!(peers, vec![peer_b.clone()]);
 				assert_eq!(para_id, test_state.chain_ids[0]);
-				id
 			});
 
 			// Don't send a response and we shoud see reputation penalties to the
 			// collator.
-			for _ in 0..3usize {
-				Delay::new(Duration::from_millis(50)).await;
-				assert_matches!(
-					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::NetworkBridge(
-						NetworkBridgeMessage::ReportPeer(peer, rep)
-					) => {
-						assert_eq!(peer, peer_b);
-						assert_eq!(rep, COST_REQUEST_TIMED_OUT);
-					}
-				);
-
-				assert_matches!(
-					overseer_recv(&mut virtual_overseer).await,
-					AllMessages::NetworkBridge(NetworkBridgeMessage::SendCollationMessage(
-						peers,
-						protocol_v1::CollationProtocol::CollatorProtocol(
-							protocol_v1::CollatorProtocolMessage::RequestCollation(
-								req_id,
-								relay_parent,
-								para_id,
-							)
-						)
-					)
+			Delay::new(Duration::from_millis(50)).await;
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ReportPeer(peer, rep)
 				) => {
-					assert_eq!(relay_parent, test_state.relay_parent);
-					assert_eq!(peers, vec![peer_b.clone()]);
-					assert_eq!(para_id, test_state.chain_ids[0]);
-					assert_ne!(request_id, req_id);
-				});
-			}
+					assert_eq!(peer, peer_b);
+					assert_eq!(rep, COST_REQUEST_TIMED_OUT);
+				}
+			);
 
 			// Deactivate the relay parent in question.
 			overseer_send(

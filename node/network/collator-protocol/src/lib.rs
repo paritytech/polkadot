@@ -68,17 +68,17 @@ pub struct CollatorProtocolSubsystem {
 }
 
 impl CollatorProtocolSubsystem {
-	/// Instantiate the collator protocol side of this subsystem
-	pub fn new_collator_side(id: CollatorId) -> Self {
-		Self {
-			protocol_side: ProtocolSide::Collator(id),
-		}
-	}
+	/// Start the collator protocol.
+	/// If `id` is `Some` this is a collator side of the protocol.
+	/// If `id` is `None` this is a validator side of the protocol. 
+	pub fn new(id: Option<CollatorId>) -> Self {
+		let protocol_side = match id {
+			Some(id) => ProtocolSide::Collator(id),
+			None => ProtocolSide::Validator,
+		};
 
-	/// Instantiate the validator protocol side of this subsystem.
-	pub fn new_validator_side() -> Self {
 		Self {
-			protocol_side: ProtocolSide::Validator,
+			protocol_side,
 		}
 	}
 
