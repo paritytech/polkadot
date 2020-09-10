@@ -570,11 +570,9 @@ async fn run_network<N: Network>(
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
 	// we assume one PeerId per AuthorityId is enough
-	// TODO: cleanup as in https://github.com/paritytech/polkadot/pull/1616
-	let mut pending_discovery_requests: HashMap<
-		AuthorityDiscoveryId, 
-		oneshot::Sender<(AuthorityDiscoveryId, PeerId)>
-	> = HashMap::new();
+	// the requests are emptied when a new ConnectToAuthorities arrives
+	let mut collation_pending_discovery_requests = ConnectToAuthoritiesState::default();
+	let mut validation_pending_discovery_requests = ConnectToAuthoritiesState::default();
 	let mut connected_authority_peers: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 
 	loop {
@@ -607,15 +605,20 @@ async fn run_network<N: Network>(
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToAuthorities(peer_set, authorities, _res) => {
-				let priority_group = match peer_set {
-					PeerSet::Collation => "parachain_collation",
-					PeerSet::Validation => "parachain_validation",
-				}.to_owned();
+			Action::ConnectToAuthorities(peer_set, authorities, res) => {
+				let (priority_group, requests) = match peer_set {
+					PeerSet::Validation => ("parachain_validation".to_owned(), &mut validation_pending_discovery_requests),
+					PeerSet::Collation => ("parachain_collation".to_owned(), &mut collation_pending_discovery_requests),
+				};
 
-				// AuthorityId -> Option<Vec<Multiaddr>>
+				// drop the previous requests
+				// TODO: do we want to handle more than one request at a time?
+				// what would be a cleaning strategy in that case?
+				let _ = requests.clear();
+
+				// collect multiaddress of authorities
 				let mut multiaddresses = HashSet::new();
-				for authority in authorities.into_iter() {
+				for authority in authorities.clone().into_iter() {
 					let result = net.authority_discovery_service.get_addresses_by_authority_id(authority).await;
 					if let Some(addresses) = result {
 						// we might have several `PeerId`s per `AuthorityId` depending on the number of sentry nodes,
@@ -632,7 +635,12 @@ async fn run_network<N: Network>(
 				if let Err(e) = net.network_service.set_priority_group(priority_group, multiaddresses) {
 					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 				}
-				// TODO: pass authorities and _res to notification stream
+
+				*requests = ConnectToAuthoritiesState::new(
+					authorities.into_iter().collect(),
+					res,
+					&connected_authority_peers,
+				);
 			},
 
 			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,
@@ -652,18 +660,15 @@ async fn run_network<N: Network>(
 			}
 
 			Action::PeerConnected(peer_set, peer, role) => {
-				let peer_map = match peer_set {
-					PeerSet::Validation => &mut validation_peers,
-					PeerSet::Collation => &mut collation_peers,
+				let (peer_map, pending_requests) = match peer_set {
+					PeerSet::Validation => (&mut validation_peers, &mut validation_pending_discovery_requests),
+					PeerSet::Collation => (&mut collation_peers, &mut collation_pending_discovery_requests),
 				};
 
 				// check if it's an authority we've been waiting for
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
-					if let Some(sender) = pending_discovery_requests.remove(&authority) {
-						// TODO: why we ignore the error
-						let _ = sender.send((authority.clone(), peer.clone()));
-					}
+					pending_requests.on_authority_connected(&authority, &peer);
 					connected_authority_peers.insert(authority, peer.clone());
 				}
 
@@ -705,13 +710,14 @@ async fn run_network<N: Network>(
 				}
 			}
 			Action::PeerDisconnected(peer_set, peer) => {
-				let peer_map = match peer_set {
-					PeerSet::Validation => &mut validation_peers,
-					PeerSet::Collation => &mut collation_peers,
+				let (peer_map, pending_requests) = match peer_set {
+					PeerSet::Validation => (&mut validation_peers, &mut validation_pending_discovery_requests),
+					PeerSet::Collation => (&mut collation_peers, &mut collation_pending_discovery_requests),
 				};
 
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
+					pending_requests.on_authority_disconnected(&authority);
 					connected_authority_peers.remove(&authority);
 				}
 
@@ -778,6 +784,74 @@ async fn run_network<N: Network>(
 				}
 			},
 		}
+	}
+}
+
+/// This struct tracks the state for one `ConnectToAuthorities` request.
+#[derive(Default)]
+struct ConnectToAuthoritiesState(Option<ConnectToAuthoritiesStateInner>);
+
+struct ConnectToAuthoritiesStateInner {
+	pending: HashSet<AuthorityDiscoveryId>,
+	connected: HashMap<AuthorityDiscoveryId, PeerId>,
+	sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+}
+
+impl ConnectToAuthoritiesState {
+	/// Create a new instance of `ConnectToAuthoritiesState`.
+	pub fn new(
+		mut pending: HashSet<AuthorityDiscoveryId>, 
+		sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+		already_connected: &HashMap<AuthorityDiscoveryId, PeerId>,
+	) -> Self {
+		let mut connected = HashMap::new();
+		pending.retain(|authority| {
+			if let Some(peer_id) = already_connected.get(authority) {
+				connected.insert(authority.clone(), peer_id.clone());
+				false
+			} else {
+				true
+			}
+		});
+
+		Self(Some(ConnectToAuthoritiesStateInner {
+			pending,
+			connected,
+			sender,
+		}))
+	}
+
+	/// Drop the pending requests.
+	pub fn clear(&mut self) {
+		let _ = self.0.take();
+	}
+
+	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
+		todo!()
+	}
+
+	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
+		todo!()
+	}
+
+	/// Returns `true` if ready to send.
+	fn is_ready(&self) -> bool {
+		self.0.as_ref().map(|inner| inner.pending.is_empty()).unwrap_or(false)
+	}
+
+	/// Fulfill the request.
+	fn send(&mut self) {
+		// TODO: maybe we actually want this if there is a timeout
+		debug_assert!(self.is_ready(), "calling `send` when not ready");
+
+		let inner = match self.0.take() {
+			Some(inner) => inner,
+			None => return,
+		};
+
+		let reply = inner.connected.into_iter().collect();
+		// if the receiver is dropped, it doesn't care about these authorities anymore
+		let _ = inner.sender.send(reply);
 	}
 }
 
