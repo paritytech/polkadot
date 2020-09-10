@@ -131,7 +131,7 @@ pub trait Network: Send + 'static {
 
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
 	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	// TODO: we might want to add `add_to_priority_group` and `remove_from_priority_group` 
+	// TODO: we might want to add `add_to_priority_group` and `remove_from_priority_group`
 }
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
@@ -569,10 +569,8 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
+	let mut pending_discovery_requests: Vec<ConnectToAuthoritiesState> = Vec::new();
 	// we assume one PeerId per AuthorityId is enough
-	// the requests are emptied when a new ConnectToAuthorities arrives
-	let mut collation_pending_discovery_requests = ConnectToAuthoritiesState::default();
-	let mut validation_pending_discovery_requests = ConnectToAuthoritiesState::default();
 	let mut connected_authority_peers: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 
 	loop {
@@ -606,15 +604,10 @@ async fn run_network<N: Network>(
 			).await?,
 
 			Action::ConnectToAuthorities(peer_set, authorities, res) => {
-				let (priority_group, requests) = match peer_set {
-					PeerSet::Validation => ("parachain_validation".to_owned(), &mut validation_pending_discovery_requests),
-					PeerSet::Collation => ("parachain_collation".to_owned(), &mut collation_pending_discovery_requests),
+				let priority_group = match peer_set {
+					PeerSet::Validation => "parachain_validation".to_owned(),
+					PeerSet::Collation => "parachain_collation".to_owned(),
 				};
-
-				// drop the previous requests
-				// TODO: do we want to handle more than one request at a time?
-				// what would be a cleaning strategy in that case?
-				let _ = requests.clear();
 
 				// collect multiaddress of authorities
 				let mut multiaddresses = HashSet::new();
@@ -636,11 +629,11 @@ async fn run_network<N: Network>(
 					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 				}
 
-				*requests = ConnectToAuthoritiesState::new(
+				pending_discovery_requests.push(ConnectToAuthoritiesState::new(
 					authorities.into_iter().collect(),
 					res,
 					&connected_authority_peers,
-				);
+				));
 			},
 
 			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,
@@ -660,15 +653,26 @@ async fn run_network<N: Network>(
 			}
 
 			Action::PeerConnected(peer_set, peer, role) => {
-				let (peer_map, pending_requests) = match peer_set {
-					PeerSet::Validation => (&mut validation_peers, &mut validation_pending_discovery_requests),
-					PeerSet::Collation => (&mut collation_peers, &mut collation_pending_discovery_requests),
+				let peer_map = match peer_set {
+					PeerSet::Validation => &mut validation_peers,
+					PeerSet::Collation => &mut collation_peers,
 				};
 
 				// check if it's an authority we've been waiting for
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
-					pending_requests.on_authority_connected(&authority, &peer);
+					let mut ready = Vec::new();
+					for (i, pending) in pending_discovery_requests.iter_mut().enumerate() {
+						pending.on_authority_connected(&authority, &peer);
+						if pending.is_ready() {
+							ready.push(i);
+						}
+					}
+					// fulfill all ready requests and remove them from the pending list
+					for to_send in ready.into_iter().rev() {
+						pending_discovery_requests.swap_remove(to_send).send();
+					}
+
 					connected_authority_peers.insert(authority, peer.clone());
 				}
 
@@ -710,14 +714,25 @@ async fn run_network<N: Network>(
 				}
 			}
 			Action::PeerDisconnected(peer_set, peer) => {
-				let (peer_map, pending_requests) = match peer_set {
-					PeerSet::Validation => (&mut validation_peers, &mut validation_pending_discovery_requests),
-					PeerSet::Collation => (&mut collation_peers, &mut collation_pending_discovery_requests),
+				let peer_map = match peer_set {
+					PeerSet::Validation => &mut validation_peers,
+					PeerSet::Collation => &mut collation_peers,
 				};
 
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
-					pending_requests.on_authority_disconnected(&authority);
+					let mut ready = Vec::new();
+					for (i, pending) in pending_discovery_requests.iter_mut().enumerate() {
+						pending.on_authority_disconnected(&authority);
+						if pending.is_ready() {
+							ready.push(i);
+						}
+					}
+					// fulfill all ready requests and remove them from the pending list
+					for to_send in ready.into_iter().rev() {
+						pending_discovery_requests.swap_remove(to_send).send();
+					}
+
 					connected_authority_peers.remove(&authority);
 				}
 
@@ -788,10 +803,7 @@ async fn run_network<N: Network>(
 }
 
 /// This struct tracks the state for one `ConnectToAuthorities` request.
-#[derive(Default)]
-struct ConnectToAuthoritiesState(Option<ConnectToAuthoritiesStateInner>);
-
-struct ConnectToAuthoritiesStateInner {
+struct ConnectToAuthoritiesState {
 	pending: HashSet<AuthorityDiscoveryId>,
 	connected: HashMap<AuthorityDiscoveryId, PeerId>,
 	sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
@@ -800,7 +812,7 @@ struct ConnectToAuthoritiesStateInner {
 impl ConnectToAuthoritiesState {
 	/// Create a new instance of `ConnectToAuthoritiesState`.
 	pub fn new(
-		mut pending: HashSet<AuthorityDiscoveryId>, 
+		mut pending: HashSet<AuthorityDiscoveryId>,
 		sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
 		already_connected: &HashMap<AuthorityDiscoveryId, PeerId>,
 	) -> Self {
@@ -814,61 +826,38 @@ impl ConnectToAuthoritiesState {
 			}
 		});
 
-		Self(Some(ConnectToAuthoritiesStateInner {
+		Self {
 			pending,
 			connected,
 			sender,
-		}))
-	}
-
-	/// Drop the pending requests.
-	pub fn clear(&mut self) {
-		let _ = self.0.take();
+		}
 	}
 
 	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
-		let inner = match self.0.as_mut() {
-			Some(inner) => inner,
-			None => return,
-		};
-
-		if inner.pending.remove(authority) {
-			inner.connected.insert(authority.clone(), peer_id.clone());
-		}
-
-		if self.is_ready() {
-			self.send();
+		if self.pending.remove(authority) {
+			self.connected.insert(authority.clone(), peer_id.clone());
 		}
 	}
 
 	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
-		let inner = match self.0.as_mut() {
-			Some(inner) => inner,
-			None => return,
-		};
-
-		let _ = inner.pending.remove(authority);
-		let _ = inner.connected.remove(authority);
+		let _ = self.pending.remove(authority);
+		let _ = self.connected.remove(authority);
 	}
 
 	/// Returns `true` if ready to send.
-	fn is_ready(&self) -> bool {
-		self.0.as_ref().map(|inner| inner.pending.is_empty()).unwrap_or(false)
+	pub fn is_ready(&self) -> bool {
+		self.pending.is_empty()
 	}
 
 	/// Fulfill the request.
-	fn send(&mut self) {
+	pub fn send(self) {
 		// TODO: maybe we actually want this if there is a timeout
 		debug_assert!(self.is_ready(), "calling `send` when not ready");
 
-		let inner = match self.0.take() {
-			Some(inner) => inner,
-			None => return,
-		};
-
-		let reply = inner.connected.into_iter().collect();
+		let Self { mut connected, sender, .. } = self;
+		let reply: Vec<_> = connected.drain().collect();
 		// if the receiver is dropped, it doesn't care about these authorities anymore
-		let _ = inner.sender.send(reply);
+		let _ = sender.send(reply);
 	}
 }
 
