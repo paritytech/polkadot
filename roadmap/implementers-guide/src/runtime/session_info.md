@@ -20,6 +20,11 @@ struct SessionInfo {
     zeroth_delay_tranche_width: u32,
     // The number of samples we do of relay_vrf_modulo.
     relay_vrf_modulo_samples: u32,
+    // How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+    // no-show.
+    no_show_slots: u32,
+    /// The number of validators needed to approve a block.
+	needed_approvals: u32,
 }
 ```
 

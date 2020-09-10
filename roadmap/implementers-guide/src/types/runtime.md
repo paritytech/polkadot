@@ -33,9 +33,15 @@ struct HostConfiguration {
 	pub scheduling_lookahead: u32,
 	/// The amount of sessions to keep for disputes.
 	pub dispute_period: SessionIndex,
+	/// The amount of consensus slots that must pass between submitting an assignment and
+	/// submitting an approval vote before a validator is considered a no-show.
+	/// Must be at least 1.
+	pub no_show_slots: u32,
 	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
 	/// beyond 0 are all consolidated to form a wide 0 tranche.
 	pub zeroth_delay_tranche_width: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
 	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.

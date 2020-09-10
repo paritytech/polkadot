@@ -86,39 +86,3 @@ struct ExecutionTimePair {
     ratio: FixedU16,
 }
 ```
-
-## SubmittedAssignments
-
-These are assignments submitted to the relay chain. Assignments may be submitted for any candidate that is pending approval. The assignments are ordered first by block and then by candidate.
-
-```rust
-// Assignments submitted for a particular core. In the context of a block.
-struct SubmittedCoreAssignments {
-    core: CoreIndex,
-    // ordered by validator index.
-    // validator index is within the session where the block was included.
-    assigned: Vec<(ValidatorIndex, AssignmentCert, VRFInOut)>,
-}
-
-// Ordered ascending by block number and the per-candidate assignments are ordered by
-// core index.
-type SubmittedAssignments = Vec<(BlockNumber, Vec<SubmittedCoreAssignments>)>;
-```
-
-## SubmittedApprovals
-
-Approval votes submitted to the chain.
-
-```rust
-// Approvals submitted for a particular core. In the context of a block.
-struct SubmittedCoreApprovals {
-    core: CoreIndex,
-    // ordered by validator index.
-    // validator index is within the sesison where the block was included.
-    approvals: Vec<(ValidatorIndex, SignedApprovalVote)>,
-}
-
-// Sorted ascending by `BlockNumber`. A `bool` value of `true` indicates that the block
-// has had all candidates approved.
-type SubmittedApprovals = Vec<(BlockNumber, Vec<SubmittedCoreApprovals>, bool)>;
-```
