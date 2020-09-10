@@ -195,7 +195,7 @@ pub mod v0 {
 		ExchangeAsset { give: MultiAssets, receive: MultiAssets },
 		InitiateReserveTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
 		InitiateTeleport { assets: MultiAssets, dest: MultiLocation, effects: Ais },
-		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAssets> },
+		QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: MultiAssets },
 	}
 
 	pub type Ais = Vec<Ai>;
