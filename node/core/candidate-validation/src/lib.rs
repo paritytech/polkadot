@@ -937,49 +937,4 @@ mod tests {
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 	}
-
-	#[test]
-	fn candidate_validation_ok_does_not_validate_outputs_if_no_transient() {
-		let mut validation_data: ValidationData = Default::default();
-		validation_data.transient.max_head_data_size = 1;
-		validation_data.transient.max_code_size = 1;
-
-		let pov = PoV { block_data: BlockData(vec![1; 32]) };
-
-		let mut descriptor = CandidateDescriptor::default();
-		descriptor.pov_hash = pov.hash();
-		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
-
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
-
-		let validation_result = WasmValidationResult {
-			head_data: HeadData(vec![1, 1, 1]),
-			new_validation_code: Some(vec![2, 2, 2].into()),
-			upward_messages: Vec::new(),
-			processed_downward_messages: 0,
-		};
-
-		assert!(check_wasm_result_against_constraints(
-			&validation_data.transient,
-			&validation_result,
-		).is_err());
-
-		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
-			MockValidationArg { result: Ok(validation_result) },
-			validation_data.persisted.clone(),
-			validation_data.transient.clone(),
-			vec![1, 2, 3].into(),
-			descriptor,
-			Arc::new(pov),
-			TaskExecutor::new(),
-		).unwrap();
-
-		assert_matches!(v, ValidationResult::Valid(outputs) => {
-			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.validation_data, validation_data.persisted);
-			assert_eq!(outputs.upward_messages, Vec::new());
-			assert_eq!(outputs.fees, 0);
-			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
-		});
-	}
 }
