@@ -666,25 +666,34 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch>(mut config: &mut Configuration) -> Result<
+pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 	(
-		Arc<FullClient<Runtime, Dispatch>>,
+		Arc<crate::Client>,
 		Arc<FullBackend>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
 	ServiceError
->
-where
-	Runtime: ConstructRuntimeApi<Block, FullClient<Runtime, Dispatch>> + Send + Sync + 'static,
-	Runtime::RuntimeApi:
-	RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	Dispatch: NativeExecutionDispatch + 'static,
-{
+> {
 	config.keystore = service::config::KeystoreConfig::InMemory;
-	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch>(config)?;
-	Ok((client, backend, import_queue, task_manager))
+
+	if config.chain_spec.is_rococo() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config)?;
+		Ok((Arc::new(Client::Rococo(client)), backend, import_queue, task_manager))
+	} else if config.chain_spec.is_kusama() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)?;
+		Ok((Arc::new(Client::Kusama(client)), backend, import_queue, task_manager))
+	} else if config.chain_spec.is_westend() {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<westend_runtime::RuntimeApi, WestendExecutor>(config)?;
+		Ok((Arc::new(Client::Westend(client)), backend, import_queue, task_manager))
+	} else {
+		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
+			= new_partial::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)?;
+		Ok((Arc::new(Client::Polkadot(client)), backend, import_queue, task_manager))
+	}
 }
 
 /// Build a new light node.
