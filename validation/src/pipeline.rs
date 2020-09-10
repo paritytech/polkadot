@@ -189,7 +189,6 @@ fn validate_upward_messages(
 /// Does full checks of a collation, with provided PoV-block and contextual data.
 pub fn validate<'a>(
 	execution_mode: &'a ExecutionMode,
-	validation_pool: Option<&ValidationPool>,
 	collation: &'a CollationInfo,
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
@@ -223,7 +222,6 @@ pub fn validate<'a>(
 		&validation_code.0,
 		params,
 		execution_mode,
-		validation_pool,
 		spawner,
 	) {
 		Ok(result) => {
@@ -274,7 +272,6 @@ where
 
 /// Does full-pipeline validation of a collation with provided contextual parameters.
 pub fn full_output_validation_with_api<P>(
-	validation_pool: Option<&ValidationPool>,
 	execution_mode: &ExecutionMode,
 	api: &P,
 	collation: &CollationInfo,
@@ -303,7 +300,6 @@ pub fn full_output_validation_with_api<P>(
 		.and_then(|()| {
 			let res = validate(
 				execution_mode,
-				validation_pool,
 				&collation,
 				&pov_block,
 				&local_validation,

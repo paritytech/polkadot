@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, path::PathBuf};
 use codec::{Decode, Encode};
-use crate::{primitives::{ValidationParams, ValidationResult}, wasm_executor::ExecutionMode};
+use crate::primitives::{ValidationParams, ValidationResult};
 use super::{
 	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
 	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
@@ -66,7 +66,7 @@ impl SpawnNamed for TaskExecutor {
 }
 
 /// A pool of hosts.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ValidationPool {
 	hosts: Arc<Vec<Mutex<ValidationHost>>>,
 }
@@ -223,11 +223,33 @@ enum ValidationResultHeader {
 
 unsafe impl Send for ValidationHost {}
 
-#[derive(Default)]
+struct ValidationHostMemory(SharedMem);
+
+impl std::fmt::Debug for ValidationHostMemory {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "ValidationHostMemory")
+	}
+}
+
+impl std::ops::Deref for ValidationHostMemory {
+	type Target = SharedMem;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl std::ops::DerefMut for ValidationHostMemory {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
+
+#[derive(Default, Debug)]
 struct ValidationHost {
 	worker: Option<process::Child>,
 	worker_thread: Option<std::thread::JoinHandle<Result<(), String>>>,
-	memory: Option<SharedMem>,
+	memory: Option<ValidationHostMemory>,
 	id: u32,
 }
 
@@ -279,7 +301,7 @@ impl ValidationHost {
 			Event::WorkerReady as usize,
 			shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize),
 		)?;
-		self.memory = Some(memory);
+		self.memory = Some(ValidationHostMemory(memory));
 		Ok(())
 	}
 

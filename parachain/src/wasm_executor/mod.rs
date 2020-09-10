@@ -58,18 +58,6 @@ pub fn run_worker(_: &str) -> Result<(), String> {
 	Err("Cannot run validation worker on this platform".to_string())
 }
 
-/*
-/// WASM code execution mode.
-///
-/// > Note: When compiling for WASM, the `Remote` variants are not available.
-pub enum ExecutionMode<'a> {
-	/// Execute in-process. The execution can not be interrupted or aborted.
-	Local,
-	/// Remote execution in a spawned process.
-	Remote(&'a ValidationPool),
-}
-*/
-
 /// The execution mode for the `ValidationPool`.
 #[derive(Debug, Clone)]
 pub enum ExecutionMode {
@@ -77,10 +65,12 @@ pub enum ExecutionMode {
 	InProcess,
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
 	/// following by the address of the shared memory.
-	ExternalProcessSelfHost,
+	ExternalProcessSelfHost(ValidationPool),
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
 	ExternalProcessCustomHost {
+		/// Validation pool.
+		pool: ValidationPool,
 		/// Path to the validation worker. The file must exists and be executable.
 		binary: PathBuf,
 		/// List of arguments passed to the validation worker. The address of the shared memory will be automatically
@@ -155,7 +145,6 @@ pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
 	execution_mode: &ExecutionMode,
-	pool: Option<&ValidationPool>,
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
 	match execution_mode {
@@ -163,13 +152,13 @@ pub fn validate_candidate(
 			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessSelfHost => {
-			pool.expect("todo").validate_candidate(validation_code, params)
+		ExecutionMode::ExternalProcessSelfHost(pool) => {
+			pool.validate_candidate(validation_code, params)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessCustomHost { binary, args } => {
+		ExecutionMode::ExternalProcessCustomHost { pool, binary, args } => {
 			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
-			pool.expect("todo").validate_candidate_custom(validation_code, params, binary, &args)
+			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		ExecutionMode::Remote(_pool) => // TODO
