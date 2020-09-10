@@ -16,20 +16,25 @@
 
 //! Cross-Consensus Message format data structures.
 
-use sp_std::{boxed::Box, vec::Vec, convert::TryFrom};
+use sp_std::{result, boxed::Box, vec::Vec, convert::TryFrom};
 use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode};
 use super::{VersionedXcm, VersionedMultiLocation, VersionedMultiAsset};
 
-pub type XcmError = ();
-pub type XcmResult = Result<(), XcmError>;
+pub type Error = ();
+pub type Result = result::Result<(), Error>;
+
+#[deprecated]
+pub type XcmError = Error;
+#[deprecated]
+pub type XcmResult = Result;
 
 pub trait ExecuteXcm {
-	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult;
+	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> Result;
 }
 
 pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> XcmResult;
+	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
 }
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
@@ -95,6 +100,33 @@ impl MultiLocation {
 			s => Err(s)?,
 		})
 	}
+	pub fn into_iter(self) -> impl Iterator<Item=Junction> {
+		match self {
+			MultiLocation::Null => None,
+			MultiLocation::X1(a) => Some(a),
+			MultiLocation::X2(a, b) => Some(a).chain(Some(b)),
+			MultiLocation::X3(a, b, c) => Some(a).chain(Some(b)).chain(Some(c)),
+			MultiLocation::X4(a, b, c, d) => Some(a).chain(Some(b)).chain(Some(c)).chain(Some(d)),
+		}
+	}
+
+	pub fn push(&mut self, new: Junction) -> Result<(), ()> {
+		let mut n = MultiLocation::Null;
+		sp_std::mem::swap(&mut *self, &mut n);
+		match n.pushed_with(new) {
+			Ok(result) => { *self = result; Ok(()) }
+			Err(old) => { *self = old; Err(()) }
+		}
+	}
+
+	/// Returns partial result as error in case of failure (e.g. because out of space).
+	pub fn appended_with(self, new: MultiLocation) -> Result<Self, Self> {
+		let mut result= self;
+		for j in new.into_iter() {
+			result = result.pushed_with(j)?;
+		}
+		Ok(result)
+	}
 }
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -116,6 +148,23 @@ pub enum Junction {
 impl From<Junction> for MultiLocation {
 	fn from(x: Junction) -> Self {
 		MultiLocation::X1(x)
+	}
+}
+
+impl Junction {
+	fn is_sub_consensus(&self) -> bool {
+		match self {
+			Junction::Parent => false,
+
+			Junction::Parachain { .. } |
+			Junction::OpaqueRemark(..) |
+			Junction::AccountId32 { .. } |
+			Junction::AccountIndex64 { .. } |
+			Junction::AccountKey20 { .. } |
+			Junction::PalletInstance { .. } |
+			Junction::GeneralIndex { .. } |
+			Junction::GeneralKey(..) => true,
+		}
 	}
 }
 
@@ -176,8 +225,8 @@ pub enum Xcm {
 	Balances { #[codec(compact)] query_id: u64, assets: MultiAssets },
 	Transact { origin_type: MultiOrigin, call: Vec<u8> },
 	// these won't be staying here for long. only v0 parachains with HRMP.
-	ForwardToParachain { id: u32, inner: Box<VersionedXcm> },
-	ForwardedFromParachain { id: u32, inner: Box<VersionedXcm> },
+	RelayToParachain { id: u32, inner: Box<VersionedXcm> },
+	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
 }
 
 impl From<Xcm> for VersionedXcm {

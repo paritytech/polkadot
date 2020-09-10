@@ -20,6 +20,9 @@ use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
 use crate::traits::{MatchesFungible, PunnFromLocation, TransactAsset};
 use sp_std::{convert::TryInto, marker::PhantomData};
 
+// TODO: Will need some way of punning a `Junction::Parachain` into the sovereign parachain account.
+//   Right now it only works with `Junction::AccountId32`.
+
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<Currency>,
 	PhantomData<Matcher>,

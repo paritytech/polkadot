@@ -17,7 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::{marker::PhantomData, convert::TryInto};
-use frame_support::dispatch::Dispatchable;
+use frame_support::{ensure, dispatch::Dispatchable};
 use codec::Decode;
 use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, XcmResult, MultiLocation, Junction};
 
@@ -37,8 +37,13 @@ pub struct XcmExecutor<Config>(PhantomData<Config>);
 impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> XcmResult {
 		let (mut holding, effects) = match (origin.clone(), msg) {
-			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
-				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
+			(origin, Xcm::RelayedFrom { superorigin, inner }) => {
+				// We ensure that it doesn't contain any `Parent` Junctions which would imply a privilege escalation.
+				let mut new_origin = origin;
+				for j in superorigin.into_iter() {
+					ensure!(j.is_sub_consensus(), ());
+					new_origin.push(j).map_err(|_| ())?;
+				}
 				return Self::execute_xcm(new_origin, (*inner).try_into()?)
 			}
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
@@ -84,6 +89,17 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// message makes sense.
 				return Ok(());
 			}
+			(origin, Xcm::RelayToParachain { id, inner }) => {
+				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
+				Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
+			},
+			(origin, Xcm::ReserveAssetTransfer { mut assets, dest, effects }) => {
+				for asset in assets.iter_mut() {
+					*asset = Config::AssetTransactor::transfer_asset(asset, &origin, &dest)?;
+				}
+				let msg = Xcm::ReserveAssetCredit { assets, effects }.into();
+				Config::XcmSender::send_xcm(dest, msg)
+			},
 			_ => Err(())?,	// Unhandled XCM message.
 		};
 

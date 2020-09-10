@@ -39,6 +39,12 @@ impl From<Vec<MultiAsset>> for Assets {
 	}
 }
 
+impl From<Assets> for Vec<MultiAsset> {
+	fn from(a: Assets) -> Self {
+		a.into_assets_iter().collect()
+	}
+}
+
 impl Assets {
 	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
 		let fungible = self.fungible.into_iter()

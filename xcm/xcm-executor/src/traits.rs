@@ -17,7 +17,7 @@
 use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
 use sp_core::crypto::UncheckedFrom;
 use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
+use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
 use frame_support::traits::Get;
 
 pub trait FilterAssetLocation {
@@ -25,6 +25,11 @@ pub trait FilterAssetLocation {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;
 }
 
+impl FilterAssetLocation for () {
+	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
+		false
+	}
+}
 
 pub struct NativeAsset;
 impl FilterAssetLocation for NativeAsset {
@@ -48,7 +53,11 @@ impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
 	}
 }
 
-
+/// Facility for asset transacting.
+///
+/// This should work with as many asset/location combinations as possible. Locations to support may include non-
+/// account locations such as a `MultiLocation::X1(Junction::Parachain)`. Different chains may handle them in
+/// different ways.
 pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult;
@@ -56,6 +65,15 @@ pub trait TransactAsset {
 	/// Withdraw the given asset from the consensus system. Return the actual asset withdrawn. In
 	/// the case of `what` being a wildcard, this may be something more specific.
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError>;
+
+	/// Move an `asset` `from` one location in `to` another location.
+	///
+	/// Undefined if from account doesn't own this asset.
+	fn transfer_asset(asset: &MultiAsset, from: &MultiLocation, to: &MultiLocation) -> Result<MultiAsset, XcmError> {
+		let withdrawn = Self::withdraw_asset(asset, from)?;
+		Self::deposit_asset(&withdrawn, to)?;
+		Ok(withdrawn)
+	}
 }
 
 // TODO: Implement for arbitrary tuples.
@@ -101,6 +119,7 @@ pub trait PunnFromLocation<T> {
 	fn punn_from_location(m: &MultiLocation) -> Option<T>;
 }
 
+// TODO: Need a variant of this that works with `ParaId::into_account()`.
 pub struct AccountId32Punner<AccountId, Network>(PhantomData<AccountId>, PhantomData<Network>);
 impl<AccountId: UncheckedFrom<[u8; 32]>, Network> PunnFromLocation<AccountId> for AccountId32Punner<AccountId, Network> {
 	fn punn_from_location(m: &MultiLocation) -> Option<AccountId> {
@@ -146,6 +165,13 @@ pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),
 }
+
+let origin: <T as Trait>::Origin = match origin_type {
+	MultiOrigin::SovereignAccount => system::RawOrigin::Signed(from.into_account()).into(),
+	MultiOrigin::Native => Origin::Parachain(from).into(),
+	MultiOrigin::Superuser if from.is_system() => system::RawOrigin::Root.into(),
+	_ => return,
+};
 
 // TODO: Implement OriginConverter with this code with generic Relay/Parachain origin.
 let origin: <T as Trait>::Origin = match origin_type {

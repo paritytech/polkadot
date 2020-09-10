@@ -58,7 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, MultiOrigin, MultiAsset, MultiLocation, Junction, Ai}};
+use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiOrigin, MultiAsset, MultiLocation, Junction, Ai}};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -326,6 +326,9 @@ pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + ses
 
 	/// A type that converts the opaque hash type to exact one.
 	type BlockHashConversion: Convert<Self::Hash, primitives::v0::Hash>;
+
+	/// The XCM interpreter.
+	type XcmExecutive: ExecuteXcm;
 }
 
 /// Origin for the parachains module.
@@ -808,6 +811,21 @@ fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
 	sorted_duties
 }
 
+impl<T: Trait> SendXcm for Module<T> {
+	fn send_xcm(dest: MultiLocation, msg: xcm::v0::Xcm) -> xcm::v0::XcmResult {
+		if let MultiLocation::X1(Junction::Parachain{ id }) = dest {
+			let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
+			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
+				return Err(())	// Destination buffer overflow.
+			}
+			DownwardMessageQueue::append(id, msg.encode());
+			Ok(())
+		} else {
+			return Err(())	// Cannot reach destination.
+		}
+	}
+}
+
 impl<T: Trait> Module<T> {
 	/// Initialize the state of a new parachain/parathread.
 	pub fn initialize_para(
@@ -932,89 +950,12 @@ impl<T: Trait> Module<T> {
 	/// Dispatch some messages from a parachain.
 	fn dispatch_message(from: ParaId, data: &[u8]) {
 		use sp_std::convert::TryFrom;
+		let origin: MultiLocation = Junction::Parachain { id: from }.into();
 		match VersionedXcm::decode(&mut &data[..]).map(Xcm::try_from) {
-			Ok(Ok(Xcm::ForwardToParachain { id, inner })) => {
-				let id = ParaId::from(id);
-				let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
-				if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
-					return
-				}
-				let msg = VersionedXcm::from(Xcm::ForwardedFromParachain{ id: from.into(), inner });
-				DownwardMessageQueue::append(id, msg.encode());
+			Ok(Ok(xcm)) => {
+				// TODO: handle error.
+				let _ = T::XcmExecutive::execute_xcm(origin.clone(), xcm);
 			},
-			Ok(Ok(Xcm::Transact{ origin_type, call })) => {
-				if let Ok(message_call) = <T as Trait>::Call::decode(&mut &call[..]) {
-					let origin: <T as Trait>::Origin = match origin_type {
-						MultiOrigin::SovereignAccount => system::RawOrigin::Signed(from.into_account()).into(),
-						MultiOrigin::Native => Origin::Parachain(from).into(),
-						MultiOrigin::Superuser if from.is_system() => system::RawOrigin::Root.into(),
-						_ => return,
-					};
-					let _ok = message_call.dispatch(origin).is_ok();
-					// Not much to do with the result as it is. It's up to the parachain to ensure that the
-					// message makes sense.
-				}
-			},
-			Ok(Ok(Xcm::ReserveAssetTransfer { assets, dest, effects })) => {
-				if assets.is_empty() { return };
-				// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
-				let asset = assets[0].clone();
-				let amount = match asset {
-					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
-					_ => return,	// Bail as we don't support being a reserve for this asset.
-				};
-				let (onward_asset, dest) = match dest {
-					// Only destination we support for reserve asset transfers is into a parachain.
-					MultiLocation::X1(Junction::Parachain { id }) => {
-						let destid = ParaId::from(id);
-						let destaccount = destid.into_account();
-						if T::ParachainCurrency::transfer_out(from, &destaccount, amount, AllowDeath).is_err() {
-							return
-						}
-						// The onward asset, since it's the Relay-chain's native currency, is identified as
-						// the chain itself (from our context, it's therefore `Null`). From the parachain's context,
-						// it is identified as `Parent`.
-						(MultiAsset::ConcreteFungible { id: Junction::Parent.into(), amount }, destid)
-					},
-					_ => return,
-				};
-				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { assets: vec![onward_asset], effects }).encode();
-				DownwardMessageQueue::append(dest, msg);
-			},
-			Ok(Ok(Xcm::WithdrawAsset { assets, effects })) => {
-				if assets.is_empty() || effects.is_empty() { return };
-				// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
-				let asset = assets[0].clone();
-				let amount = match asset {
-					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
-					_ => return,	// Bail as we don't support being a reserve for this asset.
-				};
-				// TODO: Handle multiple effects. This is just a hack to make it work for 1 effect.
-				let effect = effects[0].clone();
-				match effect {
-					// Only effect we support for now is a straight wildcard deposit into an AccountId32.
-					// TODO: Consider caring about the `network`.
-					Ai::DepositAsset { assets, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
-						if assets.is_empty() { return };
-						// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
-						let asset = assets[0].clone();
-						match asset {
-							MultiAsset::All => {
-								let dest = match T::AccountId::decode(&mut &id[..]) {
-									Ok(x) => x,
-									Err(_) => return,
-								};
-								if T::ParachainCurrency::transfer_out(from, &dest, amount, AllowDeath).is_err() {
-									return
-								}
-							},
-							_ => return,
-						}
-					}
-					_ => return,
-				}
-			},
-			Ok(Ok(_)) => (),	// Unhandled XCM message type.
 			Ok(Err(_)) => (),	// Unsupported XCM version.
 			Err(_) => (),		// Bad format (can't decode).
 		}
