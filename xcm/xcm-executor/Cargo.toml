@@ -16,7 +16,7 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", default-features
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 
 # Polkadot dependencies
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp-working", default-features = false }
+polkadot-parachain = { path = "../../parachain", default-features = false }
 
 [features]
 default = ["std"]
