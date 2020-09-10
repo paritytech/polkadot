@@ -29,6 +29,7 @@ use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
 use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash};
 
 mod dmp;
+mod ump;
 
 pub use dmp::QueueDownwardMessageError;
 
