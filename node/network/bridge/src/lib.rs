@@ -827,11 +827,28 @@ impl ConnectToAuthoritiesState {
 	}
 
 	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
-		todo!()
+		let inner = match self.0.as_mut() {
+			Some(inner) => inner,
+			None => return,
+		};
+
+		if inner.pending.remove(authority) {
+			inner.connected.insert(authority.clone(), peer_id.clone());
+		}
+
+		if self.is_ready() {
+			self.send();
+		}
 	}
 
 	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
-		todo!()
+		let inner = match self.0.as_mut() {
+			Some(inner) => inner,
+			None => return,
+		};
+
+		let _ = inner.pending.remove(authority);
+		let _ = inner.connected.remove(authority);
 	}
 
 	/// Returns `true` if ready to send.
