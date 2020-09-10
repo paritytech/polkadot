@@ -632,7 +632,7 @@ async fn run_network<N: Network>(
 				if let Err(e) = net.network_service.set_priority_group(priority_group, multiaddresses) {
 					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 				}
-				// TODO: pass validators, authorities and _res to notification stream
+				// TODO: pass authorities and _res to notification stream
 			},
 
 			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,

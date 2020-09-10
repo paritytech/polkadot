@@ -5389,7 +5389,6 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
- "sp-authority-discovery",
  "sp-core",
  "sp-inherents",
  "sp-io",

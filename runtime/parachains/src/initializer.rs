@@ -208,6 +208,7 @@ impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::Acco
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
 		where I: Iterator<Item=(&'a T::AccountId, Self::Key)>
 	{
+
 	}
 
 	fn on_new_session<'a, I: 'a>(changed: bool, validators: I, queued: I)
@@ -219,8 +220,6 @@ impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::Acco
 
 	fn on_disabled(_i: usize) { }
 }
-
-/// A wrapper around `AuthorityDiscovery` and a `OneSessionHandler` for the `Initializer`.
 
 #[cfg(test)]
 mod tests {
