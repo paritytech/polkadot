@@ -33,8 +33,20 @@ pub trait ExecuteXcm {
 	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> Result;
 }
 
+impl ExecuteXcm for () {
+	fn execute_xcm(_origin: MultiLocation, _msg: Xcm) -> Result {
+		Err(())
+	}
+}
+
 pub trait SendXcm {
 	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
+}
+
+impl SendXcm for () {
+	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
+		Err(())
+	}
 }
 
 /// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.

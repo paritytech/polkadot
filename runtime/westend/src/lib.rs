@@ -440,6 +440,7 @@ impl parachains::Trait for Runtime {
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
+	type XcmExecutive = ();
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -1112,4 +1113,3 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 }
-
