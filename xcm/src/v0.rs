@@ -72,6 +72,14 @@ pub enum MultiLocation {
 	X4(Junction, Junction, Junction, Junction),
 }
 
+pub struct MultiLocationIterator(MultiLocation);
+impl Iterator for MultiLocationIterator {
+	type Item = Junction;
+	fn next(&mut self) -> Option<Junction> {
+		self.0.take_last()
+	}
+}
+
 impl MultiLocation {
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
@@ -91,7 +99,14 @@ impl MultiLocation {
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
 		}
 	}
-	pub fn pushed_with(self, new: Junction) -> Result<Self, Self> {
+	pub fn take_last(&mut self) -> Option<Junction> {
+		let mut d = MultiLocation::Null;
+		sp_std::mem::swap(&mut *self, &mut d);
+		let (head, tail) = d.split_last();
+		*self = head;
+		tail
+	}
+	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
 			MultiLocation::X1(a) => MultiLocation::X2(a, new),
@@ -100,17 +115,11 @@ impl MultiLocation {
 			s => Err(s)?,
 		})
 	}
-	pub fn into_iter(self) -> impl Iterator<Item=Junction> {
-		match self {
-			MultiLocation::Null => None,
-			MultiLocation::X1(a) => Some(a),
-			MultiLocation::X2(a, b) => Some(a).chain(Some(b)),
-			MultiLocation::X3(a, b, c) => Some(a).chain(Some(b)).chain(Some(c)),
-			MultiLocation::X4(a, b, c, d) => Some(a).chain(Some(b)).chain(Some(c)).chain(Some(d)),
-		}
+	pub fn into_iter(self) -> MultiLocationIterator {
+		MultiLocationIterator(self)
 	}
 
-	pub fn push(&mut self, new: Junction) -> Result<(), ()> {
+	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut n);
 		match n.pushed_with(new) {
@@ -120,7 +129,7 @@ impl MultiLocation {
 	}
 
 	/// Returns partial result as error in case of failure (e.g. because out of space).
-	pub fn appended_with(self, new: MultiLocation) -> Result<Self, Self> {
+	pub fn appended_with(self, new: MultiLocation) -> result::Result<Self, Self> {
 		let mut result= self;
 		for j in new.into_iter() {
 			result = result.pushed_with(j)?;
@@ -152,7 +161,7 @@ impl From<Junction> for MultiLocation {
 }
 
 impl Junction {
-	fn is_sub_consensus(&self) -> bool {
+	pub fn is_sub_consensus(&self) -> bool {
 		match self {
 			Junction::Parent => false,
 
@@ -237,7 +246,7 @@ impl From<Xcm> for VersionedXcm {
 
 impl TryFrom<VersionedXcm> for Xcm {
 	type Error = ();
-	fn try_from(x: VersionedXcm) -> Result<Self, ()> {
+	fn try_from(x: VersionedXcm) -> result::Result<Self, ()> {
 		match x {
 			VersionedXcm::V0(x) => Ok(x),
 		}
@@ -252,7 +261,7 @@ impl From<MultiLocation> for VersionedMultiLocation {
 
 impl TryFrom<VersionedMultiLocation> for MultiLocation {
 	type Error = ();
-	fn try_from(x: VersionedMultiLocation) -> Result<Self, ()> {
+	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
 		match x {
 			VersionedMultiLocation::V0(x) => Ok(x),
 		}
@@ -267,7 +276,7 @@ impl From<MultiAsset> for VersionedMultiAsset {
 
 impl TryFrom<VersionedMultiAsset> for MultiAsset {
 	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> Result<Self, ()> {
+	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
 		match x {
 			VersionedMultiAsset::V0(x) => Ok(x),
 		}
