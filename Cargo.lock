@@ -9891,7 +9891,6 @@ name = "xcm-executor"
 version = "0.8.22"
 dependencies = [
  "frame-support",
- "frame-system",
  "parity-scale-codec",
  "polkadot-parachain 0.8.22 (git+https://github.com/paritytech/polkadot?branch=rococo-branch)",
  "sp-arithmetic",
