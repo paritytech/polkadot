@@ -29,9 +29,9 @@ use log::{debug, trace};
 use futures::executor::ThreadPool;
 use sp_core::traits::SpawnNamed;
 
-/// CLI Argument to start in validation worker mode.
 const WORKER_ARG: &'static str = "validation-worker";
-const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
+/// CLI Argument to start in validation worker mode.
+pub const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]
@@ -81,10 +81,11 @@ impl ValidationPool {
 		}
 	}
 
-	/// Validate a candidate under the given validation code using the next
-	/// free validation host.
+	/// Validate a candidate under the given validation code using the next free validation host.
 	///
 	/// This will fail if the validation code is not a proper parachain validation module.
+	///
+	/// This function will use `std::env::current_exe()` with the default arguments [`WORKER_ARGS`] to run the worker.
 	pub fn validate_candidate(
 		&self,
 		validation_code: &[u8],
@@ -93,31 +94,31 @@ impl ValidationPool {
 		self.validate_candidate_custom(
 			validation_code,
 			params,
-			&env::current_exe().expect("todo"),
+			&env::current_exe().map_err(|err| ValidationError::Internal(err.into()))?,
 			WORKER_ARGS,
 		)
 	}
 
-	/// Validate a candidate under the given validation code using the next
-	/// free validation host.
+	/// Validate a candidate under the given validation code using the next free validation host.
 	///
 	/// This will fail if the validation code is not a proper parachain validation module.
-	/// TODO
+	///
+	/// This function will use the command and the arguments provided in the function's arguments to run the worker.
 	pub fn validate_candidate_custom(
 		&self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		binary: &PathBuf,
+		command: &PathBuf,
 		args: &[&str],
 	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
-				return host.validate_candidate(validation_code, params, binary, args)
+				return host.validate_candidate(validation_code, params, command, args)
 			}
 		}
 
 		// all workers are busy, just wait for the first one
-		self.hosts[0].lock().validate_candidate(validation_code, params, binary, args)
+		self.hosts[0].lock().validate_candidate(validation_code, params, command, args)
 	}
 }
 

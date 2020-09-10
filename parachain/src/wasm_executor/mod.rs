@@ -28,7 +28,7 @@ use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
-pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WORKER_ARGS};
 
 mod validation_host;
 
@@ -161,7 +161,7 @@ pub fn validate_candidate(
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::Remote(_pool) => // TODO
+		ExecutionMode::ExternalProcessSelfHost(_pool) | ExecutionMode::ExternalProcessCustomHost { .. } =>
 			Err(ValidationError::Internal(InternalError::System(
 				Box::<dyn std::error::Error + Send + Sync>::from(
 					"Remote validator not available".to_string()

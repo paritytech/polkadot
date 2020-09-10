@@ -335,9 +335,7 @@ pub(crate) struct ParachainValidationInstances<N: Network, P, SP, CF> {
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: HashMap<Hash, LiveInstance<N::TableRouter>>,
-	/// The underlying validation pool of processes to use.
-	/// Only `None` in tests.
-	/// TODO
+	/// The underlying validation execution mode.
 	execution_mode: ExecutionMode,
 	/// Used to fetch a collation.
 	collation_fetch: CF,
