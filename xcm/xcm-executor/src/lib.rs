@@ -33,10 +33,11 @@ pub use assets::{Assets, AssetId};
 pub use config::Config;
 pub use currency_adapter::CurrencyAdapter;
 // TODO: pub use multiasset_adapter::MultiAssetAdapter;
+use sp_std::marker::PhantomData;
 
-pub struct XcmExecutor<Config>;
+pub struct XcmExecutor<Config>(PhantomData<Config>);
 
-impl<Config: Config> ExecuteXcm for XcmExecutor<Config> {
+impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 	fn execute_xcm(origin: MultiLocation, msg: VersionedXcm) -> XcmResult {
 		let (mut holding, effects) = match (origin, Xcm::try_from(msg)) {
 			(origin, Ok(Xcm::ForwardedFromParachain { id, inner })) => {
@@ -76,8 +77,7 @@ impl<Config: Config> ExecuteXcm for XcmExecutor<Config> {
 
 				// TODO: allow this to be configurable in the trait.
 				// TODO: allow the trait to issue filters for the relay-chain
-
-				if let Ok(message_call) = <T as Trait>::Call::decode(&mut &call[..]) {
+				if let Ok(message_call) = Config::Call::decode(&mut &call[..]) {
 					let dispatch_origin = Config::OriginConverter::convert((origin_type, origin))?;
 					let _ok = message_call.dispatch(dispatch_origin).is_ok();
 					// Not much to do with the result as it is. It's up to the parachain to ensure that the
@@ -101,7 +101,7 @@ impl<Config: Config> ExecuteXcm for XcmExecutor<Config> {
 	}
 }
 
-impl<Config: Config> XcmExecutor<Config> {
+impl<Config: config::Config> XcmExecutor<Config> {
 	fn execute_effects(origin: &MultiLocation, holding: &mut Assets, effect: Ai) -> XcmResult {
 		match effect {
 			Ai::DepositAsset { assets, dest } => {

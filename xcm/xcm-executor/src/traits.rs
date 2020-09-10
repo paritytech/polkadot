@@ -14,10 +14,16 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result::Result, convert::TryFrom, collections::{btree_map::{BTreeMap, Entry}, btree_set::BTreeSet}};
+use sp_std::{
+	result::Result, convert::TryFrom,
+	collections::{btree_map::{BTreeMap, Entry}, btree_set::BTreeSet},
+	marker::PhantomData,
+};
 use sp_core::crypto::UncheckedFrom;
 use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction};
+use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
+use frame_support::traits::Get;
+use frame_system::Origin;
 
 pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
@@ -40,8 +46,8 @@ impl<X: TransactAsset, Y: TransactAsset> TransactAsset for (X, Y) {
 pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
 }
-pub struct IsConcrete<T>;
-impl<T: Get<MultiLocation>, B: CheckedFrom<u128>> MatchesFungible<B> for IsConcrete<T> {
+pub struct IsConcrete<T>(PhantomData<T>);
+impl<T: Get<MultiLocation>, B: From<u128>> MatchesFungible<B> for IsConcrete<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match a {
 			MultiAsset::ConcreteFungible { id, amount } if id == T::get() =>
@@ -50,8 +56,8 @@ impl<T: Get<MultiLocation>, B: CheckedFrom<u128>> MatchesFungible<B> for IsConcr
 		}
 	}
 }
-pub struct IsAbstract<T>;
-impl<T: Get<&'static [u8]>, B: CheckedFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
+pub struct IsAbstract<T>(PhantomData<T>);
+impl<T: Get<&'static [u8]>, B: From<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match a {
 			MultiAsset::AbstractFungible { id, amount } if &id[..] == T::get() =>
@@ -60,7 +66,7 @@ impl<T: Get<&'static [u8]>, B: CheckedFrom<u128>> MatchesFungible<B> for IsAbstr
 		}
 	}
 }
-impl<B: Balance, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungible<B> for (X, Y) {
+impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungible<B> for (X, Y) {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		X::matches_fungible(a).or_else(|| Y::matches_fungible(a))
 	}
@@ -70,7 +76,7 @@ pub trait PunnFromLocation<T> {
 	fn punn_from_location(m: &MultiLocation) -> Option<T>;
 }
 
-pub struct AccountId32Punner<AccountId, Network>;
+pub struct AccountId32Punner<AccountId, Network>(PhantomData<AccountId>, PhantomData<Network>);
 impl<AccountId: UncheckedFrom<[u8; 32]>, Network> PunnFromLocation<AccountId> for AccountId32Punner<AccountId, Network> {
 	fn punn_from_location(m: &MultiLocation) -> Option<AccountId> {
 		match m {
@@ -98,8 +104,8 @@ pub trait ConvertOrigin<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, XcmError>;
 }
 
-impl<T> ConvertOrigin<T> for () {
-	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<Origin, XcmError> { Err(()) }
+impl<T: frame_system::Trait> ConvertOrigin<T> for () {
+	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<Origin<T>, XcmError> { Err(()) }
 }
 
 // TODO: This might need placing in polkadot and/or cumulus primitives so the relevant modules can dispatch with native

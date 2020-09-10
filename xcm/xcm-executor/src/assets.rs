@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{prelude::*, mem::swap, collections::{btree_map::{BTreeMap, Entry}, btree_set::BTreeSet}};
-use sp_arithmetic::Saturating;
+use sp_runtime::traits::Saturating;
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 
 pub enum AssetId {
@@ -91,7 +91,7 @@ impl Assets {
 			match asset {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.swapped(Assets::default()),
-				x @ MultiAsset::ConcreteFungible {..} | MultiAsset::AbstractFungible {..} => {
+				x @ MultiAsset::ConcreteFungible {..} | x @ MultiAsset::AbstractFungible {..} => {
 					let (id, amount) = match x {
 						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id), amount),
 						MultiAsset::AbstractFungible { id, amount } => (AssetId::Abstract(id), amount),
@@ -108,7 +108,7 @@ impl Assets {
 							*e = 0
 						});
 				}
-				x @ MultiAsset::ConcreteNonFungible {..} | MultiAsset::AbstractNonFungible {..} => {
+				x @ MultiAsset::ConcreteNonFungible {..} | x @ MultiAsset::AbstractNonFungible {..} => {
 					let (class, instance) = match x {
 						MultiAsset::ConcreteNonFungible { class, instance } => (AssetId::Concrete(class), instance),
 						MultiAsset::AbstractNonFungible { class, instance } => (AssetId::Abstract(class), instance),
@@ -121,12 +121,15 @@ impl Assets {
 					}
 				}
 				// TODO: implement partial wildcards.
-				MultiAsset::AllFungible
-				| MultiAsset::AllNonFungible
-				| MultiAsset::AllAbstractFungible { id }
-				| MultiAsset::AllAbstractNonFungible { class }
-				| MultiAsset::AllConcreteFungible { id }
-				| MultiAsset::AllConcreteNonFungible { class } => (),
+				_ => {
+					Default::default()
+				}
+				// MultiAsset::AllFungible
+				// | MultiAsset::AllNonFungible
+				// | MultiAsset::AllAbstractFungible { id }
+				// | MultiAsset::AllAbstractNonFungible { class }
+				// | MultiAsset::AllConcreteFungible { id }
+				// | MultiAsset::AllConcreteNonFungible { class } => (),
 			}
 		}
 		result
