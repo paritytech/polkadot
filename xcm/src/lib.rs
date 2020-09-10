@@ -16,6 +16,8 @@
 
 //! Cross-Consensus Message format data structures.
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 use sp_runtime::RuntimeDebug;
 use codec::{Encode, Decode};
 
