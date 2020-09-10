@@ -29,6 +29,7 @@ mod assets;
 mod config;
 mod currency_adapter;
 
+use traits::TransactAsset;
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 pub use currency_adapter::CurrencyAdapter;
