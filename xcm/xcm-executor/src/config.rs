@@ -16,7 +16,7 @@
 
 use xcm::v0::SendXcm;
 use frame_support::dispatch::{Dispatchable, Parameter};
-use crate::traits::{TransactAsset, ConvertOrigin};
+use crate::traits::{TransactAsset, ConvertOrigin, FilterAssetLocation};
 
 pub trait Config {
 	/// The outer call dispatch type.
@@ -30,7 +30,10 @@ pub trait Config {
 	/// How to get a call origin from a `MultiOrigin` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
-	// TODO: Combinations of (Origin, Asset) pairs which we unilateral trust as reserves.
-	// TODO: Combinations of (Origin, Asset) pairs which we bilateral trust as teleporters.
+	// Combinations of (Location, Asset) pairs which we unilateral trust as reserves.
+	type IsReserve: FilterAssetLocation;
+
+	// Combinations of (Location, Asset) pairs which we bilateral trust as teleporters.
+	type IsTeleporter: FilterAssetLocation;
 }
 

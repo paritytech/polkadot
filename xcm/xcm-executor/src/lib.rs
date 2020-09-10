@@ -19,14 +19,14 @@
 use sp_std::{marker::PhantomData, convert::TryInto};
 use frame_support::dispatch::Dispatchable;
 use codec::Decode;
-use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, XcmResult, MultiAsset, MultiLocation, Junction};
+use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, XcmResult, MultiLocation, Junction};
 
 pub mod traits;
 mod assets;
 mod config;
 mod currency_adapter;
 
-use traits::{TransactAsset, ConvertOrigin};
+use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 pub use currency_adapter::CurrencyAdapter;
@@ -51,11 +51,8 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				(holding, effects)
 			}
 			(origin, Xcm::ReserveAssetCredit { assets, effects }) => {
-				// TODO: check whether we trust origin to be our reserve location for this asset via
-				//   config trait.
-				if assets.len() == 1 &&
-					matches!(&assets[0], MultiAsset::ConcreteFungible { ref id, .. } if id == &origin)
-				{
+				// check whether we trust origin to be our reserve location for this asset.
+				if assets.iter().all(|asset| Config::IsReserve::filter_asset_location(asset, &origin)) {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.
 					(Assets::from(assets), effects)
@@ -63,10 +60,15 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 					Err(())?
 				}
 			}
-			(_origin, Xcm::TeleportAsset { assets, effects }) => {
-				let _ = (assets, effects);
-				// TODO: check whether we trust origin to teleport this asset to us via config trait.
-				Err(())?	// << we don't trust any chains, for now.
+			(origin, Xcm::TeleportAsset { assets, effects }) => {
+				// check whether we trust origin to teleport this asset to us via config trait.
+				if assets.iter().all(|asset| Config::IsTeleporter::filter_asset_location(asset, &origin)) {
+					// We only trust the origin to send us assets that they identify as their
+					// sovereign assets.
+					(Assets::from(assets), effects)
+				} else {
+					Err(())?
+				}
 			}
 			(origin, Xcm::Transact { origin_type, call }) => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
@@ -112,6 +114,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let transferred = holding.saturating_take(assets);
 				let assets = transferred.into_assets_iter().collect();
 				Config::XcmSender::send_xcm(reserve, Xcm::ReserveAssetTransfer { assets, dest, effects })
+			}
+			Ai::InitiateTeleport { assets, dest, effects} => {
+				let transferred = holding.saturating_take(assets);
+				let assets = transferred.into_assets_iter().collect();
+				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })
 			}
 			_ => Err(())?,
 		}

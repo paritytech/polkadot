@@ -20,6 +20,35 @@ use sp_runtime::traits::CheckedConversion;
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
 use frame_support::traits::Get;
 
+pub trait FilterAssetLocation {
+	/// A filter to distinguish between asset/location pairs.
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;
+}
+
+
+pub struct NativeAsset;
+impl FilterAssetLocation for NativeAsset {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		matches!(asset, MultiAsset::ConcreteFungible { ref id, .. } if id == origin)
+	}
+}
+
+// TODO: Implement for arbitrary tuples.
+impl<X: FilterAssetLocation, Y: FilterAssetLocation> FilterAssetLocation for (X, Y) {
+	fn filter_asset_location(what: &MultiAsset, origin: &MultiLocation) -> bool {
+		X::filter_asset_location(what, origin) || Y::filter_asset_location(what, origin)
+	}
+}
+
+pub struct Case<T>(PhantomData<T>);
+impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		let (a, o) = T::get();
+		&a == asset && &o == origin
+	}
+}
+
+
 pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult;
