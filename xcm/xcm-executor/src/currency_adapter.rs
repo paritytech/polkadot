@@ -18,10 +18,7 @@ use sp_std::{result, convert::TryInto, marker::PhantomData};
 use xcm::v0::{Error, Result, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
-use crate::traits::{MatchesFungible, PunnFromLocation, TransactAsset};
-
-// TODO: Will need some way of punning a `Junction::Parachain` into the sovereign parachain account.
-//   Right now it only works with `Junction::AccountId32`.
+use crate::traits::{MatchesFungible, LocationConversion, TransactAsset};
 
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<Currency>,
@@ -32,7 +29,7 @@ pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 
 impl<
 	Matcher: MatchesFungible<Currency::Balance>,
-	AccountIdConverter: PunnFromLocation<AccountId>,
+	AccountIdConverter: LocationConversion<AccountId>,
 	Currency: frame_support::traits::Currency<AccountId>,
 	AccountId,	// can't get away without it since Currency is generic over it.
 > TransactAsset for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId> {
@@ -40,7 +37,7 @@ impl<
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> Result {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
-		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
+		let who = AccountIdConverter::from_location(who).ok_or(())?;
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		let _imbalance = Currency::deposit_creating(&who, balance_amount);
 		Ok(())
@@ -49,7 +46,7 @@ impl<
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> result::Result<MultiAsset, Error> {
 		// Check we handle this asset.
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
-		let who = AccountIdConverter::punn_from_location(who).ok_or(())?;
+		let who = AccountIdConverter::from_location(who).ok_or(())?;
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		Currency::withdraw(&who, balance_amount, WithdrawReason::Transfer.into(), AllowDeath).map_err(|_| ())?;
 		Ok(what.clone())

@@ -16,7 +16,7 @@
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
 use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
+use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, MultiOrigin};
 use frame_support::traits::Get;
 
 pub trait FilterAssetLocation {
@@ -114,33 +114,9 @@ impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungibl
 	}
 }
 
-pub trait PunnFromLocation<T> {
-	fn punn_from_location(m: &MultiLocation) -> Option<T>;
-}
-
-// TODO: Need a variant of this that works with `ParaId::into_account()`.
-pub struct AccountId32Punner<AccountId, Network>(PhantomData<AccountId>, PhantomData<Network>);
-impl<AccountId: From<[u8; 32]>, Network> PunnFromLocation<AccountId> for AccountId32Punner<AccountId, Network> {
-	fn punn_from_location(m: &MultiLocation) -> Option<AccountId> {
-		match m {
-			MultiLocation::X1(Junction::AccountId32 { ref id, .. }) =>
-				Some(AccountId::from(id.clone())),
-			_ => None,
-		}
-	}
-}
-
-pub trait PunnIntoLocation<T> {
-	fn punn_into_location(m: T) -> Option<MultiLocation>;
-}
-
-impl<
-	AccountId: Into<[u8; 32]>,
-	Network: Get<MultiNetwork>
-> PunnIntoLocation<AccountId> for AccountId32Punner<AccountId, Network> {
-	fn punn_into_location(m: AccountId) -> Option<MultiLocation> {
-		Some(MultiLocation::X1(Junction::AccountId32 { id: m.into(), network: Network::get() }))
-	}
+pub trait LocationConversion<T> {
+	fn from_location(m: &MultiLocation) -> Option<T>;
+	fn into_location(m: T) -> Option<MultiLocation>;
 }
 
 pub trait ConvertOrigin<Origin> {
@@ -150,61 +126,3 @@ pub trait ConvertOrigin<Origin> {
 impl<T> ConvertOrigin<T> for () {
 	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<T, XcmError> { Err(()) }
 }
-
-// TODO: This might need placing in polkadot and/or cumulus primitives so the relevant modules can dispatch with native
-//    origins.
-/*
-use polkadot_parachain::primitives::AccountIdConversion;
-
-/// Origin for the parachains module.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum Origin {
-	/// It comes from the relay-chain.
-	RelayChain,
-	/// It comes from a parachain.
-	Parachain(ParaId),
-}
-
-let origin: <T as Trait>::Origin = match origin_type {
-	MultiOrigin::SovereignAccount => system::RawOrigin::Signed(from.into_account()).into(),
-	MultiOrigin::Native => Origin::Parachain(from).into(),
-	MultiOrigin::Superuser if from.is_system() => system::RawOrigin::Root.into(),
-	_ => return,
-};
-
-// TODO: Implement OriginConverter with this code with generic Relay/Parachain origin.
-let origin: <T as Trait>::Origin = match origin_type {
-	// TODO: Allow sovereign accounts to be configured via the trait.
-	MultiOrigin::SovereignAccount => {
-		match origin {
-			// Relay-chain doesn't yet have a sovereign account on the parachain.
-			MultiLocation::X1(Junction::Parent) => Err(())?,
-			MultiLocation::X2(Junction::Parent, Junction::Parachain(id)) =>
-				RawOrigin::Signed(id.into_account()).into(),
-			_ => Err(())?,
-		}
-	}
-	// We assume we are a parachain.
-	//
-	// TODO: Use the config trait to convert the multilocation into an origin.
-	MultiOrigin::Native => match origin {
-		MultiLocation::X1(Junction::Parent) => Origin::RelayChain.into(),
-		MultiLocation::X2(Junction::Parent, Junction::Parachain(id)) =>
-			Origin::Parachain(id.into()).into(),
-		_ => Err(())?,
-	},
-	MultiOrigin::Superuser => match origin {
-		MultiLocation::X1(Junction::Parent) =>
-			// We assume that the relay-chain is allowed to execute with superuser
-			// privileges if it wants.
-			// TODO: allow this to be configurable in the trait.
-			RawOrigin::Root.into(),
-		MultiLocation::X2(Junction::Parent, Junction::Parachain(id)) =>
-			// We assume that parachains are not allowed to execute with
-			// superuser privileges.
-			// TODO: allow this to be configurable in the trait.
-			Err(())?,
-		_ => Err(())?,
-	}
-};
-*/
