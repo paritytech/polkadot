@@ -17,16 +17,20 @@
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{Currency, ExistenceRequirement::AllowDeath, WithdrawReason};
-use crate::traits::{MatchesAsset, PunnFromLocation};
+use crate::traits::{MatchesFungible, PunnFromLocation, TransactAsset};
+use sp_std::marker::PhantomData;
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
-
-pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>;
+pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
+	PhantomData<Currency>,
+	PhantomData<Matcher>,
+	PhantomData<AccountIdConverter>,
+	PhantomData<AccountId>,
+);
 
 impl<
-	Matcher: MatchesAsset,
+	Matcher: MatchesFungible<Currency::Balance>,
 	AccountIdConverter: PunnFromLocation<AccountId>,
-	Currency: Currency<AccountId>,
+	Currency: frame_support::traits::Currency<AccountId>,
 	AccountId,	// can't get away without it since Currency is generic over it.
 > TransactAsset for CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId> {
 
@@ -34,7 +38,7 @@ impl<
 		// Check we handle this asset.
 		let amount = Matcher::matches_asset(&what).ok_or(())?.saturating_into();
 		let who = AccountIdConverter::punn_from_location(who)?;
-		T::Currency::deposit_creating(&who, amount).map_err(|_| ())?;
+		Currency::deposit_creating(&who, amount).map_err(|_| ())?;
 		Ok(())
 	}
 
@@ -42,7 +46,7 @@ impl<
 		// Check we handle this asset.
 		let amount = Matcher::matches_asset(&what).ok_or(())?.saturating_into();
 		let who = AccountIdConverter::punn_from_location(who)?;
-		T::Currency::withdraw(&who, amount, WithdrawReason::Transfer, AllowDeath).map_err(|_| ())?;
+		Currency::withdraw(&who, amount, WithdrawReason::Transfer, AllowDeath).map_err(|_| ())?;
 		Ok(what.clone())
 	}
 }
