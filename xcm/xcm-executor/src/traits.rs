@@ -14,12 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{result::Result, marker::PhantomData};
+use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
 use sp_core::crypto::UncheckedFrom;
 use sp_runtime::traits::CheckedConversion;
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
 use frame_support::traits::Get;
-use frame_system::Origin;
 
 pub trait TransactAsset {
 	/// Deposit the `what` asset into the account of `who`.
@@ -44,21 +43,21 @@ pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
 }
 pub struct IsConcrete<T>(PhantomData<T>);
-impl<T: Get<MultiLocation>, B: From<u128>> MatchesFungible<B> for IsConcrete<T> {
+impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match a {
 			MultiAsset::ConcreteFungible { id, amount } if id == &T::get() =>
-				amount.checked_into(),
+				CheckedConversion::checked_from(*amount),
 			_ => None,
 		}
 	}
 }
 pub struct IsAbstract<T>(PhantomData<T>);
-impl<T: Get<&'static [u8]>, B: From<u128>> MatchesFungible<B> for IsAbstract<T> {
+impl<T: Get<&'static [u8]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match a {
 			MultiAsset::AbstractFungible { id, amount } if &id[..] == T::get() =>
-				amount.checked_into(),
+				CheckedConversion::checked_from(*amount),
 			_ => None,
 		}
 	}
