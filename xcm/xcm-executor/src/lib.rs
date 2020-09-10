@@ -120,6 +120,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = transferred.into_assets_iter().collect();
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })
 			}
+			Ai::QueryHolding { query_id, dest, assets } => {
+				let assets = holding.min(assets.iter()).into_assets_iter().collect();
+				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })
+			}
 			_ => Err(())?,
 		}
 	}

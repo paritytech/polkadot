@@ -90,6 +90,49 @@ impl Assets {
 		self.non_fungible.insert((class, instance));
 	}
 
+	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
+	///
+	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
+	pub fn min<'a, I: Iterator<Item=&'a MultiAsset>>(&self, assets: I) -> Self {
+		let mut result = Assets::default();
+		for asset in assets.into_iter() {
+			match asset {
+				MultiAsset::None => (),
+				MultiAsset::All => return self.clone(),
+				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
+					let (id, amount) = match x {
+						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id.clone()), *amount),
+						MultiAsset::AbstractFungible { id, amount } => (AssetId::Abstract(id.clone()), *amount),
+						_ => unreachable!(),
+					};
+					if let Some(v) = self.fungible.get(&id) {
+						result.saturating_subsume_fungible(id, amount.max(*v));
+					}
+				}
+				x @ MultiAsset::ConcreteNonFungible { .. } | x @ MultiAsset::AbstractNonFungible { .. } => {
+					let (class, instance) = match x {
+						MultiAsset::ConcreteNonFungible { class, instance } => (AssetId::Concrete(class.clone()), instance.clone()),
+						MultiAsset::AbstractNonFungible { class, instance } => (AssetId::Abstract(class.clone()), instance.clone()),
+						_ => unreachable!(),
+					};
+					let item = (class, instance);
+					if self.non_fungible.contains(&item) {
+						result.non_fungible.insert(item);
+					}
+				}
+				// TODO: implement partial wildcards.
+				_ => (),
+				// MultiAsset::AllFungible
+				// | MultiAsset::AllNonFungible
+				// | MultiAsset::AllAbstractFungible { id }
+				// | MultiAsset::AllAbstractNonFungible { class }
+				// | MultiAsset::AllConcreteFungible { id }
+				// | MultiAsset::AllConcreteNonFungible { class } => (),
+			}
+		}
+		result
+	}
+
 	/// Take all possible assets up to `assets` from `self`, mutating `self` and returning the
 	/// assets taken.
 	///

@@ -173,7 +173,7 @@ pub enum Xcm {
 	ReserveAssetTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
 	ReserveAssetCredit { assets: MultiAssets, effects: Ais },
 	TeleportAsset { assets: MultiAssets, effects: Ais },
-	Balances { query_id: Vec<u8>, assets: MultiAssets },
+	Balances { #[codec(compact)] query_id: u64, assets: MultiAssets },
 	Transact { origin_type: MultiOrigin, call: Vec<u8> },
 	// these won't be staying here for long. only v0 parachains with HRMP.
 	ForwardToParachain { id: u32, inner: Box<VersionedXcm> },
