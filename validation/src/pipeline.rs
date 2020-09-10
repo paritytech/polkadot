@@ -26,7 +26,7 @@ use polkadot_primitives::v0::{
 };
 use polkadot_primitives::v0::{Block, BlockId, Balance, Hash};
 use parachain::{
-	wasm_executor::{self, ExecutionMode},
+	wasm_executor,
 	primitives::{UpwardMessage, ValidationParams},
 };
 use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
@@ -34,7 +34,7 @@ use sp_api::ProvideRuntimeApi;
 use crate::Error;
 use primitives::traits::SpawnNamed;
 
-pub use parachain::wasm_executor::{ValidationPool, ValidationExecutionMode};
+pub use parachain::wasm_executor::{ExecutionMode, ValidationPool};
 
 /// Does basic checks of a collation. Provide the encoded PoV-block.
 pub fn basic_checks(
@@ -188,7 +188,8 @@ fn validate_upward_messages(
 
 /// Does full checks of a collation, with provided PoV-block and contextual data.
 pub fn validate<'a>(
-	validation_pool: Option<&'_ ValidationPool>,
+	execution_mode: &'a ExecutionMode,
+	validation_pool: Option<&ValidationPool>,
 	collation: &'a CollationInfo,
 	pov_block: &'a PoVBlock,
 	local_validation: &'a LocalValidationData,
@@ -218,14 +219,11 @@ pub fn validate<'a>(
 		per_byte: 0,
 	};
 
-	let execution_mode = validation_pool
-		.map(ExecutionMode::Remote)
-		.unwrap_or(ExecutionMode::Local);
-
 	match wasm_executor::validate_candidate(
 		&validation_code.0,
 		params,
 		execution_mode,
+		validation_pool,
 		spawner,
 	) {
 		Ok(result) => {
@@ -277,6 +275,7 @@ where
 /// Does full-pipeline validation of a collation with provided contextual parameters.
 pub fn full_output_validation_with_api<P>(
 	validation_pool: Option<&ValidationPool>,
+	execution_mode: &ExecutionMode,
 	api: &P,
 	collation: &CollationInfo,
 	pov_block: &PoVBlock,
@@ -303,6 +302,7 @@ pub fn full_output_validation_with_api<P>(
 	)
 		.and_then(|()| {
 			let res = validate(
+				execution_mode,
 				validation_pool,
 				&collation,
 				&pov_block,

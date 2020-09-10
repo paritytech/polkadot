@@ -18,7 +18,7 @@
 
 use std::{process, env, sync::Arc, sync::atomic, path::PathBuf};
 use codec::{Decode, Encode};
-use crate::primitives::{ValidationParams, ValidationResult};
+use crate::{primitives::{ValidationParams, ValidationResult}, wasm_executor::ExecutionMode};
 use super::{
 	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
 	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
@@ -65,40 +65,19 @@ impl SpawnNamed for TaskExecutor {
 	}
 }
 
-/// The execution mode for the `ValidationPool`.
-#[derive(Debug, Clone)]
-pub enum ValidationExecutionMode {
-	/// The validation worker is ran in a thread inside the same process.
-	InProcess,
-	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
-	/// following by the address of the shared memory.
-	ExternalProcessSelfHost,
-	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
-	/// memory is added at the end of the arguments.
-	ExternalProcessCustomHost {
-		/// Path to the validation worker. The file must exists and be executable.
-		binary: PathBuf,
-		/// List of arguments passed to the validation worker. The address of the shared memory will be automatically
-		/// added after the arguments.
-		args: Vec<String>,
-	},
-}
-
 /// A pool of hosts.
 #[derive(Clone)]
 pub struct ValidationPool {
 	hosts: Arc<Vec<Mutex<ValidationHost>>>,
-	execution_mode: ValidationExecutionMode,
 }
 
 const DEFAULT_NUM_HOSTS: usize = 8;
 
 impl ValidationPool {
 	/// Creates a validation pool with the default configuration.
-	pub fn new(execution_mode: ValidationExecutionMode) -> ValidationPool {
+	pub fn new() -> ValidationPool {
 		ValidationPool {
 			hosts: Arc::new((0..DEFAULT_NUM_HOSTS).map(|_| Default::default()).collect()),
-			execution_mode,
 		}
 	}
 
@@ -111,14 +90,34 @@ impl ValidationPool {
 		validation_code: &[u8],
 		params: ValidationParams,
 	) -> Result<ValidationResult, ValidationError> {
+		self.validate_candidate_custom(
+			validation_code,
+			params,
+			&env::current_exe().expect("todo"),
+			WORKER_ARGS,
+		)
+	}
+
+	/// Validate a candidate under the given validation code using the next
+	/// free validation host.
+	///
+	/// This will fail if the validation code is not a proper parachain validation module.
+	/// TODO
+	pub fn validate_candidate_custom(
+		&self,
+		validation_code: &[u8],
+		params: ValidationParams,
+		binary: &PathBuf,
+		args: &[&str],
+	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
-				return host.validate_candidate(validation_code, params, self.execution_mode.clone());
+				return host.validate_candidate(validation_code, params, binary, args)
 			}
 		}
 
 		// all workers are busy, just wait for the first one
-		self.hosts[0].lock().validate_candidate(validation_code, params, self.execution_mode.clone())
+		self.hosts[0].lock().validate_candidate(validation_code, params, binary, args)
 	}
 }
 
@@ -253,7 +252,7 @@ impl ValidationHost {
 		Ok(mem_config.create()?)
 	}
 
-	fn start_worker(&mut self, execution_mode: ValidationExecutionMode) -> Result<(), InternalError> {
+	fn start_worker(&mut self, cmd: &PathBuf, args: &[&str]) -> Result<(), InternalError> {
 		if let Some(ref mut worker) = self.worker {
 			// Check if still alive
 			if let Ok(None) = worker.try_wait() {
@@ -267,32 +266,14 @@ impl ValidationHost {
 
 		let memory = Self::create_memory()?;
 
-		let mut run_worker_process = |cmd: PathBuf, args: Vec<String>| -> Result<(), std::io::Error> {
-			debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
-			let worker = process::Command::new(cmd)
-				.args(args)
-				.arg(memory.get_os_path())
-				.stdin(process::Stdio::piped())
-				.spawn()?;
-			self.id = worker.id();
-			self.worker = Some(worker);
-			Ok(())
-		};
-
-		match execution_mode {
-			ValidationExecutionMode::InProcess => {
-				let mem_id = memory.get_os_path().to_string();
-				self.worker_thread = Some(std::thread::spawn(move || run_worker(mem_id.as_str())));
-			},
-			ValidationExecutionMode::ExternalProcessSelfHost => run_worker_process(
-				env::current_exe()?,
-				WORKER_ARGS.iter().map(|x| x.to_string()).collect(),
-			)?,
-			ValidationExecutionMode::ExternalProcessCustomHost { binary, args } => run_worker_process(
-				binary,
-				args,
-			)?,
-		};
+		debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
+		let worker = process::Command::new(cmd)
+			.args(args)
+			.arg(memory.get_os_path())
+			.stdin(process::Stdio::piped())
+			.spawn()?;
+		self.id = worker.id();
+		self.worker = Some(worker);
 
 		memory.wait(
 			Event::WorkerReady as usize,
@@ -309,13 +290,14 @@ impl ValidationHost {
 		&mut self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		execution_mode: ValidationExecutionMode,
+		binary: &PathBuf,
+		args: &[&str],
 	) -> Result<ValidationResult, ValidationError> {
 		if validation_code.len() > MAX_CODE_MEM {
 			return Err(ValidationError::InvalidCandidate(InvalidCandidate::CodeTooLarge(validation_code.len())));
 		}
 		// First, check if need to spawn the child process
-		self.start_worker(execution_mode)?;
+		self.start_worker(binary, args)?;
 		let memory = self.memory.as_mut()
 			.expect("memory is always `Some` after `start_worker` completes successfully");
 		{

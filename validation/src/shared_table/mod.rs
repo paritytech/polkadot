@@ -40,7 +40,7 @@ use self::includable::IncludabilitySender;
 use primitives::{Pair, traits::SpawnNamed};
 use sp_api::ProvideRuntimeApi;
 
-use crate::pipeline::{FullOutput, ValidationPool};
+use crate::pipeline::{ExecutionMode, FullOutput, ValidationPool};
 use crate::Error;
 
 mod includable;
@@ -148,6 +148,7 @@ struct SharedTableInner {
 	availability_store: AvailabilityStore,
 	validated: HashMap<Hash, ValidationWork>,
 	validation_pool: Option<ValidationPool>,
+	execution_mode: ExecutionMode,
 }
 
 impl SharedTableInner {
@@ -210,6 +211,7 @@ impl SharedTableInner {
 
 		work.map(|work| ParachainWork {
 			validation_pool: self.validation_pool.clone(),
+			execution_mode: self.execution_mode.clone(),
 			availability_store: self.availability_store.clone(),
 			relay_parent: context.signing_context.parent_hash.clone(),
 			work,
@@ -277,6 +279,7 @@ impl Validated {
 /// Future that performs parachain validation work.
 pub struct ParachainWork<Fetch> {
 	validation_pool: Option<ValidationPool>,
+	execution_mode: ExecutionMode,
 	work: Work<Fetch>,
 	relay_parent: Hash,
 	availability_store: AvailabilityStore,
@@ -305,10 +308,12 @@ impl<Fetch: Future + Unpin> ParachainWork<Fetch> {
 		let expected_relay_parent = self.relay_parent;
 
 		let pool = self.validation_pool.clone();
+		let execution_mode = self.execution_mode.clone();
 		let validate = move |pov_block: &PoVBlock, candidate: &AbridgedCandidateReceipt| {
 			let collation_info = candidate.to_collation_info();
 			let full_output = crate::pipeline::full_output_validation_with_api(
 				pool.as_ref(),
+				&execution_mode,
 				&*api,
 				&collation_info,
 				pov_block,
@@ -441,6 +446,7 @@ impl SharedTable {
 		availability_store: AvailabilityStore,
 		max_block_data_size: Option<u64>,
 		validation_pool: Option<ValidationPool>,
+		execution_mode: ExecutionMode,
 	) -> Self {
 		SharedTable {
 			context: Arc::new(TableContext { groups, key, signing_context, validators: validators.clone(), }),
@@ -451,6 +457,7 @@ impl SharedTable {
 				trackers: Vec::new(),
 				availability_store,
 				validation_pool,
+				execution_mode,
 			}))
 		}
 	}
