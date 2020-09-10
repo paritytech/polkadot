@@ -19,6 +19,7 @@
 use sp_std::{boxed::Box, vec::Vec, convert::TryFrom};
 use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode, Input, Output};
+use super::{VersionedXcm, VersionedMultiLocation, VersionedMultiAsset};
 
 pub type XcmError = ();
 pub type XcmResult = Result<(), XcmError>;
