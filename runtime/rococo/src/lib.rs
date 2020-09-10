@@ -411,8 +411,9 @@ impl LocationConversion<AccountId> for LocationConverter {
 		Some(match location {
 			MultiLocation::X1(Junction::Parent) => AccountId::default(),
 			MultiLocation::X1(Junction::Parachain { id }) => ParaId::from(*id).into_account(),
-			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Polkadot }) |
-			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Any }) => (*id).into(),
+			MultiLocation::X1(Junction::AccountId32 { id, network })
+				if matches!(*network, MultiNetwork::Polkadot | MultiNetwork::Any)
+				=> (*id).into(),
 			x => ("multiloc", x).using_encoded(sp_io::hashing::blake2_256).into(),
 		})
 	}
@@ -447,11 +448,15 @@ pub struct LocalOriginConverter;
 impl ConvertOrigin<Origin> for LocalOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, xcm::v0::Error> {
 		Ok(match (kind, origin) {
-			(MultiOrigin::SovereignAccount, origin) => system::RawOrigin::Signed(LocationConverter::from_location(&origin).ok_or(())?).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id })) => parachains::Origin::Parachain(id.into()).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Polkadot })) |
-			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Any })) => system::RawOrigin::Signed(id.into()).into(),
-			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parachain { id })) if ParaId::from(id).is_system()
+			(MultiOrigin::SovereignAccount, origin)
+				=> system::RawOrigin::Signed(LocationConverter::from_location(&origin).ok_or(())?).into(),
+			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id }))
+				=> parachains::Origin::Parachain(id.into()).into(),
+			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network }))
+				if matches!(network, MultiNetwork::Polkadot | MultiNetwork::Any)
+				=> system::RawOrigin::Signed(id.into()).into(),
+			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+				if ParaId::from(id).is_system()
 				=> system::RawOrigin::Root.into(),
 			_ => Err(())?,
 		})
