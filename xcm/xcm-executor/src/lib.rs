@@ -45,11 +45,11 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
 				Self::execute_xcm(new_origin, (*inner).try_into()?)
 			}
-			(_origin, Xcm::WithdrawAsset { assets, effects }) => {
+			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
 				let mut holding = Assets::default();
 				for asset in assets {
-					let withdrawn = Config::AssetTransactor::withdraw_asset(&asset)?;
+					let withdrawn = Config::AssetTransactor::withdraw_asset(&asset, &origin)?;
 					holding.saturating_subsume(withdrawn);
 				}
 				(holding, effects)
