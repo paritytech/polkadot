@@ -59,7 +59,7 @@ use system::{
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
 use xcm::{VersionedXcm, VersionedMultiLocation, v0::Xcm};
-use polkadot_parachain::xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
+use xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -942,7 +942,7 @@ impl<T: Trait> Module<T> {
 				}
 				let msg = VersionedXcm::from(Xcm::ForwardedFromParachain{ id: from.into(), inner });
 				DownwardMessageQueue::append(id, msg.encode());
-			}
+			},
 			Ok(Ok(Xcm::Transact{ origin_type, call })) => {
 				if let Ok(message_call) = <T as Trait>::Call::decode(&mut &call[..]) {
 					let origin: <T as Trait>::Origin = match origin_type {
@@ -955,8 +955,11 @@ impl<T: Trait> Module<T> {
 					// Not much to do with the result as it is. It's up to the parachain to ensure that the
 					// message makes sense.
 				}
-			}
+			},
 			Ok(Ok(Xcm::ReserveAssetTransfer { assets, dest, effects })) => {
+				if assets.is_empty() { return };
+				// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
+				let asset = assets[0].clone();
 				let amount = match asset {
 					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
@@ -976,29 +979,42 @@ impl<T: Trait> Module<T> {
 					},
 					_ => return,
 				};
-				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { asset: onward_asset, effect }).encode();
+				let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { assets: vec![onward_asset], effects }).encode();
 				DownwardMessageQueue::append(dest, msg);
-			}
+			},
 			Ok(Ok(Xcm::WithdrawAsset { assets, effects })) => {
+				if assets.is_empty() || effects.is_empty() { return };
+				// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
+				let asset = assets[0].clone();
 				let amount = match asset {
 					MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount} => amount,
 					_ => return,	// Bail as we don't support being a reserve for this asset.
 				};
+				// TODO: Handle multiple effects. This is just a hack to make it work for 1 effect.
+				let effect = effects[0].clone();
 				match effect {
 					// Only effect we support for now is a straight wildcard deposit into an AccountId32.
 					// TODO: Consider caring about the `network`.
-					Ai::DepositAsset { assets: MultiAsset::All, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
-						let dest = match T::AccountId::decode(&mut &id[..]) {
-							Ok(x) => x,
-							Err(_) => return,
-						};
-						if T::ParachainCurrency::transfer_out(from, &dest, amount, AllowDeath).is_err() {
-							return
+					Ai::DepositAsset { assets, dest: MultiLocation::X1(Junction::AccountId32 { id, .. }) } => {
+						if assets.is_empty() { return };
+						// TODO: Handle multiple assets. This is just a hack to make it work for 1 asset.
+						let asset = assets[0].clone();
+						match asset {
+							MultiAsset::All => {
+								let dest = match T::AccountId::decode(&mut &id[..]) {
+									Ok(x) => x,
+									Err(_) => return,
+								};
+								if T::ParachainCurrency::transfer_out(from, &dest, amount, AllowDeath).is_err() {
+									return
+								}
+							},
+							_ => return,
 						}
-					},
+					}
 					_ => return,
 				}
-			}
+			},
 			Ok(Ok(_)) => (),	// Unhandled XCM message type.
 			Ok(Err(_)) => (),	// Unsupported XCM version.
 			Err(_) => (),		// Bad format (can't decode).
