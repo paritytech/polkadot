@@ -890,7 +890,7 @@ mod tests {
 					peers,
 					protocol_v1::CollationProtocol::CollatorProtocol(
 						protocol_v1::CollatorProtocolMessage::RequestCollation(
-							id,
+							_id,
 							relay_parent,
 							para_id,
 						)
