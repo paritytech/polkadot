@@ -398,6 +398,31 @@ parameter_types! {
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
 }
 
+use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
+use xcm::v0::{MultiLocation, MultiOrigin, MultiNetwork, Junction};
+use sp_core::crypto::UncheckedInto;
+use xcm_executor::{CurrencyAdapter, traits::{IsConcrete, PunnFromLocation, PunnIntoLocation}, XcmExecutor};
+
+pub struct LocalPunner;
+impl PunnFromLocation<AccountId> for LocalPunner {
+	fn punn_from_location(location: &MultiLocation) -> Option<AccountId> {
+		Some(match location {
+			MultiLocation::X1(Junction::Parachain { id }) => ParaId::from(id).into_account(),
+			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Polkadot }) |
+			MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Any }) => id.clone().into(),
+			x => ("multiloc", x).using_encoded(sp_io::hashing::blake2_256).into(),
+		})
+	}
+}
+impl PunnIntoLocation<AccountId> for LocalPunner {
+	fn punn_into_location(who: AccountId) -> Option<MultiLocation> {
+		if let Some(id) = ParaId::try_from_account(&who) {
+			return Some(Junction::Parachain { id: id.into() }.into())
+		}
+		Some(Junction::AccountId32 { id: who.into(), network: MultiNetwork::Polkadot }.into())
+	}
+}
+
 parameter_types! {
 	const RocLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
 }
@@ -407,41 +432,21 @@ pub type LocalAssetTransactor =
 		// Use this currency:
 		balances::Module::<T, DefaultInstance>,
 		// Use this currency when it is a fungible asset matching the given location or name:
-		(IsConcrete<RocLocation>),
+		IsConcrete<RocLocation>,
 		// Do a simple punn to convert an AccountId32 MultiLocation into a native chain account ID:
-		// TODO: This will need some ParaId::into_account() magic.
-		AccountId32Punner<T::AccountId>,
+		LocalPunner,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		T::AccountId,
 	>;
-
-use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
-use xcm::v0::{MultiLocation, Junction};
-use sp_core::crypto::UncheckedInto;
-impl AccountIdConversion<AccountId> for MultiLocation {
-	fn into_account(&self) -> AccountId {
-		match self {
-			MultiLocation::X1(Junction::Parachain { id }) => ParaId::from(id).into_account(),
-			MultiLocation::X1(Junction::AccountId32 { id }) => id.unchecked_into(),
-			x => ("multilocation", x).using_encoded(sp_io::hashing::blake2_256).unchecked_into(),
-		}
-	}
-
-	fn try_from_account(a: AccountId) -> Option<Self> {
-		if let Some(id) = ParaId::try_from_account(a) {
-			return Some(Junction::Parachain { id: id.into() })
-		}
-		Some(Junction::AccountId32 { id: a.into() })
-	}
-}
 
 pub struct LocalOriginConverter;
 impl OriginConverter<Origin> for LocalOriginConverter {
 	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, xcm::v0::Error> {
 		Ok(match (kind, origin) {
-			(MultiOrigin::SovereignAccount, origin) => system::RawOrigin::Signed(origin.into_account()).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id })) => parachains::Origin::Parachain(id).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id })) => system::RawOrigin::Signed(id).into(),
+			(MultiOrigin::SovereignAccount, origin) => system::RawOrigin::Signed(LocalPunner::punn_from_location(&origin)).into(),
+			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id })) => parachains::Origin::Parachain(id.into()).into(),
+			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Polkadot })) |
+			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network: MultiNetwork::Any })) => system::RawOrigin::Signed(id).into(),
 			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parachain { id })) if ParaId::from(id).is_system()
 				=> system::RawOrigin::Root.into(),
 			_ => Err(())?,

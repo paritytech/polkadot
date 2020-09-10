@@ -54,7 +54,7 @@ pub enum MultiOrigin {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum MultiNetwork {
 	/// Unidentified/any.
-	Wildcard,
+	Any,
 	/// Some named network.
 	Named(Vec<u8>),
 	/// The Polkadot Relay chain
