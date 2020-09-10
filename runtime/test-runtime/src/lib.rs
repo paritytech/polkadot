@@ -398,6 +398,8 @@ impl parachains::Trait for Runtime {
 		>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
+
+	type XcmExecutive = ();
 }
 
 impl<LocalCall> system::offchain::CreateSignedTransaction<LocalCall> for Runtime where

@@ -82,7 +82,7 @@ impl<N: Saturating + One + PartialOrd + PartialEq + Clone> Iterator for BlockNum
 }
 
 // wrapper trait because an associated type of `Currency<Self::AccountId,Balance=Balance>`
-// doesn't work.`
+// doesn't work.
 pub trait ParachainCurrency<AccountId> {
 	fn free_balance(para_id: ParaId) -> Balance;
 	fn deduct(para_id: ParaId, amount: Balance) -> DispatchResult;
