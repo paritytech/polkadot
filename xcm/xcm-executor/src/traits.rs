@@ -28,6 +28,7 @@ pub trait TransactAsset {
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError>;
 }
 
+// TODO: Implement for arbitrary tuples.
 impl<X: TransactAsset, Y: TransactAsset> TransactAsset for (X, Y) {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		X::deposit_asset(what, who).or_else(|| Y::deposit_asset(what, who))
@@ -46,7 +47,7 @@ impl<T: Get<MultiLocation>, B: CheckedFrom<u128>> MatchesFungible<B> for IsConcr
 		match a {
 			MultiAsset::ConcreteFungible { id, amount } if id == T::get() =>
 				amount.checked_into(),
-			_ => false,
+			_ => None,
 		}
 	}
 }
@@ -56,7 +57,7 @@ impl<T: Get<&'static [u8]>, B: CheckedFrom<u128>> MatchesFungible<B> for IsAbstr
 		match a {
 			MultiAsset::AbstractFungible { id, amount } if &id[..] == T::get() =>
 				amount.checked_into(),
-			_ => false,
+			_ => None,
 		}
 	}
 }
