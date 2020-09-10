@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::prelude::*;
-use xcm::v0::{MultiOrigin, MultiLocation, SendXcm, XcmError};
-use sp_runtime::traits::Convert;
+use xcm::v0::SendXcm;
 use frame_support::dispatch::{Dispatchable, Parameter};
 use crate::traits::{TransactAsset, ConvertOrigin};
 

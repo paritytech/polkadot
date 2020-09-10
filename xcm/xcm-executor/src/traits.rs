@@ -14,11 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{
-	result::Result, convert::TryFrom,
-	collections::{btree_map::{BTreeMap, Entry}, btree_set::BTreeSet},
-	marker::PhantomData,
-};
+use sp_std::{result::Result, marker::PhantomData};
 use sp_core::crypto::UncheckedFrom;
 use sp_runtime::traits::CheckedConversion;
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
