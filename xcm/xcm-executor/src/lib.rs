@@ -16,7 +16,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::convert::TryFrom;
+use sp_std::convert::TryInto;
 use frame_support::dispatch::Dispatchable;
 use codec::{Encode, Decode};
 use xcm::{VersionedXcm, v0::{
@@ -42,7 +42,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 		let (mut holding, effects) = match (origin, msg) {
 			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
-				Self::execute_xcm(new_origin, inner.into())
+				Self::execute_xcm(new_origin, (*inner).try_into()?)
 			}
 			(_origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
