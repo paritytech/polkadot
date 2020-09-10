@@ -4491,7 +4491,7 @@ dependencies = [
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#75a4d547a99b8c368dd7a75ca953df002820028f"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working#1a3dc55fdb826d81380b0f0c883e97765caf1b2a"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -4771,22 +4771,24 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#75a4d547a99b8c368dd7a75ca953df002820028f"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working#1a3dc55fdb826d81380b0f0c883e97765caf1b2a"
 dependencies = [
  "derive_more 0.99.9",
  "futures 0.3.5",
  "log 0.4.8",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "polkadot-core-primitives 0.7.30 (git+https://github.com/paritytech/polkadot?branch=rococo-branch)",
+ "polkadot-core-primitives 0.7.30 (git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working)",
  "sc-executor",
  "serde",
  "shared_memory",
  "sp-core",
  "sp-externalities",
  "sp-io",
+ "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
+ "xcm 0.8.22 (git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working)",
 ]
 
 [[package]]
@@ -4808,7 +4810,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
- "xcm",
+ "xcm 0.8.22",
 ]
 
 [[package]]
@@ -4998,7 +5000,7 @@ dependencies = [
  "sp-trie",
  "static_assertions",
  "trie-db",
- "xcm",
+ "xcm 0.8.22",
 ]
 
 [[package]]
@@ -9879,6 +9881,16 @@ dependencies = [
 [[package]]
 name = "xcm"
 version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working#1a3dc55fdb826d81380b0f0c883e97765caf1b2a"
+dependencies = [
+ "parity-scale-codec",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "xcm"
+version = "0.8.22"
 dependencies = [
  "parity-scale-codec",
  "shared_memory",
@@ -9893,12 +9905,12 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "polkadot-parachain 0.8.22 (git+https://github.com/paritytech/polkadot?branch=rococo-branch)",
+ "polkadot-parachain 0.8.22 (git+https://github.com/paritytech/polkadot?branch=gav-xcmp-working)",
  "sp-arithmetic",
  "sp-core",
  "sp-runtime",
  "sp-std",
- "xcm",
+ "xcm 0.8.22",
 ]
 
 [[package]]
