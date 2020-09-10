@@ -60,7 +60,7 @@ pub fn run_worker(_: &str) -> Result<(), String> {
 
 /// The execution mode for the `ValidationPool`.
 #[derive(Clone)]
-#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug)]
+#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug))]
 pub enum ExecutionMode {
 	/// The validation worker is ran in a thread inside the same process.
 	InProcess,
