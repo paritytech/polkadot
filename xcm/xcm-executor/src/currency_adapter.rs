@@ -36,7 +36,7 @@ impl<
 
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
 		// Check we handle this asset.
-		let amount = Matcher::matches_asset(&what).ok_or(())?.saturating_into();
+		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::punn_from_location(who)?;
 		Currency::deposit_creating(&who, amount).map_err(|_| ())?;
 		Ok(())
@@ -44,7 +44,7 @@ impl<
 
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
 		// Check we handle this asset.
-		let amount = Matcher::matches_asset(&what).ok_or(())?.saturating_into();
+		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::punn_from_location(who)?;
 		Currency::withdraw(&who, amount, WithdrawReason::Transfer, AllowDeath).map_err(|_| ())?;
 		Ok(what.clone())

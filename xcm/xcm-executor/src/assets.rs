@@ -15,9 +15,9 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{prelude::*, mem::swap, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
-use sp_runtime::traits::Saturating;
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract(Vec<u8>),
@@ -33,7 +33,7 @@ impl From<Vec<MultiAsset>> for Assets {
 	fn from(assets: Vec<MultiAsset>) -> Assets {
 		let mut result = Self::default();
 		for asset in assets.into_iter() {
-			result.subsume(asset)
+			result.saturating_subsume(asset)
 		}
 		result
 	}
@@ -60,11 +60,6 @@ impl Assets {
 			}
 			MultiAsset::AbstractNonFungible { class, instance} => {
 				self.non_fungible.insert((AssetId::Abstract(class), instance));
-			}
-			MultiAsset::Each(ref assets) => {
-				for asset in assets.into_iter() {
-					self.saturating_subsume(asset.clone())
-				}
 			}
 			_ => (),
 		}
