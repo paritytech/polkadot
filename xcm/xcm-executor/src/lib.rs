@@ -43,7 +43,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 		let (mut holding, effects) = match (origin, msg) {
 			(origin, Xcm::ForwardedFromParachain { id, inner }) => {
 				let new_origin = origin.pushed_with(Junction::Parachain { id }).map_err(|_| ())?;
-				Self::execute_xcm(new_origin, (*inner).try_into()?)
+				return Self::execute_xcm(new_origin, (*inner).try_into()?)
 			}
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -78,13 +78,12 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 
 				// TODO: allow this to be configurable in the trait.
 				// TODO: allow the trait to issue filters for the relay-chain
-				if let Ok(message_call) = Config::Call::decode(&mut &call[..]) {
-					let dispatch_origin = Config::OriginConverter::convert((origin_type, origin))?;
-					let _ok = message_call.dispatch(dispatch_origin).is_ok();
-					// Not much to do with the result as it is. It's up to the parachain to ensure that the
-					// message makes sense.
-					return Ok(());
-				}
+				let message_call = Config::Call::decode(&mut &call[..]).map_err(|_| ())?;
+				let dispatch_origin = Config::OriginConverter::convert((origin_type, origin))?;
+				let _ok = message_call.dispatch(dispatch_origin).is_ok();
+				// Not much to do with the result as it is. It's up to the parachain to ensure that the
+				// message makes sense.
+				return Ok(());
 			}
 			_ => Err(())?,	// Unhandled XCM message.
 		};
