@@ -27,6 +27,7 @@ mod config;
 mod currency_adapter;
 
 use traits::{TransactAsset, ConvertOrigin};
+pub use traits::{IsConcrete, IsAbstract, AccountId32Punner};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 pub use currency_adapter::CurrencyAdapter;
@@ -65,6 +66,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				}
 			}
 			(_origin, Xcm::TeleportAsset { assets, effects }) => {
+				let _ = (assets, effects);
 				// TODO: check whether we trust origin to teleport this asset to us via config trait.
 				Err(())?	// << we don't trust any chains, for now.
 			}
@@ -99,7 +101,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn execute_effects(origin: &MultiLocation, holding: &mut Assets, effect: Ai) -> XcmResult {
+	fn execute_effects(_origin: &MultiLocation, holding: &mut Assets, effect: Ai) -> XcmResult {
 		match effect {
 			Ai::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
