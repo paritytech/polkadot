@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
-use sp_core::crypto::UncheckedFrom;
 use sp_runtime::traits::CheckedConversion;
 use xcm::v0::{XcmError, XcmResult, MultiAsset, MultiLocation, MultiNetwork, Junction, MultiOrigin};
 use frame_support::traits::Get;
@@ -102,11 +101,11 @@ pub trait PunnFromLocation<T> {
 }
 
 pub struct AccountId32Punner<AccountId, Network>(PhantomData<AccountId>, PhantomData<Network>);
-impl<AccountId: UncheckedFrom<[u8; 32]>, Network> PunnFromLocation<AccountId> for AccountId32Punner<AccountId, Network> {
+impl<AccountId: From<[u8; 32]>, Network> PunnFromLocation<AccountId> for AccountId32Punner<AccountId, Network> {
 	fn punn_from_location(m: &MultiLocation) -> Option<AccountId> {
 		match m {
 			MultiLocation::X1(Junction::AccountId32 { ref id, .. }) =>
-				Some(AccountId::unchecked_from(id.clone())),
+				Some(AccountId::from(id.clone())),
 			_ => None,
 		}
 	}
