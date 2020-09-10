@@ -58,7 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiOrigin, MultiAsset, MultiLocation, Junction, Ai}};
+use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiAsset, MultiLocation, Junction, Ai}};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -812,8 +812,9 @@ fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
 }
 
 impl<T: Trait> SendXcm for Module<T> {
-	fn send_xcm(dest: MultiLocation, msg: xcm::v0::Xcm) -> xcm::v0::XcmResult {
-		if let MultiLocation::X1(Junction::Parachain{ id }) = dest {
+	fn send_xcm(dest: MultiLocation, msg: xcm::v0::Xcm) -> xcm::v0::Result {
+		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
+			let id: ParaId = id.into();
 			let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
 			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
 				return Err(())	// Destination buffer overflow.
@@ -950,7 +951,7 @@ impl<T: Trait> Module<T> {
 	/// Dispatch some messages from a parachain.
 	fn dispatch_message(from: ParaId, data: &[u8]) {
 		use sp_std::convert::TryFrom;
-		let origin: MultiLocation = Junction::Parachain { id: from }.into();
+		let origin: MultiLocation = Junction::Parachain { id: from.into() }.into();
 		match VersionedXcm::decode(&mut &data[..]).map(Xcm::try_from) {
 			Ok(Ok(xcm)) => {
 				// TODO: handle error.
