@@ -38,6 +38,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
+xcm = { package = "xcm", path = "../../xcm", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -81,6 +82,7 @@ std = [
 	"vesting/std",
 	"transaction-payment/std",
 	"polkadot-parachain/std",
+	"xcm/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",

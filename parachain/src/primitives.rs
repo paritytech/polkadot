@@ -213,6 +213,26 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	}
 }
 
+impl From<ParachainDispatchOrigin> for xcm::v0::MultiOrigin {
+	fn from(o: ParachainDispatchOrigin) -> Self {
+		match o {
+			ParachainDispatchOrigin::Parachain => xcm::v0::MultiOrigin::Native,
+			ParachainDispatchOrigin::Signed => xcm::v0::MultiOrigin::SovereignAccount,
+			ParachainDispatchOrigin::Root => xcm::v0::MultiOrigin::Superuser,
+		}
+	}
+}
+
+impl From<xcm::v0::MultiOrigin> for ParachainDispatchOrigin {
+	fn from(o: xcm::v0::MultiOrigin) -> Self {
+		match o {
+			xcm::v0::MultiOrigin::Native => ParachainDispatchOrigin::Parachain,
+			xcm::v0::MultiOrigin::SovereignAccount => ParachainDispatchOrigin::Signed,
+			xcm::v0::MultiOrigin::Superuser => ParachainDispatchOrigin::Root,
+		}
+	}
+}
+
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Decode)]

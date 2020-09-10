@@ -44,6 +44,8 @@ members = [
 	"statement-table",
 	"service",
 	"validation",
+	"xcm",
+	"xcm/xcm-executor",
 
 	"node/core/av-store",
 	"node/core/backing",

@@ -46,7 +46,6 @@
 #[cfg(feature = "std")]
 pub mod wasm_executor;
 pub mod primitives;
-pub mod xcm;
 
 mod wasm_api;
 

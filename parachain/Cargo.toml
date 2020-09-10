@@ -15,6 +15,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-br
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
+xcm = { path = "../xcm", default-features = false }
 
 # all optional crates.
 derive_more = { version = "0.99.2", optional = true }
@@ -47,4 +48,5 @@ std = [
 	"sp-io",
 	"polkadot-core-primitives/std",
 	"futures",
+	"xcm/std",
 ]

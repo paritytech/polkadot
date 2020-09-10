@@ -58,7 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use polkadot_parachain::xcm::{VersionedXcm, VersionedMultiLocation, v0::Xcm};
+use xcm::{VersionedXcm, VersionedMultiLocation, v0::Xcm};
 use polkadot_parachain::xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
 
 // ranges for iteration of general block number don't work, so this
