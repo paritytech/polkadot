@@ -76,7 +76,7 @@ pub struct MultiLocationIterator(MultiLocation);
 impl Iterator for MultiLocationIterator {
 	type Item = Junction;
 	fn next(&mut self) -> Option<Junction> {
-		self.0.take_last()
+		self.0.take_first()
 	}
 }
 
@@ -90,6 +90,15 @@ impl MultiLocation {
 			MultiLocation::X4(ref a, ..) => Some(a),
 		}
 	}
+	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
+		match self {
+			MultiLocation::Null => (MultiLocation::Null, None),
+			MultiLocation::X1(a) => (MultiLocation::Null, Some(a)),
+			MultiLocation::X2(a, b) => (MultiLocation::X1(b), Some(a)),
+			MultiLocation::X3(a, b, c) => (MultiLocation::X2(b, c), Some(a)),
+			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(b, c, d), Some(a)),
+		}
+	}
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -98,6 +107,13 @@ impl MultiLocation {
 			MultiLocation::X3(a, b, c) => (MultiLocation::X2(a, b), Some(c)),
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
 		}
+	}
+	pub fn take_first(&mut self) -> Option<Junction> {
+		let mut d = MultiLocation::Null;
+		sp_std::mem::swap(&mut *self, &mut d);
+		let (tail, head) = d.split_first();
+		*self = tail;
+		head
 	}
 	pub fn take_last(&mut self) -> Option<Junction> {
 		let mut d = MultiLocation::Null;
