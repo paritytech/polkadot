@@ -29,5 +29,8 @@ pub trait Config {
 
 	/// How to get a call origin from a `MultiOrigin` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
+
+	// TODO: Combinations of (Origin, Asset) pairs which we unilateral trust as reserves.
+	// TODO: Combinations of (Origin, Asset) pairs which we bilateral trust as teleporters.
 }
 

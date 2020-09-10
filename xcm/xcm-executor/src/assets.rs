@@ -40,6 +40,20 @@ impl From<Vec<MultiAsset>> for Assets {
 }
 
 impl Assets {
+	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
+		let fungible = self.fungible.into_iter()
+			.map(|(id, amount)| match id {
+				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+			});
+		let non_fungible = self.non_fungible.into_iter()
+			.map(|(id, instance)| match id {
+				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance },
+				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance },
+			});
+		fungible.chain(non_fungible)
+	}
+
 	/// Modify `self` to include `MultiAsset`, saturating if necessary.
 	pub fn saturating_subsume(&mut self, asset: MultiAsset) {
 		match asset {

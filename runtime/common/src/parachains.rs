@@ -58,8 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use xcm::{VersionedXcm, VersionedMultiLocation, v0::Xcm};
-use xcm::v0::{MultiOrigin, MultiAsset, MultiLocation, Junction, Ai};
+use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, MultiOrigin, MultiAsset, MultiLocation, Junction, Ai}};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
