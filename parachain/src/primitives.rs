@@ -184,6 +184,32 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	}
 }
 
+#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct Sibling(pub Id);
+
+/// Format is b"siblingpara" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
+/// zeroes to fill AccountId.
+impl<T: Encode + Decode + Default> AccountIdConversion<T> for Sibling {
+	fn into_account(&self) -> T {
+		(b"siblingpara", self.0)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
+			.unwrap_or_default()
+	}
+
+	fn try_from_account(x: &T) -> Option<Self> {
+		x.using_encoded(|d| {
+			if &d[0..11] != b"siblingpara" { return None }
+			let mut cursor = &d[11..];
+			let result = Self(Id::decode(&mut cursor).ok()?);
+			if cursor.iter().all(|x| *x == 0) {
+				Some(result)
+			} else {
+				None
+			}
+		})
+	}
+}
+
 /// Which origin a parachain's message to the relay chain should be dispatched from.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug))]
