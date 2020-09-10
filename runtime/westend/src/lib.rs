@@ -23,9 +23,10 @@
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
+	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
+	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
-use primitives::v0 as p_v0;
 use runtime_common::{
 	dummy, purchase, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
@@ -35,7 +36,7 @@ use runtime_common::{
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	ApplyExtrinsicResult, KeyTypeId, Permill, Perbill, curve::PiecewiseLinear,
+	ApplyExtrinsicResult, KeyTypeId, Perbill, curve::PiecewiseLinear,
 	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
 	traits::{
 		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
@@ -51,7 +52,7 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, Randomness, Filter, InstanceFilter},
 	weights::Weight,
 };
@@ -59,7 +60,7 @@ use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_session::historical as session_historical;
-use frame_system::{EnsureRoot, EnsureSignedBy, EnsureOneOf};
+use frame_system::{EnsureRoot};
 
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
@@ -639,47 +640,9 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-parameter_types! {
-	pub const MaxStatementLength: usize = 1_000;
-	pub const UnlockedProportion: Permill = Permill::zero();
-	pub const MaxUnlocked: Balance = 0;
-}
-
-ord_parameter_types! {
-	pub const PurchaseValidity: AccountId = AccountId::from(
-		// 5CqSB6zNHcp3mvTAyh5Vr2MbSdb7DgLi9yWoAppHRveGcYQh
-		hex_literal::hex!("221d409ba60508368d4448ccda40182aca2744bcdfa0881944c08108a9fd966d")
-	);
-	pub const PurchaseConfiguration: AccountId = AccountId::from(
-		// 5FUP4BwQzi8F5WBTmaHsoobGbMSUTiX7Exwb7QzTjgNQypo1
-		hex_literal::hex!("96c34c8c60b3690701176bdbc9b16aced2898d754385a84ee0cfe7fb015db800")
-	);
-}
-
-type ValidityOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseValidity, AccountId>,
->;
-
-type ConfigurationOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<PurchaseConfiguration, AccountId>,
->;
-
-impl purchase::Trait for Runtime {
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
 	type Event = Event;
-	type Currency = Balances;
-	type VestingSchedule = Vesting;
-	type ValidityOrigin = ValidityOrigin;
-	type ConfigurationOrigin = ConfigurationOrigin;
-	type MaxStatementLength = MaxStatementLength;
-	type UnlockedProportion = UnlockedProportion;
-	type MaxUnlocked = MaxUnlocked;
 }
-
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
 
 construct_runtime! {
 	pub enum Runtime where
@@ -713,7 +676,7 @@ construct_runtime! {
 		// Old Parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummyRegistrar: dummy::<Instance2>::{Module, Call},
+		DummyRegistrar: dummy::<Instance2>::{Module, Call, Event<T>},
 
 		// Utility module.
 		Utility: pallet_utility::{Module, Call, Event},
@@ -738,9 +701,6 @@ construct_runtime! {
 
 		// Multisig module. Late addition.
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
-
-		// Purchase module. Late addition.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
 	}
 }
 
@@ -769,9 +729,23 @@ pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signatu
 /// Extrinsic type that has already been checked.
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Nonce, Call>;
 /// Executive: handles dispatch to the various modules.
-pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+pub type Executive = frame_executive::Executive<
+	Runtime,
+	Block,
+	frame_system::ChainContext<Runtime>,
+	Runtime,
+	AllModules,
+	CustomOnRuntimeUpgrade,
+>;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+
+pub struct CustomOnRuntimeUpgrade;
+impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		purchase::remove_pallet::<Runtime>()
+	}
+}
 
 #[cfg(not(feature = "disable-runtime-api"))]
 sp_api::impl_runtime_apis! {
@@ -835,55 +809,43 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	// Dummy implementation to continue supporting old parachains runtime temporarily.
-	impl p_v0::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<p_v0::ValidatorId> {
-			// this is a compile-time check of size equality. note that we don't invoke
-			// the function and nothing here is unsafe.
-			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<ValidatorId> {
+			unimplemented!()
+		}
 
-			// Yes, these aren't actually the parachain session keys.
-			// It doesn't matter, but we shouldn't return a zero-sized vector here.
-			// As there are no parachains
-			Session::validators()
-				.into_iter()
-				.map(|k| k.using_encoded(|s| Decode::decode(&mut &s[..]))
-					.expect("correct size and raw-bytes; qed"))
-				.collect()
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
+			unimplemented!()
 		}
-		fn duty_roster() -> p_v0::DutyRoster {
-			let v = Session::validators();
-			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
+
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+			unimplemented!()
 		}
-		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
-			Vec::new()
+
+		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>> {
+			unimplemented!()
 		}
-		fn global_validation_data() -> p_v0::GlobalValidationData {
-			p_v0::GlobalValidationData {
-				max_code_size: 1,
-				max_head_data_size: 1,
-				block_number: System::block_number().saturating_sub(1),
-			}
+
+		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>> {
+			unimplemented!()
 		}
-		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
-			None
+
+		fn session_index_for_child() -> SessionIndex {
+			unimplemented!()
 		}
-		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
-			None
+
+		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
+			unimplemented!()
 		}
-		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
-		{
-			None
+
+		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			unimplemented!()
 		}
-		fn signing_context() -> p_v0::SigningContext {
-			p_v0::SigningContext {
-				parent_hash: System::parent_hash(),
-				session_index: Session::current_index(),
-			}
-		}
-		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
-			Vec::new()
+
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
+			unimplemented!()
 		}
 	}
 

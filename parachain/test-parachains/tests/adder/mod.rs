@@ -16,11 +16,14 @@
 
 //! Basic parachain that adds a number as part of its state.
 
-use parachain::primitives::{
-	RelayChainBlockNumber,
-	BlockData as GenericBlockData,
-	HeadData as GenericHeadData,
-	ValidationParams,
+const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
+
+use parachain::{
+	primitives::{
+		BlockData as GenericBlockData, HeadData as GenericHeadData,
+		ValidationParams, ValidationData, PersistedValidationData,
+	},
+	wasm_executor::{ValidationPool, ValidationExecutionMode}
 };
 use codec::{Decode, Encode};
 
@@ -52,8 +55,28 @@ fn hash_head(head: &HeadData) -> [u8; 32] {
 	tiny_keccak::keccak256(head.encode().as_slice())
 }
 
+fn validation_pool() -> ValidationPool {
+	let execution_mode = ValidationExecutionMode::ExternalProcessCustomHost {
+		binary: std::env::current_exe().unwrap(),
+		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+	};
+
+	ValidationPool::new(execution_mode)
+}
+
 #[test]
-pub fn execute_good_on_parent() {
+fn execute_good_on_parent_with_inprocess_validation() {
+	let pool = ValidationPool::new(ValidationExecutionMode::InProcess);
+	execute_good_on_parent(pool);
+}
+
+#[test]
+pub fn execute_good_on_parent_with_external_process_validation() {
+	let pool = validation_pool();
+	execute_good_on_parent(pool);
+}
+
+fn execute_good_on_parent(pool: ValidationPool) {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -65,17 +88,21 @@ pub fn execute_good_on_parent() {
 		add: 512,
 	};
 
-	let pool = parachain::wasm_executor::ValidationPool::new();
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
-			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			relay_chain_height: 1,
-			hrmp_mqc_heads: Vec::new(),
+			validation_data: ValidationData {
+				persisted: PersistedValidationData {
+					parent_head: GenericHeadData(parent_head.encode()),
+					block_number: 1,
+					..Default::default()
+				},
+				transient: Default::default(),
+			},
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
@@ -91,7 +118,7 @@ fn execute_good_chain_on_parent() {
 	let mut number = 0;
 	let mut parent_hash = [0; 32];
 	let mut last_state = 0;
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = validation_pool();
 
 	for add in 0..10 {
 		let parent_head = HeadData {
@@ -108,12 +135,17 @@ fn execute_good_chain_on_parent() {
 		let ret = parachain::wasm_executor::validate_candidate(
 			adder::wasm_binary_unwrap(),
 			ValidationParams {
-				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
-				relay_chain_height: number as RelayChainBlockNumber + 1,
-				hrmp_mqc_heads: Vec::new(),
+				validation_data: ValidationData {
+					persisted: PersistedValidationData {
+						parent_head: GenericHeadData(parent_head.encode()),
+						block_number: (number + 1) as _,
+						..Default::default()
+					},
+					transient: Default::default(),
+				},
 			},
-			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			parachain::wasm_executor::ExecutionMode::Remote(&pool),
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
@@ -131,7 +163,7 @@ fn execute_good_chain_on_parent() {
 
 #[test]
 fn execute_bad_on_parent() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = validation_pool();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -147,12 +179,17 @@ fn execute_bad_on_parent() {
 	let _ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
-			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			relay_chain_height: 1,
-			hrmp_mqc_heads: Vec::new(),
+			validation_data: ValidationData {
+				persisted: PersistedValidationData {
+					parent_head: GenericHeadData(parent_head.encode()),
+					block_number: 1,
+					..Default::default()
+				},
+				transient: Default::default(),
+			},
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap_err();
 }

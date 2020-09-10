@@ -144,15 +144,13 @@ pub fn run() -> Result<()> {
 				let role = config.role.clone();
 
 				match role {
-					Role::Light => service::build_light(config),
+					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
 						None,
-						None,
 						authority_discovery_enabled,
-						0, // TODO: what's an appropriate value for slot duration here?
 						grandpa_pause,
-					),
+					).map(|(task_manager, ..)| task_manager),
 				}
 			})
 		},

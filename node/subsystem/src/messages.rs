@@ -123,12 +123,11 @@ pub enum CandidateValidationMessage {
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
-	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain. Optionally provide the
-	/// `TransientValidationData` for further checks on the outputs.
+	/// Explicitly provide the `PersistedValidationData`, `TransientValidationData` and `ValidationCode`
+	/// so this can do full validation without needing to access the state of the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		Option<TransientValidationData>,
+		TransientValidationData,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
