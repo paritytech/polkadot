@@ -33,10 +33,10 @@ pub trait TransactAsset {
 // TODO: Implement for arbitrary tuples.
 impl<X: TransactAsset, Y: TransactAsset> TransactAsset for (X, Y) {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
-		X::deposit_asset(what, who).or_else(|| Y::deposit_asset(what, who))
+		X::deposit_asset(what, who).or_else(|_| Y::deposit_asset(what, who))
 	}
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
-		X::withdraw_asset(what, who).or_else(|| Y::withdraw_asset(what, who))
+		X::withdraw_asset(what, who).or_else(|_| Y::withdraw_asset(what, who))
 	}
 }
 
@@ -47,7 +47,7 @@ pub struct IsConcrete<T>(PhantomData<T>);
 impl<T: Get<MultiLocation>, B: From<u128>> MatchesFungible<B> for IsConcrete<T> {
 	fn matches_fungible(a: &MultiAsset) -> Option<B> {
 		match a {
-			MultiAsset::ConcreteFungible { id, amount } if id == T::get() =>
+			MultiAsset::ConcreteFungible { id, amount } if id == &T::get() =>
 				amount.checked_into(),
 			_ => None,
 		}
@@ -101,8 +101,8 @@ pub trait ConvertOrigin<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, XcmError>;
 }
 
-impl<T: frame_system::Trait> ConvertOrigin<T> for () {
-	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<Origin<T>, XcmError> { Err(()) }
+impl<T> ConvertOrigin<T> for () {
+	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<T, XcmError> { Err(()) }
 }
 
 // TODO: This might need placing in polkadot and/or cumulus primitives so the relevant modules can dispatch with native
