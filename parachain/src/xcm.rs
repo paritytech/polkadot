@@ -22,7 +22,7 @@ use codec::{self, Encode, Decode, Input, Output};
 use crate::primitives::ParachainDispatchOrigin;
 
 /// A single XCM message, together with its version code.
-#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum VersionedXcm {
 	V0(v0::Xcm),
 }
@@ -87,13 +87,13 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum MultiNetwork {
 		Wildcard,
 		Identified(Vec<u8>),
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum MultiLocation {
 		Null,
 		X1(Junction),
@@ -132,7 +132,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum Junction {
 		Parent,
 		Parachain { #[codec(compact)] id: u32 },
@@ -154,7 +154,7 @@ pub mod v0 {
 		}
 	}
 
-	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd,, Encode, Decode, RuntimeDebug)]
+	#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 	pub enum AssetInstance {
 		Undefined,
 		Index8(u8),
@@ -188,7 +188,7 @@ pub mod v0 {
 	pub type MultiAssets = Vec<MultiAsset>;
 	// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum Ai {
 		Null,
 		DepositAsset { assets: MultiAssets, dest: MultiLocation },
@@ -201,7 +201,7 @@ pub mod v0 {
 	pub type Ais = Vec<Ai>;
 	// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
 
-	#[derive(Clone, Eq, PartialEq, Encode, Decode)]
+	#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 	pub enum Xcm {
 		WithdrawAsset { assets: MultiAssets, effects: Ais },
 		// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest, effect}
