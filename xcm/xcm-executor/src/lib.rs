@@ -132,10 +132,10 @@ impl<Config: Config> XcmExecutor<Config> {
 // Example only - move into test and/or runtimes.
 /*
 parameter_types! {
-	static const DotLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
-	static const DotName: &'static [u8] = &b"DOT"[..];
-	static const MyLocation: MultiLocation = MultiLocation::Null;
-	static const MyName: &'static [u8] = &b"ABC"[..];
+	const DotLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+	const DotName: &'static [u8] = &b"DOT"[..];
+	const MyLocation: MultiLocation = MultiLocation::Null;
+	const MyName: &'static [u8] = &b"ABC"[..];
 }
 type MyDepositAsset = (
 	// Convert a Currency impl into a DepositAsset
