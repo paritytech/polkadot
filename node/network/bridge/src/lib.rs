@@ -20,7 +20,7 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 
 use sc_network::{Event as NetworkEvent, Multiaddr};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
@@ -242,7 +242,12 @@ struct PeerData {
 enum Action {
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
-	ConnectToAuthorities(PeerSet, Vec<AuthorityDiscoveryId>, oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>),
+	ConnectToValidators {
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		already_connected: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		revoke: mpsc::Receiver<()>,
+	},
 	ReportPeer(PeerId, ReputationChange),
 
 	ActiveLeaves(ActiveLeavesUpdate),
@@ -272,8 +277,12 @@ fn action_from_overseer_message(
 				=> Action::SendValidationMessage(peers, msg),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
 				=> Action::SendCollationMessage(peers, msg),
-			NetworkBridgeMessage::ConnectToAuthorities(peer_set, authorities, res)
-				=> Action::ConnectToAuthorities(peer_set, authorities, res),
+			NetworkBridgeMessage::ConnectToValidators {
+				validator_ids,
+				already_connected,
+				connected,
+				revoke,
+			} => Action::ConnectToValidators { validator_ids, already_connected, connected, revoke },
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -569,7 +578,7 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
-	let mut pending_discovery_requests: Vec<ConnectToAuthoritiesState> = Vec::new();
+	let mut pending_discovery_requests: HashMap<AuthorityDiscoveryId, Vec<>> = Vec::new();
 	// we assume one PeerId per AuthorityId is enough
 	let mut connected_authority_peers: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
 
@@ -603,7 +612,7 @@ async fn run_network<N: Network>(
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToAuthorities(peer_set, authorities, res) => {
+			Action::ConnectToValidators { validator_ids, already_connected, connected, revoke } => {
 				let priority_group = match peer_set {
 					PeerSet::Validation => "parachain_validation".to_owned(),
 					PeerSet::Collation => "parachain_collation".to_owned(),
@@ -629,7 +638,7 @@ async fn run_network<N: Network>(
 					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 				}
 
-				pending_discovery_requests.push(ConnectToAuthoritiesState::new(
+				pending_discovery_requests.push(ConnectToValidatorsState::new(
 					authorities.into_iter().collect(),
 					res,
 					&connected_authority_peers,
@@ -802,15 +811,15 @@ async fn run_network<N: Network>(
 	}
 }
 
-/// This struct tracks the state for one `ConnectToAuthorities` request.
-struct ConnectToAuthoritiesState {
+/// This struct tracks the state for one `ConnectToValidators` request.
+struct ConnectToValidatorsState {
 	pending: HashSet<AuthorityDiscoveryId>,
 	connected: HashMap<AuthorityDiscoveryId, PeerId>,
 	sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
 }
 
-impl ConnectToAuthoritiesState {
-	/// Create a new instance of `ConnectToAuthoritiesState`.
+impl ConnectToValidatorsState {
+	/// Create a new instance of `ConnectToValidatorsState`.
 	pub fn new(
 		mut pending: HashSet<AuthorityDiscoveryId>,
 		sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,

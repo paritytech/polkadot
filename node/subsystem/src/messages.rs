@@ -196,13 +196,29 @@ pub enum NetworkBridgeMessage {
 	/// Send a message to one or more peers on the collation peer-set.
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 
-	/// Connect to peers who represent the given `AuthorityDiscoveryId`s.
-	/// Note: we might disconnect from the set of peers passed in a previous message.
+	/// Connect to peers who represent the given `validator_ids`.
 	///
-	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
-	/// authorities.
-	// TODO: s/Vec/Box<dyn Stream>?
-	ConnectToAuthorities(PeerSet, Vec<AuthorityDiscoveryId>, oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>),
+	/// Also ask the network to stay connected to these peers at least
+	/// until the request is revoked.
+	///
+	/// Note: dropping the any of the receivers/revoke's sender before the request
+	/// is fulfilled will result in it being revoked.
+	ConnectToValidators {
+		/// Ids of the validators to connect to.
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// Response channel by which the issuer can learn the `PeerId`s of
+		/// already connected validators from the requested set.
+		already_connected: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+		/// Response stream by which the issuer can learn the `PeerId`s of
+		/// the remaining validators as they are connected.
+		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		/// By revoking the request the caller allows the network to
+		/// disconnect from the validators thus freeing the resources.
+		///
+		/// This can be done by either sending to the channel or
+		/// by dropping any of the receivers/revoke's sender prematurely.
+		revoke: oneshot::Receiver<()>,
+	},
 }
 
 impl NetworkBridgeMessage {
@@ -212,7 +228,7 @@ impl NetworkBridgeMessage {
 			Self::ReportPeer(_, _) => None,
 			Self::SendValidationMessage(_, _) => None,
 			Self::SendCollationMessage(_, _) => None,
-			Self::ConnectToAuthorities(_, _, _) => None,
+			Self::ConnectToValidators { .. } => None,
 		}
 	}
 }
