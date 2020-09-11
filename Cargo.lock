@@ -5528,7 +5528,6 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime-common",
- "polkadot-runtime-parachains",
  "rustc-hex",
  "serde",
  "serde_derive",
