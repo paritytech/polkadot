@@ -36,7 +36,7 @@ use sp_trie::PrefixedMemoryDB;
 use std::sync::Arc;
 use std::time::Duration;
 
-pub use self::client::{AbstractClient, Client, RuntimeApiCollection};
+pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 #[cfg(feature = "full-node")]
 pub use codec::Codec;
@@ -121,9 +121,9 @@ fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceErro
 	Ok(())
 }
 
-type FullBackend = service::TFullBackend<Block>;
+pub type FullBackend = service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
-type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
+pub type FullClient<RuntimeApi, Executor> = service::TFullClient<Block, RuntimeApi, Executor>;
 type FullGrandpaBlockImport<RuntimeApi, Executor> = grandpa::GrandpaBlockImport<
 	FullBackend, Block, FullClient<RuntimeApi, Executor>, FullSelectChain
 >;
@@ -288,8 +288,12 @@ fn real_overseer<S: SpawnNamed>(
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
+/// Create a new full node of arbitrary runtime and executor.
+///
+/// This is an advanced feature and not recommended for general use. Generally, `build_full` is
+/// a better choice.
 #[cfg(feature = "full-node")]
-fn new_full<RuntimeApi, Executor>(
+pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
 	authority_discovery_enabled: bool,

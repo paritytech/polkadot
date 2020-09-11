@@ -22,12 +22,13 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
+use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_service_new::{
-	new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
+use polkadot_service::{
+	new_full, AbstractClient, ClientHandle, ExecuteWithClient,
 };
 use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
@@ -68,22 +69,18 @@ pub fn polkadot_test_new_full(
 	(
 		TaskManager,
 		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
-		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		RpcHandlers,
+		OverseerHandler,
 	),
 	ServiceError,
 > {
-	let (task_manager, client, handles, network, rpc_handlers) =
-		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
-			config,
-			collating_for,
-			authority_discovery_enabled,
-			None,
-			true,
-		)?;
-
-	Ok((task_manager, client, handles, network, rpc_handlers))
+	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+		config,
+		collating_for,
+		authority_discovery_enabled,
+		None,
+	).map_err(Into::into)
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
@@ -206,7 +203,7 @@ pub fn run_test_node(
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
-	let (task_manager, client, handles, network, rpc_handlers) =
+	let (task_manager, client, network, rpc_handlers, handles) =
 		polkadot_test_new_full(config, None, authority_discovery_enabled)
 			.expect("could not create Polkadot test service");
 
@@ -229,7 +226,7 @@ pub struct PolkadotTestNode<S, C> {
 	/// Client's instance.
 	pub client: Arc<C>,
 	/// Node's handles.
-	pub handles: FullNodeHandles,
+	pub handles: OverseerHandler,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.

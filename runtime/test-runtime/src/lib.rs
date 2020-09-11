@@ -25,6 +25,7 @@ use codec::{Encode, Decode};
 use primitives::v0 as p_v0;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
+	self as p_v1,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, impls::CurrencyToVoteHandler,
@@ -551,9 +552,14 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	// Dummy implementation to continue supporting old parachains runtime temporarily.
-	impl p_v0::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<p_v0::ValidatorId> {
+	// REVIEW: I have _no idea_ what I'm really doing here, what invariants are necessary for the
+	// test context I'm setting up. I'm mainly just dumbly translating from the v0 impl.
+	// This whole impl probably wants some particular attention.
+	//
+	// Note: it's forbidden to implement two traits with the same name on the same type, even
+	// if the traits are distinct. I therefore had to remove the v0 ParachainHost impl.
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<p_v1::ValidatorId> {
 			// this is a compile-time check of size equality. note that we don't invoke
 			// the function and nothing here is unsafe.
 			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
@@ -567,38 +573,54 @@ sp_api::impl_runtime_apis! {
 					.expect("correct size and raw-bytes; qed"))
 				.collect()
 		}
-		fn duty_roster() -> p_v0::DutyRoster {
-			let v = Session::validators();
-			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
-		}
-		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
-			Vec::new()
-		}
-		fn global_validation_data() -> p_v0::GlobalValidationData {
-			p_v0::GlobalValidationData {
-				max_code_size: 1,
-				max_head_data_size: 1,
-				block_number: System::block_number().saturating_sub(1),
+
+		fn validator_groups() -> (Vec<Vec<p_v1::ValidatorIndex>>, p_v1::GroupRotationInfo<BlockNumber>) {
+			const N: usize = 3;
+			let validators = Self::validators();
+			let mut groups = vec![Vec::with_capacity(validators.len() / N + 1); N];
+			for idx in 0..validators.len() {
+				let vidx: p_v1::ValidatorIndex = idx.into();
+				groups[idx%N].push(vidx);
 			}
+
+			let rotation_info = p_v1::GroupRotationInfo<BlockNumber> {
+				session_start_block: 0.into(),
+				group_rotation_frequency: 0.into(),
+				now: 123.into(),
+			};
+
+			(groups, rotation_info)
 		}
-		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
-			None
+
+		fn availability_cores() -> Vec<p_v1::CoreState<BlockNumber>> {
+			let validators = Self::validators();
+			vec![p_v1::CoreState::Free; validators.len()]
 		}
-		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
-			None
-		}
-		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
-		{
-			None
-		}
-		fn signing_context() -> p_v0::SigningContext {
-			p_v0::SigningContext {
-				parent_hash: System::parent_hash(),
-				session_index: Session::current_index(),
+
+		fn full_validation_data(_para_id: p_v1::Id, _assumption: p_v1::OccupiedCoreAssumption)
+			-> Option<p_v1::ValidationData<BlockNumber>> {
+				None
 			}
+
+		fn persisted_validation_data(_para_id: p_v1::Id, _assumption: p_v1::OccupiedCoreAssumption)
+			-> Option<p_v1::PersistedValidationData<BlockNumber>> {
+				None
+			}
+
+		fn session_index_for_child() -> p_v1::SessionIndex {
+			0.into()
 		}
-		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
+
+		fn validation_code(_para_id: p_v1::Id, _assumption: p_v1::OccupiedCoreAssumption)
+			-> Option<p_v1::ValidationCode> {
+				None
+			}
+
+		fn candidate_pending_availability(_para_id: p_v1::Id) -> Option<p_v1::CommittedCandidateReceipt<Hash>> {
+			None
+		}
+
+		fn candidate_events() -> Vec<p_v1::CandidateEvent<Hash>> {
 			Vec::new()
 		}
 	}

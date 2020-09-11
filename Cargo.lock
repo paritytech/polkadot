@@ -5589,6 +5589,7 @@ dependencies = [
  "pallet-balances",
  "pallet-staking",
  "pallet-transaction-payment",
+ "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime-common",
