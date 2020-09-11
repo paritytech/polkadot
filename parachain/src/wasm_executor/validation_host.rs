@@ -282,9 +282,6 @@ impl ValidationHost {
 				return Ok(());
 			}
 		}
-		if self.worker_thread.is_some() {
-			return Ok(());
-		}
 
 		let memory = Self::create_memory()?;
 
