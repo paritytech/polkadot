@@ -184,7 +184,7 @@ pub fn validate_candidate_internal(
 ) -> Result<ValidationResult, ValidationError> {
 	let executor = sc_executor::WasmExecutor::new(
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		sc_executor::WasmExecutionMethod::Interpreted,
+		sc_executor::WasmExecutionMethod::Compiled,
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
 		Default::default(),
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
