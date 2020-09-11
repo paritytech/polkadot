@@ -395,12 +395,13 @@ enum CandidateValidationMessage {
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
 
-	/// Validate a candidate with provided parameters. Explicitly provide the `PersistedValidationData`,
-	/// `TransientValidationData`, and `ValidationCode` so this can do full validation 
-	/// without needing to access the state of the relay-chain.
+	/// Validate a candidate with provided parameters. Explicitly provide the `PersistedValidationData`
+	/// and `ValidationCode` so this can do full validation without needing to access the state of
+	/// the relay-chain. Optionally provide the `TransientValidationData` which will lead to checks
+	/// on the output.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		TransientValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		PoV,

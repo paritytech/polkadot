@@ -4,9 +4,12 @@ path = "src/main.rs"
 
 [package]
 name = "polkadot"
+description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
+license = "GPL-3.0-only"
 version = "0.8.23"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
+readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
@@ -52,6 +55,7 @@ members = [
 	"node/network/statement-distribution",
 	"node/network/bitfield-distribution",
 	"node/network/availability-distribution",
+	"node/network/collator-protocol",
 	"node/overseer",
 	"node/primitives",
 	"node/service",

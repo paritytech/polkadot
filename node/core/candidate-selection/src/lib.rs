@@ -212,7 +212,12 @@ impl CandidateSelectionJob {
 	) {
 		if self.seconded_candidate.is_none() {
 			let (candidate_receipt, pov) =
-				match get_collation(relay_parent, para_id, self.sender.clone()).await {
+				match get_collation(
+					relay_parent,
+					para_id,
+					collator_id.clone(),
+					self.sender.clone(),
+				).await {
 					Ok(response) => response,
 					Err(err) => {
 						log::warn!(
@@ -296,12 +301,14 @@ impl CandidateSelectionJob {
 async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,
+	collator_id: CollatorId,
 	mut sender: mpsc::Sender<FromJob>,
 ) -> Result<(CandidateReceipt, PoV), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(FromJob::Collator(CollatorProtocolMessage::FetchCollation(
 			relay_parent,
+			collator_id,
 			para_id,
 			tx,
 		)))
@@ -514,7 +521,7 @@ mod tests {
 						CandidateSelectionMessage::Collation(
 							relay_parent,
 							para_id,
-							collator_id_clone,
+							collator_id_clone.clone(),
 						),
 					))
 					.await
@@ -525,11 +532,13 @@ mod tests {
 					match msg {
 						FromJob::Collator(CollatorProtocolMessage::FetchCollation(
 							got_relay_parent,
+							collator_id,
 							got_para_id,
 							return_sender,
 						)) => {
 							assert_eq!(got_relay_parent, relay_parent);
 							assert_eq!(got_para_id, para_id);
+							assert_eq!(collator_id, collator_id_clone);
 
 							return_sender
 								.send((candidate_receipt.clone(), pov.clone()))
