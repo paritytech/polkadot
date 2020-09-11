@@ -339,6 +339,17 @@ pub enum Origin {
 	Parachain(ParaId),
 }
 
+impl From<ParaId> for Origin {
+	fn from(id: ParaId) -> Origin {
+		Origin::Parachain(id)
+	}
+}
+impl From<u32> for Origin {
+	fn from(id: u32) -> Origin {
+		Origin::Parachain(id.into())
+	}
+}
+
 /// An offence that is filed if the validator has submitted a double vote.
 #[derive(RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Clone, PartialEq, Eq))]

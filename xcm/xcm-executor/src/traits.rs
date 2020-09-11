@@ -121,6 +121,10 @@ pub trait LocationConversion<AccountId> {
 	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId>;
 }
 // TODO: Use tuple generator.
+impl<A> LocationConversion<A> for () {
+	fn from_location(_: &MultiLocation) -> Option<A> { None }
+	fn try_into_location(who: A) -> Result<MultiLocation, A> { Err(who) }
+}
 impl<A, X: LocationConversion<A>> LocationConversion<A> for (X,) {
 	fn from_location(location: &MultiLocation) -> Option<A> {
 		X::from_location(location)
@@ -166,9 +170,42 @@ impl<
 }
 
 pub trait ConvertOrigin<Origin> {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, XcmError>;
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation>;
 }
 
-impl<T> ConvertOrigin<T> for () {
-	fn convert_origin(_: MultiLocation, _: MultiOrigin) -> Result<T, XcmError> { Err(()) }
+// TODO: Use tuple generator.
+impl<O> ConvertOrigin<O> for () {
+	fn convert_origin(origin: MultiLocation, _: MultiOrigin) -> Result<O, MultiLocation> { Err(origin) }
+}
+
+impl<O, X: ConvertOrigin<O>> ConvertOrigin<O> for (X,) {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+		X::convert_origin(origin, kind)
+	}
+}
+impl<O, X: ConvertOrigin<O>, Y: ConvertOrigin<O>> ConvertOrigin<O> for (X, Y) {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+		X::convert_origin(origin, kind).or_else(|origin| Y::convert_origin(origin, kind))
+	}
+}
+impl<
+	O,
+	X: ConvertOrigin<O>,
+	Y: ConvertOrigin<O>,
+	Z: ConvertOrigin<O>,
+> ConvertOrigin<O> for (X, Y, Z) {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+		<((X, Y), Z)>::convert_origin(origin, kind)
+	}
+}
+impl<
+	O,
+	X: ConvertOrigin<O>,
+	Y: ConvertOrigin<O>,
+	Z: ConvertOrigin<O>,
+	W: ConvertOrigin<O>,
+> ConvertOrigin<O> for (X, Y, Z, W) {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+		<(((X, Y), Z), W)>::convert_origin(origin, kind)
+	}
 }

@@ -17,112 +17,142 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::marker::PhantomData;
-use sp_io::hashing::blake2_256;
-use sp_runtime::traits::AccountIdConversion;
-use frame_support::traits::Get;
-use codec::Encode;
-use xcm::v0::{MultiLocation, MultiNetwork, Junction};
-use xcm_executor::traits::LocationConversion;
+use frame_support::traits::{Get, SystemOrigin};
+use xcm::v0::{MultiLocation, MultiOrigin, MultiNetwork, Junction};
+use xcm_executor::traits::{LocationConversion, ConvertOrigin};
+use polkadot_parachain::primitives::IsSystem;
 
-pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
+mod location_conversion;
+pub use location_conversion::{
+	Account32Hash, ParentIsDefault, ChildParachainConvertsVia, SiblingParachainConvertsVia, AccountId32Aliases
+};
 
+/// Sovereign accounts use the system's `Signed` origin with an account ID derived from the
+/// `LocationConverter`.
+pub struct SovereignSignedViaLocation<LocationConverter, Origin>(
+	PhantomData<(LocationConverter, Origin)>
+);
+impl<
+	LocationConverter: LocationConversion<Origin::AccountId>,
+	Origin: SystemOrigin,
+> ConvertOrigin<Origin> for SovereignSignedViaLocation<LocationConverter, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		if let MultiOrigin::SovereignAccount = kind {
+			let location = LocationConverter::from_location(&origin).ok_or(origin)?;
+			Ok(Origin::signed(location).into())
+		} else {
+			Err(origin)
+		}
+	}
+}
+
+
+pub struct ParentAsSuperuser<Origin>(PhantomData<Origin>);
+impl<
+	Origin: SystemOrigin,
+> ConvertOrigin<Origin> for ParentAsSuperuser<Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parent)) =>
+				Ok(Origin::root()),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct ChildSystemParachainAsSuperuser<ParaId, Origin>(PhantomData<(ParaId, Origin)>);
+impl<
+	ParaId: IsSystem + From<u32>,
+	Origin: SystemOrigin,
+> ConvertOrigin<Origin> for ChildSystemParachainAsSuperuser<ParaId, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parachain { id }))
+				if ParaId::from(id).is_system() =>
+				Ok(Origin::root()),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct SiblingSystemParachainAsSuperuser<ParaId, Origin>(PhantomData<(ParaId, Origin)>);
+impl<
+	ParaId: IsSystem + From<u32>,
+	Origin: SystemOrigin
+> ConvertOrigin<Origin> for SiblingSystemParachainAsSuperuser<ParaId, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Superuser, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+				if ParaId::from(id).is_system() =>
+				Ok(Origin::root()),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct ChildParachainAsNative<ParachainOrigin, Origin>(
+	PhantomData<(ParachainOrigin, Origin)>
+);
+impl<
+	ParachainOrigin: From<u32>,
+	Origin: From<ParachainOrigin>,
+> ConvertOrigin<Origin> for ChildParachainAsNative<ParachainOrigin, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id }))
+				=> Ok(Origin::from(ParachainOrigin::from(id))),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct SiblingParachainAsNative<ParachainOrigin, Origin>(
+	PhantomData<(ParachainOrigin, Origin)>
+);
+impl<
+	ParachainOrigin: From<u32>,
+	Origin: From<ParachainOrigin>,
+> ConvertOrigin<Origin> for SiblingParachainAsNative<ParachainOrigin, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Native, MultiLocation::X2(Junction::Parent, Junction::Parachain { id }))
+				=> Ok(Origin::from(ParachainOrigin::from(id))),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+// Our Relay-chain has a native origin given by the `Get`ter.
+pub struct RelayChainAsNative<RelayOrigin, Origin>(
+	PhantomData<(RelayOrigin, Origin)>
+);
+impl<
+	RelayOrigin: Get<Origin>,
+	Origin,
+> ConvertOrigin<Origin> for RelayChainAsNative<RelayOrigin, Origin> {
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Native, MultiLocation::X1(Junction::Parent)) => Ok(RelayOrigin::get()),
+			(_, origin) => Err(origin),
+		}
+	}
+}
+
+pub struct SignedAccountId32AsNative<Network, Origin>(
+	PhantomData<(Network, Origin)>
+);
 impl<
 	Network: Get<MultiNetwork>,
-	AccountId: From<[u8; 32]> + Into<[u8; 32]>,
-> LocationConversion<AccountId> for Account32Hash<Network, AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		Some(("multiloc", location).using_encoded(blake2_256).into())
-	}
-
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Err(who)
-	}
-}
-
-pub struct ParentIsDefault<AccountId>(PhantomData<AccountId>);
-
-impl<
-	AccountId: Default + Eq,
-> LocationConversion<AccountId> for ParentIsDefault<AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X1(Junction::Parent) = location {
-			Some(AccountId::default())
-		} else {
-			None
+	Origin: SystemOrigin,
+> ConvertOrigin<Origin> for SignedAccountId32AsNative<Network, Origin> where
+	Origin::AccountId: From<[u8; 32]>,
+{
+	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation> {
+		match (kind, origin) {
+			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network }))
+				if matches!(network, MultiNetwork::Any) || network == Network::get()
+				=> Ok(Origin::signed(id.into())),
+			(_, origin) => Err(origin),
 		}
-	}
-
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		if who == AccountId::default() {
-			Ok(Junction::Parent.into())
-		} else {
-			Err(who)
-		}
-	}
-}
-
-pub struct ChildParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-
-impl<
-	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
-	AccountId,
-> LocationConversion<AccountId> for ChildParachainConvertsVia<ParaId, AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X1(Junction::Parachain { id }) = location {
-			Some(ParaId::from(*id).into_account())
-		} else {
-			None
-		}
-	}
-
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		if let Some(id) = ParaId::try_from_account(&who) {
-			Ok(Junction::Parachain { id: id.into() }.into())
-		} else {
-			Err(who)
-		}
-	}
-}
-
-pub struct SiblingParachainConvertsVia<ParaId, AccountId>(PhantomData<(ParaId, AccountId)>);
-
-impl<
-	ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>,
-	AccountId,
-> LocationConversion<AccountId> for SiblingParachainConvertsVia<ParaId, AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X2(Junction::Parent, Junction::Parachain { id }) = location {
-			Some(ParaId::from(*id).into_account())
-		} else {
-			None
-		}
-	}
-
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		if let Some(id) = ParaId::try_from_account(&who) {
-			Ok([Junction::Parent, Junction::Parachain { id: id.into() }].into())
-		} else {
-			Err(who)
-		}
-	}
-}
-
-pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
-
-impl<
-	Network: Get<MultiNetwork>,
-	AccountId: From<[u8; 32]> + Into<[u8; 32]>,
-> LocationConversion<AccountId> for AccountId32Aliases<Network, AccountId> {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		if let MultiLocation::X1(Junction::AccountId32 { id, network }) = location {
-			if matches!(network, MultiNetwork::Any) || network == &Network::get() {
-				return Some((*id).into())
-			}
-		}
-		None
-	}
-
-	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
-		Ok(Junction::AccountId32 { id: who.into(), network: Network::get() }.into())
 	}
 }

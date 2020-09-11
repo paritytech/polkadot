@@ -60,7 +60,13 @@ use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
 use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use constants::{time::*, currency::*, fee::*};
-use xcm_builder::{AccountId32Aliases, ChildParachainConvertsVia};
+use polkadot_parachain::primitives::Id as ParaId;
+use xcm::v0::{MultiLocation, MultiNetwork, Junction};
+use xcm_executor::{CurrencyAdapter, XcmExecutor, traits::IsConcrete};
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser
+};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -399,12 +405,6 @@ parameter_types! {
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
 }
 
-use polkadot_parachain::primitives::Id as ParaId;
-use xcm::v0::{MultiLocation, MultiOrigin, MultiNetwork, Junction};
-use xcm_executor::{CurrencyAdapter, XcmExecutor, traits::{
-	IsConcrete, LocationConversion, ConvertOrigin}
-};
-
 parameter_types! {
 	pub const RocLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
 	pub const RococoNetwork: MultiNetwork = MultiNetwork::Polkadot;
@@ -427,24 +427,12 @@ pub type LocalAssetTransactor =
 		AccountId,
 	>;
 
-pub struct LocalOriginConverter;
-impl ConvertOrigin<Origin> for LocalOriginConverter {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, xcm::v0::Error> {
-		Ok(match (kind, origin) {
-			(MultiOrigin::SovereignAccount, origin)
-				=> system::RawOrigin::Signed(LocationConverter::from_location(&origin).ok_or(())?).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::Parachain { id }))
-				=> parachains::Origin::Parachain(id.into()).into(),
-			(MultiOrigin::Native, MultiLocation::X1(Junction::AccountId32 { id, network }))
-				if matches!(network, MultiNetwork::Polkadot | MultiNetwork::Any)
-				=> system::RawOrigin::Signed(id.into()).into(),
-			(MultiOrigin::Superuser, MultiLocation::X1(Junction::Parachain { id }))
-				if ParaId::from(id).is_system()
-				=> system::RawOrigin::Root.into(),
-			_ => Err(())?,
-		})
-	}
-}
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains::Origin, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
 
 pub struct XcmExecutorConfig;
 impl xcm_executor::Config for XcmExecutorConfig {

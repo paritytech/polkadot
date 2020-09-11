@@ -126,7 +126,24 @@ impl Id {
 	}
 
 	/// Returns `true` if this parachain runs with system-level privileges.
+	/// Use IsSystem instead.
+	#[deprecated]
 	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+}
+
+pub trait IsSystem {
+	fn is_system(&self) -> bool;
+}
+
+impl IsSystem for Id {
+	fn is_system(&self) -> bool {
+		self.0 < USER_INDEX_START
+	}
+}
+impl IsSystem for Sibling {
+	fn is_system(&self) -> bool {
+		IsSystem::is_system(&self.0)
+	}
 }
 
 impl sp_std::ops::Add<u32> for Id {
