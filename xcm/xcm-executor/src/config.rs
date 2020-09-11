@@ -37,6 +37,6 @@ pub trait Config {
 	type IsTeleporter: FilterAssetLocation;
 
 	/// Means of inverting a location.
-	type LocationInvertor: InvertLocation;
+	type LocationInverter: InvertLocation;
 }
 

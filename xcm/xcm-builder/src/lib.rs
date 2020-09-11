@@ -30,14 +30,15 @@ pub use origin_conversion::{
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
+use sp_std::marker::PhantomData;
 use xcm_executor::traits::InvertLocation;
 use xcm::v0::{MultiLocation, Junction};
 use frame_support::traits::Get;
 
 /// Simple location inverter; give it this location's ancestry and it'll
-pub struct LocationInvertor<Ancestry>;
+pub struct LocationInverter<Ancestry>(PhantomData<Ancestry>);
 
-impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInvertor<Ancestry> {
+impl<Ancestry: Get<MultiLocation>> InvertLocation for LocationInverter<Ancestry> {
 	fn invert_location(location: &MultiLocation) -> MultiLocation {
 		let mut ancestry = Ancestry::get();
 		let mut result = location.clone();

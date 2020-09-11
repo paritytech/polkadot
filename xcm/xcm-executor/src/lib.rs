@@ -124,7 +124,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 
-				let inv_dest = Config::LocationInvertor::invert_location(&dest);
+				let inv_dest = Config::LocationInverter::invert_location(&dest);
 				deposited.reanchor(&inv_dest);
 				let assets = deposited.into_assets_iter().collect::<Vec<_>>();
 
@@ -133,7 +133,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			Ai::InitiateReserveTransfer { assets, reserve, dest, effects} => {
 				let mut transferred = holding.saturating_take(assets);
-				let inv_reserve = Config::LocationInvertor::invert_location(&reserve)
+				let inv_reserve = Config::LocationInverter::invert_location(&reserve);
 				transferred.reanchor(&inv_reserve);
 				let assets = transferred.into_assets_iter().collect::<Vec<_>>();
 				let msg = Xcm::WithdrawAsset { assets: assets.clone(), effects: vec![

@@ -119,25 +119,6 @@ impl<'a> Iterator for MultiLocationReverseRefIterator<'a> {
 	}
 }
 
-pub struct MultiLocationRefMutIterator<'a>(&'a mut MultiLocation, usize);
-impl<'a> Iterator for MultiLocationRefMutIterator<'a> {
-	type Item = &'a mut Junction;
-	fn next(&mut self) -> Option<&'a mut Junction> {
-		let result = self.0.at_mut(self.1);
-		self.1 += 1;
-		result
-	}
-}
-
-pub struct MultiLocationReverseRefMutIterator<'a>(&'a mut MultiLocation, usize);
-impl<'a> Iterator for MultiLocationReverseRefMutIterator<'a> {
-	type Item = &'a mut Junction;
-	fn next(&mut self) -> Option<&'a mut Junction> {
-		self.1 += 1;
-		self.0.at_mut(self.0.len().checked_sub(self.1)?)
-	}
-}
-
 impl MultiLocation {
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
@@ -146,6 +127,15 @@ impl MultiLocation {
 			MultiLocation::X2(ref a, ..) => Some(a),
 			MultiLocation::X3(ref a, ..) => Some(a),
 			MultiLocation::X4(ref a, ..) => Some(a),
+		}
+	}
+	pub fn last(&self) -> Option<&Junction> {
+		match &self {
+			MultiLocation::Null => None,
+			MultiLocation::X1(ref a) => Some(a),
+			MultiLocation::X2(.., ref a) => Some(a),
+			MultiLocation::X3(.., ref a) => Some(a),
+			MultiLocation::X4(.., ref a) => Some(a),
 		}
 	}
 	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
@@ -201,10 +191,10 @@ impl MultiLocation {
 	pub fn len(&self) -> usize {
 		match &self {
 			MultiLocation::Null => 0,
-			MultiLocation::X1(ref a) => 1,
-			MultiLocation::X2(ref a, ..) => 2,
-			MultiLocation::X3(ref a, ..) => 3,
-			MultiLocation::X4(ref a, ..) => 4,
+			MultiLocation::X1(..) => 1,
+			MultiLocation::X2(..) => 2,
+			MultiLocation::X3(..) => 3,
+			MultiLocation::X4(..) => 4,
 		}
 	}
 
@@ -225,7 +215,7 @@ impl MultiLocation {
 	}
 
 	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
-		Some(match (i, &mut self) {
+		Some(match (i, self) {
 			(0, MultiLocation::X1(ref mut a)) => a,
 			(0, MultiLocation::X2(ref mut a, ..)) => a,
 			(0, MultiLocation::X3(ref mut a, ..)) => a,
@@ -241,16 +231,10 @@ impl MultiLocation {
 	}
 
 	pub fn iter(&self) -> MultiLocationRefIterator {
-		MultiLocationRefIterator(&self)
+		MultiLocationRefIterator(&self, 0)
 	}
 	pub fn iter_rev(&self) -> MultiLocationReverseRefIterator {
-		MultiLocationReverseRefIterator(&self)
-	}
-	pub fn iter_mut(&mut self) -> MultiLocationRefMutIterator {
-		MultiLocationRefMutIterator(&mut self)
-	}
-	pub fn iter_mut_rev(&mut self) -> MultiLocationReverseRefMutIterator {
-		MultiLocationReverseRefMutIterator(&mut self)
+		MultiLocationReverseRefIterator(&self, 0)
 	}
 	pub fn into_iter(self) -> MultiLocationIterator {
 		MultiLocationIterator(self)
@@ -286,10 +270,12 @@ impl MultiLocation {
 		Ok(result)
 	}
 
+	/// Ensure that the `prefix` len plus the `self` len is less than the max length, if not
+	/// the result is undefined.
 	pub fn prepend_with(&mut self, prefix: &MultiLocation) {
 		let mut prefix = prefix.clone();
 		while match (prefix.last(), self.first()) {
-			(Some(x), Some(Junction::Parent)) if x != Junction::Parent => {
+			(Some(x), Some(Junction::Parent)) if x != &Junction::Parent => {
 				prefix.take_last();
 				self.take_first();
 				true
@@ -297,7 +283,8 @@ impl MultiLocation {
 			_ => false,
 		} {}
 		for j in prefix.into_iter_rev() {
-			self.push_front(j);
+			// Fail silently.
+			let _ = self.push_front(j);
 		}
 	}
 }
@@ -394,7 +381,8 @@ impl Junction {
 			Junction::AccountKey20 { .. } |
 			Junction::PalletInstance { .. } |
 			Junction::GeneralIndex { .. } |
-			Junction::GeneralKey(..) => true,
+			Junction::GeneralKey(..) |
+			Junction::OnlyChild => true,
 		}
 	}
 }

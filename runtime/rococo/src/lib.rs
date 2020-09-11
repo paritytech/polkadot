@@ -65,7 +65,8 @@ use xcm::v0::{MultiLocation, MultiNetwork, Junction};
 use xcm_executor::{XcmExecutor, traits::IsConcrete};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter,
-	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser,
+	LocationInverter,
 };
 
 #[cfg(feature = "std")]
@@ -408,6 +409,7 @@ parameter_types! {
 parameter_types! {
 	pub const RocLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
 	pub const RococoNetwork: MultiNetwork = MultiNetwork::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }
 
 pub type LocationConverter = (
@@ -442,6 +444,7 @@ impl xcm_executor::Config for XcmExecutorConfig {
 	type OriginConverter = LocalOriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
 }
 
 impl parachains::Trait for Runtime {

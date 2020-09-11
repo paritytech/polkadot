@@ -25,7 +25,7 @@ pub enum AssetId {
 
 impl AssetId {
 	pub fn reanchor(&mut self, prepend: &MultiLocation) {
-		if let AssetId::Concrete(ref mut l) = &mut self {
+		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend);
 		}
 	}
@@ -106,10 +106,14 @@ impl Assets {
 
 	/// Alter any concretely identified assets according to the given `MultiLocation`.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) {
-		self.fungible = self.fungible.into_iter()
+		let mut fungible = Default::default();
+		sp_std::mem::swap(&mut self.fungible, &mut fungible);
+		self.fungible = fungible.into_iter()
 			.map(|(mut id, amount)| { id.reanchor(prepend); (id, amount) })
 			.collect();
-		self.non_fungible = self.non_fungible.into_iter()
+		let mut non_fungible = Default::default();
+		sp_std::mem::swap(&mut self.non_fungible, &mut non_fungible);
+		self.non_fungible = non_fungible.into_iter()
 			.map(|(mut class, inst)| { class.reanchor(prepend); (class, inst) })
 			.collect();
 	}
