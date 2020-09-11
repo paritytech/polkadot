@@ -18,7 +18,7 @@ use sp_std::{result, convert::TryInto, marker::PhantomData};
 use xcm::v0::{Error, Result, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
 use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
-use crate::traits::{MatchesFungible, LocationConversion, TransactAsset};
+use xcm_executor::traits::{MatchesFungible, LocationConversion, TransactAsset};
 
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<Currency>,

@@ -26,3 +26,6 @@ pub use origin_conversion::{
 	SovereignSignedViaLocation, ParentAsSuperuser, ChildSystemParachainAsSuperuser, SiblingSystemParachainAsSuperuser,
 	ChildParachainAsNative, SiblingParachainAsNative, RelayChainAsNative, SignedAccountId32AsNative
 };
+
+mod currency_adapter;
+pub use currency_adapter::CurrencyAdapter;

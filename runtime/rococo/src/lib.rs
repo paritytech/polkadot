@@ -62,9 +62,9 @@ use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use constants::{time::*, currency::*, fee::*};
 use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, MultiNetwork, Junction};
-use xcm_executor::{CurrencyAdapter, XcmExecutor, traits::IsConcrete};
+use xcm_executor::{XcmExecutor, traits::IsConcrete};
 use xcm_builder::{
-	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation,
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter,
 	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser
 };
 

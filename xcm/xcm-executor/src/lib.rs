@@ -24,13 +24,10 @@ use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, 
 pub mod traits;
 mod assets;
 mod config;
-mod currency_adapter;
 
 use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
-pub use currency_adapter::CurrencyAdapter;
-// TODO: pub use multiasset_adapter::MultiAssetAdapter;
 
 pub struct XcmExecutor<Config>(PhantomData<Config>);
 
