@@ -535,7 +535,6 @@ mod tests {
 				System::on_finalize(System::block_number());
 			}
 			// Session change every 3 blocks.
-			// TODO: Better way to do this?
 			if (b + 1) % 3 == 0 {
 				Initializer::on_new_session(
 					false,
@@ -563,7 +562,6 @@ mod tests {
 			run_to_block(2);
 
 			assert_ok!(Registrar::register_parachain(
-				Origin::root(),
 				2u32.into(),
 				vec![3; 3].into(),
 				vec![3; 3].into(),
@@ -585,7 +583,7 @@ mod tests {
 
 			run_to_block(3);
 
-			assert_ok!(Registrar::deregister_parachain(Origin::root(), 2u32.into()));
+			assert_ok!(Registrar::deregister_parachain(2u32.into()));
 
 			assert_ok!(Registrar::deregister_parathread(
 				runtime_parachains::Origin::Parachain(8u32.into()).into()
@@ -614,7 +612,6 @@ mod tests {
 			));
 
 			assert_ok!(Registrar::register_parachain(
-				Origin::root(),
 				2u32.into(),
 				vec![1; 3].into(),
 				vec![1; 3].into(),
@@ -643,7 +640,6 @@ mod tests {
 			run_to_block(2);
 
 			assert_ok!(Registrar::register_parachain(
-				Origin::root(),
 				1u32.into(),
 				vec![1; 3].into(),
 				vec![1; 3].into(),
@@ -651,11 +647,10 @@ mod tests {
 
 			run_to_block(4);
 
-			assert_ok!(Registrar::deregister_parachain(Origin::root(), 1u32.into()));
+			assert_ok!(Registrar::deregister_parachain(1u32.into()));
 			run_to_block(5);
 
 			assert!(Registrar::register_parachain(
-				Origin::root(),
 				1u32.into(),
 				vec![1; 3].into(),
 				vec![1; 3].into(),
@@ -664,7 +659,6 @@ mod tests {
 			run_to_block(6);
 
 			assert_ok!(Registrar::register_parachain(
-				Origin::root(),
 				1u32.into(),
 				vec![1; 3].into(),
 				vec![1; 3].into(),

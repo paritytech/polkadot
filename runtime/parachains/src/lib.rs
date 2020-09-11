@@ -24,7 +24,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use sp_std::result;
-use sp_runtime::traits::BadOrigin;
+use sp_runtime::{RuntimeDebug, traits::BadOrigin};
 use primitives::v1::Id as ParaId;
 use codec::{Decode, Encode};
 
@@ -44,8 +44,7 @@ mod util;
 mod mock;
 
 /// Origin for the parachains.
-#[derive(Debug, PartialEq, Eq, Clone, Encode, Decode)]
-// TODO: #[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),
