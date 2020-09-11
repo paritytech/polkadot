@@ -4091,6 +4091,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-xcm-handler"
+version = "0.8.22"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
+]
+
+[[package]]
 name = "parity-db"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
