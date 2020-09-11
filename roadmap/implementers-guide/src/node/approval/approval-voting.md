@@ -1,0 +1,5 @@
+# Approval Voting
+
+## Protocol
+
+## Functionality

@@ -37,8 +37,10 @@ struct AssignmentCert {
 
 ## ApprovalVote
 
+A vote of approval on a candidate.
+
 ```rust
-struct ApprovalVote(ExecutionTimePair);
+struct ApprovalVote(Hash, ExecutionTimePair);
 ```
 
 ## SignedApprovalVote
@@ -49,6 +51,26 @@ struct SignedApprovalVote {
     validator: ValidatorIndex,
     signature: ApprovalSignature,
 }
+```
+
+## CheckedAssignmentCert
+
+An assignment cert which has been completely checked. This type should be declared in such a way as to be instantiable only when the checks have actually been done. Fields should be accessible via getters, not direct struct access.
+
+```rust
+struct CheckedAssignmentCert {
+    cert: AssignmentCert,
+    validator: ValidatorIndex,
+    relay_block: Hash,
+    candidate_hash: Hash,
+    delay_tranche: DelayTranche,
+}
+```
+
+## DelayTranche
+
+```rust
+type DelayTranche = u16;
 ```
 
 ## RelayVRFStory

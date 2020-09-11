@@ -33,6 +33,54 @@ struct ActiveLeavesUpdate {
 }
 ```
 
+## Approval Voting
+
+Messages received by the approval voting subsystem.
+
+```rust
+enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	///
+	/// If the voting subsystem can accept the assignment, it returns `true` on the channel.
+	/// Otherwise, `false`.
+	CheckAndImportAssignment(
+		Hash, 
+		AssignmentCert, 
+		ValidatorIndex,
+		ResponseChannel<bool>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// If the voting subsystem can accept the approval vote, it returns `true` on the
+	/// channel.
+	/// Otherwise, `false`.
+	CheckAndImportApproval(
+		ApprovalVote,
+		ValidatorIndex,
+		ResponseChannel<bool>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for. It can also return the same
+	/// block hash, if that is acceptable to vote upon.
+	ApprovedAncestor(Hash, ResponseChannel<Option<Hash>>),
+}
+```
+
+## Approval Networking
+
+Messages received by the approval networking subsystem.
+
+```rust
+enum ApprovalNetworkingMessage {
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid for the given relay-parent and validator index.
+	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
+	/// Distribute an approval vote for the local validator.
+	DistributeApproval(Hash, SignedApprovalVote),
+}
+```
+
 ## All Messages
 
 > TODO (now)
