@@ -23,6 +23,14 @@ pub enum AssetId {
 	Abstract(Vec<u8>),
 }
 
+impl AssetId {
+	pub fn reanchor(&mut self, prepend: &MultiLocation) {
+		if let AssetId::Concrete(ref mut l) = &mut self {
+			l.prepend_with(prepend);
+		}
+	}
+}
+
 #[derive(Default, Clone)]
 pub struct Assets {
 	pub fungible: BTreeMap<AssetId, u128>,
@@ -94,6 +102,16 @@ impl Assets {
 
 	pub fn saturating_subsume_non_fungible(&mut self, class: AssetId, instance: AssetInstance) {
 		self.non_fungible.insert((class, instance));
+	}
+
+	/// Alter any concretely identified assets according to the given `MultiLocation`.
+	pub fn reanchor(&mut self, prepend: &MultiLocation) {
+		self.fungible = self.fungible.into_iter()
+			.map(|(mut id, amount)| { id.reanchor(prepend); (id, amount) })
+			.collect();
+		self.non_fungible = self.non_fungible.into_iter()
+			.map(|(mut class, inst)| { class.reanchor(prepend); (class, inst) })
+			.collect();
 	}
 
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.

@@ -92,6 +92,52 @@ impl Iterator for MultiLocationIterator {
 	}
 }
 
+pub struct MultiLocationReverseIterator(MultiLocation);
+impl Iterator for MultiLocationReverseIterator {
+	type Item = Junction;
+	fn next(&mut self) -> Option<Junction> {
+		self.0.take_last()
+	}
+}
+
+pub struct MultiLocationRefIterator<'a>(&'a MultiLocation, usize);
+impl<'a> Iterator for MultiLocationRefIterator<'a> {
+	type Item = &'a Junction;
+	fn next(&mut self) -> Option<&'a Junction> {
+		let result = self.0.at(self.1);
+		self.1 += 1;
+		result
+	}
+}
+
+pub struct MultiLocationReverseRefIterator<'a>(&'a MultiLocation, usize);
+impl<'a> Iterator for MultiLocationReverseRefIterator<'a> {
+	type Item = &'a Junction;
+	fn next(&mut self) -> Option<&'a Junction> {
+		self.1 += 1;
+		self.0.at(self.0.len().checked_sub(self.1)?)
+	}
+}
+
+pub struct MultiLocationRefMutIterator<'a>(&'a mut MultiLocation, usize);
+impl<'a> Iterator for MultiLocationRefMutIterator<'a> {
+	type Item = &'a mut Junction;
+	fn next(&mut self) -> Option<&'a mut Junction> {
+		let result = self.0.at_mut(self.1);
+		self.1 += 1;
+		result
+	}
+}
+
+pub struct MultiLocationReverseRefMutIterator<'a>(&'a mut MultiLocation, usize);
+impl<'a> Iterator for MultiLocationReverseRefMutIterator<'a> {
+	type Item = &'a mut Junction;
+	fn next(&mut self) -> Option<&'a mut Junction> {
+		self.1 += 1;
+		self.0.at_mut(self.0.len().checked_sub(self.1)?)
+	}
+}
+
 impl MultiLocation {
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
@@ -143,14 +189,89 @@ impl MultiLocation {
 			s => Err(s)?,
 		})
 	}
+	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
+		Ok(match self {
+			MultiLocation::Null => MultiLocation::X1(new),
+			MultiLocation::X1(a) => MultiLocation::X2(new, a),
+			MultiLocation::X2(a, b) => MultiLocation::X3(new, a, b),
+			MultiLocation::X3(a, b, c) => MultiLocation::X4(new, a, b, c),
+			s => Err(s)?,
+		})
+	}
+	pub fn len(&self) -> usize {
+		match &self {
+			MultiLocation::Null => 0,
+			MultiLocation::X1(ref a) => 1,
+			MultiLocation::X2(ref a, ..) => 2,
+			MultiLocation::X3(ref a, ..) => 3,
+			MultiLocation::X4(ref a, ..) => 4,
+		}
+	}
+
+	pub fn at(&self, i: usize) -> Option<&Junction> {
+		Some(match (i, &self) {
+			(0, MultiLocation::X1(ref a)) => a,
+			(0, MultiLocation::X2(ref a, ..)) => a,
+			(0, MultiLocation::X3(ref a, ..)) => a,
+			(0, MultiLocation::X4(ref a, ..)) => a,
+			(1, MultiLocation::X2(_, ref a)) => a,
+			(1, MultiLocation::X3(_, ref a, ..)) => a,
+			(1, MultiLocation::X4(_, ref a, ..)) => a,
+			(2, MultiLocation::X3(_, _, ref a)) => a,
+			(2, MultiLocation::X4(_, _, ref a, ..)) => a,
+			(3, MultiLocation::X4(_, _, _, ref a)) => a,
+			_ => return None,
+		})
+	}
+
+	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
+		Some(match (i, &mut self) {
+			(0, MultiLocation::X1(ref mut a)) => a,
+			(0, MultiLocation::X2(ref mut a, ..)) => a,
+			(0, MultiLocation::X3(ref mut a, ..)) => a,
+			(0, MultiLocation::X4(ref mut a, ..)) => a,
+			(1, MultiLocation::X2(_, ref mut a)) => a,
+			(1, MultiLocation::X3(_, ref mut a, ..)) => a,
+			(1, MultiLocation::X4(_, ref mut a, ..)) => a,
+			(2, MultiLocation::X3(_, _, ref mut a)) => a,
+			(2, MultiLocation::X4(_, _, ref mut a, ..)) => a,
+			(3, MultiLocation::X4(_, _, _, ref mut a)) => a,
+			_ => return None,
+		})
+	}
+
+	pub fn iter(&self) -> MultiLocationRefIterator {
+		MultiLocationRefIterator(&self)
+	}
+	pub fn iter_rev(&self) -> MultiLocationReverseRefIterator {
+		MultiLocationReverseRefIterator(&self)
+	}
+	pub fn iter_mut(&mut self) -> MultiLocationRefMutIterator {
+		MultiLocationRefMutIterator(&mut self)
+	}
+	pub fn iter_mut_rev(&mut self) -> MultiLocationReverseRefMutIterator {
+		MultiLocationReverseRefMutIterator(&mut self)
+	}
 	pub fn into_iter(self) -> MultiLocationIterator {
 		MultiLocationIterator(self)
+	}
+	pub fn into_iter_rev(self) -> MultiLocationReverseIterator {
+		MultiLocationReverseIterator(self)
 	}
 
 	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut n);
 		match n.pushed_with(new) {
+			Ok(result) => { *self = result; Ok(()) }
+			Err(old) => { *self = old; Err(()) }
+		}
+	}
+
+	pub fn push_front(&mut self, new: Junction) -> result::Result<(), ()> {
+		let mut n = MultiLocation::Null;
+		sp_std::mem::swap(&mut *self, &mut n);
+		match n.pushed_front_with(new) {
 			Ok(result) => { *self = result; Ok(()) }
 			Err(old) => { *self = old; Err(()) }
 		}
@@ -163,6 +284,21 @@ impl MultiLocation {
 			result = result.pushed_with(j)?;
 		}
 		Ok(result)
+	}
+
+	pub fn prepend_with(&mut self, prefix: &MultiLocation) {
+		let mut prefix = prefix.clone();
+		while match (prefix.last(), self.first()) {
+			(Some(x), Some(Junction::Parent)) if x != Junction::Parent => {
+				prefix.take_last();
+				self.take_first();
+				true
+			}
+			_ => false,
+		} {}
+		for j in prefix.into_iter_rev() {
+			self.push_front(j);
+		}
 	}
 }
 
@@ -180,6 +316,8 @@ pub enum Junction {
 	GeneralIndex { #[codec(compact)] id: u128 },
 	/// A nondescript datum acting as a key within the context location.
 	GeneralKey(Vec<u8>),
+	/// The unambiguous child.
+	OnlyChild,
 }
 
 impl From<Junction> for MultiLocation {

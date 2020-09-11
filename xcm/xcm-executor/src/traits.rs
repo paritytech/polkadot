@@ -209,3 +209,7 @@ impl<
 		<(((X, Y), Z), W)>::convert_origin(origin, kind)
 	}
 }
+
+pub trait InvertLocation {
+	fn invert_location(l: &MultiLocation) -> MultiLocation;
+}

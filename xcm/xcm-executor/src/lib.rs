@@ -25,7 +25,7 @@ pub mod traits;
 mod assets;
 mod config;
 
-use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation};
+use traits::{TransactAsset, ConvertOrigin, FilterAssetLocation, InvertLocation};
 pub use assets::{Assets, AssetId};
 pub use config::Config;
 
@@ -118,15 +118,23 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Ai::DepositReserveAsset { assets, dest, effects } => {
-				let deposited = holding.saturating_take(assets).into_assets_iter().collect::<Vec<_>>();
-				for asset in deposited.iter() {
-					Config::AssetTransactor::deposit_asset(asset, &dest)?;
+				let mut deposited = holding.saturating_take(assets);
+
+				for asset in deposited.clone().into_assets_iter() {
+					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-				let msg = Xcm::ReserveAssetCredit { assets: deposited, effects }.into();
+
+				let inv_dest = Config::LocationInvertor::invert_location(&dest);
+				deposited.reanchor(&inv_dest);
+				let assets = deposited.into_assets_iter().collect::<Vec<_>>();
+
+				let msg = Xcm::ReserveAssetCredit { assets, effects }.into();
 				Config::XcmSender::send_xcm(dest, msg)
 			},
 			Ai::InitiateReserveTransfer { assets, reserve, dest, effects} => {
-				let transferred = holding.saturating_take(assets);
+				let mut transferred = holding.saturating_take(assets);
+				let inv_reserve = Config::LocationInvertor::invert_location(&reserve)
+				transferred.reanchor(&inv_reserve);
 				let assets = transferred.into_assets_iter().collect::<Vec<_>>();
 				let msg = Xcm::WithdrawAsset { assets: assets.clone(), effects: vec![
 					Ai::DepositReserveAsset { assets, dest, effects }
