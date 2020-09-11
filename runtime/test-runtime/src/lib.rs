@@ -579,14 +579,14 @@ sp_api::impl_runtime_apis! {
 			let validators = Self::validators();
 			let mut groups = vec![Vec::with_capacity(validators.len() / N + 1); N];
 			for idx in 0..validators.len() {
-				let vidx: p_v1::ValidatorIndex = idx.into();
+				let vidx = idx as p_v1::ValidatorIndex;
 				groups[idx%N].push(vidx);
 			}
 
-			let rotation_info = p_v1::GroupRotationInfo<BlockNumber> {
-				session_start_block: 0.into(),
-				group_rotation_frequency: 0.into(),
-				now: 123.into(),
+			let rotation_info = p_v1::GroupRotationInfo {
+				session_start_block: 0,
+				group_rotation_frequency: 0,
+				now: 123,
 			};
 
 			(groups, rotation_info)
@@ -608,7 +608,7 @@ sp_api::impl_runtime_apis! {
 			}
 
 		fn session_index_for_child() -> p_v1::SessionIndex {
-			0.into()
+			0
 		}
 
 		fn validation_code(_para_id: p_v1::Id, _assumption: p_v1::OccupiedCoreAssumption)
