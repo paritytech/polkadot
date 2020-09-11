@@ -60,8 +60,8 @@ decl_module! {
 		#[weight = 10]
 		fn execute(origin, xcm: VersionedXcm) {
 			let who = ensure_signed(origin)?;
-			let xcm_origin = T::AccountIdConverter::into_location(who)
-				.ok_or(Error::<T>::BadLocation)?;
+			let xcm_origin = T::AccountIdConverter::try_into_location(who)
+				.map_err(|_| Error::<T>::BadLocation)?;
 
 			let xcm = xcm.try_into().map_err(|_| Error::<T>::BadVersion)?;
 			let xcm_result = T::XcmExecutor::execute_xcm(xcm_origin, xcm);

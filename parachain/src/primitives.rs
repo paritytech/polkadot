@@ -158,6 +158,13 @@ impl AsRef<Id> for Sibling {
 impl TypeId for Sibling {
 	const TYPE_ID: [u8; 4] = *b"sibl";
 }
+impl From<Sibling> for u32 {
+	fn from(x: Sibling) -> Self { x.0.into() }
+}
+
+impl From<u32> for Sibling {
+	fn from(x: u32) -> Self { Sibling(x.into()) }
+}
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
 #[derive(Clone, PartialEq, Eq, Encode, Decode)]
