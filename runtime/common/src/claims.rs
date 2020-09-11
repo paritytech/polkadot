@@ -35,7 +35,7 @@ use sp_runtime::{
 		TransactionSource, TransactionValidityError,
 	},
 };
-use primitives::v0::ValidityError;
+use primitives::v1::ValidityError;
 
 type CurrencyOf<T> = <<T as Trait>::VestingSchedule as VestingSchedule<<T as frame_system::Trait>::AccountId>>::Currency;
 type BalanceOf<T> = <CurrencyOf<T> as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
@@ -132,7 +132,7 @@ decl_event!(
 		Balance = BalanceOf<T>,
 		AccountId = <T as frame_system::Trait>::AccountId
 	{
-		/// Someone claimed some DOTs.
+		/// Someone claimed some DOTs. [who, ethereum_address, amount]
 		Claimed(AccountId, EthereumAddress, Balance),
 	}
 );

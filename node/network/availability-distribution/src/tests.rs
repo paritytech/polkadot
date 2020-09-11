@@ -1,17 +1,34 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
-	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GlobalValidationData,
-	GroupIndex, GroupRotationInfo, HeadData, LocalValidationData, OccupiedCore,
-	OmittedValidationData, PoV, ScheduledCore, ValidatorPair,
+	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
+	GroupRotationInfo, HeadData, PersistedValidationData, OccupiedCore,
+	PoV, ScheduledCore, ValidatorPair,
 };
-use polkadot_subsystem_testhelpers as test_helpers;
+use polkadot_subsystem_testhelpers::{self as test_helpers};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_network_protocol::ObservedRole;
 
 use futures::{executor, future, Future};
 use futures_timer::Delay;
 use smallvec::smallvec;
-use smol_timeout::TimeoutExt;
 use std::time::Duration;
 
 macro_rules! view {
@@ -24,6 +41,15 @@ macro_rules! delay {
 	($delay:expr) => {
 		Delay::new(Duration::from_millis($delay)).await;
 	};
+}
+
+fn chunk_protocol_message(message: AvailabilityGossipMessage)
+	-> protocol_v1::AvailabilityDistributionMessage
+{
+	protocol_v1::AvailabilityDistributionMessage::Chunk(
+		message.candidate_hash,
+		message.erasure_chunk,
+	)
 }
 
 struct TestHarness {
@@ -122,8 +148,7 @@ struct TestState {
 	relay_parent: Hash,
 	ancestors: Vec<Hash>,
 	availability_cores: Vec<CoreState>,
-	global_validation_data: GlobalValidationData,
-	local_validation_data: LocalValidationData,
+	persisted_validation_data: PersistedValidationData,
 }
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -184,17 +209,10 @@ impl Default for TestState {
 		];
 		let relay_parent = Hash::repeat_byte(0x05);
 
-		let local_validation_data = LocalValidationData {
+		let persisted_validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			balance: Default::default(),
-			code_upgrade_allowed: None,
-			validation_code_hash: Default::default(),
-		};
-
-		let global_validation_data = GlobalValidationData {
-			max_code_size: 1000,
-			max_head_data_size: 1000,
 			block_number: Default::default(),
+			hrmp_mqc_heads: Vec::new(),
 		};
 
 		let validator_index = Some((validators.len() - 1) as ValidatorIndex);
@@ -207,8 +225,7 @@ impl Default for TestState {
 			validator_groups,
 			availability_cores,
 			head_data,
-			local_validation_data,
-			global_validation_data,
+			persisted_validation_data,
 			relay_parent,
 			ancestors,
 			validator_index,
@@ -217,13 +234,8 @@ impl Default for TestState {
 }
 
 fn make_available_data(test: &TestState, pov: PoV) -> AvailableData {
-	let omitted_validation = OmittedValidationData {
-		global_validation: test.global_validation_data.clone(),
-		local_validation: test.local_validation_data.clone(),
-	};
-
 	AvailableData {
-		omitted_validation,
+		validation_data: test.persisted_validation_data.clone(),
 		pov,
 	}
 }
@@ -408,8 +420,7 @@ fn reputation_verification() {
 			validator_groups,
 			availability_cores,
 			head_data: _,
-			local_validation_data: _,
-			global_validation_data: _,
+			persisted_validation_data: _,
 			relay_parent: current,
 			ancestors,
 			validator_index: _,
@@ -437,12 +448,9 @@ fn reputation_verification() {
 		)
 		.await;
 
-		// ignore event producer registration
-		let _ = overseer_recv(&mut virtual_overseer).await;
-
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::OurViewChange(view![current,]),
 			),
 		)
@@ -668,7 +676,7 @@ fn reputation_verification() {
 		// setup peer a with interest in current
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerConnected(peer_a.clone(), ObservedRole::Full),
 			),
 		)
@@ -676,7 +684,7 @@ fn reputation_verification() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![current]),
 			),
 		)
@@ -685,7 +693,7 @@ fn reputation_verification() {
 		// setup peer b with interest in ancestor
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 			),
 		)
@@ -693,42 +701,13 @@ fn reputation_verification() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerViewChange(peer_b.clone(), view![ancestors[0]]),
 			),
 		)
 		.await;
 
 		delay!(100);
-
-		/////////////////////////////////////////////////////////
-		// ready for action
-
-		// check if garbage messages are detected and peer rep is changed as expected
-		let garbage = b"I am garbage";
-
-		overseer_send(
-			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(
-				peer_b.clone(),
-				// AvailabilityDistributionSubsystem::PROTOCOL_ID,
-				garbage.to_vec(),
-			)),
-		)
-		.await;
-
-		assert_matches!(
-			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::NetworkBridge(
-				NetworkBridgeMessage::ReportPeer(
-					peer,
-					rep
-				)
-			) => {
-				assert_eq!(peer, peer_b);
-				assert_eq!(rep, COST_MESSAGE_NOT_DECODABLE);
-			}
-		);
 
 		let valid: AvailabilityGossipMessage = make_valid_availability_gossip(
 			&test_state,
@@ -741,8 +720,11 @@ fn reputation_verification() {
 			// valid (first, from b)
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
 				),
 			)
 			.await;
@@ -765,8 +747,11 @@ fn reputation_verification() {
 			// valid (duplicate, from b)
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_b.clone(), valid.encode()),
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_b.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
 				),
 			)
 			.await;
@@ -789,8 +774,11 @@ fn reputation_verification() {
 			// valid (second, from a)
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
 				),
 			)
 			.await;
@@ -812,7 +800,7 @@ fn reputation_verification() {
 		// peer a is not interested in anything anymore
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerViewChange(peer_a.clone(), view![]),
 			),
 		)
@@ -822,8 +810,11 @@ fn reputation_verification() {
 			// send the a message again, so we should detect the duplicate
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid.encode()),
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						chunk_protocol_message(valid.clone()),
+					),
 				),
 			)
 			.await;
@@ -846,7 +837,7 @@ fn reputation_verification() {
 		// setup peer a with interest in parent x
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerDisconnected(peer_b.clone()),
 			),
 		)
@@ -856,7 +847,7 @@ fn reputation_verification() {
 
 		overseer_send(
 			&mut virtual_overseer,
-			AvailabilityDistributionMessage::NetworkBridgeUpdate(
+			AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
 				NetworkBridgeEvent::PeerConnected(peer_b.clone(), ObservedRole::Full),
 			),
 		)
@@ -874,8 +865,11 @@ fn reputation_verification() {
 			// send the a message before we send a view update
 			overseer_send(
 				&mut virtual_overseer,
-				AvailabilityDistributionMessage::NetworkBridgeUpdate(
-					NetworkBridgeEvent::PeerMessage(peer_a.clone(), valid2.encode()),
+				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a.clone(),
+						chunk_protocol_message(valid2),
+					),
 				),
 			)
 			.await;

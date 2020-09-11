@@ -16,21 +16,22 @@
 
 #![cfg(not(any(target_os = "android", target_os = "unknown")))]
 
-use std::{process, env, sync::Arc, sync::atomic};
+use std::{process, env, sync::Arc, sync::atomic, path::PathBuf};
 use codec::{Decode, Encode};
 use crate::primitives::{ValidationParams, ValidationResult};
-use super::{validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
-			MAX_CODE_MEM, MAX_RUNTIME_MEM};
+use super::{
+	validate_candidate_internal, ValidationError, InvalidCandidate, InternalError,
+	MAX_CODE_MEM, MAX_RUNTIME_MEM, MAX_VALIDATION_RESULT_HEADER_MEM,
+};
 use shared_memory::{SharedMem, SharedMemConf, EventState, WriteLockable, EventWait, EventSet};
 use parking_lot::Mutex;
 use log::{debug, trace};
 use futures::executor::ThreadPool;
 use sp_core::traits::SpawnNamed;
 
-const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
-/// CLI Argument to start in validation worker mode.
 const WORKER_ARG: &'static str = "validation-worker";
-const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
+/// CLI Argument to start in validation worker mode.
+pub const WORKER_ARGS: &[&'static str] = &[WORKER_ARG];
 
 /// Execution timeout in seconds;
 #[cfg(debug_assertions)]
@@ -65,7 +66,7 @@ impl SpawnNamed for TaskExecutor {
 }
 
 /// A pool of hosts.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ValidationPool {
 	hosts: Arc<Vec<Mutex<ValidationHost>>>,
 }
@@ -80,24 +81,44 @@ impl ValidationPool {
 		}
 	}
 
-	/// Validate a candidate under the given validation code using the next
-	/// free validation host.
+	/// Validate a candidate under the given validation code using the next free validation host.
 	///
 	/// This will fail if the validation code is not a proper parachain validation module.
+	///
+	/// This function will use `std::env::current_exe()` with the default arguments [`WORKER_ARGS`] to run the worker.
 	pub fn validate_candidate(
 		&self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		test_mode: bool,
+	) -> Result<ValidationResult, ValidationError> {
+		self.validate_candidate_custom(
+			validation_code,
+			params,
+			&env::current_exe().map_err(|err| ValidationError::Internal(err.into()))?,
+			WORKER_ARGS,
+		)
+	}
+
+	/// Validate a candidate under the given validation code using the next free validation host.
+	///
+	/// This will fail if the validation code is not a proper parachain validation module.
+	///
+	/// This function will use the command and the arguments provided in the function's arguments to run the worker.
+	pub fn validate_candidate_custom(
+		&self,
+		validation_code: &[u8],
+		params: ValidationParams,
+		command: &PathBuf,
+		args: &[&str],
 	) -> Result<ValidationResult, ValidationError> {
 		for host in self.hosts.iter() {
 			if let Some(mut host) = host.try_lock() {
-				return host.validate_candidate(validation_code, params, test_mode);
+				return host.validate_candidate(validation_code, params, command, args)
 			}
 		}
 
 		// all workers are busy, just wait for the first one
-		self.hosts[0].lock().validate_candidate(validation_code, params, test_mode)
+		self.hosts[0].lock().validate_candidate(validation_code, params, command, args)
 	}
 }
 
@@ -113,7 +134,7 @@ pub fn run_worker(mem_id: &str) -> Result<(), String> {
 	};
 
 	let exit = Arc::new(atomic::AtomicBool::new(false));
-    let task_executor = TaskExecutor::new()?;
+	let task_executor = TaskExecutor::new()?;
 	// spawn parent monitor thread
 	let watch_exit = exit.clone();
 	std::thread::spawn(move || {
@@ -203,10 +224,32 @@ enum ValidationResultHeader {
 
 unsafe impl Send for ValidationHost {}
 
-#[derive(Default)]
+struct ValidationHostMemory(SharedMem);
+
+impl std::fmt::Debug for ValidationHostMemory {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		write!(f, "ValidationHostMemory")
+	}
+}
+
+impl std::ops::Deref for ValidationHostMemory {
+	type Target = SharedMem;
+
+	fn deref(&self) -> &Self::Target {
+		&self.0
+	}
+}
+
+impl std::ops::DerefMut for ValidationHostMemory {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.0
+	}
+}
+
+#[derive(Default, Debug)]
 struct ValidationHost {
 	worker: Option<process::Child>,
-	memory: Option<SharedMem>,
+	memory: Option<ValidationHostMemory>,
 	id: u32,
 }
 
@@ -220,7 +263,7 @@ impl Drop for ValidationHost {
 
 impl ValidationHost {
 	fn create_memory() -> Result<SharedMem, InternalError> {
-		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + 1024;
+		let mem_size = MAX_RUNTIME_MEM + MAX_CODE_MEM + MAX_VALIDATION_RESULT_HEADER_MEM;
 		let mem_config = SharedMemConf::default()
 			.set_size(mem_size)
 			.add_lock(shared_memory::LockType::Mutex, 0, mem_size)?
@@ -231,7 +274,7 @@ impl ValidationHost {
 		Ok(mem_config.create()?)
 	}
 
-	fn start_worker(&mut self, test_mode: bool) -> Result<(), InternalError> {
+	fn start_worker(&mut self, cmd: &PathBuf, args: &[&str]) -> Result<(), InternalError> {
 		if let Some(ref mut worker) = self.worker {
 			// Check if still alive
 			if let Ok(None) = worker.try_wait() {
@@ -239,13 +282,13 @@ impl ValidationHost {
 				return Ok(());
 			}
 		}
+
 		let memory = Self::create_memory()?;
-		let self_path = env::current_exe()?;
-		debug!("Starting worker at {:?}", self_path);
-		let mut args = if test_mode { WORKER_ARGS_TEST.to_vec() } else { WORKER_ARGS.to_vec() };
-		args.push(memory.get_os_path());
-		let worker = process::Command::new(self_path)
+
+		debug!("Starting worker at {:?} with arguments: {:?} and {:?}", cmd, args, memory.get_os_path());
+		let worker = process::Command::new(cmd)
 			.args(args)
+			.arg(memory.get_os_path())
 			.stdin(process::Stdio::piped())
 			.spawn()?;
 		self.id = worker.id();
@@ -255,7 +298,7 @@ impl ValidationHost {
 			Event::WorkerReady as usize,
 			shared_memory::Timeout::Sec(EXECUTION_TIMEOUT_SEC as usize),
 		)?;
-		self.memory = Some(memory);
+		self.memory = Some(ValidationHostMemory(memory));
 		Ok(())
 	}
 
@@ -266,13 +309,14 @@ impl ValidationHost {
 		&mut self,
 		validation_code: &[u8],
 		params: ValidationParams,
-		test_mode: bool,
+		binary: &PathBuf,
+		args: &[&str],
 	) -> Result<ValidationResult, ValidationError> {
 		if validation_code.len() > MAX_CODE_MEM {
 			return Err(ValidationError::InvalidCandidate(InvalidCandidate::CodeTooLarge(validation_code.len())));
 		}
 		// First, check if need to spawn the child process
-		self.start_worker(test_mode)?;
+		self.start_worker(binary, args)?;
 		let memory = self.memory.as_mut()
 			.expect("memory is always `Some` after `start_worker` completes successfully");
 		{
@@ -318,9 +362,16 @@ impl ValidationHost {
 			debug!("{} Reading results", self.id);
 			let data: &[u8] = &**memory.wlock_as_slice(0)
 				.map_err(|e| ValidationError::Internal(e.into()))?;
-			let (header_buf, _) = data.split_at(1024);
+			let (header_buf, _) = data.split_at(MAX_VALIDATION_RESULT_HEADER_MEM);
 			let mut header_buf: &[u8] = header_buf;
-			let header = ValidationResultHeader::decode(&mut header_buf).unwrap();
+			let header = ValidationResultHeader::decode(&mut header_buf)
+				.map_err(|e|
+					InternalError::System(
+						Box::<dyn std::error::Error + Send + Sync>::from(
+							format!("Failed to decode `ValidationResultHeader`: {:?}", e)
+						) as Box<_>
+					)
+				)?;
 			match header {
 				ValidationResultHeader::Ok(result) => Ok(result),
 				ValidationResultHeader::Error(WorkerValidationError::InternalError(e)) => {

@@ -1,6 +1,6 @@
 # Messaging Overview
 
-Polkadot has a few mechanisms that are responsible for message passing. They can be generally divided
+The Polkadot Host has a few mechanisms that are responsible for message passing. They can be generally divided
 on two categories: Horizontal and Vertical. Horizontal Message Passing (HMP) refers to mechanisms
 that are responsible for exchanging messages between parachains. Vertical Message Passing (VMP) is
 used for communication between the relay chain and parachains.
@@ -17,9 +17,7 @@ digraph {
 }
 ```
 
-Downward Message Passing (DMP) is a mechanism for delivering messages to parachains from the relay chain. Downward
-messages may originate not from the relay chain, but rather from another parachain via a mechanism
-called HRMP (Will be described later).
+Downward Message Passing (DMP) is a mechanism for delivering messages to parachains from the relay chain.
 
 Each parachain has its own queue that stores all pending inbound downward messages. A parachain
 doesn't have to process all messages at once, however, there are rules as to how the downward message queue
@@ -28,16 +26,20 @@ The downward message queue doesn't have a cap on its size and it is up to the re
 that prevent spamming in place.
 
 Upward Message Passing (UMP) is a mechanism responsible for delivering messages in the opposite direction:
-from a parachain up to the relay chain. Upward messages are dispatched to Runtime entrypoints and
-typically used for invoking some actions on the relay chain on behalf of the parachain.
+from a parachain up to the relay chain. Upward messages can serve different purposes and can be of different
+ kinds.
 
-> NOTE: It is conceivable that upward messages will be divided to more fine-grained kinds with a dispatchable upward message
-being only one kind of multiple. That would make upward messages inspectable and therefore would allow imposing additional
-validity criteria for the candidates that contain these messages.
+One kind of message is `Dispatchable`. They could be thought of similarly to extrinsics sent to a relay chain: they also
+invoke exposed runtime entrypoints, they consume weight and require fees. The difference is that they originate from
+a parachain. Each parachain has a queue of dispatchables to be executed. There can be only so many dispatchables at a time.
+The weight that processing of the dispatchables can consume is limited by a preconfigured value. Therefore, it is possible
+that some dispatchables will be left for later blocks. To make the dispatching more fair, the queues are processed turn-by-turn
+in a round robin fashion.
 
-Semantically, there is a queue of upward messages queue where messages from each parachain are stored. Each parachain
-can have a limited number of messages and the total sum of pending messages is also limited. Each parachain can dispatch
-multiple upward messages per candidate.
+Upward messages are also used by a parachain to request opening and closing HRMP channels (HRMP will be described below).
+
+Other kinds of upward messages can be introduced in the future as well. Potential candidates are
+new validation code signalling, or other requests to the relay chain.
 
 ## Horizontal Message Passing
 
@@ -61,6 +63,8 @@ digraph {
 }
 ```
 
+### Cross-Chain Message Passing
+
 The most important member of this family is XCMP.
 
 > ℹ️ XCMP is currently under construction and details are subject for change.
@@ -81,8 +85,10 @@ candidate authoring time. The proof stems from the relay parent storage that con
 Since not all messages are required to be processed by the receiver's candidate, only the processed
 messages are supplied (i.e. preimages), rest are provided as hashes.
 
-Further details can be found at the [W3F research website](https://research.web3.foundation/en/latest/polkadot/XCMP.html)
-and [this blogpost](https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7).
+Further details can be found at the official repository for the
+[Cross-Consensus Message Format (XCM)](https://github.com/paritytech/xcm-format/blob/master/README.md), as well as
+at the [W3F research website](https://research.web3.foundation/en/latest/polkadot/XCMP.html) and
+[this blogpost](https://medium.com/web3foundation/polkadots-messaging-scheme-b1ec560908b7).
 
 HRMP (Horizontally Relay-routed Message Passing) is a stop gap that predates XCMP. Semantically, it mimics XCMP's interface.
 The crucial difference from XCMP though is that all the messages are stored in the relay-chain storage. That makes

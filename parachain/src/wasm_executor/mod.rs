@@ -20,21 +20,22 @@
 //! Assuming the parameters are correct, this module provides a wrapper around
 //! a WASM VM for re-execution of a parachain candidate.
 
-use std::any::{TypeId, Any};
+use std::{any::{TypeId, Any}, path::PathBuf};
 use crate::primitives::{ValidationParams, ValidationResult};
 use codec::{Decode, Encode};
-use sp_core::{storage::ChildInfo, traits::{CallInWasm, SpawnNamed}};
+use sp_core::{storage::{ChildInfo, TrackedStorageKey}, traits::{CallInWasm, SpawnNamed}};
 use sp_externalities::Extensions;
 use sp_wasm_interface::HostFunctions as _;
 
 #[cfg(not(any(target_os = "android", target_os = "unknown")))]
-pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC};
+pub use validation_host::{run_worker, ValidationPool, EXECUTION_TIMEOUT_SEC, WORKER_ARGS};
 
 mod validation_host;
 
 // maximum memory in bytes
 const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
+const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
 /// A stub validation-pool defined when compiling for Android or WASM.
 #[cfg(any(target_os = "android", target_os = "unknown"))]
@@ -57,17 +58,28 @@ pub fn run_worker(_: &str) -> Result<(), String> {
 	Err("Cannot run validation worker on this platform".to_string())
 }
 
-/// WASM code execution mode.
-///
-/// > Note: When compiling for WASM, the `Remote` variants are not available.
-pub enum ExecutionMode<'a> {
-	/// Execute in-process. The execution can not be interrupted or aborted.
-	Local,
-	/// Remote execution in a spawned process.
-	Remote(&'a ValidationPool),
-	/// Remote execution in a spawned test runner.
-	RemoteTest(&'a ValidationPool),
+/// The execution mode for the `ValidationPool`.
+#[derive(Clone)]
+#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug))]
+pub enum ExecutionMode {
+	/// The validation worker is ran in a thread inside the same process.
+	InProcess,
+	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
+	/// following by the address of the shared memory.
+	ExternalProcessSelfHost(ValidationPool),
+	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
+	/// memory is added at the end of the arguments.
+	ExternalProcessCustomHost {
+		/// Validation pool.
+		pool: ValidationPool,
+		/// Path to the validation worker. The file must exists and be executable.
+		binary: PathBuf,
+		/// List of arguments passed to the validation worker. The address of the shared memory will be automatically
+		/// added after the arguments.
+		args: Vec<String>,
+	},
 }
+
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
 /// Candidate validation error.
@@ -133,30 +145,24 @@ impl std::error::Error for ValidationError {
 pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
-	options: ExecutionMode<'_>,
+	execution_mode: &ExecutionMode,
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
-	match options {
-		ExecutionMode::Local => {
+	match execution_mode {
+		ExecutionMode::InProcess => {
 			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::Remote(pool) => {
-			pool.validate_candidate(validation_code, params, false)
+		ExecutionMode::ExternalProcessSelfHost(pool) => {
+			pool.validate_candidate(validation_code, params)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::RemoteTest(pool) => {
-			pool.validate_candidate(validation_code, params, true)
+		ExecutionMode::ExternalProcessCustomHost { pool, binary, args } => {
+			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
+			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
 		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::Remote(_pool) =>
-			Err(ValidationError::Internal(InternalError::System(
-				Box::<dyn std::error::Error + Send + Sync>::from(
-					"Remote validator not available".to_string()
-				) as Box<_>
-			))),
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::RemoteTest(_pool) =>
+		ExecutionMode::ExternalProcessSelfHost(_) | ExecutionMode::ExternalProcessCustomHost { .. } =>
 			Err(ValidationError::Internal(InternalError::System(
 				Box::<dyn std::error::Error + Send + Sync>::from(
 					"Remote validator not available".to_string()
@@ -176,11 +182,6 @@ pub fn validate_candidate_internal(
 	encoded_call_data: &[u8],
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
-	let mut extensions = Extensions::new();
-	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
-
-	let mut ext = ValidationExternalities(extensions);
-
 	let executor = sc_executor::WasmExecutor::new(
 		sc_executor::WasmExecutionMethod::Interpreted,
 		// TODO: Make sure we don't use more than 1GB: https://github.com/paritytech/polkadot/issues/699
@@ -188,6 +189,13 @@ pub fn validate_candidate_internal(
 		HostFunctions::host_functions(),
 		8
 	);
+
+	let mut extensions = Extensions::new();
+	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
+	extensions.register(sp_core::traits::CallInWasmExt::new(executor.clone()));
+
+	let mut ext = ValidationExternalities(extensions);
+
 	let res = executor.call_in_wasm(
 		validation_code,
 		None,
@@ -302,7 +310,11 @@ impl sp_externalities::Externalities for ValidationExternalities {
 		panic!("reset_read_write_count: unsupported feature for parachain validation")
 	}
 
-	fn set_whitelist(&mut self, _: Vec<Vec<u8>>) {
+	fn get_whitelist(&self) -> Vec<TrackedStorageKey> {
+		panic!("get_whitelist: unsupported feature for parachain validation")
+	}
+
+	fn set_whitelist(&mut self, _: Vec<TrackedStorageKey>) {
 		panic!("set_whitelist: unsupported feature for parachain validation")
 	}
 

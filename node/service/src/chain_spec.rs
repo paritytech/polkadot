@@ -180,13 +180,6 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 		pallet_authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		parachains: Some(polkadot::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(polkadot::RegistrarConfig {
-			parachains: vec![],
-			_phdata: Default::default(),
-		}),
 		claims: Some(polkadot::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -320,13 +313,6 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		pallet_im_online: Some(Default::default()),
 		pallet_authority_discovery: Some(westend::AuthorityDiscoveryConfig {
 			keys: vec![],
-		}),
-		parachains: Some(westend::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(westend::RegistrarConfig {
-			parachains: vec![],
-			_phdata: Default::default(),
 		}),
 		pallet_vesting: Some(westend::VestingConfig {
 			vesting: vec![],
@@ -471,13 +457,6 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		pallet_im_online: Some(Default::default()),
 		pallet_authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
 			keys: vec![],
-		}),
-		parachains: Some(kusama::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(kusama::RegistrarConfig {
-			parachains: vec![],
-			_phdata: Default::default(),
 		}),
 		claims: Some(kusama::ClaimsConfig {
 			claims: vec![],
@@ -657,13 +636,6 @@ pub fn polkadot_testnet_genesis(
 		pallet_authority_discovery: Some(polkadot::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		parachains: Some(polkadot::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(polkadot::RegistrarConfig{
-			parachains: vec![],
-			_phdata: Default::default(),
-		}),
 		claims: Some(polkadot::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -732,13 +704,6 @@ pub fn kusama_testnet_genesis(
 		pallet_authority_discovery: Some(kusama::AuthorityDiscoveryConfig {
 			keys: vec![],
 		}),
-		parachains: Some(kusama::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(kusama::RegistrarConfig{
-			parachains: vec![],
-			_phdata: Default::default(),
-		}),
 		claims: Some(kusama::ClaimsConfig {
 			claims: vec![],
 			vesting: vec![],
@@ -795,13 +760,6 @@ pub fn westend_testnet_genesis(
 		pallet_im_online: Some(Default::default()),
 		pallet_authority_discovery: Some(westend::AuthorityDiscoveryConfig {
 			keys: vec![],
-		}),
-		parachains: Some(westend::ParachainsConfig {
-			authorities: vec![],
-		}),
-		registrar: Some(westend::RegistrarConfig{
-			parachains: vec![],
-			_phdata: Default::default(),
 		}),
 		pallet_vesting: Some(westend::VestingConfig {
 			vesting: vec![],

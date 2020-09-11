@@ -24,6 +24,7 @@ use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	metrics,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -38,8 +39,8 @@ use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
-	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, GlobalValidationData,
-	GroupRotationInfo, Hash, Id as ParaId, LocalValidationData, OccupiedCoreAssumption,
+	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
+	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidatorPair,
 };
@@ -49,6 +50,7 @@ use std::{
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
+	task::{Poll, Context},
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
@@ -63,10 +65,12 @@ pub mod reexports {
 	};
 }
 
+
 /// Duration a job will wait after sending a stop signal before hard-aborting.
 pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
+
 
 /// Utility errors
 #[derive(Debug, derive_more::From)]
@@ -181,12 +185,95 @@ specialize_requests! {
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
 	fn request_availability_cores() -> Vec<CoreState>; AvailabilityCores;
-	fn request_global_validation_data() -> GlobalValidationData; GlobalValidationData;
-	fn request_local_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<LocalValidationData>; LocalValidationData;
+	fn request_full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationData>; FullValidationData;
+	fn request_persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
 	fn request_session_index_for_child() -> SessionIndex; SessionIndexForChild;
 	fn request_validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
 	fn request_candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
 	fn request_candidate_events() -> Vec<CandidateEvent>; CandidateEvents;
+}
+
+/// Request some data from the `RuntimeApi` via a SubsystemContext.
+async fn request_from_runtime_ctx<RequestBuilder, Context, Response>(
+	parent: Hash,
+	ctx: &mut Context,
+	request_builder: RequestBuilder,
+) -> Result<RuntimeApiReceiver<Response>, Error>
+where
+	RequestBuilder: FnOnce(RuntimeApiSender<Response>) -> RuntimeApiRequest,
+	Context: SubsystemContext,
+{
+	let (tx, rx) = oneshot::channel();
+
+	ctx
+		.send_message(
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(parent, request_builder(tx)))
+				.try_into()
+				.map_err(|err| Error::SenderConversion(format!("{:?}", err)))?,
+		)
+		.await?;
+
+	Ok(rx)
+}
+
+
+/// Construct specialized request functions for the runtime.
+///
+/// These would otherwise get pretty repetitive.
+macro_rules! specialize_requests_ctx {
+	// expand return type name for documentation purposes
+	(fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		specialize_requests_ctx!{
+			named stringify!($request_variant) ; fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant;
+		}
+	};
+
+	// create a single specialized request function
+	(named $doc_name:expr ; fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;) => {
+		#[doc = "Request `"]
+		#[doc = $doc_name]
+		#[doc = "` from the runtime via a `SubsystemContext`"]
+		pub async fn $func_name<Context: SubsystemContext>(
+			parent: Hash,
+			$(
+				$param_name: $param_ty,
+			)*
+			ctx: &mut Context,
+		) -> Result<RuntimeApiReceiver<$return_ty>, Error> {
+			request_from_runtime_ctx(parent, ctx, |tx| RuntimeApiRequest::$request_variant(
+				$( $param_name, )* tx
+			)).await
+		}
+	};
+
+	// recursive decompose
+	(
+		fn $func_name:ident( $( $param_name:ident : $param_ty:ty ),* ) -> $return_ty:ty ; $request_variant:ident;
+		$(
+			fn $t_func_name:ident( $( $t_param_name:ident : $t_param_ty:ty ),* ) -> $t_return_ty:ty ; $t_request_variant:ident;
+		)+
+	) => {
+		specialize_requests_ctx!{
+			fn $func_name( $( $param_name : $param_ty ),* ) -> $return_ty ; $request_variant ;
+		}
+		specialize_requests_ctx!{
+			$(
+				fn $t_func_name( $( $t_param_name : $t_param_ty ),* ) -> $t_return_ty ; $t_request_variant ;
+			)+
+		}
+	};
+}
+
+specialize_requests_ctx! {
+	fn request_validators_ctx() -> Vec<ValidatorId>; Validators;
+	fn request_validator_groups_ctx() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
+	fn request_availability_cores_ctx() -> Vec<CoreState>; AvailabilityCores;
+	fn request_full_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationData>; FullValidationData;
+	fn request_persisted_validation_data_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<PersistedValidationData>; PersistedValidationData;
+	fn request_session_index_for_child_ctx() -> SessionIndex; SessionIndexForChild;
+	fn request_validation_code_ctx(para_id: ParaId, assumption: OccupiedCoreAssumption) -> Option<ValidationCode>; ValidationCode;
+	fn request_candidate_pending_availability_ctx(para_id: ParaId) -> Option<CommittedCandidateReceipt>; CandidatePendingAvailability;
+	fn request_candidate_events_ctx() -> Vec<CandidateEvent>; CandidateEvents;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
@@ -363,6 +450,12 @@ pub trait JobTrait: Unpin {
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
 	type RunArgs: 'static + Send;
+	/// Subsystem-specific Prometheus metrics.
+	///
+	/// Jobs spawned by one subsystem should share the same
+	/// instance of metrics (use `.clone()`).
+	/// The `delegate_subsystem!` macro should take care of this.
+	type Metrics: 'static + metrics::Metrics + Send;
 
 	/// Name of the job, i.e. `CandidateBackingJob`
 	const NAME: &'static str;
@@ -371,6 +464,7 @@ pub trait JobTrait: Unpin {
 	fn run(
 		parent: Hash,
 		run_args: Self::RunArgs,
+		metrics: Self::Metrics,
 		receiver: mpsc::Receiver<Self::ToJob>,
 		sender: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
@@ -449,7 +543,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Spawn a new job for this `parent_hash`, with whatever args are appropriate.
-	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs) -> Result<(), Error> {
+	fn spawn_job(&mut self, parent_hash: Hash, run_args: Job::RunArgs, metrics: Job::Metrics) -> Result<(), Error> {
 		let (to_job_tx, to_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (from_job_tx, from_job_rx) = mpsc::channel(JOB_CHANNEL_CAPACITY);
 		let (finished_tx, finished) = oneshot::channel();
@@ -458,7 +552,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let err_tx = self.errors.clone();
 
 		let (future, abort_handle) = future::abortable(async move {
-			if let Err(e) = Job::run(parent_hash, run_args, to_job_rx, from_job_tx).await {
+			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
 				log::error!(
 					"{}({}) finished with an error {:?}",
 					Job::NAME,
@@ -518,10 +612,13 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
+	/// Will not return an error if the job is not running.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) -> Result<(), Error> {
 		match self.running.get_mut(&parent_hash) {
 			Some(job) => job.send_msg(msg).await?,
-			None => return Err(Error::JobNotFound(parent_hash)),
+			None => {
+				// don't bring down the subsystem, this can happen to due a race condition
+			},
 		}
 		Ok(())
 	}
@@ -547,12 +644,17 @@ where
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Option<Self::Item>> {
 		// pin-project the outgoing messages
-		self.project().outgoing_msgs.poll_next(cx).map(|opt| {
+		let result = self.project().outgoing_msgs.poll_next(cx).map(|opt| {
 			opt.and_then(|(stream_yield, _)| match stream_yield {
 				StreamYield::Item(msg) => Some(msg),
 				StreamYield::Finished(_) => None,
 			})
-		})
+		});
+		// we don't want the stream to end if the jobs are empty at some point
+		match result {
+			task::Poll::Ready(None) => task::Poll::Pending,
+			otherwise => otherwise,
+		}
 	}
 }
 
@@ -565,6 +667,7 @@ where
 pub struct JobManager<Spawner, Context, Job: JobTrait> {
 	spawner: Spawner,
 	run_args: Job::RunArgs,
+	metrics: Job::Metrics,
 	context: std::marker::PhantomData<Context>,
 	job: std::marker::PhantomData<Job>,
 	errors: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
@@ -579,10 +682,11 @@ where
 	Job::ToJob: TryFrom<AllMessages> + TryFrom<<Context as SubsystemContext>::Message> + Sync,
 {
 	/// Creates a new `Subsystem`.
-	pub fn new(spawner: Spawner, run_args: Job::RunArgs) -> Self {
+	pub fn new(spawner: Spawner, run_args: Job::RunArgs, metrics: Job::Metrics) -> Self {
 		Self {
 			spawner,
 			run_args,
+			metrics,
 			context: std::marker::PhantomData,
 			job: std::marker::PhantomData,
 			errors: None,
@@ -620,6 +724,7 @@ where
 	pub async fn run(
 		mut ctx: Context,
 		run_args: Job::RunArgs,
+		metrics: Job::Metrics,
 		spawner: Spawner,
 		mut err_tx: Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) {
@@ -631,8 +736,8 @@ where
 
 		loop {
 			select! {
-				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &mut err_tx).await { break },
-				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
+				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &metrics, &mut err_tx).await { break },
+				outgoing = jobs.next().fuse() => Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
 				complete => break,
 			}
 		}
@@ -658,6 +763,7 @@ where
 		incoming: SubsystemResult<FromOverseer<Context::Message>>,
 		jobs: &mut Jobs<Spawner, Job>,
 		run_args: &Job::RunArgs,
+		metrics: &Job::Metrics,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
 	) -> bool {
 		use polkadot_node_subsystem::ActiveLeavesUpdate;
@@ -670,7 +776,8 @@ where
 				deactivated,
 			}))) => {
 				for hash in activated {
-					if let Err(e) = jobs.spawn_job(hash, run_args.clone()) {
+					let metrics = metrics.clone();
+					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						log::error!("Failed to spawn a job: {:?}", e);
 						Self::fwd_err(Some(hash), e.into(), err_tx).await;
 						return true;
@@ -740,21 +847,16 @@ where
 		false
 	}
 
-	// handle an outgoing message. return true if we should break afterwards.
+	// handle an outgoing message.
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) -> bool {
-		match outgoing {
-			Some(msg) => {
-				if let Err(e) = ctx.send_message(msg.into()).await {
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
-				}
-			}
-			None => return true,
+	) {
+		let msg = outgoing.expect("the Jobs stream never ends; qed");
+		if let Err(e) = ctx.send_message(msg.into()).await {
+			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
 		}
-		false
 	}
 }
 
@@ -766,14 +868,18 @@ where
 	Job: 'static + JobTrait + Send,
 	Job::RunArgs: Clone + Sync,
 	Job::ToJob: TryFrom<AllMessages> + Sync,
+	Job::Metrics: Sync,
 {
+	type Metrics = Job::Metrics;
+
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
+		let metrics = self.metrics.clone();
 		let errors = self.errors;
 
 		let future = Box::pin(async move {
-			Self::run(ctx, run_args, spawner, errors).await;
+			Self::run(ctx, run_args, metrics, spawner, errors).await;
 		});
 
 		SpawnedSubsystem {
@@ -818,11 +924,11 @@ where
 /// ```
 #[macro_export]
 macro_rules! delegated_subsystem {
-	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident) => {
-		delegated_subsystem!($job($run_args) <- $to_job as $subsystem; stringify!($subsystem));
+	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident) => {
+		delegated_subsystem!($job($run_args, $metrics) <- $to_job as $subsystem; stringify!($subsystem));
 	};
 
-	($job:ident($run_args:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
+	($job:ident($run_args:ty, $metrics:ty) <- $to_job:ty as $subsystem:ident; $subsystem_name:expr) => {
 		#[doc = "Manager type for the "]
 		#[doc = $subsystem_name]
 		type Manager<Spawner, Context> = $crate::JobManager<Spawner, Context, $job>;
@@ -841,15 +947,15 @@ macro_rules! delegated_subsystem {
 		{
 			#[doc = "Creates a new "]
 			#[doc = $subsystem_name]
-			pub fn new(spawner: Spawner, run_args: $run_args) -> Self {
+			pub fn new(spawner: Spawner, run_args: $run_args, metrics: $metrics) -> Self {
 				$subsystem {
-					manager: $crate::JobManager::new(spawner, run_args)
+					manager: $crate::JobManager::new(spawner, run_args, metrics)
 				}
 			}
 
 			/// Run this subsystem
-			pub async fn run(ctx: Context, run_args: $run_args, spawner: Spawner) {
-				<Manager<Spawner, Context>>::run(ctx, run_args, spawner, None).await
+			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
+				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}
 		}
 
@@ -859,6 +965,8 @@ macro_rules! delegated_subsystem {
 			Context: $crate::reexports::SubsystemContext,
 			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
+			type Metrics = $metrics;
+
 			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
@@ -866,9 +974,51 @@ macro_rules! delegated_subsystem {
 	};
 }
 
+/// A future that wraps another future with a `Delay` allowing for time-limited futures.
+#[pin_project]
+pub struct Timeout<F: Future> {
+	#[pin]
+	future: F,
+	#[pin]
+	delay: Delay,
+}
+
+/// Extends `Future` to allow time-limited futures.
+pub trait TimeoutExt: Future {
+	fn timeout(self, duration: Duration) -> Timeout<Self>
+	where
+		Self: Sized,
+	{
+		Timeout {
+			future: self,
+			delay: Delay::new(duration),
+		}
+	}
+}
+
+impl<F: Future> TimeoutExt for F {}
+
+impl<F: Future> Future for Timeout<F> {
+	type Output = Option<F::Output>;
+
+	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+		let this = self.project();
+
+		if this.delay.poll(ctx).is_ready() {
+			return Poll::Ready(None);
+		}
+
+		if let Poll::Ready(output) = this.future.poll(ctx) {
+			return Poll::Ready(Some(output));
+		}
+
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use super::{Error as UtilError, JobManager, JobTrait, JobsError, ToJobTrait};
+	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -878,9 +1028,8 @@ mod tests {
 		channel::mpsc,
 		executor,
 		stream::{self, StreamExt},
-		Future, FutureExt, SinkExt,
+		future, Future, FutureExt, SinkExt,
 	};
-	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
@@ -978,6 +1127,7 @@ mod tests {
 		// RunArgs get cloned so that each job gets its own owned copy. If you need that, wrap it in
 		// an Arc. Within a testing context, that efficiency is less important.
 		type RunArgs = HashMap<Hash, Vec<FromJob>>;
+		type Metrics = ();
 
 		const NAME: &'static str = "FakeCandidateSelectionJob";
 
@@ -987,6 +1137,7 @@ mod tests {
 		fn run(
 			parent: Hash,
 			mut run_args: Self::RunArgs,
+			_metrics: Self::Metrics,
 			receiver: mpsc::Receiver<ToJob>,
 			mut sender: mpsc::Sender<FromJob>,
 		) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
@@ -1034,24 +1185,28 @@ mod tests {
 		run_args: HashMap<Hash, Vec<FromJob>>,
 		test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T,
 	) {
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(
+				None,
+				log::LevelFilter::Trace,
+			)
+			.try_init();
+
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 
-		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, pool, Some(err_tx));
+		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, (), pool, Some(err_tx));
 		let test_future = test(overseer_handle, err_rx);
-		let timeout = Delay::new(Duration::from_secs(2));
 
-		futures::pin_mut!(test_future);
-		futures::pin_mut!(subsystem);
-		futures::pin_mut!(timeout);
+		futures::pin_mut!(subsystem, test_future);
 
 		executor::block_on(async move {
-			futures::select! {
-				_ = test_future.fuse() => (),
-				_ = subsystem.fuse() => (),
-				_ = timeout.fuse() => panic!("test timed out instead of completing"),
-			}
+			future::join(subsystem, test_future)
+				.timeout(Duration::from_secs(2))
+				.await
+				.expect("test timed out instead of completing")
 		});
 	}
 
@@ -1078,6 +1233,10 @@ mod tests {
 				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
 					ActiveLeavesUpdate::stop_work(relay_parent),
 				)))
+				.await;
+
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
 				.await;
 
 			let errs: Vec<_> = err_rx.collect().await;
@@ -1108,12 +1267,50 @@ mod tests {
 	}
 
 	#[test]
+	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
+		let relay_parent = Hash::repeat_byte(0x01);
+		let mut run_args = HashMap::new();
+		run_args.insert(
+			relay_parent.clone(),
+			vec![FromJob::Test],
+		);
+
+		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(relay_parent),
+				)))
+				.await;
+
+			// send to a non running job
+			overseer_handle
+				.send(FromOverseer::Communication {
+					msg: Default::default(),
+				})
+				.await;
+
+			// the subsystem is still alive
+			assert_matches!(
+				overseer_handle.recv().await,
+				AllMessages::CandidateSelection(_)
+			);
+
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+
+			let errs: Vec<_> = err_rx.collect().await;
+			assert_eq!(errs.len(), 0);
+		});
+	}
+
+	#[test]
 	fn test_subsystem_impl_and_name_derivation() {
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, _) = make_subsystem_context::<CandidateSelectionMessage, _>(pool.clone());
 
 		let SpawnedSubsystem { name, .. } =
-			FakeCandidateSelectionSubsystem::new(pool, HashMap::new()).start(context);
+			FakeCandidateSelectionSubsystem::new(pool, HashMap::new(), ()).start(context);
 		assert_eq!(name, "FakeCandidateSelection");
 	}
 }

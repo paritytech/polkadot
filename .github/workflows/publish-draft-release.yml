@@ -85,6 +85,7 @@ jobs:
       env:
         RUSTC_STABLE: ${{ needs.get-rust-versions.outputs.rustc-stable }}
         RUSTC_NIGHTLY: ${{ needs.get-rust-versions.outputs.rustc-nightly }}
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         gem install changelogerator git toml
         ruby $GITHUB_WORKSPACE/polkadot/scripts/github/generate_release_text.rb | tee release_text.md

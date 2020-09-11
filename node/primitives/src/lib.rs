@@ -20,12 +20,13 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, GlobalValidationData, LocalValidationData,
-	HeadData,
+	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
+	HeadData, PoV, CollatorPair, Id as ParaId,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -117,10 +118,8 @@ pub struct FromTableMisbehavior {
 pub struct ValidationOutputs {
 	/// The head-data produced by validation.
 	pub head_data: HeadData,
-	/// The global validation schedule.
-	pub global_validation_data: GlobalValidationData,
-	/// The local validation data.
-	pub local_validation_data: LocalValidationData,
+	/// The persisted validation data.
+	pub validation_data: PersistedValidationData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// Fees paid to the validators of the relay-chain.
@@ -152,6 +151,8 @@ pub enum InvalidCandidate {
 	NewCodeTooLarge(u64),
 	/// Head-data is over the limit.
 	HeadDataTooLarge(u64),
+	/// Code upgrade triggered but not allowed.
+	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.
@@ -259,28 +260,38 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 	}
 }
 
-/// A unique identifier for a network protocol.
-pub type ProtocolId = [u8; 4];
-
-/// A succinct representation of a peer's view. This consists of a bounded amount of chain heads.
+/// The output of a collator.
 ///
-/// Up to `N` (5?) chain heads.
-#[derive(Default, Debug, Clone, PartialEq, Eq, Encode, Decode)]
-pub struct View(pub Vec<Hash>);
+/// This differs from `CandidateCommitments` in two ways:
+///
+/// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
+/// - contains a proof of validity.
+#[derive(Clone, Encode, Decode)]
+pub struct Collation {
+	/// Fees paid from the chain to the relay chain validators.
+	pub fees: Balance,
+	/// Messages destined to be interpreted by the Relay chain itself.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// New validation code.
+	pub new_validation_code: Option<ValidationCode>,
+	/// The head-data produced as a result of execution.
+	pub head_data: HeadData,
+	/// Proof that this block is valid.
+	pub proof_of_validity: PoV,
+}
 
-impl View {
-	/// Returns an iterator of the hashes present in `Self` but not in `other`.
-	pub fn difference<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| !other.contains(h))
-	}
+/// Configuration for the collation generator
+pub struct CollationGenerationConfig {
+	/// Collator's authentication key, so it can sign things.
+	pub key: CollatorPair,
+	/// Collation function.
+	pub collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+	/// The parachain that this collator collates for
+	pub para_id: ParaId,
+}
 
-	/// An iterator containing hashes present in both `Self` and in `other`.
-	pub fn intersection<'a>(&'a self, other: &'a View) -> impl Iterator<Item = &'a Hash> + 'a {
-		self.0.iter().filter(move |h| other.contains(h))
-	}
-
-	/// Whether the view contains a given hash.
-	pub fn contains(&self, hash: &Hash) -> bool {
-		self.0.contains(hash)
+impl std::fmt::Debug for CollationGenerationConfig {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+		write!(f, "CollationGenerationConfig {{ ... }}")
 	}
 }

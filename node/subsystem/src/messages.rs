@@ -24,21 +24,21 @@
 
 use futures::channel::{mpsc, oneshot};
 
-use polkadot_primitives::v1::{
-	Hash, CommittedCandidateReceipt,
-	CandidateReceipt, PoV, ErasureChunk, BackedCandidate, Id as ParaId,
-	SignedAvailabilityBitfield, ValidatorId, ValidationCode, ValidatorIndex,
-	CoreAssignment, CoreOccupied, CandidateDescriptor,
-	ValidatorSignature, OmittedValidationData, AvailableData, GroupRotationInfo,
-	CoreState, LocalValidationData, GlobalValidationData, OccupiedCoreAssumption,
-	CandidateEvent, SessionIndex, BlockNumber,
+use polkadot_node_network_protocol::{
+	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId, PeerSet,
 };
 use polkadot_node_primitives::{
-	MisbehaviorReport, SignedFullStatement, View, ProtocolId, ValidationResult,
+	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
+};
+use polkadot_primitives::v1::{
+	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
+	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
+	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
+	ValidatorSignature,
 };
 use std::sync::Arc;
-
-pub use sc_network::{ObservedRole, ReputationChange, PeerId};
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -47,6 +47,8 @@ pub struct NewBackedCandidate(pub BackedCandidate);
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
 pub enum CandidateSelectionMessage {
+	/// A candidate collation can be fetched from a collator and should be considered for seconding.
+	Collation(Hash, ParaId, CollatorId),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
@@ -56,6 +58,7 @@ impl CandidateSelectionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
+			Self::Collation(hash, ..) => Some(*hash),
 			Self::Invalid(hash, _) => Some(*hash),
 		}
 	}
@@ -80,7 +83,6 @@ pub enum CandidateBackingMessage {
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
 }
-
 
 impl CandidateBackingMessage {
 	/// If the current variant contains the relay parent hash, return it.
@@ -108,7 +110,7 @@ pub struct ValidationFailed(pub String);
 pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided parameters using relay-chain state.
 	///
-	/// This will implicitly attempt to gather the `OmittedValidationData` and `ValidationCode`
+	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
 	///
@@ -121,10 +123,12 @@ pub enum CandidateValidationMessage {
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
-	/// Explicitly provide the `OmittedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain.
+	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
+	/// validation without needing to access the state of the relay-chain. Optionally provide the
+	/// `TransientValidationData` for further checks on the outputs.
 	ValidateFromExhaustive(
-		OmittedValidationData,
+		PersistedValidationData,
+		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -137,50 +141,76 @@ impl CandidateValidationMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
 		}
 	}
 }
 
-/// Events from network.
-#[derive(Debug, Clone)]
-pub enum NetworkBridgeEvent {
-	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole),
 
-	/// A peer has disconnected.
-	PeerDisconnected(PeerId),
+/// Messages received by the Collator Protocol subsystem.
+#[derive(Debug)]
+pub enum CollatorProtocolMessage {
+	/// Signal to the collator protocol that it should connect to validators with the expectation
+	/// of collating on the given para. This is only expected to be called once, early on, if at all,
+	/// and only by the Collation Generation subsystem. As such, it will overwrite the value of
+	/// the previous signal.
+	///
+	/// This should be sent before any `DistributeCollation` message.
+	CollateOn(ParaId),
+	/// Provide a collation to distribute to validators.
+	DistributeCollation(CandidateReceipt, PoV),
+	/// Fetch a collation under the given relay-parent for the given ParaId.
+	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
+	/// Report a collator as having provided an invalid collation. This should lead to disconnect
+	/// and blacklist of the collator.
+	ReportCollator(CollatorId),
+	/// Note a collator as having provided a good collation.
+	NoteGoodCollation(CollatorId),
+	/// Get a network bridge update.
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::CollatorProtocolMessage>),
+}
 
-	/// Peer has sent a message.
-	PeerMessage(PeerId, Vec<u8>),
-
-	/// Peer's `View` has changed.
-	PeerViewChange(PeerId, View),
-
-	/// Our `View` has changed.
-	OurViewChange(View),
+impl CollatorProtocolMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::CollateOn(_) => None,
+			Self::DistributeCollation(receipt, _) => Some(receipt.descriptor().relay_parent),
+			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
+			Self::ReportCollator(_) => None,
+			Self::NoteGoodCollation(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
+		}
+	}
 }
 
 /// Messages received by the network bridge subsystem.
 #[derive(Debug)]
 pub enum NetworkBridgeMessage {
-	/// Register an event producer on startup.
-	RegisterEventProducer(ProtocolId, fn(NetworkBridgeEvent) -> AllMessages),
-
 	/// Report a peer for their actions.
 	ReportPeer(PeerId, ReputationChange),
 
-	/// Send a message to multiple peers.
-	SendMessage(Vec<PeerId>, ProtocolId, Vec<u8>),
+	/// Send a message to one or more peers on the validation peer-set.
+	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
+
+	/// Send a message to one or more peers on the collation peer-set.
+	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
+
+	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	///
+	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
+	/// validators.
+	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
 }
 
 impl NetworkBridgeMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::RegisterEventProducer(_, _) => None,
 			Self::ReportPeer(_, _) => None,
-			Self::SendMessage(_, _, _) => None,
+			Self::SendValidationMessage(_, _) => None,
+			Self::SendCollationMessage(_, _) => None,
+			Self::ConnectToValidators(_, _, _) => None,
 		}
 	}
 }
@@ -189,14 +219,14 @@ impl NetworkBridgeMessage {
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>),
 }
 
 impl AvailabilityDistributionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -208,7 +238,7 @@ pub enum BitfieldDistributionMessage {
 	DistributeBitfield(Hash, SignedAvailabilityBitfield),
 
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::BitfieldDistributionMessage>),
 }
 
 impl BitfieldDistributionMessage {
@@ -216,7 +246,7 @@ impl BitfieldDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::DistributeBitfield(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -320,19 +350,6 @@ impl ChainApiMessage {
 	}
 }
 
-/// The information on scheduler assignments that some somesystems may be querying.
-#[derive(Debug, Clone)]
-pub struct SchedulerRoster {
-	/// Validator-to-groups assignments.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
-	/// All scheduled paras.
-	pub scheduled: Vec<CoreAssignment>,
-	/// Upcoming paras (chains and threads).
-	pub upcoming: Vec<ParaId>,
-	/// Occupied cores.
-	pub availability_cores: Vec<Option<CoreOccupied>>,
-}
-
 /// A sender for the result of a runtime API request.
 pub type RuntimeApiSender<T> = oneshot::Sender<Result<T, crate::errors::RuntimeApiError>>;
 
@@ -345,15 +362,21 @@ pub enum RuntimeApiRequest {
 	ValidatorGroups(RuntimeApiSender<(Vec<Vec<ValidatorIndex>>, GroupRotationInfo)>),
 	/// Get information on all availability cores.
 	AvailabilityCores(RuntimeApiSender<Vec<CoreState>>),
-	/// Get the global validation data.
-	GlobalValidationData(RuntimeApiSender<GlobalValidationData>),
-	/// Get the local validation data for a particular para, taking the given
+	/// Get the persisted validation data for a particular para, taking the given
 	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
 	/// if the para currently occupies a core.
-	LocalValidationData(
+	PersistedValidationData(
 		ParaId,
 		OccupiedCoreAssumption,
-		RuntimeApiSender<Option<LocalValidationData>>,
+		RuntimeApiSender<Option<PersistedValidationData>>,
+	),
+	/// Get the full validation data for a particular para, taking the given
+	/// `OccupiedCoreAssumption`, which will inform on how the validation data should be computed
+	/// if the para currently occupies a core.
+	FullValidationData(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationData>>,
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
@@ -391,7 +414,7 @@ pub enum StatementDistributionMessage {
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
 }
 
 impl StatementDistributionMessage {
@@ -399,7 +422,7 @@ impl StatementDistributionMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
 	}
 }
@@ -464,7 +487,7 @@ pub enum PoVDistributionMessage {
 	/// The PoV should correctly hash to the PoV hash mentioned in the CandidateDescriptor
 	DistributePoV(Hash, CandidateDescriptor, Arc<PoV>),
 	/// An update from the network bridge.
-	NetworkBridgeUpdate(NetworkBridgeEvent),
+	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::PoVDistributionMessage>),
 }
 
 impl PoVDistributionMessage {
@@ -473,8 +496,22 @@ impl PoVDistributionMessage {
 		match self {
 			Self::FetchPoV(hash, _, _) => Some(*hash),
 			Self::DistributePoV(hash, _, _) => Some(*hash),
-			Self::NetworkBridgeUpdate(_) => None,
+			Self::NetworkBridgeUpdateV1(_) => None,
 		}
+	}
+}
+
+/// Message to the Collation Generation Subsystem.
+#[derive(Debug)]
+pub enum CollationGenerationMessage {
+	/// Initialize the collation generation subsystem
+	Initialize(CollationGenerationConfig),
+}
+
+impl CollationGenerationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
 	}
 }
 
@@ -487,6 +524,10 @@ pub enum AllMessages {
 	CandidateBacking(CandidateBackingMessage),
 	/// Message for the candidate selection subsystem.
 	CandidateSelection(CandidateSelectionMessage),
+	/// Message for the Chain API subsystem.
+	ChainApi(ChainApiMessage),
+	/// Message for the Collator Protocol subsystem.
+	CollatorProtocol(CollatorProtocolMessage),
 	/// Message for the statement distribution subsystem.
 	StatementDistribution(StatementDistributionMessage),
 	/// Message for the availability distribution subsystem.
@@ -505,6 +546,6 @@ pub enum AllMessages {
 	AvailabilityStore(AvailabilityStoreMessage),
 	/// Message for the network bridge subsystem.
 	NetworkBridge(NetworkBridgeMessage),
-	/// Message for the Chain API subsystem.
-	ChainApi(ChainApiMessage),
+	/// Message for the Collation Generation subsystem
+	CollationGeneration(CollationGenerationMessage),
 }
