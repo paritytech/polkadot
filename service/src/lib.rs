@@ -243,6 +243,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 	})
 }
 
+#[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
@@ -252,6 +253,7 @@ pub struct NewFull<C> {
 	pub rpc_handlers: RpcHandlers,
 }
 
+#[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
 	fn with_client(self, func: impl FnOnce(C) -> Client) -> NewFull<Client> {
 		NewFull {
