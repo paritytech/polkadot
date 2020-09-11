@@ -125,6 +125,11 @@ struct PersistedValidationData {
 	parent_head: HeadData,
 	/// The relay-chain block number this is in the context of. This informs the collator.
 	block_number: BlockNumber,
+	/// The MQC head for the DMQ.
+	///
+	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
+	/// passed by the collator.
+	dmq_mqc_head: Hash,
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
@@ -202,6 +207,14 @@ struct HrmpTransientValidationData {
 	/// A vector of close requests in which the para participates either as sender or recipient.
 	/// The vector doesn't contain two entries with the same `HrmpChannelId`.
 	close_requests: Vec<HrmpChannelId>,
+	/// The maximum number of inbound channels the para is allowed to have. This is a copy of either
+	/// `config.hrmp_max_parachain_inbound_channels` or `config.hrmp_max_parathread_inbound_channels`
+	/// depending on the type of this para.
+	config_max_inbound_channels: u32,
+	/// The maximum number of outbound channels the para is allowed to have. This is a copy of either
+	/// `config.hrmp_max_parachain_outbound_channels` or `config.hrmp_max_parathread_outbound_channels`
+	/// depending on the type of this para.
+	config_max_outbound_channels: u32,
 }
 
 /// A shorter version of `HrmpOpenChannelRequest`.

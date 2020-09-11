@@ -50,11 +50,11 @@ use sp_version::NativeVersion;
 use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
-	parameter_types, ord_parameter_types, construct_runtime, debug, RuntimeDebug,
+	parameter_types, construct_runtime, debug, RuntimeDebug,
 	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
-use frame_system::{EnsureRoot, EnsureOneOf, EnsureSignedBy};
+use frame_system::{EnsureRoot, EnsureOneOf};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
@@ -109,7 +109,8 @@ impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
 			// Parachains stuff
-			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) =>
+			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) |
+			Call::DummyPurchase(_) =>
 				false,
 
 			// These modules are all allowed to be called by transactions:
@@ -121,9 +122,8 @@ impl Filter<Call> for BaseFilter {
 			Call::Session(_) | Call::FinalityTracker(_) | Call::Grandpa(_) | Call::ImOnline(_) |
 			Call::AuthorityDiscovery(_) |
 			Call::Utility(_) | Call::Claims(_) | Call::Vesting(_) |
-			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_) |
-			Call::Purchase(_) =>
-				true,
+			Call::Identity(_) | Call::Proxy(_) | Call::Multisig(_)
+			=> true,
 		}
 	}
 }
@@ -750,7 +750,9 @@ parameter_types! {
 	pub const MaxPending: u16 = 32;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
+	type Event = Event;
+}
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -876,148 +878,8 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		use frame_support::storage::{StorageMap, IterableStorageMap};
-		use pallet_democracy::{VotingOf, Conviction, Voting::Direct, AccountVote::Standard};
-		// Cancel convictions for Referendum Zero (for removing Sudo - this is something we would
-		// have done anyway).
-		for (who, mut voting) in VotingOf::<Runtime>::iter() {
-			if let Direct { ref mut votes, .. } = voting {
-				if let Some((0, Standard { ref mut vote, .. })) = votes.first_mut() {
-					vote.conviction = Conviction::None
-				}
-			}
-			VotingOf::<Runtime>::insert(who, voting);
-		}
-
-		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
+		purchase::remove_pallet::<Runtime>()
 	}
-}
-
-#[test]
-fn test_rm_ref_0() {
-	use sp_runtime::AccountId32;
-	use frame_support::{traits::OnRuntimeUpgrade, storage::StorageMap};
-	use pallet_democracy::{VotingOf, Vote, Voting::{Direct, Delegating}, AccountVote::{Standard, Split}};
-	use pallet_democracy::Conviction::{Locked1x, Locked2x, Locked3x, None as NoConviction};
-	let t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
-	let mut ext = sp_io::TestExternalities::new(t);
-	ext.execute_with(|| {
-		let a = |i| AccountId32::from([i; 32]);
-		VotingOf::<Runtime>::insert(a(1), Direct {
-			votes: vec![(0, Standard {
-				vote: Vote { aye: true, conviction: Locked1x },
-				balance: 1,
-			})],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		VotingOf::<Runtime>::insert(a(2), Direct {
-			votes: vec![
-				(0, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2 }),
-				(1, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2 })
-			],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		VotingOf::<Runtime>::insert(a(3), Direct {
-			votes: vec![(1, Standard { vote: Vote { aye: true, conviction: Locked3x }, balance: 3 })],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		VotingOf::<Runtime>::insert(a(4), Direct {
-			votes: vec![],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		VotingOf::<Runtime>::insert(a(5), Delegating {
-			balance: 5,
-			target: a(0),
-			conviction: Locked1x,
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		VotingOf::<Runtime>::insert(a(6), Direct {
-			votes: vec![(0, Split { aye: 6, nay: 6 }), (1, Split { aye: 6, nay: 6 })],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		CustomOnRuntimeUpgrade::on_runtime_upgrade();
-		assert_eq!(VotingOf::<Runtime>::get(a(1)), Direct {
-			votes: vec![(0, Standard { vote: Vote { aye: true, conviction: NoConviction }, balance: 1, })],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		assert_eq!(VotingOf::<Runtime>::get(a(2)), Direct {
-			votes: vec![
-				(0, Standard { vote: Vote { aye: true, conviction: NoConviction }, balance: 2, }),
-				(1, Standard { vote: Vote { aye: true, conviction: Locked2x }, balance: 2, })
-			],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		assert_eq!(VotingOf::<Runtime>::get(a(3)), Direct {
-			votes: vec![(1, Standard { vote: Vote { aye: true, conviction: Locked3x }, balance: 3, })],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		assert_eq!(VotingOf::<Runtime>::get(a(4)), Direct {
-			votes: vec![],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		assert_eq!(VotingOf::<Runtime>::get(a(5)), Delegating {
-			balance: 5,
-			target: a(0),
-			conviction: Locked1x,
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-		assert_eq!(VotingOf::<Runtime>::get(a(6)), Direct {
-			votes: vec![(0, Split { aye: 6, nay: 6 }), (1, Split { aye: 6, nay: 6 })],
-			delegations: Default::default(),
-			prior: Default::default(),
-		});
-	});
-}
-
-parameter_types! {
-	pub const MaxStatementLength: usize = 1_000;
-	pub const UnlockedProportion: Permill = Permill::zero();
-	pub const MaxUnlocked: Balance = 0;
-}
-
-ord_parameter_types! {
-	pub const W3FValidity: AccountId = AccountId::from(
-		// 142wAF65SK7PxhyzzrWz5m5PXDtooehgePBd7rc2NWpfc8Wa
-		hex_literal::hex!("862e432e0cf75693899c62691ac0f48967f815add97ae85659dcde8332708551")
-	);
-	pub const W3FConfiguration: AccountId = AccountId::from(
-		// 1KvKReVmUiTc2LW2a4qyHsaJJ9eE9LRsywZkMk5hyBeyHgw
-		hex_literal::hex!("0e6de68b13b82479fbe988ab9ecb16bad446b67b993cdd9198cd41c7c6259c49")
-	);
-}
-
-type ValidityOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<W3FValidity, AccountId>,
->;
-
-type ConfigurationOrigin = EnsureOneOf<
-	AccountId,
-	EnsureRoot<AccountId>,
-	EnsureSignedBy<W3FConfiguration, AccountId>,
->;
-
-impl purchase::Trait for Runtime {
-	type Event = Event;
-	type Currency = Balances;
-	type VestingSchedule = Vesting;
-	type ValidityOrigin = ValidityOrigin;
-	type ConfigurationOrigin = ConfigurationOrigin;
-	type MaxStatementLength = MaxStatementLength;
-	type UnlockedProportion = UnlockedProportion;
-	type MaxUnlocked = MaxUnlocked;
 }
 
 construct_runtime! {
@@ -1061,8 +923,8 @@ construct_runtime! {
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::<Instance2>::{Module, Call},
-		DummyRegistrar: dummy::<Instance3>::{Module, Call},
+		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
+		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
 
 		// Claims. Usable initially.
 		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
@@ -1071,8 +933,8 @@ construct_runtime! {
 		// Cunning utilities. Usable initially.
 		Utility: pallet_utility::{Module, Call, Event},
 
-		// DOT Purchase module. Late addition; this is in place of Sudo.
-		Purchase: purchase::{Module, Call, Storage, Event<T>},
+		// Old spot for the purchase pallet. Can be replaced later by a new pallet.
+		DummyPurchase: dummy::<Instance4>::{Module, Call, Event<T>},
 
 		// Identity. Late addition.
 		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
