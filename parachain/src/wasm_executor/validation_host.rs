@@ -249,7 +249,6 @@ impl std::ops::DerefMut for ValidationHostMemory {
 #[derive(Default, Debug)]
 struct ValidationHost {
 	worker: Option<process::Child>,
-	worker_thread: Option<std::thread::JoinHandle<Result<(), String>>>,
 	memory: Option<ValidationHostMemory>,
 	id: u32,
 }
