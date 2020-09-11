@@ -261,7 +261,7 @@ mod tests {
 			}
 
 			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-				ids.iter().map(|_| None).collect()
+				vec![None; idx.len()]
 			}
 		}
 	}
