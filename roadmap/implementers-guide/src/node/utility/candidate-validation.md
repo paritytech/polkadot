@@ -24,7 +24,7 @@ Upon receiving a validation request, the first thing the candidate validation su
 
 ### Determining Parameters
 
-For a [`CandidateValidationMessage`][CVM]`::ValidateFromExhaustive`, these parameters are exhaustively provided.
+For a [`CandidateValidationMessage`][CVM]`::ValidateFromExhaustive`, these parameters are exhaustively provided. The [`TransientValidationData`](../../types/candidate.md#transientvalidationdata) is optional, and is used to perform further checks on the outputs of validation.
 
 For a [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`, some more work needs to be done. Due to the uncertainty of Availability Cores (implemented in the [`Scheduler`](../../runtime/scheduler.md) module of the runtime), a candidate at a particular relay-parent and for a particular para may have two different valid validation-data to be executed under depending on what is assumed to happen if the para is occupying a core at the onset of the new block. This is encoded as an `OccupiedCoreAssumption` in the runtime API.
 
