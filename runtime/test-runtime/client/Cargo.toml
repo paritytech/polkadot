@@ -13,6 +13,7 @@ codec = { package = "parity-scale-codec", version = "1.3.4" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-runtime-common = { path = "../../common" }
 polkadot-test-runtime = { path = ".." }
+polkadot-test-service = { path = "../../../node/test-service" }
 
 # Substrate dependencies
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
