@@ -16,15 +16,26 @@
 
 //! Basic parachain that adds a number as part of its state.
 
+const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
+
 use crate::adder;
 use parachain::{
 	primitives::{BlockData, ValidationParams},
-	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC},
+	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC, ValidationExecutionMode, ValidationPool},
 };
+
+fn validation_pool() -> ValidationPool {
+	let execution_mode = ValidationExecutionMode::ExternalProcessCustomHost {
+		binary: std::env::current_exe().unwrap(),
+		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+	};
+
+	ValidationPool::new(execution_mode)
+}
 
 #[test]
 fn terminates_on_timeout() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = validation_pool();
 
 	let result = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -34,7 +45,7 @@ fn terminates_on_timeout() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	);
 	match result {
@@ -43,12 +54,12 @@ fn terminates_on_timeout() {
 	}
 
 	// check that another parachain can validate normaly
-	adder::execute_good_on_parent();
+	adder::execute_good_on_parent_with_external_process_validation();
 }
 
 #[test]
 fn parallel_execution() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let pool = validation_pool();
 
 	let start = std::time::Instant::now();
 
@@ -62,7 +73,7 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool2),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool2),
 		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -73,7 +84,7 @@ fn parallel_execution() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();
