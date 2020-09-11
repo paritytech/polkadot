@@ -41,6 +41,7 @@
     - [PoV Distribution](node/backing/pov-distribution.md)
   - [Availability Subsystems](node/availability/README.md)
     - [Availability Distribution](node/availability/availability-distribution.md)
+    - [Availability Recovery](node/availability/availability-recovery.md)
     - [Bitfield Distribution](node/availability/bitfield-distribution.md)
     - [Bitfield Signing](node/availability/bitfield-signing.md)
   - [Utility Subsystems](node/utility/README.md)
