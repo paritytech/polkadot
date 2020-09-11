@@ -31,8 +31,6 @@ use sc_executor::native_executor_instance;
 use log::info;
 use sp_trie::PrefixedMemoryDB;
 use prometheus_endpoint::Registry;
-#[cfg(feature = "full-node")]
-use consensus::pipeline::ValidationExecutionMode;
 pub use service::{
 	Role, PruningMode, TransactionPoolOptions, Error, RuntimeGenesis, RpcHandlers,
 	TFullClient, TLightClient, TFullBackend, TLightBackend, TFullCallExecutor, TLightCallExecutor,
@@ -413,11 +411,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			select_chain: select_chain.clone(),
 			keystore: keystore.clone(),
 			max_block_data_size,
-			validation_execution_mode: if test {
-				ValidationExecutionMode::InProcess
-			} else {
-				ValidationExecutionMode::ExternalProcessSelfHost
-			},
+			local_validation: test,
 		}.build();
 
 		task_manager.spawn_essential_handle().spawn("validation-service", Box::pin(validation_service));

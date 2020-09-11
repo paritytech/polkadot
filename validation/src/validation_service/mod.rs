@@ -48,7 +48,7 @@ use log::{warn, info, debug, trace};
 
 use super::{Network, Collators, SharedTable, TableRouter};
 use crate::Error;
-use crate::pipeline::{ValidationPool, ValidationExecutionMode};
+use crate::pipeline::{ExecutionMode, ValidationPool};
 
 // Remote processes may request for a validation instance to be cloned or instantiated.
 // They send a oneshot channel.
@@ -132,8 +132,8 @@ pub struct ServiceBuilder<C, N, P, SC, SP> {
 	pub keystore: KeyStorePtr,
 	/// The maximum block-data size in bytes.
 	pub max_block_data_size: Option<u64>,
-	/// Validation execution mode.
-	pub validation_execution_mode: ValidationExecutionMode,
+	/// The validation is ran in the same process.
+	pub local_validation: bool,
 }
 
 impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
@@ -165,17 +165,21 @@ impl<C, N, P, SC, SP> ServiceBuilder<C, N, P, SC, SP> where
 			NotifyImport(sc_client_api::BlockImportNotification<Block>),
 		}
 
-		let validation_pool = Some(ValidationPool::new(self.validation_execution_mode));
+		let execution_mode = if self.local_validation {
+			ExecutionMode::InProcess
+		} else {
+			ExecutionMode::ExternalProcessSelfHost(ValidationPool::new())
+		};
 		let mut parachain_validation = ParachainValidationInstances {
 			client: self.client.clone(),
 			network: self.network,
 			spawner: self.spawner.clone(),
 			availability_store: self.availability_store,
 			live_instances: HashMap::new(),
-			validation_pool: validation_pool.clone(),
+			execution_mode: execution_mode.clone(),
 			collation_fetch: DefaultCollationFetch {
 				collators: self.collators,
-				validation_pool,
+				execution_mode,
 				spawner: self.spawner,
 			},
 		};
@@ -261,7 +265,7 @@ pub(crate) trait CollationFetch {
 #[derive(Clone)]
 struct DefaultCollationFetch<C, S> {
 	collators: C,
-	validation_pool: Option<ValidationPool>,
+	execution_mode: ExecutionMode,
 	spawner: S,
 }
 
@@ -286,7 +290,7 @@ impl<C, S> CollationFetch for DefaultCollationFetch<C, S>
 			P: ProvideRuntimeApi<Block> + Send + Sync + 'static,
 	{
 		crate::collation::collation_fetch(
-			self.validation_pool,
+			self.execution_mode,
 			parachain,
 			relay_parent,
 			self.collators,
@@ -331,9 +335,8 @@ pub(crate) struct ParachainValidationInstances<N: Network, P, SP, CF> {
 	/// Live agreements. Maps relay chain parent hashes to attestation
 	/// instances.
 	live_instances: HashMap<Hash, LiveInstance<N::TableRouter>>,
-	/// The underlying validation pool of processes to use.
-	/// Only `None` in tests.
-	validation_pool: Option<ValidationPool>,
+	/// The underlying validation execution mode.
+	execution_mode: ExecutionMode,
 	/// Used to fetch a collation.
 	collation_fetch: CF,
 }
@@ -439,7 +442,7 @@ impl<N, P, SP, CF> ParachainValidationInstances<N, P, SP, CF> where
 			signing_context,
 			self.availability_store.clone(),
 			max_block_data_size,
-			self.validation_pool.clone(),
+			self.execution_mode.clone(),
 		));
 
 		// The router will join the consensus gossip network. This is important
@@ -746,7 +749,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		executor::block_on(parachain_validation.get_or_instantiate(Default::default(), &keystore, None))
@@ -786,7 +789,7 @@ mod tests {
 			spawner: executor.clone(),
 			availability_store: AvailabilityStore::new_in_memory(MockErasureNetworking),
 			live_instances: HashMap::new(),
-			validation_pool: None,
+			execution_mode: ExecutionMode::InProcess,
 		};
 
 		executor::block_on(parachain_validation.get_or_instantiate(Default::default(), &keystore, None))
