@@ -6672,7 +6672,6 @@ dependencies = [
  "bip39",
  "chrono",
  "derive_more 0.99.9",
- "env_logger",
  "fdlimit",
  "futures 0.3.5",
  "hex",
@@ -6707,6 +6706,9 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "time",
  "tokio 0.2.21",
+ "tracing",
+ "tracing-log",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8421,6 +8423,7 @@ dependencies = [
  "log 0.4.11",
  "rental",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
