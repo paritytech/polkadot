@@ -26,10 +26,10 @@ mod cli;
 #[cfg(feature = "cli")]
 mod command;
 
-pub use service_new::{
-	self as service,
+pub use service::{
+	self,
 	ProvideRuntimeApi, CoreApi, IdentifyVariant,
-	Block, self, RuntimeApiCollection, TFullClient
+	Block, RuntimeApiCollection, TFullClient
 };
 
 #[cfg(feature = "cli")]

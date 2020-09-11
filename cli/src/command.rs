@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-use service_new::{IdentifyVariant, self as service};
+use service::{IdentifyVariant, self};
 use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
 
