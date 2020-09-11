@@ -16,7 +16,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use sp_std::{marker::PhantomData, convert::TryInto};
+use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
 use codec::Decode;
 use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, Junction};
@@ -94,13 +94,6 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
 				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
 			},
-			(origin, Xcm::ReserveAssetTransfer { mut assets, dest, effects }) => {
-				for asset in assets.iter_mut() {
-					*asset = Config::AssetTransactor::transfer_asset(asset, &origin, &dest)?;
-				}
-				let msg = Xcm::ReserveAssetCredit { assets, effects }.into();
-				return Config::XcmSender::send_xcm(dest, msg)
-			},
 			_ => Err(())?,	// Unhandled XCM message.
 		};
 
@@ -127,10 +120,21 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
+			Ai::DepositReserveAsset { assets, dest, effects } => {
+				let deposited = holding.saturating_take(assets).into_assets_iter().collect::<Vec<_>>();
+				for asset in deposited.iter() {
+					Config::AssetTransactor::deposit_asset(asset, &dest)?;
+				}
+				let msg = Xcm::ReserveAssetCredit { assets: deposited, effects }.into();
+				Config::XcmSender::send_xcm(dest, msg)
+			},
 			Ai::InitiateReserveTransfer { assets, reserve, dest, effects} => {
 				let transferred = holding.saturating_take(assets);
-				let assets = transferred.into_assets_iter().collect();
-				Config::XcmSender::send_xcm(reserve, Xcm::ReserveAssetTransfer { assets, dest, effects })
+				let assets = transferred.into_assets_iter().collect::<Vec<_>>();
+				let msg = Xcm::WithdrawAsset { assets: assets.clone(), effects: vec![
+					Ai::DepositReserveAsset { assets, dest, effects }
+				] };
+				Config::XcmSender::send_xcm(reserve, msg)
 			}
 			Ai::InitiateTeleport { assets, dest, effects} => {
 				let transferred = holding.saturating_take(assets);

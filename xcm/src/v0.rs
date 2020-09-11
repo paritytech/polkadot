@@ -299,6 +299,7 @@ pub type MultiAssets = Vec<MultiAsset>;
 pub enum Ai {
 	Null,
 	DepositAsset { assets: MultiAssets, dest: MultiLocation },
+	DepositReserveAsset { assets: MultiAssets, dest: MultiLocation, effects: Ais },
 	ExchangeAsset { give: MultiAssets, receive: MultiAssets },
 	InitiateReserveTransfer { assets: MultiAssets, reserve: MultiLocation, dest: MultiLocation, effects: Ais },
 	InitiateTeleport { assets: MultiAssets, dest: MultiLocation, effects: Ais },
@@ -311,8 +312,6 @@ pub type Ais = Vec<Ai>;
 #[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
 pub enum Xcm {
 	WithdrawAsset { assets: MultiAssets, effects: Ais },
-	// Equivalent to WithdrawAsset{asset, Ai::InitiateReserveTransfer{asset, dest, effect}
-	ReserveAssetTransfer { assets: MultiAssets, dest: MultiLocation, effects: Ais },
 	ReserveAssetCredit { assets: MultiAssets, effects: Ais },
 	TeleportAsset { assets: MultiAssets, effects: Ais },
 	Balances { #[codec(compact)] query_id: u64, assets: MultiAssets },
