@@ -16,8 +16,9 @@
 
 use sp_std::{prelude::*, mem::swap, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
+use sp_runtime::RuntimeDebug;
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
 pub enum AssetId {
 	Concrete(MultiLocation),
 	Abstract(Vec<u8>),
@@ -31,7 +32,7 @@ impl AssetId {
 	}
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Clone, RuntimeDebug)]
 pub struct Assets {
 	pub fungible: BTreeMap<AssetId, u128>,
 	pub non_fungible: BTreeSet<(AssetId, AssetInstance)>,
