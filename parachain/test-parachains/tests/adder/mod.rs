@@ -20,8 +20,10 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 
 use parachain::{
 	primitives::{
-		BlockData as GenericBlockData, HeadData as GenericHeadData,
-		ValidationParams, ValidationData, PersistedValidationData,
+		RelayChainBlockNumber,
+		BlockData as GenericBlockData,
+		HeadData as GenericHeadData,
+		ValidationParams,
 	},
 	wasm_executor::{ValidationPool, ValidationExecutionMode}
 };
@@ -92,15 +94,10 @@ fn execute_good_on_parent(pool: ValidationPool) {
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
+			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			validation_data: ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: GenericHeadData(parent_head.encode()),
-					block_number: 1,
-					..Default::default()
-				},
-				transient: Default::default(),
-			},
+			relay_chain_height: 1,
+			hrmp_mqc_heads: Vec::new(),
 		},
 		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
@@ -135,15 +132,10 @@ fn execute_good_chain_on_parent() {
 		let ret = parachain::wasm_executor::validate_candidate(
 			adder::wasm_binary_unwrap(),
 			ValidationParams {
+				parent_head: GenericHeadData(parent_head.encode()),
 				block_data: GenericBlockData(block_data.encode()),
-				validation_data: ValidationData {
-					persisted: PersistedValidationData {
-						parent_head: GenericHeadData(parent_head.encode()),
-						block_number: (number + 1) as _,
-						..Default::default()
-					},
-					transient: Default::default(),
-				},
+				relay_chain_height: number as RelayChainBlockNumber + 1,
+				hrmp_mqc_heads: Vec::new(),
 			},
 			parachain::wasm_executor::ExecutionMode::Remote(&pool),
 			sp_core::testing::TaskExecutor::new(),
@@ -179,15 +171,10 @@ fn execute_bad_on_parent() {
 	let _ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
+			parent_head: GenericHeadData(parent_head.encode()),
 			block_data: GenericBlockData(block_data.encode()),
-			validation_data: ValidationData {
-				persisted: PersistedValidationData {
-					parent_head: GenericHeadData(parent_head.encode()),
-					block_number: 1,
-					..Default::default()
-				},
-				transient: Default::default(),
-			},
+			relay_chain_height: 1,
+			hrmp_mqc_heads: Vec::new(),
 		},
 		parachain::wasm_executor::ExecutionMode::Remote(&pool),
 		sp_core::testing::TaskExecutor::new(),
