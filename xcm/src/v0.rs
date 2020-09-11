@@ -188,6 +188,62 @@ impl From<Junction> for MultiLocation {
 	}
 }
 
+impl From<()> for MultiLocation {
+	fn from(_: ()) -> Self {
+		MultiLocation::Null
+	}
+}
+impl From<(Junction,)> for MultiLocation {
+	fn from(x: (Junction,)) -> Self {
+		MultiLocation::X1(x.0)
+	}
+}
+impl From<(Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction)) -> Self {
+		MultiLocation::X2(x.0, x.1)
+	}
+}
+impl From<(Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction)) -> Self {
+		MultiLocation::X3(x.0, x.1, x.2)
+	}
+}
+impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X4(x.0, x.1, x.2, x.3)
+	}
+}
+
+impl From<[Junction; 0]> for MultiLocation {
+	fn from(_: [Junction; 0]) -> Self {
+		MultiLocation::Null
+	}
+}
+impl From<[Junction; 1]> for MultiLocation {
+	fn from(x: [Junction; 1]) -> Self {
+		let [x0] = x;
+		MultiLocation::X1(x0)
+	}
+}
+impl From<[Junction; 2]> for MultiLocation {
+	fn from(x: [Junction; 2]) -> Self {
+		let [x0, x1] = x;
+		MultiLocation::X2(x0, x1)
+	}
+}
+impl From<[Junction; 3]> for MultiLocation {
+	fn from(x: [Junction; 3]) -> Self {
+		let [x0, x1, x2] = x;
+		MultiLocation::X3(x0, x1, x2)
+	}
+}
+impl From<[Junction; 4]> for MultiLocation {
+	fn from(x: [Junction; 4]) -> Self {
+		let [x0, x1, x2, x3] = x;
+		MultiLocation::X4(x0, x1, x2, x3)
+	}
+}
+
 impl Junction {
 	pub fn is_sub_consensus(&self) -> bool {
 		match self {

@@ -60,6 +60,7 @@ use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
 use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use constants::{time::*, currency::*, fee::*};
+use xcm_builder::{AccountId32Aliases, ChildParachainConvertsVia};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -398,39 +399,21 @@ parameter_types! {
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
 }
 
-use polkadot_parachain::primitives::{AccountIdConversion, Id as ParaId};
+use polkadot_parachain::primitives::Id as ParaId;
 use xcm::v0::{MultiLocation, MultiOrigin, MultiNetwork, Junction};
 use xcm_executor::{CurrencyAdapter, XcmExecutor, traits::{
 	IsConcrete, LocationConversion, ConvertOrigin}
 };
 
-// TODO: Maybe make something generic for this.
-pub struct LocationConverter;
-impl LocationConversion<AccountId> for LocationConverter {
-	fn from_location(location: &MultiLocation) -> Option<AccountId> {
-		Some(match location {
-			MultiLocation::X1(Junction::Parent) => AccountId::default(),
-			MultiLocation::X1(Junction::Parachain { id }) => ParaId::from(*id).into_account(),
-			MultiLocation::X1(Junction::AccountId32 { id, network })
-				if matches!(*network, MultiNetwork::Polkadot | MultiNetwork::Any)
-				=> (*id).into(),
-			x => ("multiloc", x).using_encoded(sp_io::hashing::blake2_256).into(),
-		})
-	}
-	fn into_location(who: AccountId) -> Option<MultiLocation> {
-		if who == AccountId::default() {
-			return Some(Junction::Parent.into())
-		}
-		if let Some(id) = ParaId::try_from_account(&who) {
-			return Some(Junction::Parachain { id: id.into() }.into())
-		}
-		Some(Junction::AccountId32 { id: who.into(), network: MultiNetwork::Polkadot }.into())
-	}
-}
-
 parameter_types! {
 	pub const RocLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+	pub const RococoNetwork: MultiNetwork = MultiNetwork::Polkadot;
 }
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
+);
 
 pub type LocalAssetTransactor =
 	CurrencyAdapter<
@@ -438,7 +421,7 @@ pub type LocalAssetTransactor =
 		Balances,
 		// Use this currency when it is a fungible asset matching the given location or name:
 		IsConcrete<RocLocation>,
-		// Do a simple punn to convert an AccountId32 MultiLocation into a native chain account ID:
+		// We can convert the MultiLocations with our converter above:
 		LocationConverter,
 		// Our chain's account ID type (we can't get away without mentioning it explicitly):
 		AccountId,

@@ -78,6 +78,7 @@ polkadot-parachain = { path = "../../parachain", default-features = false }
 
 xcm = { path = "../../xcm", default-features = false }
 xcm-executor = { path = "../../xcm/xcm-executor", default-features = false }
+xcm-builder = { path = "../../xcm/xcm-builder", default-features = false }
 
 [dev-dependencies]
 libsecp256k1 = "0.3.2"
@@ -153,6 +154,7 @@ std = [
 	"randomness-collective-flip/std",
 	"runtime-common/std",
 	"xcm/std",
+	"xcm-builder/std",
 	"xcm-executor/std",
 ]
 runtime-benchmarks = [

@@ -114,9 +114,55 @@ impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungibl
 	}
 }
 
-pub trait LocationConversion<T> {
-	fn from_location(m: &MultiLocation) -> Option<T>;
-	fn into_location(m: T) -> Option<MultiLocation>;
+pub trait LocationConversion<AccountId> {
+	fn from_location(location: &MultiLocation) -> Option<AccountId>;
+	#[deprecated]
+	fn into_location(who: AccountId) -> Option<MultiLocation> { Self::try_into_location(who).ok() }
+	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId>;
+}
+// TODO: Use tuple generator.
+impl<A, X: LocationConversion<A>> LocationConversion<A> for (X,) {
+	fn from_location(location: &MultiLocation) -> Option<A> {
+		X::from_location(location)
+	}
+	fn try_into_location(who: A) -> Result<MultiLocation, A> {
+		X::try_into_location(who)
+	}
+}
+impl<A, X: LocationConversion<A>, Y: LocationConversion<A>> LocationConversion<A> for (X, Y) {
+	fn from_location(location: &MultiLocation) -> Option<A> {
+		X::from_location(location).or_else(|| Y::from_location(location))
+	}
+	fn try_into_location(who: A) -> Result<MultiLocation, A> {
+		X::try_into_location(who).or_else(|who| Y::try_into_location(who))
+	}
+}
+impl<
+	A,
+	X: LocationConversion<A>,
+	Y: LocationConversion<A>,
+	Z: LocationConversion<A>,
+> LocationConversion<A> for (X, Y, Z) {
+	fn from_location(location: &MultiLocation) -> Option<A> {
+		<((X, Y), Z)>::from_location(location)
+	}
+	fn try_into_location(who: A) -> Result<MultiLocation, A> {
+		<((X, Y), Z)>::try_into_location(who)
+	}
+}
+impl<
+	A,
+	X: LocationConversion<A>,
+	Y: LocationConversion<A>,
+	Z: LocationConversion<A>,
+	W: LocationConversion<A>,
+> LocationConversion<A> for (X, Y, Z, W) {
+	fn from_location(location: &MultiLocation) -> Option<A> {
+		<(((X, Y), Z), W)>::from_location(location)
+	}
+	fn try_into_location(who: A) -> Result<MultiLocation, A> {
+		<(((X, Y), Z), W)>::try_into_location(who)
+	}
 }
 
 pub trait ConvertOrigin<Origin> {

@@ -6088,6 +6088,7 @@ dependencies = [
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
  "tiny-keccak 1.5.0",
  "xcm",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -9866,6 +9867,22 @@ dependencies = [
  "shared_memory",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "xcm-builder"
+version = "0.8.22"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
 ]
 
 [[package]]

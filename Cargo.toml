@@ -45,6 +45,7 @@ members = [
 	"service",
 	"validation",
 	"xcm",
+	"xcm/xcm-builder",
 	"xcm/xcm-executor",
 	"xcm/xcm-handler",
 

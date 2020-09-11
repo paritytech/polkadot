@@ -144,32 +144,3 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		}
 	}
 }
-
-// Example only - move into test and/or runtimes.
-/*
-parameter_types! {
-	const DotLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
-	const DotName: &'static [u8] = &b"DOT"[..];
-	const MyLocation: MultiLocation = MultiLocation::Null;
-	const MyName: &'static [u8] = &b"ABC"[..];
-}
-type MyDepositAsset = (
-	// Convert a Currency impl into a DepositAsset
-	CurrencyAdapter<
-		// Use this currency:
-		balances_pallet::Module::<T, Instance1>,
-		// Use this currency when it is a fungible asset matching the given location or name:
-		(IsConcrete<DotLocation>, IsAbstract<DotName>),
-		// Do a simple punn to convert an AccountId32 MultiLocation into a native chain account ID:
-		AccountId32Punner<T::AccountId>,
-		// Our chain's account ID type (we can't get away without mentioning it explicitly):
-		T::AccountId,
-	>,
-	CurrencyAdapter<
-		balances_pallet::Module::<T, DefaultInstance>,
-		(IsConcrete<MyLocation>, IsAbstract<MyName>),
-		AccountId32Punner<T::AccountId>,
-		T::AccountId,
-	>,
-);
-*/
