@@ -61,7 +61,7 @@ use session::historical as session_historical;
 use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use constants::{time::*, currency::*, fee::*};
 use polkadot_parachain::primitives::Id as ParaId;
-use xcm::v0::{MultiLocation, NetworkId, Junction};
+use xcm::v0::{MultiLocation, NetworkId};
 use xcm_executor::{XcmExecutor, traits::IsConcrete};
 use xcm_builder::{
 	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter,
@@ -407,7 +407,7 @@ parameter_types! {
 }
 
 parameter_types! {
-	pub const RocLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+	pub const RocLocation: MultiLocation = MultiLocation::Null;
 	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
 	pub const Ancestry: MultiLocation = MultiLocation::Null;
 }

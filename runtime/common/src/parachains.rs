@@ -830,7 +830,7 @@ impl<T: Trait> SendXcm for Module<T> {
 			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
 				return Err(())	// Destination buffer overflow.
 			}
-			DownwardMessageQueue::append(id, msg.encode());
+			DownwardMessageQueue::append(id, VersionedXcm::from(msg).encode());
 			Ok(())
 		} else {
 			return Err(())	// Cannot reach destination.
