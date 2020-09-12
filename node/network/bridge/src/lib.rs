@@ -19,7 +19,7 @@
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
-use futures::stream::BoxStream;
+use futures::stream::{BoxStream, FuturesUnordered};
 use futures::channel::{mpsc, oneshot};
 
 use sc_network::{Event as NetworkEvent, Multiaddr};
@@ -44,6 +44,7 @@ use std::collections::{HashSet, HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
+use core::task;
 
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
 ///
@@ -578,11 +579,15 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
-	let mut pending_discovery_requests: HashMap<AuthorityDiscoveryId, Vec<>> = Vec::new();
 	// we assume one PeerId per AuthorityId is enough
-	let mut connected_authority_peers: HashMap<AuthorityDiscoveryId, PeerId> = HashMap::new();
+	// the `u64` counts the number of pending non-revoked requests for this validator
+	let mut connected_validators: HashMap<AuthorityDiscoveryId, (PeerId, u64)> = HashMap::new();
+	// keep for priority group updates
+	let mut validator_multiaddresses: HashSet<Multiaddr> = HashSet::new();
+	let mut pending_discovery_requests: Vec<PendingConnectionRequestState> = Vec::new();
 
 	loop {
+
 		let action = {
 			let subsystem_next = ctx.recv().fuse();
 			let mut net_event_next = event_stream.next().fuse();
@@ -612,36 +617,76 @@ async fn run_network<N: Network>(
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToValidators { validator_ids, already_connected, connected, revoke } => {
-				let priority_group = match peer_set {
-					PeerSet::Validation => "parachain_validation".to_owned(),
-					PeerSet::Collation => "parachain_collation".to_owned(),
-				};
+			Action::ConnectToValidators {
+				validator_ids,
+				already_connected,
+				connected,
+				revoke,
+			} => {
+				let already = validator_ids.iter().cloned()
+					.filter_map(|id| {
+						connected_validators.get_mut(&id).map(|(peer, counter)| {
+							counter += 1;
+							(id, peer.clone())
+						})
+					})
+					.collect::<Vec<_>>();
 
-				// collect multiaddress of authorities
+				match already_connected.send(already) {
+					Err(already) => {
+						// the request is revoked
+						for (id, _) in already.into_iter() {
+							const PROOF: &str = "`already` contains only connected validators; qed";
+							let (_, counter) = connected_validators.get_mut(&id).expect(PROOF);
+							*counter -= 1;
+						}
+						drop(connected);
+						drop(revoke);
+						continue;
+					}
+					_ => {},
+				}
+
+				// collect multiaddress of validators
 				let mut multiaddresses = HashSet::new();
-				for authority in authorities.iter().cloned() {
+				for authority in validator_ids.iter().cloned() {
 					let result = net.authority_discovery_service.get_addresses_by_authority_id(authority).await;
 					if let Some(addresses) = result {
-						// we might have several `PeerId`s per `AuthorityId` depending on the number of sentry nodes,
-						// so in theory we might want to limit max number of sentries per node to connect to,
-						// in practice the number of sentries per node is low and they are going to be removed soon
+						// We might have several `PeerId`s per `AuthorityId`
+						// depending on the number of sentry nodes,
+						// so we limit max number of sentries per node to connect to.
+						// They are going to be removed soon though:
 						// https://github.com/paritytech/substrate/issues/6845
-						for addr in addresses {
-							multiaddresses.insert(addr);
+						for addr in addresses.into_iter().take(3) {
+							multiaddresses.insert(addr.clone());
+							validator_multiaddresses.insert(addr);
 						}
 					}
 				}
 
+				// clean up revoked requests
+				let mut revoked_indexes = Vec::new();
+				for (i, pending) in pending_discovery_requests.iter().enumerate() {
+					if pending.is_revoked() {
+						revoked_indexes.push(i);
+					}
+				}
+				for to_revoke in revoked_indexes.into_iter().rev() {
+					let old = pending_discovery_requests.swap_remove(to_revoke);
+					// todo: update counters and multiaddresses (oh...)
+				}
+
 				// ask the network to connect to these nodes and not disconnect from them until removed from the priority group
-				if let Err(e) = net.network_service.set_priority_group(priority_group, multiaddresses) {
+				// TODO: use add_to_priority_group for incremental updates?
+				if let Err(e) = net.network_service.set_priority_group(priority_group, validator_multiaddresses.clone()) {
 					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 				}
 
-				pending_discovery_requests.push(ConnectToValidatorsState::new(
-					authorities.into_iter().collect(),
-					res,
-					&connected_authority_peers,
+				pending_discovery_requests.push(PendingConnectionRequestState::new(
+					validator_ids,
+					&connected_validators,
+					connected,
+					revoke,
 				));
 			},
 
@@ -670,19 +715,10 @@ async fn run_network<N: Network>(
 				// check if it's an authority we've been waiting for
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
-					let mut ready = Vec::new();
-					for (i, pending) in pending_discovery_requests.iter_mut().enumerate() {
+					for pending in pending_discovery_requests.iter() {
 						pending.on_authority_connected(&authority, &peer);
-						if pending.is_ready() {
-							ready.push(i);
-						}
 					}
-					// fulfill all ready requests and remove them from the pending list
-					for to_send in ready.into_iter().rev() {
-						pending_discovery_requests.swap_remove(to_send).send();
-					}
-
-					connected_authority_peers.insert(authority, peer.clone());
+					connected_validators.insert(authority, peer.clone());
 				}
 
 				match peer_map.entry(peer.clone()) {
@@ -730,19 +766,11 @@ async fn run_network<N: Network>(
 
 				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
 				if let Some(authority) = maybe_authority {
-					let mut ready = Vec::new();
-					for (i, pending) in pending_discovery_requests.iter_mut().enumerate() {
+					for pending in pending_discovery_requests.iter() {
 						pending.on_authority_disconnected(&authority);
-						if pending.is_ready() {
-							ready.push(i);
-						}
-					}
-					// fulfill all ready requests and remove them from the pending list
-					for to_send in ready.into_iter().rev() {
-						pending_discovery_requests.swap_remove(to_send).send();
 					}
 
-					connected_authority_peers.remove(&authority);
+					connected_validators.remove(&authority);
 				}
 
 				if peer_map.remove(&peer).is_some() {
@@ -812,64 +840,54 @@ async fn run_network<N: Network>(
 }
 
 /// This struct tracks the state for one `ConnectToValidators` request.
-struct ConnectToValidatorsState {
+struct PendingConnectionRequestState {
+	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
-	connected: HashMap<AuthorityDiscoveryId, PeerId>,
-	sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+	sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+	revoke: oneshot::Receiver<()>,
 }
 
-impl ConnectToValidatorsState {
+impl PendingConnectionRequestState {
 	/// Create a new instance of `ConnectToValidatorsState`.
 	pub fn new(
-		mut pending: HashSet<AuthorityDiscoveryId>,
-		sender: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
+		requested: Vec<AuthorityDiscoveryId>,
 		already_connected: &HashMap<AuthorityDiscoveryId, PeerId>,
+		sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		revoke: oneshot::Receiver<()>,
 	) -> Self {
-		let mut connected = HashMap::new();
-		pending.retain(|authority| {
-			if let Some(peer_id) = already_connected.get(authority) {
-				connected.insert(authority.clone(), peer_id.clone());
-				false
-			} else {
-				true
-			}
-		});
+		let pending = requested.iter()
+			.cloned()
+			.collect::<HashSet<_>>()
+			.difference(already_connected)
+			.collect();
 
 		Self {
+			requested,
 			pending,
-			connected,
 			sender,
+			revoke,
 		}
 	}
 
 	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
 		if self.pending.remove(authority) {
-			self.connected.insert(authority.clone(), peer_id.clone());
+			// an error may happen if the request was revoked or
+			// the channel's buffer is full, ignoring it is fine
+			let _ = self.sender.try_send((authority.clone(), peer_id.clone()));
 		}
 	}
 
 	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
+		// TODO: what do we actually want?
 		let _ = self.pending.remove(authority);
-		let _ = self.connected.remove(authority);
 	}
 
-	/// Returns `true` if ready to send.
-	pub fn is_ready(&self) -> bool {
-		self.pending.is_empty() || self.sender.is_canceled()
-	}
-
-	/// Fulfill the request.
-	pub fn send(self) {
-		if self.sender.is_canceled() {
-			return;
-		}
-		// TODO: maybe we actually want this if there is a timeout
-		debug_assert!(self.is_ready(), "calling `send` when not ready");
-
-		let Self { mut connected, sender, .. } = self;
-		let reply: Vec<_> = connected.drain().collect();
-		// if the receiver is dropped, it doesn't care about these authorities anymore
-		let _ = sender.send(reply);
+	/// Returns `true` if the request is revoked.
+	pub fn is_revoked(&self) -> bool {
+		self.sender.is_closed() ||
+			self.revoke
+				.try_recv()
+				.map_or(true, |r| r.is_some())
 	}
 }
 

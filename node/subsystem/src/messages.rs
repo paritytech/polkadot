@@ -201,13 +201,14 @@ pub enum NetworkBridgeMessage {
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
 	///
-	/// Note: dropping the any of the receivers/revoke's sender before the request
+	/// Note: dropping any of the receivers/revoke's sender before the request
 	/// is fulfilled will result in it being revoked.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		/// Response channel by which the issuer can learn the `PeerId`s of
 		/// already connected validators from the requested set.
+		/// The response is sent immediately.
 		already_connected: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
 		/// Response stream by which the issuer can learn the `PeerId`s of
 		/// the remaining validators as they are connected.
