@@ -9892,7 +9892,6 @@ version = "0.8.22"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
- "polkadot-parachain",
  "sp-arithmetic",
  "sp-core",
  "sp-runtime",
