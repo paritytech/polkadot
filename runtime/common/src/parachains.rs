@@ -58,7 +58,10 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiAsset, MultiLocation, Junction, Order}};
+use xcm::{
+	VersionedXcm, VersionedMultiLocation,
+	v0::{Xcm, SendXcm, ExecuteXcm, MultiAsset, MultiLocation, Junction, Order, Error as XcmError}
+};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -828,12 +831,12 @@ impl<T: Trait> SendXcm for Module<T> {
 			let id: ParaId = id.into();
 			let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
 			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
-				return Err(())	// Destination buffer overflow.
+				return Err(XcmError::DestinationBufferOverflow)	// Destination buffer overflow.
 			}
 			DownwardMessageQueue::append(id, msg.encode());
 			Ok(())
 		} else {
-			return Err(())	// Cannot reach destination.
+			return Err(XcmError::CannotReachDestination)	// Cannot reach destination.
 		}
 	}
 }

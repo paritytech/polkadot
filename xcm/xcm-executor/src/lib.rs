@@ -19,7 +19,10 @@
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
 use codec::Decode;
-use xcm::v0::{Xcm, Order, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, MultiAsset, Junction};
+use xcm::v0::{
+	Xcm, Order, ExecuteXcm, SendXcm, Error as XcmError, Result as XcmResult,
+	MultiLocation, MultiAsset, Junction,
+};
 
 pub mod traits;
 mod assets;
@@ -38,10 +41,12 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// We ensure that it doesn't contain any `Parent` Junctions which would imply a privilege escalation.
 				let mut new_origin = origin;
 				for j in superorigin.into_iter() {
-					ensure!(j.is_sub_consensus(), ());
-					new_origin.push(j).map_err(|_| ())?;
+					ensure!(j.is_sub_consensus(), XcmError::EscalationOfPrivilege);
+					new_origin.push(j).map_err(|_| XcmError::MultiLocationFull)?;
 				}
-				return Self::execute_xcm(new_origin, (*inner).try_into()?)
+				return Self::execute_xcm(
+					new_origin,
+					(*inner).try_into().map_err(|_| XcmError::UnhandledXcmVersion)?)
 			}
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -59,7 +64,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 					// sovereign assets.
 					(Assets::from(assets), effects)
 				} else {
-					Err(())?
+					Err(XcmError::UntrustedReserveLocation)?
 				}
 			}
 			(origin, Xcm::TeleportAsset { assets, effects }) => {
@@ -69,7 +74,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 					// sovereign assets.
 					(Assets::from(assets), effects)
 				} else {
-					Err(())?
+					Err(XcmError::UntrustedTeleportLocation)?
 				}
 			}
 			(origin, Xcm::Transact { origin_type, call }) => {
@@ -79,9 +84,9 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 
 				// TODO: allow this to be configurable in the trait.
 				// TODO: allow the trait to issue filters for the relay-chain
-				let message_call = Config::Call::decode(&mut &call[..]).map_err(|_| ())?;
+				let message_call = Config::Call::decode(&mut &call[..]).map_err(|_| XcmError::FailedToDecode)?;
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
-					.map_err(|_| ())?;
+					.map_err(|_| XcmError::BadOrigin)?;
 				let _ok = message_call.dispatch(dispatch_origin).is_ok();
 				// Not much to do with the result as it is. It's up to the parachain to ensure that the
 				// message makes sense.
@@ -91,7 +96,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
 				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
 			},
-			_ => Err(())?,	// Unhandled XCM message.
+			_ => Err(XcmError::UnhandledXcmMessage)?,	// Unhandled XCM message.
 		};
 
 		// TODO: stuff that should happen after holding is populated but before effects,
@@ -143,7 +148,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })
 			}
-			_ => Err(())?,
+			_ => Err(XcmError::UnhandledEffect)?,
 		}
 	}
 }
