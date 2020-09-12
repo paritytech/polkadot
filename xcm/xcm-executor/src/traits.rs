@@ -24,8 +24,12 @@ pub trait FilterAssetLocation {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool;
 }
 
-impl FilterAssetLocation for () {
-	fn filter_asset_location(_: &MultiAsset, _: &MultiLocation) -> bool {
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl FilterAssetLocation for Tuple {
+	fn filter_asset_location(what: &MultiAsset, origin: &MultiLocation) -> bool {
+		for_tuples!( #(
+			if Tuple::filter_asset_location(what, origin) { return true }
+		)* );
 		false
 	}
 }
@@ -37,12 +41,6 @@ impl FilterAssetLocation for NativeAsset {
 	}
 }
 
-// TODO: Implement for arbitrary tuples.
-impl<X: FilterAssetLocation, Y: FilterAssetLocation> FilterAssetLocation for (X, Y) {
-	fn filter_asset_location(what: &MultiAsset, origin: &MultiLocation) -> bool {
-		X::filter_asset_location(what, origin) || Y::filter_asset_location(what, origin)
-	}
-}
 
 pub struct Case<T>(PhantomData<T>);
 impl<T: Get<(MultiAsset, MultiLocation)>> FilterAssetLocation for Case<T> {
@@ -75,15 +73,22 @@ pub trait TransactAsset {
 	}
 }
 
-// TODO: Implement for arbitrary tuples.
-impl<X: TransactAsset, Y: TransactAsset> TransactAsset for (X, Y) {
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl TransactAsset for Tuple {
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation) -> XcmResult {
-		X::deposit_asset(what, who).or_else(|_| Y::deposit_asset(what, who))
+		for_tuples!( #(
+			match Tuple::deposit_asset(what, who) { o @ Ok(_) => return o, _ => () }
+		)* );
+		Err(())
 	}
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
-		X::withdraw_asset(what, who).or_else(|_| Y::withdraw_asset(what, who))
+		for_tuples!( #(
+			match Tuple::withdraw_asset(what, who) { o @ Ok(_) => return o, _ => () }
+		)* );
+		Err(())
 	}
 }
+
 
 pub trait MatchesFungible<Balance> {
 	fn matches_fungible(a: &MultiAsset) -> Option<Balance>;
@@ -116,56 +121,22 @@ impl<B: From<u128>, X: MatchesFungible<B>, Y: MatchesFungible<B>> MatchesFungibl
 
 pub trait LocationConversion<AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId>;
-	#[deprecated]
-	fn into_location(who: AccountId) -> Option<MultiLocation> { Self::try_into_location(who).ok() }
 	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId>;
 }
-// TODO: Use tuple generator.
-impl<A> LocationConversion<A> for () {
-	fn from_location(_: &MultiLocation) -> Option<A> { None }
-	fn try_into_location(who: A) -> Result<MultiLocation, A> { Err(who) }
-}
-impl<A, X: LocationConversion<A>> LocationConversion<A> for (X,) {
-	fn from_location(location: &MultiLocation) -> Option<A> {
-		X::from_location(location)
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<AccountId> LocationConversion<AccountId> for Tuple {
+	fn from_location(location: &MultiLocation) -> Option<AccountId> {
+		for_tuples!( #(
+			if let Some(result) = Tuple::from_location(location) { return Some(result) }
+		)* );
+		None
 	}
-	fn try_into_location(who: A) -> Result<MultiLocation, A> {
-		X::try_into_location(who)
-	}
-}
-impl<A, X: LocationConversion<A>, Y: LocationConversion<A>> LocationConversion<A> for (X, Y) {
-	fn from_location(location: &MultiLocation) -> Option<A> {
-		X::from_location(location).or_else(|| Y::from_location(location))
-	}
-	fn try_into_location(who: A) -> Result<MultiLocation, A> {
-		X::try_into_location(who).or_else(|who| Y::try_into_location(who))
-	}
-}
-impl<
-	A,
-	X: LocationConversion<A>,
-	Y: LocationConversion<A>,
-	Z: LocationConversion<A>,
-> LocationConversion<A> for (X, Y, Z) {
-	fn from_location(location: &MultiLocation) -> Option<A> {
-		<((X, Y), Z)>::from_location(location)
-	}
-	fn try_into_location(who: A) -> Result<MultiLocation, A> {
-		<((X, Y), Z)>::try_into_location(who)
-	}
-}
-impl<
-	A,
-	X: LocationConversion<A>,
-	Y: LocationConversion<A>,
-	Z: LocationConversion<A>,
-	W: LocationConversion<A>,
-> LocationConversion<A> for (X, Y, Z, W) {
-	fn from_location(location: &MultiLocation) -> Option<A> {
-		<(((X, Y), Z), W)>::from_location(location)
-	}
-	fn try_into_location(who: A) -> Result<MultiLocation, A> {
-		<(((X, Y), Z), W)>::try_into_location(who)
+	fn try_into_location(who: AccountId) -> Result<MultiLocation, AccountId> {
+		for_tuples!( #(
+			let who = match Tuple::try_into_location(who) { Err(w) => w, r => return r };
+		)* );
+		Err(who)
 	}
 }
 
@@ -173,40 +144,13 @@ pub trait ConvertOrigin<Origin> {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation>;
 }
 
-// TODO: Use tuple generator.
-impl<O> ConvertOrigin<O> for () {
-	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<O, MultiLocation> { Err(origin) }
-}
-
-impl<O, X: ConvertOrigin<O>> ConvertOrigin<O> for (X,) {
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<O> ConvertOrigin<O> for Tuple {
 	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
-		X::convert_origin(origin, kind)
-	}
-}
-impl<O, X: ConvertOrigin<O>, Y: ConvertOrigin<O>> ConvertOrigin<O> for (X, Y) {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
-		X::convert_origin(origin, kind).or_else(|origin| Y::convert_origin(origin, kind))
-	}
-}
-impl<
-	O,
-	X: ConvertOrigin<O>,
-	Y: ConvertOrigin<O>,
-	Z: ConvertOrigin<O>,
-> ConvertOrigin<O> for (X, Y, Z) {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
-		<((X, Y), Z)>::convert_origin(origin, kind)
-	}
-}
-impl<
-	O,
-	X: ConvertOrigin<O>,
-	Y: ConvertOrigin<O>,
-	Z: ConvertOrigin<O>,
-	W: ConvertOrigin<O>,
-> ConvertOrigin<O> for (X, Y, Z, W) {
-	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
-		<(((X, Y), Z), W)>::convert_origin(origin, kind)
+		for_tuples!( #(
+			let origin = match Tuple::convert_origin(origin, kind) { Err(o) => o, r => return r };
+		)* );
+		Err(origin)
 	}
 }
 

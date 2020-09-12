@@ -9891,6 +9891,7 @@ name = "xcm-executor"
 version = "0.8.22"
 dependencies = [
  "frame-support",
+ "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-arithmetic",
  "sp-core",
