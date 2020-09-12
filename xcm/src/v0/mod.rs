@@ -41,9 +41,11 @@ pub enum OriginKind {
 	/// Origin should just be the native origin for the sender. For Cumulus/Frame chains this is
 	/// the `Parachain` origin.
 	Native,
+
 	/// Origin should just be the standard account-based origin with the sovereign account of
 	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
 	SovereignAccount,
+
 	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
 	/// This will not usually be an available option.
 	Superuser,
@@ -62,69 +64,87 @@ pub enum Xcm {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place them into `holding`. Execute the
 	/// orders (`effects`).
 	///
-	/// - `assets`:
-	/// - `effects`:
+	/// - `assets`: The asset(s) to be withdrawn into holding.
+	/// - `effects`: The order(s) to execute on the holding account.
 	///
 	/// Kind: *Instruction*.
+	///
+	/// Errors:
 	WithdrawAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+
 	/// Asset(s) (`assets`) have been received into the ownership of this system on the `origin` system.
 	///
 	/// Some orders are given (`effects`) which should be executed once the corresponding derivative assets have
 	/// been placed into `holding`.
 	///
-	/// - `assets`:
-	/// - `effects`:
+	/// - `assets`: The asset(s) that are minted into holding.
+	/// - `effects`: The order(s) to execute on the holding account.
 	///
 	/// Safety: `origin` must be trusted to have received and be storing `assets` such that they may later be
 	/// withdrawn should this system send a corresponding message.
 	///
 	/// Kind: *Trusted Indication*.
+	///
+	/// Errors:
 	ReserveAssetDeposit { assets: Vec<MultiAsset>, effects: Vec<Order> },
+
 	/// Asset(s) (`assets`) have been destroyed on the `origin` system and equivalent assets should be
 	/// created on this system.
 	///
 	/// Some orders are given (`effects`) which should be executed once the corresponding derivative assets have
 	/// been placed into `holding`.
 	///
-	/// - `assets`:
-	/// - `effects`:
+	/// - `assets`: The asset(s) that are minted into holding.
+	/// - `effects`: The order(s) to execute on the holding account.
 	///
 	/// Safety: `origin` must be trusted to have irrevocably destroyed the `assets` prior as a consequence of
 	/// sending this message.
 	///
 	/// Kind: *Trusted Indication*.
+	///
+	/// Errors:
 	TeleportAsset { assets: Vec<MultiAsset>, effects: Vec<Order> },
+
 	/// Indication of the contents of the holding account corresponding to the `QueryHolding` order of `query_id`.
 	///
-	/// - `query_id`:
-	/// - `assets`:
+	/// - `query_id`: The identifier of the query that resulted in this message being sent.
+	/// - `assets`: The message content.
 	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Information*.
+	///
+	/// Errors:
 	Balances { #[codec(compact)] query_id: u64, assets: Vec<MultiAsset> },
+
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
 	/// of origin `origin_type`.
 	///
-	/// - `origin_type`:
-	/// - `call`:
+	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `call`: The encoded transaction to be applied.
 	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Instruction*.
+	///
+	/// Errors:
 	Transact { origin_type: OriginKind, call: Vec<u8> },
+
 	/// Relay an inner message (`inner`) to the parachain destination ID `id`.
 	///
 	/// The message sent to the parachain will be wrapped into a `RelayedFrom` message, with the `superorigin`
 	/// being this parachain.
 	///
-	/// - `id`:
-	/// - `inner`:
+	/// - `id`: The identity of the parachain to be relayed into.
+	/// - `inner`: The message to be wrapped and relayed.
 	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Instruction*.
+	///
+	/// Errors:
 	RelayToParachain { id: u32, inner: Box<VersionedXcm> },
+
 	/// A message (`inner`) was sent to `origin` from `superorigin` with the intention of being relayed.
 	///
 	/// - `superorigin`: The location of the `inner` message origin, **relative to `origin`**.
@@ -133,6 +153,8 @@ pub enum Xcm {
 	/// Safety: `superorigin` must express a sub-consensus only.
 	///
 	/// Kind: *Trusted Indication*.
+	///
+	/// Errors:
 	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
 }
 

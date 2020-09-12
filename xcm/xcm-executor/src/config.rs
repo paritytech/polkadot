@@ -22,6 +22,7 @@ pub trait Config {
 	/// The outer call dispatch type.
 	type Call: Parameter + Dispatchable;
 
+	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;
 
 	/// How to withdraw and deposit an asset.

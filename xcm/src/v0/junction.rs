@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Cross-Consensus Message format data structures.
+//! Support datastructures for `MultiLocation`, primarily the `Junction` datatype.
 
 use sp_std::vec::Vec;
 use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode};
 
+/// A global identifier of an account-bearing consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum NetworkId {
 	/// Unidentified/any.
@@ -32,21 +33,54 @@ pub enum NetworkId {
 	Kusama,
 }
 
+/// A single item in a path to describe the relative location of a consensus system.
+///
+/// Each item assumes a pre-existing location as its context and is defined in terms of it.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum Junction {
+	/// The consensus system of which the context is a member and state-wise super-set.
+	///
+	/// NOTE: This item is *not* a sub-consensus item: a consensus system may not identify itself trustlessly as
+	/// a location that includes this junction.
 	Parent,
+	/// An indexed parachain belonging to and operated by the context.
+	///
+	/// Generally used when the context is a Polkadot Relay-chain.
 	Parachain { #[codec(compact)] id: u32 },
-	OpaqueRemark(Vec<u8>),
+	/// A 32-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
+	/// the context.
+	///
+	/// Generally used when the context is a Substrate-based chain.
 	AccountId32 { network: NetworkId, id: [u8; 32] },
+	/// An 8-byte index for an account of a specific network that is respected as a sovereign endpoint within
+	/// the context.
+	///
+	/// May be used when the context is a Frame-based chain and includes e.g. an indices pallet.
 	AccountIndex64 { network: NetworkId, #[codec(compact)] index: u64 },
+	/// A 20-byte identifier for an account of a specific network that is respected as a sovereign endpoint within
+	/// the context.
+	///
+	/// May be used when the context is an Ethereum or Bitcoin chain or smart-contract.
 	AccountKey20 { network: NetworkId, key: [u8; 20] },
-	/// An instanced Pallet on a Frame-based chain.
+	/// An instanced, indexed pallet that forms a constituent part of the context.
+	///
+	/// Generally used when the context is a Frame-based chain.
 	PalletInstance { id: u8 },
-	/// A nondescript index within the context location.
+	/// A non-descript index within the context location.
+	///
+	/// Usage will vary widely owing to its generality.
+	///
+	/// NOTE: Try to avoid using this and instead use a more specific item.
 	GeneralIndex { #[codec(compact)] id: u128 },
 	/// A nondescript datum acting as a key within the context location.
+	///
+	/// Usage will vary widely owing to its generality.
+	///
+	/// NOTE: Try to avoid using this and instead use a more specific item.
 	GeneralKey(Vec<u8>),
-	/// The unambiguous child. Not currently used except as a fallback when deriving ancestry.
+	/// The unambiguous child.
+	///
+	/// Not currently used except as a fallback when deriving ancestry.
 	OnlyChild,
 }
 
@@ -56,7 +90,6 @@ impl Junction {
 			Junction::Parent => false,
 
 			Junction::Parachain { .. } |
-			Junction::OpaqueRemark(..) |
 			Junction::AccountId32 { .. } |
 			Junction::AccountIndex64 { .. } |
 			Junction::AccountKey20 { .. } |

@@ -26,25 +26,68 @@ use super::{MultiAsset, MultiLocation};
 pub enum Order {
 	/// Do nothing. Not generally used.
 	Null,
-	/// Remove the asset(s) (`assets`) from holding and deposit them in this consensus system under the ownership of
-	/// `dest`.
+
+	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
+	/// this consensus system.
 	///
-	/// - `assets`:
-	/// - `dest`:
+	/// - `assets`: The asset(s) to remove from holding.
+	/// - `dest`: The new owner for the assets.
+	///
+	/// Errors:
 	DepositAsset { assets: Vec<MultiAsset>, dest: MultiLocation },
-	/// Remove the asset(s) (`assets`) from holding and deposit them in this consensus system under the ownership of
-	/// `dest`.
+
+	/// Remove the asset(s) (`assets`) from holding and place equivalent assets under the ownership of `dest` within
+	/// this consensus system.
 	///
 	/// Send an onward XCM message to `dest` of `ReserveAssetDeposit` with the
 	///
-	/// - `assets`:
-	/// - `dest`:
-	/// - `effects`:
+	/// - `assets`: The asset(s) to remove from holding.
+	/// - `dest`: The new owner for the assets.
+	/// - `effects`: The orders that should be contained in the `ReserveAssetDeposit` which is sent onwards to
+	///   `dest.
+	///
+	/// Errors:
 	DepositReserveAsset { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
 
-
+	/// Remove the asset(s) (`give`) from holding and replace them with alternative assets.
+	///
+	/// The minimum amount of assets to be received into holding for the order not to fail may be stated.
+	///
+	/// - `give`: The asset(s) to remove from holding.
+	/// - `receive`: The minimum amount of assets(s) which `give` should be exchanged for. The meaning of wildcards
+	///   is undefined and they should be not be used.
+	///
+	/// Errors:
 	ExchangeAsset { give: Vec<MultiAsset>, receive: Vec<MultiAsset> },
+
+	/// Remove the asset(s) (`assets`) from holding and send a `WithdrawAsset` XCM message to a reserve location.
+	///
+	/// - `assets`: The asset(s) to remove from holding.
+	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The sovereign account
+	///   of this consensus system *on the reserve location* will have appropriate assets withdrawn and `effects` will
+	///   be executed on them. There will typically be only one valid location on any given asset/chain combination.
+	/// - `effects`: The orders to execute on the assets once withdrawn *on the reserve location*.
+	///
+	/// Errors:
 	InitiateReserveWithdraw { assets: Vec<MultiAsset>, reserve: MultiLocation, effects: Vec<Order> },
+
+	/// Remove the asset(s) (`assets`) from holding and send a `TeleportAsset` XCM message to a destination location.
+	///
+	/// - `assets`: The asset(s) to remove from holding.
+	/// - `destination`: A valid location that has a bi-lateral teleportation arrangement.
+	/// - `effects`: The orders to execute on the assets once arrived *on the destination location*.
+	///
+	/// Errors:
 	InitiateTeleport { assets: Vec<MultiAsset>, dest: MultiLocation, effects: Vec<Order> },
+
+	/// Send a `Balances` XCM message with the `assets` value equal to the holding contents, or a portion thereof.
+	///
+	/// - `query_id`: An identifier that will be replicated into the returned XCM message.
+	/// - `dest`: A valid destination for the returned XCM message. This may be limited to the current origin.
+	/// - `assets`: A filter for the assets that should be reported back. The assets reported back will be, asset-
+	///   wise, *the lesser of this value and the holding account*. No wildcards will be used when reporting assets
+	///   back.
+	///
+	/// Errors:
 	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: Vec<MultiAsset> },
 }
