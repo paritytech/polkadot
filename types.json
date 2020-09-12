@@ -118,10 +118,9 @@
 		"give": "Vec<MultiAsset>",
 		"receive": "Vec<MultiAsset>"
 	},
-	"InitiateReserveTransfer": {
+	"InitiateReserveWithdraw": {
 		"assets": "Vec<MultiAsset>",
 		"reserve": "MultiLocation",
-		"dest": "MultiLocation",
 		"effects": "Vec<Order>"
 	},
 	"InitiateTeleport": {
@@ -140,7 +139,7 @@
 			"DepositAsset": "DepositAsset",
 			"DepositReserveAsset": "DepositReserveAsset",
 			"ExchangeAsset": "ExchangeAsset",
-			"InitiateReserveTransfer": "InitiateReserveTransfer",
+			"InitiateReserveWithdraw": "InitiateReserveWithdraw",
 			"InitiateTeleport": "InitiateTeleport",
 			"QueryHolding": "QueryHolding"
 		}
