@@ -69,6 +69,20 @@ impl Assets {
 		fungible.chain(non_fungible)
 	}
 
+	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
+		let fungible = self.fungible.iter()
+			.map(|(id, &amount)| match id.clone() {
+				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+			});
+		let non_fungible = self.non_fungible.iter()
+			.map(|&(ref class, ref instance)| match class.clone() {
+				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance: instance.clone() },
+				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance: instance.clone() },
+			});
+		fungible.chain(non_fungible)
+	}
+
 	/// Modify `self` to include `MultiAsset`, saturating if necessary.
 	pub fn saturating_subsume(&mut self, asset: MultiAsset) {
 		match asset {

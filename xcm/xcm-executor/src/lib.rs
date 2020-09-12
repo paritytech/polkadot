@@ -19,7 +19,7 @@
 use sp_std::{prelude::*, marker::PhantomData, convert::TryInto};
 use frame_support::{ensure, dispatch::Dispatchable};
 use codec::Decode;
-use xcm::v0::{Xcm, Ai, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, Junction};
+use xcm::v0::{Xcm, Order, ExecuteXcm, SendXcm, Result as XcmResult, MultiLocation, MultiAsset, Junction};
 
 pub mod traits;
 mod assets;
@@ -52,7 +52,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				}
 				(holding, effects)
 			}
-			(origin, Xcm::ReserveAssetCredit { assets, effects }) => {
+			(origin, Xcm::ReserveAssetDeposit { assets, effects }) => {
 				// check whether we trust origin to be our reserve location for this asset.
 				if assets.iter().all(|asset| Config::IsReserve::filter_asset_location(asset, &origin)) {
 					// We only trust the origin to send us assets that they identify as their
@@ -108,46 +108,39 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 }
 
 impl<Config: config::Config> XcmExecutor<Config> {
-	fn execute_effects(_origin: &MultiLocation, holding: &mut Assets, effect: Ai) -> XcmResult {
+	fn reanchored(mut assets: Assets, dest: &MultiLocation) -> Vec<MultiAsset> {
+		let inv_dest = Config::LocationInverter::invert_location(&dest);
+		assets.reanchor(&inv_dest);
+		assets.into_assets_iter().collect::<Vec<_>>()
+	}
+
+	fn execute_effects(_origin: &MultiLocation, holding: &mut Assets, effect: Order) -> XcmResult {
 		match effect {
-			Ai::DepositAsset { assets, dest } => {
+			Order::DepositAsset { assets, dest } => {
 				let deposited = holding.saturating_take(assets);
 				for asset in deposited.into_assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
 				Ok(())
 			},
-			Ai::DepositReserveAsset { assets, dest, effects } => {
-				let mut deposited = holding.saturating_take(assets);
-
-				for asset in deposited.clone().into_assets_iter() {
+			Order::DepositReserveAsset { assets, dest, effects } => {
+				let deposited = holding.saturating_take(assets);
+				for asset in deposited.assets_iter() {
 					Config::AssetTransactor::deposit_asset(&asset, &dest)?;
 				}
-
-				let inv_dest = Config::LocationInverter::invert_location(&dest);
-				deposited.reanchor(&inv_dest);
-				let assets = deposited.into_assets_iter().collect::<Vec<_>>();
-
-				let msg = Xcm::ReserveAssetCredit { assets, effects }.into();
-				Config::XcmSender::send_xcm(dest, msg)
+				let assets = Self::reanchored(deposited, &dest);
+				Config::XcmSender::send_xcm(dest, Xcm::ReserveAssetDeposit { assets, effects })
 			},
-			Ai::InitiateReserveTransfer { assets, reserve, dest, effects} => {
-				let mut transferred = holding.saturating_take(assets);
-				let inv_reserve = Config::LocationInverter::invert_location(&reserve);
-				transferred.reanchor(&inv_reserve);
-				let assets = transferred.into_assets_iter().collect::<Vec<_>>();
-				let msg = Xcm::WithdrawAsset { assets: assets.clone(), effects: vec![
-					Ai::DepositReserveAsset { assets, dest, effects }
-				] };
-				Config::XcmSender::send_xcm(reserve, msg)
+			Order::InitiateReserveWithdraw { assets, reserve, effects} => {
+				let assets = Self::reanchored(holding.saturating_take(assets), &reserve);
+				Config::XcmSender::send_xcm(reserve, Xcm::WithdrawAsset { assets, effects })
 			}
-			Ai::InitiateTeleport { assets, dest, effects} => {
-				let transferred = holding.saturating_take(assets);
-				let assets = transferred.into_assets_iter().collect();
+			Order::InitiateTeleport { assets, dest, effects} => {
+				let assets = Self::reanchored(holding.saturating_take(assets), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::TeleportAsset { assets, effects })
 			}
-			Ai::QueryHolding { query_id, dest, assets } => {
-				let assets = holding.min(assets.iter()).into_assets_iter().collect();
+			Order::QueryHolding { query_id, dest, assets } => {
+				let assets = Self::reanchored(holding.min(assets.iter()), &dest);
 				Config::XcmSender::send_xcm(dest, Xcm::Balances { query_id, assets })
 			}
 			_ => Err(())?,

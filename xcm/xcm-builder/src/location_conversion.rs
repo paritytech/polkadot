@@ -19,13 +19,13 @@ use sp_io::hashing::blake2_256;
 use sp_runtime::traits::AccountIdConversion;
 use frame_support::traits::Get;
 use codec::Encode;
-use xcm::v0::{MultiLocation, MultiNetwork, Junction};
+use xcm::v0::{MultiLocation, NetworkId, Junction};
 use xcm_executor::traits::LocationConversion;
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 
 impl<
-	Network: Get<MultiNetwork>,
+	Network: Get<NetworkId>,
 	AccountId: From<[u8; 32]> + Into<[u8; 32]>,
 > LocationConversion<AccountId> for Account32Hash<Network, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
@@ -108,12 +108,12 @@ impl<
 pub struct AccountId32Aliases<Network, AccountId>(PhantomData<(Network, AccountId)>);
 
 impl<
-	Network: Get<MultiNetwork>,
+	Network: Get<NetworkId>,
 	AccountId: From<[u8; 32]> + Into<[u8; 32]>,
 > LocationConversion<AccountId> for AccountId32Aliases<Network, AccountId> {
 	fn from_location(location: &MultiLocation) -> Option<AccountId> {
 		if let MultiLocation::X1(Junction::AccountId32 { id, network }) = location {
-			if matches!(network, MultiNetwork::Any) || network == &Network::get() {
+			if matches!(network, NetworkId::Any) || network == &Network::get() {
 				return Some((*id).into())
 			}
 		}

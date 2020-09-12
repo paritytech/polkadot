@@ -58,7 +58,7 @@ use system::{
 };
 use crate::attestations::{self, IncludedBlocks};
 use crate::registrar::Registrar;
-use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiAsset, MultiLocation, Junction, Ai}};
+use xcm::{VersionedXcm, VersionedMultiLocation, v0::{Xcm, SendXcm, ExecuteXcm, MultiAsset, MultiLocation, Junction, Order}};
 
 // ranges for iteration of general block number don't work, so this
 // is a utility to get around that.
@@ -739,8 +739,8 @@ decl_module! {
 			let dest = dest.try_into().map_err(|_| Error::<T>::BadDestination)?;
 			T::ParachainCurrency::transfer_in(&who, to, amount, AllowDeath)?;
 			let assets = vec![MultiAsset::ConcreteFungible { id: MultiLocation::X1(Junction::Parent), amount }];
-			let effects = vec![Ai::DepositAsset { assets: vec![MultiAsset::All], dest }];
-			let msg = VersionedXcm::from(Xcm::ReserveAssetCredit { assets, effects });
+			let effects = vec![Order::DepositAsset { assets: vec![MultiAsset::All], dest }];
+			let msg = VersionedXcm::from(Xcm::ReserveAssetDeposit { assets, effects });
 			DownwardMessageQueue::append(to, msg.encode());
 		}
 	}

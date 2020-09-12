@@ -16,7 +16,7 @@
 
 use sp_std::{result::Result, marker::PhantomData, convert::TryFrom};
 use sp_runtime::traits::CheckedConversion;
-use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, MultiOrigin};
+use xcm::v0::{Error as XcmError, Result as XcmResult, MultiAsset, MultiLocation, OriginKind};
 use frame_support::traits::Get;
 
 pub trait FilterAssetLocation {
@@ -170,21 +170,21 @@ impl<
 }
 
 pub trait ConvertOrigin<Origin> {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<Origin, MultiLocation>;
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<Origin, MultiLocation>;
 }
 
 // TODO: Use tuple generator.
 impl<O> ConvertOrigin<O> for () {
-	fn convert_origin(origin: MultiLocation, _: MultiOrigin) -> Result<O, MultiLocation> { Err(origin) }
+	fn convert_origin(origin: MultiLocation, _: OriginKind) -> Result<O, MultiLocation> { Err(origin) }
 }
 
 impl<O, X: ConvertOrigin<O>> ConvertOrigin<O> for (X,) {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
 		X::convert_origin(origin, kind)
 	}
 }
 impl<O, X: ConvertOrigin<O>, Y: ConvertOrigin<O>> ConvertOrigin<O> for (X, Y) {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
 		X::convert_origin(origin, kind).or_else(|origin| Y::convert_origin(origin, kind))
 	}
 }
@@ -194,7 +194,7 @@ impl<
 	Y: ConvertOrigin<O>,
 	Z: ConvertOrigin<O>,
 > ConvertOrigin<O> for (X, Y, Z) {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
 		<((X, Y), Z)>::convert_origin(origin, kind)
 	}
 }
@@ -205,7 +205,7 @@ impl<
 	Z: ConvertOrigin<O>,
 	W: ConvertOrigin<O>,
 > ConvertOrigin<O> for (X, Y, Z, W) {
-	fn convert_origin(origin: MultiLocation, kind: MultiOrigin) -> Result<O, MultiLocation> {
+	fn convert_origin(origin: MultiLocation, kind: OriginKind) -> Result<O, MultiLocation> {
 		<(((X, Y), Z), W)>::convert_origin(origin, kind)
 	}
 }

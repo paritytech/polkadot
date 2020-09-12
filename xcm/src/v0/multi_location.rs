@@ -16,64 +16,11 @@
 
 //! Cross-Consensus Message format data structures.
 
-use sp_std::{result, boxed::Box, vec::Vec, convert::TryFrom};
+use sp_std::{result, convert::TryFrom};
 use sp_runtime::RuntimeDebug;
 use codec::{self, Encode, Decode};
-use super::{VersionedXcm, VersionedMultiLocation, VersionedMultiAsset};
-
-pub type Error = ();
-pub type Result = result::Result<(), Error>;
-
-#[deprecated]
-pub type XcmError = Error;
-#[deprecated]
-pub type XcmResult = Result;
-
-pub trait ExecuteXcm {
-	fn execute_xcm(origin: MultiLocation, msg: Xcm) -> Result;
-}
-
-impl ExecuteXcm for () {
-	fn execute_xcm(_origin: MultiLocation, _msg: Xcm) -> Result {
-		Err(())
-	}
-}
-
-pub trait SendXcm {
-	fn send_xcm(dest: MultiLocation, msg: Xcm) -> Result;
-}
-
-impl SendXcm for () {
-	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
-		Err(())
-	}
-}
-
-/// Basically just the XCM (more general) version of `ParachainDispatchOrigin`.
-#[derive(Copy, Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
-pub enum MultiOrigin {
-	/// Origin should just be the native origin for the sender. For Cumulus/Frame chains this is
-	/// the `Parachain` origin.
-	Native,
-	/// Origin should just be the standard account-based origin with the sovereign account of
-	/// the sender. For Cumulus/Frame chains, this is the `Signed` origin.
-	SovereignAccount,
-	/// Origin should be the super-user. For Cumulus/Frame chains, this is the `Root` origin.
-	/// This will not usually be an available option.
-	Superuser,
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
-pub enum MultiNetwork {
-	/// Unidentified/any.
-	Any,
-	/// Some named network.
-	Named(Vec<u8>),
-	/// The Polkadot Relay chain
-	Polkadot,
-	/// Kusama.
-	Kusama,
-}
+use super::Junction;
+use crate::VersionedMultiLocation;
 
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum MultiLocation {
@@ -82,6 +29,68 @@ pub enum MultiLocation {
 	X2(Junction, Junction),
 	X3(Junction, Junction, Junction),
 	X4(Junction, Junction, Junction, Junction),
+}
+
+impl From<Junction> for MultiLocation {
+	fn from(x: Junction) -> Self {
+		MultiLocation::X1(x)
+	}
+}
+
+impl From<()> for MultiLocation {
+	fn from(_: ()) -> Self {
+		MultiLocation::Null
+	}
+}
+impl From<(Junction,)> for MultiLocation {
+	fn from(x: (Junction,)) -> Self {
+		MultiLocation::X1(x.0)
+	}
+}
+impl From<(Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction)) -> Self {
+		MultiLocation::X2(x.0, x.1)
+	}
+}
+impl From<(Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction)) -> Self {
+		MultiLocation::X3(x.0, x.1, x.2)
+	}
+}
+impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
+	fn from(x: (Junction, Junction, Junction, Junction)) -> Self {
+		MultiLocation::X4(x.0, x.1, x.2, x.3)
+	}
+}
+
+impl From<[Junction; 0]> for MultiLocation {
+	fn from(_: [Junction; 0]) -> Self {
+		MultiLocation::Null
+	}
+}
+impl From<[Junction; 1]> for MultiLocation {
+	fn from(x: [Junction; 1]) -> Self {
+		let [x0] = x;
+		MultiLocation::X1(x0)
+	}
+}
+impl From<[Junction; 2]> for MultiLocation {
+	fn from(x: [Junction; 2]) -> Self {
+		let [x0, x1] = x;
+		MultiLocation::X2(x0, x1)
+	}
+}
+impl From<[Junction; 3]> for MultiLocation {
+	fn from(x: [Junction; 3]) -> Self {
+		let [x0, x1, x2] = x;
+		MultiLocation::X3(x0, x1, x2)
+	}
+}
+impl From<[Junction; 4]> for MultiLocation {
+	fn from(x: [Junction; 4]) -> Self {
+		let [x0, x1, x2, x3] = x;
+		MultiLocation::X4(x0, x1, x2, x3)
+	}
 }
 
 pub struct MultiLocationIterator(MultiLocation);
@@ -289,179 +298,6 @@ impl MultiLocation {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
-pub enum Junction {
-	Parent,
-	Parachain { #[codec(compact)] id: u32 },
-	OpaqueRemark(Vec<u8>),
-	AccountId32 { network: MultiNetwork, id: [u8; 32] },
-	AccountIndex64 { network: MultiNetwork, #[codec(compact)] index: u64 },
-	AccountKey20 { network: MultiNetwork, key: [u8; 20] },
-	/// An instanced Pallet on a Frame-based chain.
-	PalletInstance { id: u8 },
-	/// A nondescript index within the context location.
-	GeneralIndex { #[codec(compact)] id: u128 },
-	/// A nondescript datum acting as a key within the context location.
-	GeneralKey(Vec<u8>),
-	/// The unambiguous child.
-	OnlyChild,
-}
-
-impl From<Junction> for MultiLocation {
-	fn from(x: Junction) -> Self {
-		MultiLocation::X1(x)
-	}
-}
-
-impl From<()> for MultiLocation {
-	fn from(_: ()) -> Self {
-		MultiLocation::Null
-	}
-}
-impl From<(Junction,)> for MultiLocation {
-	fn from(x: (Junction,)) -> Self {
-		MultiLocation::X1(x.0)
-	}
-}
-impl From<(Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction)) -> Self {
-		MultiLocation::X2(x.0, x.1)
-	}
-}
-impl From<(Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction)) -> Self {
-		MultiLocation::X3(x.0, x.1, x.2)
-	}
-}
-impl From<(Junction, Junction, Junction, Junction)> for MultiLocation {
-	fn from(x: (Junction, Junction, Junction, Junction)) -> Self {
-		MultiLocation::X4(x.0, x.1, x.2, x.3)
-	}
-}
-
-impl From<[Junction; 0]> for MultiLocation {
-	fn from(_: [Junction; 0]) -> Self {
-		MultiLocation::Null
-	}
-}
-impl From<[Junction; 1]> for MultiLocation {
-	fn from(x: [Junction; 1]) -> Self {
-		let [x0] = x;
-		MultiLocation::X1(x0)
-	}
-}
-impl From<[Junction; 2]> for MultiLocation {
-	fn from(x: [Junction; 2]) -> Self {
-		let [x0, x1] = x;
-		MultiLocation::X2(x0, x1)
-	}
-}
-impl From<[Junction; 3]> for MultiLocation {
-	fn from(x: [Junction; 3]) -> Self {
-		let [x0, x1, x2] = x;
-		MultiLocation::X3(x0, x1, x2)
-	}
-}
-impl From<[Junction; 4]> for MultiLocation {
-	fn from(x: [Junction; 4]) -> Self {
-		let [x0, x1, x2, x3] = x;
-		MultiLocation::X4(x0, x1, x2, x3)
-	}
-}
-
-impl Junction {
-	pub fn is_sub_consensus(&self) -> bool {
-		match self {
-			Junction::Parent => false,
-
-			Junction::Parachain { .. } |
-			Junction::OpaqueRemark(..) |
-			Junction::AccountId32 { .. } |
-			Junction::AccountIndex64 { .. } |
-			Junction::AccountKey20 { .. } |
-			Junction::PalletInstance { .. } |
-			Junction::GeneralIndex { .. } |
-			Junction::GeneralKey(..) |
-			Junction::OnlyChild => true,
-		}
-	}
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
-pub enum AssetInstance {
-	Undefined,
-	Index8(u8),
-	Index16 { #[codec(compact)] id: u16 },
-	Index32 { #[codec(compact)] id: u32 },
-	Index64 { #[codec(compact)] id: u64 },
-	Index128 { #[codec(compact)] id: u128 },
-	Array4([u8; 4]),
-	Array8([u8; 8]),
-	Array16([u8; 16]),
-	Array32([u8; 32]),
-	Blob(Vec<u8>),
-}
-
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
-pub enum MultiAsset {
-	None,
-	All,
-	AllFungible,
-	AllNonFungible,
-	AllAbstractFungible { id: Vec<u8> },
-	AllAbstractNonFungible { class: Vec<u8> },
-	AllConcreteFungible { id: MultiLocation },
-	AllConcreteNonFungible { class: MultiLocation },
-	AbstractFungible { id: Vec<u8>, #[codec(compact)] amount: u128 },
-	AbstractNonFungible { class: Vec<u8>, instance: AssetInstance },
-	ConcreteFungible { id: MultiLocation, #[codec(compact)] amount: u128 },
-	ConcreteNonFungible { class: MultiLocation, instance: AssetInstance },
-}
-
-pub type MultiAssets = Vec<MultiAsset>;
-// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
-pub enum Ai {
-	Null,
-	DepositAsset { assets: MultiAssets, dest: MultiLocation },
-	DepositReserveAsset { assets: MultiAssets, dest: MultiLocation, effects: Ais },
-	ExchangeAsset { give: MultiAssets, receive: MultiAssets },
-	InitiateReserveTransfer { assets: MultiAssets, reserve: MultiLocation, dest: MultiLocation, effects: Ais },
-	InitiateTeleport { assets: MultiAssets, dest: MultiLocation, effects: Ais },
-	QueryHolding { #[codec(compact)] query_id: u64, dest: MultiLocation, assets: MultiAssets },
-}
-
-pub type Ais = Vec<Ai>;
-// TODO: Efficient encoding, using initial byte values 128+ to encode the number of items in the vector.
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug)]
-pub enum Xcm {
-	WithdrawAsset { assets: MultiAssets, effects: Ais },
-	ReserveAssetCredit { assets: MultiAssets, effects: Ais },
-	TeleportAsset { assets: MultiAssets, effects: Ais },
-	Balances { #[codec(compact)] query_id: u64, assets: MultiAssets },
-	Transact { origin_type: MultiOrigin, call: Vec<u8> },
-	// these won't be staying here for long. only v0 parachains with HRMP.
-	RelayToParachain { id: u32, inner: Box<VersionedXcm> },
-	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
-}
-
-impl From<Xcm> for VersionedXcm {
-	fn from(x: Xcm) -> Self {
-		VersionedXcm::V0(x)
-	}
-}
-
-impl TryFrom<VersionedXcm> for Xcm {
-	type Error = ();
-	fn try_from(x: VersionedXcm) -> result::Result<Self, ()> {
-		match x {
-			VersionedXcm::V0(x) => Ok(x),
-		}
-	}
-}
-
 impl From<MultiLocation> for VersionedMultiLocation {
 	fn from(x: MultiLocation) -> Self {
 		VersionedMultiLocation::V0(x)
@@ -473,21 +309,6 @@ impl TryFrom<VersionedMultiLocation> for MultiLocation {
 	fn try_from(x: VersionedMultiLocation) -> result::Result<Self, ()> {
 		match x {
 			VersionedMultiLocation::V0(x) => Ok(x),
-		}
-	}
-}
-
-impl From<MultiAsset> for VersionedMultiAsset {
-	fn from(x: MultiAsset) -> Self {
-		VersionedMultiAsset::V0(x)
-	}
-}
-
-impl TryFrom<VersionedMultiAsset> for MultiAsset {
-	type Error = ();
-	fn try_from(x: VersionedMultiAsset) -> result::Result<Self, ()> {
-		match x {
-			VersionedMultiAsset::V0(x) => Ok(x),
 		}
 	}
 }

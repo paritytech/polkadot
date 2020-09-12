@@ -212,22 +212,22 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 	}
 }
 
-impl From<ParachainDispatchOrigin> for xcm::v0::MultiOrigin {
+impl From<ParachainDispatchOrigin> for xcm::v0::OriginKind {
 	fn from(o: ParachainDispatchOrigin) -> Self {
 		match o {
-			ParachainDispatchOrigin::Parachain => xcm::v0::MultiOrigin::Native,
-			ParachainDispatchOrigin::Signed => xcm::v0::MultiOrigin::SovereignAccount,
-			ParachainDispatchOrigin::Root => xcm::v0::MultiOrigin::Superuser,
+			ParachainDispatchOrigin::Parachain => xcm::v0::OriginKind::Native,
+			ParachainDispatchOrigin::Signed => xcm::v0::OriginKind::SovereignAccount,
+			ParachainDispatchOrigin::Root => xcm::v0::OriginKind::Superuser,
 		}
 	}
 }
 
-impl From<xcm::v0::MultiOrigin> for ParachainDispatchOrigin {
-	fn from(o: xcm::v0::MultiOrigin) -> Self {
+impl From<xcm::v0::OriginKind> for ParachainDispatchOrigin {
+	fn from(o: xcm::v0::OriginKind) -> Self {
 		match o {
-			xcm::v0::MultiOrigin::Native => ParachainDispatchOrigin::Parachain,
-			xcm::v0::MultiOrigin::SovereignAccount => ParachainDispatchOrigin::Signed,
-			xcm::v0::MultiOrigin::Superuser => ParachainDispatchOrigin::Root,
+			xcm::v0::OriginKind::Native => ParachainDispatchOrigin::Parachain,
+			xcm::v0::OriginKind::SovereignAccount => ParachainDispatchOrigin::Signed,
+			xcm::v0::OriginKind::Superuser => ParachainDispatchOrigin::Root,
 		}
 	}
 }

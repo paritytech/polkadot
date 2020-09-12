@@ -27,7 +27,7 @@ pub trait Config {
 	/// How to withdraw and deposit an asset.
 	type AssetTransactor: TransactAsset;
 
-	/// How to get a call origin from a `MultiOrigin` value.
+	/// How to get a call origin from a `OriginKind` value.
 	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
 
 	/// Combinations of (Location, Asset) pairs which we unilateral trust as reserves.

@@ -15,15 +15,11 @@ sp-core = { git = "https://github.com/paritytech/substrate", default-features = 
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 
-# Polkadot dependencies
-polkadot-parachain = { path = "../../parachain", default-features = false }
-
 [features]
 default = ["std"]
 std = [
 	"codec/std",
 	"frame-support/std",
-	"polkadot-parachain/std",
 	"sp-std/std",
 	"sp-arithmetic/std",
 	"sp-core/std",
