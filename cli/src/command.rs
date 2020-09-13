@@ -21,6 +21,7 @@ use service::{IdentifyVariant, self};
 use service_new::{IdentifyVariant, self as service};
 use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
+use std::sync::Arc;
 
 fn get_exec_name() -> Option<String> {
 	std::env::current_exe()
@@ -153,6 +154,39 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::BuildSpec(cmd)) => {
 			let runner = cli.create_runner(cmd)?;
 			runner.sync_run(|config| cmd.run(config.chain_spec, config.network))
+		},
+		Some(Subcommand::BuildSyncSpec(cmd)) => {
+			let runner = cli.create_runner(cmd)?;
+			let chain_spec = &runner.config().chain_spec;
+
+			set_default_ss58_version(chain_spec);
+
+			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
+			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
+				None
+			} else {
+				Some((cli.run.grandpa_pause[0], cli.run.grandpa_pause[1]))
+			};
+
+			if chain_spec.is_kusama() {
+				info!("----------------------------");
+				info!("This chain is not in any way");
+				info!("      endorsed by the       ");
+				info!("     KUSAMA FOUNDATION      ");
+				info!("----------------------------");
+			}
+
+			runner.async_run(|config| {
+				let chain_spec = config.chain_spec.cloned_box();
+				let network_config = config.network.clone();
+				let service::NewFull { task_manager, client, network_status_sinks, .. }
+					= service::new_full_nongeneric(
+						config, None, authority_discovery_enabled, grandpa_pause, false,
+					)?;
+				let client = Arc::new(client);
+
+				Ok((cmd.run(chain_spec, network_config, client, network_status_sinks), task_manager))
+			})
 		},
 		Some(Subcommand::CheckBlock(cmd)) => {
 			let runner = cli.create_runner(cmd)?;

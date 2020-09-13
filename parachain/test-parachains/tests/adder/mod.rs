@@ -25,7 +25,7 @@ use parachain::{
 		HeadData as GenericHeadData,
 		ValidationParams,
 	},
-	wasm_executor::{ValidationPool, ValidationExecutionMode}
+	wasm_executor::{ValidationPool, ExecutionMode}
 };
 use codec::{Decode, Encode};
 
@@ -57,28 +57,27 @@ fn hash_head(head: &HeadData) -> [u8; 32] {
 	tiny_keccak::keccak256(head.encode().as_slice())
 }
 
-fn validation_pool() -> ValidationPool {
-	let execution_mode = ValidationExecutionMode::ExternalProcessCustomHost {
+fn execution_mode() -> ExecutionMode {
+	ExecutionMode::ExternalProcessCustomHost {
+		pool: ValidationPool::new(),
 		binary: std::env::current_exe().unwrap(),
 		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
-	};
-
-	ValidationPool::new(execution_mode)
+	}
 }
 
 #[test]
 fn execute_good_on_parent_with_inprocess_validation() {
-	let pool = ValidationPool::new(ValidationExecutionMode::InProcess);
-	execute_good_on_parent(pool);
+	let execution_mode = ExecutionMode::InProcess;
+	execute_good_on_parent(execution_mode);
 }
 
 #[test]
 pub fn execute_good_on_parent_with_external_process_validation() {
-	let pool = validation_pool();
-	execute_good_on_parent(pool);
+	let execution_mode = execution_mode();
+	execute_good_on_parent(execution_mode);
 }
 
-fn execute_good_on_parent(pool: ValidationPool) {
+fn execute_good_on_parent(execution_mode: ExecutionMode) {
 	let parent_head = HeadData {
 		number: 0,
 		parent_hash: [0; 32],
@@ -99,7 +98,7 @@ fn execute_good_on_parent(pool: ValidationPool) {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::Remote(&pool),
+		&execution_mode,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
@@ -115,7 +114,7 @@ fn execute_good_chain_on_parent() {
 	let mut number = 0;
 	let mut parent_hash = [0; 32];
 	let mut last_state = 0;
-	let pool = validation_pool();
+	let execution_mode = execution_mode();
 
 	for add in 0..10 {
 		let parent_head = HeadData {
@@ -137,7 +136,7 @@ fn execute_good_chain_on_parent() {
 				relay_chain_height: number as RelayChainBlockNumber + 1,
 				hrmp_mqc_heads: Vec::new(),
 			},
-			parachain::wasm_executor::ExecutionMode::Remote(&pool),
+			&execution_mode,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
@@ -155,7 +154,7 @@ fn execute_good_chain_on_parent() {
 
 #[test]
 fn execute_bad_on_parent() {
-	let pool = validation_pool();
+	let execution_mode = execution_mode();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -176,7 +175,7 @@ fn execute_bad_on_parent() {
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
 		},
-		parachain::wasm_executor::ExecutionMode::Remote(&pool),
+		&execution_mode,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap_err();
 }
