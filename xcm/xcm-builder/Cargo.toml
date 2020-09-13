@@ -1,0 +1,36 @@
+[package]
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+name = "xcm-builder"
+description = "Tools & types for building with XCM and its executor."
+version = "0.8.22"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+
+xcm = { path = "..", default-features = false }
+xcm-executor = { path = "../xcm-executor", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+
+# Polkadot dependencies
+polkadot-parachain = { path = "../../parachain", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"frame-support/std",
+	"polkadot-parachain/std",
+	"sp-std/std",
+	"sp-arithmetic/std",
+	"sp-core/std",
+	"sp-runtime/std",
+	"xcm/std",
+	"xcm-executor/std",
+]

@@ -31,6 +31,10 @@ use sp_core::bytes;
 /// Block number type used by the relay chain.
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
+/// Deprecated - use sp_runtime::traits::AccountIdConversion directly instead.
+#[deprecated]
+pub use sp_runtime::traits::AccountIdConversion;
+
 /// Parachain head data included in the chain.
 #[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default))]
@@ -122,7 +126,24 @@ impl Id {
 	}
 
 	/// Returns `true` if this parachain runs with system-level privileges.
+	/// Use IsSystem instead.
+	#[deprecated]
 	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+}
+
+pub trait IsSystem {
+	fn is_system(&self) -> bool;
+}
+
+impl IsSystem for Id {
+	fn is_system(&self) -> bool {
+		self.0 < USER_INDEX_START
+	}
+}
+impl IsSystem for Sibling {
+	fn is_system(&self) -> bool {
+		IsSystem::is_system(&self.0)
+	}
 }
 
 impl sp_std::ops::Add<u32> for Id {
@@ -133,55 +154,33 @@ impl sp_std::ops::Add<u32> for Id {
 	}
 }
 
-/// This type can be converted into and possibly from an AccountId (which itself is generic).
-pub trait AccountIdConversion<AccountId>: Sized {
-	/// Convert into an account ID. This is infallible.
-	fn into_account(&self) -> AccountId;
+#[derive(Clone, Copy, Default, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
+pub struct Sibling(pub Id);
 
- 	/// Try to convert an account ID into this type. Might not succeed.
-	fn try_from_account(a: &AccountId) -> Option<Self>;
-}
-
-// TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
-// #360
-struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, codec::Error> {
-		Ok(None)
-	}
-
-	fn read(&mut self, into: &mut [u8]) -> Result<(), codec::Error> {
-		let len = into.len().min(self.0.len());
-		into[..len].copy_from_slice(&self.0[..len]);
-		for i in &mut into[len..] {
-			*i = 0;
-		}
-		self.0 = &self.0[len..];
-		Ok(())
+impl From<Id> for Sibling {
+	fn from(i: Id) -> Self {
+		Self(i)
 	}
 }
-
-/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
-/// zeroes to fill AccountId.
-impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
-	fn into_account(&self) -> T {
-		(b"para", self).using_encoded(|b|
-			T::decode(&mut TrailingZeroInput(b))
-		).unwrap_or_default()
+impl From<Sibling> for Id {
+	fn from(i: Sibling) -> Self {
+		i.0
 	}
-
- 	fn try_from_account(x: &T) -> Option<Self> {
-		x.using_encoded(|d| {
-			if &d[0..4] != b"para" { return None }
-			let mut cursor = &d[4..];
-			let result = Decode::decode(&mut cursor).ok()?;
-			if cursor.iter().all(|x| *x == 0) {
-				Some(result)
-			} else {
-				None
-			}
-		})
+}
+impl AsRef<Id> for Sibling {
+	fn as_ref(&self) -> &Id {
+		&self.0
 	}
+}
+impl TypeId for Sibling {
+	const TYPE_ID: [u8; 4] = *b"sibl";
+}
+impl From<Sibling> for u32 {
+	fn from(x: Sibling) -> Self { x.0.into() }
+}
+
+impl From<u32> for Sibling {
+	fn from(x: u32) -> Self { Sibling(x.into()) }
 }
 
 /// Which origin a parachain's message to the relay chain should be dispatched from.
@@ -210,6 +209,26 @@ impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
 			PARACHAIN => ParachainDispatchOrigin::Parachain,
 			_ => return Err(()),
 		})
+	}
+}
+
+impl From<ParachainDispatchOrigin> for xcm::v0::OriginKind {
+	fn from(o: ParachainDispatchOrigin) -> Self {
+		match o {
+			ParachainDispatchOrigin::Parachain => xcm::v0::OriginKind::Native,
+			ParachainDispatchOrigin::Signed => xcm::v0::OriginKind::SovereignAccount,
+			ParachainDispatchOrigin::Root => xcm::v0::OriginKind::Superuser,
+		}
+	}
+}
+
+impl From<xcm::v0::OriginKind> for ParachainDispatchOrigin {
+	fn from(o: xcm::v0::OriginKind) -> Self {
+		match o {
+			xcm::v0::OriginKind::Native => ParachainDispatchOrigin::Parachain,
+			xcm::v0::OriginKind::SovereignAccount => ParachainDispatchOrigin::Signed,
+			xcm::v0::OriginKind::Superuser => ParachainDispatchOrigin::Root,
+		}
 	}
 }
 

@@ -60,6 +60,14 @@ use transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use session::historical as session_historical;
 use system::{EnsureRoot, EnsureOneOf, EnsureSigned};
 use constants::{time::*, currency::*, fee::*};
+use polkadot_parachain::primitives::Id as ParaId;
+use xcm::v0::{MultiLocation, NetworkId};
+use xcm_executor::{XcmExecutor, traits::IsConcrete};
+use xcm_builder::{
+	AccountId32Aliases, ChildParachainConvertsVia, SovereignSignedViaLocation, CurrencyAdapter,
+	ChildParachainAsNative, SignedAccountId32AsNative, ChildSystemParachainAsSuperuser,
+	LocationInverter,
+};
 
 #[cfg(feature = "std")]
 pub use staking::StakerStatus;
@@ -398,6 +406,47 @@ parameter_types! {
 	pub const SlashPeriod: BlockNumber = 7 * DAYS;
 }
 
+parameter_types! {
+	pub const RocLocation: MultiLocation = MultiLocation::Null;
+	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub const Ancestry: MultiLocation = MultiLocation::Null;
+}
+
+pub type LocationConverter = (
+	ChildParachainConvertsVia<ParaId, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor =
+	CurrencyAdapter<
+		// Use this currency:
+		Balances,
+		// Use this currency when it is a fungible asset matching the given location or name:
+		IsConcrete<RocLocation>,
+		// We can convert the MultiLocations with our converter above:
+		LocationConverter,
+		// Our chain's account ID type (we can't get away without mentioning it explicitly):
+		AccountId,
+	>;
+
+type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	ChildParachainAsNative<parachains::Origin, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+);
+
+pub struct XcmExecutorConfig;
+impl xcm_executor::Config for XcmExecutorConfig {
+	type Call = Call;
+	type XcmSender = Parachains;
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	type IsReserve = ();
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
 impl parachains::Trait for Runtime {
 	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
@@ -419,6 +468,8 @@ impl parachains::Trait for Runtime {
 	type IdentificationTuple = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, Vec<u8>)>>::IdentificationTuple;
 	type ReportOffence = Offences;
 	type BlockHashConversion = sp_runtime::traits::Identity;
+
+	type XcmExecutive = XcmExecutor<XcmExecutorConfig>;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension

@@ -1,0 +1,30 @@
+[package]
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+name = "pallet-xcm-handler"
+description = "Pallet for executing XCM instructions."
+version = "0.8.22"
+
+[dependencies]
+# foreign
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+# substrate
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+# local
+xcm = { path = "..", default-features = false }
+xcm-executor = { path = "../xcm-executor", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+
+	"frame-support/std",
+	"frame-system/std",
+	"sp-std/std",
+
+	"xcm/std",
+	"xcm-executor/std",
+]
