@@ -10,6 +10,8 @@ Signals from the overseer to a subsystem to request change in execution that has
 enum OverseerSignal {
   /// Signal about a change in active leaves.
   ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Signal about a new best finalized block.
+  BlockFinalized(Hash),
   /// Conclude all operation.
   Conclude,
 }
@@ -38,31 +40,35 @@ struct ActiveLeavesUpdate {
 Messages received by the approval voting subsystem.
 
 ```rust
+enum VoteCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+	// We do not have enough information to evaluate the vote. Ignore but don't report.
+	// This should occur primarily on startup.
+	Ignore,
+}
+
 enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
-	///
-	/// If the voting subsystem can accept the assignment, it returns `true` on the channel.
-	/// Otherwise, `false`.
 	CheckAndImportAssignment(
 		Hash, 
 		AssignmentCert, 
 		ValidatorIndex,
-		ResponseChannel<bool>,
+		ResponseChannel<VoteCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
-	///
-	/// If the voting subsystem can accept the approval vote, it returns `true` on the
-	/// channel.
-	/// Otherwise, `false`.
 	CheckAndImportApproval(
 		ApprovalVote,
 		ValidatorIndex,
-		ResponseChannel<bool>,
+		ResponseChannel<VoteCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
 	/// acceptable to vote on finality for. It can also return the same
-	/// block hash, if that is acceptable to vote upon.
+	/// block hash, if that is acceptable to vote upon. Return `None` if the input
+	/// hash is unrecognized.
 	ApprovedAncestor(Hash, ResponseChannel<Option<Hash>>),
 }
 ```
