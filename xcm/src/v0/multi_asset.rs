@@ -54,22 +54,55 @@ pub enum AssetInstance {
 /// Wildcards may or may not be allowed by the interpreting context.
 ///
 /// Assets classes may be identified in one of two ways: either an abstract identifier or a concrete identifier.
-/// Implementations may support only one of these.
+/// Implementations may support only one of these. A single asset may be referenced from multiple asset identifiers,
+/// though will tend to have only a single *preferred* identifier.
+///
+/// ### Abstract identifiers
 ///
 /// Abstract identifiers are absolute identifiers that represent a notional asset which can exist within multiple
-/// consensus systems. These tend to be simpler to deal with (since they stay the same between consensus systems).
+/// consensus systems. These tend to be simpler to deal with since their broad meaning is unchanged regardless stay
+/// of the consensus system in which it is interpreted.
+///
 /// However, in the attempt to provide uniformity across consensus systems, they may conflate different instantiations
 /// of some notional asset (e.g. the reserve asset and a local reserve-backed derivative of it) under the same name,
 /// leading to confusion. It also implies that one notional asset is accounted for locally in only one way. This may
 /// not be the case, e.g. where there are multiple bridge instances each providing a bridged "BTC" token yet none
 /// being fungible between the others.
 ///
-/// Concrete identifiers are relative identifiers that specifically identify a single asset through its location in
+/// Since they are meant to be absolute and universal, a global registry is needed to ensure that name collisions
+/// do not occur.
+///
+/// An abstract identifier is represented as a simple variable-size byte string. As of writing, no global registry
+/// exists and no proposals have been put forth for asset labeling.
+///
+/// ### Concrete identifiers
+///
+/// Concrete identifiers are *relative identifiers* that specifically identify a single asset through its location in
 /// a consensus system relative to the context interpreting. Use of a `MultiLocation` ensures that similar but non
 /// fungible variants of the same underlying asset can be properly distinguished, and obviates the need for any kind
-/// of central registry. The limitation is that the asset identifier cannot be trivially copied between consensus
-/// systems and must instead be "reanchored" whenever being moved to a new consensus system, using the two systems'
+/// of central registry.
+///
+/// The limitation is that the asset identifier cannot be trivially copied between consensus
+/// systems and must instead be "re-anchored" whenever being moved to a new consensus system, using the two systems'
 /// relative paths.
+///
+/// Throughout XCM, messages are authored such that *when interpreted from the receiver's point of view* they will
+/// have the desired meaning/effect. This means that relative paths should always by constructed to be read from the
+/// point of view of the receiving system, *which may be have a completely different meaning in the authoring system*.
+///
+/// Concrete identifiers are the preferred way of identifying an asset since they are entirely unambiguous.
+///
+/// A concrete identifier is represented by a `MultiLocation`. If a system has an unambiguous primary asset (such as
+/// Bitcoin with BTC or Ethereum with ETH), then it will conventionally be identified as the chain itself. Alternative
+/// and more specific ways of referring to an asset within a system include:
+///
+/// - `<chain>/PalletInstance(<id>)` for a Frame chain with a single-asset pallet instance (such as an instance of the
+///   Balances pallet).
+/// - `<chain>/PalletInstance(<id>)/GeneralIndex(<index>)` for a Frame chain with an indexed multi-asset pallet
+///   instance (such as an instance of the Assets pallet).
+/// - `<chain>/AccountId32` for an ERC-20-style single-asset smart-contract on a Frame-based contracts chain.
+/// - `<chain>/AccountKey20` for an ERC-20-style single-asset smart-contract on an Ethereum-like chain.
+///
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum MultiAsset {
 	/// No assets. Rarely used.
