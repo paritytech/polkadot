@@ -22,12 +22,39 @@ use codec::{self, Encode, Decode};
 use super::Junction;
 use crate::VersionedMultiLocation;
 
+/// A relative path between state-bearing consensus systems.
+///
+/// A location in a consensus system is defined as an *isolatable state machine* held within global consensus. The
+/// location in question need not have a sophisticated consensus algorithm of its own; a single account within
+/// Ethereum, for example, could be considered a location.
+///
+/// A very-much non-exhaustive list of types of location include:
+/// - A (normal, layer-1) block chain, e.g. the Bitcoin mainnet or a parachain.
+/// - A layer-0 super-chain, e.g. the Polkadot Relay chain.
+/// - A layer-2 smart contract, e.g. an ERC-20 on Ethereum.
+/// - A logical functional component of a chain, e.g. a single instance of a pallet on a Frame-based Substrate chain.
+/// - An account.
+///
+/// A `MultiLocation` is a *relative identifier*, meaning that it can only be used to define the relative path
+/// between two locations, and cannot generally be used to refer to a location universally. It is comprised of a
+/// number of *junctions*, each morphing the previous location, either diving down into one of its internal locations,
+/// called a *sub-consensus*, or going up into its parent location. Correct `MultiLocation` values must have all
+/// `Parent` junctions as a prefix to all *sub-consensus* junctions.
+///
+/// This specific `MultiLocation` implementation uses a Rust `enum` in order to make pattern matching easier.
+///
+/// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum MultiLocation {
+	/// The interpreting consensus system.
 	Null,
+	/// A relative path comprising one junction.
 	X1(Junction),
+	/// A relative path comprising two junctions.
 	X2(Junction, Junction),
+	/// A relative path comprising three junctions.
 	X3(Junction, Junction, Junction),
+	/// A relative path comprising four junctions.
 	X4(Junction, Junction, Junction, Junction),
 }
 
@@ -129,6 +156,7 @@ impl<'a> Iterator for MultiLocationReverseRefIterator<'a> {
 }
 
 impl MultiLocation {
+	/// Returns first junction, or `None` if the location is empty.
 	pub fn first(&self) -> Option<&Junction> {
 		match &self {
 			MultiLocation::Null => None,
@@ -138,6 +166,8 @@ impl MultiLocation {
 			MultiLocation::X4(ref a, ..) => Some(a),
 		}
 	}
+
+	/// Returns last junction, or `None` if the location is empty.
 	pub fn last(&self) -> Option<&Junction> {
 		match &self {
 			MultiLocation::Null => None,
@@ -147,6 +177,9 @@ impl MultiLocation {
 			MultiLocation::X4(.., ref a) => Some(a),
 		}
 	}
+
+	/// Splits off the first junction, returning the remaining suffix (first item in tuple) and the first element
+	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_first(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -156,6 +189,9 @@ impl MultiLocation {
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(b, c, d), Some(a)),
 		}
 	}
+
+	/// Splits off the last junction, returning the remaining prefix (first item in tuple) and the last element
+	/// (second item in tuple) or `None` if it was empty.
 	pub fn split_last(self) -> (MultiLocation, Option<Junction>) {
 		match self {
 			MultiLocation::Null => (MultiLocation::Null, None),
@@ -165,6 +201,8 @@ impl MultiLocation {
 			MultiLocation::X4(a, b, c ,d) => (MultiLocation::X3(a, b, c), Some(d)),
 		}
 	}
+
+	/// Removes the first element from `self`, returning it (or `None` if it was empty).
 	pub fn take_first(&mut self) -> Option<Junction> {
 		let mut d = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut d);
@@ -172,6 +210,8 @@ impl MultiLocation {
 		*self = tail;
 		head
 	}
+
+	/// Removes the last element from `self`, returning it (or `None` if it was empty).
 	pub fn take_last(&mut self) -> Option<Junction> {
 		let mut d = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut d);
@@ -179,6 +219,9 @@ impl MultiLocation {
 		*self = head;
 		tail
 	}
+
+	/// Consumes `self` and returns a `MultiLocation` suffixed with `new`, or an `Err` with the original value of
+	/// `self` in case of overflow.
 	pub fn pushed_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
@@ -188,6 +231,9 @@ impl MultiLocation {
 			s => Err(s)?,
 		})
 	}
+
+	/// Consumes `self` and returns a `MultiLocation` prefixed with `new`, or an `Err` with the original value of
+	/// `self` in case of overflow.
 	pub fn pushed_front_with(self, new: Junction) -> result::Result<Self, Self> {
 		Ok(match self {
 			MultiLocation::Null => MultiLocation::X1(new),
@@ -197,6 +243,8 @@ impl MultiLocation {
 			s => Err(s)?,
 		})
 	}
+
+	/// Returns the number of junctions in `self`.
 	pub fn len(&self) -> usize {
 		match &self {
 			MultiLocation::Null => 0,
@@ -207,6 +255,7 @@ impl MultiLocation {
 		}
 	}
 
+	/// Returns the junction at index `i`, or `None` if the location doesn't contain that many elements.
 	pub fn at(&self, i: usize) -> Option<&Junction> {
 		Some(match (i, &self) {
 			(0, MultiLocation::X1(ref a)) => a,
@@ -223,6 +272,8 @@ impl MultiLocation {
 		})
 	}
 
+	/// Returns a mutable reference to the junction at index `i`, or `None` if the location doesn't contain that many
+	/// elements.
 	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
 		Some(match (i, self) {
 			(0, MultiLocation::X1(ref mut a)) => a,
@@ -239,19 +290,27 @@ impl MultiLocation {
 		})
 	}
 
+	/// Returns a reference iterator over the junctions.
 	pub fn iter(&self) -> MultiLocationRefIterator {
 		MultiLocationRefIterator(&self, 0)
 	}
+
+	/// Returns a reference iterator over the junctions in reverse.
 	pub fn iter_rev(&self) -> MultiLocationReverseRefIterator {
 		MultiLocationReverseRefIterator(&self, 0)
 	}
+
+	/// Consumes `self` and returns an iterator over the junctions.
 	pub fn into_iter(self) -> MultiLocationIterator {
 		MultiLocationIterator(self)
 	}
+
+	/// Consumes `self` and returns an iterator over the junctions in reverse.
 	pub fn into_iter_rev(self) -> MultiLocationReverseIterator {
 		MultiLocationReverseIterator(self)
 	}
 
+	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut n);
@@ -261,6 +320,8 @@ impl MultiLocation {
 		}
 	}
 
+
+	/// Mutates `self`, prefixing it with `new`. Returns `Err` in case of overflow.
 	pub fn push_front(&mut self, new: Junction) -> result::Result<(), ()> {
 		let mut n = MultiLocation::Null;
 		sp_std::mem::swap(&mut *self, &mut n);
@@ -270,19 +331,36 @@ impl MultiLocation {
 		}
 	}
 
-	/// Returns partial result as error in case of failure (e.g. because out of space).
-	pub fn appended_with(self, new: MultiLocation) -> result::Result<Self, Self> {
-		let mut result= self;
-		for j in new.into_iter() {
-			result = result.pushed_with(j)?;
+	/// Returns the number of `Parent` junctions at the beginning of `self`.
+	pub fn parent_count(&self) -> usize {
+		match self {
+			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, Junction::Parent) => 4,
+			MultiLocation::X4(Junction::Parent, Junction::Parent, Junction::Parent, ..) => 3,
+			MultiLocation::X3(Junction::Parent, Junction::Parent, Junction::Parent) => 3,
+			MultiLocation::X4(Junction::Parent, Junction::Parent, ..) => 2,
+			MultiLocation::X3(Junction::Parent, Junction::Parent, ..) => 2,
+			MultiLocation::X2(Junction::Parent, Junction::Parent) => 2,
+			MultiLocation::X4(Junction::Parent, ..) => 1,
+			MultiLocation::X3(Junction::Parent, ..) => 1,
+			MultiLocation::X2(Junction::Parent, ..) => 1,
+			MultiLocation::X1(Junction::Parent) => 1,
+			_ => 0,
 		}
-		Ok(result)
 	}
 
-	/// Ensure that the `prefix` len plus the `self` len is less than the max length, if not
-	/// the result is undefined.
-	pub fn prepend_with(&mut self, prefix: &MultiLocation) {
-		let mut prefix = prefix.clone();
+	/// Mutate `self` so that it is prefixed with `prefix`. The correct normalised form is returned, removing any
+	/// internal `Parent`s.
+	///
+	/// Does not modify `self` and returns `Err` with `prefix` in case of overflow.
+	pub fn prepend_with(&mut self, prefix: MultiLocation) -> Result<(), MultiLocation> {
+		let self_parents = self.parent_count();
+		let prefix_rest = prefix.len() - prefix.parent_count();
+		let skipped = self_parents.min(prefix_rest);
+		if self.len() + prefix.len() - 2 * skipped > 4 {
+			return Err(prefix);
+		}
+
+		let mut prefix = prefix;
 		while match (prefix.last(), self.first()) {
 			(Some(x), Some(Junction::Parent)) if x != &Junction::Parent => {
 				prefix.take_last();
@@ -291,10 +369,11 @@ impl MultiLocation {
 			}
 			_ => false,
 		} {}
+
 		for j in prefix.into_iter_rev() {
-			// Fail silently.
-			let _ = self.push_front(j);
+			self.push_front(j).expect("len + prefix minus 2*skipped is less than 4; qed");
 		}
+		Ok(())
 	}
 }
 

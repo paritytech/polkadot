@@ -25,10 +25,11 @@ pub enum AssetId {
 }
 
 impl AssetId {
-	pub fn reanchor(&mut self, prepend: &MultiLocation) {
+	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
-			l.prepend_with(prepend);
+			l.prepend_with(prepend.clone()).map_err(|_| ())?;
 		}
+		Ok(())
 	}
 }
 
@@ -120,16 +121,19 @@ impl Assets {
 	}
 
 	/// Alter any concretely identified assets according to the given `MultiLocation`.
+	///
+	/// WARNING: For now we consider this infallible and swallow any errors. It is thus the caller's responsibility to
+	/// ensure that any internal asset IDs are able to be prepended without overflow.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
 		sp_std::mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible.into_iter()
-			.map(|(mut id, amount)| { id.reanchor(prepend); (id, amount) })
+			.map(|(mut id, amount)| { let _ = id.reanchor(prepend); (id, amount) })
 			.collect();
 		let mut non_fungible = Default::default();
 		sp_std::mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible.into_iter()
-			.map(|(mut class, inst)| { class.reanchor(prepend); (class, inst) })
+			.map(|(mut class, inst)| { let _ = class.reanchor(prepend); (class, inst) })
 			.collect();
 	}
 
