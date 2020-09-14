@@ -143,7 +143,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			network: PhantomData,
 			authority_discovery: PhantomData,
 		}
-	} 
+	}
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -247,12 +247,12 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
-		// ask the network to connect to these nodes and not disconnect 
+		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the priority group
 		// TODO: this clones the whole set of multaddresses
 		// TODO: use add_to_priority_group for incremental updates?
 		if let Err(e) = network_service.set_priority_group(
-			PRIORITY_GROUP.to_owned(), 
+			PRIORITY_GROUP.to_owned(),
 			self.validator_multiaddresses.clone(),
 		) {
 			log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
