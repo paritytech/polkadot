@@ -766,7 +766,7 @@ pub enum ProxyType {
 }
 
 #[cfg(test)]
-mod proxt_type_tests {
+mod proxy_type_tests {
 	use super::*;
 
 	#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
