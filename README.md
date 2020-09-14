@@ -100,7 +100,7 @@ git checkout <latest tagged release>
 cargo build --release
 ```
 
-Note that compilation can require several GiB of memory. Please make sure that the machine has that amount of physical memory or swap has enough capacity (keep in mind that if builds hit swap it tends to be very slow).
+Note that compilation is a memory intensive process. We recommend having 4 GiB of phyiscal RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
 
 ## Networks
 
