@@ -160,7 +160,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		(
 			impl Fn(
 				polkadot_rpc::DenyUnsafe,
-				polkadot_rpc::SubscriptionTaskExecutor
+				polkadot_rpc::SubscriptionTaskExecutor,
 			) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
