@@ -446,7 +446,7 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type CandidacyBond = CandidacyBond;
 	type LegacyVotingBond = LegacyVotingBond;
 	type VotingBondBase = VotingBondBase;
-	type VotingBondFactor =  = VotingBondFactor;
+	type VotingBondFactor = VotingBondFactor;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
