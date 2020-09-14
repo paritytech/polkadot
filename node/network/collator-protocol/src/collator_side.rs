@@ -16,11 +16,12 @@
 
 use std::collections::HashMap;
 
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
+use futures::stream::StreamExt as _;
 use log::{trace, warn};
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
-	PoV, ValidatorId,
+	PoV, ValidatorId, AuthorityDiscoveryId,
 };
 use super::{TARGET,  Result};
 use polkadot_subsystem::{
@@ -31,7 +32,7 @@ use polkadot_subsystem::{
 	},
 };
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, View, PeerId, PeerSet, NetworkBridgeEvent, RequestId,
+	v1 as protocol_v1, View, PeerId, NetworkBridgeEvent, RequestId,
 };
 use polkadot_node_subsystem_util::{
 	request_validators_ctx,
@@ -59,11 +60,11 @@ struct State {
 	/// We will keep up to one local collation per relay-parent.
 	collations: HashMap<Hash, (CandidateReceipt, PoV)>,
 
-	/// Our validator groups active leafs. 
+	/// Our validator groups active leafs.
 	our_validators_groups: HashMap<Hash, Vec<ValidatorId>>,
 
 	/// Validators we know about via `ConnectToValidators` message.
-	/// 
+	///
 	/// These are the only validators we are interested in talking to and as such
 	/// all actions from peers not in this map will be ignored.
 	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
@@ -71,8 +72,10 @@ struct State {
 	known_validators: HashMap<PeerId, ValidatorId>,
 }
 
+type RevokeConnectionRequest = oneshot::Sender<()>;
+
 /// Distribute a collation.
-/// 
+///
 /// Figure out the core our para is assigned to and the relevant validators.
 /// Issue a connection request to these validators.
 /// If the para is not scheduled or next up on any core, at the relay-parent,
@@ -85,7 +88,7 @@ async fn distribute_collation<Context>(
 	id: ParaId,
 	receipt: CandidateReceipt,
 	pov: PoV,
-) -> Result<()>
+) -> Result<Option<RevokeConnectionRequest>>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -99,12 +102,12 @@ where
 			relay_parent,
 		);
 
-		return Ok(());
+		return Ok(None);
 	}
 
 	// We have already seen collation for this relay parent.
 	if state.collations.contains_key(&relay_parent) {
-		return Ok(());
+		return Ok(None);
 	}
 
 	// Determine which core the para collated-on is assigned to.
@@ -116,7 +119,7 @@ where
 				target: TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
 			);
-			return Ok(());
+			return Ok(None);
 		}
 	};
 
@@ -129,18 +132,18 @@ where
 				"There are no validators assigned to {:?} core", our_core,
 			);
 
-			return Ok(());
+			return Ok(None);
 		}
 	};
 
 	state.our_validators_groups.insert(relay_parent, our_validators.clone());
 
 	// Issue a discovery request for the validators of the current group and the next group.
-	connect_to_validators(ctx, state, our_validators).await?;
+	let revoke = connect_to_validators(ctx, relay_parent, state, our_validators).await?;
 
 	state.collations.insert(relay_parent, (receipt, pov));
 
-	Ok(())
+	Ok(Some(revoke))
 }
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
@@ -176,7 +179,7 @@ where
 }
 
 /// Figure out a group of validators assigned to the para being collated on.
-/// 
+///
 /// This returns validators for the current group and the next group.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
@@ -208,7 +211,7 @@ where
 
 	let validators = validators.await??;
 
-	let validators = connect_to_validators 
+	let validators = connect_to_validators
 		.into_iter()
 		.map(|idx| validators[idx as usize].clone())
 		.collect();
@@ -240,25 +243,68 @@ where
 /// Issue a connection request to a set of validators.
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
+	relay_parent: Hash,
 	state: &mut State,
 	validators: Vec<ValidatorId>,
-) -> Result<()>
+) -> Result<RevokeConnectionRequest>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
+	// TODO: make this code reusable by other subsystems
+	// put in subsystem-util?
+
+	// ValidatorId -> AuthorityDiscoveryId
 	let (tx, rx) = oneshot::channel();
 
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::ConnectToValidators(PeerSet::Collation, validators, tx),
+	ctx.send_message(AllMessages::RuntimeApi(
+		RuntimeApiMessage::Request(
+			relay_parent,
+			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
+		)
 	)).await?;
 
-	let mut validators_ids = rx.await?;
+	let authorities = rx.await??;
 
-	for id in validators_ids.drain(..) {
-		state.known_validators.insert(id.1, id.0);
+	let mut validator_map = validators.into_iter()
+		.zip(authorities.into_iter())
+		.filter_map(|(k, v)| v.map(|v| (v, k)))
+		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
+
+	let authorities: Vec<_> = validator_map.keys().cloned().collect();
+
+	let (mut rx, revoke) = connect_to_authorities(ctx, authorities).await?;
+
+	// TODO: wait for only one PeerId maybe and for the rest in the background?
+	// or use a timeout?
+	while let Some((authority_id, peer_id)) = rx.next().await {
+		if let Some(validator_id) = validator_map.remove(&authority_id) {
+			state.known_validators.insert(peer_id, validator_id);
+		}
 	}
 
-	Ok(())
+	Ok(revoke)
+}
+
+async fn connect_to_authorities<Context: SubsystemContext>(
+	ctx: &mut Context,
+	validator_ids: Vec<AuthorityDiscoveryId>,
+) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, RevokeConnectionRequest)> {
+	// TODO: what would be the optimal capacity?
+	// do we need a bounded channel at all?
+	const PEERS_CAPACITY: usize = 8;
+
+	let (revoke_tx, revoke) = oneshot::channel();
+	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
+
+	ctx.send_message(AllMessages::NetworkBridge(
+		NetworkBridgeMessage::ConnectToValidators {
+			validator_ids,
+			connected,
+			revoke,
+		}
+	)).await?;
+
+	Ok((connected_rx, revoke_tx))
 }
 
 /// Advertise collation to a set of relay chain validators.
@@ -318,7 +364,9 @@ where
 					);
 				}
 				Some(id) => {
-					distribute_collation(ctx, state, id, receipt, pov).await?;
+					let revoke = distribute_collation(ctx, state, id, receipt, pov).await?;
+					// TODO: verify it's fine to revoke the connection request here
+					drop(revoke);
 				}
 				None => {
 					warn!(
