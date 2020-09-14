@@ -100,6 +100,8 @@ git checkout <latest tagged release>
 cargo build --release
 ```
 
+Note that compilation can require several GiB of memory. Please make sure that the machine has that amount of physical memory or swap has enough capacity (keep in mind that if builds hit swap it tends to be very slow).
+
 ## Networks
 
 This repo supports runtimes for Polkadot, Kusama, and Westend.
