@@ -144,6 +144,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			authority_discovery: PhantomData,
 		}
 	}
+
+	// this method takes `network_service` and `authority_discovery_service` by value
+	// and returns them as a workaround for the Future: Send requirement imposed by async fn impl.
 	pub async fn on_request(
 		&mut self,
 		validator_ids: Vec<AuthorityDiscoveryId>,
