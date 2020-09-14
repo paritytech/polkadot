@@ -614,7 +614,8 @@ mod test {
 	use futures::executor;
 	use maplit::hashmap;
 	use polkadot_primitives::v1::{Signed, ValidatorPair, AvailabilityBitfield};
-	use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TimeoutExt};
+	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
+	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_core::crypto::Pair;
 	use std::time::Duration;
 	use assert_matches::assert_matches;
