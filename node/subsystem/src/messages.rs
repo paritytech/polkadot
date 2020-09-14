@@ -25,7 +25,7 @@
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_network_protocol::{
-	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId, PeerSet,
+	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
 use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
@@ -201,23 +201,20 @@ pub enum NetworkBridgeMessage {
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
 	///
-	/// Note: dropping any of the receivers/revoke's sender before the request
-	/// is fulfilled will result in it being revoked.
+	/// Note: dropping any of the connected's receiver/revoke's sender 
+	/// before the request is fulfilled will result in it being revoked.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
-		/// Response channel by which the issuer can learn the `PeerId`s of
-		/// already connected validators from the requested set.
-		/// The response is sent immediately.
-		already_connected: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
 		/// Response stream by which the issuer can learn the `PeerId`s of
 		/// the remaining validators as they are connected.
+		/// The response is sent immediately for already connected peers.
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 		/// By revoking the request the caller allows the network to
 		/// disconnect from the validators thus freeing the resources.
 		///
-		/// This can be done by either sending to the channel or
-		/// by dropping any of the receivers/revoke's sender prematurely.
+		/// This can be done by either sending to the channel or by dropping
+		/// any of the connected's receiver/revoke's sender prematurely.
 		revoke: oneshot::Receiver<()>,
 	},
 }

@@ -19,11 +19,10 @@
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
-use futures::stream::{BoxStream, FuturesUnordered};
+use futures::stream::BoxStream;
 use futures::channel::{mpsc, oneshot};
 
-use sc_network::{Event as NetworkEvent, Multiaddr};
-use sc_authority_discovery::Service as AuthorityDiscoveryService;
+use sc_network::Event as NetworkEvent;
 use sp_runtime::ConsensusEngineId;
 
 use polkadot_subsystem::{
@@ -35,16 +34,18 @@ use polkadot_subsystem::messages::{
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage,
 };
-use polkadot_primitives::v1::{Block, Hash, AuthorityDiscoveryId};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 use polkadot_node_network_protocol::{
 	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
 };
 
-use std::collections::{HashSet, HashMap, hash_map};
+use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
-use core::task;
+
+
+mod validator_discovery;
 
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
 ///
@@ -129,10 +130,6 @@ pub trait Network: Send + 'static {
 			self.action_sink().send(NetworkAction::WriteNotification(who, peer_set, message)).await
 		}.boxed()
 	}
-
-	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
-	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	// TODO: we might want to add `add_to_priority_group` and `remove_from_priority_group`
 }
 
 impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
@@ -192,24 +189,21 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 		Box::pin(ActionSink(&**self))
 	}
 
-	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
-		sc_network::NetworkService::set_priority_group(&**self, group_id, multiaddresses)
-	}
 }
 
 /// The network bridge subsystem.
 // TODO: does it need to be generic over AuthorityDiscoveryService?
-pub struct NetworkBridge<N> {
+pub struct NetworkBridge<N, AD> {
 	network_service: N,
-	authority_discovery_service: AuthorityDiscoveryService,
+	authority_discovery_service: AD,
 }
 
-impl<N> NetworkBridge<N> {
+impl<N, AD> NetworkBridge<N, AD> {
 	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
-	pub fn new(network_service: N, authority_discovery_service: AuthorityDiscoveryService) -> Self {
+	pub fn new(network_service: N, authority_discovery_service: AD) -> Self {
 		NetworkBridge {
 			network_service,
 			authority_discovery_service,
@@ -217,9 +211,10 @@ impl<N> NetworkBridge<N> {
 	}
 }
 
-impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
+impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network,
+		Net: Network + validator_discovery::Network,
+		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
 	type Metrics = ();
@@ -227,9 +222,14 @@ impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
+		let Self { network_service, authority_discovery_service } = self;
 		SpawnedSubsystem {
 			name: "network-bridge-subsystem",
-			future: run_network(self, ctx).map(|_| ()).boxed(),
+			future: run_network(
+				network_service,
+				authority_discovery_service,
+				ctx,
+			).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -245,9 +245,8 @@ enum Action {
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
 	ConnectToValidators {
 		validator_ids: Vec<AuthorityDiscoveryId>,
-		already_connected: oneshot::Sender<Vec<(AuthorityDiscoveryId, PeerId)>>,
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		revoke: mpsc::Receiver<()>,
+		revoke: oneshot::Receiver<()>,
 	},
 	ReportPeer(PeerId, ReputationChange),
 
@@ -280,10 +279,9 @@ fn action_from_overseer_message(
 				=> Action::SendCollationMessage(peers, msg),
 			NetworkBridgeMessage::ConnectToValidators {
 				validator_ids,
-				already_connected,
 				connected,
 				revoke,
-			} => Action::ConnectToValidators { validator_ids, already_connected, connected, revoke },
+			} => Action::ConnectToValidators { validator_ids, connected, revoke },
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -566,11 +564,16 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
-async fn run_network<N: Network>(
-	mut net: NetworkBridge<N>,
+async fn run_network<N, AD>(
+	mut network_service: N,
+	mut authority_discovery_service: AD,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
-	let mut event_stream = net.network_service.event_stream().fuse();
+) -> SubsystemResult<()>
+where
+	N: Network + validator_discovery::Network,
+	AD: validator_discovery::AuthorityDiscovery,
+{
+	let mut event_stream = network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
 	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
@@ -579,12 +582,7 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
-	// we assume one PeerId per AuthorityId is enough
-	// the `u64` counts the number of pending non-revoked requests for this validator
-	let mut connected_validators: HashMap<AuthorityDiscoveryId, (PeerId, u64)> = HashMap::new();
-	// keep for priority group updates
-	let mut validator_multiaddresses: HashSet<Multiaddr> = HashSet::new();
-	let mut pending_discovery_requests: Vec<PendingConnectionRequestState> = Vec::new();
+	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
 
 	loop {
 
@@ -604,14 +602,14 @@ async fn run_network<N: Network>(
 			Action::Abort => return Ok(()),
 
 			Action::SendValidationMessage(peers, msg) => send_message(
-					&mut net.network_service,
+					&mut network_service,
 					peers,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
 			Action::SendCollationMessage(peers, msg) => send_message(
-					&mut net.network_service,
+					&mut network_service,
 					peers,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(msg),
@@ -619,85 +617,26 @@ async fn run_network<N: Network>(
 
 			Action::ConnectToValidators {
 				validator_ids,
-				already_connected,
 				connected,
 				revoke,
 			} => {
-				let already = validator_ids.iter().cloned()
-					.filter_map(|id| {
-						connected_validators.get_mut(&id).map(|(peer, counter)| {
-							counter += 1;
-							(id, peer.clone())
-						})
-					})
-					.collect::<Vec<_>>();
-
-				match already_connected.send(already) {
-					Err(already) => {
-						// the request is revoked
-						for (id, _) in already.into_iter() {
-							const PROOF: &str = "`already` contains only connected validators; qed";
-							let (_, counter) = connected_validators.get_mut(&id).expect(PROOF);
-							*counter -= 1;
-						}
-						drop(connected);
-						drop(revoke);
-						continue;
-					}
-					_ => {},
-				}
-
-				// collect multiaddress of validators
-				let mut multiaddresses = HashSet::new();
-				for authority in validator_ids.iter().cloned() {
-					let result = net.authority_discovery_service.get_addresses_by_authority_id(authority).await;
-					if let Some(addresses) = result {
-						// We might have several `PeerId`s per `AuthorityId`
-						// depending on the number of sentry nodes,
-						// so we limit max number of sentries per node to connect to.
-						// They are going to be removed soon though:
-						// https://github.com/paritytech/substrate/issues/6845
-						for addr in addresses.into_iter().take(3) {
-							multiaddresses.insert(addr.clone());
-							validator_multiaddresses.insert(addr);
-						}
-					}
-				}
-
-				// clean up revoked requests
-				let mut revoked_indexes = Vec::new();
-				for (i, pending) in pending_discovery_requests.iter().enumerate() {
-					if pending.is_revoked() {
-						revoked_indexes.push(i);
-					}
-				}
-				for to_revoke in revoked_indexes.into_iter().rev() {
-					let old = pending_discovery_requests.swap_remove(to_revoke);
-					// todo: update counters and multiaddresses (oh...)
-				}
-
-				// ask the network to connect to these nodes and not disconnect from them until removed from the priority group
-				// TODO: use add_to_priority_group for incremental updates?
-				if let Err(e) = net.network_service.set_priority_group(priority_group, validator_multiaddresses.clone()) {
-					log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
-				}
-
-				pending_discovery_requests.push(PendingConnectionRequestState::new(
+				validator_discovery.on_request(
 					validator_ids,
-					&connected_validators,
 					connected,
 					revoke,
-				));
+					&network_service,
+					&mut authority_discovery_service,
+				).await;
 			},
 
-			Action::ReportPeer(peer, rep) => net.network_service.report_peer(peer, rep).await?,
+			Action::ReportPeer(peer, rep) => network_service.report_peer(peer, rep).await?,
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(h));
 
 				update_view(
-					&mut net.network_service,
+					&mut network_service,
 					&mut ctx,
 					&live_heads,
 					&mut local_view,
@@ -712,14 +651,7 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				// check if it's an authority we've been waiting for
-				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
-				if let Some(authority) = maybe_authority {
-					for pending in pending_discovery_requests.iter() {
-						pending.on_authority_connected(&authority, &peer);
-					}
-					connected_validators.insert(authority, peer.clone());
-				}
+				validator_discovery.on_peer_connected(&peer, &mut authority_discovery_service).await;
 
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
@@ -764,14 +696,7 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				let maybe_authority = net.authority_discovery_service.get_authority_id_by_peer_id(peer.clone()).await;
-				if let Some(authority) = maybe_authority {
-					for pending in pending_discovery_requests.iter() {
-						pending.on_authority_disconnected(&authority);
-					}
-
-					connected_validators.remove(&authority);
-				}
+				validator_discovery.on_peer_disconnected(&peer, &mut authority_discovery_service).await;
 
 				if peer_map.remove(&peer).is_some() {
 					let res = match peer_set {
@@ -800,7 +725,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut validation_peers,
 						v_messages,
-						&mut net.network_service,
+						&mut network_service,
 					).await?;
 
 					if let Err(e) = dispatch_validation_events_to_all(
@@ -820,7 +745,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut collation_peers,
 						c_messages,
-						&mut net.network_service,
+						&mut network_service,
 					).await?;
 
 					if let Err(e) = dispatch_collation_events_to_all(
@@ -839,57 +764,6 @@ async fn run_network<N: Network>(
 	}
 }
 
-/// This struct tracks the state for one `ConnectToValidators` request.
-struct PendingConnectionRequestState {
-	requested: Vec<AuthorityDiscoveryId>,
-	pending: HashSet<AuthorityDiscoveryId>,
-	sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-	revoke: oneshot::Receiver<()>,
-}
-
-impl PendingConnectionRequestState {
-	/// Create a new instance of `ConnectToValidatorsState`.
-	pub fn new(
-		requested: Vec<AuthorityDiscoveryId>,
-		already_connected: &HashMap<AuthorityDiscoveryId, PeerId>,
-		sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
-		revoke: oneshot::Receiver<()>,
-	) -> Self {
-		let pending = requested.iter()
-			.cloned()
-			.collect::<HashSet<_>>()
-			.difference(already_connected)
-			.collect();
-
-		Self {
-			requested,
-			pending,
-			sender,
-			revoke,
-		}
-	}
-
-	pub fn on_authority_connected(&mut self, authority: &AuthorityDiscoveryId, peer_id: &PeerId) {
-		if self.pending.remove(authority) {
-			// an error may happen if the request was revoked or
-			// the channel's buffer is full, ignoring it is fine
-			let _ = self.sender.try_send((authority.clone(), peer_id.clone()));
-		}
-	}
-
-	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
-		// TODO: what do we actually want?
-		let _ = self.pending.remove(authority);
-	}
-
-	/// Returns `true` if the request is revoked.
-	pub fn is_revoked(&self) -> bool {
-		self.sender.is_closed() ||
-			self.revoke
-				.try_recv()
-				.map_or(true, |r| r.is_some())
-	}
-}
 
 #[cfg(test)]
 mod tests {

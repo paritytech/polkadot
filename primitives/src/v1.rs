@@ -52,6 +52,7 @@ pub use crate::v0::{
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
+// TODO: this reexport feels wrong
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
