@@ -433,6 +433,7 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const ElectionsPhragmenModuleId: LockIdentifier = *b"phrelect";
 }
+
 // Make sure that there are no more than MaxMembers members elected via phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
@@ -443,9 +444,9 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type InitializeMembers = Council;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
-	type CandidacyBond = CandidacyBond;
 	type LegacyVotingBond = LegacyVotingBond;
 	type VotingBondBase = VotingBondBase;
+	type VotingBondFactor =  = VotingBondFactor;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
