@@ -423,7 +423,10 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 
 parameter_types! {
 	pub const CandidacyBond: Balance = 1 * DOLLARS;
-	pub const VotingBond: Balance = 5 * CENTS;
+	// needed just for migration.
+	pub const LegacyVotingBond: Balance = 5 * DOLLARS;
+	pub const VotingBondBase: Balance = 5 * DOLLARS;
+	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Daily council elections.
 	pub const TermDuration: BlockNumber = 24 * HOURS;
 	pub const DesiredMembers: u32 = 19;
@@ -440,7 +443,9 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type InitializeMembers = Council;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
-	type VotingBond = VotingBond;
+	type CandidacyBond = CandidacyBond;
+	type LegacyVotingBond = LegacyVotingBond;
+	type VotingBondBase = VotingBondBase;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;

@@ -475,7 +475,10 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 
 parameter_types! {
 	pub const CandidacyBond: Balance = 100 * DOLLARS;
-	pub const VotingBond: Balance = 5 * DOLLARS;
+	// needed just for migration.
+	pub const LegacyVotingBond: Balance = 5 * DOLLARS;
+	pub const VotingBondBase: Balance = 5 * DOLLARS;
+	pub const VotingBondFactor: Balance = deposit(0, 32);
 	/// Weekly council elections; scaling up to monthly eventually.
 	pub const TermDuration: BlockNumber = 7 * DAYS;
 	/// 13 members initially, to be increased to 23 eventually.
@@ -494,7 +497,9 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type InitializeMembers = Council;
 	type CurrencyToVote = CurrencyToVoteHandler<Self>;
 	type CandidacyBond = CandidacyBond;
-	type VotingBond = VotingBond;
+	type LegacyVotingBond = LegacyVotingBond;
+	type VotingBondBase = VotingBondBase;
+	type VotingBondFactor = VotingBondFactor;
 	type LoserCandidate = Treasury;
 	type BadReport = Treasury;
 	type KickedMember = Treasury;
