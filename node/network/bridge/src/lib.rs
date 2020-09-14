@@ -192,7 +192,6 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 }
 
 /// The network bridge subsystem.
-// TODO: does it need to be generic over AuthorityDiscoveryService?
 pub struct NetworkBridge<N, AD> {
 	network_service: N,
 	authority_discovery_service: AD,

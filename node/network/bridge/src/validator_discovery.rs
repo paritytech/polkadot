@@ -195,7 +195,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				}
 				Err(e) => {
 					// the channel's buffer is full
-					// ignore the error, the receiver will miss out one peer
+					// ignore the error, the receiver will miss out some peers
+					// but that's fine
 					break;
 				}
 				Ok(()) => continue,
