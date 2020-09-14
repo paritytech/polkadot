@@ -117,7 +117,6 @@ impl PendingConnectionRequestState {
 }
 
 
-#[derive(Default)]
 pub(super) struct Service<N, AD> {
 	// we assume one PeerId per AuthorityId is enough
 	connected_validators: HashMap<AuthorityDiscoveryId, PeerId>,
@@ -292,7 +291,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			for pending in self.pending_discovery_requests.iter_mut() {
 				pending.on_authority_disconnected(&authority);
 			}
-			self.connected_validators.insert(authority, peer_id.clone());
+			self.connected_validators.remove(&authority);
 		}
 	}
 }
