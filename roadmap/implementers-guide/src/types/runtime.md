@@ -45,14 +45,6 @@ struct HostConfiguration {
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
 	pub preferred_dispatchable_upward_messages_step_weight: Weight,
-	/// Any dispatchable upward message that requests more than the critical amount is rejected.
-	///
-	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
-	/// the total budget. I.e. that the sum of `preferred_dispatchable_upward_messages_step_weight`
-	/// and `dispatchable_upward_message_critical_weight` doesn't exceed the amount of weight left
-	/// under a typical worst case (e.g. no upgrades, etc) weight consumed by the required phases of
-	/// block execution (i.e. initialization, finalization and inherents).
-	pub dispatchable_upward_message_critical_weight: Weight,
 	/// The maximum number of messages that a candidate can contain.
 	pub max_upward_message_num_per_candidate: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
