@@ -349,3 +349,48 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		}
 	}
 }
+
+impl sp_blockchain::HeaderBackend<Block> for Client {
+	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
+		match self {
+			Self::Polkadot(client) => client.header(&id),
+			Self::Westend(client) => client.header(&id),
+			Self::Kusama(client) => client.header(&id),
+		}
+	}
+
+	fn info(&self) -> sp_blockchain::Info<Block> {
+		match self {
+			Self::Polkadot(client) => client.info(),
+			Self::Westend(client) => client.info(),
+			Self::Kusama(client) => client.info(),
+		}
+	}
+
+	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+		match self {
+			Self::Polkadot(client) => client.status(id),
+			Self::Westend(client) => client.status(id),
+			Self::Kusama(client) => client.status(id),
+		}
+	}
+
+	fn number(
+		&self, 
+		hash: <Block as BlockT>::Hash
+	) -> sp_blockchain::Result<Option<NumberFor<Block>>> {
+		match self {
+			Self::Polkadot(client) => client.number(hash),
+			Self::Westend(client) => client.number(hash),
+			Self::Kusama(client) => client.number(hash),
+		}
+	}
+	
+	fn hash(&self, number: NumberFor<Block>) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
+		match self {
+			Self::Polkadot(client) => client.hash(number),
+			Self::Westend(client) => client.hash(number),
+			Self::Kusama(client) => client.hash(number),
+		}
+	}
+}
