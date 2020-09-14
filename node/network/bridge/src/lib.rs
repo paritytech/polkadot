@@ -619,13 +619,15 @@ where
 				connected,
 				revoke,
 			} => {
-				validator_discovery.on_request(
+				let (net, ad) = validator_discovery.on_request(
 					validator_ids,
 					connected,
 					revoke,
-					&network_service,
-					&mut authority_discovery_service,
+					network_service,
+					authority_discovery_service,
 				).await;
+				network_service = net;
+				authority_discovery_service = ad;
 			},
 
 			Action::ReportPeer(peer, rep) => network_service.report_peer(peer, rep).await?,

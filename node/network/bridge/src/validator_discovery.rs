@@ -104,7 +104,7 @@ impl PendingConnectionRequestState {
 	}
 
 	/// Returns `true` if the request is revoked.
-	pub fn is_revoked(&self) -> bool {
+	pub fn is_revoked(&mut self) -> bool {
 		self.sender.is_closed() ||
 			self.revoke
 				.try_recv()
@@ -149,9 +149,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		validator_ids: Vec<AuthorityDiscoveryId>,
 		mut connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 		revoke: oneshot::Receiver<()>,
-		network_service: &N,
-		authority_discovery_service: &mut AD,
-	) {
+		network_service: N,
+		mut authority_discovery_service: AD,
+	) -> (N, AD) {
 		const MAX_ADDR_PER_PEER: usize = 3;
 
 		let already_connected = validator_ids.iter()
@@ -191,9 +191,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 					for peer_id in validator_ids {
 						on_revoke(&mut self.requested_validators, &peer_id);
 					}
-					return;
+					return (network_service, authority_discovery_service);
 				}
-				Err(e) => {
+				Err(_) => {
 					// the channel's buffer is full
 					// ignore the error, the receiver will miss out some peers
 					// but that's fine
@@ -221,7 +221,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// clean up revoked requests
 		let mut revoked_indexes = Vec::new();
 		let mut revoked_validators = Vec::new();
-		for (i, pending) in self.pending_discovery_requests.iter().enumerate() {
+		for (i, pending) in self.pending_discovery_requests.iter_mut().enumerate() {
 			if pending.is_revoked() {
 				for id in pending.requested() {
 					if let Some(id) = on_revoke(&mut self.requested_validators, id) {
@@ -269,6 +269,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			connected,
 			revoke,
 		));
+		(network_service, authority_discovery_service)
 	}
 
 	pub async fn on_peer_connected(&mut self, peer_id: &PeerId, authority_discovery_service: &mut AD) {
@@ -286,7 +287,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for pending in self.pending_discovery_requests.iter_mut() {
-				pending.on_authority_connected(&authority, peer_id);
+				pending.on_authority_disconnected(&authority);
 			}
 			self.connected_validators.insert(authority, peer_id.clone());
 		}
