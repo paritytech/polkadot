@@ -555,42 +555,42 @@ sp_api::impl_runtime_apis! {
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<p_v1::ValidatorId> {
-			runtime_impl::validators()
+			runtime_impl::validators::<Runtime>()
 		}
 
 		fn validator_groups() -> (Vec<Vec<p_v1::ValidatorIndex>>, p_v1::GroupRotationInfo<BlockNumber>) {
-			runtime_impl::validator_groups()
+			runtime_impl::validator_groups::<Runtime>()
 		}
 
 		fn availability_cores() -> Vec<p_v1::CoreState<BlockNumber>> {
-			runtime_impl::avaiilability_cores()
+			runtime_impl::availability_cores::<Runtime>()
 		}
 
 		fn full_validation_data(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
 			-> Option<p_v1::ValidationData<BlockNumber>> {
-				runtime_impl::full_validation_data(para_id, assumption)
+				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
 			}
 
 		fn persisted_validation_data(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
 			-> Option<p_v1::PersistedValidationData<BlockNumber>> {
-				runtime_impl::persisted_validation_data(para_id, assumption)
+				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 			}
 
 		fn session_index_for_child() -> p_v1::SessionIndex {
-			runtime_impl::session_index_for_child()
+			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
 		fn validation_code(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
 			-> Option<p_v1::ValidationCode> {
-				runtime_impl::validation_code(para_id, assumption)
+				runtime_impl::validation_code::<Runtime>(para_id, assumption)
 			}
 
 		fn candidate_pending_availability(para_id: p_v1::Id) -> Option<p_v1::CommittedCandidateReceipt<Hash>> {
-			runtime_impl::candidate_pending_availability(para_id)
+			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
 
 		fn candidate_events() -> Vec<p_v1::CandidateEvent<Hash>> {
-			runtime_impl::candidate_events()
+			runtime_impl::candidate_events::<Runtime>()
 		}
 	}
 
