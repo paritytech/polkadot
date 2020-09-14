@@ -272,19 +272,20 @@ where
 ///
 /// We assume that every validator runs authority discovery,
 /// which would allow us to establish point-to-point connection to given validators.
-///
-/// Returns `None` for validators not found in the current session.
+// FIXME: handle previous sessions:
+// https://github.com/paritytech/polkadot/issues/1461
 pub fn validator_discovery<T>(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>
 where
 	T: initializer::Trait + pallet_authority_discovery::Trait,
 {
 	// FIXME: the mapping might be invalid if a session change happens in between the calls
+	// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
 	let current_validators = <inclusion::Module<T>>::validators();
 	let authorities = <pallet_authority_discovery::Module<T>>::authorities();
 	// We assume the same ordering in authorities as in validators so we can do an index search
 	validators.iter().map(|id| {
 		// FIXME: linear search is slow O(n^2)
-		// We could sort validators and do one linear sweep
+		// use SessionInfo from https://github.com/paritytech/polkadot/pull/1691
 		let validator_index = current_validators.iter().position(|v| v == id);
 		validator_index.and_then(|i| authorities.get(i).cloned())
 	}).collect()

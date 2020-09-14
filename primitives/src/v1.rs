@@ -694,10 +694,6 @@ sp_api::decl_runtime_apis! {
 		///
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
-		///
-		/// Returns `None` for validators not found in the current session.
-		// FIXME: handle previous sessions:
-		// https://github.com/paritytech/polkadot/issues/1461
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 	}
 }
