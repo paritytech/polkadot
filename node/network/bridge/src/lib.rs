@@ -188,7 +188,6 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 
 		Box::pin(ActionSink(&**self))
 	}
-
 }
 
 /// The network bridge subsystem.
@@ -773,6 +772,8 @@ mod tests {
 	use futures::executor;
 
 	use std::sync::Arc;
+	use std::collections::HashSet;
+	use async_trait::async_trait;
 	use parking_lot::Mutex;
 	use assert_matches::assert_matches;
 
@@ -780,6 +781,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
+	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
@@ -787,6 +789,8 @@ mod tests {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 		action_tx: mpsc::UnboundedSender<NetworkAction>,
 	}
+
+	struct TestAuthorityDiscovery;
 
 	// The test's view of the network. This receives updates from the subsystem in the form
 	// of `NetworkAction`s.
@@ -798,6 +802,7 @@ mod tests {
 	fn new_test_network() -> (
 		TestNetwork,
 		TestNetworkHandle,
+		TestAuthorityDiscovery,
 	) {
 		let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 		let (action_tx, action_rx) = mpsc::unbounded();
@@ -811,6 +816,7 @@ mod tests {
 				action_rx,
 				net_tx,
 			},
+			TestAuthorityDiscovery,
 		)
 	}
 
@@ -833,6 +839,23 @@ mod tests {
 			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 		{
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
+		}
+	}
+
+	impl validator_discovery::Network for TestNetwork {
+		fn set_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+	}
+
+	#[async_trait]
+	impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
+		async fn get_addresses_by_authority_id(&mut self, _authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
+			None
+		}
+
+		async fn get_authority_id_by_peer_id(&mut self, _peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
+			None
 		}
 	}
 
@@ -892,11 +915,12 @@ mod tests {
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (network, network_handle) = new_test_network();
+		let (network, network_handle, discovery) = new_test_network();
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		let network_bridge = run_network(
 			network,
+			discovery,
 			context,
 		)
 			.map_err(|_| panic!("subsystem execution failed"))
