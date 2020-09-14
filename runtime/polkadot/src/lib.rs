@@ -707,6 +707,7 @@ impl claims::Trait for Runtime {
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * DOLLARS;
+	pub const MaxLocks: u32 = 50;
 }
 
 impl pallet_vesting::Trait for Runtime {
@@ -714,7 +715,8 @@ impl pallet_vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
-	type WeightInfo = ();
+	type MaxLocks = MaxLocks;
+	type WeightInfo = weights::pallet_vesting::WeightInfo;
 }
 
 impl pallet_utility::Trait for Runtime {
