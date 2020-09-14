@@ -94,6 +94,25 @@ pub struct InboundDownwardMessage<BlockNumber = crate::BlockNumber> {
 	pub msg: DownwardMessage,
 }
 
+/// An HRMP message seen from the perspective of a recipient.
+#[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug, PartialEq)]
+pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
+	/// The block number at which this message was sent.
+	/// Specifically, it is the block number at which the candidate that sends this message was
+	/// enacted.
+	pub sent_at: BlockNumber,
+	/// The message payload.
+	pub data: sp_std::vec::Vec<u8>,
+}
+
+#[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash)]
+pub struct OutboundHrmpMessage<Id> {
+	/// The para that will get this message in its downward message queue.
+	pub recipient: Id,
+	/// The message payload.
+	pub data: sp_std::vec::Vec<u8>,
+}
+
 /// V1 primitives.
 pub mod v1 {
 	pub use super::*;

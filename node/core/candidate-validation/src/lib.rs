@@ -489,8 +489,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			let outputs = ValidationOutputs {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
+				horizontal_messages: res.horizontal_messages,
 				new_validation_code: res.new_validation_code,
 				processed_downward_messages: res.processed_downward_messages,
+				hrmp_watermark: res.hrmp_watermark,
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
@@ -833,7 +835,9 @@ mod tests {
 			head_data: HeadData(vec![1, 1, 1]),
 			new_validation_code: Some(vec![2, 2, 2].into()),
 			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
 			processed_downward_messages: 0,
+			hrmp_watermark: 0,
 		};
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
@@ -848,7 +852,9 @@ mod tests {
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
 			assert_eq!(outputs.upward_messages, Vec::<UpwardMessage>::new());
+			assert_eq!(outputs.horizontal_messages, Vec::new());
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(outputs.hrmp_watermark, 0);
 			assert_eq!(used_validation_data, validation_data);
 		});
 	}

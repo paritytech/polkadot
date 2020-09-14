@@ -492,8 +492,10 @@ mod tests {
 			ValidationOutputs {
 				head_data: HeadData(head_data),
 				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				processed_downward_messages: 0,
+				hrmp_watermark: 0,
 			},
 			PersistedValidationData {
 				parent_head: HeadData(parent_head_data),
