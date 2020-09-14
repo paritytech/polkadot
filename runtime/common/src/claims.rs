@@ -696,7 +696,6 @@ mod tests {
 	parameter_types! {
 		pub const ExistentialDeposit: u64 = 1;
 		pub const CreationFee: u64 = 0;
-		pub const MinVestedTransfer: u64 = 0;
 	}
 
 	impl pallet_balances::Trait for Test {
@@ -708,11 +707,17 @@ mod tests {
 		type WeightInfo = ();
 	}
 
+	parameter_types! {
+		pub const MinVestedTransfer: u64 = 0;
+		pub const MaxLocks: u32 = 10;
+	}
+
 	impl pallet_vesting::Trait for Test {
 		type Event = ();
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
+		type MaxLocks = MaxLocks;
 		type WeightInfo = ();
 	}
 

@@ -471,6 +471,7 @@ mod tests {
 
 	parameter_types! {
 		pub const MinVestedTransfer: u64 = 0;
+		pub const MaxLocks: u32 = 10;
 	}
 
 	impl pallet_vesting::Trait for Test {
@@ -478,6 +479,7 @@ mod tests {
 		type Currency = Balances;
 		type BlockNumberToBalance = Identity;
 		type MinVestedTransfer = MinVestedTransfer;
+		type MaxLocks = MaxLocks;
 		type WeightInfo = ();
 	}
 
