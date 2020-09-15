@@ -23,6 +23,14 @@
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
+use polkadot_runtime_parachains::{
+	configuration,
+	inclusion,
+	initializer,
+	paras,
+	runtime_api_impl::v1 as runtime_impl,
+	scheduler,
+};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
 	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
@@ -864,6 +872,20 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
+impl configuration::Trait for Runtime {}
+
+impl inclusion::Trait for Runtime {
+	type Event = Event;
+}
+
+impl initializer::Trait for Runtime {
+	type Randomness = RandomnessCollectiveFlip;
+}
+
+impl paras::Trait for Runtime {}
+
+impl scheduler::Trait for Runtime {}
+
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
@@ -938,6 +960,9 @@ construct_runtime! {
 
 		// System scheduler.
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
+
+		// Runtime impl; this is mainly to inject an appropriate variant into the Event enum
+		Inclusion: inclusion::{Event<T>},
 
 		// Proxy module. Late addition.
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
@@ -1047,44 +1072,45 @@ sp_api::impl_runtime_apis! {
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
-			unimplemented!()
+			runtime_impl::validators::<Runtime>()
 		}
 
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
-			unimplemented!()
+			runtime_impl::validator_groups::<Runtime>()
 		}
 
 		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
-			unimplemented!()
+			runtime_impl::availability_cores::<Runtime>()
 		}
 
-		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
+		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationData<BlockNumber>> {
-			unimplemented!()
-		}
+				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
+			}
 
-		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
+		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
-			unimplemented!()
-		}
+				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+			}
 
 		fn session_index_for_child() -> SessionIndex {
-			unimplemented!()
+			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
-			unimplemented!()
-		}
+		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode> {
+				runtime_impl::validation_code::<Runtime>(para_id, assumption)
+			}
 
-		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
-			unimplemented!()
+		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			unimplemented!()
+			use core::convert::TryInto;
+			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 	}
-
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
