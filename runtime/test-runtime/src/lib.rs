@@ -21,9 +21,15 @@
 #![recursion_limit="256"]
 
 use rstd::prelude::*;
-use codec::{Encode, Decode};
-use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
-use primitives::v0 as p_v0;
+use codec::Encode;
+use polkadot_runtime_parachains::{
+	configuration,
+	inclusion,
+	initializer,
+	paras,
+	runtime_api_impl::v1 as runtime_impl,
+	scheduler,
+};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
 	self as p_v1,
@@ -53,7 +59,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug,
-	traits::{KeyOwnerProofSystem, Randomness},
+	traits::{KeyOwnerProofSystem, Randomness, TestRandomness},
 	weights::Weight,
 };
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -416,6 +422,34 @@ impl pallet_sudo::Trait for Runtime {
 	type Call = Call;
 }
 
+impl configuration::Trait for Runtime {}
+
+impl From<inclusion::RawEvent<Hash>> for Event {
+	fn from(_event: inclusion::RawEvent<Hash>) -> Event {
+		unimplemented!()
+	}
+}
+
+impl core::convert::TryFrom<Event> for inclusion::RawEvent<Hash> {
+	type Error = ();
+
+	fn try_from(_event: Event) -> Result<inclusion::RawEvent<Hash>, Self::Error> {
+		unimplemented!()
+	}
+}
+
+impl inclusion::Trait for Runtime {
+	type Event = Event;
+}
+
+impl initializer::Trait for Runtime {
+	type Randomness = TestRandomness;
+}
+
+impl paras::Trait for Runtime {}
+
+impl scheduler::Trait for Runtime {}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -590,7 +624,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<p_v1::CandidateEvent<Hash>> {
-			runtime_impl::candidate_events::<Runtime>()
+			use core::convert::TryInto;
+			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 	}
 
