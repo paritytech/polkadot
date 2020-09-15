@@ -939,13 +939,19 @@ mod tests {
 					RuntimeApiRequest::ValidatorDiscovery(validators, tx),
 				)) => {
 					assert_eq!(relay_parent, current);
-					assert_eq!(validators, test_state.validator_public);
-					let authority_ids = test_state.validator_authority_id
-						.iter()
-						.cloned()
-						.map(|id| Some(id))
-						.collect();
-					tx.send(Ok(authority_ids)).unwrap();
+					assert_eq!(validators.len(), 4);
+					assert!(validators.contains(&test_state.validator_public[2]));
+					assert!(validators.contains(&test_state.validator_public[0]));
+					assert!(validators.contains(&test_state.validator_public[4]));
+					assert!(validators.contains(&test_state.validator_public[1]));
+
+					let result = vec![
+						Some(test_state.validator_authority_id[2].clone()),
+						Some(test_state.validator_authority_id[0].clone()),
+						Some(test_state.validator_authority_id[4].clone()),
+						Some(test_state.validator_authority_id[1].clone()),
+					];
+					tx.send(Ok(result)).unwrap();
 				}
 			);
 
@@ -959,7 +965,11 @@ mod tests {
 						..
 					}
 				) => {
-					assert_eq!(validator_ids, test_state.validator_authority_id);
+					assert_eq!(validator_ids.len(), 4);
+					assert!(validator_ids.contains(&test_state.validator_authority_id[2]));
+					assert!(validator_ids.contains(&test_state.validator_authority_id[0]));
+					assert!(validator_ids.contains(&test_state.validator_authority_id[4]));
+					assert!(validator_ids.contains(&test_state.validator_authority_id[1]));
 
 					let result = vec![
 						(test_state.validator_authority_id[2].clone(), test_state.validator_peer_id[2].clone()),
