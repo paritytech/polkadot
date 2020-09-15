@@ -105,10 +105,9 @@ impl PendingConnectionRequestState {
 
 	/// Returns `true` if the request is revoked.
 	pub fn is_revoked(&mut self) -> bool {
-		self.sender.is_closed() ||
-			self.revoke
-				.try_recv()
-				.map_or(true, |r| r.is_some())
+		self.revoke
+			.try_recv()
+			.map_or(true, |r| r.is_some())
 	}
 
 	pub fn requested(&self) -> &[AuthorityDiscoveryId] {
