@@ -47,6 +47,8 @@ pub struct NewBackedCandidate(pub BackedCandidate);
 /// Messages received by the Candidate Selection subsystem.
 #[derive(Debug)]
 pub enum CandidateSelectionMessage {
+	/// A candidate collation can be fetched from a collator and should be considered for seconding.
+	Collation(Hash, ParaId, CollatorId),
 	/// We recommended a particular candidate to be seconded, but it was invalid; penalize the collator.
 	/// The hash is the relay parent.
 	Invalid(Hash, CandidateReceipt),
@@ -56,6 +58,7 @@ impl CandidateSelectionMessage {
 	/// If the current variant contains the relay parent hash, return it.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
+			Self::Collation(hash, ..) => Some(*hash),
 			Self::Invalid(hash, _) => Some(*hash),
 		}
 	}
@@ -157,7 +160,7 @@ pub enum CollatorProtocolMessage {
 	/// Provide a collation to distribute to validators.
 	DistributeCollation(CandidateReceipt, PoV),
 	/// Fetch a collation under the given relay-parent for the given ParaId.
-	FetchCollation(Hash, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
+	FetchCollation(Hash, CollatorId, ParaId, oneshot::Sender<(CandidateReceipt, PoV)>),
 	/// Report a collator as having provided an invalid collation. This should lead to disconnect
 	/// and blacklist of the collator.
 	ReportCollator(CollatorId),
@@ -173,7 +176,7 @@ impl CollatorProtocolMessage {
 		match self {
 			Self::CollateOn(_) => None,
 			Self::DistributeCollation(receipt, _) => Some(receipt.descriptor().relay_parent),
-			Self::FetchCollation(relay_parent, _, _) => Some(*relay_parent),
+			Self::FetchCollation(relay_parent, _, _, _) => Some(*relay_parent),
 			Self::ReportCollator(_) => None,
 			Self::NoteGoodCollation(_) => None,
 			Self::NetworkBridgeUpdateV1(_) => None,

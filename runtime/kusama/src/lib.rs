@@ -418,6 +418,7 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -465,6 +466,7 @@ impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -761,7 +763,9 @@ parameter_types! {
 	pub const MaxPending: u16 = 32;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
+	type Event = Event;
+}
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -915,8 +919,8 @@ construct_runtime! {
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::<Instance2>::{Module, Call},
-		DummyRegistrar: dummy::<Instance3>::{Module, Call},
+		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
+		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
 
 		// Utility module.
 		Utility: pallet_utility::{Module, Call, Event},
