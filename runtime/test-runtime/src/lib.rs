@@ -424,20 +424,6 @@ impl pallet_sudo::Trait for Runtime {
 
 impl configuration::Trait for Runtime {}
 
-impl From<inclusion::RawEvent<Hash>> for Event {
-	fn from(_event: inclusion::RawEvent<Hash>) -> Event {
-		unimplemented!()
-	}
-}
-
-impl core::convert::TryFrom<Event> for inclusion::RawEvent<Hash> {
-	type Error = ();
-
-	fn try_from(_event: Event) -> Result<inclusion::RawEvent<Hash>, Self::Error> {
-		unimplemented!()
-	}
-}
-
 impl inclusion::Trait for Runtime {
 	type Event = Event;
 }
@@ -482,6 +468,9 @@ construct_runtime! {
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Runtime impl; this is mainly to inject an appropriate variant into the Event enum
+		Inclusion: inclusion::{Event<T>},
 
 		// Sudo. Last module.
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
