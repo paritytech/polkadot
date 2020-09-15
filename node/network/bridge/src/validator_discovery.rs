@@ -103,11 +103,15 @@ impl PendingConnectionRequestState {
 		let _ = self.pending.remove(authority);
 	}
 
+	pub fn is_fullfilled(&mut self) -> bool {
+		self.sender.is_closed() || self.revoke.try_recv().is_err()
+	}
+
 	/// Returns `true` if the request is revoked.
 	pub fn is_revoked(&mut self) -> bool {
 		self.revoke
 			.try_recv()
-			.map_or(true, |r| r.is_some())
+			.map_or(false, |r| r.is_some())
 	}
 
 	pub fn requested(&self) -> &[AuthorityDiscoveryId] {
@@ -127,6 +131,7 @@ pub(super) struct Service<N, AD> {
 	// keep for the network priority_group updates
 	validator_multiaddresses: HashSet<Multiaddr>,
 	pending_discovery_requests: Vec<PendingConnectionRequestState>,
+	// PhantomData used to make the struct generic instead of having generic methods
 	network: PhantomData<N>,
 	authority_discovery: PhantomData<AD>,
 }
@@ -219,8 +224,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
-		// clean up revoked requests
-		let mut revoked_indexes = Vec::new();
+		// clean up revoked and fulfilled requests
+		let mut revoked_or_fulfilled_indexes = Vec::new();
 		let mut revoked_validators = Vec::new();
 		for (i, pending) in self.pending_discovery_requests.iter_mut().enumerate() {
 			if pending.is_revoked() {
@@ -229,12 +234,14 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 						revoked_validators.push(id);
 					}
 				}
-				revoked_indexes.push(i);
+				revoked_or_fulfilled_indexes.push(i);
+			} else if pending.is_fullfilled() {
+				revoked_or_fulfilled_indexes.push(i)
 			}
 		}
 
 		// clean up pending requests states
-		for to_revoke in revoked_indexes.into_iter().rev() {
+		for to_revoke in revoked_or_fulfilled_indexes.into_iter().rev() {
 			drop(self.pending_discovery_requests.swap_remove(to_revoke));
 		}
 

@@ -72,8 +72,6 @@ struct State {
 	known_validators: HashMap<PeerId, ValidatorId>,
 }
 
-type RevokeConnectionRequest = oneshot::Sender<()>;
-
 /// Distribute a collation.
 ///
 /// Figure out the core our para is assigned to and the relevant validators.
@@ -88,7 +86,7 @@ async fn distribute_collation<Context>(
 	id: ParaId,
 	receipt: CandidateReceipt,
 	pov: PoV,
-) -> Result<Option<RevokeConnectionRequest>>
+) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -102,12 +100,12 @@ where
 			relay_parent,
 		);
 
-		return Ok(None);
+		return Ok(());
 	}
 
 	// We have already seen collation for this relay parent.
 	if state.collations.contains_key(&relay_parent) {
-		return Ok(None);
+		return Ok(());
 	}
 
 	// Determine which core the para collated-on is assigned to.
@@ -119,7 +117,7 @@ where
 				target: TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
 			);
-			return Ok(None);
+			return Ok(());
 		}
 	};
 
@@ -132,18 +130,18 @@ where
 				"There are no validators assigned to {:?} core", our_core,
 			);
 
-			return Ok(None);
+			return Ok(());
 		}
 	};
 
 	state.our_validators_groups.insert(relay_parent, our_validators.clone());
 
 	// Issue a discovery request for the validators of the current group and the next group.
-	let revoke = connect_to_validators(ctx, relay_parent, state, our_validators).await?;
+	connect_to_validators(ctx, relay_parent, state, our_validators).await?;
 
 	state.collations.insert(relay_parent, (receipt, pov));
 
-	Ok(Some(revoke))
+	Ok(())
 }
 
 /// Get the Id of the Core that is assigned to the para being collated on if any
@@ -246,7 +244,7 @@ async fn connect_to_validators<Context>(
 	relay_parent: Hash,
 	state: &mut State,
 	validators: Vec<ValidatorId>,
-) -> Result<RevokeConnectionRequest>
+) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -256,8 +254,12 @@ where
 		state.known_validators.insert(peer_id, validator_id);
 	}
 
-	Ok(revoke)
+	// TODO: do we want to revoke requests at all?
+	drop(revoke);
+	Ok(())
 }
+
+type RevokeConnectionRequest = oneshot::Sender<()>;
 
 // TODO: make this code reusable by other subsystems
 // put in subsystem-util?
@@ -378,9 +380,7 @@ where
 					);
 				}
 				Some(id) => {
-					let revoke = distribute_collation(ctx, state, id, receipt, pov).await?;
-					// TODO: verify it's fine to revoke the connection request here
-					drop(revoke);
+					distribute_collation(ctx, state, id, receipt, pov).await?;
 				}
 				None => {
 					warn!(
