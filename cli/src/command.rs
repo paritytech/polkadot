@@ -151,7 +151,7 @@ pub fn run() -> Result<()> {
 						None,
 						authority_discovery_enabled,
 						grandpa_pause,
-					).map(|(task_manager, ..)| task_manager),
+					).map(|full| full.task_manager),
 				}
 			})
 		},
@@ -184,8 +184,8 @@ pub fn run() -> Result<()> {
 				let chain_spec = config.chain_spec.cloned_box();
 				let network_config = config.network.clone();
 				let service::NewFull { task_manager, client, network_status_sinks, .. }
-					= service::new_full_nongeneric(
-						config, None, authority_discovery_enabled, grandpa_pause, false,
+					= service::build_full(
+						config, None, authority_discovery_enabled, grandpa_pause,
 					)?;
 				let client = Arc::new(client);
 

@@ -24,7 +24,7 @@ use sp_runtime::{
 };
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance};
+use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
 
 /// A set of APIs that polkadot-like runtimes must implement.
@@ -365,6 +365,53 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Westend(client) => client.key_changes(first, last, storage_key, key),
 			Self::Kusama(client) => client.key_changes(first, last, storage_key, key),
 			Self::Rococo(client) => client.key_changes(first, last, storage_key, key),
+		}
+	}
+}
+
+impl sp_blockchain::HeaderBackend<Block> for Client {
+	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+		match self {
+			Self::Polkadot(client) => client.header(&id),
+			Self::Westend(client) => client.header(&id),
+			Self::Kusama(client) => client.header(&id),
+			Self::Rococo(client) => client.header(&id),
+		}
+	}
+
+	fn info(&self) -> sp_blockchain::Info<Block> {
+		match self {
+			Self::Polkadot(client) => client.info(),
+			Self::Westend(client) => client.info(),
+			Self::Kusama(client) => client.info(),
+			Self::Rococo(client) => client.info(),
+		}
+	}
+
+	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+		match self {
+			Self::Polkadot(client) => client.status(id),
+			Self::Westend(client) => client.status(id),
+			Self::Kusama(client) => client.status(id),
+			Self::Rococo(client) => client.status(id),
+		}
+	}
+
+	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
+		match self {
+			Self::Polkadot(client) => client.number(hash),
+			Self::Westend(client) => client.number(hash),
+			Self::Kusama(client) => client.number(hash),
+			Self::Rococo(client) => client.number(hash),
+		}
+	}
+
+	fn hash(&self, number: BlockNumber) -> sp_blockchain::Result<Option<Hash>> {
+		match self {
+			Self::Polkadot(client) => client.hash(number),
+			Self::Westend(client) => client.hash(number),
+			Self::Kusama(client) => client.hash(number),
+			Self::Rococo(client) => client.hash(number),
 		}
 	}
 }
