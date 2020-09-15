@@ -1111,6 +1111,7 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
 	}
+
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
 			Grandpa::grandpa_authorities()
