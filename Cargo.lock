@@ -5229,7 +5229,6 @@ dependencies = [
  "sp-consensus",
  "sp-consensus-babe",
  "sp-runtime",
- "sp-state-machine",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
 ]
