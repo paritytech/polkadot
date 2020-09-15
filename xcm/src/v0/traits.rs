@@ -19,7 +19,28 @@
 use sp_std::result;
 use super::{MultiLocation, Xcm};
 
-pub type Error = ();
+pub enum Error {
+	Undefined,
+	Unimplemented,
+	UnhandledXcmVersion,
+	UnhandledXcmMessage,
+	UnhandledEffect,
+	EscalationOfPrivilege,
+	UntrustedReserveLocation,
+	UntrustedTeleportLocation,
+	DestinationBufferOverflow,
+	CannotReachDestination,
+	MultiLocationFull,
+	FailedToDecode,
+	BadOrigin,
+}
+
+impl From<()> for Error {
+	fn from(_: ()) -> Self {
+		Self::Undefined
+	}
+}
+
 pub type Result = result::Result<(), Error>;
 
 pub trait ExecuteXcm {
@@ -28,7 +49,7 @@ pub trait ExecuteXcm {
 
 impl ExecuteXcm for () {
 	fn execute_xcm(_origin: MultiLocation, _msg: Xcm) -> Result {
-		Err(())
+		Err(Error::Unimplemented)
 	}
 }
 
@@ -38,6 +59,6 @@ pub trait SendXcm {
 
 impl SendXcm for () {
 	fn send_xcm(_dest: MultiLocation, _msg: Xcm) -> Result {
-		Err(())
+		Err(Error::Unimplemented)
 	}
 }
