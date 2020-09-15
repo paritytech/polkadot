@@ -250,9 +250,22 @@ async fn connect_to_validators<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	// TODO: make this code reusable by other subsystems
-	// put in subsystem-util?
+	let (result, revoke) = connect_to_validators_impl(ctx, relay_parent, validators).await?;
 
+	for (validator_id, peer_id) in result.into_iter() {
+		state.known_validators.insert(peer_id, validator_id);
+	}
+
+	Ok(revoke)
+}
+
+// TODO: make this code reusable by other subsystems
+// put in subsystem-util?
+async fn connect_to_validators_impl<Context: SubsystemContext>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	validators: Vec<ValidatorId>,
+) -> Result<(Vec<(ValidatorId, PeerId)>, RevokeConnectionRequest)> {
 	// ValidatorId -> AuthorityDiscoveryId
 	let (tx, rx) = oneshot::channel();
 
@@ -276,13 +289,14 @@ where
 
 	// TODO: wait for only one PeerId maybe and for the rest in the background?
 	// or use a timeout?
+	let mut result = Vec::new();
 	while let Some((authority_id, peer_id)) = rx.next().await {
 		if let Some(validator_id) = validator_map.remove(&authority_id) {
-			state.known_validators.insert(peer_id, validator_id);
+			result.push((validator_id, peer_id));
 		}
 	}
 
-	Ok(revoke)
+	Ok((result, revoke))
 }
 
 async fn connect_to_authorities<Context: SubsystemContext>(
@@ -630,10 +644,11 @@ where
 mod tests {
 	use super::*;
 
-	use log::trace;
 	use std::time::Duration;
-	use futures::{executor, future, Future};
+
 	use assert_matches::assert_matches;
+	use futures::{executor, future, Future};
+	use log::trace;
 	use smallvec::smallvec;
 
 	use sp_core::crypto::Pair;
@@ -645,7 +660,7 @@ mod tests {
 	};
 	use polkadot_subsystem::ActiveLeavesUpdate;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use polkadot_subsystem_testhelpers::{self as test_helpers};
+	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::ObservedRole;
 
 	#[derive(Default)]
@@ -675,6 +690,7 @@ mod tests {
 		chain_ids: Vec<ParaId>,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
+		validator_authority_id: Vec<AuthorityDiscoveryId>,
 		validator_peer_id: Vec<PeerId>,
 		validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 		relay_parent: Hash,
@@ -683,6 +699,10 @@ mod tests {
 	}
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+		val_ids.iter().map(|v| v.public().into()).collect()
+	}
+
+	fn validator_authority_id(val_ids: &[Sr25519Keyring]) -> Vec<AuthorityDiscoveryId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
 	}
 
@@ -702,6 +722,7 @@ mod tests {
 			];
 
 			let validator_public = validator_pubkeys(&validators);
+			let validator_authority_id = validator_authority_id(&validators);
 
 			let validator_peer_id = std::iter::repeat_with(|| PeerId::random())
 				.take(validator_public.len())
@@ -734,6 +755,7 @@ mod tests {
 				chain_ids,
 				validators,
 				validator_public,
+				validator_authority_id,
 				validator_peer_id,
 				validator_groups,
 				relay_parent,
@@ -909,29 +931,46 @@ mod tests {
 				}
 			);
 
+			// obtain the validator_id to authority_id mapping
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::ValidatorDiscovery(validators, tx),
+				)) => {
+					assert_eq!(relay_parent, current);
+					assert_eq!(validators, test_state.validator_public);
+					let authority_ids = test_state.validator_authority_id
+						.iter()
+						.cloned()
+						.map(|id| Some(id))
+						.collect();
+					tx.send(Ok(authority_ids)).unwrap();
+				}
+			);
+
 			// We now should connect to our validator group.
 			assert_matches!(
 				overseer_recv(&mut virtual_overseer).await,
 				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::ConnectToValidators(
-						peer_set,
-						validators,
-						tx,
-					)
+					NetworkBridgeMessage::ConnectToValidators {
+						validator_ids,
+						mut connected,
+						..
+					}
 				) => {
-					assert_eq!(peer_set, PeerSet::Collation);
-					assert_eq!(validators.len(), 4);
-					assert!(validators.contains(&test_state.validator_public[2]));
-					assert!(validators.contains(&test_state.validator_public[0]));
-					assert!(validators.contains(&test_state.validator_public[4]));
-					assert!(validators.contains(&test_state.validator_public[1]));
+					assert_eq!(validator_ids, test_state.validator_authority_id);
 
-					tx.send(vec![
-						(test_state.validator_public[2].clone(), test_state.validator_peer_id[2].clone()),
-						(test_state.validator_public[0].clone(), test_state.validator_peer_id[0].clone()),
-						(test_state.validator_public[4].clone(), test_state.validator_peer_id[4].clone()),
-						(test_state.validator_public[1].clone(), test_state.validator_peer_id[1].clone()),
-					]).unwrap();
+					let result = vec![
+						(test_state.validator_authority_id[2].clone(), test_state.validator_peer_id[2].clone()),
+						(test_state.validator_authority_id[0].clone(), test_state.validator_peer_id[0].clone()),
+						(test_state.validator_authority_id[4].clone(), test_state.validator_peer_id[4].clone()),
+						(test_state.validator_authority_id[1].clone(), test_state.validator_peer_id[1].clone()),
+					];
+
+					for (id, peer_id) in result.into_iter() {
+						connected.try_send((id, peer_id)).unwrap();
+					}
 				}
 			);
 
