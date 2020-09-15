@@ -87,7 +87,7 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				// message makes sense.
 				return Ok(());
 			}
-			(origin, Xcm::RelayToParachain { id, inner }) => {
+			(origin, Xcm::RelayTo { dest: MultiLocation::X1(Junction::Parachain { id }), inner }) => {
 				let msg = Xcm::RelayedFrom { superorigin: origin, inner }.into();
 				return Config::XcmSender::send_xcm(Junction::Parachain { id }.into(), msg)
 			},

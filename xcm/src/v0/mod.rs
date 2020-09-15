@@ -130,27 +130,28 @@ pub enum Xcm {
 	/// Errors:
 	Transact { origin_type: OriginKind, call: Vec<u8> },
 
-	/// Relay an inner message (`inner`) to the parachain destination ID `id`.
+	/// Relay an inner message (`inner`) to a locally reachable destination ID `dest`.
 	///
-	/// The message sent to the parachain will be wrapped into a `RelayedFrom` message, with the `superorigin`
-	/// being this parachain.
+	/// The message sent to the destination will be wrapped into a `RelayedFrom` message, with the
+	/// `superorigin` being this location.
 	///
-	/// - `id`: The identity of the parachain to be relayed into.
-	/// - `inner`: The message to be wrapped and relayed.
+	/// - `dest: MultiLocation`: The location of the to be relayed into. This may never contain `Parent`, and
+	///   it must be immediately reachable from the interpreting context.
+	/// - `inner: VersionedXcm`: The message to be wrapped and relayed.
 	///
 	/// Safety: No concerns.
 	///
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	RelayToParachain { id: u32, inner: Box<VersionedXcm> },
+	RelayTo { dest: MultiLocation, inner: Box<VersionedXcm> },
 
 	/// A message (`inner`) was sent to `origin` from `superorigin` with the intention of being relayed.
 	///
 	/// - `superorigin`: The location of the `inner` message origin, **relative to `origin`**.
 	/// - `inner`: The message sent by the super origin.
 	///
-	/// Safety: `superorigin` must express a sub-consensus only.
+	/// Safety: `superorigin` must express a sub-consensus only; it may *NEVER* contain a `Parent` junction.
 	///
 	/// Kind: *Trusted Indication*.
 	///

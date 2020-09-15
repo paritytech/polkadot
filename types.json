@@ -164,8 +164,8 @@
 		"origin_type": "OriginKind",
 		"call": "Vec<u8>"
 	},
-	"RelayToParachain": {
-		"id": "u32",
+	"RelayTo": {
+		"dest": "MultiLocation",
 		"inner": "VersionedXcm"
 	},
 	"RelayedFrom": {
@@ -179,7 +179,7 @@
 			"TeleportAsset": "TeleportAsset",
 			"Balances": "Balances",
 			"Transact": "Transact",
-			"RelayToParachain": "RelayToParachain",
+			"RelayTo": "RelayTo",
 			"RelayedFrom": "RelayedFrom"
 		}
 	},
