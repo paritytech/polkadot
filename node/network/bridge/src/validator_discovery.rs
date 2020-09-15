@@ -103,8 +103,8 @@ impl PendingConnectionRequestState {
 		let _ = self.pending.remove(authority);
 	}
 
-	pub fn is_fullfilled(&mut self) -> bool {
-		self.sender.is_closed() || self.revoke.try_recv().is_err()
+	pub fn is_fulfilled(&self) -> bool {
+		self.sender.is_closed()
 	}
 
 	/// Returns `true` if the request is revoked.
@@ -235,7 +235,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 					}
 				}
 				revoked_or_fulfilled_indexes.push(i);
-			} else if pending.is_fullfilled() {
+			} else if pending.is_fulfilled() {
 				revoked_or_fulfilled_indexes.push(i)
 			}
 		}
