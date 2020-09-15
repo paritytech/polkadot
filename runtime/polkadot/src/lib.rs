@@ -1052,41 +1052,41 @@ sp_api::impl_runtime_apis! {
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
-			unimplemented!()
+			Vec::new()
 		}
 
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
-			unimplemented!()
+			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
 		}
 
 		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
-			unimplemented!()
+			Vec::new()
 		}
 
 		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<ValidationData<BlockNumber>> {
-			unimplemented!()
+			None
 		}
 
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
-			unimplemented!()
+			None
 		}
 
 		fn session_index_for_child() -> SessionIndex {
-			unimplemented!()
+			0
 		}
 
 		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
-			unimplemented!()
+			None
 		}
 
 		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
-			unimplemented!()
+			None
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			unimplemented!()
+			Vec::new()
 		}
 	}
 
