@@ -158,7 +158,10 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(polkadot_rpc::DenyUnsafe, polkadot_rpc::SubscriptionManager) -> polkadot_rpc::RpcExtension,
+			impl Fn(
+				polkadot_rpc::DenyUnsafe,
+				polkadot_rpc::SubscriptionTaskExecutor,
+			) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -250,7 +253,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -265,7 +268,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscriptions,
+					subscription_executor,
 					finality_provider: finality_proof_provider.clone(),
 				},
 			};
@@ -634,7 +637,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 
 /// Builds a new object suitable for chain operations.
 #[cfg(feature = "full-node")]
-pub fn new_chain_ops<Runtime, Dispatch>(mut config: Configuration) -> Result<
+pub fn new_chain_ops<Runtime, Dispatch>(mut config: &mut Configuration) -> Result<
 	(
 		Arc<FullClient<Runtime, Dispatch>>,
 		Arc<FullBackend>,
@@ -651,7 +654,7 @@ where
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 	let service::PartialComponents { client, backend, import_queue, task_manager, .. }
-		= new_partial::<Runtime, Dispatch>(&mut config)?;
+		= new_partial::<Runtime, Dispatch>(config)?;
 	Ok((client, backend, import_queue, task_manager))
 }
 

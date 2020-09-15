@@ -7,5 +7,7 @@ runtime/wasm/target/
 .idea
 .vscode
 polkadot.*
+!polkadot.service
+!.rpm/*
 .DS_Store
 .cargo

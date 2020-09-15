@@ -14,6 +14,7 @@ polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 derive_more = "0.99.9"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
