@@ -7,7 +7,7 @@ although with smaller scalability potential.
 
 ## HrmpChannelId
 
-A type that uniquely identifies a HRMP channel. A HRMP channel is established between two paras.
+A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
 In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
 unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
 that we use the first item tuple for the sender and the second for the recipient. Only one channel
