@@ -17,8 +17,11 @@
 //! Cross-Consensus Message format data structures.
 
 use sp_std::result;
+use codec::{Encode, Decode};
+use sp_runtime::RuntimeDebug;
 use super::{MultiLocation, Xcm};
 
+#[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
 pub enum Error {
 	Undefined,
 	Unimplemented,

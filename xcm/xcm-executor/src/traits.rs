@@ -79,13 +79,13 @@ impl TransactAsset for Tuple {
 		for_tuples!( #(
 			match Tuple::deposit_asset(what, who) { o @ Ok(_) => return o, _ => () }
 		)* );
-		Err(())
+		Err(XcmError::Unimplemented)
 	}
 	fn withdraw_asset(what: &MultiAsset, who: &MultiLocation) -> Result<MultiAsset, XcmError> {
 		for_tuples!( #(
 			match Tuple::withdraw_asset(what, who) { o @ Ok(_) => return o, _ => () }
 		)* );
-		Err(())
+		Err(XcmError::Unimplemented)
 	}
 }
 
