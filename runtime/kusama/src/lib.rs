@@ -317,7 +317,7 @@ parameter_types! {
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	// quarter of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
@@ -352,7 +352,7 @@ impl pallet_staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_staking::WeightInfo;
 }
 
 parameter_types! {
@@ -419,6 +419,7 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -467,6 +468,7 @@ impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -763,7 +765,9 @@ parameter_types! {
 	pub const MaxPending: u16 = 32;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime { }
+impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
+	type Event = Event;
+}
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -917,8 +921,8 @@ construct_runtime! {
 		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
 		DummyParachains: dummy::<Instance0>::{Module, Call},
 		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::<Instance2>::{Module, Call},
-		DummyRegistrar: dummy::<Instance3>::{Module, Call},
+		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
+		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
 
 		// Utility module.
 		Utility: pallet_utility::{Module, Call, Event},
