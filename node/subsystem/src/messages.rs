@@ -208,9 +208,15 @@ pub enum NetworkBridgeMessage {
 		/// The response is sent immediately for already connected peers.
 		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 		/// By revoking the request the caller allows the network to
-		/// disconnect from the validators thus freeing the resources.
+		/// free some peer slots thus freeing the resources.
+		/// It doesn't necessarily lead to peers disconnection though.
+		/// The revokation is enacted on in the next connection request.
 		///
 		/// This can be done by sending to the channel.
+		/// NOTE: if the revoke's sender is dropped instead,
+		/// we will never disconnect from the given validator list.
+		// TODO: will we ever want such behavior?
+		#[must_use]
 		revoke: oneshot::Receiver<()>,
 	},
 }

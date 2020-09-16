@@ -70,7 +70,13 @@ struct State {
 	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
 	/// go out of scope with their respective deactivated leafs.
 	known_validators: HashMap<PeerId, ValidatorId>,
+
+	/// Revoke last `ConnectToValidators` request to free peer slots
+	/// and clean up other bookkeeping structs.
+	revoke_last_connection_request: Option<RevokeConnectionRequest>,
 }
+
+type RevokeConnectionRequest = oneshot::Sender<()>;
 
 /// Distribute a collation.
 ///
@@ -238,7 +244,8 @@ where
 	Ok(())
 }
 
-/// Issue a connection request to a set of validators.
+/// Issue a connection request to a set of validators and
+/// revoke the previous connection request. 
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -248,18 +255,21 @@ async fn connect_to_validators<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
+	if let Some(revoke) = state.revoke_last_connection_request.take() {
+		// there is not much we can do about the send error
+		let _ = revoke.send(());
+	}
+
 	let (result, revoke) = connect_to_validators_impl(ctx, relay_parent, validators).await?;
 
 	for (validator_id, peer_id) in result.into_iter() {
 		state.known_validators.insert(peer_id, validator_id);
 	}
 
-	// TODO: do we want to revoke requests at all?
-	drop(revoke);
+	state.revoke_last_connection_request = Some(revoke);
+
 	Ok(())
 }
-
-type RevokeConnectionRequest = oneshot::Sender<()>;
 
 // TODO: make this code reusable by other subsystems
 // put in subsystem-util?
@@ -607,8 +617,8 @@ async fn handle_our_view_change(
 	let removed = old_view.difference(&view).collect::<Vec<_>>();
 
 	for removed in removed.into_iter() {
-		state.collations.remove(&removed);
-		if let Some(group) = state.our_validators_groups.remove(&removed) {
+		state.collations.remove(removed);
+		if let Some(group) = state.our_validators_groups.remove(removed) {
 			state.known_validators.retain(|_, v| !group.contains(v));
 		}
 	}

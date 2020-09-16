@@ -103,8 +103,8 @@ impl PendingConnectionRequestState {
 		let _ = self.pending.remove(authority);
 	}
 
-	pub fn is_fulfilled(&self) -> bool {
-		self.sender.is_closed()
+	pub fn is_fulfilled(&mut self) -> bool {
+		self.sender.is_closed() && self.revoke.try_recv().is_err()
 	}
 
 	/// Returns `true` if the request is revoked.
