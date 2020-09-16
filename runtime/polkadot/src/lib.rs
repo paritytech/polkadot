@@ -40,9 +40,9 @@ use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
-	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
-	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult,
@@ -124,6 +124,9 @@ impl Filter<Call> for BaseFilter {
 			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) |
 			Call::DummyPurchase(_) =>
 				false,
+
+			// More Parachains stuff
+			Call::Configuration(_) | Call::Inclusion(_) | Call::Initializer(_) | Call::Paras(_) | Call::ParaScheduler(_) => false,
 
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
@@ -964,8 +967,12 @@ construct_runtime! {
 		// Old spot for the purchase pallet. Can be replaced later by a new pallet.
 		DummyPurchase: dummy::<Instance4>::{Module, Call, Event<T>},
 
-		// Runtime impl; this is mainly to inject an appropriate variant into the Event enum
-		Inclusion: inclusion::{Event<T>},
+		// Parachains runtime modules
+		Configuration: configuration::{Module, Call, Storage},
+		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		Initializer: initializer::{Module, Call, Storage},
+		Paras: paras::{Module, Call, Storage},
+		ParaScheduler: scheduler::{Module, Call, Storage},
 
 		// Identity. Late addition.
 		Identity: pallet_identity::{Module, Call, Storage, Event<T>},

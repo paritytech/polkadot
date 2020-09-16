@@ -31,8 +31,9 @@ use polkadot_runtime_parachains::{
 	scheduler,
 };
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
-	self as p_v1,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, impls::CurrencyToVoteHandler,
@@ -469,8 +470,12 @@ construct_runtime! {
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
-		// Runtime impl; this is mainly to inject an appropriate variant into the Event enum
-		Inclusion: inclusion::{Event<T>},
+		// Parachains runtime modules
+		Configuration: configuration::{Module, Call, Storage},
+		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		Initializer: initializer::{Module, Call, Storage},
+		Paras: paras::{Module, Call, Storage},
+		Scheduler: scheduler::{Module, Call, Storage},
 
 		// Sudo. Last module.
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
@@ -577,42 +582,42 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
-		fn validators() -> Vec<p_v1::ValidatorId> {
+		fn validators() -> Vec<ValidatorId> {
 			runtime_impl::validators::<Runtime>()
 		}
 
-		fn validator_groups() -> (Vec<Vec<p_v1::ValidatorIndex>>, p_v1::GroupRotationInfo<BlockNumber>) {
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
 			runtime_impl::validator_groups::<Runtime>()
 		}
 
-		fn availability_cores() -> Vec<p_v1::CoreState<BlockNumber>> {
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
 			runtime_impl::availability_cores::<Runtime>()
 		}
 
-		fn full_validation_data(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
-			-> Option<p_v1::ValidationData<BlockNumber>> {
+		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>> {
 				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
 			}
 
-		fn persisted_validation_data(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
-			-> Option<p_v1::PersistedValidationData<BlockNumber>> {
+		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>> {
 				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 			}
 
-		fn session_index_for_child() -> p_v1::SessionIndex {
+		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
-		fn validation_code(para_id: p_v1::Id, assumption: p_v1::OccupiedCoreAssumption)
-			-> Option<p_v1::ValidationCode> {
+		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode> {
 				runtime_impl::validation_code::<Runtime>(para_id, assumption)
 			}
 
-		fn candidate_pending_availability(para_id: p_v1::Id) -> Option<p_v1::CommittedCandidateReceipt<Hash>> {
+		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
 
-		fn candidate_events() -> Vec<p_v1::CandidateEvent<Hash>> {
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			use core::convert::TryInto;
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}

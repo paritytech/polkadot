@@ -23,9 +23,9 @@
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
-	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
-	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
 	dummy, purchase, SlowAdjustingFeeUpdate,
@@ -715,8 +715,12 @@ construct_runtime! {
 		// System scheduler.
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 
-		// Runtime impl; this is mainly to inject an appropriate variant into the Event enum
-		Inclusion: inclusion::{Event<T>},
+		// Parachains runtime modules
+		Configuration: configuration::{Module, Call, Storage},
+		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		Initializer: initializer::{Module, Call, Storage},
+		Paras: paras::{Module, Call, Storage},
+		ParaScheduler: scheduler::{Module, Call, Storage},
 
 		// Sudo.
 		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
