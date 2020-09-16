@@ -56,6 +56,13 @@ struct HostConfiguration {
 	pub dispatchable_upward_message_critical_weight: u32,
 	/// The maximum number of messages that a candidate can contain.
 	pub max_upward_message_num_per_candidate: u32,
+	/// The maximum size of a message that can be put in a downward message queue.
+	///
+	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
+	/// the PoV size. Of course, there is a lot of other different things that a parachain may
+	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
+	/// size.
+	pub critical_downward_message_size: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.

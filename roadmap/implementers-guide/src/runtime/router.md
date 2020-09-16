@@ -185,7 +185,9 @@ Candidate Acceptance Function:
 * `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
   1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
   1. `new_hrmp_watermark` must not be greater than the context's block number.
-  1. in `HrmpChannelDigests` for `P` an entry with the block number equal to `new_hrmp_watermark` should exist.
+  1. `new_hrmp_watermark` should be either
+      1. equal to the context's block number
+      1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
 * `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
   1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
       1. exists
@@ -260,6 +262,7 @@ any of dispatchables return an error.
 Utility routines.
 
 `queue_downward_message(P: ParaId, M: DownwardMessage)`:
+    1. Check if the serialized size of `M` exceeds the `config.critical_downward_message_size`. If so, return an error.
     1. Wrap `M` into `InboundDownwardMessage` using the current block number for `sent_at`.
     1. Obtain a new MQC link for the resulting `InboundDownwardMessage` and replace `DownwardMessageQueueHeads` for `P` with the resulting hash.
     1. Add the resulting `InboundDownwardMessage` into `DownwardMessageQueues` for `P`.
