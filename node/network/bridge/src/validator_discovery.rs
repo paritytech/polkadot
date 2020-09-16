@@ -304,6 +304,35 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+
+	#[derive(Default)]
+	struct TestNetwork {
+		peers: HashMap<AuthorityDiscoveryId, (Multiaddr, PeerId)>,
+	}
+
+	struct TestAuthorityDiscovery {
+		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
+		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	}
+
+	impl Network for TestNetwork {
+		fn set_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+	}
+
+	#[async_trait]
+	impl AuthorityDiscovery for TestDiscovery {
+		async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
+			self.by_authority_id.get(authority).cloned().map(|addr| vec![addr])
+		}
+
+		async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
+			self.by_peer_id.get(&peer_id).cloned()
+		}
+	}
+
 	#[test]
 	fn it_works() {
 		todo!()
