@@ -67,7 +67,7 @@ dnf install polkadot
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
-cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot
+cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
 ```
 
 ### Build from Source

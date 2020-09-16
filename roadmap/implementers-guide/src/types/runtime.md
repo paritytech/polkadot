@@ -45,8 +45,7 @@ struct HostConfiguration {
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
 	pub preferred_dispatchable_upward_messages_step_weight: u32,
-	/// Any dispatchable upward message that requests more than the critical amount is rejected
-	/// with `DispatchResult::CriticalWeightExceeded`.
+	/// Any dispatchable upward message that requests more than the critical amount is rejected.
 	///
 	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
 	/// the total budget. I.e. that the sum of `preferred_dispatchable_upward_messages_step_weight`
