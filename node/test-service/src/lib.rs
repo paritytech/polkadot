@@ -26,7 +26,7 @@ use polkadot_primitives::v0::{
 	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
-use polkadot_service::{new_full, FullNodeHandles, AbstractClient};
+use polkadot_service::{new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient};
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
@@ -67,7 +67,7 @@ pub fn polkadot_test_new_full(
 ) -> Result<
 	(
 		TaskManager,
-		Arc<impl AbstractClient<Block, TFullBackend<Block>>>,
+		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
 		FullNodeHandles,
 		Arc<NetworkService<Block, Hash>>,
 		Arc<RpcHandlers>,
@@ -86,6 +86,15 @@ pub fn polkadot_test_new_full(
 		)?;
 
 	Ok((task_manager, client, handles, network, rpc_handlers))
+}
+
+/// A wrapper for the test client that implements `ClientHandle`.
+pub struct TestClient(pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
+
+impl ClientHandle for TestClient {
+	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
+		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
+	}
 }
 
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot

@@ -16,6 +16,7 @@
 
 //! Basic parachain that adds a number as part of its state.
 
+use parachain::wasm_executor::{ValidationPool, ExecutionMode};
 use parachain::primitives::{
 	BlockData as GenericBlockData,
 	HeadData as GenericHeadData,
@@ -24,9 +25,19 @@ use parachain::primitives::{
 use codec::{Decode, Encode};
 use code_upgrader::{hash_state, HeadData, BlockData, State};
 
+const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
+
+fn execution_mode() -> ExecutionMode {
+	ExecutionMode::ExternalProcessCustomHost {
+		pool: ValidationPool::new(),
+		binary: std::env::current_exe().unwrap(),
+		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
+	}
+}
+
 #[test]
 pub fn execute_good_no_upgrade() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let execution_mode = execution_mode();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -49,7 +60,7 @@ pub fn execute_good_no_upgrade() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		&execution_mode,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
@@ -63,7 +74,7 @@ pub fn execute_good_no_upgrade() {
 
 #[test]
 pub fn execute_good_with_upgrade() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let execution_mode = execution_mode();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -86,7 +97,7 @@ pub fn execute_good_with_upgrade() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: Some(20),
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		&execution_mode,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 
@@ -107,7 +118,7 @@ pub fn execute_good_with_upgrade() {
 #[test]
 #[should_panic]
 pub fn code_upgrade_not_allowed() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let execution_mode = execution_mode();
 
 	let parent_head = HeadData {
 		number: 0,
@@ -130,14 +141,14 @@ pub fn code_upgrade_not_allowed() {
 			relay_chain_height: 1,
 			code_upgrade_allowed: None,
 		},
-		parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+		&execution_mode,
 		sp_core::testing::TaskExecutor::new(),
 	).unwrap();
 }
 
 #[test]
 pub fn applies_code_upgrade_after_delay() {
-	let pool = parachain::wasm_executor::ValidationPool::new();
+	let execution_mode = execution_mode();
 
 	let (new_head, state) = {
 		let parent_head = HeadData {
@@ -161,7 +172,7 @@ pub fn applies_code_upgrade_after_delay() {
 				relay_chain_height: 1,
 				code_upgrade_allowed: Some(2),
 			},
-			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			&execution_mode,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 
@@ -197,7 +208,7 @@ pub fn applies_code_upgrade_after_delay() {
 				relay_chain_height: 2,
 				code_upgrade_allowed: None,
 			},
-			parachain::wasm_executor::ExecutionMode::RemoteTest(&pool),
+			&execution_mode,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 

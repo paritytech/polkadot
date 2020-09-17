@@ -20,14 +20,17 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use adder::{HeadData as AdderHead, BlockData as AdderBody};
-use sp_core::Pair;
+use sp_core::{traits::SpawnNamed, Pair};
 use codec::{Encode, Decode};
 use primitives::v0::{
-	Hash, HeadData, BlockData, Id as ParaId, LocalValidationData, GlobalValidationData,
+	Block, DownwardMessage, Hash, HeadData, BlockData,
+	Id as ParaId, LocalValidationData, GlobalValidationData,
 };
-use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli};
+use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli, SyncOracle};
 use parking_lot::Mutex;
 use futures::future::{Ready, ready, FutureExt};
+use sp_runtime::traits::BlakeTwo256;
+use client_api::Backend as BackendT;
 
 const GENESIS: AdderHead = AdderHead {
 	number: 0,
@@ -102,12 +105,20 @@ impl ParachainContext for AdderContext {
 impl BuildParachainContext for AdderContext {
 	type ParachainContext = Self;
 
-	fn build<SP>(
+	fn build<SP, Client, Backend, PNetwork>(
 		self,
-		_: collator::Client,
+		_: Arc<Client>,
 		_: SP,
-		network: impl Network + Clone + 'static,
-	) -> Result<Self::ParachainContext, ()> {
+		network: PNetwork,
+	) -> Result<Self::ParachainContext, ()>
+	where
+		SP: SpawnNamed + Clone + Send + Sync + 'static,
+		Backend: BackendT<Block>,
+		Backend::State: sp_api::StateBackend<BlakeTwo256>,
+		Client: service::AbstractClient<Block, Backend> + 'static,
+		Client::Api: service::RuntimeApiCollection<StateBackend = Backend::State>,
+		PNetwork: Network + SyncOracle + Clone + 'static,
+	{
 		Ok(Self { _network: Some(Arc::new(network)), ..self })
 	}
 }

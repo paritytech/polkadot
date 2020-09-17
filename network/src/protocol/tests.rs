@@ -24,7 +24,7 @@ use polkadot_primitives::v0::{
 	GlobalValidationData, LocalValidationData, SigningContext,
 	PoVBlock, BlockData, ValidationCode,
 };
-use polkadot_validation::{SharedTable, TableRouter};
+use polkadot_validation::{SharedTable, TableRouter, pipeline::ExecutionMode};
 
 use av_store::Store as AvailabilityStore;
 use sc_network_gossip::TopicNotification;
@@ -298,7 +298,7 @@ fn consensus_instances_cleaned_up() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
-		None,
+		ExecutionMode::InProcess,
 	));
 
 	pool.spawner().spawn_local(worker_task).unwrap();
@@ -329,7 +329,7 @@ fn collation_is_received_with_dropped_router() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
-		None,
+		ExecutionMode::InProcess,
 	));
 
 	pool.spawner().spawn_local(worker_task).unwrap();
@@ -489,7 +489,7 @@ fn fetches_pov_block_from_gossip() {
 		signing_context,
 		AvailabilityStore::new_in_memory(service.clone()),
 		None,
-		None,
+		ExecutionMode::InProcess,
 	));
 
 	let spawner = pool.spawner();
