@@ -23,7 +23,8 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "polkadot-service-new", path = "../node/service", default-features = false }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+service = { package = "polkadot-service-new", path = "../node/service", default-features = false, optional = true }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -43,7 +44,7 @@ substrate-build-script-utils = { git = "https://github.com/paritytech/substrate"
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
 wasmtime = [ "sc-cli/wasmtime" ]
-db = []
+db = [ "service/db" ]
 cli = [
 	"tokio",
 	"sc-cli",
@@ -54,7 +55,8 @@ browser = [
 	"wasm-bindgen",
 	"wasm-bindgen-futures",
 	"browser-utils",
+	"service",
 ]
-runtime-benchmarks = []
+runtime-benchmarks = [ "service/runtime-benchmarks" ]
 trie-memory-tracker = [ "sp-trie/memory-tracker" ]
 full-node = [ "service/full-node" ]
