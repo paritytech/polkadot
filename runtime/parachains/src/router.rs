@@ -26,7 +26,8 @@ use crate::{
 };
 use sp_std::prelude::*;
 use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
-use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash};
+use sp_std::collections::vec_deque::VecDeque;
+use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash, UpwardMessage};
 
 mod dmp;
 mod ump;
@@ -57,6 +58,44 @@ decl_storage! {
 		/// - `B`: is the relay-chain block number in which a message was appended.
 		/// - `H(M)`: is the hash of the message being appended.
 		DownwardMessageQueueHeads: map hasher(twox_64_concat) ParaId => Hash;
+
+		/*
+		 * Upward Message Passing (UMP)
+		 *
+		 * Storage layout required for UMP, specifically dispatchable upward messages.
+		 */
+
+		/// The messages waiting to be handled by the relay-chain originating from a certain parachain.
+		///
+		/// Note that some upward messages might have been already processed by the inclusion logic. E.g.
+		/// channel management messages.
+		///
+		/// The messages are processed in FIFO order.
+		RelayDispatchQueues: map hasher(twox_64_concat) ParaId => VecDeque<UpwardMessage>;
+		/// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
+		///
+		/// First item in the tuple is the count of messages and second
+		/// is the total length (in bytes) of the message payloads.
+		///
+		/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
+		/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
+		/// loading the whole message queue if only the total size and count are required.
+		///
+		/// Invariant:
+		/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
+		RelayDispatchQueueSize: map hasher(twox_64_concat) ParaId => (u32, u32);
+		/// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
+		///
+		/// Invariant:
+		/// - The set of items from this vector should be exactly the set of the keys in
+		///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
+		NeedsDispatch: Vec<ParaId>;
+		/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+		/// execution round.
+		///
+		/// Invariant:
+		/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
+		NextDispatchRoundStartWith: Option<ParaId>;
 	}
 }
 
@@ -87,6 +126,7 @@ impl<T: Trait> Module<T> {
 		let outgoing = OutgoingParas::take();
 		for outgoing_para in outgoing {
 			Self::clean_dmp_after_outgoing(outgoing_para);
+			Self::clean_ump_after_outgoing(outgoing_para);
 		}
 	}
 

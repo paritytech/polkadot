@@ -14,13 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{Trait, Module};
+use super::{Trait, Module, Store};
 use crate::configuration::HostConfiguration;
 use sp_std::prelude::*;
-use frame_support::weights::Weight;
+use frame_support::{StorageMap, StorageValue, weights::Weight};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
 impl<T: Trait> Module<T> {
+	pub(super) fn clean_ump_after_outgoing(outgoing_para: ParaId) {
+		<Self as Store>::RelayDispatchQueueSize::remove(&outgoing_para);
+		<Self as Store>::RelayDispatchQueues::remove(&outgoing_para);
+		<Self as Store>::NeedsDispatch::mutate(|v| {
+			if let Ok(i) = v.binary_search(&outgoing_para) {
+				v.remove(i);
+			}
+		});
+		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
+			*v = v.filter(|p| *p == outgoing_para)
+		});
+	}
+
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
 	/// false, if any of the messages doesn't pass.
 	pub(crate) fn check_upward_messages(
