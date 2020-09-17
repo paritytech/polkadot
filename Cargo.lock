@@ -4713,6 +4713,7 @@ dependencies = [
  "sc-client-db",
  "sc-executor",
  "sc-service",
+ "sc-tracing",
  "sp-api",
  "sp-core",
  "sp-runtime",
