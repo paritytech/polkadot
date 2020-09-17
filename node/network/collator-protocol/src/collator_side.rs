@@ -15,15 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashMap;
+use std::pin::Pin;
+
+use super::{TARGET,  Result};
 
 use futures::channel::{mpsc, oneshot};
-use futures::stream::StreamExt as _;
+use futures::stream::{self, StreamExt as _};
+use futures::task::{Poll, self};
 use log::{trace, warn};
+use pin_project::pin_project;
+
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
 	PoV, ValidatorId, AuthorityDiscoveryId,
 };
-use super::{TARGET,  Result};
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
@@ -71,12 +76,9 @@ struct State {
 	/// go out of scope with their respective deactivated leafs.
 	known_validators: HashMap<PeerId, ValidatorId>,
 
-	/// Revoke last `ConnectToValidators` request to free peer slots
-	/// and clean up other bookkeeping structs.
-	revoke_last_connection_request: Option<RevokeConnectionRequest>,
+	/// Use to await for the next validator connection and revoke the request.
+	last_connection_request: Option<ConnectionRequest>,
 }
-
-type RevokeConnectionRequest = oneshot::Sender<()>;
 
 /// Distribute a collation.
 ///
@@ -117,8 +119,8 @@ where
 	// Determine which core the para collated-on is assigned to.
 	// If it is not scheduled then ignore the message.
 	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-	    Some(core) => core,
-	    None => {
+		Some(core) => core,
+		None => {
 			warn!(
 				target: TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
@@ -129,8 +131,8 @@ where
 
 	// Determine the group on that core and the next group on that core.
 	let our_validators = match determine_our_validators(ctx, our_core, num_cores, relay_parent).await? {
-	    Some(validators) => validators,
-	    None => {
+		Some(validators) => validators,
+		None => {
 			warn!(
 				target: TARGET,
 				"There are no validators assigned to {:?} core", our_core,
@@ -245,7 +247,7 @@ where
 }
 
 /// Issue a connection request to a set of validators and
-/// revoke the previous connection request. 
+/// revoke the previous connection request.
 async fn connect_to_validators<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -255,18 +257,13 @@ async fn connect_to_validators<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	if let Some(revoke) = state.revoke_last_connection_request.take() {
-		// there is not much we can do about the send error
-		let _ = revoke.send(());
+	if let Some(request) = state.last_connection_request.take() {
+		request.revoke();
 	}
 
-	let (result, revoke) = connect_to_validators_impl(ctx, relay_parent, validators).await?;
+	let request = connect_to_validators_impl(ctx, relay_parent, validators).await?;
 
-	for (validator_id, peer_id) in result.into_iter() {
-		state.known_validators.insert(peer_id, validator_id);
-	}
-
-	state.revoke_last_connection_request = Some(revoke);
+	state.last_connection_request = Some(request);
 
 	Ok(())
 }
@@ -277,7 +274,7 @@ async fn connect_to_validators_impl<Context: SubsystemContext>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	validators: Vec<ValidatorId>,
-) -> Result<(Vec<(ValidatorId, PeerId)>, RevokeConnectionRequest)> {
+) -> Result<ConnectionRequest> {
 	// ValidatorId -> AuthorityDiscoveryId
 	let (tx, rx) = oneshot::channel();
 
@@ -288,33 +285,30 @@ async fn connect_to_validators_impl<Context: SubsystemContext>(
 		)
 	)).await?;
 
-	let authorities = rx.await??;
+	let maybe_authorities = rx.await??;
+	let authorities: Vec<_> = maybe_authorities.iter()
+		.cloned()
+		.filter_map(|id| id)
+		.collect();
 
-	let mut validator_map = validators.into_iter()
-		.zip(authorities.into_iter())
+	let validator_map = validators.into_iter()
+		.zip(maybe_authorities.into_iter())
 		.filter_map(|(k, v)| v.map(|v| (v, k)))
 		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
 
-	let authorities: Vec<_> = validator_map.keys().cloned().collect();
+	let (connections, revoke) = connect_to_authorities(ctx, authorities).await?;
 
-	let (mut rx, revoke) = connect_to_authorities(ctx, authorities).await?;
-
-	// TODO: wait for only one PeerId maybe and for the rest in the background?
-	// or use a timeout?
-	let mut result = Vec::new();
-	while let Some((authority_id, peer_id)) = rx.next().await {
-		if let Some(validator_id) = validator_map.remove(&authority_id) {
-			result.push((validator_id, peer_id));
-		}
-	}
-
-	Ok((result, revoke))
+	Ok(ConnectionRequest {
+		validator_map,
+		connections,
+		revoke,
+	})
 }
 
 async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
-) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, RevokeConnectionRequest)> {
+) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, oneshot::Sender<()>)> {
 	// TODO: what would be the optimal capacity?
 	// do we need a bounded channel at all?
 	const PEERS_CAPACITY: usize = 8;
@@ -333,6 +327,51 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	Ok((connected_rx, revoke_tx))
 }
 
+#[pin_project]
+struct ConnectionRequest {
+	#[pin]
+	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
+	#[pin]
+	#[must_use = "streams do nothing unless polled"]
+	connections: mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>,
+	#[must_use = "a request should be revoked at some point"]
+	revoke: oneshot::Sender<()>,
+}
+
+impl stream::Stream for ConnectionRequest {
+	type Item = (ValidatorId, PeerId);
+
+	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
+		let mut this = self.project();
+		if this.validator_map.is_empty() {
+			return Poll::Ready(None);
+		}
+		match this.connections.poll_next(cx) {
+			Poll::Ready(Some((id, peer_id))) => {
+				if let Some(validator_id) = this.validator_map.remove(&id) {
+					return Poll::Ready(Some((validator_id, peer_id)));
+				} else {
+					// unknown authority_id
+					// should be unreachable
+				}
+			}
+			_ => {},
+		}
+		Poll::Pending
+	}
+}
+
+impl ConnectionRequest {
+	pub fn revoke(self) {
+		if let Err(_) = self.revoke.send(()) {
+			warn!(
+				target: TARGET,
+				"Failed to revoke a validator connection request",
+			);
+		}
+	}
+}
+
 /// Advertise collation to a set of relay chain validators.
 async fn advertise_collation<Context>(
 	ctx: &mut Context,
@@ -344,8 +383,8 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	let collating_on = match state.collating_on {
-	    Some(collating_on) => collating_on,
-	    None => {
+		Some(collating_on) => collating_on,
+		None => {
 			return Ok(());
 		}
 	};
@@ -476,19 +515,19 @@ where
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-	    Declare(_) => {
+		Declare(_) => {
 			warn!(
 				target: TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
-	    AdvertiseCollation(_, _) => {
+		AdvertiseCollation(_, _) => {
 			warn!(
 				target: TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 		}
-	    RequestCollation(request_id, relay_parent, para_id) => {
+		RequestCollation(request_id, relay_parent, para_id) => {
 			match state.collating_on {
 				Some(our_para_id) => {
 					if our_para_id == para_id {
@@ -512,7 +551,7 @@ where
 				}
 			}
 		}
-	    Collation(_, _, _) => {
+		Collation(_, _, _) => {
 			warn!(
 				target: TARGET,
 				"Collation message is not expected on the collator side of the protocol",
@@ -585,7 +624,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-	    PeerConnected(peer_id, _observed_role) => {
+		PeerConnected(peer_id, _observed_role) => {
 			handle_peer_connected(ctx, state, peer_id).await?;
 		}
 		PeerViewChange(peer_id, view) => {
@@ -597,7 +636,7 @@ where
 		OurViewChange(view) => {
 			handle_our_view_change(state, view).await?;
 		}
-	    PeerMessage(remote, msg) => {
+		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, state, remote, msg).await?;
 		}
 	}
@@ -639,12 +678,33 @@ where
 	state.our_id = our_id;
 
 	loop {
-		match ctx.recv().await? {
-			Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
-			Signal(ActiveLeaves(_update)) => {}
-			Signal(BlockFinalized(_)) => {}
-			Signal(Conclude) => break,
+		if let Some(mut request) = state.last_connection_request.take() {
+			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
+				state.known_validators.insert(peer_id.clone(), validator_id);
+				// TODO: we might be duplicating this call in `PeerConnected` handler
+				if let Err(err) = handle_peer_connected(&mut ctx, &mut state, peer_id).await {
+					warn!(
+						target: TARGET,
+						"Failed to declare our collator id: {:?}",
+						err,
+					);
+				}
+			}
+			// put it back
+			// TODO: how to avoid this workaround?
+			state.last_connection_request = Some(request);
 		}
+
+		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
+			match msg? {
+				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
+				Signal(ActiveLeaves(_update)) => {}
+				Signal(BlockFinalized(_)) => {}
+				Signal(Conclude) => break,	
+			}
+		}
+
+		futures::pending!();
 	}
 
 	Ok(())
