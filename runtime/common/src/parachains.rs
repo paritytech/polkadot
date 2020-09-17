@@ -32,9 +32,7 @@ use sp_staking::{
 	offence::{ReportOffence, Offence, Kind},
 };
 use frame_support::{
-	traits::KeyOwnerProofSystem,
-	dispatch::IsSubType,
-	weights::{DispatchClass, Weight},
+	debug, traits::KeyOwnerProofSystem, dispatch::IsSubType, weights::{DispatchClass, Weight},
 };
 use primitives::v0::{
 	Balance, BlockNumber,
@@ -45,7 +43,7 @@ use primitives::v0::{
 	ValidatorSignature, SigningContext, HeadData, ValidationCode,
 };
 use frame_support::{
-	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, ensure,
+	Parameter, dispatch::DispatchResult, decl_storage, decl_module, decl_error, decl_event, ensure,
 	traits::{Currency, Get, WithdrawReason, ExistenceRequirement::{self, AllowDeath, KeepAlive}, Randomness},
 };
 use sp_runtime::transaction_validity::InvalidTransaction;
@@ -252,6 +250,9 @@ impl GetSessionNumber for sp_session::MembershipProof {
 }
 
 pub trait Trait: CreateSignedTransaction<Call<Self>> + attestations::Trait + session::historical::Trait {
+	/// The overarching event type.
+	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+
 	// The transaction signing authority
 	type AuthorityId: system::offchain::AppCrypto<Self::Public, Self::Signature>;
 
@@ -541,6 +542,42 @@ decl_storage! {
 	}
 }
 
+decl_event! {
+	pub enum Event<T> where Hash = <T as system::Trait>::Hash {
+		/// An downward message was sent to a parachain.
+		///
+		/// The hash corresponds to the hash of the encoded upward message.
+		DmpMessageSent(Hash, ParaId),
+		/// Some downward message was executed ok.
+		UmpSuccess(Hash),
+		/// Some downward message failed.
+		UmpFail(Hash, XcmError),
+		/// DMP message had a bad XCM version.
+		UmpBadVersion(Hash),
+		/// DMP message was of an invalid format.
+		UmpBadFormat(Hash),
+	}
+}
+
+/*decl_event! {
+	pub enum Event<T> where Hash = <T as system::Trait>::Hash {
+		///
+		UmpSuccess(Hash),
+		/// An upward message of the given `hash` was executed and failes with `error`.
+		///
+		/// \[ hash, error \]
+		UmpFail(Hash, XcmError),
+		/// An upward message of the given `hash` was decoded, but the Xcm version is unsupported.
+		///
+		/// \[ hash \]
+		UmpBadVersion(Hash),
+		/// An upward message of the given `hash` was unable to be decoded.
+		///
+		/// \[ hash \]
+		UmpBadFormat(Hash),
+	}
+}*/
+
 decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// Parachain heads must be updated only once in the block.
@@ -592,6 +629,8 @@ decl_module! {
 	/// Parachains module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as system::Trait>::Origin, system = system {
 		type Error = Error<T>;
+
+		fn deposit_event() = default;
 
 		fn on_initialize(now: T::BlockNumber) -> Weight {
 			<Self as Store>::DidUpdate::kill();
@@ -966,13 +1005,19 @@ impl<T: Trait> Module<T> {
 	fn dispatch_message(from: ParaId, data: &[u8]) {
 		use sp_std::convert::TryFrom;
 		let origin: MultiLocation = Junction::Parachain { id: from.into() }.into();
+		let hash = T::Hashing::hash(data);
+
 		match VersionedXcm::decode(&mut &data[..]).map(Xcm::try_from) {
 			Ok(Ok(xcm)) => {
-				// TODO: handle error.
-				let _ = T::XcmExecutive::execute_xcm(origin.clone(), xcm);
-			},
-			Ok(Err(_)) => (),	// Unsupported XCM version.
-			Err(_) => (),		// Bad format (can't decode).
+				debug::print!("Processing upward message {:?}: {:?}", hash, xcm);
+				let event = match T::XcmExecutive::execute_xcm(origin, xcm) {
+					Ok(..) => RawEvent::UmpSuccess(hash),
+					Err(e) => RawEvent::UmpFail(hash, e),
+				};
+				Self::deposit_event(event);
+			}
+			Ok(Err(..)) => Self::deposit_event(RawEvent::UmpBadVersion(hash)),
+			Err(..) => Self::deposit_event(RawEvent::UmpBadFormat(hash)),
 		}
 	}
 

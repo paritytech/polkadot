@@ -596,6 +596,7 @@ parameter_types! {
 }
 
 impl parachains::Trait for Runtime {
+	type Event = Event;
 	type AuthorityId = primitives::v0::fisherman::FishermanAppCrypto;
 	type Origin = Origin;
 	type Call = Call;
@@ -979,7 +980,7 @@ construct_runtime! {
 
 		// Parachains stuff; slots are disabled (no auctions initially). The rest are safe as they
 		// have no public dispatchables.
-		Parachains: parachains::{Module, Call, Storage, Config, Inherent, Origin},
+		Parachains: parachains::{Module, Call, Storage, Event<T>, Config, Inherent, Origin},
 		Attestations: attestations::{Module, Call, Storage},
 		Slots: slots::{Module, Call, Storage, Event<T>},
 		Registrar: registrar::{Module, Call, Storage, Event, Config<T>},

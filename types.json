@@ -125,7 +125,7 @@
 	},
 	"InitiateTeleport": {
 		"assets": "Vec<MultiAsset>",
-		"dest": "Multilocation",
+		"dest": "MultiLocation",
 		"effects": "Vec<Order>"
 	},
 	"QueryHolding": {
