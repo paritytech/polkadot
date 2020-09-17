@@ -27,7 +27,10 @@ use frame_support::{
 };
 use sp_runtime::traits::One;
 use codec::{Encode, Decode};
-use crate::{configuration::{self, HostConfiguration}, paras, scheduler, inclusion};
+use crate::{
+	configuration::{self, HostConfiguration},
+	paras, router, scheduler, inclusion,
+};
 
 /// Information about a session change that has just occurred.
 #[derive(Default, Clone)]
@@ -55,7 +58,12 @@ struct BufferedSessionChange<N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + configuration::Trait + paras::Trait + scheduler::Trait + inclusion::Trait
+	frame_system::Trait
+	+ configuration::Trait
+	+ paras::Trait
+	+ scheduler::Trait
+	+ inclusion::Trait
+	+ router::Trait
 {
 	/// A randomness beacon.
 	type Randomness: Randomness<Self::Hash>;
@@ -114,10 +122,12 @@ decl_module! {
 			// - Scheduler
 			// - Inclusion
 			// - Validity
+			// - Router
 			let total_weight = configuration::Module::<T>::initializer_initialize(now) +
 				paras::Module::<T>::initializer_initialize(now) +
 				scheduler::Module::<T>::initializer_initialize(now) +
-				inclusion::Module::<T>::initializer_initialize(now);
+				inclusion::Module::<T>::initializer_initialize(now) +
+				router::Module::<T>::initializer_initialize(now);
 
 			HasInitialized::set(Some(()));
 
@@ -127,6 +137,7 @@ decl_module! {
 		fn on_finalize() {
 			// reverse initialization order.
 
+			router::Module::<T>::initializer_finalize();
 			inclusion::Module::<T>::initializer_finalize();
 			scheduler::Module::<T>::initializer_finalize();
 			paras::Module::<T>::initializer_finalize();
@@ -170,6 +181,7 @@ impl<T: Trait> Module<T> {
 		paras::Module::<T>::initializer_on_new_session(&notification);
 		scheduler::Module::<T>::initializer_on_new_session(&notification);
 		inclusion::Module::<T>::initializer_on_new_session(&notification);
+		router::Module::<T>::initializer_on_new_session(&notification);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
