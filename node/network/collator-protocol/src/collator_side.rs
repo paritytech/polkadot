@@ -268,7 +268,7 @@ where
 	Ok(())
 }
 
-// TODO: make this code reusable by other subsystems
+// TODO (ordian): make this code reusable by other subsystems
 // put in subsystem-util?
 async fn connect_to_validators_impl<Context: SubsystemContext>(
 	ctx: &mut Context,
@@ -309,7 +309,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 ) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, oneshot::Sender<()>)> {
-	// TODO: what would be the optimal capacity?
+	// TODO (ordian): what would be the optimal capacity?
 	// do we need a bounded channel at all?
 	const PEERS_CAPACITY: usize = 8;
 
@@ -681,7 +681,7 @@ where
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				state.known_validators.insert(peer_id.clone(), validator_id);
-				// TODO: we might be duplicating this call in `PeerConnected` handler
+				// TODO (ordian): we might be duplicating this call in `PeerConnected` handler
 				if let Err(err) = handle_peer_connected(&mut ctx, &mut state, peer_id).await {
 					warn!(
 						target: TARGET,
@@ -691,7 +691,7 @@ where
 				}
 			}
 			// put it back
-			// TODO: how to avoid this workaround?
+			// TODO (ordian): how to avoid this workaround?
 			state.last_connection_request = Some(request);
 		}
 

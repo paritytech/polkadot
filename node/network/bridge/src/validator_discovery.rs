@@ -28,14 +28,14 @@ use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 
-// TODO: does it need to be dependent on the PeerSet?
+// TODO (ordian): does it need to be dependent on the PeerSet?
 const PRIORITY_GROUP: &'static str = "parachain_validators";
 
 /// An abstraction over networking for the purposes of validator discovery service.
 pub trait Network: Send + 'static {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
 	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
-	// TODO: we might want to add `add_to_priority_group` and `remove_from_priority_group`
+	// TODO (ordian): we might want to add `add_to_priority_group` and `remove_from_priority_group`
 }
 
 /// An abstraction over the authority discovery service.
@@ -53,7 +53,7 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 	}
 }
 
-// TODO: for `Arc<_>`?
+// TODO (ordian): for `Arc<_>`?
 #[async_trait]
 impl AuthorityDiscovery for AuthorityDiscoveryService {
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
@@ -99,7 +99,7 @@ impl PendingConnectionRequestState {
 	}
 
 	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
-		// TODO: what do we actually want?
+		// TODO (ordian): what do we actually want?
 		let _ = self.pending.remove(authority);
 	}
 
@@ -174,7 +174,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 
 		let on_revoke = |map: &mut HashMap<AuthorityDiscoveryId, u64>, peer_id: &AuthorityDiscoveryId| -> Option<AuthorityDiscoveryId> {
-			// TODO: how to avoid clone?
+			// TODO (ordian): how to avoid clone?
 			match map.entry(peer_id.clone()) {
 				hash_map::Entry::Occupied(mut entry) => {
 					*entry.get_mut() -= 1;
@@ -257,8 +257,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 
 		// ask the network to connect to these nodes and not disconnect
 		// from them until removed from the priority group
-		// TODO: this clones the whole set of multaddresses
-		// TODO: use add_to_priority_group for incremental updates?
+		// TODO (ordian): this clones the whole set of multaddresses
+		// TODO (ordian): use add_to_priority_group for incremental updates?
 		if let Err(e) = network_service.set_priority_group(
 			PRIORITY_GROUP.to_owned(),
 			self.validator_multiaddresses.clone(),

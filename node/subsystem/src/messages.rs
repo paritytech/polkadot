@@ -215,8 +215,7 @@ pub enum NetworkBridgeMessage {
 		/// This can be done by sending to the channel.
 		/// NOTE: if the revoke's sender is dropped instead,
 		/// we will never disconnect from the given validator list.
-		// TODO: will we ever want such behavior?
-		#[must_use]
+		// TODO (ordian): will we ever want such behavior?
 		revoke: oneshot::Receiver<()>,
 	},
 }
