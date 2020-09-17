@@ -544,26 +544,15 @@ decl_storage! {
 
 decl_event! {
 	pub enum Event<T> where Hash = <T as system::Trait>::Hash {
-		/// An downward message was sent to a parachain.
+		/// A downward message of `hash` was sent to a parachain `id`.
 		///
-		/// The hash corresponds to the hash of the encoded upward message.
+		/// \[ hash, id \]
 		DmpMessageSent(Hash, ParaId),
-		/// Some downward message was executed ok.
-		UmpSuccess(Hash),
-		/// Some downward message failed.
-		UmpFail(Hash, XcmError),
-		/// DMP message had a bad XCM version.
-		UmpBadVersion(Hash),
-		/// DMP message was of an invalid format.
-		UmpBadFormat(Hash),
-	}
-}
-
-/*decl_event! {
-	pub enum Event<T> where Hash = <T as system::Trait>::Hash {
+		/// Some upward message of `hash` was executed ok.
 		///
+		/// \[ hash \]
 		UmpSuccess(Hash),
-		/// An upward message of the given `hash` was executed and failes with `error`.
+		/// An upward message of the given `hash` was executed and failed with `error`.
 		///
 		/// \[ hash, error \]
 		UmpFail(Hash, XcmError),
@@ -575,6 +564,13 @@ decl_event! {
 		///
 		/// \[ hash \]
 		UmpBadFormat(Hash),
+	}
+}
+
+/*decl_event! {
+	pub enum Event<T> where Hash = <T as system::Trait>::Hash {
+		///
+		UmpSuccess(Hash),
 	}
 }*/
 
@@ -867,12 +863,17 @@ fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
 impl<T: Trait> SendXcm for Module<T> {
 	fn send_xcm(dest: MultiLocation, msg: xcm::v0::Xcm) -> xcm::v0::Result {
 		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
+			use sp_core::hex_display::HexDisplay;
 			let id: ParaId = id.into();
 			let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
 			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
 				return Err(XcmError::DestinationBufferOverflow)	// Destination buffer overflow.
 			}
-			DownwardMessageQueue::append(id, VersionedXcm::from(msg).encode());
+			let data = VersionedXcm::from(msg).encode();
+			debug::print!("Sending downward message to {}: {}", id, HexDisplay::from(&msg[..]))'
+			let hash = T::Hashing::hash(&data);
+			DownwardMessageQueue::append(id, data);
+			Self::deposit_event(RawEvent::DmpMessageSent(hash, id));
 			Ok(())
 		} else {
 			return Err(XcmError::CannotReachDestination)	// Cannot reach destination.
