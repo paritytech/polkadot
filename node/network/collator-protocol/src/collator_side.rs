@@ -624,10 +624,13 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-		PeerConnected(peer_id, _observed_role) => {
-			handle_peer_connected(ctx, state, peer_id).await?;
+		PeerConnected(_peer_id, _observed_role) => {
+			// Duplicated in the new API.
+			// TODO (ordian): how to handle reconnects properly?
+			//handle_peer_connected(ctx, state, peer_id).await?;
 		}
 		PeerViewChange(peer_id, view) => {
+			trace!("PEER_ID {:?}\n\n", peer_id);
 			handle_peer_view_change(ctx, state, peer_id, view).await?;
 		}
 		PeerDisconnected(peer_id) => {
@@ -681,7 +684,6 @@ where
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				state.known_validators.insert(peer_id.clone(), validator_id);
-				// TODO (ordian): we might be duplicating this call in `PeerConnected` handler
 				if let Err(err) = handle_peer_connected(&mut ctx, &mut state, peer_id).await {
 					warn!(
 						target: TARGET,
@@ -691,7 +693,6 @@ where
 				}
 			}
 			// put it back
-			// TODO (ordian): how to avoid this workaround?
 			state.last_connection_request = Some(request);
 		}
 
@@ -731,7 +732,6 @@ mod tests {
 	use polkadot_subsystem::ActiveLeavesUpdate;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
-	use polkadot_node_network_protocol::ObservedRole;
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -1054,35 +1054,28 @@ mod tests {
 				}
 			);
 
-			// Validator 2 connects.
-			overseer_send(
-				&mut virtual_overseer,
-				CollatorProtocolMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerConnected(
-						test_state.validator_peer_id[2].clone(),
-						ObservedRole::Authority,
-					)
-				),
-			).await;
-
-			// We declare to the connected validator that we are a collator.
-			assert_matches!(
-				overseer_recv(&mut virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendCollationMessage(
-						to,
-						protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
-					)
-				) => {
-					assert_eq!(to, vec![test_state.validator_peer_id[2].clone()]);
-					assert_matches!(
-						wire_message,
-						protocol_v1::CollatorProtocolMessage::Declare(collator_id) => {
-							assert_eq!(collator_id, test_state.our_collator_pair.public());
-						}
-					);
-				}
-			);
+			// We declare to the connected validators that we are a collator.
+			// We need to catch all `Declare` messages to the validators we've
+			// previosly connected to.
+			for i in vec![2, 0, 4, 1].into_iter() {
+				assert_matches!(
+					overseer_recv(&mut virtual_overseer).await,
+					AllMessages::NetworkBridge(
+						NetworkBridgeMessage::SendCollationMessage(
+							to,
+							protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
+						)
+					) => {
+						assert_eq!(to, vec![test_state.validator_peer_id[i].clone()]);
+						assert_matches!(
+							wire_message,
+							protocol_v1::CollatorProtocolMessage::Declare(collator_id) => {
+								assert_eq!(collator_id, test_state.our_collator_pair.public());
+							}
+						);
+					}
+				);
+			}
 
 			// Send info about peer's view.
 			overseer_send(
