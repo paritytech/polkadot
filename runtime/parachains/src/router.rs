@@ -33,8 +33,15 @@ mod dmp;
 mod ump;
 
 pub use dmp::QueueDownwardMessageError;
+pub use ump::UmpSink;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {}
+#[cfg(test)]
+pub use ump::mock_sink::MockUmpSink;
+
+pub trait Trait: frame_system::Trait + configuration::Trait {
+	/// A place where all received upward messages are funneled.
+	type UmpSink: UmpSink;
+}
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Router {
