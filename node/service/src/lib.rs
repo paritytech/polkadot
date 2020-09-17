@@ -22,13 +22,12 @@ mod client;
 
 use std::sync::Arc;
 use std::time::Duration;
-use polkadot_primitives::v1::{AccountId, Nonce, Balance};
-use service::{error::Error as ServiceError};
+use service::{error::Error as ServiceError, RpcHandlers};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_executor::native_executor_instance;
 use log::info;
 use sp_blockchain::HeaderBackend;
-use polkadot_overseer::{self as overseer, AllSubsystems, BlockInfo, Overseer, OverseerHandler};
+use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
 use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use sp_trie::PrefixedMemoryDB;
@@ -55,7 +54,7 @@ pub use polkadot_runtime;
 pub use kusama_runtime;
 pub use westend_runtime;
 use prometheus_endpoint::Registry;
-pub use self::client::PolkadotClient;
+pub use self::client::{AbstractClient, Client, RuntimeApiCollection};
 
 native_executor_instance!(
 	pub PolkadotExecutor,
@@ -77,40 +76,6 @@ native_executor_instance!(
 	westend_runtime::native_version,
 	frame_benchmarking::benchmarking::HostFunctions,
 );
-
-/// A set of APIs that polkadot-like runtimes must implement.
-pub trait RuntimeApiCollection:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>
-where
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
-{}
-
-impl<Api> RuntimeApiCollection for Api
-where
-	Api:
-	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-	+ babe_primitives::BabeApi<Block>
-	+ grandpa_primitives::GrandpaApi<Block>
-	+ sp_block_builder::BlockBuilder<Block>
-	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-	+ sp_api::Metadata<Block>
-	+ sp_offchain::OffchainWorkerApi<Block>
-	+ sp_session::SessionKeys<Block>
-	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
-	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<HashFor<Block>>,
-{}
 
 /// Can be called for a `Configuration` to check if it is a configuration for the `Kusama` network.
 pub trait IdentifyVariant {
@@ -313,13 +278,14 @@ fn real_overseer<S: SpawnNamed>(
 fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
-	_max_block_data_size: Option<u64>,
-	_authority_discovery_enabled: bool,
-	_slot_duration: u64,
+	authority_discovery_enabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(
 	TaskManager,
 	Arc<FullClient<RuntimeApi, Executor>>,
+	Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	RpcHandlers,
+	OverseerHandler,
 ), Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -337,7 +303,13 @@ fn new_full<RuntimeApi, Executor>(
 	let name = config.network.node_name.clone();
 
 	let service::PartialComponents {
-		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
+		client,
+		backend,
+		mut task_manager,
+		keystore,
+		select_chain,
+		import_queue,
+		transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	} = new_partial::<RuntimeApi, Executor>(&mut config)?;
@@ -368,7 +340,7 @@ fn new_full<RuntimeApi, Executor>(
 
 	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
 
-	service::spawn_tasks(service::SpawnTasksParams {
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
@@ -411,7 +383,7 @@ fn new_full<RuntimeApi, Executor>(
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 		use futures::{pin_mut, select, FutureExt};
 
-		let forward = overseer::forward_events(overseer_client, handler);
+		let forward = polkadot_overseer::forward_events(overseer_client, handler_clone);
 
 		let forward = forward.fuse();
 		let overseer_fut = overseer.run().fuse();
@@ -435,7 +407,7 @@ fn new_full<RuntimeApi, Executor>(
 		let proposer = ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
-			handler_clone,
+			handler.clone(),
 		);
 
 		let babe_config = babe::BabeParams {
@@ -457,7 +429,7 @@ fn new_full<RuntimeApi, Executor>(
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore = if is_authority {
+	let keystore_opt = if is_authority {
 		Some(keystore.clone() as BareCryptoStorePtr)
 	} else {
 		None
@@ -469,7 +441,7 @@ fn new_full<RuntimeApi, Executor>(
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
-		keystore,
+		keystore: keystore_opt,
 		is_authority: role.is_network_authority(),
 	};
 
@@ -508,7 +480,7 @@ fn new_full<RuntimeApi, Executor>(
 			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
-			prometheus_registry,
+			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
 		};
 
@@ -524,15 +496,51 @@ fn new_full<RuntimeApi, Executor>(
 		)?;
 	}
 
+	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
+		use sc_network::Event;
+		use futures::StreamExt;
+
+		if authority_discovery_enabled {
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
+					authority_discovery::Role::Authority (
+						keystore.clone(),
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
+
+			let network_event_stream = network.event_stream("authority-discovery");
+			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+				Event::Dht(e) => Some(e),
+				_ => None,
+			}}).boxed();
+			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
+				client.clone(),
+				network.clone(),
+				sentries,
+				dht_event_stream,
+				authority_discovery_role,
+				prometheus_registry.clone(),
+			);
+
+			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker);
+		}
+	}
+
+
 	network_starter.start_network();
 
-	Ok((task_manager, client))
+	Ok((task_manager, client, network, rpc_handlers, handler))
 }
 
-pub struct FullNodeHandles;
-
 /// Builds a new service for a light client.
-fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager, Error>
+fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManager, RpcHandlers), Error>
 	where
 		Runtime: 'static + Send + Sync + ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>,
 		<Runtime as ConstructRuntimeApi<Block, LightClient<Runtime, Dispatch>>>::RuntimeApi:
@@ -617,19 +625,25 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<TaskManager
 
 	let rpc_extensions = polkadot_rpc::create_light(light_deps);
 
-	service::spawn_tasks(service::SpawnTasksParams {
+	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		on_demand: Some(on_demand),
 		remote_blockchain: Some(backend.remote_blockchain()),
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
-		config, keystore, backend, transaction_pool, client, network, network_status_sinks,
+		config,
+		keystore,
+		backend,
+		transaction_pool,
+		client,
+		network,
+		network_status_sinks,
 		system_rpc_tx,
 	})?;
 
 	network_starter.start_network();
 
-	Ok(task_manager)
+	Ok((task_manager, rpc_handlers))
 }
 
 /// Builds a new object suitable for chain operations.
@@ -655,116 +669,44 @@ where
 	Ok((client, backend, import_queue, task_manager))
 }
 
-/// Create a new Polkadot service for a full node.
+/// Build a new light node.
+pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), ServiceError> {
+	if config.chain_spec.is_kusama() {
+		new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
+	} else if config.chain_spec.is_westend() {
+		new_light::<westend_runtime::RuntimeApi, WestendExecutor>(config)
+	} else {
+		new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
+	}
+}
+
 #[cfg(feature = "full-node")]
-pub fn polkadot_new_full(
+pub fn build_full(
 	config: Configuration,
 	collating_for: Option<(CollatorId, ParaId)>,
-	max_block_data_size: Option<u64>,
 	authority_discovery_enabled: bool,
-	slot_duration: u64,
 	grandpa_pause: Option<(u32, u32)>,
-)
-	-> Result<(
-		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			polkadot_runtime::RuntimeApi
-		>>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (components, client) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-	)?;
-
-	Ok((components, client, FullNodeHandles))
-}
-
-/// Create a new Kusama service for a full node.
-#[cfg(feature = "full-node")]
-pub fn kusama_new_full(
-	config: Configuration,
-	collating_for: Option<(CollatorId, ParaId)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-) -> Result<(
-		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			kusama_runtime::RuntimeApi
-			>
-		>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (components, client) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-	)?;
-
-	Ok((components, client, FullNodeHandles))
-}
-
-/// Create a new Kusama service for a full node.
-#[cfg(feature = "full-node")]
-pub fn westend_new_full(
-	config: Configuration,
-	collating_for: Option<(CollatorId, ParaId)>,
-	max_block_data_size: Option<u64>,
-	authority_discovery_enabled: bool,
-	slot_duration: u64,
-	grandpa_pause: Option<(u32, u32)>,
-)
-	-> Result<(
-		TaskManager,
-		Arc<impl PolkadotClient<
-			Block,
-			FullBackend,
-			westend_runtime::RuntimeApi
-		>>,
-		FullNodeHandles,
-	), ServiceError>
-{
-	let (components, client) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
-		config,
-		collating_for,
-		max_block_data_size,
-		authority_discovery_enabled,
-		slot_duration,
-		grandpa_pause,
-	)?;
-
-	Ok((components, client, FullNodeHandles))
-}
-
-/// Create a new Polkadot service for a light client.
-pub fn polkadot_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
-{
-	new_light::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(config)
-}
-
-/// Create a new Kusama service for a light client.
-pub fn kusama_new_light(config: Configuration) -> Result<TaskManager, ServiceError>
-{
-	new_light::<kusama_runtime::RuntimeApi, KusamaExecutor>(config)
-}
-
-/// Create a new Westend service for a light client.
-pub fn westend_new_light(config: Configuration, ) -> Result<TaskManager, ServiceError>
-{
-	new_light::<westend_runtime::RuntimeApi, KusamaExecutor>(config)
+) -> Result<(TaskManager, Client, OverseerHandler), ServiceError> {
+	if config.chain_spec.is_kusama() {
+		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+		).map(|(task_manager, client, _, _, handler)| (task_manager, Client::Kusama(client), handler))
+	} else if config.chain_spec.is_westend() {
+		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+		).map(|(task_manager, client, _, _, handler)| (task_manager, Client::Westend(client), handler))
+	} else {
+		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+		).map(|(task_manager, client, _, _, handler)| (task_manager, Client::Polkadot(client), handler))
+	}
 }
