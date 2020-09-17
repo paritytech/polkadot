@@ -70,7 +70,6 @@ pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate",
 hex-literal = { version = "0.2.1" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
-polkadot-runtime-parachains = { path = "../parachains", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
 [dev-dependencies]

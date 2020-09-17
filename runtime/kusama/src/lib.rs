@@ -23,14 +23,6 @@
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
-use polkadot_runtime_parachains::{
-	configuration,
-	inclusion,
-	initializer,
-	paras,
-	runtime_api_impl::v1 as runtime_impl,
-	scheduler,
-};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
@@ -96,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2024,
+	spec_version: 2025,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -212,6 +204,7 @@ impl pallet_indices::Trait for Runtime {
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
+	pub const MaxLocks: u32 = 50;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -228,6 +221,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type MaxLocks = MaxLocks;
 	type WeightInfo = weights::pallet_balances::WeightInfo;
 }
 
@@ -758,7 +752,7 @@ impl pallet_vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_vesting::WeightInfo;
 }
 
 parameter_types! {
@@ -874,20 +868,6 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-impl configuration::Trait for Runtime {}
-
-impl inclusion::Trait for Runtime {
-	type Event = Event;
-}
-
-impl initializer::Trait for Runtime {
-	type Randomness = RandomnessCollectiveFlip;
-}
-
-impl paras::Trait for Runtime {}
-
-impl scheduler::Trait for Runtime {}
-
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
@@ -962,13 +942,6 @@ construct_runtime! {
 
 		// System scheduler.
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
-
-		// Parachains runtime modules
-		Configuration: configuration::{Module, Call, Storage},
-		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
-		Initializer: initializer::{Module, Call, Storage},
-		Paras: paras::{Module, Call, Storage},
-		ParaScheduler: scheduler::{Module, Call, Storage},
 
 		// Proxy module. Late addition.
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
@@ -1078,43 +1051,41 @@ sp_api::impl_runtime_apis! {
 
 	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
-			runtime_impl::validators::<Runtime>()
+			Vec::new()
 		}
 
 		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
-			runtime_impl::validator_groups::<Runtime>()
+			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
 		}
 
 		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
-			runtime_impl::availability_cores::<Runtime>()
+			Vec::new()
 		}
 
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<ValidationData<BlockNumber>> {
-				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
-			}
+			None
+		}
 
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
-				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
-			}
+			None
+		}
 
 		fn session_index_for_child() -> SessionIndex {
-			runtime_impl::session_index_for_child::<Runtime>()
+			0
 		}
 
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode> {
-				runtime_impl::validation_code::<Runtime>(para_id, assumption)
-			}
+		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
+			None
+		}
 
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
-			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
+		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			None
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			use core::convert::TryInto;
-			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
+			Vec::new()
 		}
 	}
 

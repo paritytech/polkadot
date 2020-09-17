@@ -701,15 +701,15 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 #[cfg(feature = "full-node")]
 pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 	(
-		Arc<crate::Client>,
+		Arc<Client>,
 		Arc<FullBackend>,
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
 	ServiceError
-> {
+>
+{
 	config.keystore = service::config::KeystoreConfig::InMemory;
-
 	if config.chain_spec.is_rococo() {
 		let service::PartialComponents { client, backend, import_queue, task_manager, .. }
 			= new_partial::<rococo_runtime::RuntimeApi, RococoExecutor>(config)?;
