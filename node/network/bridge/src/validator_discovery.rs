@@ -169,9 +169,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			});
 
 
-		let on_revoke = |map: &mut HashMap<AuthorityDiscoveryId, u64>, peer_id: &AuthorityDiscoveryId| -> Option<AuthorityDiscoveryId> {
-			// TODO (ordian): how to avoid clone?
-			match map.entry(peer_id.clone()) {
+		let on_revoke = |map: &mut HashMap<AuthorityDiscoveryId, u64>, id: AuthorityDiscoveryId| -> Option<AuthorityDiscoveryId> {
+			match map.entry(id) {
 				hash_map::Entry::Occupied(mut entry) => {
 					*entry.get_mut() -= 1;
 					if *entry.get() == 0 {
@@ -191,7 +190,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				Err(e) if e.is_disconnected() => {
 					// the request is already revoked
 					for peer_id in validator_ids {
-						on_revoke(&mut self.requested_validators, &peer_id);
+						on_revoke(&mut self.requested_validators, peer_id);
 					}
 					return (network_service, authority_discovery_service);
 				}
@@ -226,7 +225,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		for (i, pending) in self.pending_discovery_requests.iter_mut().enumerate() {
 			if pending.is_revoked() {
 				for id in pending.requested() {
-					if let Some(id) = on_revoke(&mut self.requested_validators, id) {
+					if let Some(id) = on_revoke(&mut self.requested_validators, id.clone()) {
 						revoked_validators.push(id);
 					}
 				}
