@@ -22,7 +22,7 @@ use super::{TARGET,  Result};
 use futures::channel::{mpsc, oneshot};
 use futures::stream::{self, StreamExt as _};
 use futures::task::{Poll, self};
-use log::{trace, warn};
+use log::warn;
 use pin_project::pin_project;
 
 use polkadot_primitives::v1::{
@@ -587,11 +587,10 @@ where
 	Ok(())
 }
 
-/// A peer is connected.
+/// A validator is connected.
 ///
-/// We first want to check if this is a validator we are expecting to talk to
-/// and if so `Declare` that we are a collator with a given `CollatorId`.
-async fn handle_peer_connected<Context>(
+/// `Declare` that we are a collator with a given `CollatorId`.
+async fn handle_validator_connected<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	peer_id: PeerId,
@@ -599,12 +598,6 @@ async fn handle_peer_connected<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	if !state.known_validators.contains_key(&peer_id) {
-		trace!(target: TARGET, "An unknown peer has connected {:?}", peer_id);
-
-		return Ok(())
-	}
-
 	state.peer_views.entry(peer_id.clone()).or_default();
 
 	declare(ctx, state, vec![peer_id]).await?;
@@ -625,12 +618,9 @@ where
 
 	match bridge_message {
 		PeerConnected(_peer_id, _observed_role) => {
-			// Duplicated in the new API.
-			// TODO (ordian): how to handle reconnects properly?
-			//handle_peer_connected(ctx, state, peer_id).await?;
+			// validators first connection is handled by `handle_validator_connected`
 		}
 		PeerViewChange(peer_id, view) => {
-			trace!("PEER_ID {:?}\n\n", peer_id);
 			handle_peer_view_change(ctx, state, peer_id, view).await?;
 		}
 		PeerDisconnected(peer_id) => {
@@ -684,7 +674,7 @@ where
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				state.known_validators.insert(peer_id.clone(), validator_id);
-				if let Err(err) = handle_peer_connected(&mut ctx, &mut state, peer_id).await {
+				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id).await {
 					warn!(
 						target: TARGET,
 						"Failed to declare our collator id: {:?}",
