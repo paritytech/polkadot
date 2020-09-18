@@ -132,7 +132,10 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, Executor>, FullSelectChain>,
 				babe::BabeLink<Block>
 			),
-			grandpa::SharedVoterState,
+			(
+				grandpa::SharedVoterState,
+				Arc<GrandpaFinalityProofProvider<FullBackend, Block>>,
+			),
 		)
 	>,
 	Error
@@ -203,9 +206,11 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 	let justification_stream = grandpa_link.justification_stream();
 	let shared_authority_set = grandpa_link.shared_authority_set().clone();
 	let shared_voter_state = grandpa::SharedVoterState::empty();
+	let finality_proof_provider =
+		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
 
 	let import_setup = (block_import.clone(), grandpa_link, babe_link.clone());
-	let rpc_setup = shared_voter_state.clone();
+	let rpc_setup = (shared_voter_state.clone(), finality_proof_provider.clone());
 
 	let babe_config = babe_link.config().clone();
 	let shared_epoch_changes = babe_link.epoch_changes().clone();
@@ -232,6 +237,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
 					subscription_executor,
+					finality_provider: finality_proof_provider.clone(),
 				},
 			};
 
@@ -303,8 +309,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let finality_proof_provider =
-		GrandpaFinalityProofProvider::new_for_service(backend.clone(), client.clone());
+	let (shared_voter_state, finality_proof_provider) = rpc_setup;
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -344,8 +349,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
-
-	let shared_voter_state = rpc_setup;
 
 	if role.is_authority() {
 		let proposer = consensus::ProposerFactory::new(
