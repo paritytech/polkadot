@@ -4643,7 +4643,7 @@ dependencies = [
  "nix 0.17.0",
  "parity-util-mem",
  "polkadot-cli",
- "polkadot-service-new",
+ "polkadot-service",
  "tempfile",
 ]
 
@@ -4707,7 +4707,7 @@ dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.5",
  "log 0.4.11",
- "polkadot-service-new",
+ "polkadot-service",
  "sc-cli",
  "sc-client-api",
  "sc-client-db",
@@ -5339,7 +5339,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-service-new"
+name = "polkadot-service"
 version = "0.8.3"
 dependencies = [
  "env_logger",
@@ -5534,7 +5534,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-rpc",
  "polkadot-runtime-common",
- "polkadot-service-new",
+ "polkadot-service",
  "polkadot-test-runtime",
  "rand 0.7.3",
  "sc-authority-discovery",
