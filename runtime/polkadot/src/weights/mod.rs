@@ -23,5 +23,6 @@ pub mod pallet_democracy;
 pub mod pallet_proxy;
 pub mod pallet_staking;
 pub mod pallet_timestamp;
+pub mod pallet_treasury;
 pub mod pallet_utility;
 pub mod pallet_vesting;
