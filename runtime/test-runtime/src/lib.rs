@@ -78,7 +78,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1054,
+	spec_version: 1055,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -173,6 +173,7 @@ impl pallet_indices::Trait for Runtime {
 
 parameter_types! {
 	pub storage ExistentialDeposit: Balance = 1 * CENTS;
+	pub storage MaxLocks: u32 = 50;
 }
 
 impl pallet_balances::Trait for Runtime {
@@ -181,6 +182,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type MaxLocks = MaxLocks;
 	type WeightInfo = ();
 }
 

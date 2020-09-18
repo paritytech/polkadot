@@ -4714,6 +4714,7 @@ dependencies = [
  "sc-client-db",
  "sc-executor",
  "sc-service",
+ "sc-tracing",
  "sp-api",
  "sp-core",
  "sp-runtime",
@@ -5100,6 +5101,7 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-io",
+ "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
 ]
@@ -5450,6 +5452,7 @@ dependencies = [
  "sp-offchain",
  "sp-runtime",
  "sp-session",
+ "sp-storage",
  "sp-transaction-pool",
  "sp-trie",
  "substrate-prometheus-endpoint",

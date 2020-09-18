@@ -4,23 +4,30 @@ The Router module is responsible for all messaging mechanisms supported between 
 
 ## Storage
 
-Storage layout:
+General storage entries
 
 ```rust
 /// Paras that are to be cleaned up at the end of the session.
 /// The entries are sorted ascending by the para id.
 OutgoingParas: Vec<ParaId>;
+```
+
+### Upward Message Passing (UMP)
+
+```rust
 /// Dispatchable objects ready to be dispatched onto the relay chain. The messages are processed in FIFO order.
-/// This is subject to `max_upward_queue_count` and
-/// `watermark_queue_size` from `HostConfiguration`.
-RelayDispatchQueues: map ParaId => Vec<RawDispatchable>;
+RelayDispatchQueues: map ParaId => Vec<(ParachainDispatchOrigin, RawDispatchable)>;
 /// Size of the dispatch queues. Caches sizes of the queues in `RelayDispatchQueue`.
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
+///
+/// Note that this is an auxilary mapping: it's possible to tell the byte size  and the number of
+/// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
+/// loading the whole message queue if only the total size and count are required.
 RelayDispatchQueueSize: map ParaId => (u32, u32);
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 NeedsDispatch: Vec<ParaId>;
-/// This is the para that gets will get dispatched first during the next upward dispatchable queue
+/// This is the para that will get dispatched first during the next upward dispatchable queue
 /// execution round.
 NextDispatchRoundStartWith: Option<ParaId>;
 ```
@@ -36,7 +43,7 @@ DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
 ///
 /// Each link in this chain has a form:
 /// `(prev_head, B, H(M))`, where
-/// - `prev_head`: is the previous head hash.
+/// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
 DownwardMessageQueueHeads: map ParaId => Option<Hash>;
@@ -180,62 +187,62 @@ Candidate Acceptance Function:
       1. Check that `HrmpChannels` for `ch` exists.
       1. Check that `ch` is not in the `HrmpCloseChannelRequests` set.
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
-  1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
-  1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
+    1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
+    1. Checks that `processed_downward_messages` is at least 1 if `DownwardMessageQueues` for `P` is not empty.
 * `check_hrmp_watermark(P: ParaId, new_hrmp_watermark)`:
-  1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
-  1. `new_hrmp_watermark` must not be greater than the context's block number.
-  1. `new_hrmp_watermark` should be either
-      1. equal to the context's block number
-      1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
+    1. `new_hrmp_watermark` should be strictly greater than the value of `HrmpWatermarks` for `P` (if any).
+    1. `new_hrmp_watermark` must not be greater than the context's block number.
+    1. `new_hrmp_watermark` should be either
+        1. equal to the context's block number
+        1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
 * `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
-  1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
-      1. exists
-      1. `M`'s payload size doesn't exceed a preconfigured limit `C.limit_message_size`
-      1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
-      1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
+    1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
+        1. exists
+        1. `M`'s payload size doesn't exceed a preconfigured limit `C.limit_message_size`
+        1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
+        1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
 
 Candidate Enactment:
 
 * `queue_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
-  1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
-    1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
-    1. Locate or create an entry in ``HrmpChannelDigests`` for `HM.recipient` and append `sender` into the entry's list.
-    1. Increment `C.used_places`
-    1. Increment `C.used_bytes` by `HM`'s payload size
-    1. Append a new link to the MQC and save the new head in `C.mqc_head`. Note that the current block number as of enactment is used for the link.
+    1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
+        1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
+        1. Locate or create an entry in `HrmpChannelDigests` for `HM.recipient` and append `sender` into the entry's list.
+        1. Increment `C.used_places`
+        1. Increment `C.used_bytes` by `HM`'s payload size
+        1. Append a new link to the MQC and save the new head in `C.mqc_head`. Note that the current block number as of enactment is used for the link.
 * `prune_hrmp(recipient, new_hrmp_watermark)`:
-  1. From ``HrmpChannelDigests`` for `recipient` remove all entries up to an entry with block number equal to `new_hrmp_watermark`.
-  1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
-  1. For each channel `C` identified by `(sender, recipient)` for each `sender` coming from the set, prune messages up to the `new_hrmp_watermark`.
-  1. For each pruned message `M` from channel `C`:
-      1. Decrement `C.used_places`
-      1. Decrement `C.used_bytes` by `M`'s payload size.
-  1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
+    1. From `HrmpChannelDigests` for `recipient` remove all entries up to an entry with block number equal to `new_hrmp_watermark`.
+    1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
+    1. For each channel `C` identified by `(sender, recipient)` for each `sender` coming from the set, prune messages up to the `new_hrmp_watermark`.
+    1. For each pruned message `M` from channel `C`:
+        1. Decrement `C.used_places`
+        1. Decrement `C.used_bytes` by `M`'s payload size.
+    1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
-  1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
+    1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
 * `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
-  1. Process all upward messages in order depending on their kinds:
-  1. If the message kind is `Dispatchable`:
-      1. Append the message to `RelayDispatchQueues` for `P`
-      1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
-      1. Ensure that `P` is present in `NeedsDispatch`.
-  1. If the message kind is `HrmpInitOpenChannel(recipient, max_places, max_message_size)`:
-      1. Increase `HrmpOpenChannelRequestCount` by 1 for `P`.
-      1. Append `(P, recipient)` to `HrmpOpenChannelRequestsList`.
-      1. Add a new entry to `HrmpOpenChannelRequests` for `(sender, recipient)`
-          1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-          1. Set `limit_used_places` to `max_places`
-          1. Set `limit_message_size` to `max_message_size`
-          1. Set `limit_used_bytes` to `config.hrmp_channel_max_size`
-      1. Reserve the deposit for the `P` according to `config.hrmp_sender_deposit`
-  1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
-      1. Reserve the deposit for the `P` according to `config.hrmp_recipient_deposit`
-      1. For the request in `HrmpOpenChannelRequests` identified by `(sender, P)`, set `confirmed` flag to `true`.
-      1. Increase `HrmpAcceptedChannelRequestCount` by 1 for `P`.
-  1. If the message kind is `HrmpCloseChannel(ch)`:
-      1. If not already there, insert a new entry `Some(())` to `HrmpCloseChannelRequests` for `ch`
-      and append `ch` to `HrmpCloseChannelRequestsList`.
+    1. Process all upward messages in order depending on their kinds:
+    1. If the message kind is `Dispatchable`:
+        1. Append the message to `RelayDispatchQueues` for `P`
+        1. Increment the size and the count in `RelayDispatchQueueSize` for `P`.
+        1. Ensure that `P` is present in `NeedsDispatch`.
+    1. If the message kind is `HrmpInitOpenChannel(recipient, max_places, max_message_size)`:
+        1. Increase `HrmpOpenChannelRequestCount` by 1 for `P`.
+        1. Append `(P, recipient)` to `HrmpOpenChannelRequestsList`.
+        1. Add a new entry to `HrmpOpenChannelRequests` for `(sender, recipient)`
+            1. Set `sender_deposit` to `config.hrmp_sender_deposit`
+            1. Set `limit_used_places` to `max_places`
+            1. Set `limit_message_size` to `max_message_size`
+            1. Set `limit_used_bytes` to `config.hrmp_channel_max_size`
+        1. Reserve the deposit for the `P` according to `config.hrmp_sender_deposit`
+    1. If the message kind is `HrmpAcceptOpenChannel(sender)`:
+        1. Reserve the deposit for the `P` according to `config.hrmp_recipient_deposit`
+        1. For the request in `HrmpOpenChannelRequests` identified by `(sender, P)`, set `confirmed` flag to `true`.
+        1. Increase `HrmpAcceptedChannelRequestCount` by 1 for `P`.
+    1. If the message kind is `HrmpCloseChannel(ch)`:
+        1. If not already there, insert a new entry `Some(())` to `HrmpCloseChannelRequests` for `ch`
+        and append `ch` to `HrmpCloseChannelRequestsList`.
 
 The following routine is intended to be called in the same time when `Paras::schedule_para_cleanup` is called.
 
@@ -245,19 +252,19 @@ The following routine is intended to be called in the same time when `Paras::sch
 The following routine is meant to execute pending entries in upward dispatchable queues. This function doesn't fail, even if
 any of dispatchables return an error.
 
-`process_upward_dispatchables()`:
-  1. Initialize a cumulative weight counter `T` to 0
-  1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
-      1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
-      1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
-      1. Decode `D` into a dispatchable. Otherwise, if succeeded:
-          1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then skip the dispatchable. Otherwise:
-            1. Execute `D` and add the actual amount of weight consumed to `T`.
-          1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
-          > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
-          > that could take place on the course of handling these dispatchables.
-      1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
-      1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
+`process_pending_upward_dispatchables()`:
+    1. Initialize a cumulative weight counter `T` to 0
+    1. Iterate over items in `NeedsDispatch` cyclically, starting with `NextDispatchRoundStartWith`. If the item specified is `None` start from the beginning. For each `P` encountered:
+        1. Dequeue `D` the first dispatchable `D` from `RelayDispatchQueues` for `P`
+        1. Decrement the size of the message from `RelayDispatchQueueSize` for `P`
+        1. Decode `D` into a dispatchable. Otherwise, if succeeded:
+            1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then skip the dispatchable. Otherwise:
+                1. Execute `D` and add the actual amount of weight consumed to `T`.
+            1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
+            > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
+            > that could take place on the course of handling these dispatchables.
+        1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
+        1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
 
 Utility routines.
 
@@ -270,17 +277,17 @@ Utility routines.
 ## Session Change
 
 1. Drain `OutgoingParas`. For each `P` happened to be in the list:
-  1. Remove all inbound channels of `P`, i.e. `(_, P)`,
-  1. Remove all outbound channels of `P`, i.e. `(P, _)`,
-  1. Remove all `DownwardMessageQueues` of `P`.
-  1. Remove `DownwardMessageQueueHeads` for `P`.
-  1. Remove `RelayDispatchQueueSize` of `P`.
-  1. Remove `RelayDispatchQueues` of `P`.
-  1. Remove `HrmpOpenChannelRequestCount` for `P`
-  1. Remove `HrmpAcceptedChannelRequestCount` for `P`.
-  1. Remove `P` if it exists in `NeedsDispatch`.
-  1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
-  - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
+    1. Remove all inbound channels of `P`, i.e. `(_, P)`,
+    1. Remove all outbound channels of `P`, i.e. `(P, _)`,
+    1. Remove all `DownwardMessageQueues` of `P`.
+    1. Remove `DownwardMessageQueueHeads` for `P`.
+    1. Remove `RelayDispatchQueueSize` of `P`.
+    1. Remove `RelayDispatchQueues` of `P`.
+    1. Remove `HrmpOpenChannelRequestCount` for `P`
+    1. Remove `HrmpAcceptedChannelRequestCount` for `P`.
+    1. Remove `P` if it exists in `NeedsDispatch`.
+    1. If `P` is in `NextDispatchRoundStartWith`, then reset it to `None`
+    - Note that if we don't remove the open/close requests since they are going to die out naturally at the end of the session.
 1. For each channel designator `D` in `HrmpOpenChannelRequestsList` we query the request `R` from `HrmpOpenChannelRequests`:
     1. if `R.confirmed = false`:
         1. increment `R.age` by 1.
