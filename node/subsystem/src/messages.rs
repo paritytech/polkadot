@@ -200,6 +200,8 @@ pub enum NetworkBridgeMessage {
 	///
 	/// Also ask the network to stay connected to these peers at least
 	/// until the request is revoked.
+	///
+	/// NOTE: dropping the revoke's sender will revoke the request.
 	ConnectToValidators {
 		/// Ids of the validators to connect to.
 		validator_ids: Vec<AuthorityDiscoveryId>,
@@ -212,10 +214,7 @@ pub enum NetworkBridgeMessage {
 		/// It doesn't necessarily lead to peers disconnection though.
 		/// The revokation is enacted on in the next connection request.
 		///
-		/// This can be done by sending to the channel.
-		/// NOTE: if the revoke's sender is dropped instead,
-		/// we will never disconnect from the given validator list.
-		// TODO (ordian): will we ever want such behavior?
+		/// This can be done by sending to the channel or dropping the sender.
 		revoke: oneshot::Receiver<()>,
 	},
 }
