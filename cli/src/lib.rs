@@ -26,10 +26,17 @@ mod cli;
 #[cfg(feature = "cli")]
 mod command;
 
+#[cfg(not(feature = "service-rewr"))]
 pub use service::{
-	self,
-	ProvideRuntimeApi, CoreApi, IdentifyVariant,
-	Block, RuntimeApiCollection, TFullClient
+	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
+	Block, self, RuntimeApiCollection, TFullClient
+};
+
+#[cfg(feature = "service-rewr")]
+pub use service_new::{
+	self as service,
+	ProvideRuntimeApi, CoreApi, ParachainHost, IdentifyVariant,
+	Block, self, RuntimeApiCollection, TFullClient
 };
 
 #[cfg(feature = "cli")]
