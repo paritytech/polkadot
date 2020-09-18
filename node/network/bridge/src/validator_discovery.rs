@@ -98,11 +98,6 @@ impl PendingConnectionRequestState {
 		}
 	}
 
-	pub fn on_authority_disconnected(&mut self, authority: &AuthorityDiscoveryId) {
-		// TODO (ordian): what do we actually want?
-		let _ = self.pending.remove(authority);
-	}
-
 	/// Returns `true` if the request is revoked.
 	pub fn is_revoked(&mut self) -> bool {
 		self.revoke
@@ -287,9 +282,6 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 	pub async fn on_peer_disconnected(&mut self, peer_id: &PeerId, authority_discovery_service: &mut AD) {
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
-			for pending in self.pending_discovery_requests.iter_mut() {
-				pending.on_authority_disconnected(&authority);
-			}
 			self.connected_validators.remove(&authority);
 		}
 	}
