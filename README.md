@@ -67,7 +67,7 @@ dnf install polkadot
 If you want to install Polkadot in your PATH, you can do so with with:
 
 ```bash
-cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot
+cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
 ```
 
 ### Build from Source
@@ -99,6 +99,8 @@ git checkout <latest tagged release>
 ./scripts/init.sh
 cargo build --release
 ```
+
+Note that compilation is a memory intensive process. We recommend having 4 GiB of phyiscal RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
 
 ## Networks
 
