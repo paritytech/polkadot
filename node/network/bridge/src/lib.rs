@@ -274,7 +274,7 @@ fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Action::Abort
 		}
-		Some(NetworkEvent::Dht(_)) => Action::Nop,
+		Some(NetworkEvent::Dht(_)) | Some(NetworkEvent::Bitswap(_)) => Action::Nop,
 		Some(NetworkEvent::NotificationStreamOpened { remote, engine_id, role }) => {
 			let role = role.into();
 			match engine_id {
