@@ -588,7 +588,7 @@ impl pallet_treasury::Trait for Runtime {
 	type BountyCuratorDeposit = BountyCuratorDeposit;
 	type BountyValueMinimum = BountyValueMinimum;
 	type BurnDestination = ();
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_treasury::WeightInfo;
 }
 
 parameter_types! {
