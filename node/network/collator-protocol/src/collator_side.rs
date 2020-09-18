@@ -309,7 +309,6 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 	ctx: &mut Context,
 	validator_ids: Vec<AuthorityDiscoveryId>,
 ) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, oneshot::Sender<()>)> {
-	// TODO (ordian): what would be the optimal capacity?
 	// do we need a bounded channel at all?
 	const PEERS_CAPACITY: usize = 8;
 
