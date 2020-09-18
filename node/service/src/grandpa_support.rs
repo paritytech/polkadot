@@ -59,9 +59,8 @@ where
 				}
 
 				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
-					"Header known to exist due to the existence of one of its descendents; qed",
-				);
+				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
+					.expect("Header known to exist due to the existence of one of its descendents; qed");
 			}
 		};
 
