@@ -74,70 +74,6 @@ fn sanity_check_weight_per_time_constants_are_as_expected() {
 }
 
 #[test]
-fn weight_of_staking_bond_is_correct() {
-	let controller: AccountId = AccountKeyring::Alice.into();
-
-	// (144278000 as Weight)
-	// 	.saturating_add(DbWeight::get().reads(5 as Weight))
-	// 	.saturating_add(DbWeight::get().writes(4 as Weight))
-	let expected_weight = 144278000 + (DbWeight::get().read * 5) + (DbWeight::get().write * 4);
-	let call = StakingCall::bond::<Runtime>(controller, 1 * DOLLARS, Default::default());
-	let info = call.get_dispatch_info();
-
-	assert_eq!(info.weight, expected_weight);
-	report_portion("staking_bond", info, call.encode().len())
-}
-
-#[test]
-fn weight_of_staking_validate_is_correct() {
-	// (35539000 as Weight)
-	// 	.saturating_add(DbWeight::get().reads(2 as Weight))
-	// 	.saturating_add(DbWeight::get().writes(2 as Weight))
-	let expected_weight = 35539000 + (DbWeight::get().read * 2) + (DbWeight::get().write * 2);
-	let call = StakingCall::validate::<Runtime>(Default::default());
-	let info = call.get_dispatch_info();
-
-	assert_eq!(info.weight, expected_weight);
-	report_portion("staking_validate", info, call.encode().len())
-}
-
-#[test]
-fn weight_of_staking_nominate_is_correct() {
-	let targets: Vec<AccountId> = vec![Default::default(), Default::default(), Default::default()];
-
-	// (48596000 as Weight)
-	// 	.saturating_add((308000 as Weight).saturating_mul(n as Weight))
-	// 	.saturating_add(DbWeight::get().reads(3 as Weight))
-	// 	.saturating_add(DbWeight::get().writes(2 as Weight))
-	let db_weight = (DbWeight::get().read * 3) + (DbWeight::get().write * 2);
-	let targets_weight = (308 * WEIGHT_PER_NANOS).saturating_mul(targets.len() as Weight);
-
-	let expected_weight = db_weight.saturating_add(48596000).saturating_add(targets_weight);
-	let call = StakingCall::nominate::<Runtime>(targets);
-	let info = call.get_dispatch_info();
-
-	assert_eq!(info.weight, expected_weight);
-	report_portion("staking_nominate", info, call.encode().len())
-}
-
-#[test]
-fn weight_of_staking_payout_staker_is_correct() {
-	// (0 as Weight)
-	// 	.saturating_add((117324000 as Weight).saturating_mul(n as Weight))
-	// 	.saturating_add(DbWeight::get().reads((5 as Weight).saturating_mul(n as Weight)))
-	// 	.saturating_add(DbWeight::get().writes((3 as Weight).saturating_mul(n as Weight)))
-	let call = StakingCall::payout_stakers::<Runtime>(Default::default(), 0u32);
-	let info = call.get_dispatch_info();
-
-	let n = <Runtime as pallet_staking::Trait>::MaxNominatorRewardedPerValidator::get() as Weight;
-	let mut expected_weight = (117324000 as Weight).saturating_mul(n as Weight);
-	expected_weight += (DbWeight::get().read * 5 * n) + (DbWeight::get().write * 3 * n);
-
-	assert_eq!(info.weight, expected_weight);
-	report_portion("staking_payout_stakers", info, call.encode().len())
-}
-
-#[test]
 fn weight_of_system_set_code_is_correct() {
 	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
 	let expected_weight = MaximumBlockWeight::get();
@@ -193,33 +129,6 @@ fn weight_of_phragmen_renounce_candidacy_is_correct() {
 	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
 	let weight = PhragmenCall::renounce_candidacy::<Runtime>(pallet_elections_phragmen::Renouncing::Member)
 		.get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_propose_spend_is_correct() {
-	let expected_weight = 43830000 + DbWeight::get().read + 2 * DbWeight::get().write;
-	let weight =
-		TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_approve_proposal_is_correct() {
-	let expected_weight = 12744000 + 2 * DbWeight::get().read + DbWeight::get().write;
-	let weight = TreasuryCall::approve_proposal::<Runtime>(Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_tip_is_correct() {
-	let max_len: Weight = <Runtime as pallet_treasury::Trait>::Tippers::max_len() as Weight;
-
-	let expected_weight = 26499000 + 675000 * max_len + 2 * DbWeight::get().read + DbWeight::get().write;
-	let weight = TreasuryCall::tip::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
