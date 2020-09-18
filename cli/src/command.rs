@@ -183,10 +183,14 @@ pub fn run() -> Result<()> {
 			runner.async_run(|config| {
 				let chain_spec = config.chain_spec.cloned_box();
 				let network_config = config.network.clone();
-				let service::NewFull { task_manager, client, network_status_sinks, .. }
-					= service::build_full(
-						config, None, authority_discovery_enabled, grandpa_pause,
-					)?;
+				let service::NewFull {
+					task_manager,
+					client,
+					network_status_sinks,
+					..
+				} = service::build_full(
+					config, None, authority_discovery_enabled, grandpa_pause,
+				)?;
 				let client = Arc::new(client);
 
 				Ok((cmd.run(chain_spec, network_config, client, network_status_sinks), task_manager))
