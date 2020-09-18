@@ -23,10 +23,12 @@ mod chain_spec;
 pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_primitives::v0::{
-	Block, Hash, CollatorId, Id as ParaId,
+	Block, CollatorId, Hash, HeadData, Id as ParaId, Info, Scheduling, ValidationCode,
 };
 use polkadot_runtime_common::{parachains, registrar, BlockHashCount};
-use polkadot_service::{new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient};
+use polkadot_service::{
+	new_full, AbstractClient, ClientHandle, ExecuteWithClient, FullNodeHandles,
+};
 use polkadot_test_runtime::{RestrictFunctionality, Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
@@ -48,7 +50,9 @@ use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
-use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
+use substrate_test_client::{
+	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
+};
 
 native_executor_instance!(
 	pub PolkadotTestExecutor,
@@ -89,7 +93,9 @@ pub fn polkadot_test_new_full(
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
-pub struct TestClient(pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
+pub struct TestClient(
+	pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
+);
 
 impl ClientHandle for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
@@ -99,7 +105,7 @@ impl ClientHandle for TestClient {
 
 /// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
 /// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
-/// adjustements to the runtime before the node starts.
+/// adjustments to the runtime before the node starts.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -201,10 +207,7 @@ pub fn run_test_node(
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> PolkadotTestNode<
-	TaskManager,
-	impl AbstractClient<Block, TFullBackend<Block>>,
-> {
+) -> PolkadotTestNode<impl AbstractClient<Block, TFullBackend<Block>>> {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_disabled = true;
@@ -225,9 +228,9 @@ pub fn run_test_node(
 }
 
 /// A Polkadot test node instance used for testing.
-pub struct PolkadotTestNode<S, C> {
+pub struct PolkadotTestNode<C> {
 	/// TaskManager's instance.
-	pub task_manager: S,
+	pub task_manager: TaskManager,
 	/// Client's instance.
 	pub client: Arc<C>,
 	/// Node's handles.
@@ -238,7 +241,7 @@ pub struct PolkadotTestNode<S, C> {
 	pub rpc_handlers: Arc<RpcHandlers>,
 }
 
-impl<S, C> PolkadotTestNode<S, C>
+impl<C> PolkadotTestNode<C>
 where
 	C: HeaderBackend<Block>,
 {
@@ -295,9 +298,33 @@ where
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
 	}
+
+	/// Call `register_para` to register a parachain using the parachain id, validation code and head data given in
+	/// parameter.
+	pub async fn register_para(
+		&self,
+		para_id: ParaId,
+		binary: ValidationCode,
+		head_data: HeadData,
+	) -> Result<(), RpcTransactionError> {
+		let function = polkadot_test_runtime::Call::Sudo(pallet_sudo::Call::sudo(Box::new(
+			polkadot_test_runtime::Call::Registrar(registrar::Call::register_para(
+				para_id,
+				Info {
+					scheduling: Scheduling::Always,
+				},
+				binary,
+				head_data,
+			)),
+		)));
+
+		self.call_function(function, Sr25519Keyring::Alice).await?;
+
+		Ok(())
+	}
 }
 
-impl<S, C> PolkadotTestNode<S, C>
+impl<C> PolkadotTestNode<C>
 where
 	C: BlockchainEvents<Block>,
 {

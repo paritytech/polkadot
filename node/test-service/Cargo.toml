@@ -33,6 +33,7 @@ grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytec
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
