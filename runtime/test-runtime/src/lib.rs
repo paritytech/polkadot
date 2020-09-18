@@ -27,6 +27,7 @@ use polkadot_runtime_parachains::{
 	inclusion,
 	initializer,
 	paras,
+	router,
 	runtime_api_impl::v1 as runtime_impl,
 	scheduler,
 };
@@ -436,6 +437,8 @@ impl initializer::Trait for Runtime {
 }
 
 impl paras::Trait for Runtime {}
+
+impl router::Trait for Runtime {}
 
 impl scheduler::Trait for Runtime {}
 
