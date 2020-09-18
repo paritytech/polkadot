@@ -318,9 +318,7 @@ where
 			)),
 		)));
 
-		self.call_function(function, Sr25519Keyring::Alice).await?;
-
-		Ok(())
+		self.call_function(function, Sr25519Keyring::Alice).await.map(drop)
 	}
 }
 
