@@ -28,40 +28,15 @@
 //! $ cargo test -p polkadot-runtime -- --nocapture --test-threads=1
 //! ```
 
-use codec::Encode;
-use frame_support::{
-	traits::ContainsLengthBound,
-	weights::{constants::*, GetDispatchInfo, Weight, DispatchInfo},
-};
-use keyring::AccountKeyring;
-use polkadot_runtime::constants::currency::*;
+use frame_support::weights::{constants::*, GetDispatchInfo};
 use polkadot_runtime::{self, Runtime};
-use primitives::v0::AccountId;
 use runtime_common::MaximumBlockWeight;
 
 use pallet_elections_phragmen::Call as PhragmenCall;
 use pallet_session::Call as SessionCall;
-use pallet_staking::Call as StakingCall;
 use frame_system::Call as SystemCall;
-use pallet_treasury::Call as TreasuryCall;
 
 type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
-
-
-fn report_portion(name: &'static str, info: DispatchInfo, len: usize) {
-	let maximum_weight = <Runtime as frame_system::Trait>::MaximumBlockWeight::get();
-	let fee = sp_io::TestExternalities::new(Default::default()).execute_with(|| {
-		<pallet_transaction_payment::Module<Runtime>>::compute_fee(len as u32, &info, 0)
-	});
-
-	let portion = info.weight as f64 / maximum_weight as f64;
-
-	if portion > 0.5 {
-		panic!("Weight of some call seem to have exceeded half of the block. Probably something is wrong.");
-	}
-
-	println!("\nCall {} (with default args) takes {} of the block weight, pays {} in fee.", name, portion, fee);
-}
 
 #[test]
 fn sanity_check_weight_per_time_constants_are_as_expected() {
