@@ -28,7 +28,6 @@ use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 
-// TODO (ordian): does it need to be dependent on the PeerSet?
 const PRIORITY_GROUP: &'static str = "parachain_validators";
 
 /// An abstraction over networking for the purposes of validator discovery service.
