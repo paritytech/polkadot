@@ -25,7 +25,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 /// `N` + `M`, the voter will keep voting for block `N`.
 pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 
-impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
+impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
+where
 	Block: BlockT,
 	B: sp_blockchain::HeaderBackend<Block>,
 {
@@ -40,10 +41,7 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 		use sp_runtime::traits::Header as _;
 
 		// walk backwards until we find the target block
-		let find_target = |
-			target_number: NumberFor<Block>,
-			current_header: &Block::Header
-		| {
+		let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
 			let mut target_hash = current_header.hash();
 			let mut target_header = current_header.clone();
 
@@ -61,8 +59,9 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 				}
 
 				target_hash = *target_header.parent_hash();
-				target_header = backend.header(BlockId::Hash(target_hash)).ok()?
-					.expect("Header known to exist due to the existence of one of its descendents; qed");
+				target_header = backend.header(BlockId::Hash(target_hash)).ok()?.expect(
+					"Header known to exist due to the existence of one of its descendents; qed",
+				);
 			}
 		};
 
@@ -233,10 +232,10 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 
 #[cfg(test)]
 mod tests {
+	use grandpa::VotingRule;
 	use polkadot_test_runtime_client::prelude::*;
 	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
 	use sc_block_builder::BlockBuilderProvider;
-	use grandpa::VotingRule;
 	use sp_blockchain::HeaderBackend;
 	use sp_runtime::generic::BlockId;
 	use sp_runtime::traits::Header;
@@ -279,20 +278,12 @@ mod tests {
 
 		// add 10 blocks
 		push_blocks(10);
-		assert_eq!(
-			client.info().best_number,
-			10,
-		);
+		assert_eq!(client.info().best_number, 10,);
 
 		// we have not reached the pause block
 		// therefore nothing should be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(0),
-				&get_header(10),
-				&get_header(10),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(0), &get_header(10), &get_header(10),),
 			None,
 		);
 
@@ -303,12 +294,7 @@ mod tests {
 		// we are targeting the pause block,
 		// the vote should not be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(20),
-				&get_header(20),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(20), &get_header(20),),
 			None,
 		);
 
@@ -316,12 +302,7 @@ mod tests {
 		// be limited to the pause block.
 		let pause_block = get_header(20);
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(21),
-				&get_header(21),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(21), &get_header(21),),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 

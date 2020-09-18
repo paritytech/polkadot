@@ -13,10 +13,11 @@ rand = "0.7.3"
 tempfile = "3.1.0"
 
 # Polkadot dependencies
+polkadot-overseer = { path = "../overseer" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-runtime-common = { path = "../../runtime/common" }
-polkadot-service = { path = "../../service" }
+polkadot-service = { package = "polkadot-service-new", path = "../service" }
 polkadot-test-runtime = { path = "../../runtime/test-runtime" }
 
 # Substrate dependencies

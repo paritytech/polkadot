@@ -15,10 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use log::info;
-#[cfg(not(feature = "service-rewr"))]
 use service::{IdentifyVariant, self};
-#[cfg(feature = "service-rewr")]
-use service_new::{IdentifyVariant, self as service};
 use sc_cli::{SubstrateCli, Result, RuntimeVersion, Role};
 use crate::cli::{Cli, Subcommand};
 use std::sync::Arc;
@@ -48,7 +45,7 @@ impl SubstrateCli for Cli {
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		let id = if id == "" {
 			let n = get_exec_name().unwrap_or_default();
-			["polkadot", "kusama", "westend"].iter()
+			["polkadot", "kusama", "westend", "rococo"].iter()
 				.cloned()
 				.find(|&chain| n.starts_with(chain))
 				.unwrap_or("polkadot")
@@ -66,6 +63,9 @@ impl SubstrateCli for Cli {
 			"westend-dev" => Box::new(service::chain_spec::westend_development_config()?),
 			"westend-local" => Box::new(service::chain_spec::westend_local_testnet_config()?),
 			"westend-staging" => Box::new(service::chain_spec::westend_staging_testnet_config()?),
+			"rococo-staging" => Box::new(service::chain_spec::rococo_staging_testnet_config()?),
+			"rococo-local" => Box::new(service::chain_spec::rococo_local_testnet_config()?),
+			"rococo" => Box::new(service::chain_spec::rococo_config()?),
 			path => {
 				let path = std::path::PathBuf::from(path);
 
@@ -75,7 +75,9 @@ impl SubstrateCli for Cli {
 
 				// When `force_*` is given or the file name starts with the name of one of the known chains,
 				// we use the chain spec for the specific chain.
-				if self.run.force_kusama || starts_with("kusama") {
+				if self.run.force_rococo || starts_with("rococo") {
+					Box::new(service::RococoChainSpec::from_json_file(path)?)
+				} else if self.run.force_kusama || starts_with("kusama") {
 					Box::new(service::KusamaChainSpec::from_json_file(path)?)
 				} else if self.run.force_westend || starts_with("westend") {
 					Box::new(service::WestendChainSpec::from_json_file(path)?)
@@ -91,6 +93,8 @@ impl SubstrateCli for Cli {
 			&service::kusama_runtime::VERSION
 		} else if spec.is_westend() {
 			&service::westend_runtime::VERSION
+		} else if spec.is_rococo() {
+			&service::rococo_runtime::VERSION
 		} else {
 			&service::polkadot_runtime::VERSION
 		}
@@ -147,7 +151,7 @@ pub fn run() -> Result<()> {
 						None,
 						authority_discovery_enabled,
 						grandpa_pause,
-					).map(|r| r.0),
+					).map(|full| full.task_manager),
 				}
 			})
 		},
@@ -180,8 +184,8 @@ pub fn run() -> Result<()> {
 				let chain_spec = config.chain_spec.cloned_box();
 				let network_config = config.network.clone();
 				let service::NewFull { task_manager, client, network_status_sinks, .. }
-					= service::new_full_nongeneric(
-						config, None, authority_discovery_enabled, grandpa_pause, false,
+					= service::build_full(
+						config, None, authority_discovery_enabled, grandpa_pause,
 					)?;
 				let client = Arc::new(client);
 
