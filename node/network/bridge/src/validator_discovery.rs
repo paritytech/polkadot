@@ -264,6 +264,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			connected,
 			revoke,
 		));
+
 		(network_service, authority_discovery_service)
 	}
 
@@ -290,14 +291,34 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 mod tests {
 	use super::*;
 
+	use futures::stream::StreamExt as _;
+
+	use sp_keyring::Sr25519Keyring;
+
 	#[derive(Default)]
 	struct TestNetwork {
-		peers: HashMap<AuthorityDiscoveryId, (Multiaddr, PeerId)>,
 	}
 
 	struct TestAuthorityDiscovery {
 		by_authority_id: HashMap<AuthorityDiscoveryId, Multiaddr>,
 		by_peer_id: HashMap<PeerId, AuthorityDiscoveryId>,
+	}
+
+	impl TestAuthorityDiscovery {
+		fn new() -> Self {
+			let peer_ids = known_peer_ids();
+			let authorities = known_authorities();
+			let multiaddr = known_multiaddr();
+			Self {
+				by_authority_id: authorities.iter()
+					.cloned()
+					.zip(multiaddr.into_iter())
+					.collect(),
+				by_peer_id: peer_ids.into_iter()
+					.zip(authorities.into_iter())
+					.collect(),
+			}
+		}
 	}
 
 	impl Network for TestNetwork {
@@ -307,9 +328,9 @@ mod tests {
 	}
 
 	#[async_trait]
-	impl AuthorityDiscovery for TestDiscovery {
+	impl AuthorityDiscovery for TestAuthorityDiscovery {
 		async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
-			self.by_authority_id.get(authority).cloned().map(|addr| vec![addr])
+			self.by_authority_id.get(&authority).cloned().map(|addr| vec![addr])
 		}
 
 		async fn get_authority_id_by_peer_id(&mut self, peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
@@ -317,8 +338,113 @@ mod tests {
 		}
 	}
 
+	fn known_authorities() -> Vec<AuthorityDiscoveryId> {
+		[
+			Sr25519Keyring::Alice,
+			Sr25519Keyring::Bob,
+			Sr25519Keyring::Charlie,
+		].iter().map(|k| k.public().into()).collect()
+	}
+
+	fn known_peer_ids() -> Vec<PeerId> {
+		(0..3).map(|_| PeerId::random()).collect()
+	}
+
+	fn known_multiaddr() -> Vec<Multiaddr> {
+		vec![
+			"/ip4/127.0.0.1/tcp/1234".parse().unwrap(),
+			"/ip4/127.0.0.1/tcp/1235".parse().unwrap(),
+			"/ip4/127.0.0.1/tcp/1236".parse().unwrap(),
+		]
+	}
+
 	#[test]
-	fn it_works() {
+	fn request_is_revoked_on_send() {
+		let (revoke_tx, revoke_rx) = oneshot::channel();
+		let (sender, _receiver) = mpsc::channel(0);
+
+		let mut request = PendingConnectionRequestState::new(
+			Vec::new(),
+			HashSet::new(),
+			sender,
+			revoke_rx,
+		);
+
+		assert!(!request.is_revoked());
+
+		revoke_tx.send(()).unwrap();
+
+		assert!(request.is_revoked());
+	}
+
+	#[test]
+	fn request_is_revoked_when_the_sender_is_dropped() {
+		let (revoke_tx, revoke_rx) = oneshot::channel();
+		let (sender, _receiver) = mpsc::channel(0);
+
+		let mut request = PendingConnectionRequestState::new(
+			Vec::new(),
+			HashSet::new(),
+			sender,
+			revoke_rx,
+		);
+
+		assert!(!request.is_revoked());
+
+		drop(revoke_tx);
+
+		assert!(request.is_revoked());
+	}
+
+	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
+		Service::new()
+	}
+
+	fn new_network() -> (TestNetwork, TestAuthorityDiscovery) {
+		(TestNetwork::default(), TestAuthorityDiscovery::new())
+	}
+
+	#[test]
+	fn requests_are_fulfilled_immediately_for_already_connected_peers() {
+		let mut service = new_service();
+
+		let (ns, ads) = new_network();
+
+		let peer_ids: Vec<_> = ads.by_peer_id.keys().cloned().collect();
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
+			let (sender, mut receiver) = mpsc::channel(2);
+			let (revoke_tx, revoke_rx) = oneshot::channel();
+
+			let (ns, ads) = service.on_request(
+				req1,
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			// the results should be immediately available
+			// TODO (ordian): timeout
+			let reply1 = receiver.next().await.unwrap();
+			// let reply2 = receiver.next().await.unwrap();
+			assert_eq!(reply1.0, authority_ids[0]);
+			// assert_eq!(reply2.0, authority_ids[1]);
+			assert_eq!(reply1.1, peer_ids[0]);
+			// assert_eq!(reply2.1, peer_ids[1]);
+		});
+	}
+
+	// Test cleanup works.
+	#[test]
+	fn no_unbounded_growth() {
+		todo!()
+	}
+
+	#[test]
+	fn revoking_requests_with_overlapping_validator_sets() {
 		todo!()
 	}
 }
