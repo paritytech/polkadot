@@ -188,6 +188,27 @@
 			"V0": "Xcm"
 		}
 	},
-	"XcmError": "()",
-	"XcmResult": "()"
+	"XcmError": {
+		"_enum": [
+			"Undefined",
+			"Unimplemented",
+			"UnhandledXcmVersion",
+			"UnhandledXcmMessage",
+			"UnhandledEffect",
+			"EscalationOfPrivilege",
+			"UntrustedReserveLocation",
+			"UntrustedTeleportLocation",
+			"DestinationBufferOverflow",
+			"CannotReachDestination",
+			"MultiLocationFull",
+			"FailedToDecode",
+			"BadOrigin"
+		]
+	},
+	"XcmResult": {
+		"_enum": {
+			"Ok": "()",
+			"Err": "XcmError"
+		}
+	}
 }

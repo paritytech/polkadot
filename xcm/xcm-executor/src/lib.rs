@@ -46,7 +46,8 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 				}
 				return Self::execute_xcm(
 					new_origin,
-					(*inner).try_into().map_err(|_| XcmError::UnhandledXcmVersion)?)
+					(*inner).try_into().map_err(|_| XcmError::UnhandledXcmVersion)?
+				)
 			}
 			(origin, Xcm::WithdrawAsset { assets, effects }) => {
 				// Take `assets` from the origin account (on-chain) and place in holding.
@@ -69,6 +70,8 @@ impl<Config: config::Config> ExecuteXcm for XcmExecutor<Config> {
 			}
 			(origin, Xcm::TeleportAsset { assets, effects }) => {
 				// check whether we trust origin to teleport this asset to us via config trait.
+				// TODO: should de-wildcard `assets` before passing in.
+				frame_support::debug::print!("Teleport from {:?}", origin);
 				if assets.iter().all(|asset| Config::IsTeleporter::filter_asset_location(asset, &origin)) {
 					// We only trust the origin to send us assets that they identify as their
 					// sovereign assets.

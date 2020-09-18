@@ -863,14 +863,13 @@ fn make_sorted_duties(duty: &[Chain]) -> Vec<(usize, ParaId)> {
 impl<T: Trait> SendXcm for Module<T> {
 	fn send_xcm(dest: MultiLocation, msg: xcm::v0::Xcm) -> xcm::v0::Result {
 		if let MultiLocation::X1(Junction::Parachain { id }) = dest {
-			use sp_core::hex_display::HexDisplay;
 			let id: ParaId = id.into();
 			let downward_queue_count = DownwardMessageQueue::decode_len(id).unwrap_or(0);
 			if downward_queue_count >= MAX_DOWNWARD_QUEUE_COUNT {
 				return Err(XcmError::DestinationBufferOverflow)	// Destination buffer overflow.
 			}
 			let data = VersionedXcm::from(msg).encode();
-			debug::print!("Sending downward message to {}: {}", id, HexDisplay::from(&msg[..]))'
+			debug::print!("Sending downward message to {:?}: {:?}", id, &data[..]);
 			let hash = T::Hashing::hash(&data);
 			DownwardMessageQueue::append(id, data);
 			Self::deposit_event(RawEvent::DmpMessageSent(hash, id));

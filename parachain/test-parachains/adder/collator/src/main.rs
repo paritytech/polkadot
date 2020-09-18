@@ -23,7 +23,7 @@ use adder::{HeadData as AdderHead, BlockData as AdderBody};
 use sp_core::{traits::SpawnNamed, Pair};
 use codec::{Encode, Decode};
 use primitives::v0::{
-	Block, DownwardMessage, Hash, HeadData, BlockData,
+	Block, Hash, HeadData, BlockData,
 	Id as ParaId, LocalValidationData, GlobalValidationData,
 };
 use collator::{ParachainContext, Network, BuildParachainContext, Cli, SubstrateCli, SyncOracle};
