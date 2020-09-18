@@ -7,7 +7,7 @@ although with smaller scalability potential.
 
 ## HrmpChannelId
 
-A type that uniquely identifies a HRMP channel. A HRMP channel is established between two paras.
+A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
 In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
 unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
 that we use the first item tuple for the sender and the second for the recipient. Only one channel
@@ -108,9 +108,11 @@ struct InboundHrmpMessage {
 
 ## Downward Message
 
-`DownwardMessage`- is a message that goes down from the relay chain to a parachain. Such a message
+`DownwardMessage` - is a message that goes down from the relay chain to a parachain. Such a message
 could be seen as a notification, however, it is conceivable that they might be used by the relay
 chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
+
+The serialized size of the message is limited by the `config.critical_downward_message_size` parameter.
 
 ```rust,ignore
 enum DownwardMessage {

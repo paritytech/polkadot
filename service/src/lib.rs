@@ -121,7 +121,10 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		consensus_common::DefaultImportQueue<Block, FullClient<RuntimeApi, Executor>>,
 		sc_transaction_pool::FullPool<Block, FullClient<RuntimeApi, Executor>>,
 		(
-			impl Fn(polkadot_rpc::DenyUnsafe, polkadot_rpc::SubscriptionManager) -> polkadot_rpc::RpcExtension,
+			impl Fn(
+				polkadot_rpc::DenyUnsafe,
+				polkadot_rpc::SubscriptionTaskExecutor,
+			) -> polkadot_rpc::RpcExtension,
 			(
 				babe::BabeBlockImport<
 					Block, FullClient<RuntimeApi, Executor>, FullGrandpaBlockImport<RuntimeApi, Executor>
@@ -213,7 +216,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
-		move |deny_unsafe, subscriptions| -> polkadot_rpc::RpcExtension {
+		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
@@ -228,7 +231,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 					shared_voter_state: shared_voter_state.clone(),
 					shared_authority_set: shared_authority_set.clone(),
 					justification_stream: justification_stream.clone(),
-					subscriptions,
+					subscription_executor,
 				},
 			};
 
@@ -244,19 +247,37 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 }
 
 #[cfg(feature = "full-node")]
+pub struct NewFull<C> {
+	pub task_manager: TaskManager,
+	pub client: C,
+	pub node_handles: FullNodeHandles,
+	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	pub network_status_sinks: service::NetworkStatusSinks<Block>,
+	pub rpc_handlers: RpcHandlers,
+}
+
+#[cfg(feature = "full-node")]
+impl<C> NewFull<C> {
+	fn with_client(self, func: impl FnOnce(C) -> Client) -> NewFull<Client> {
+		NewFull {
+			client: func(self.client),
+			task_manager: self.task_manager,
+			node_handles: self.node_handles,
+			network: self.network,
+			network_status_sinks: self.network_status_sinks,
+			rpc_handlers: self.rpc_handlers,
+		}
+	}
+}
+
+#[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	collating_for: Option<(CollatorId, parachain::Id)>,
 	authority_discovery_enabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 	test: bool,
-) -> Result<(
-	TaskManager,
-	Arc<FullClient<RuntimeApi, Executor>>,
-	FullNodeHandles,
-	Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
-	RpcHandlers,
-), Error>
+) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
 		RuntimeApi::RuntimeApi:
@@ -318,7 +339,8 @@ pub fn new_full<RuntimeApi, Executor>(
 		on_demand: None,
 		remote_blockchain: None,
 		telemetry_connection_sinks: telemetry_connection_sinks.clone(),
-		network_status_sinks, system_rpc_tx,
+		network_status_sinks: network_status_sinks.clone(),
+		system_rpc_tx,
 	})?;
 
 	let (block_import, link_half, babe_link) = import_setup;
@@ -457,7 +479,45 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	network_starter.start_network();
 
-	Ok((task_manager, client, FullNodeHandles, network, rpc_handlers))
+	Ok(NewFull {
+		task_manager, client, node_handles: FullNodeHandles, network, network_status_sinks,
+		rpc_handlers,
+	})
+}
+
+#[cfg(feature = "full-node")]
+pub fn new_full_nongeneric(
+	config: Configuration,
+	collating_for: Option<(CollatorId, parachain::Id)>,
+	authority_discovery_enabled: bool,
+	grandpa_pause: Option<(u32, u32)>,
+	test: bool,
+) -> Result<NewFull<Client>, Error> {
+	if config.chain_spec.is_kusama() {
+		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+			test,
+		).map(|full| full.with_client(Client::Kusama))
+	} else if config.chain_spec.is_westend() {
+		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		).map(|full| full.with_client(Client::Westend))
+	} else {
+		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			grandpa_pause,
+			false,
+		).map(|full| full.with_client(Client::Polkadot))
+	}
 }
 
 /// Builds a new service for a light client.
@@ -607,7 +667,9 @@ pub fn polkadot_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
+	let NewFull {
+		task_manager, client, node_handles, ..
+	} = new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 		config,
 		collating_for,
 		authority_discovery_enabled,
@@ -615,7 +677,7 @@ pub fn polkadot_new_full(
 		false,
 	)?;
 
-	Ok((service, client, handles))
+	Ok((task_manager, client, node_handles))
 }
 
 /// Create a new Kusama service for a full node.
@@ -631,7 +693,9 @@ pub fn kusama_new_full(
 		FullNodeHandles
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
+	let NewFull {
+		task_manager, client, node_handles, ..
+	} = new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 		config,
 		collating_for,
 		authority_discovery_enabled,
@@ -639,7 +703,7 @@ pub fn kusama_new_full(
 		false,
 	)?;
 
-	Ok((service, client, handles))
+	Ok((task_manager, client, node_handles))
 }
 
 /// Create a new Westend service for a full node.
@@ -656,7 +720,9 @@ pub fn westend_new_full(
 		FullNodeHandles,
 	), ServiceError>
 {
-	let (service, client, handles, _, _) = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
+	let NewFull {
+		task_manager, client, node_handles, ..
+	} = new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 		config,
 		collating_for,
 		authority_discovery_enabled,
@@ -664,7 +730,7 @@ pub fn westend_new_full(
 		false,
 	)?;
 
-	Ok((service, client, handles))
+	Ok((task_manager, client, node_handles))
 }
 
 /// Handles to other sub-services that full nodes instantiate, which consumers
@@ -692,29 +758,11 @@ pub fn build_full(
 	authority_discovery_enabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<(TaskManager, Client, FullNodeHandles), ServiceError> {
-	if config.chain_spec.is_kusama() {
-		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
-			config,
-			collating_for,
-			authority_discovery_enabled,
-			grandpa_pause,
-			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Kusama(client), handles))
-	} else if config.chain_spec.is_westend() {
-		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
-			config,
-			collating_for,
-			authority_discovery_enabled,
-			grandpa_pause,
-			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Westend(client), handles))
-	} else {
-		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
-			config,
-			collating_for,
-			authority_discovery_enabled,
-			grandpa_pause,
-			false,
-		).map(|(task_manager, client, handles, _, _)| (task_manager, Client::Polkadot(client), handles))
-	}
+	new_full_nongeneric(
+		config,
+		collating_for,
+		authority_discovery_enabled,
+		grandpa_pause,
+		false,
+	).map(|NewFull { task_manager, client, node_handles, .. }| (task_manager, client, node_handles))
 }
