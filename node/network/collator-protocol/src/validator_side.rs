@@ -77,7 +77,7 @@ impl metrics::Metrics for Metrics {
 			collation_requests: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"collation_requests_total",
+						"parachain_collation_requests_total",
 						"Number of collations requested from Collators.",
 					),
 					&["succeeded", "failed"],

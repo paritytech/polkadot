@@ -69,14 +69,14 @@ impl metrics::Metrics for Metrics {
 		let metrics = MetricsInner {
 			advertisments_made: prometheus::register(
 				prometheus::Counter::new(
-					"advertisments_made_total",
+					"parachain_advertisments_made_total",
 					"A number of advertisments sent to validators.",
 				)?,
 				registry,
 			)?,
 			collations_sent: prometheus::register(
 				prometheus::Counter::new(
-					"collations_sent_total",
+					"parachain_collations_sent_total",
 					"A number of collations sent to validators.",
 				)?,
 				registry,

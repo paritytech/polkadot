@@ -64,19 +64,6 @@ enum ProtocolSide {
 	Collator(CollatorId, collator_side::Metrics),
 }
 
-/// Metrics.
-#[derive(Clone, Default)]
-pub struct Metrics;
-
-// TODO: So how do we tie this to metrics in modules?.
-impl metrics::Metrics for Metrics {
-	fn try_register(_registry: &prometheus::Registry)
-		-> std::result::Result<Self, prometheus::PrometheusError>
-	{
-		Ok(Self)
-	}
-}
-
 /// The collator protocol subsystem.
 pub struct CollatorProtocolSubsystem {
 	protocol_side: ProtocolSide, 
@@ -87,17 +74,16 @@ impl CollatorProtocolSubsystem {
 	/// If `id` is `Some` this is a collator side of the protocol.
 	/// If `id` is `None` this is a validator side of the protocol. 
 	/// Caller must provide a registry for prometheus metrics.
-	pub fn new(id: Option<CollatorId>, registry: &prometheus::Registry)
-		-> std::result::Result<Self, prometheus::PrometheusError> {
+	pub fn new(id: Option<CollatorId>, registry: Option<&prometheus::Registry>) -> Self {
 		use metrics::Metrics;
 		let protocol_side = match id {
-			Some(id) => ProtocolSide::Collator(id, collator_side::Metrics::try_register(registry)?),
-			None => ProtocolSide::Validator(validator_side::Metrics::try_register(registry)?),
+			Some(id) => ProtocolSide::Collator(id, collator_side::Metrics::register(registry)),
+			None => ProtocolSide::Validator(validator_side::Metrics::register(registry)),
 		};
 
-		Ok(Self {
+		Self {
 			protocol_side,
-		})
+		}
 	}
 
 	async fn run<Context>(self, ctx: Context) -> Result<()>
@@ -123,7 +109,7 @@ impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
-	type Metrics = Metrics;
+	type Metrics = ();
 
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
