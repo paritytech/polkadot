@@ -173,24 +173,43 @@ fn weight_of_session_purge_keys_is_correct() {
 
 #[test]
 fn weight_of_phragmen_vote_is_correct() {
-	// #[weight = 100_000_000]
-	let expected_weight = 350_000_000;
-	let weight = PhragmenCall::vote::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
+	// (35890000 as Weight)
+	// 	.saturating_add((168000 as Weight).saturating_mul(v as Weight))
+	// 	.saturating_add(DbWeight::get().reads(5 as Weight))
+	// 	.saturating_add(DbWeight::get().writes(2 as Weight))
+	let expected_weight =
+		35_890_000 +
+		(DbWeight::get().read * 5) + (DbWeight::get().write * 2) +
+		168000 * 2;
+	let weight = PhragmenCall::vote::<Runtime>(
+		vec![Default::default(), Default::default()],
+		Default::default(),
+	).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
 fn weight_of_phragmen_submit_candidacy_is_correct() {
-	let expected_weight = WEIGHT_PER_MICROS * 35 + 1 * 375 * WEIGHT_PER_NANOS + DbWeight::get().reads_writes(4, 1);
-	let weight = PhragmenCall::submit_candidacy::<Runtime>(1).get_dispatch_info().weight;
+	// (41826000 as Weight)
+	// 	.saturating_add((235000 as Weight).saturating_mul(c as Weight))
+	// 	.saturating_add(DbWeight::get().reads(3 as Weight))
+	// 	.saturating_add(DbWeight::get().writes(1 as Weight))
+	let expected_weight =
+		41826000 +
+		(235000 * 3) +
+		(DbWeight::get().read * 3) + (DbWeight::get().write * 1);
+	let weight = PhragmenCall::submit_candidacy::<Runtime>(3).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
 
 #[test]
-fn weight_of_phragmen_renounce_candidacy_is_correct() {
-	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
+fn weight_of_phragmen_renounce_candidacy_member_is_correct() {
+	// (41689000 as Weight)
+	// 	.saturating_add(DbWeight::get().reads(3 as Weight))
+	// 	.saturating_add(DbWeight::get().writes(4 as Weight))
+	let expected_weight = 41689000 + (DbWeight::get().read * 3) + (DbWeight::get().write * 4);
 	let weight = PhragmenCall::renounce_candidacy::<Runtime>(pallet_elections_phragmen::Renouncing::Member)
 		.get_dispatch_info().weight;
 
