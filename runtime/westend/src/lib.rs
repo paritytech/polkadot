@@ -143,6 +143,10 @@ impl frame_system::Trait for Runtime {
 	type SystemWeightInfo = weights::frame_system::WeightInfo;
 }
 
+parameter_types! {
+	pub const MaxScheduledPerBlock: u32 = 50;
+}
+
 impl pallet_scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -150,7 +154,8 @@ impl pallet_scheduler::Trait for Runtime {
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo;
 }
 
 parameter_types! {
