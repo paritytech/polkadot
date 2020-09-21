@@ -32,7 +32,9 @@ use primitives::traits::{SyncCryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
-use application_crypto::{KeyTypeId, AppKey};
+#[cfg(feature = "std")]
+use application_crypto::AppKey;
+use application_crypto::KeyTypeId;
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT, Verify, IdentifyAccount};
 pub use polkadot_core_primitives::*;
