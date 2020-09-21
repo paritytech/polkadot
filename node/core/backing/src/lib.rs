@@ -883,7 +883,7 @@ mod tests {
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_core::Pair;
 	use sp_keyring::Sr25519Keyring;
-    use sp_core::traits::SyncCryptoStore;
+	use sp_core::traits::SyncCryptoStore;
 	use sp_application_crypto::AppKey;
 	use std::collections::HashMap;
 

@@ -906,7 +906,7 @@ mod tests {
 	use polkadot_primitives::v1::{ValidatorPair, CommittedCandidateReceipt};
 	use assert_matches::assert_matches;
 	use futures::executor;
-    use sp_core::traits::SyncCryptoStorePtr;
+	use sp_core::traits::SyncCryptoStorePtr;
 	use sc_keystore::LocalKeystore;
 
 	#[test]
