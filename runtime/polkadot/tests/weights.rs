@@ -21,70 +21,31 @@
 //! weights in Substrate will change. Instead they are supposed to provide
 //! some sort of indicator that calls we consider important (e.g pallet_balances::transfer)
 //! have not suddenly changed from under us.
+//!
+//! Some of the tests in this crate print insightful logs. Run with:
+//!
+//! ```
+//! $ cargo test -p polkadot-runtime -- --nocapture --test-threads=1
+//! ```
 
-use frame_support::{
-	traits::ContainsLengthBound,
-	weights::{constants::*, GetDispatchInfo, Weight},
-};
-use keyring::AccountKeyring;
-use polkadot_runtime::constants::currency::*;
+use frame_support::weights::{constants::*, GetDispatchInfo};
 use polkadot_runtime::{self, Runtime};
-use primitives::v0::AccountId;
 use runtime_common::MaximumBlockWeight;
 
 use pallet_elections_phragmen::Call as PhragmenCall;
 use pallet_session::Call as SessionCall;
-use pallet_staking::Call as StakingCall;
 use frame_system::Call as SystemCall;
-use pallet_treasury::Call as TreasuryCall;
 
 type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
 
 #[test]
 fn sanity_check_weight_per_time_constants_are_as_expected() {
 	// These values comes from Substrate, we want to make sure that if it
-	// ever changes we don't accidently break Polkadot
+	// ever changes we don't accidentally break Polkadot
 	assert_eq!(WEIGHT_PER_SECOND, 1_000_000_000_000);
 	assert_eq!(WEIGHT_PER_MILLIS, WEIGHT_PER_SECOND / 1000);
 	assert_eq!(WEIGHT_PER_MICROS, WEIGHT_PER_MILLIS / 1000);
 	assert_eq!(WEIGHT_PER_NANOS, WEIGHT_PER_MICROS / 1000);
-}
-
-#[test]
-fn weight_of_staking_bond_is_correct() {
-	let controller: AccountId = AccountKeyring::Alice.into();
-
-	// #[weight = 67 * WEIGHT_PER_MICROS + T::DbWeight::get().reads_writes(5, 4)]
-	let expected_weight = 67 * WEIGHT_PER_MICROS + (DbWeight::get().read * 5) + (DbWeight::get().write * 4);
-	let weight = StakingCall::bond::<Runtime>(controller, 1 * DOLLARS, Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_staking_validate_is_correct() {
-	// #[weight = 17 * WEIGHT_PER_MICROS + T::DbWeight::get().reads_writes(2, 2)]
-	let expected_weight = 17 * WEIGHT_PER_MICROS + (DbWeight::get().read * 2) + (DbWeight::get().write * 2);
-	let weight = StakingCall::validate::<Runtime>(Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_staking_nominate_is_correct() {
-	let targets: Vec<AccountId> = vec![Default::default(), Default::default(), Default::default()];
-
-	// #[weight = T::DbWeight::get().reads_writes(3, 2)
-	// 	.saturating_add(22 * WEIGHT_PER_MICROS)
-	// 	.saturating_add((360 * WEIGHT_PER_NANOS).saturating_mul(targets.len() as Weight))
-	// ]
-	let db_weight = (DbWeight::get().read * 3) + (DbWeight::get().write * 2);
-	let targets_weight = (360 * WEIGHT_PER_NANOS).saturating_mul(targets.len() as Weight);
-
-	let expected_weight = db_weight.saturating_add(22 * WEIGHT_PER_MICROS).saturating_add(targets_weight);
-	let weight = StakingCall::nominate::<Runtime>(targets).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
 }
 
 #[test]
@@ -143,37 +104,6 @@ fn weight_of_phragmen_renounce_candidacy_is_correct() {
 	let expected_weight = 46 * WEIGHT_PER_MICROS + DbWeight::get().reads_writes(2, 2);
 	let weight = PhragmenCall::renounce_candidacy::<Runtime>(pallet_elections_phragmen::Renouncing::Member)
 		.get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_propose_spend_is_correct() {
-	// #[weight = 120_000_000 + T::DbWeight::get().reads_writes(1, 2)]
-	let expected_weight = 120_000_000 + DbWeight::get().read + 2 * DbWeight::get().write;
-	let weight =
-		TreasuryCall::propose_spend::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_approve_proposal_is_correct() {
-	// #[weight = (34_000_000 + T::DbWeight::get().reads_writes(2, 1), DispatchClass::Operational)]
-	let expected_weight = 34_000_000 + 2 * DbWeight::get().read + DbWeight::get().write;
-	let weight = TreasuryCall::approve_proposal::<Runtime>(Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_treasury_tip_is_correct() {
-	let max_len: Weight = <Runtime as pallet_treasury::Trait>::Tippers::max_len() as Weight;
-
-	// #[weight = 68_000_000 + 2_000_000 * T::Tippers::max_len() as Weight
-	// 	+ T::DbWeight::get().reads_writes(2, 1)]
-	let expected_weight = 68_000_000 + 2_000_000 * max_len + 2 * DbWeight::get().read + DbWeight::get().write;
-	let weight = TreasuryCall::tip::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }

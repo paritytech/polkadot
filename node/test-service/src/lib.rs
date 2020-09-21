@@ -27,7 +27,7 @@ use polkadot_primitives::v0::{
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
+	new_full, NewFull, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
 };
 use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
@@ -74,7 +74,7 @@ pub fn polkadot_test_new_full(
 	),
 	ServiceError,
 > {
-	let (task_manager, client, handles, network, rpc_handlers) =
+	let NewFull { task_manager, client, node_handles, network, rpc_handlers, .. } =
 		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 			config,
 			collating_for,
@@ -83,7 +83,7 @@ pub fn polkadot_test_new_full(
 			true,
 		)?;
 
-	Ok((task_manager, client, handles, network, rpc_handlers))
+	Ok((task_manager, client, node_handles, network, rpc_handlers))
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.

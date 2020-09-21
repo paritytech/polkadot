@@ -16,6 +16,7 @@ parking_lot = "0.10.0"
 pin-project = "0.4.23"
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
+polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }

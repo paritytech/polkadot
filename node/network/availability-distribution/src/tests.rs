@@ -22,7 +22,8 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, HeadData, PersistedValidationData, OccupiedCore,
 	PoV, ScheduledCore, ValidatorPair,
 };
-use polkadot_subsystem_testhelpers::{self as test_helpers, TimeoutExt};
+use polkadot_subsystem_testhelpers::{self as test_helpers};
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_node_network_protocol::ObservedRole;
 
 use futures::{executor, future, Future};
