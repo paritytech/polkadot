@@ -20,7 +20,7 @@ use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
 	GroupRotationInfo, HeadData, PersistedValidationData, OccupiedCore,
-	PoV, ScheduledCore, ValidatorPair,
+	PoV, ScheduledCore,
 };
 use polkadot_subsystem_testhelpers::{self as test_helpers};
 use polkadot_node_subsystem_util::TimeoutExt;
@@ -31,7 +31,8 @@ use futures_timer::Delay;
 use smallvec::smallvec;
 use std::{sync::Arc, time::Duration};
 use sc_keystore::LocalKeystore;
-use sp_core::traits::SyncCryptoStore;
+use sp_core::traits::CryptoStorePtr;
+use sp_application_crypto::AppKey;
 
 macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -59,7 +60,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
-	keystore: Arc<SyncCryptoStore>,
+	keystore: CryptoStorePtr,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -146,7 +147,7 @@ struct TestState {
 	validator_index: Option<ValidatorIndex>,
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	head_data: HashMap<ParaId, HeadData>,
-	keystore: Arc<SyncCryptoStore>,
+	keystore: CryptoStorePtr,
 	relay_parent: Hash,
 	ancestors: Vec<Hash>,
 	availability_cores: Vec<CoreState>,
@@ -172,10 +173,10 @@ impl Default for TestState {
 			Sr25519Keyring::Dave,
 		];
 
-		let keystore: Arc<SyncCryptoStore> = Arc::new(LocalKeystore::in_memory().into());
+		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
-		keystore
-			.insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
+		executor::block_on(keystore
+			.sr25519_generate_new(ValidatorId::ID, Some(&validators[0].to_seed())))
 			.expect("Insert key into keystore");
 
 		let validator_public = validator_pubkeys(&validators);

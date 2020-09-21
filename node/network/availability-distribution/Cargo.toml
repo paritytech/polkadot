@@ -23,6 +23,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 parking_lot = "0.11.0"
 futures-timer = "3.0.2"

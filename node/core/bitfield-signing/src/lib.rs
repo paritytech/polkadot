@@ -22,7 +22,7 @@ use futures::{
 	prelude::*,
 	stream, Future,
 };
-use sp_core::traits::{Error as KeystoreError, SyncCryptoStore};
+use sp_core::traits::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -35,7 +35,7 @@ use polkadot_node_subsystem_util::{
 	self as util, JobManager, JobTrait, ToJobTrait, Validator
 };
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use std::{convert::TryFrom, pin::Pin, sync::Arc, time::Duration};
+use std::{convert::TryFrom, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
@@ -292,7 +292,7 @@ impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = Arc<SyncCryptoStore>;
+	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";

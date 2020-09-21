@@ -552,8 +552,9 @@ mod tests {
 		use super::{default_bitvec, occupied_core};
 		use lazy_static::lazy_static;
 		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorPair};
-		use sp_core::crypto::Pair;
-		use std::sync::Mutex;
+		use sp_core::{crypto::Pair, traits::SyncCryptoStorePtr};
+		use std::sync::{Arc, Mutex};
+		use sc_keystore::LocalKeystore;
 
 		lazy_static! {
 			// we can use a normal mutex here, not a futures-aware one, because we don't use any futures-based
@@ -570,12 +571,14 @@ mod tests {
 			let validator = lock
 				.entry(validator_idx)
 				.or_insert_with(|| ValidatorPair::generate().0);
+			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 			SignedAvailabilityBitfield::sign(
+				keystore,
 				field.into(),
 				&<SigningContext<Hash>>::default(),
 				validator_idx,
-				validator,
-			)
+				&validator.public(),
+			).expect("Should be signed")
 		}
 
 		#[test]

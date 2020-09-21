@@ -899,11 +899,15 @@ async fn run(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use std::sync::Arc;
+	use sp_core::Pair;
 	use sp_keyring::Sr25519Keyring;
 	use node_primitives::Statement;
-	use polkadot_primitives::v1::CommittedCandidateReceipt;
+	use polkadot_primitives::v1::{ValidatorPair, CommittedCandidateReceipt};
 	use assert_matches::assert_matches;
 	use futures::executor;
+    use sp_core::traits::SyncCryptoStorePtr;
+	use sc_keystore::LocalKeystore;
 
 	#[test]
 	fn active_head_accepts_only_2_seconded_per_validator() {
@@ -943,13 +947,18 @@ mod tests {
 
 		let mut head_data = ActiveHeadData::new(validators, session_index);
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let alice_pair: ValidatorPair = Sr25519Keyring::Alice.pair().into();
+		let bob_pair: ValidatorPair = Sr25519Keyring::Bob.pair().into();
+
 		// note A
 		let a_seconded_val_0 = SignedFullStatement::sign(
+			keystore.clone(),
 			Statement::Seconded(candidate_a.clone()),
 			&signing_context,
 			0,
-			&Sr25519Keyring::Alice.pair().into(),
-		);
+			&alice_pair.public(),
+		).expect("should be signed");
 		let noted = head_data.note_statement(a_seconded_val_0.clone());
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
@@ -961,41 +970,45 @@ mod tests {
 
 		// note B
 		let noted = head_data.note_statement(SignedFullStatement::sign(
+			keystore.clone(),
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			0,
-			&Sr25519Keyring::Alice.pair().into(),
-		));
+			&alice_pair.public(),
+		).expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (beyond 2 - ignored)
 		let noted = head_data.note_statement(SignedFullStatement::sign(
+			keystore.clone(),
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			0,
-			&Sr25519Keyring::Alice.pair().into(),
-		));
+			&alice_pair.public(),
+		).expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::NotUseful);
 
 		// note B (new validator)
 		let noted = head_data.note_statement(SignedFullStatement::sign(
+			keystore.clone(),
 			Statement::Seconded(candidate_b.clone()),
 			&signing_context,
 			1,
-			&Sr25519Keyring::Bob.pair().into(),
-		));
+			&bob_pair.public(),
+		).expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
 		// note C (new validator)
 		let noted = head_data.note_statement(SignedFullStatement::sign(
+			keystore.clone(),
 			Statement::Seconded(candidate_c.clone()),
 			&signing_context,
 			1,
-			&Sr25519Keyring::Bob.pair().into(),
-		));
+			&bob_pair.public(),
+		).expect("should be signed"));
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 	}
@@ -1173,33 +1186,41 @@ mod tests {
 			session_index,
 		};
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let alice_pair: ValidatorPair = Sr25519Keyring::Alice.pair().into();
+		let bob_pair: ValidatorPair = Sr25519Keyring::Bob.pair().into();
+		let charlie_pair: ValidatorPair = Sr25519Keyring::Charlie.pair().into();
+
 		let new_head_data = {
 			let mut data = ActiveHeadData::new(validators, session_index);
 
 			let noted = data.note_statement(SignedFullStatement::sign(
+				keystore.clone(),
 				Statement::Seconded(candidate.clone()),
 				&signing_context,
 				0,
-				&Sr25519Keyring::Alice.pair().into(),
-			));
+				&alice_pair.public(),
+			).expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
 			let noted = data.note_statement(SignedFullStatement::sign(
+				keystore.clone(),
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				1,
-				&Sr25519Keyring::Bob.pair().into(),
-			));
+				&bob_pair.public(),
+			).expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
 			let noted = data.note_statement(SignedFullStatement::sign(
+				keystore,
 				Statement::Valid(candidate_hash),
 				&signing_context,
 				2,
-				&Sr25519Keyring::Charlie.pair().into(),
-			));
+				&charlie_pair.public(),
+			).expect("should be signed"));
 
 			assert_matches!(noted, NotedStatement::Fresh(_));
 
@@ -1319,12 +1340,16 @@ mod tests {
 					session_index,
 				};
 
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let alice_pair: ValidatorPair = Sr25519Keyring::Alice.pair().into();
+
 				let statement = SignedFullStatement::sign(
+					keystore,
 					Statement::Seconded(candidate),
 					&signing_context,
 					0,
-					&Sr25519Keyring::Alice.pair().into(),
-				);
+					&alice_pair.public(),
+				).expect("should be signed");
 
 				StoredStatement {
 					comparator: StoredStatementComparator {

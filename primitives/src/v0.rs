@@ -19,15 +19,16 @@
 
 use sp_std::prelude::*;
 use sp_std::convert::TryInto;
-use sp_std::sync::Arc;
 use sp_std::cmp::Ordering;
+
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
+#[cfg(feature = "std")]
+use primitives::traits::{SyncCryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
-use primitives::traits::{SyncCryptoStore, Error as KeystoreError};
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
 use application_crypto::{KeyTypeId, AppKey};
@@ -864,7 +865,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
 	pub fn sign<H: Encode>(
-		keystore: Arc<SyncCryptoStore>,
+		keystore: SyncCryptoStorePtr,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,

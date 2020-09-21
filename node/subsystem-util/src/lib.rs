@@ -42,14 +42,13 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 };
-use sp_core::{traits::{Error as KeystoreError, SpawnNamed, SyncCryptoStore}, Public};
+use sp_core::{traits::{Error as KeystoreError, SpawnNamed, SyncCryptoStorePtr}, Public};
 use sp_application_crypto::AppKey;
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
-	sync::Arc,
 	task::{Poll, Context},
 	time::Duration,
 };
@@ -277,7 +276,7 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: Arc<SyncCryptoStore>) -> Option<ValidatorId> {
+pub fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
 	validators
 		.iter()
 		.filter(|v| keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]))
@@ -298,7 +297,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: Arc<SyncCryptoStore>,
+		keystore: SyncCryptoStorePtr,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -329,7 +328,7 @@ impl Validator {
 	pub fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: Arc<SyncCryptoStore>,
+		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
 		let key = signing_key(validators, keystore).ok_or(Error::NotAValidator)?;
 		let index = validators
@@ -364,7 +363,7 @@ impl Validator {
 	/// Sign a payload with this validator
 	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
-		keystore: Arc<SyncCryptoStore>,
+		keystore: SyncCryptoStorePtr,
 		payload: Payload,
 	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
 		Signed::sign(keystore, payload, &self.signing_context, self.index, &self.key)

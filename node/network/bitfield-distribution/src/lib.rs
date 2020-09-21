@@ -617,7 +617,10 @@ mod test {
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use sp_core::crypto::Pair;
-	use std::time::Duration;
+    use sp_core::traits::SyncCryptoStorePtr;
+	use sc_keystore::LocalKeystore;
+	    use std::sync::Arc;
+use std::time::Duration;
 	use assert_matches::assert_matches;
 	use polkadot_node_network_protocol::ObservedRole;
 
@@ -726,9 +729,12 @@ mod test {
 		// another validator not part of the validatorset
 		let (mallicious, _seed) = ValidatorPair::generate();
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &mallicious);
+			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &mallicious.public())
+			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -786,9 +792,11 @@ mod test {
 
 		state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 42, &validator_pair);
+			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 42, &validator_pair.public())
+			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -837,10 +845,12 @@ mod test {
 		let (mut state, signing_context, validator_pair) =
 			state_with_view(view![hash_a, hash_b], hash_a.clone());
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed_bitfield =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
+			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &validator_pair.public())
+			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
@@ -944,10 +954,12 @@ mod test {
 		// validator 0 key pair
 		let (mut state, signing_context, validator_pair) = state_with_view(view![hash_a, hash_b], hash_a.clone());
 
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed_bitfield =
-			Signed::<AvailabilityBitfield>::sign(payload, &signing_context, 0, &validator_pair);
+			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &validator_pair.public())
+			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
 			relay_parent: hash_a.clone(),
