@@ -18,6 +18,7 @@
 //! perspective.
 
 use sp_std::prelude::*;
+#[cfg(feature = "std")]
 use sp_std::convert::TryInto;
 use sp_std::cmp::Ordering;
 

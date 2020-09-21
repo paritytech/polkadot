@@ -286,9 +286,9 @@ impl ProtocolState {
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
-async fn handle_network_msg<Context>(
+async fn handle_network_msg<'async_trait, Context>(
 	ctx: &mut Context,
-	keystore: CryptoStorePtr,
+	keystore: &CryptoStorePtr,
 	state: &mut ProtocolState,
 	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
 ) -> Result<()>
@@ -326,7 +326,7 @@ where
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
-	keystore: CryptoStorePtr,
+	keystore: &CryptoStorePtr,
 	state: &mut ProtocolState,
 	view: View,
 ) -> Result<()>
@@ -723,7 +723,7 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
-						self.keystore.clone(),
+						&self.keystore.clone(),
 						&mut state,
 						event
 					).await {
