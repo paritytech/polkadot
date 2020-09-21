@@ -33,7 +33,6 @@ use polkadot_runtime::{self, Runtime};
 use runtime_common::MaximumBlockWeight;
 
 use pallet_elections_phragmen::Call as PhragmenCall;
-use pallet_session::Call as SessionCall;
 use frame_system::Call as SystemCall;
 
 type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
