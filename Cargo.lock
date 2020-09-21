@@ -4688,8 +4688,10 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "smol 0.3.3",
+ "sp-application-crypto",
  "sp-core",
  "streamunordered",
+ "tempfile",
 ]
 
 [[package]]
