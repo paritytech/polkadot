@@ -647,8 +647,14 @@ mod tests {
 		pub const TipCountdown: u64 = 1;
 		pub const TipFindersFee: Percent = Percent::from_percent(20);
 		pub const TipReportDepositBase: u64 = 1;
-		pub const TipReportDepositPerByte: u64 = 1;
 		pub const TreasuryModuleId: ModuleId = ModuleId(*b"py/trsry");
+		pub const DataDepositPerByte: u64 = 1;
+		pub const BountyDepositBase: u64 = 1;
+		pub const BountyDepositPayoutDelay: u64 = 1;
+		pub const BountyUpdatePeriod: u64 = 1;
+		pub const MaximumReasonLength: u32 = 16384;
+		pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
+		pub const BountyValueMinimum: u64 = 1;
 	}
 	pub struct Nobody;
 	impl Contains<u64> for Nobody {
@@ -666,7 +672,7 @@ mod tests {
 		type ApproveOrigin = frame_system::EnsureRoot<u64>;
 		type RejectOrigin = frame_system::EnsureRoot<u64>;
 		type Event = ();
-		type ProposalRejection = ();
+		type OnSlash = ();
 		type ProposalBond = ProposalBond;
 		type ProposalBondMinimum = ProposalBondMinimum;
 		type SpendPeriod = SpendPeriod;
@@ -676,7 +682,13 @@ mod tests {
 		type TipCountdown = TipCountdown;
 		type TipFindersFee = TipFindersFee;
 		type TipReportDepositBase = TipReportDepositBase;
-		type TipReportDepositPerByte = TipReportDepositPerByte;
+		type DataDepositPerByte = DataDepositPerByte;
+		type BountyDepositBase = BountyDepositBase;
+		type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
+		type BountyUpdatePeriod = BountyUpdatePeriod;
+		type MaximumReasonLength = MaximumReasonLength;
+		type BountyCuratorDeposit = BountyCuratorDeposit;
+		type BountyValueMinimum = BountyValueMinimum;
 		type ModuleId = TreasuryModuleId;
 		type WeightInfo = ();
 	}
