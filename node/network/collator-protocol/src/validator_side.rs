@@ -34,6 +34,7 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
+	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, RequestId,
@@ -47,6 +48,47 @@ const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-10, "An unexpected message");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::new(-20, "A collation request has timed out");
 const COST_REPORT_BAD: Rep = Rep::new(-50, "A collator was reported by another subsystem");
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by another subsystem");
+
+#[derive(Clone, Default)]
+pub(super) struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_request(&self, succeeded: bool) {
+		if let Some(metrics) = &self.0 {
+			if succeeded {
+				metrics.collation_requests.with_label_values(&["succeeded"]).inc();
+			} else {
+				metrics.collation_requests.with_label_values(&["failed"]).inc();
+			}
+		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	collation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry)
+		-> std::result::Result<Self, prometheus::PrometheusError>
+	{
+		let metrics = MetricsInner {
+			collation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"collation_requests_total",
+						"Number of collations requested from Collators.",
+					),
+					&["succeeded", "failed"],
+				)?,
+				registry,
+			)?
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 #[derive(Debug)]
 enum CollationRequestResult {
@@ -134,6 +176,9 @@ struct State {
 
 	/// Possessed collations.
 	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
+
+	/// Metrics.
+	metrics: Metrics,
 }
 
 /// Another subsystem has requested to fetch collations on a particular leaf for some para.
@@ -291,6 +336,7 @@ where
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
+					state.metrics.on_request(true);
 
 					state.collations
 						.entry((relay_parent, para_id))
@@ -304,6 +350,7 @@ where
 		// This is tricky. If our chain has moved on, we have already canceled
 		// the relevant request and removed it from the map; so and we are not expecting
 		// this reply although technically it is not a malicious behaviur.
+		state.metrics.on_request(false);
 		modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
 	}
 
@@ -497,6 +544,8 @@ async fn request_timed_out<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
+	state.metrics.on_request(false);
+
 	// We have to go backwards in the map, again.
 	if let Some(key) = find_val_in_map(&state.requested_collations, &id) {
 		if let Some(_) = state.requested_collations.remove(&key) {
@@ -595,7 +644,11 @@ where
 }
 
 /// The main run loop.
-pub(crate) async fn run<Context>(mut ctx: Context, request_timeout: Duration) -> Result<()>
+pub(crate) async fn run<Context>(
+	mut ctx: Context,
+	request_timeout: Duration,
+	metrics: Metrics,
+	) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
@@ -604,6 +657,7 @@ where
 
 	let mut state = State {
 		request_timeout,
+		metrics,
 		..Default::default()
 	};
 
@@ -707,7 +761,7 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, Duration::from_millis(50));
+		let subsystem = run(context, Duration::from_millis(50), Metrics::default());
 
 		let test_fut = test(TestHarness { virtual_overseer });
 
