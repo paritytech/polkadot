@@ -152,6 +152,10 @@ impl frame_system::Trait for Runtime {
 	type SystemWeightInfo = weights::frame_system::WeightInfo;
 }
 
+parameter_types! {
+	pub const MaxScheduledPerBlock: u32 = 50;
+}
+
 impl pallet_scheduler::Trait for Runtime {
 	type Event = Event;
 	type Origin = Origin;
@@ -159,7 +163,8 @@ impl pallet_scheduler::Trait for Runtime {
 	type Call = Call;
 	type MaximumWeight = MaximumBlockWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo;
 }
 
 parameter_types! {
@@ -497,7 +502,13 @@ parameter_types! {
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
-	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
+	pub const DataDepositPerByte: Balance = 1 * CENTS;
+	pub const BountyDepositBase: Balance = 1 * DOLLARS;
+	pub const BountyDepositPayoutDelay: BlockNumber = 4 * DAYS;
+	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
+	pub const MaximumReasonLength: u32 = 16384;
+	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
+	pub const BountyValueMinimum: Balance = 2 * DOLLARS;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -507,6 +518,7 @@ type ApproveOrigin = EnsureOneOf<
 >;
 
 impl pallet_treasury::Trait for Runtime {
+	type ModuleId = TreasuryModuleId;
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;
@@ -514,16 +526,21 @@ impl pallet_treasury::Trait for Runtime {
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
-	type TipReportDepositPerByte = TipReportDepositPerByte;
+	type DataDepositPerByte = DataDepositPerByte;
 	type Event = Event;
-	type ProposalRejection = Treasury;
+	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type BountyDepositBase = BountyDepositBase;
+	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
+	type BountyUpdatePeriod = BountyUpdatePeriod;
+	type MaximumReasonLength = MaximumReasonLength;
+	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type BountyValueMinimum = BountyValueMinimum;
 	type BurnDestination = Society;
-	type ModuleId = TreasuryModuleId;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_treasury::WeightInfo;
 }
 
 parameter_types! {
