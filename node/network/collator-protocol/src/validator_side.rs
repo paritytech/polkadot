@@ -177,6 +177,11 @@ struct State {
 	/// Possessed collations.
 	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
 
+	/// Leaves have recently moved out of scope.
+	/// These are looked into when we receive previously requested collations that we
+	/// are no longer interested in.
+	recently_removed_heads: HashSet<Hash>,
+
 	/// Metrics.
 	metrics: Metrics,
 }
@@ -346,12 +351,11 @@ where
 			}
 		}
 	} else {
-		// TODO: https://github.com/paritytech/polkadot/issues/1694
-		// This is tricky. If our chain has moved on, we have already canceled
-		// the relevant request and removed it from the map; so and we are not expecting
-		// this reply although technically it is not a malicious behaviur.
-		state.metrics.on_request(false);
-		modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
+		// If this collation is not just a delayed one that we were expecting,
+		// but our view has moved on, in that case modify peer's reputation.
+		if !state.recently_removed_heads.contains(&relay_parent) {
+			modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await?;
+		}
 	}
 
 	Ok(())
@@ -528,7 +532,11 @@ async fn handle_our_view_change(
 		.cloned()
 		.collect::<Vec<_>>();
 
+	// Update the set of recently removed chain heads.
+	state.recently_removed_heads.clear();
+
 	for removed in removed.into_iter() {
+		state.recently_removed_heads.insert(removed.clone());
 		remove_relay_parent(state, removed).await?;
 	}
 
