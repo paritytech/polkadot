@@ -58,31 +58,6 @@ fn weight_of_system_set_code_is_correct() {
 }
 
 #[test]
-fn weight_of_session_set_keys_is_correct() {
-	// #[weight = 200_000_000
-	// 	+ T::DbWeight::get().reads(2 + T::Keys::key_ids().len() as Weight)
-	// 	+ T::DbWeight::get().writes(1 + T::Keys::key_ids().len() as Weight)]
-	//
-	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 200_000_000 + (DbWeight::get().read * (2 + 5)) + (DbWeight::get().write * (1 + 5));
-	let weight = SessionCall::set_keys::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_session_purge_keys_is_correct() {
-	// #[weight = 120_000_000
-	// 	+ T::DbWeight::get().reads_writes(2, 1 + T::Keys::key_ids().len() as Weight)]
-	//
-	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 120_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * (1 + 5));
-	let weight = SessionCall::purge_keys::<Runtime>().get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
 fn weight_of_phragmen_vote_is_correct() {
 	// #[weight = 100_000_000]
 	let expected_weight = 350_000_000;
