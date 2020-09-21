@@ -152,7 +152,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore, task_manager) =
+	let (client, backend, keystore_params, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -214,7 +214,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore.clone();
+		let keystore = keystore_params.sync_keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
@@ -243,7 +243,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore, select_chain, import_queue, transaction_pool,
+		client, backend, task_manager, keystore_params, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -299,8 +299,6 @@ fn new_full<RuntimeApi, Executor>(
 		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
 		Executor: NativeExecutionDispatch + 'static,
 {
-	use sp_core::traits::BareCryptoStorePtr;
-
 	let is_collator = collating_for.is_some();
 	let role = config.role.clone();
 	let is_authority = role.is_authority() && !is_collator;
@@ -312,7 +310,7 @@ fn new_full<RuntimeApi, Executor>(
 		client,
 		backend,
 		mut task_manager,
-		keystore,
+		keystore_params,
 		select_chain,
 		import_queue,
 		transaction_pool,
@@ -349,7 +347,7 @@ fn new_full<RuntimeApi, Executor>(
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore.clone(),
+		keystore: keystore_params.sync_keystore(),
 		network: network.clone(),
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
@@ -414,7 +412,7 @@ fn new_full<RuntimeApi, Executor>(
 		);
 
 		let babe_config = babe::BabeParams {
-			keystore: keystore.clone(),
+			keystore: keystore_params.sync_keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -433,7 +431,7 @@ fn new_full<RuntimeApi, Executor>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt = if is_authority {
-		Some(keystore.clone() as BareCryptoStorePtr)
+		Some(keystore_params.sync_keystore())
 	} else {
 		None
 	};
@@ -508,7 +506,7 @@ fn new_full<RuntimeApi, Executor>(
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
 					authority_discovery::Role::Authority (
-						keystore.clone(),
+						keystore_params.keystore(),
 					),
 				),
 				Role::Sentry {..} => (
@@ -522,17 +520,17 @@ fn new_full<RuntimeApi, Executor>(
 			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
-			}}).boxed();
+			}});
 			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
 				client.clone(),
 				network.clone(),
 				sentries,
-				dht_event_stream,
+				Box::pin(dht_event_stream),
 				authority_discovery_role,
 				prometheus_registry.clone(),
 			);
 
-			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker);
+			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
 		}
 	}
 
@@ -635,7 +633,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
 		config,
-		keystore,
+		keystore: keystore.sync_keystore(),
 		backend,
 		transaction_pool,
 		client,
