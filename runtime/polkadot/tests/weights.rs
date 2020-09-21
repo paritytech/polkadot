@@ -33,7 +33,6 @@ use polkadot_runtime::{self, Runtime};
 use runtime_common::MaximumBlockWeight;
 
 use pallet_elections_phragmen::Call as PhragmenCall;
-use pallet_session::Call as SessionCall;
 use frame_system::Call as SystemCall;
 
 type DbWeight = <Runtime as frame_system::Trait>::DbWeight;
@@ -53,31 +52,6 @@ fn weight_of_system_set_code_is_correct() {
 	// #[weight = (T::MaximumBlockWeight::get(), DispatchClass::Operational)]
 	let expected_weight = MaximumBlockWeight::get();
 	let weight = SystemCall::set_code::<Runtime>(vec![]).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_session_set_keys_is_correct() {
-	// #[weight = 200_000_000
-	// 	+ T::DbWeight::get().reads(2 + T::Keys::key_ids().len() as Weight)
-	// 	+ T::DbWeight::get().writes(1 + T::Keys::key_ids().len() as Weight)]
-	//
-	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 200_000_000 + (DbWeight::get().read * (2 + 5)) + (DbWeight::get().write * (1 + 5));
-	let weight = SessionCall::set_keys::<Runtime>(Default::default(), Default::default()).get_dispatch_info().weight;
-
-	assert_eq!(weight, expected_weight);
-}
-
-#[test]
-fn weight_of_session_purge_keys_is_correct() {
-	// #[weight = 120_000_000
-	// 	+ T::DbWeight::get().reads_writes(2, 1 + T::Keys::key_ids().len() as Weight)]
-	//
-	// Polkadot has five possible session keys, so we default to key_ids.len() = 5
-	let expected_weight = 120_000_000 + (DbWeight::get().read * 2) + (DbWeight::get().write * (1 + 5));
-	let weight = SessionCall::purge_keys::<Runtime>().get_dispatch_info().weight;
 
 	assert_eq!(weight, expected_weight);
 }
