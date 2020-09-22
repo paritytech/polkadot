@@ -1,0 +1,30 @@
+[package]
+name = "polkadot-collator-protocol"
+version = "0.1.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+[dependencies]
+futures = "0.3.5"
+log = "0.4.11"
+derive_more = "0.99.9"
+
+codec = { package="parity-scale-codec", version = "1.3.4", features = ["std"]  }
+
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-network-bridge = { path = "../../network/bridge" }
+polkadot-node-network-protocol = { path = "../../network/protocol" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+
+[dev-dependencies]
+env_logger = "0.7.1"
+assert_matches = "1.3.0"
+smol-timeout = "0.1.0"
+smallvec = "1.4.2"
+futures-timer = "3.0.2"
+
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }

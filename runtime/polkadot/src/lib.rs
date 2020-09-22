@@ -31,15 +31,19 @@ use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
+	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
+	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
+	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
-use primitives::v0 as p_v0;
-use sp_runtime::{create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult, KeyTypeId, Percent, Permill, Perbill, transaction_validity::{
-	TransactionValidity, TransactionSource, TransactionPriority,
-}, curve::PiecewiseLinear, traits::{
-	BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
-	Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
-}};
+use sp_runtime::{
+	create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult,
+	KeyTypeId, Percent, Permill, Perbill, curve::PiecewiseLinear,
+	transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority},
+	traits::{
+		BlakeTwo256, Block as BlockT, OpaqueKeys, ConvertInto, IdentityLookup,
+		Extrinsic as ExtrinsicT, SaturatedConversion, Verify,
+	},
+};
 #[cfg(feature = "runtime-benchmarks")]
 use sp_runtime::RuntimeString;
 use sp_version::RuntimeVersion;
@@ -85,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 24,
+	spec_version: 25,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -164,6 +168,7 @@ impl frame_system::Trait for Runtime {
 parameter_types! {
 	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
+	pub const MaxScheduledPerBlock: u32 = 50;
 }
 
 impl pallet_scheduler::Trait for Runtime {
@@ -173,7 +178,8 @@ impl pallet_scheduler::Trait for Runtime {
 	type Call = Call;
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type MaxScheduledPerBlock = MaxScheduledPerBlock;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo;
 }
 
 parameter_types! {
@@ -201,7 +207,9 @@ impl pallet_babe::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation =
-	pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -218,6 +226,7 @@ impl pallet_indices::Trait for Runtime {
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 100 * CENTS;
+	pub const MaxLocks: u32 = 50;
 }
 
 /// Splits fees 80/20 between treasury and block author.
@@ -234,6 +243,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type MaxLocks = MaxLocks;
 	type WeightInfo = weights::pallet_balances::WeightInfo;
 }
 
@@ -326,7 +336,7 @@ parameter_types! {
 	pub const BondingDuration: pallet_staking::EraIndex = 28;
 	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxNominatorRewardedPerValidator: u32 = 64;
+	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	// last 15 minutes of the last session will be for election.
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
 	pub const MaxIterations: u32 = 10;
@@ -361,7 +371,7 @@ impl pallet_staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_staking::WeightInfo;
 }
 
 parameter_types! {
@@ -470,6 +480,7 @@ impl pallet_collective::Trait<CouncilCollective> for Runtime {
 	type MotionDuration = CouncilMotionDuration;
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -518,6 +529,7 @@ impl pallet_collective::Trait<TechnicalCollective> for Runtime {
 	type MotionDuration = TechnicalMotionDuration;
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
+	type DefaultVote = pallet_collective::PrimeDefaultVote;
 	type WeightInfo = weights::pallet_collective::WeightInfo;
 }
 
@@ -542,7 +554,13 @@ parameter_types! {
 	pub const TipCountdown: BlockNumber = 1 * DAYS;
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
-	pub const TipReportDepositPerByte: Balance = 1 * CENTS;
+	pub const DataDepositPerByte: Balance = 1 * CENTS;
+	pub const BountyDepositBase: Balance = 1 * DOLLARS;
+	pub const BountyDepositPayoutDelay: BlockNumber = 8 * DAYS;
+	pub const BountyUpdatePeriod: BlockNumber = 90 * DAYS;
+	pub const MaximumReasonLength: u32 = 16384;
+	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
+	pub const BountyValueMinimum: Balance = 10 * DOLLARS;
 }
 
 type ApproveOrigin = EnsureOneOf<
@@ -560,15 +578,21 @@ impl pallet_treasury::Trait for Runtime {
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
-	type TipReportDepositPerByte = TipReportDepositPerByte;
+	type DataDepositPerByte = DataDepositPerByte;
 	type Event = Event;
-	type ProposalRejection = Treasury;
+	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
+	type BountyDepositBase = BountyDepositBase;
+	type BountyDepositPayoutDelay = BountyDepositPayoutDelay;
+	type BountyUpdatePeriod = BountyUpdatePeriod;
+	type MaximumReasonLength = MaximumReasonLength;
+	type BountyCuratorDeposit = BountyCuratorDeposit;
+	type BountyValueMinimum = BountyValueMinimum;
 	type BurnDestination = ();
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_treasury::WeightInfo;
 }
 
 parameter_types! {
@@ -580,7 +604,6 @@ impl pallet_offences::Trait for Runtime {
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
-	type WeightInfo = ();
 }
 
 impl pallet_authority_discovery::Trait for Runtime {}
@@ -618,6 +641,8 @@ impl pallet_grandpa::Trait for Runtime {
 	type KeyOwnerProofSystem = Historical;
 
 	type HandleEquivocation = pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -712,7 +737,7 @@ impl pallet_vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_vesting::WeightInfo;
 }
 
 impl pallet_utility::Trait for Runtime {
@@ -766,7 +791,7 @@ pub enum ProxyType {
 }
 
 #[cfg(test)]
-mod proxt_type_tests {
+mod proxy_type_tests {
 	use super::*;
 
 	#[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
@@ -1045,54 +1070,43 @@ sp_api::impl_runtime_apis! {
 			Executive::offchain_worker(header)
 		}
 	}
-	// Dummy implementation to continue supporting old parachains runtime temporarily.
-	impl p_v0::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<p_v0::ValidatorId> {
-			// this is a compile-time check of size equality. note that we don't invoke
-			// the function and nothing here is unsafe.
-			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
 
-			// Yes, these aren't actually the parachain session keys.
-			// It doesn't matter, but we shouldn't return a zero-sized vector here.
-			// As there are no parachains
-			Session::validators()
-				.into_iter()
-				.map(|k| k.using_encoded(|s| Decode::decode(&mut &s[..]))
-					.expect("correct size and raw-bytes; qed"))
-				.collect()
-		}
-		fn duty_roster() -> p_v0::DutyRoster {
-			let v = Session::validators();
-			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
-		}
-		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<ValidatorId> {
 			Vec::new()
 		}
-		fn global_validation_data() -> p_v0::GlobalValidationData {
-			p_v0::GlobalValidationData {
-				max_code_size: 1,
-				max_head_data_size: 1,
-				block_number: System::block_number().saturating_sub(1),
-			}
+
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
+			(Vec::new(), GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 0, now: 0 })
 		}
-		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
+
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+			Vec::new()
+		}
+
+		fn full_validation_data(_: Id, _: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>> {
 			None
 		}
-		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
+
+		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>> {
 			None
 		}
-		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
-		{
+
+		fn session_index_for_child() -> SessionIndex {
+			0
+		}
+
+		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
 			None
 		}
-		fn signing_context() -> p_v0::SigningContext {
-			p_v0::SigningContext {
-				parent_hash: System::parent_hash(),
-				session_index: Session::current_index(),
-			}
+
+		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			None
 		}
-		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
+
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			Vec::new()
 		}
 	}

@@ -37,7 +37,7 @@ use polkadot_primitives::v1::{
 };
 use polkadot_parachain::wasm_executor::{
 	self, ValidationPool, ExecutionMode, ValidationError,
-	InvalidCandidate as WasmInvalidCandidate, ValidationExecutionMode,
+	InvalidCandidate as WasmInvalidCandidate,
 };
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
@@ -130,7 +130,7 @@ async fn run(
 )
 	-> SubsystemResult<()>
 {
-	let pool = ValidationPool::new(ValidationExecutionMode::ExternalProcessSelfHost);
+	let execution_mode = ExecutionMode::ExternalProcessSelfHost(ValidationPool::new());
 
 	loop {
 		match ctx.recv().await? {
@@ -145,7 +145,7 @@ async fn run(
 				) => {
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
-						Some(pool.clone()),
+						execution_mode.clone(),
 						descriptor,
 						pov,
 						spawn.clone(),
@@ -169,7 +169,7 @@ async fn run(
 				) => {
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
-						Some(pool.clone()),
+						execution_mode.clone(),
 						persisted_validation_data,
 						transient_validation_data,
 						validation_code,
@@ -271,7 +271,7 @@ async fn check_assumption_validation_data(
 
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	validation_pool: Option<ValidationPool>,
+	execution_mode: ExecutionMode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
@@ -288,7 +288,7 @@ async fn spawn_validate_from_chain_state(
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
-				validation_pool,
+				execution_mode,
 				validation_data.persisted,
 				Some(validation_data.transient),
 				validation_code,
@@ -309,7 +309,7 @@ async fn spawn_validate_from_chain_state(
 		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
 			return spawn_validate_exhaustive(
 				ctx,
-				validation_pool,
+				execution_mode,
 				validation_data.persisted,
 				Some(validation_data.transient),
 				validation_code,
@@ -330,7 +330,7 @@ async fn spawn_validate_from_chain_state(
 
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	validation_pool: Option<ValidationPool>,
+	execution_mode: ExecutionMode,
 	persisted_validation_data: PersistedValidationData,
 	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
@@ -341,7 +341,7 @@ async fn spawn_validate_exhaustive(
 	let (tx, rx) = oneshot::channel();
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
-			validation_pool,
+			execution_mode,
 			persisted_validation_data,
 			transient_validation_data,
 			validation_code,
@@ -422,22 +422,18 @@ trait ValidationBackend {
 struct RealValidationBackend;
 
 impl ValidationBackend for RealValidationBackend {
-	type Arg = Option<ValidationPool>;
+	type Arg = ExecutionMode;
 
 	fn validate<S: SpawnNamed + 'static>(
-		pool: Option<ValidationPool>,
+		execution_mode: ExecutionMode,
 		validation_code: &ValidationCode,
 		params: ValidationParams,
 		spawn: S,
 	) -> Result<WasmValidationResult, ValidationError> {
-		let execution_mode = pool.as_ref()
-			.map(ExecutionMode::Remote)
-			.unwrap_or(ExecutionMode::Local);
-
 		wasm_executor::validate_candidate(
 			&validation_code.0,
 			params,
-			execution_mode,
+			&execution_mode,
 			spawn,
 		)
 	}
