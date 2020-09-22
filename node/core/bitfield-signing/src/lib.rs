@@ -22,7 +22,7 @@ use futures::{
 	prelude::*,
 	stream, Future,
 };
-use sp_core::traits::{Error as KeystoreError, SyncCryptoStorePtr};
+use sp_core::traits::{Error as KeystoreError, CryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -292,7 +292,7 @@ impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = SyncCryptoStorePtr;
+	type RunArgs = CryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";
@@ -334,6 +334,7 @@ impl JobTrait for BitfieldSigningJob {
 
 			let signed_bitfield = validator
 				.sign(keystore.clone(), bitfield)
+				.await
 				.map_err(|e| Error::Keystore(e))?;
 			metrics.on_bitfield_signed();
 

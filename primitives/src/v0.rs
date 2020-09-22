@@ -28,7 +28,7 @@ use bitvec::vec::BitVec;
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::traits::{SyncCryptoStorePtr, Error as KeystoreError};
+use primitives::traits::{CryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
@@ -867,8 +867,8 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
-	pub fn sign<H: Encode>(
-		keystore: SyncCryptoStorePtr,
+	pub async fn sign<H: Encode>(
+		keystore: &CryptoStorePtr,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
@@ -876,7 +876,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 	) -> Result<Self, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
 		let signature: ValidatorSignature = keystore
-			.sign_with(ValidatorId::ID, &key.into(), &data)?
+			.sign_with(ValidatorId::ID, &key.into(), &data).await?
 			.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?;
 		Ok(Self {
 			payload,

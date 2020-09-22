@@ -550,9 +550,10 @@ mod tests {
 	mod select_availability_bitfields {
 		use super::super::*;
 		use super::{default_bitvec, occupied_core};
+		use futures::executor::block_on;
 		use lazy_static::lazy_static;
 		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorPair};
-		use sp_core::{crypto::Pair, traits::SyncCryptoStorePtr};
+		use sp_core::{crypto::Pair, traits::CryptoStorePtr};
 		use std::sync::{Arc, Mutex};
 		use sc_keystore::LocalKeystore;
 
@@ -563,7 +564,7 @@ mod tests {
 			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorPair>> = Mutex::new(HashMap::new());
 		}
 
-		fn signed_bitfield(
+		async fn signed_bitfield(
 			field: CoreAvailability,
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
@@ -571,14 +572,14 @@ mod tests {
 			let validator = lock
 				.entry(validator_idx)
 				.or_insert_with(|| ValidatorPair::generate().0);
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+			let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 			SignedAvailabilityBitfield::sign(
-				keystore,
+				&keystore,
 				field.into(),
 				&<SigningContext<Hash>>::default(),
 				validator_idx,
 				&validator.public(),
-			).expect("Should be signed")
+			).await.expect("Should be signed")
 		}
 
 		#[test]
@@ -590,9 +591,9 @@ mod tests {
 			// we pass in three bitfields with two validators
 			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 			let bitfields = vec![
-				signed_bitfield(bitvec.clone(), 0),
-				signed_bitfield(bitvec.clone(), 1),
-				signed_bitfield(bitvec, 1),
+				block_on(signed_bitfield(bitvec.clone(), 0)),
+				block_on(signed_bitfield(bitvec.clone(), 1)),
+				block_on(signed_bitfield(bitvec, 1)),
 			];
 
 			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -611,9 +612,9 @@ mod tests {
 			let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
 
 			let bitfields = vec![
-				signed_bitfield(bitvec.clone(), 0),
-				signed_bitfield(bitvec.clone(), 1),
-				signed_bitfield(bitvec, 1),
+				block_on(signed_bitfield(bitvec.clone(), 0)),
+				block_on(signed_bitfield(bitvec.clone(), 1)),
+				block_on(signed_bitfield(bitvec, 1)),
 			];
 
 			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -635,8 +636,8 @@ mod tests {
 			let cores = vec![occupied_core(0)];
 
 			let bitfields = vec![
-				signed_bitfield(bitvec_zero, 0),
-				signed_bitfield(bitvec_one.clone(), 0),
+				block_on(signed_bitfield(bitvec_zero, 0)),
+				block_on(signed_bitfield(bitvec_one.clone(), 0)),
 			];
 
 			// this test is probablistic: chances are excellent that it does what it claims to.

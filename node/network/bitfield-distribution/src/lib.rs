@@ -616,7 +616,7 @@ mod test {
 	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use sp_core::traits::SyncCryptoStorePtr;
+	use sp_core::traits::CryptoStorePtr;
 	use sp_application_crypto::AppKey;
 	use sc_keystore::LocalKeystore;
 	use std::sync::Arc;
@@ -681,7 +681,7 @@ mod test {
 		view: View,
 		relay_parent: Hash,
 		keystore_path: &tempfile::TempDir,
-	) -> (ProtocolState, SigningContext, SyncCryptoStorePtr, ValidatorId) {
+	) -> (ProtocolState, SigningContext, CryptoStorePtr, ValidatorId) {
 		let mut state = ProtocolState::default();
 
 		let signing_context = SigningContext {
@@ -689,9 +689,9 @@ mod test {
 			parent_hash: relay_parent.clone(),
 		};
 
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
-		let validator = keystore.sr25519_generate_new(ValidatorId::ID, None)
+		let validator = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
 			.expect("Malicious key created");
 
 		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
@@ -730,16 +730,16 @@ mod test {
 
 		// another validator not part of the validatorset
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
-		let malicious = keystore.sr25519_generate_new(ValidatorId::ID, None)
+		let malicious = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
 								.expect("Malicious key created");
-		let validator = keystore.sr25519_generate_new(ValidatorId::ID, None)
+		let validator = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
 								.expect("Malicious key created");
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed =
-			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &malicious.into())
+			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &malicious.into()))
 			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
@@ -801,7 +801,7 @@ mod test {
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed =
-			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 42, &validator)
+			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 42, &validator))
 			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
@@ -855,7 +855,7 @@ mod test {
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed_bitfield =
-			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &validator)
+			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
 			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {
@@ -965,7 +965,7 @@ mod test {
 		// create a signed message by validator 0
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);
 		let signed_bitfield =
-			Signed::<AvailabilityBitfield>::sign(keystore, payload, &signing_context, 0, &validator)
+			executor::block_on(Signed::<AvailabilityBitfield>::sign(&keystore, payload, &signing_context, 0, &validator))
 			.expect("should be signed");
 
 		let msg = BitfieldGossipMessage {

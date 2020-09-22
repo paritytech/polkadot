@@ -42,7 +42,14 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 };
-use sp_core::{traits::{Error as KeystoreError, SpawnNamed, SyncCryptoStorePtr}, Public};
+use sp_core::{
+	traits::{
+		Error as KeystoreError,
+		CryptoStorePtr,
+		SpawnNamed,
+	},
+	Public
+};
 use sp_application_crypto::AppKey;
 use std::{
 	collections::HashMap,
@@ -276,11 +283,13 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
-	validators
-		.iter()
-		.filter(|v| keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]))
-		.find_map(|v| Some(v.clone()))
+pub async fn signing_key(validators: &[ValidatorId], keystore: CryptoStorePtr) -> Option<ValidatorId> {
+	for v in validators.iter() {
+		if keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]).await {
+			return Some(v.clone());
+		}
+	}
+	None
 }
 
 /// Local validator information
@@ -297,7 +306,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: SyncCryptoStorePtr,
+		keystore: CryptoStorePtr,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -319,18 +328,18 @@ impl Validator {
 
 		let validators = validators?;
 
-		Self::construct(&validators, signing_context, keystore)
+		Self::construct(&validators, signing_context, keystore).await
 	}
 
 	/// Construct a validator instance without performing runtime fetches.
 	///
 	/// This can be useful if external code also needs the same data.
-	pub fn construct(
+	pub async fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: SyncCryptoStorePtr,
+		keystore: CryptoStorePtr,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, keystore).ok_or(Error::NotAValidator)?;
+		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
 		let index = validators
 			.iter()
 			.enumerate()
@@ -361,12 +370,12 @@ impl Validator {
 	}
 
 	/// Sign a payload with this validator
-	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+	pub async fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
-		keystore: SyncCryptoStorePtr,
+		keystore: CryptoStorePtr,
 		payload: Payload,
 	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
-		Signed::sign(keystore, payload, &self.signing_context, self.index, &self.key)
+		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
 	}
 
 	/// Validate the payload with this validator

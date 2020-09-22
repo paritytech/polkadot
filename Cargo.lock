@@ -2080,7 +2080,7 @@ dependencies = [
  "indexmap",
  "log 0.4.11",
  "slab",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "tokio-util",
 ]
 
@@ -2313,7 +2313,7 @@ dependencies = [
  "pin-project",
  "socket2",
  "time",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "tower-service",
  "want 0.3.0",
 ]
@@ -2331,7 +2331,7 @@ dependencies = [
  "log 0.4.11",
  "rustls",
  "rustls-native-certs",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "tokio-rustls",
  "webpki",
 ]
@@ -4847,7 +4847,7 @@ dependencies = [
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -4959,7 +4959,6 @@ name = "polkadot-node-core-backing"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "async-std",
  "bitvec",
  "derive_more 0.99.9",
  "futures 0.3.5",
@@ -4978,6 +4977,7 @@ dependencies = [
  "sp-blockchain",
  "sp-core",
  "sp-keyring",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -5081,7 +5081,7 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "sp-core",
- "tokio 0.2.21",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -5433,6 +5433,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "futures 0.3.5",
  "hex-literal 0.2.1",
  "libsecp256k1",
  "log 0.3.9",
@@ -5608,6 +5609,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "sc-keystore",
+ "sp-application-crypto",
  "sp-core",
  "sp-keyring",
  "sp-runtime",
@@ -5750,7 +5752,7 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
- "tokio 0.2.21",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -6744,7 +6746,7 @@ dependencies = [
  "structopt",
  "substrate-prometheus-endpoint",
  "time",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "tracing",
  "tracing-log",
  "tracing-subscriber",
@@ -8731,7 +8733,7 @@ dependencies = [
  "hyper 0.13.6",
  "log 0.4.11",
  "prometheus",
- "tokio 0.2.21",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -8767,7 +8769,7 @@ source = "git+https://github.com/paritytech/substrate#93b2c36622eed3257d8750c112
 dependencies = [
  "futures 0.3.5",
  "substrate-test-utils-derive",
- "tokio 0.2.21",
+ "tokio 0.2.22",
 ]
 
 [[package]]
@@ -9044,9 +9046,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.2.21"
+version = "0.2.22"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d099fa27b9702bed751524694adbe393e18b36b204da91eb1cbbbbb4a5ee2d58"
+checksum = "5d34ca54d84bf2b5b4d7d31e901a8464f7b60ac145a284fba25ceb801f2ddccd"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
@@ -9191,7 +9193,7 @@ checksum = "228139ddd4fea3fa345a29233009635235833e52807af7ea6448ead03890d6a9"
 dependencies = [
  "futures-core",
  "rustls",
- "tokio 0.2.21",
+ "tokio 0.2.22",
  "webpki",
 ]
 
@@ -9312,7 +9314,7 @@ dependencies = [
  "futures-sink",
  "log 0.4.11",
  "pin-project-lite",
- "tokio 0.2.21",
+ "tokio 0.2.22",
 ]
 
 [[package]]
