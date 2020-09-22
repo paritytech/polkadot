@@ -294,6 +294,15 @@ mod tests {
 
 	use sp_keyring::Sr25519Keyring;
 
+
+	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
+		Service::new()
+	}
+
+	fn new_network() -> (TestNetwork, TestAuthorityDiscovery) {
+		(TestNetwork::default(), TestAuthorityDiscovery::new())
+	}
+
 	#[derive(Default)]
 	struct TestNetwork {
 		// Mutex is used because of &self signature of set_priority_group
@@ -399,14 +408,6 @@ mod tests {
 		assert!(request.is_revoked());
 	}
 
-	fn new_service() -> Service<TestNetwork, TestAuthorityDiscovery> {
-		Service::new()
-	}
-
-	fn new_network() -> (TestNetwork, TestAuthorityDiscovery) {
-		(TestNetwork::default(), TestAuthorityDiscovery::new())
-	}
-
 	#[test]
 	fn requests_are_fulfilled_immediately_for_already_connected_peers() {
 		let mut service = new_service();
@@ -436,6 +437,41 @@ mod tests {
 			let reply1 = receiver.next().await.unwrap();
 			assert_eq!(reply1.0, authority_ids[0]);
 			assert_eq!(reply1.1, peer_ids[0]);
+		});
+	}
+
+	#[test]
+	fn requests_are_fulfilled_on_peer_connection() {
+		let mut service = new_service();
+
+		let (ns, ads) = new_network();
+
+		let peer_ids: Vec<_> = ads.by_peer_id.keys().cloned().collect();
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
+			let (sender, mut receiver) = mpsc::channel(2);
+			let (_revoke_tx, revoke_rx) = oneshot::channel();
+
+			let (_, mut ads) = service.on_request(
+				req1,
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+
+			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+			let reply1 = receiver.next().await.unwrap();
+			assert_eq!(reply1.0, authority_ids[0]);
+			assert_eq!(reply1.1, peer_ids[0]);
+
+			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+			let reply2 = receiver.next().await.unwrap();
+			assert_eq!(reply2.0, authority_ids[1]);
+			assert_eq!(reply2.1, peer_ids[1]);
 		});
 	}
 
