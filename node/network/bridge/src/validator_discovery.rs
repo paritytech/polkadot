@@ -52,7 +52,6 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 	}
 }
 
-// TODO (ordian): for `Arc<_>`?
 #[async_trait]
 impl AuthorityDiscovery for AuthorityDiscoveryService {
 	async fn get_addresses_by_authority_id(&mut self, authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
