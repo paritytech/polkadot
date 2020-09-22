@@ -616,7 +616,7 @@ mod tests {
 
 	use polkadot_primitives::v1::{
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
-		ValidatorIndex, GroupRotationInfo,
+		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 	};
 	use polkadot_subsystem::ActiveLeavesUpdate;
 	use polkadot_node_subsystem_util::TimeoutExt;
