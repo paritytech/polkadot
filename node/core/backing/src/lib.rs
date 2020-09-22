@@ -869,19 +869,17 @@ delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- ToJob a
 mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
-	use futures::{executor, future, Future};
-	use keystore::LocalKeystore;
+	use futures::{future, Future};
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments,
 		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
-		ValidatorPair, ValidityAttestation, GroupRotationInfo,
+		ValidityAttestation, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::RuntimeApiRequest,
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal,
 	};
 	use polkadot_node_primitives::InvalidCandidate;
-	use sp_core::Pair;
 	use sp_keyring::Sr25519Keyring;
 	use sp_core::traits::SyncCryptoStore;
 	use sp_application_crypto::AppKey;
@@ -1007,7 +1005,7 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
 
-		executor::block_on(future::select(test_fut, subsystem));
+		async_std::task::block_on(future::select(test_fut, subsystem));
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
@@ -1211,25 +1209,26 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-
-			let pair0: ValidatorPair = test_state.validators[0].pair().into();
-			let pair2: ValidatorPair = test_state.validators[2].pair().into();
+			let public0 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
+			).expect("Insert key into keystore");
+			let public2 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
-				keystore.clone(),
+				test_state.keystore.clone(),
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&pair2.public(),
+				&public2.into(),
 			).expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
-				keystore,
+				test_state.keystore.clone(),
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&pair0.public(),
+				&public0.into(),
 			).expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
@@ -1326,8 +1325,6 @@ mod tests {
 
 			test_startup(&mut virtual_overseer, &test_state).await;
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-
 			let pov = PoV {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
@@ -1346,31 +1343,34 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-
-			let pair0: ValidatorPair = test_state.validators[0].pair().into();
-			let pair2: ValidatorPair = test_state.validators[2].pair().into();
+			let public0 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
+			).expect("Insert key into keystore");
+			let public2 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
-				keystore.clone(),
+				test_state.keystore.clone(),
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&pair2.public(),
+				&public2.into(),
 			).expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
-				keystore.clone(),
+				test_state.keystore.clone(),
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&pair0.public(),
+				&public0.into(),
 			).expect("should be signed");
 
 			let signed_c = SignedFullStatement::sign(
-				keystore,
+				test_state.keystore.clone(),
 				Statement::Invalid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&pair0.public(),
+				&public0.into(),
 			).expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
@@ -1621,14 +1621,16 @@ mod tests {
 
 			let candidate_hash = candidate.hash();
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let pair2: ValidatorPair = test_state.validators[2].pair().into();
+			let validator2 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).expect("Insert key into keystore");
+
 			let signed_a = SignedFullStatement::sign(
-				keystore,
+				test_state.keystore.clone(),
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
 				2,
-				&pair2.public(),
+				&validator2.into(),
 			).expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
@@ -1757,14 +1759,15 @@ mod tests {
 				..Default::default()
 			}.build();
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let pair2: ValidatorPair = test_state.validators[2].pair().into();
+			let public2 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
-				keystore,
+				test_state.keystore.clone(),
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
 				2,
-				&pair2.public(),
+				&public2.into(),
 			).expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
@@ -1883,8 +1886,6 @@ mod tests {
 				block_data: BlockData(vec![1, 2, 3]),
 			};
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-
 			let pov_hash = pov.hash();
 
 			let expected_head_data = test_state.head_data.get(&test_state.chain_ids[0]).unwrap();
@@ -1898,13 +1899,15 @@ mod tests {
 				..Default::default()
 			}.build();
 
-			let pair2: ValidatorPair = test_state.validators[2].pair().into();
+			let public2 = test_state.keystore.sr25519_generate_new(
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).expect("Insert key into keystore");
 			let seconding = SignedFullStatement::sign(
-				keystore,
+				test_state.keystore.clone(),
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&pair2.public(),
+				&public2.into(),
 			).expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(
