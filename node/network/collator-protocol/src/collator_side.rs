@@ -15,19 +15,17 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::collections::HashMap;
-use std::pin::Pin;
 
 use super::{TARGET,  Result};
 
-use futures::channel::{mpsc, oneshot};
-use futures::stream::{self, StreamExt as _};
-use futures::task::{Poll, self};
+use futures::channel::oneshot;
+use futures::stream::StreamExt as _;
+use futures::task::Poll;
 use log::warn;
-use pin_project::pin_project;
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
-	PoV, ValidatorId, AuthorityDiscoveryId,
+	PoV, ValidatorId,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
@@ -40,6 +38,7 @@ use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, NetworkBridgeEvent, RequestId,
 };
 use polkadot_node_subsystem_util::{
+	validator_discovery,
 	request_validators_ctx,
 	request_validator_groups_ctx,
 };
@@ -77,7 +76,7 @@ struct State {
 	known_validators: HashMap<PeerId, ValidatorId>,
 
 	/// Use to await for the next validator connection and revoke the request.
-	last_connection_request: Option<ConnectionRequest>,
+	last_connection_request: Option<validator_discovery::ConnectionRequest>,
 }
 
 /// Distribute a collation.
@@ -261,114 +260,15 @@ where
 		request.revoke();
 	}
 
-	let request = connect_to_validators_impl(ctx, relay_parent, validators).await?;
+	let request = validator_discovery::connect_to_validators(
+		ctx,
+		relay_parent,
+		validators,
+	).await?;
 
 	state.last_connection_request = Some(request);
 
 	Ok(())
-}
-
-// TODO (ordian): make this code reusable by other subsystems
-// put in subsystem-util?
-async fn connect_to_validators_impl<Context: SubsystemContext>(
-	ctx: &mut Context,
-	relay_parent: Hash,
-	validators: Vec<ValidatorId>,
-) -> Result<ConnectionRequest> {
-	// ValidatorId -> AuthorityDiscoveryId
-	let (tx, rx) = oneshot::channel();
-
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::ValidatorDiscovery(validators.clone(), tx),
-		)
-	)).await?;
-
-	let maybe_authorities = rx.await??;
-	let authorities: Vec<_> = maybe_authorities.iter()
-		.cloned()
-		.filter_map(|id| id)
-		.collect();
-
-	let validator_map = validators.into_iter()
-		.zip(maybe_authorities.into_iter())
-		.filter_map(|(k, v)| v.map(|v| (v, k)))
-		.collect::<HashMap<AuthorityDiscoveryId, ValidatorId>>();
-
-	let (connections, revoke) = connect_to_authorities(ctx, authorities).await?;
-
-	Ok(ConnectionRequest {
-		validator_map,
-		connections,
-		revoke,
-	})
-}
-
-async fn connect_to_authorities<Context: SubsystemContext>(
-	ctx: &mut Context,
-	validator_ids: Vec<AuthorityDiscoveryId>,
-) -> Result<(mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>, oneshot::Sender<()>)> {
-	// do we need a bounded channel at all?
-	const PEERS_CAPACITY: usize = 8;
-
-	let (revoke_tx, revoke) = oneshot::channel();
-	let (connected, connected_rx) = mpsc::channel(PEERS_CAPACITY);
-
-	ctx.send_message(AllMessages::NetworkBridge(
-		NetworkBridgeMessage::ConnectToValidators {
-			validator_ids,
-			connected,
-			revoke,
-		}
-	)).await?;
-
-	Ok((connected_rx, revoke_tx))
-}
-
-#[pin_project]
-struct ConnectionRequest {
-	#[pin]
-	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
-	#[pin]
-	#[must_use = "streams do nothing unless polled"]
-	connections: mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>,
-	#[must_use = "a request should be revoked at some point"]
-	revoke: oneshot::Sender<()>,
-}
-
-impl stream::Stream for ConnectionRequest {
-	type Item = (ValidatorId, PeerId);
-
-	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
-		let mut this = self.project();
-		if this.validator_map.is_empty() {
-			return Poll::Ready(None);
-		}
-		match this.connections.poll_next(cx) {
-			Poll::Ready(Some((id, peer_id))) => {
-				if let Some(validator_id) = this.validator_map.remove(&id) {
-					return Poll::Ready(Some((validator_id, peer_id)));
-				} else {
-					// unknown authority_id
-					// should be unreachable
-				}
-			}
-			_ => {},
-		}
-		Poll::Pending
-	}
-}
-
-impl ConnectionRequest {
-	pub fn revoke(self) {
-		if let Err(_) = self.revoke.send(()) {
-			warn!(
-				target: TARGET,
-				"Failed to revoke a validator connection request",
-			);
-		}
-	}
 }
 
 /// Advertise collation to a set of relay chain validators.
@@ -690,7 +590,7 @@ where
 				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
 				Signal(ActiveLeaves(_update)) => {}
 				Signal(BlockFinalized(_)) => {}
-				Signal(Conclude) => break,	
+				Signal(Conclude) => break,
 			}
 		}
 
