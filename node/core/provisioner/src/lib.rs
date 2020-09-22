@@ -552,8 +552,9 @@ mod tests {
 		use super::{default_bitvec, occupied_core};
 		use futures::executor::block_on;
 		use lazy_static::lazy_static;
-		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorPair};
-		use sp_core::{crypto::Pair, traits::CryptoStorePtr};
+		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
+		use sp_core::traits::CryptoStorePtr;
+		use sp_application_crypto::AppKey;
 		use std::sync::{Arc, Mutex};
 		use sc_keystore::LocalKeystore;
 
@@ -561,29 +562,35 @@ mod tests {
 			// we can use a normal mutex here, not a futures-aware one, because we don't use any futures-based
 			// concurrency when accessing this. The risk of contention is that multiple tests are run in parallel,
 			// in independent threads, in which case a standard mutex suffices.
-			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorPair>> = Mutex::new(HashMap::new());
+			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorId>> = Mutex::new(HashMap::new());
 		}
 
 		async fn signed_bitfield(
+			keystore: &CryptoStorePtr,
 			field: CoreAvailability,
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
 			let mut lock = VALIDATORS.lock().unwrap();
-			let validator = lock
+			let public = keystore.sr25519_generate_new(ValidatorId::ID, None)
+				.await
+				.expect("generated sr25519 key");
+			lock
 				.entry(validator_idx)
-				.or_insert_with(|| ValidatorPair::generate().0);
-			let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				.or_insert(public.into());
 			SignedAvailabilityBitfield::sign(
 				&keystore,
 				field.into(),
 				&<SigningContext<Hash>>::default(),
 				validator_idx,
-				&validator.public(),
+				&public.into(),
 			).await.expect("Should be signed")
 		}
 
 		#[test]
 		fn not_more_than_one_per_validator() {
+			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+				.expect("Creates keystore"));
 			let bitvec = default_bitvec();
 
 			let cores = vec![occupied_core(0), occupied_core(1)];
@@ -591,9 +598,9 @@ mod tests {
 			// we pass in three bitfields with two validators
 			// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 			let bitfields = vec![
-				block_on(signed_bitfield(bitvec.clone(), 0)),
-				block_on(signed_bitfield(bitvec.clone(), 1)),
-				block_on(signed_bitfield(bitvec, 1)),
+				block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
+				block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
+				block_on(signed_bitfield(&keystore, bitvec, 1)),
 			];
 
 			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -607,14 +614,17 @@ mod tests {
 
 		#[test]
 		fn each_corresponds_to_an_occupied_core() {
+			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+				.expect("Creates keystore"));
 			let bitvec = default_bitvec();
 
 			let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
 
 			let bitfields = vec![
-				block_on(signed_bitfield(bitvec.clone(), 0)),
-				block_on(signed_bitfield(bitvec.clone(), 1)),
-				block_on(signed_bitfield(bitvec, 1)),
+				block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
+				block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
+				block_on(signed_bitfield(&keystore, bitvec, 1)),
 			];
 
 			let mut selected_bitfields = select_availability_bitfields(&cores, &bitfields);
@@ -626,6 +636,9 @@ mod tests {
 
 		#[test]
 		fn more_set_bits_win_conflicts() {
+			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
+			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+				.expect("Creates keystore"));
 			let bitvec_zero = default_bitvec();
 			let bitvec_one = {
 				let mut bitvec = bitvec_zero.clone();
@@ -636,8 +649,8 @@ mod tests {
 			let cores = vec![occupied_core(0)];
 
 			let bitfields = vec![
-				block_on(signed_bitfield(bitvec_zero, 0)),
-				block_on(signed_bitfield(bitvec_one.clone(), 0)),
+				block_on(signed_bitfield(&keystore, bitvec_zero, 0)),
+				block_on(signed_bitfield(&keystore, bitvec_one.clone(), 0)),
 			];
 
 			// this test is probablistic: chances are excellent that it does what it claims to.

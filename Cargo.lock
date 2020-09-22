@@ -5080,7 +5080,9 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
+ "sp-application-crypto",
  "sp-core",
+ "tempfile",
  "tokio 0.2.22",
 ]
 
