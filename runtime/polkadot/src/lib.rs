@@ -21,7 +21,7 @@
 #![recursion_limit="256"]
 
 use runtime_common::{
-	dummy, claims, SlowAdjustingFeeUpdate,
+	claims, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
@@ -112,11 +112,6 @@ pub struct BaseFilter;
 impl Filter<Call> for BaseFilter {
 	fn filter(call: &Call) -> bool {
 		match call {
-			// Parachains stuff
-			Call::DummyParachains(_) | Call::DummyAttestations(_) | Call::DummySlots(_) | Call::DummyRegistrar(_) |
-			Call::DummyPurchase(_) =>
-				false,
-
 			// These modules are all allowed to be called by transactions:
 			Call::Democracy(_) | Call::Council(_) | Call::TechnicalCommittee(_) |
 			Call::TechnicalMembership(_) | Call::Treasury(_) | Call::ElectionsPhragmen(_) |
@@ -778,10 +773,6 @@ parameter_types! {
 	pub const MaxPending: u16 = 32;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
-	type Event = Event;
-}
-
 /// The type used to represent the kinds of proxying allowed.
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, RuntimeDebug)]
 pub enum ProxyType {
@@ -851,10 +842,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::ElectionsPhragmen(..) |
 				Call::TechnicalMembership(..) |
 				Call::Treasury(..) |
-				Call::DummyParachains(..) |
-				Call::DummyAttestations(..) |
-				Call::DummySlots(..) |
-				Call::DummyRegistrar(..) |
 				Call::Claims(..) |
 				Call::Vesting(pallet_vesting::Call::vest(..)) |
 				Call::Vesting(pallet_vesting::Call::vest_other(..)) |
@@ -906,7 +893,36 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		purchase::remove_pallet::<Runtime>();
+
+		// Update scheduler origin usage
+		#[derive(Encode, Decode)]
+		#[allow(non_camel_case_types)]
+		pub enum OldOriginCaller {
+			system(frame_system::Origin<Runtime>),
+			pallet_collective_Instance1(
+				pallet_collective::Origin<Runtime, pallet_collective::Instance1>
+			),
+			pallet_collective_Instance2(
+				pallet_collective::Origin<Runtime, pallet_collective::Instance2>
+			),
+		}
+
+		impl Into<OriginCaller> for OldOriginCaller {
+			fn into(self) -> OriginCaller {
+				match self {
+					OldOriginCaller::system(o) => OriginCaller::system(o),
+					OldOriginCaller::pallet_collective_Instance1(o) =>
+						OriginCaller::pallet_collective_Instance1(o),
+					OldOriginCaller::pallet_collective_Instance2(o) =>
+						OriginCaller::pallet_collective_Instance2(o),
+				}
+			}
+		}
+
+		pallet_scheduler::Module::<Runtime>::migrate_origin::<OldOriginCaller>();
+
+		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
 	}
 }
 
@@ -917,61 +933,52 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage},
-		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
+		System: frame_system::{Module, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 31,
+		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>} = 1,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
+		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned} = 2,
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 3,
+		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 4,
+		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>} = 5,
+		TransactionPayment: pallet_transaction_payment::{Module, Storage} = 32,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage},
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
-		Offences: pallet_offences::{Module, Call, Storage, Event},
-		Historical: session_historical::{Module},
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
+		Authorship: pallet_authorship::{Module, Call, Storage} = 6,
+		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 7,
+		Offences: pallet_offences::{Module, Call, Storage, Event} = 8,
+		Historical: session_historical::{Module} = 33,
+		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 9,
+		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 10,
+		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 11,
+		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 12,
+		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 13,
 
 		// Governance stuff.
-		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>},
-		Council: pallet_collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>},
-		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>},
-		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>},
-		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>},
-
-		// Old parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call},
-		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummySlots: dummy::<Instance2>::{Module, Call, Event<T>},
-		DummyRegistrar: dummy::<Instance3>::{Module, Call, Event<T>},
+		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>} = 14,
+		Council: pallet_collective::<Instance1>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
+		TechnicalCommittee: pallet_collective::<Instance2>::{Module, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
+		ElectionsPhragmen: pallet_elections_phragmen::{Module, Call, Storage, Event<T>, Config<T>} = 17,
+		TechnicalMembership: pallet_membership::<Instance1>::{Module, Call, Storage, Event<T>, Config<T>} = 18,
+		Treasury: pallet_treasury::{Module, Call, Storage, Event<T>} = 19,
 
 		// Claims. Usable initially.
-		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned},
+		Claims: claims::{Module, Call, Storage, Event<T>, Config<T>, ValidateUnsigned} = 24,
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>} = 25,
 		// Cunning utilities. Usable initially.
-		Utility: pallet_utility::{Module, Call, Event},
-
-		// Old spot for the purchase pallet. Can be replaced later by a new pallet.
-		DummyPurchase: dummy::<Instance4>::{Module, Call, Event<T>},
+		Utility: pallet_utility::{Module, Call, Event} = 26,
 
 		// Identity. Late addition.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
+		Identity: pallet_identity::{Module, Call, Storage, Event<T>} = 28,
 
 		// Proxy module. Late addition.
-		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
+		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 29,
 
 		// Multisig dispatch. Late addition.
-		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
+		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 30,
 	}
 }
 
