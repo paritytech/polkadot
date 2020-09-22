@@ -297,6 +297,8 @@ mod tests {
 
 	#[derive(Default)]
 	struct TestNetwork {
+		// Mutex is used because of &self signature of set_priority_group
+		priority_group: std::sync::Mutex<HashSet<Multiaddr>>,
 	}
 
 	struct TestAuthorityDiscovery {
@@ -322,7 +324,9 @@ mod tests {
 	}
 
 	impl Network for TestNetwork {
-		fn set_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		fn set_priority_group(&self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			let mut group = self.priority_group.lock().unwrap();
+			*group = multiaddresses;
 			Ok(())
 		}
 	}
@@ -408,7 +412,7 @@ mod tests {
 	fn requests_are_fulfilled_immediately_for_already_connected_peers() {
 		let mut service = new_service();
 
-		let (ns, ads) = new_network();
+		let (ns, mut ads) = new_network();
 
 		let peer_ids: Vec<_> = ads.by_peer_id.keys().cloned().collect();
 		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
@@ -416,9 +420,11 @@ mod tests {
 		futures::executor::block_on(async move {
 			let req1 = vec![authority_ids[0].clone(), authority_ids[1].clone()];
 			let (sender, mut receiver) = mpsc::channel(2);
-			let (revoke_tx, revoke_rx) = oneshot::channel();
+			let (_revoke_tx, revoke_rx) = oneshot::channel();
 
-			let (ns, ads) = service.on_request(
+			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+
+			let _ = service.on_request(
 				req1,
 				sender,
 				revoke_rx,
@@ -426,25 +432,122 @@ mod tests {
 				ads,
 			).await;
 
+
 			// the results should be immediately available
-			// TODO (ordian): timeout
 			let reply1 = receiver.next().await.unwrap();
-			// let reply2 = receiver.next().await.unwrap();
 			assert_eq!(reply1.0, authority_ids[0]);
-			// assert_eq!(reply2.0, authority_ids[1]);
 			assert_eq!(reply1.1, peer_ids[0]);
-			// assert_eq!(reply2.1, peer_ids[1]);
 		});
 	}
 
 	// Test cleanup works.
 	#[test]
-	fn no_unbounded_growth() {
-		todo!()
+	fn requests_are_removed_on_revoke() {
+		let mut service = new_service();
+
+		let (ns, mut ads) = new_network();
+
+		let peer_ids: Vec<_> = ads.by_peer_id.keys().cloned().collect();
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let (sender, mut receiver) = mpsc::channel(1);
+			let (revoke_tx, revoke_rx) = oneshot::channel();
+
+			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+
+			let (ns, ads) = service.on_request(
+				vec![authority_ids[0].clone()],
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			let _ = receiver.next().await.unwrap();
+			// revoke the request
+			revoke_tx.send(()).unwrap();
+
+			let (sender, mut receiver) = mpsc::channel(1);
+			let (_revoke_tx, revoke_rx) = oneshot::channel();
+
+			let _ = service.on_request(
+				vec![authority_ids[1].clone()],
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			let reply = receiver.next().await.unwrap();
+			assert_eq!(reply.0, authority_ids[1]);
+			assert_eq!(reply.1, peer_ids[1]);
+			assert_eq!(service.pending_discovery_requests.len(), 1);
+		});
 	}
 
+	// More complex test with overlapping revoked requests
 	#[test]
 	fn revoking_requests_with_overlapping_validator_sets() {
-		todo!()
+		let mut service = new_service();
+
+		let (ns, mut ads) = new_network();
+
+		let peer_ids: Vec<_> = ads.by_peer_id.keys().cloned().collect();
+		let authority_ids: Vec<_> = ads.by_peer_id.values().cloned().collect();
+
+		futures::executor::block_on(async move {
+			let (sender, mut receiver) = mpsc::channel(1);
+			let (revoke_tx, revoke_rx) = oneshot::channel();
+
+			service.on_peer_connected(&peer_ids[0], &mut ads).await;
+			service.on_peer_connected(&peer_ids[1], &mut ads).await;
+
+			let (ns, ads) = service.on_request(
+				vec![authority_ids[0].clone(), authority_ids[2].clone()],
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			let _ = receiver.next().await.unwrap();
+			// revoke the first request
+			revoke_tx.send(()).unwrap();
+
+			let (sender, mut receiver) = mpsc::channel(1);
+			let (revoke_tx, revoke_rx) = oneshot::channel();
+
+			let (ns, ads) = service.on_request(
+				vec![authority_ids[0].clone(), authority_ids[1].clone()],
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			let _ = receiver.next().await.unwrap();
+			assert_eq!(service.pending_discovery_requests.len(), 1);
+			assert_eq!(ns.priority_group.lock().unwrap().len(), 2);
+
+			// revoke the second request
+			revoke_tx.send(()).unwrap();
+
+			let (sender, mut receiver) = mpsc::channel(1);
+			let (_revoke_tx, revoke_rx) = oneshot::channel();
+
+			let (ns, _) = service.on_request(
+				vec![authority_ids[0].clone()],
+				sender,
+				revoke_rx,
+				ns,
+				ads,
+			).await;
+
+			let _ = receiver.next().await.unwrap();
+			assert_eq!(service.pending_discovery_requests.len(), 1);
+			assert_eq!(ns.priority_group.lock().unwrap().len(), 1);
+		});
 	}
 }
