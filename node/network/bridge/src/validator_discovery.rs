@@ -65,14 +65,14 @@ impl AuthorityDiscovery for AuthorityDiscoveryService {
 
 
 /// This struct tracks the state for one `ConnectToValidators` request.
-struct PendingConnectionRequestState {
+struct NonRevokedConnectionRequestState {
 	requested: Vec<AuthorityDiscoveryId>,
 	pending: HashSet<AuthorityDiscoveryId>,
 	sender: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
 	revoke: oneshot::Receiver<()>,
 }
 
-impl PendingConnectionRequestState {
+impl NonRevokedConnectionRequestState {
 	/// Create a new instance of `ConnectToValidatorsState`.
 	pub fn new(
 		requested: Vec<AuthorityDiscoveryId>,
@@ -119,7 +119,7 @@ pub(super) struct Service<N, AD> {
 	requested_validators: HashMap<AuthorityDiscoveryId, u64>,
 	// keep for the network priority_group updates
 	validator_multiaddresses: HashSet<Multiaddr>,
-	pending_discovery_requests: Vec<PendingConnectionRequestState>,
+	non_revoked_discovery_requests: Vec<NonRevokedConnectionRequestState>,
 	// PhantomData used to make the struct generic instead of having generic methods
 	network: PhantomData<N>,
 	authority_discovery: PhantomData<AD>,
@@ -131,7 +131,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			connected_validators: HashMap::new(),
 			requested_validators: HashMap::new(),
 			validator_multiaddresses: HashSet::new(),
-			pending_discovery_requests: Vec::new(),
+			non_revoked_discovery_requests: Vec::new(),
 			network: PhantomData,
 			authority_discovery: PhantomData,
 		}
@@ -215,9 +215,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// clean up revoked requests
 		let mut revoked_indices = Vec::new();
 		let mut revoked_validators = Vec::new();
-		for (i, pending) in self.pending_discovery_requests.iter_mut().enumerate() {
-			if pending.is_revoked() {
-				for id in pending.requested() {
+		for (i, maybe_revoked) in self.non_revoked_discovery_requests.iter_mut().enumerate() {
+			if maybe_revoked.is_revoked() {
+				for id in maybe_revoked.requested() {
 					if let Some(id) = on_revoke(&mut self.requested_validators, id.clone()) {
 						revoked_validators.push(id);
 					}
@@ -226,9 +226,9 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			}
 		}
 
-		// clean up pending requests states
+		// clean up revoked requests states
 		for to_revoke in revoked_indices.into_iter().rev() {
-			drop(self.pending_discovery_requests.swap_remove(to_revoke));
+			drop(self.non_revoked_discovery_requests.swap_remove(to_revoke));
 		}
 
 		// multiaddresses to remove
@@ -257,7 +257,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			.filter(|id| !self.connected_validators.contains_key(id))
 			.collect::<HashSet<_>>();
 
-		self.pending_discovery_requests.push(PendingConnectionRequestState::new(
+		self.non_revoked_discovery_requests.push(NonRevokedConnectionRequestState::new(
 			validator_ids,
 			pending,
 			connected,
@@ -271,8 +271,8 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		// check if it's an authority we've been waiting for
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
-			for pending in self.pending_discovery_requests.iter_mut() {
-				pending.on_authority_connected(&authority, peer_id);
+			for request in self.non_revoked_discovery_requests.iter_mut() {
+				request.on_authority_connected(&authority, peer_id);
 			}
 			self.connected_validators.insert(authority, peer_id.clone());
 		}
@@ -366,7 +366,7 @@ mod tests {
 		let (revoke_tx, revoke_rx) = oneshot::channel();
 		let (sender, _receiver) = mpsc::channel(0);
 
-		let mut request = PendingConnectionRequestState::new(
+		let mut request = NonRevokedConnectionRequestState::new(
 			Vec::new(),
 			HashSet::new(),
 			sender,
@@ -385,7 +385,7 @@ mod tests {
 		let (revoke_tx, revoke_rx) = oneshot::channel();
 		let (sender, _receiver) = mpsc::channel(0);
 
-		let mut request = PendingConnectionRequestState::new(
+		let mut request = NonRevokedConnectionRequestState::new(
 			Vec::new(),
 			HashSet::new(),
 			sender,
@@ -482,7 +482,7 @@ mod tests {
 			let reply = receiver.next().await.unwrap();
 			assert_eq!(reply.0, authority_ids[1]);
 			assert_eq!(reply.1, peer_ids[1]);
-			assert_eq!(service.pending_discovery_requests.len(), 1);
+			assert_eq!(service.non_revoked_discovery_requests.len(), 1);
 		});
 	}
 
@@ -527,7 +527,7 @@ mod tests {
 			).await;
 
 			let _ = receiver.next().await.unwrap();
-			assert_eq!(service.pending_discovery_requests.len(), 1);
+			assert_eq!(service.non_revoked_discovery_requests.len(), 1);
 			assert_eq!(ns.priority_group.lock().unwrap().len(), 2);
 
 			// revoke the second request
@@ -545,7 +545,7 @@ mod tests {
 			).await;
 
 			let _ = receiver.next().await.unwrap();
-			assert_eq!(service.pending_discovery_requests.len(), 1);
+			assert_eq!(service.non_revoked_discovery_requests.len(), 1);
 			assert_eq!(ns.priority_group.lock().unwrap().len(), 1);
 		});
 	}
