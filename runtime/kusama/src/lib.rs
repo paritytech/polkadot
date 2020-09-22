@@ -145,7 +145,7 @@ impl frame_system::Trait for Runtime {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
-	type ModuleToIndex = ModuleToIndex;
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -459,7 +459,7 @@ impl pallet_elections_phragmen::Trait for Runtime {
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
 	type ModuleId = ElectionsPhragmenModuleId;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo;
 }
 
 parameter_types! {
