@@ -12,5 +12,5 @@ log = "0.4.8"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { package = "sp-core", git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 wasm-timer = "0.2.4"
