@@ -26,8 +26,6 @@ pub mod purchase;
 pub mod impls;
 pub mod paras_sudo_wrapper;
 
-pub mod dummy;
-
 use primitives::v1::{BlockNumber, ValidatorId};
 use sp_runtime::{Perquintill, Perbill, FixedPointNumber};
 use frame_system::limits;
@@ -181,7 +179,7 @@ mod multiplier_tests {
 		type Event = ();
 		type BlockHashCount = BlockHashCount;
 		type Version = ();
-		type ModuleToIndex = ();
+		type PalletInfo = ();
 		type AccountData = ();
 		type OnNewAccount = ();
 		type OnKilledAccount = ();
