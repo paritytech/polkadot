@@ -63,6 +63,7 @@ use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
 use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
 
+use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
@@ -366,6 +367,7 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 
 		// Parachains modules.
+		ParachainOrigin: parachains_origin::{Module, Origin},
 		Config: parachains_configuration::{Module, Call, Storage},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage},
@@ -717,6 +719,8 @@ impl pallet_authorship::Trait for Runtime {
 	type FilterUncle = ();
 	type EventHandler = (Staking, ImOnline);
 }
+
+impl parachains_origin::Trait for Runtime { }
 
 impl parachains_configuration::Trait for Runtime { }
 
