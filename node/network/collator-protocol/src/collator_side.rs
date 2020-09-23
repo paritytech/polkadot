@@ -590,14 +590,12 @@ where
 				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
 				Signal(ActiveLeaves(_update)) => {}
 				Signal(BlockFinalized(_)) => {}
-				Signal(Conclude) => break,
+				Signal(Conclude) => return Ok(()),
 			}
 		}
 
-		futures::pending!();
+		futures::pending!()
 	}
-
-	Ok(())
 }
 
 #[cfg(test)]
