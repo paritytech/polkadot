@@ -20,9 +20,11 @@
 //! routing the messages at their destinations and informing the parachains about the incoming
 //! messages.
 
-use crate::{configuration, initializer};
+use crate::{configuration, paras, initializer, ensure_parachain};
 use sp_std::prelude::*;
-use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
+use frame_support::{
+	decl_error, decl_module, decl_storage, ensure, dispatch::DispatchResult, weights::Weight,
+};
 use sp_std::collections::vec_deque::VecDeque;
 use primitives::v1::{
 	Id as ParaId, InboundDownwardMessage, Hash, UpwardMessage, HrmpChannelId, InboundHrmpMessage,
@@ -39,7 +41,11 @@ pub use ump::UmpSink;
 #[cfg(test)]
 pub use ump::mock_sink::MockUmpSink;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait {
+	type Origin: From<crate::Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
 }
@@ -161,13 +167,262 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Trait> {
+		/// The sender tried to open a channel to themselves.
+		OpenHrmpChannelToSelf,
+		/// The recipient is not a valid para.
+		OpenHrmpChannelInvalidRecipient,
+		/// The requested capacity is zero.
+		OpenHrmpChannelZeroPlaces,
+		/// The requested capacity exceeds the global limit.
+		OpenHrmpChannelTooManyPlaces,
+		/// The requested maximum message size is 0.
+		OpenHrmpChannelZeroMessageSize,
+		/// The open request requested the message size that exceeds the global limit.
+		OpenHrmpChannelTooBigMessage,
+		/// The channel already exists
+		OpenHrmpChannelAlreadyExists,
+		/// There is already a request to open the same channel.
+		OpenHrmpChannelAlreadyRequested,
+		/// The sender already has the maximum number of allowed outbound channels.
+		OpenHrmpChannelLimitExceeded,
+		/// The channel from the sender to the origin doesn't exist.
+		AcceptHrmpChannelDoesntExist,
+		/// The channel is already confirmed.
+		AcceptHrmpChannelAlreadyConfirmed,
+		/// The recipient already has the maximum number of allowed inbound channels.
+		AcceptHrmpChannelLimitExceeded,
+		/// The origin tries to close a channel where it is neither the sender nor the recipient.
+		CloseHrmpChannelUnauthorized,
+		/// The channel to be closed doesn't exist.
+		CloseHrmpChannelDoesntExist,
+		/// The channel close request is already requested.
+		CloseHrmpChannelAlreadyUnderway,
+	 }
 }
 
 decl_module! {
 	/// The router module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
+
+		#[weight = 0]
+		fn hrmp_init_open_channel(
+			origin,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			ensure!(origin != recipient, Error::<T>::OpenHrmpChannelToSelf);
+			ensure!(
+				<paras::Module<T>>::is_valid_para(recipient),
+				Error::<T>::OpenHrmpChannelInvalidRecipient,
+			);
+
+			let config = <configuration::Module<T>>::config();
+			ensure!(
+				proposed_max_capacity > 0,
+				Error::<T>::OpenHrmpChannelZeroPlaces,
+			);
+			ensure!(
+				proposed_max_capacity <= config.hrmp_channel_max_capacity,
+				Error::<T>::OpenHrmpChannelTooManyPlaces,
+			);
+			ensure!(
+				proposed_max_message_size > 0,
+				Error::<T>::OpenHrmpChannelZeroMessageSize,
+			);
+			ensure!(
+				proposed_max_message_size <= config.hrmp_channel_max_message_size,
+				Error::<T>::OpenHrmpChannelTooBigMessage,
+			);
+
+			let channel_id = HrmpChannelId {
+				sender: origin,
+				recipient,
+			};
+			ensure!(
+				<Self as Store>::HrmpOpenChannelRequests::get(&channel_id).is_none(),
+				Error::<T>::OpenHrmpChannelAlreadyExists,
+			);
+			ensure!(
+				<Self as Store>::HrmpChannels::get(&channel_id).is_none(),
+				Error::<T>::OpenHrmpChannelAlreadyRequested,
+			);
+
+			let egress_cnt =
+				<Self as Store>::HrmpEgressChannelsIndex::decode_len(&origin).unwrap_or(0) as u32;
+			let open_req_cnt = <Self as Store>::HrmpOpenChannelRequestCount::get(&origin);
+			let channel_num_limit = if <paras::Module<T>>::is_parathread(origin) {
+				config.hrmp_max_parathread_outbound_channels
+			} else {
+				config.hrmp_max_parachain_outbound_channels
+			};
+			ensure!(
+				egress_cnt + open_req_cnt < channel_num_limit,
+				Error::<T>::OpenHrmpChannelLimitExceeded,
+			);
+
+			// TODO: Deposit
+
+			<Self as Store>::HrmpOpenChannelRequestCount::insert(&origin, open_req_cnt + 1);
+			<Self as Store>::HrmpOpenChannelRequests::insert(
+				&channel_id,
+				HrmpOpenChannelRequest {
+					confirmed: false,
+					age: 0,
+					sender_deposit: config.hrmp_sender_deposit,
+					max_capacity: proposed_max_capacity,
+					max_message_size: proposed_max_message_size,
+					max_total_size: config.hrmp_channel_max_total_size,
+				},
+			);
+			<Self as Store>::HrmpOpenChannelRequestsList::append(channel_id);
+
+			let notification_bytes = {
+				use xcm::v0::Xcm;
+				use codec::Encode as _;
+
+				Xcm::HrmpNewChannelOpenRequest {
+					sender: origin.reveal_inner_u32(),
+					max_capacity: proposed_max_capacity,
+					max_message_size: proposed_max_message_size,
+				}.encode()
+			};
+			if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+				Self::queue_downward_message(
+					&config,
+					recipient,
+					notification_bytes,
+				)
+			{
+				// this should never happen unless the max downward message size is configured to an
+				// jokingly small number.
+				debug_assert!(false);
+			}
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+
+			let channel_id = HrmpChannelId {
+				sender,
+				recipient: origin,
+			};
+			let mut channel_req = <Self as Store>::HrmpOpenChannelRequests::get(&channel_id)
+				.ok_or(Error::<T>::AcceptHrmpChannelDoesntExist)?;
+			ensure!(
+				!channel_req.confirmed,
+				Error::<T>::AcceptHrmpChannelAlreadyConfirmed,
+			);
+
+			// check if by accepting this open channel request, this parachain would exceed the
+			// number of inbound channels.
+			let config = <configuration::Module<T>>::config();
+			let channel_num_limit = if <paras::Module<T>>::is_parathread(origin) {
+				config.hrmp_max_parathread_inbound_channels
+			} else {
+				config.hrmp_max_parachain_inbound_channels
+			};
+			let ingress_cnt =
+				<Self as Store>::HrmpIngressChannelsIndex::decode_len(&origin).unwrap_or(0) as u32;
+			let accepted_cnt = <Self as Store>::HrmpAcceptedChannelRequestCount::get(&origin);
+			ensure!(
+				ingress_cnt + accepted_cnt < channel_num_limit,
+				Error::<T>::AcceptHrmpChannelLimitExceeded,
+			);
+
+			// TODO: Deposit
+
+			// persist the updated open channel request and then increment the number of accepted
+			// channels.
+			channel_req.confirmed = true;
+			<Self as Store>::HrmpOpenChannelRequests::insert(&channel_id, channel_req);
+			<Self as Store>::HrmpAcceptedChannelRequestCount::insert(&origin, accepted_cnt + 1);
+
+			let notification_bytes = {
+				use xcm::v0::Xcm;
+				use codec::Encode as _;
+
+				Xcm::HrmpChannelAccepted {
+					recipient: origin.reveal_inner_u32(),
+				}.encode()
+			};
+			if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+				Self::queue_downward_message(
+					&config,
+					sender,
+					notification_bytes,
+				)
+			{
+				// this should never happen unless the max downward message size is configured to an
+				// jokingly small number.
+				debug_assert!(false);
+			}
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+
+			// check if the origin is allowed to close the channel.
+			ensure!(
+				origin == channel_id.sender || origin == channel_id.recipient,
+				Error::<T>::CloseHrmpChannelUnauthorized,
+			);
+
+			// check if the channel requested to close does exist.
+			ensure!(
+				<Self as Store>::HrmpChannels::get(&channel_id).is_some(),
+				Error::<T>::CloseHrmpChannelDoesntExist,
+			);
+
+			// check that there is no outstanding close request for this channel
+			ensure!(
+				<Self as Store>::HrmpCloseChannelRequests::get(&channel_id).is_none(),
+				Error::<T>::CloseHrmpChannelAlreadyUnderway,
+			);
+
+			<Self as Store>::HrmpCloseChannelRequests::insert(&channel_id, ());
+			<Self as Store>::HrmpCloseChannelRequestsList::append(channel_id.clone());
+
+			let config = <configuration::Module<T>>::config();
+			let notification_bytes = {
+				use xcm::v0::Xcm;
+				use codec::Encode as _;
+
+				Xcm::HrmpChannelClosing {
+					initiator: origin.reveal_inner_u32(),
+					sender: channel_id.sender.reveal_inner_u32(),
+					recipient: channel_id.recipient.reveal_inner_u32(),
+				}.encode()
+			};
+			let opposite_party =
+				if origin == channel_id.sender {
+					channel_id.recipient
+				} else {
+					channel_id.sender
+				};
+			if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+				Self::queue_downward_message(
+					&config,
+					opposite_party,
+					notification_bytes,
+				)
+			{
+				// this should never happen unless the max downward message size is configured to an
+				// jokingly small number.
+				debug_assert!(false);
+			}
+
+			Ok(())
+		}
 	}
 }
 
@@ -182,12 +437,21 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
+		Self::perform_outgoing_para_cleanup();
+		Self::process_hrmp_open_channel_requests(&notification.prev_config);
+		Self::process_hrmp_close_channel_requests();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
 		let outgoing = OutgoingParas::take();
 		for outgoing_para in outgoing {
 			Self::clean_dmp_after_outgoing(outgoing_para);
 			Self::clean_ump_after_outgoing(outgoing_para);
+			Self::clean_hrmp_after_outgoing(outgoing_para);
 		}
 	}
 
