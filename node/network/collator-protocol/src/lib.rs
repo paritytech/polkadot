@@ -109,6 +109,7 @@ impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
+	// The actual `Metrics` type depends on whether we're on the collator or validator side.
 	type Metrics = ();
 
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
