@@ -453,6 +453,7 @@ impl paras::Trait for Runtime {
 }
 
 impl router::Trait for Runtime {
+	type Origin = Origin;
 	type UmpSink = ();
 }
 

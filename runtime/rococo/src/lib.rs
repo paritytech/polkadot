@@ -532,6 +532,7 @@ impl parachains_paras::Trait for Runtime {
 }
 
 impl parachains_router::Trait for Runtime {
+	type Origin = Origin;
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
 }
 

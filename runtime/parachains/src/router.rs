@@ -20,16 +20,16 @@
 //! routing the messages at their destinations and informing the parachains about the incoming
 //! messages.
 
-use crate::{configuration, initializer};
+use crate::{configuration, paras, initializer, ensure_parachain};
 use sp_std::prelude::*;
-use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
+use frame_support::{decl_error, decl_module, decl_storage, dispatch::DispatchResult, weights::Weight};
 use sp_std::collections::vec_deque::VecDeque;
 use primitives::v1::{
 	Id as ParaId, InboundDownwardMessage, Hash, UpwardMessage, HrmpChannelId, InboundHrmpMessage,
 };
 
-mod hrmp;
 mod dmp;
+mod hrmp;
 mod ump;
 
 use hrmp::{HrmpOpenChannelRequest, HrmpChannel};
@@ -39,7 +39,11 @@ pub use ump::UmpSink;
 #[cfg(test)]
 pub use ump::mock_sink::MockUmpSink;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait {
+	type Origin: From<crate::Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
 }
@@ -170,13 +174,75 @@ decl_storage! {
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Trait> {
+		/// The sender tried to open a channel to themselves.
+		OpenHrmpChannelToSelf,
+		/// The recipient is not a valid para.
+		OpenHrmpChannelInvalidRecipient,
+		/// The requested capacity is zero.
+		OpenHrmpChannelZeroCapacity,
+		/// The requested capacity exceeds the global limit.
+		OpenHrmpChannelCapacityExceedsLimit,
+		/// The requested maximum message size is 0.
+		OpenHrmpChannelZeroMessageSize,
+		/// The open request requested the message size that exceeds the global limit.
+		OpenHrmpChannelMessageSizeExceedsLimit,
+		/// The channel already exists
+		OpenHrmpChannelAlreadyExists,
+		/// There is already a request to open the same channel.
+		OpenHrmpChannelAlreadyRequested,
+		/// The sender already has the maximum number of allowed outbound channels.
+		OpenHrmpChannelLimitExceeded,
+		/// The channel from the sender to the origin doesn't exist.
+		AcceptHrmpChannelDoesntExist,
+		/// The channel is already confirmed.
+		AcceptHrmpChannelAlreadyConfirmed,
+		/// The recipient already has the maximum number of allowed inbound channels.
+		AcceptHrmpChannelLimitExceeded,
+		/// The origin tries to close a channel where it is neither the sender nor the recipient.
+		CloseHrmpChannelUnauthorized,
+		/// The channel to be closed doesn't exist.
+		CloseHrmpChannelDoesntExist,
+		/// The channel close request is already requested.
+		CloseHrmpChannelAlreadyUnderway,
+	 }
 }
 
 decl_module! {
 	/// The router module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
+
+		#[weight = 0]
+		fn hrmp_init_open_channel(
+			origin,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::init_open_channel(
+				origin,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size
+			)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::accept_open_channel(origin, sender)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::close_channel(origin, channel_id)?;
+			Ok(())
+		}
 	}
 }
 
@@ -191,12 +257,21 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
+		Self::perform_outgoing_para_cleanup();
+		Self::process_hrmp_open_channel_requests(&notification.prev_config);
+		Self::process_hrmp_close_channel_requests();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
 		let outgoing = OutgoingParas::take();
 		for outgoing_para in outgoing {
 			Self::clean_dmp_after_outgoing(outgoing_para);
 			Self::clean_ump_after_outgoing(outgoing_para);
+			Self::clean_hrmp_after_outgoing(outgoing_para);
 		}
 	}
 
