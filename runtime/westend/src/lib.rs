@@ -28,7 +28,7 @@ use primitives::v1::{
 	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
 use runtime_common::{
-	dummy, purchase, SlowAdjustingFeeUpdate,
+	purchase, SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
@@ -590,9 +590,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
-				Call::DummyParachains(..) |
-				Call::DummyAttestations(..) |
-				Call::DummyRegistrar(..) |
 				Call::Utility(..) |
 				Call::Identity(..) |
 				Call::Recovery(pallet_recovery::Call::as_recovered(..)) |
@@ -650,10 +647,6 @@ impl pallet_proxy::Trait for Runtime {
 	type AnnouncementDepositFactor = AnnouncementDepositFactor;
 }
 
-impl<I: frame_support::traits::Instance> dummy::Trait<I> for Runtime {
-	type Event = Event;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -661,56 +654,51 @@ construct_runtime! {
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
-		System: frame_system::{Module, Call, Storage, Config, Event<T>},
-		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage},
+		System: frame_system::{Module, Call, Storage, Config, Event<T>} = 0,
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Storage} = 25,
 
 		// Must be before session.
-		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned},
+		Babe: pallet_babe::{Module, Call, Storage, Config, Inherent, ValidateUnsigned} = 1,
 
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent} = 2,
+		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>} = 3,
+		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>} = 4,
+		TransactionPayment: pallet_transaction_payment::{Module, Storage} = 26,
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Module, Call, Storage},
-		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned},
-		Offences: pallet_offences::{Module, Call, Storage, Event},
-		Historical: session_historical::{Module},
-		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
-		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent},
-		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned},
-		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
-		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
-
-		// Old Parachains stuff. All dummies to avoid messing up the transaction indices.
-		DummyParachains: dummy::<Instance0>::{Module, Call},
-		DummyAttestations: dummy::<Instance1>::{Module, Call},
-		DummyRegistrar: dummy::<Instance2>::{Module, Call, Event<T>},
+		Authorship: pallet_authorship::{Module, Call, Storage} = 5,
+		Staking: pallet_staking::{Module, Call, Storage, Config<T>, Event<T>, ValidateUnsigned} = 6,
+		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
+		Historical: session_historical::{Module} = 27,
+		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
+		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 9,
+		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
+		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
+		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
 
 		// Utility module.
-		Utility: pallet_utility::{Module, Call, Event},
+		Utility: pallet_utility::{Module, Call, Event} = 16,
 
 		// Less simple identity module.
-		Identity: pallet_identity::{Module, Call, Storage, Event<T>},
+		Identity: pallet_identity::{Module, Call, Storage, Event<T>} = 17,
 
 		// Social recovery module.
-		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>},
+		Recovery: pallet_recovery::{Module, Call, Storage, Event<T>} = 18,
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
-		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>} = 19,
 
 		// System scheduler.
-		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
+		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>} = 20,
 
 		// Sudo.
-		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
+		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>} = 21,
 
 		// Proxy module. Late addition.
-		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
+		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>} = 22,
 
 		// Multisig module. Late addition.
-		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
+		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>} = 23,
 	}
 }
 
