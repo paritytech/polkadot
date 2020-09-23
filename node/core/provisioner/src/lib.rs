@@ -675,9 +675,7 @@ mod tests {
 
 			futures::pin_mut!(overseer, test);
 
-			tokio::runtime::Runtime::new()
-				.unwrap()
-				.block_on(future::select(overseer, test));
+			futures::executor::block_on(future::select(overseer, test));
 		}
 
 		// For test purposes, we always return this set of availability cores:
@@ -778,18 +776,24 @@ mod tests {
 			}
 		}
 
+		async fn delay_for(duration: std::time::Duration) {
+			use polkadot_node_subsystem_util::TimeoutExt as _;
+
+			futures::future::pending::<()>().timeout(duration).await;
+		}
+
 		#[test]
 		fn handles_overseer_failure() {
 			let overseer = |rx: mpsc::Receiver<FromJob>| async move {
 				// drop the receiver so it closes and the sender can't send, then just sleep long enough that
 				// this is almost certainly not the first of the two futures to complete
 				std::mem::drop(rx);
-				tokio::time::delay_for(std::time::Duration::from_secs(1)).await;
+				delay_for(std::time::Duration::from_secs(1)).await;
 			};
 
 			let test = |mut tx: mpsc::Sender<FromJob>| async move {
 				// wait so that the overseer can drop the rx before we attempt to send
-				tokio::time::delay_for(std::time::Duration::from_millis(50)).await;
+				delay_for(std::time::Duration::from_millis(50)).await;
 				let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
 				println!("{:?}", result);
 				assert!(std::matches!(result, Err(Error::OneshotSend)));

@@ -4971,7 +4971,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
- "tokio 0.2.21",
 ]
 
 [[package]]
