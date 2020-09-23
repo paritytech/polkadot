@@ -585,7 +585,7 @@ where
 			state.last_connection_request = Some(request);
 		}
 
-		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
+		while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			match msg? {
 				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
 				Signal(ActiveLeaves(_update)) => {}

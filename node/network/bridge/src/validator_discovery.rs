@@ -249,7 +249,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			PRIORITY_GROUP.to_owned(),
 			self.validator_multiaddresses.clone(),
 		) {
-			log::warn!("NetworkBridge: AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
+			log::warn!(target: super::TARGET, "AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
 		}
 
 		let pending = validator_ids.iter()
