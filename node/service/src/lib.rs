@@ -152,7 +152,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_params, task_manager) =
+	let (client, backend, keystore, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -214,7 +214,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore_params.sync_keystore();
+		let keystore = keystore.clone();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
@@ -243,7 +243,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore_params, select_chain, import_queue, transaction_pool,
+		client, backend, task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -310,7 +310,7 @@ fn new_full<RuntimeApi, Executor>(
 		client,
 		backend,
 		mut task_manager,
-		keystore_params,
+		keystore,
 		select_chain,
 		import_queue,
 		transaction_pool,
@@ -347,7 +347,7 @@ fn new_full<RuntimeApi, Executor>(
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_params.sync_keystore(),
+		keystore: keystore.clone(),
 		network: network.clone(),
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
@@ -412,7 +412,7 @@ fn new_full<RuntimeApi, Executor>(
 		);
 
 		let babe_config = babe::BabeParams {
-			keystore: keystore_params.sync_keystore(),
+			keystore: keystore.clone(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -431,7 +431,7 @@ fn new_full<RuntimeApi, Executor>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt = if is_authority {
-		Some(keystore_params.sync_keystore())
+		Some(keystore.clone())
 	} else {
 		None
 	};
@@ -506,7 +506,7 @@ fn new_full<RuntimeApi, Executor>(
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
 					authority_discovery::Role::Authority (
-						keystore_params.keystore(),
+						keystore.clone(),
 					),
 				),
 				Role::Sentry {..} => (
@@ -633,7 +633,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
 		config,
-		keystore: keystore.sync_keystore(),
+		keystore: keystore.clone(),
 		backend,
 		transaction_pool,
 		client,

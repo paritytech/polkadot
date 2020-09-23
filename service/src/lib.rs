@@ -155,7 +155,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 
 	let inherent_data_providers = inherents::InherentDataProviders::new();
 
-	let (client, backend, keystore_params, task_manager) =
+	let (client, backend, keystore, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, Executor>(&config)?;
 	let client = Arc::new(client);
 
@@ -217,8 +217,8 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let sync_keystore = keystore_params.sync_keystore();
 		let transaction_pool = transaction_pool.clone();
+		let sync_keystore = keystore.clone();
 		let select_chain = select_chain.clone();
 
 		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
@@ -246,7 +246,7 @@ pub fn new_partial<RuntimeApi, Executor>(config: &mut Configuration, test: bool)
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore_params, select_chain, import_queue, transaction_pool,
+		client, backend, task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -301,7 +301,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	let name = config.network.node_name.clone();
 
 	let service::PartialComponents {
-		client, backend, mut task_manager, keystore_params, select_chain, import_queue, transaction_pool,
+		client, backend, mut task_manager, keystore, select_chain, import_queue, transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	} = new_partial::<RuntimeApi, Executor>(&mut config, test)?;
@@ -335,7 +335,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_params.sync_keystore(),
+		keystore: keystore.clone(),
 		network: network.clone(),
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
@@ -360,7 +360,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let babe_config = babe::BabeParams {
-			keystore: keystore_params.sync_keystore(),
+			keystore: keystore.clone(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -382,7 +382,7 @@ pub fn new_full<RuntimeApi, Executor>(
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
 					authority_discovery::Role::Authority (
-						keystore_params.keystore(),
+						keystore.clone(),
 					),
 				),
 				Role::Sentry {..} => (
@@ -413,7 +413,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore = if is_authority {
-		Some(keystore_params.sync_keystore())
+		Some(keystore.clone())
 	} else {
 		None
 	};
@@ -537,7 +537,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 	}
 
-	let (client, backend, keystore_params, mut task_manager, on_demand) =
+	let (client, backend, keystore, mut task_manager, on_demand) =
 		service::new_light_parts::<Block, Runtime, Dispatch>(&config)?;
 
 	let select_chain = sc_consensus::LongestChain::new(backend.clone());
@@ -618,7 +618,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
-		keystore: keystore_params.sync_keystore(),
+		keystore,
 		config, backend, transaction_pool, client, network, network_status_sinks,
 		system_rpc_tx,
 	})?;
