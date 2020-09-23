@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
 use sc_network::PeerId;
 
-/// Error when making a request to connect to validators. 
+/// Error when making a request to connect to validators.
 #[derive(Debug, derive_more::From)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
@@ -120,7 +120,7 @@ pub struct ConnectionRequest {
 impl stream::Stream for ConnectionRequest {
 	type Item = (ValidatorId, PeerId);
 
-	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
+	fn poll_next(mut self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
 		if self.validator_map.is_empty() {
 			return Poll::Ready(None);
 		}
