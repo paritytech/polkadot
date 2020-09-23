@@ -692,7 +692,7 @@ mod test {
 		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
 		let validator = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
-			.expect("Malicious key created");
+			.expect("generating sr25519 key not to fail");
 
 		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
 				relay_parent.clone(),

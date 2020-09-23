@@ -753,7 +753,7 @@ mod tests {
 			*validator_indices.get_mut(idx_in_group).unwrap() = true;
 
 			let signature = SignedStatement::sign(
-				&keystore.clone(),
+				&keystore,
 				Statement::Valid(candidate_hash),
 				signing_context,
 				*val_idx,
