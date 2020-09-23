@@ -53,12 +53,11 @@ const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by anot
 pub(super) struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_request(&self, succeeded: bool) {
+	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			if succeeded {
-				metrics.collation_requests.with_label_values(&["succeeded"]).inc();
-			} else {
-				metrics.collation_requests.with_label_values(&["failed"]).inc();
+			match succeeded {
+				Ok(()) => metrics.collation_requests.with_label_values(&["succeeded"]).inc(),
+				Err(()) => metrics.collation_requests.with_label_values(&["failed"]).inc(),
 			}
 		}
 	}
@@ -341,7 +340,7 @@ where
 				let _ = per_request.received.send(());
 				if let Some(collator_id) = state.known_collators.get(&origin) {
 					let _ = per_request.result.send((receipt.clone(), pov.clone()));
-					state.metrics.on_request(true);
+					state.metrics.on_request(Ok(()));
 
 					state.collations
 						.entry((relay_parent, para_id))
@@ -552,7 +551,7 @@ async fn request_timed_out<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	state.metrics.on_request(false);
+	state.metrics.on_request(Err(()));
 
 	// We have to go backwards in the map, again.
 	if let Some(key) = find_val_in_map(&state.requested_collations, &id) {
