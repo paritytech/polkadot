@@ -24,7 +24,6 @@ use futures::{
 	task::{Poll, self},
 	stream,
 };
-use pin_project::pin_project;
 
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError, SubsystemError,
@@ -34,7 +33,7 @@ use polkadot_node_subsystem::{
 use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
 use sc_network::PeerId;
 
-/// Error when making a request to connect to validators.
+/// Error when making a request to connect to validators. 
 #[derive(Debug, derive_more::From)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
@@ -110,12 +109,9 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 ///
 /// NOTE: you should call `revoke` on this struct
 /// when you're no longer interested in the requested validators.
-#[pin_project]
 pub struct ConnectionRequest {
-	#[pin]
 	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
 	#[must_use = "streams do nothing unless polled"]
-	#[pin]
 	connections: mpsc::Receiver<(AuthorityDiscoveryId, PeerId)>,
 	#[must_use = "a request should be revoked at some point"]
 	revoke: oneshot::Sender<()>,
@@ -125,13 +121,12 @@ impl stream::Stream for ConnectionRequest {
 	type Item = (ValidatorId, PeerId);
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> Poll<Option<Self::Item>> {
-		let mut this = self.project();
-		if this.validator_map.is_empty() {
+		if self.validator_map.is_empty() {
 			return Poll::Ready(None);
 		}
-		match this.connections.poll_next(cx) {
+		match Pin::new(&mut self.connections).poll_next(cx) {
 			Poll::Ready(Some((id, peer_id))) => {
-				if let Some(validator_id) = this.validator_map.remove(&id) {
+				if let Some(validator_id) = self.validator_map.remove(&id) {
 					return Poll::Ready(Some((validator_id, peer_id)));
 				} else {
 					// unknown authority_id
