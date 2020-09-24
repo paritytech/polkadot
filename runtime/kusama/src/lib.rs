@@ -424,7 +424,7 @@ impl pallet_democracy::Trait for Runtime {
 	type PalletsOrigin = OriginCaller;
 	type MaxVotes = MaxVotes;
 	type OperationalPreimageOrigin = pallet_collective::EnsureMember<AccountId, CouncilCollective>;
-	type WeightInfo = weights::pallet_democracy::WeightInfo;
+	type WeightInfo = weights::pallet_democracy::WeightInfo<Runtime>;
 	type MaxProposals = MaxProposals;
 }
 
