@@ -33,6 +33,15 @@ jobs:
         with:
           # We can't use the normal GITHUB_TOKEN for the following reason:
           # https://docs.github.com/en/actions/reference/events-that-trigger-workflows#triggering-new-workflows-using-a-personal-access-token
-          # GITHUB_RC_BRANCH_TOKEN requires public_repo OAuth scope
+          # RELEASE_BRANCH_TOKEN requires public_repo OAuth scope
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
+  create_release_issue:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: JasonEtco/create-an-issue@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          filename: .github/ISSUE_TEMPLATE/release.md
