@@ -1,14 +1,10 @@
 ---
-name: Release ${{ env.BRANCH }} checklist
-about: This is the release checklist for Polkadot ${{ env.BRANCH }}. All items *must* be completed before releasing this version.
-assignees: ${{ payload.sender.login }}
-
+title: Polkadot {{ env.BRANCH }} Release checklist
+assignees: '{{ env.GITHUB_ACTOR }}'
 ---
-
 # Release Checklist
 
-The following checks should be completed before publishing a new release of the
-Polkadot/Kusama/Westend runtime or client.
+This is the release checklist for Polkadot {{ env.BRANCH }}. **All** following checks should be completed before publishing a new release of the Polkadot/Kusama/Westend runtime or client.
 
 ### Runtime Releases
 

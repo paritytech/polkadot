@@ -41,7 +41,7 @@ jobs:
           tag: ${{ steps.compute_tag.outputs.new_tag }}
       - uses: JasonEtco/create-an-issue@v2
         # Only create the issue if it's the first release candidate
-        if: steps.compute_tag.outputs.first_rc == 'false'
+        if: steps.compute_tag.outputs.first_rc == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           BRANCH: ${{ steps.compute_tag.outputs.branch_name }}
