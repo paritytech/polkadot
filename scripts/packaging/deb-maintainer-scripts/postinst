@@ -1,0 +1,17 @@
+#!/bin/sh
+
+set -e
+
+action="$1"
+config_file="/etc/default/polkadot"
+
+if [ "$action" = "configure" ]; then
+  # Make user and group
+  getent group polkadot >/dev/null 2>&1 || addgroup --system polkadot
+  getent passwd polkadot >/dev/null 2>&1 ||
+    adduser --system --home /home/polkadot --disabled-password \
+    --ingroup polkadot polkadot
+  if [ ! -e "$config_file" ]; then
+    echo 'POLKADOT_CLI_ARGS=""' > /etc/default/polkadot
+  fi
+fi

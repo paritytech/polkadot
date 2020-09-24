@@ -18,11 +18,11 @@
 
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{FromOverseer, SubsystemContext, SubsystemError, SubsystemResult};
+use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::channel::mpsc;
 use futures::poll;
 use futures::prelude::*;
-use futures_timer::Delay;
 use parking_lot::Mutex;
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
 
@@ -274,15 +274,12 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	let overseer = overseer_factory(handle);
 	let test = test_factory(context);
 
-	let timeout = Delay::new(Duration::from_secs(2));
-
-	futures::pin_mut!(overseer, test, timeout);
+	futures::pin_mut!(overseer, test);
 
 	futures::executor::block_on(async move {
-		futures::select! {
-			_ = overseer.fuse() => (),
-			_ = test.fuse() => (),
-			_ = timeout.fuse() => panic!("test timed out instead of completing"),
-		}
+		future::join(overseer, test)
+			.timeout(Duration::from_secs(2))
+			.await
+			.expect("test timed out instead of completing")
 	});
 }
