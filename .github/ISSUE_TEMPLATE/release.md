@@ -1,7 +1,7 @@
 ---
-name: Release ${{ tools.context.ref }} checklist
-about: This is the release checklist for Polkadot ${{ tools.context.ref }}. All items *must* be completed before releasing this version.
-assignees: ${{ tools.context.actor }}
+name: Release ${{ env.BRANCH }} checklist
+about: This is the release checklist for Polkadot ${{ env.BRANCH }}. All items *must* be completed before releasing this version.
+assignees: ${{ payload.sender.login }}
 
 ---
 

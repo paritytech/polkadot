@@ -17,6 +17,7 @@ jobs:
           # Get last rc tag if exists, else set it to {branch-name}-rc1
           branch=${GITHUB_REF#refs/heads/}
           echo "$branch"
+          echo "::set-output name=branch_name::$branch"
           git tag -l
           last_rc=$(git tag -l "$branch-rc*" | sort -V | tail -n 1)
           if [ -n "$last_rc" ]; then
@@ -24,9 +25,11 @@ jobs:
             echo $suffix
             ((suffix++))
             echo $suffix
-            echo "##[set-output name=new_tag;]$branch-rc$suffix"
+            echo "set-output name=new_tag::$branch-rc$suffix"
+            echo "::set-output name=first_rc::false"
           else
-            echo "##[set-output name=new_tag;]$branch-rc1"
+            echo "::set-output name=new_tag::$branch-rc1"
+            echo "::set-output name=first_rc::true"
           fi
       - name: Apply new tag
         uses: s3krit-testorg/github-tagger@v0.0.2
@@ -36,12 +39,11 @@ jobs:
           # RELEASE_BRANCH_TOKEN requires public_repo OAuth scope
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
-  create_release_issue:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
       - uses: JasonEtco/create-an-issue@v2
+        # Only create the issue if it's the first release candidate
+        if: steps.compute_tag.outputs.first_rc == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.compute_tag.outputs.branch_name }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
