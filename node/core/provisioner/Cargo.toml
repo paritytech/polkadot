@@ -18,5 +18,5 @@ lazy_static = "1.4"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "0.2.22", features = ["time"] }
+futures-timer = "3.0.2"
 tempfile = "3.1.0"
