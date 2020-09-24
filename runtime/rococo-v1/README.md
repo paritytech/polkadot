@@ -8,4 +8,4 @@ Rococo is a testnet runtime with no stability guarantees.
 
 ### Alice
 
-`cargo run --release -- --alice --tmp --validator --chain rococo-dev`
+`cargo run --release -- --alice --tmp --validator --chain rococo-local`
