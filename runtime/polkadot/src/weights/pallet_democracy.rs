@@ -23,9 +23,8 @@ use frame_support::weights::{Weight, constants::RocksDbWeight as DbWeight};
 
 pub struct WeightInfo;
 impl pallet_democracy::WeightInfo for WeightInfo {
-	fn propose(p: u32, ) -> Weight {
+	fn propose() -> Weight {
 		(82728000 as Weight)
-			.saturating_add((11000 as Weight).saturating_mul(p as Weight))
 			.saturating_add(DbWeight::get().reads(3 as Weight))
 			.saturating_add(DbWeight::get().writes(3 as Weight))
 	}
