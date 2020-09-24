@@ -436,7 +436,7 @@ impl inclusion::Trait for Runtime {
 }
 
 impl initializer::Trait for Runtime {
-	type Randomness = TestRandomness;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 impl paras::Trait for Runtime {}

@@ -8,6 +8,4 @@ Rococo is a testnet runtime with no stability guarantees.
 
 ### Alice
 
-1. `cargo clean`
-1. `cargo build --release`: produces `target/release/polkadot`
-1. `target/release/polkadot --alice --tmp --rpc-external --ws-external --chain dev`
+`cargo run --release -- --alice --tmp --validator --chain rococo-dev`

@@ -16,10 +16,10 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
+pub mod chain_spec;
 mod grandpa_support;
 mod client;
 
-pub mod chain_spec;
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
