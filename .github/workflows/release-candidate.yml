@@ -25,7 +25,7 @@ jobs:
             echo $suffix
             ((suffix++))
             echo $suffix
-            echo "set-output name=new_tag::$branch-rc$suffix"
+            echo "::set-output name=new_tag::$branch-rc$suffix"
             echo "::set-output name=first_rc::false"
           else
             echo "::set-output name=new_tag::$branch-rc1"
