@@ -146,7 +146,11 @@ impl CollationGenerationSubsystem {
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
-				log::error!(target: "collation_generation", "error receiving message from subsystem context: {:?}", err);
+				log::error!(
+					target: "collation_generation",
+					"error receiving message from subsystem context: {:?}",
+					err
+				);
 				true
 			}
 		}
@@ -262,7 +266,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
-						log::error!(target: "collation_generation", "failed to calculate erasure root for para_id {}: {:?}", scheduled_core.para_id, err);
+						log::error!(
+							target: "collation_generation",
+							"failed to calculate erasure root for para_id {}: {:?}",
+							scheduled_core.para_id,
+							err
+						);
 						return
 					}
 				};
@@ -292,7 +301,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
-					log::warn!(target: "collation_generation", "failed to send collation result for para_id {}: {:?}", scheduled_core.para_id, err);
+					log::warn!(
+						target: "collation_generation",
+						"failed to send collation result for para_id {}: {:?}",
+						scheduled_core.para_id,
+						err
+					);
 				}
 			})).await?;
 		}
