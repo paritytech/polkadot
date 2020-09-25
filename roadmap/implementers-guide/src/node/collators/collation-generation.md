@@ -29,7 +29,7 @@ pub struct Collation {
 
 struct CollationGenerationConfig {
   key: CollatorPair,
-  collator: Box<dyn Fn(&GlobalValidationData, &LocalValidationData) -> Box<dyn Future<Output = Collation>>>
+  collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Collation>>>
   para_id: ParaId,
 }
 ```
