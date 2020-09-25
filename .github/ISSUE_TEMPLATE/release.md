@@ -1,6 +1,5 @@
 ---
 title: Polkadot {{ env.BRANCH }} Release checklist
-assignees: '{{ env.GITHUB_ACTOR }}'
 ---
 # Release Checklist
 
