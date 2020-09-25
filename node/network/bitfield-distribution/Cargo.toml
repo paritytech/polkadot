@@ -16,12 +16,12 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsys
 polkadot-node-subsystem-util = { package = "polkadot-node-subsystem-util", path = "../../subsystem-util" }
 polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 parking_lot = "0.11.0"
 maplit = "1.0.2"
 smol = "0.3.3"

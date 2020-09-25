@@ -16,14 +16,14 @@ polkadot-test-runtime = { path = ".." }
 polkadot-test-service = { path = "../../../node/test-service" }
 
 # Substrate dependencies
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-light = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["test-helpers"],  default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-timestamp = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-block-builder = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-client-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-consensus = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-light = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-service = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake", features = ["test-helpers"],  default-features = false }
+sp-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-blockchain = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-runtime = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+substrate-test-client = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }

@@ -20,48 +20,48 @@ kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-node-core-proposer = { path = "../core/proposer" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-runtime = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-blockchain = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-client-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-client-db = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-chain-spec = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-executor = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-consensus = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-network = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-storage = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-trie = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+inherents = { package = "sp-inherents", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+service = { package = "sc-service", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-block-builder = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-transaction-pool = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-transaction-pool = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sc-keystore = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+pallet-babe = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+pallet-staking = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+pallet-im-online = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-block-builder = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+frame-system-rpc-runtime-api = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 codec = { package = "parity-scale-codec", version = "1.3.4" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
+frame-benchmarking = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 env_logger = "0.7.0"
 
 [features]

@@ -15,5 +15,5 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 lazy_static = "1.4"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "stop-send-noise-legacy-handhshake" }
 futures-timer = "3.0.2"
