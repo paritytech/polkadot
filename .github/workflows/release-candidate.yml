@@ -39,7 +39,8 @@ jobs:
           # RELEASE_BRANCH_TOKEN requires public_repo OAuth scope
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
-      - uses: JasonEtco/create-an-issue@v2
+      - id: create-issue
+        uses: JasonEtco/create-an-issue@v2
         # Only create the issue if it's the first release candidate
         if: steps.compute_tag.outputs.first_rc == 'true'
         env:
@@ -47,3 +48,9 @@ jobs:
           BRANCH: ${{ steps.compute_tag.outputs.branch_name }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
+      - uses: s3krit/matrix-message-action@v0.0.2
+        with:
+          room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
+          access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
+          server: "matrix.parity.io"
+          message: "Release process for polkadot ${{ steps.compute_tag.outputs.branch_name }} has been started. Tracking issue: ${{ steps.create-issue.outputs.url }}"
