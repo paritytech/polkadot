@@ -19,7 +19,7 @@
 #![deny(missing_docs)]
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	future::FutureExt,
 	join,
 	select,
@@ -28,13 +28,12 @@ use futures::{
 };
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores_ctx, request_full_validation_data_ctx,
+	request_availability_cores_ctx, request_full_validation_data_ctx,
 	request_validators_ctx,
 };
 use polkadot_primitives::v1::{
@@ -44,6 +43,8 @@ use polkadot_primitives::v1::{
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
+
+mod error;
 
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
@@ -173,29 +174,13 @@ where
 	}
 }
 
-#[derive(Debug, derive_more::From)]
-enum Error {
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	OneshotRecv(oneshot::Canceled),
-	#[from]
-	Runtime(RuntimeApiError),
-	#[from]
-	Util(util::Error),
-	#[from]
-	Erasure(polkadot_erasure_coding::Error),
-}
-
-type Result<T> = std::result::Result<T, Error>;
-
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: &[Hash],
 	ctx: &mut Context,
 	metrics: Metrics,
 	sender: &mpsc::Sender<AllMessages>,
-) -> Result<()> {
+) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
@@ -319,7 +304,7 @@ fn erasure_root(
 	n_validators: usize,
 	persisted_validation: PersistedValidationData,
 	pov: PoV,
-) -> Result<Hash> {
+) -> crate::error::Result<Hash> {
 	let available_data = AvailableData {
 		validation_data: persisted_validation,
 		pov,
@@ -347,7 +332,7 @@ impl Metrics {
 }
 
 impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> std::result::Result<Self, prometheus::PrometheusError> {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			collations_generated_total: prometheus::register(
 				prometheus::Counter::new(
