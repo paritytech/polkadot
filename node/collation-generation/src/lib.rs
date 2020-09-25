@@ -46,6 +46,8 @@ use std::sync::Arc;
 
 mod error;
 
+const LOG_TARGET: &'static str = "collation_generation";
+
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
 	config: Option<Arc<CollationGenerationConfig>>,
@@ -93,7 +95,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							log::warn!(target: "collation_generation", "failed to forward message to overseer: {:?}", err);
+							log::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
 							break;
 						}
 					}
@@ -127,7 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: "collation_generation", "failed to handle new activations: {:?}", err);
+						log::warn!(target: LOG_TARGET, "failed to handle new activations: {:?}", err);
 						return true;
 					};
 				}
@@ -138,7 +140,7 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::warn!(target: "collation_generation", "double initialization");
+					log::warn!(target: LOG_TARGET, "double initialization");
 					true
 				} else {
 					self.config = Some(Arc::new(config));
@@ -148,7 +150,7 @@ impl CollationGenerationSubsystem {
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
 				log::error!(
-					target: "collation_generation",
+					target: LOG_TARGET,
 					"error receiving message from subsystem context: {:?}",
 					err
 				);
@@ -252,7 +254,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
 						log::error!(
-							target: "collation_generation",
+							target: LOG_TARGET,
 							"failed to calculate erasure root for para_id {}: {:?}",
 							scheduled_core.para_id,
 							err
@@ -287,7 +289,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
 					log::warn!(
-						target: "collation_generation",
+						target: LOG_TARGET,
 						"failed to send collation result for para_id {}: {:?}",
 						scheduled_core.para_id,
 						err
