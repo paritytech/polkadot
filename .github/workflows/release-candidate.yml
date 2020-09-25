@@ -49,6 +49,8 @@ jobs:
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
       - uses: s3krit/matrix-message-action@v0.0.2
+        needs: create-issue
+        if: steps.create-issue.outputs.url != ''
         with:
           room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
