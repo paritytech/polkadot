@@ -109,6 +109,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 ///
 /// NOTE: you should call `revoke` on this struct
 /// when you're no longer interested in the requested validators.
+#[must_use = "dropping a request this result in its immediate revokation"]
 pub struct ConnectionRequest {
 	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
 	#[must_use = "streams do nothing unless polled"]
@@ -140,6 +141,12 @@ impl stream::Stream for ConnectionRequest {
 }
 
 impl ConnectionRequest {
+	/// By revoking the request the caller allows the network to
+	/// free some peer slots thus freeing the resources.
+	/// It doesn't necessarily lead to peers disconnection though.
+	/// The revokation is enacted on in the next connection request.
+	///
+	/// This can be done either by calling this function or dropping the request.
 	pub fn revoke(self) {
 		if let Err(_) = self.revoke.send(()) {
 			log::warn!(
