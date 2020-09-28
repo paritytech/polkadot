@@ -884,8 +884,8 @@ mod tests {
 	};
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
-	use sp_core::traits::CryptoStore;
 	use sp_application_crypto::AppKey;
+	use sp_keystore::CryptoStore;
 	use std::collections::HashMap;
 	use tokio::runtime::Runtime;
 
