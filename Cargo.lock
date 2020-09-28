@@ -3949,6 +3949,7 @@ name = "pallet-indices"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate#5ea23999bef9440d11572a87bd9a24da08b378a2"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -3979,6 +3980,7 @@ name = "pallet-multisig"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate#5ea23999bef9440d11572a87bd9a24da08b378a2"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -4044,6 +4046,7 @@ name = "pallet-proxy"
 version = "2.0.0"
 source = "git+https://github.com/paritytech/substrate#5ea23999bef9440d11572a87bd9a24da08b378a2"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
