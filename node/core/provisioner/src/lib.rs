@@ -588,6 +588,8 @@ mod tests {
 
 		#[test]
 		fn not_more_than_one_per_validator() {
+			// Configure filesystem-based keystore as generating keys without seed
+			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
@@ -614,6 +616,8 @@ mod tests {
 
 		#[test]
 		fn each_corresponds_to_an_occupied_core() {
+			// Configure filesystem-based keystore as generating keys without seed
+			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
@@ -636,6 +640,8 @@ mod tests {
 
 		#[test]
 		fn more_set_bits_win_conflicts() {
+			// Configure filesystem-based keystore as generating keys without seed
+			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
