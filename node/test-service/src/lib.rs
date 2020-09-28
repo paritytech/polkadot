@@ -22,13 +22,12 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v0::{
-	Block, CollatorId, Id as ParaId,
+	Block, Hash, CollatorId, Id as ParaId,
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, NewFull, FullClient, AbstractClient, ClientHandle, ExecuteWithClient,
+	new_full, NewFull, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
 };
 use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
 use sc_chain_spec::ChainSpec;
@@ -37,7 +36,7 @@ use sc_executor::native_executor_instance;
 use sc_informant::OutputFormat;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
+	multiaddr, NetworkService,
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
@@ -66,15 +65,25 @@ pub fn polkadot_test_new_full(
 	collating_for: Option<(CollatorId, ParaId)>,
 	authority_discovery_enabled: bool,
 ) -> Result<
-	NewFull<Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>>,
+	(
+		TaskManager,
+		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
+		FullNodeHandles,
+		Arc<NetworkService<Block, Hash>>,
+		RpcHandlers,
+	),
 	ServiceError,
 > {
-	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
-		config,
-		collating_for,
-		authority_discovery_enabled,
-		None,
-	).map_err(Into::into)
+	let NewFull { task_manager, client, node_handles, network, rpc_handlers, .. } =
+		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+			config,
+			collating_for,
+			authority_discovery_enabled,
+			None,
+			true,
+		)?;
+
+	Ok((task_manager, client, node_handles, network, rpc_handlers))
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
@@ -197,7 +206,7 @@ pub fn run_test_node(
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
-	let NewFull {task_manager, client, network, rpc_handlers, node_handles, ..} =
+	let (task_manager, client, handles, network, rpc_handlers) =
 		polkadot_test_new_full(config, None, authority_discovery_enabled)
 			.expect("could not create Polkadot test service");
 
@@ -207,7 +216,7 @@ pub fn run_test_node(
 	PolkadotTestNode {
 		task_manager,
 		client,
-		handles: node_handles,
+		handles,
 		addr,
 		rpc_handlers,
 	}
@@ -220,7 +229,7 @@ pub struct PolkadotTestNode<S, C> {
 	/// Client's instance.
 	pub client: Arc<C>,
 	/// Node's handles.
-	pub handles: OverseerHandler,
+	pub handles: FullNodeHandles,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
