@@ -461,7 +461,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			config,
 			link: link_half,
 			network: network.clone(),
-			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
@@ -473,11 +472,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			grandpa::run_grandpa_voter(grandpa_config)?
 		);
 	} else {
-		grandpa::setup_disabled_grandpa(
-			client.clone(),
-			&inherent_data_providers,
-			network.clone(),
-		)?;
+		grandpa::setup_disabled_grandpa(network.clone())?;
 	}
 
 	network_starter.start_network();
