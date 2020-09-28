@@ -22,7 +22,7 @@ use futures::{
 	prelude::*,
 	stream, Future,
 };
-use sp_core::traits::{Error as KeystoreError, CryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, CryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,

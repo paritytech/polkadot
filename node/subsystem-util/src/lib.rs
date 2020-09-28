@@ -43,14 +43,14 @@ use polkadot_primitives::v1::{
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 };
 use sp_core::{
-	traits::{
-		Error as KeystoreError,
-		CryptoStorePtr,
-		SpawnNamed,
-	},
+	traits::SpawnNamed,
 	Public
 };
 use sp_application_crypto::AppKey;
+use sp_keystore::{
+	Error as KeystoreError,
+	CryptoStorePtr
+};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},

@@ -25,10 +25,8 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use sp_core::{
-	crypto::Public,
-	traits::CryptoStorePtr,
-};
+use sp_core::crypto::Public;
+use sp_keystore::CryptoStorePtr;
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;

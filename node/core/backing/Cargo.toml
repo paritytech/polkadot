@@ -8,6 +8,7 @@ edition = "2018"
 futures = "0.3.5"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 keystore = { package = "sc-keystore", git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -22,7 +23,6 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 log = "0.4.8"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.5", features = ["thread-pool"] }

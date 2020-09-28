@@ -552,10 +552,10 @@ mod tests {
 		use super::{default_bitvec, occupied_core};
 		use futures::executor::block_on;
 		use lazy_static::lazy_static;
-		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
-		use sp_core::traits::CryptoStorePtr;
-		use sp_application_crypto::AppKey;
 		use std::sync::{Arc, Mutex};
+		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
+		use sp_application_crypto::AppKey;
+		use sp_keystore::CryptoStorePtr;
 		use sc_keystore::LocalKeystore;
 
 		lazy_static! {

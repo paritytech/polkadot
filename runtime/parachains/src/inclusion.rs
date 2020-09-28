@@ -666,7 +666,7 @@ mod tests {
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
 	};
-	use sp_core::traits::CryptoStorePtr;
+	use sp_keystore::CryptoStorePtr;
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 	use sc_keystore::LocalKeystore;

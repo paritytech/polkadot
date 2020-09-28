@@ -28,7 +28,7 @@ use bitvec::vec::BitVec;
 use serde::{Serialize, Deserialize};
 
 #[cfg(feature = "std")]
-use primitives::traits::{CryptoStorePtr, Error as KeystoreError};
+use sp_keystore::{CryptoStorePtr, Error as KeystoreError};
 use primitives::RuntimeDebug;
 use runtime_primitives::traits::{AppVerify, Block as BlockT};
 use inherents::InherentIdentifier;
@@ -881,7 +881,7 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		Ok(Self {
 			payload,
 			validator_index,
-			signature: ValidatorSignature::from(signature),
+			signature,
 			real_payload: std::marker::PhantomData,
 		})
 	}

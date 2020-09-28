@@ -27,7 +27,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
-use sp_core::traits::CryptoStorePtr;
+use sp_keystore::CryptoStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV,
