@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc5
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc6
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -24,13 +24,15 @@ use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_utility::WeightInfo for WeightInfo<T> {
-	fn batch(c: u32, ) -> Weight {
-		(16461000 as Weight)
-			.saturating_add((1982000 as Weight).saturating_mul(c as Weight))
+impl<T: frame_system::Trait> pallet_session::WeightInfo for WeightInfo<T> {
+	fn set_keys() -> Weight {
+		(88_411_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(6 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
-	// WARNING! Some components were not used: ["u"]
-	fn as_derivative() -> Weight {
-		(4086000 as Weight)
+	fn purge_keys() -> Weight {
+		(51_843_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes(5 as Weight))
 	}
 }

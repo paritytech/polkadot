@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) 2020 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,7 +15,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc5
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc6
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -24,13 +24,12 @@ use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_utility::WeightInfo for WeightInfo<T> {
-	fn batch(c: u32, ) -> Weight {
-		(16461000 as Weight)
-			.saturating_add((1982000 as Weight).saturating_mul(c as Weight))
-	}
-	// WARNING! Some components were not used: ["u"]
-	fn as_derivative() -> Weight {
-		(4086000 as Weight)
+impl<T: frame_system::Trait> pallet_im_online::WeightInfo for WeightInfo<T> {
+	fn validate_unsigned_and_then_heartbeat(k: u32, e: u32, ) -> Weight {
+		(139830000 as Weight)
+			.saturating_add((211000 as Weight).saturating_mul(k as Weight))
+			.saturating_add((654000 as Weight).saturating_mul(e as Weight))
+			.saturating_add(T::DbWeight::get().reads(4 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 }
