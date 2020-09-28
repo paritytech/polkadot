@@ -109,7 +109,7 @@ async fn connect_to_authorities<Context: SubsystemContext>(
 ///
 /// NOTE: you should call `revoke` on this struct
 /// when you're no longer interested in the requested validators.
-#[must_use = "dropping a request this result in its immediate revokation"]
+#[must_use = "dropping a request will result in its immediate revokation"]
 pub struct ConnectionRequest {
 	validator_map: HashMap<AuthorityDiscoveryId, ValidatorId>,
 	#[must_use = "streams do nothing unless polled"]
