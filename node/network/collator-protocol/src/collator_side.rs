@@ -29,6 +29,7 @@ use polkadot_subsystem::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 		NetworkBridgeMessage,
 	},
+	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, PeerSet, NetworkBridgeEvent, RequestId,
@@ -37,6 +38,54 @@ use polkadot_node_subsystem_util::{
 	request_validators_ctx,
 	request_validator_groups_ctx,
 };
+
+#[derive(Clone, Default)]
+pub(super) struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_advertisment_made(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.advertisments_made.inc();
+		}
+	}
+
+	fn on_collation_sent(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.collations_sent.inc();
+		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	advertisments_made: prometheus::Counter<prometheus::U64>,
+	collations_sent: prometheus::Counter<prometheus::U64>,
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry)
+		-> std::result::Result<Self, prometheus::PrometheusError>
+	{
+		let metrics = MetricsInner {
+			advertisments_made: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_advertisments_made_total",
+					"A number of advertisments sent to validators.",
+				)?,
+				registry,
+			)?,
+			collations_sent: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_collations_sent_total",
+					"A number of collations sent to validators.",
+				)?,
+				registry,
+			)?,
+		};
+
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 #[derive(Default)]
 struct State {
@@ -69,6 +118,9 @@ struct State {
 	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
 	/// go out of scope with their respective deactivated leafs.
 	known_validators: HashMap<PeerId, ValidatorId>,
+
+	/// Metrics.
+	metrics: Metrics,
 }
 
 /// Distribute a collation.
@@ -287,6 +339,8 @@ where
 		)
 	)).await?;
 
+	state.metrics.on_advertisment_made();
+
 	Ok(())
 }
 
@@ -367,6 +421,7 @@ where
 /// Issue a response to a previously requested collation.
 async fn send_collation<Context>(
 	ctx: &mut Context,
+	state: &mut State,
 	request_id: RequestId,
 	origin: PeerId,
 	receipt: CandidateReceipt,
@@ -387,6 +442,8 @@ where
 			protocol_v1::CollationProtocol::CollatorProtocol(wire_message),
 		)
 	)).await?;
+
+	state.metrics.on_collation_sent();
 
 	Ok(())
 }
@@ -421,7 +478,7 @@ where
 				Some(our_para_id) => {
 					if our_para_id == para_id {
 						if let Some(collation) = state.collations.get(&relay_parent).cloned() {
-							send_collation(ctx, request_id, origin, collation.0, collation.1).await?;
+							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await?;
 						}
 					} else {
 						warn!(
@@ -555,14 +612,21 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
-pub(crate) async fn run<Context>(mut ctx: Context, our_id: CollatorId) -> Result<()>
+pub(crate) async fn run<Context>(
+	mut ctx: Context,
+	our_id: CollatorId,
+	metrics: Metrics,
+) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	use FromOverseer::*;
 	use OverseerSignal::*;
 
-	let mut state = State::default();
+	let mut state = State {
+		metrics,
+		..Default::default()
+	};
 
 	state.our_id = our_id;
 
@@ -597,7 +661,7 @@ mod tests {
 	};
 	use polkadot_subsystem::ActiveLeavesUpdate;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use polkadot_subsystem_testhelpers::{self as test_helpers};
+	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::ObservedRole;
 
 	#[derive(Default)]
@@ -719,7 +783,7 @@ mod tests {
 
 		let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-		let subsystem = run(context, collator_id);
+		let subsystem = run(context, collator_id, Metrics::default());
 
 		let test_fut = test(TestHarness { virtual_overseer });
 

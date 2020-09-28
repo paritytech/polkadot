@@ -53,13 +53,15 @@ enum Error {
 	RuntimeApi(RuntimeApiError),
 	#[from]
 	UtilError(util::Error),
+	#[from]
+	Prometheus(prometheus::PrometheusError),
 }
 
 type Result<T> = std::result::Result<T, Error>;
 
 enum ProtocolSide {
-	Validator,
-	Collator(CollatorId),
+	Validator(validator_side::Metrics),
+	Collator(CollatorId, collator_side::Metrics),
 }
 
 /// The collator protocol subsystem.
@@ -71,10 +73,12 @@ impl CollatorProtocolSubsystem {
 	/// Start the collator protocol.
 	/// If `id` is `Some` this is a collator side of the protocol.
 	/// If `id` is `None` this is a validator side of the protocol. 
-	pub fn new(id: Option<CollatorId>) -> Self {
+	/// Caller must provide a registry for prometheus metrics.
+	pub fn new(id: Option<CollatorId>, registry: Option<&prometheus::Registry>) -> Self {
+		use metrics::Metrics;
 		let protocol_side = match id {
-			Some(id) => ProtocolSide::Collator(id),
-			None => ProtocolSide::Validator,
+			Some(id) => ProtocolSide::Collator(id, collator_side::Metrics::register(registry)),
+			None => ProtocolSide::Validator(validator_side::Metrics::register(registry)),
 		};
 
 		Self {
@@ -87,20 +91,17 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-		    ProtocolSide::Validator => validator_side::run(ctx, REQUEST_TIMEOUT).await,
-		    ProtocolSide::Collator(id) => collator_side::run(ctx, id).await,
+		    ProtocolSide::Validator(metrics) => validator_side::run(
+				ctx,
+				REQUEST_TIMEOUT,
+				metrics,
+			).await,
+		    ProtocolSide::Collator(id, metrics) => collator_side::run(
+				ctx,
+				id,
+				metrics,
+			).await,
 		}
-	}
-}
-
-/// Collator protocol metrics.
-#[derive(Default, Clone)]
-pub struct Metrics;
-
-impl metrics::Metrics for Metrics {
-	fn try_register(_registry: &prometheus::Registry) 
-		-> std::result::Result<Self, prometheus::PrometheusError> {
-		Ok(Metrics)
 	}
 }
 
@@ -108,7 +109,8 @@ impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
-	type Metrics = Metrics;
+	// The actual `Metrics` type depends on whether we're on the collator or validator side.
+	type Metrics = ();
 
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
