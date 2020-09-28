@@ -480,13 +480,16 @@ fn check_statement_signature(
 ///
 /// Removes all closed listeners.
 async fn inform_statement_listeners(
-	statement: SignedFullStatement,
+	statement: &SignedFullStatement,
 	listeners: &mut Vec<mpsc::Sender<SignedFullStatement>>,
 ) {
 	// Ignore the errors since these will be removed later.
-	for listener in listeners.iter_mut() {
-		let _ = listener.send(statement.clone()).await;
-	}
+	stream::iter(listeners.iter_mut()).for_each_concurrent(
+		None,
+		|listener| async move {
+			let _ = listener.send(statement.clone()).await;
+		}
+	).await;
 	// Remove any closed listeners.
 	listeners.retain(|tx| !tx.is_closed());
 }
@@ -892,7 +895,7 @@ async fn run(
 			FromOverseer::Communication { msg } => match msg {
 				StatementDistributionMessage::Share(relay_parent, statement) => {
 					inform_statement_listeners(
-						statement.clone(),
+						&statement,
 						&mut statement_listeners,
 					).await;
 					circulate_statement_and_dependents(
