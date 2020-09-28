@@ -434,6 +434,8 @@ pub enum StatementDistributionMessage {
 	Share(Hash, SignedFullStatement),
 	/// Event from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<protocol_v1::StatementDistributionMessage>),
+	/// Register a listener for shared statements.
+	RegisterStatementListener(mpsc::Sender<SignedFullStatement>),
 }
 
 impl StatementDistributionMessage {
@@ -442,6 +444,7 @@ impl StatementDistributionMessage {
 		match self {
 			Self::Share(hash, _) => Some(*hash),
 			Self::NetworkBridgeUpdateV1(_) => None,
+			Self::RegisterStatementListener(_) => None,
 		}
 	}
 }
