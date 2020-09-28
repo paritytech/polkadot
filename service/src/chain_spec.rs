@@ -17,7 +17,7 @@
 //! Polkadot chain configurations.
 
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
-use polkadot_primitives::v1::{AccountId, AccountPublic, ValidatorId};
+use polkadot_primitives::v0::{AccountId, AccountPublic, ValidatorId};
 use polkadot_runtime as polkadot;
 use kusama_runtime as kusama;
 use westend_runtime as westend;
@@ -48,9 +48,9 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
 	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::v1::Block>,
+	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::v0::Block>,
 	/// Known bad block hashes.
-	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v1::Block>,
+	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v0::Block>,
 }
 
 /// The `ChainSpec parametrised for polkadot runtime`.
@@ -72,15 +72,15 @@ pub type WestendChainSpec = service::GenericChainSpec<
 >;
 
 pub fn polkadot_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../../service/res/polkadot.json")[..])
+	PolkadotChainSpec::from_json_bytes(&include_bytes!("../res/polkadot.json")[..])
 }
 
 pub fn kusama_config() -> Result<KusamaChainSpec, String> {
-	KusamaChainSpec::from_json_bytes(&include_bytes!("../../../service/res/kusama.json")[..])
+	KusamaChainSpec::from_json_bytes(&include_bytes!("../res/kusama.json")[..])
 }
 
-pub fn westend_config() -> Result<PolkadotChainSpec, String> {
-	PolkadotChainSpec::from_json_bytes(&include_bytes!("../../../service/res/westend.json")[..])
+pub fn westend_config() -> Result<WestendChainSpec, String> {
+	WestendChainSpec::from_json_bytes(&include_bytes!("../res/westend.json")[..])
 }
 
 fn polkadot_session_keys(

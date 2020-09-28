@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Polkadot Client meta trait
+//! Polkadot Client abstractions.
 
 use std::sync::Arc;
 use sp_api::{ProvideRuntimeApi, CallApiAt, NumberFor};
@@ -22,10 +22,10 @@ use sp_blockchain::HeaderBackend;
 use sp_runtime::{
 	Justification, generic::{BlockId, SignedBlock}, traits::{Block as BlockT, BlakeTwo256},
 };
-use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
-use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance};
 use consensus_common::BlockStatus;
+use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
+use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
+use polkadot_primitives::v0::{Block, AccountId, Nonce, Balance};
 
 /// A set of APIs that polkadot-like runtimes must implement.
 pub trait RuntimeApiCollection:
@@ -33,7 +33,6 @@ pub trait RuntimeApiCollection:
 	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
 	+ babe_primitives::BabeApi<Block>
 	+ grandpa_primitives::GrandpaApi<Block>
-	+ ParachainHost<Block>
 	+ sp_block_builder::BlockBuilder<Block>
 	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
 	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
@@ -47,18 +46,18 @@ where
 
 impl<Api> RuntimeApiCollection for Api
 where
-	Api: sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
-		+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
-		+ babe_primitives::BabeApi<Block>
-		+ grandpa_primitives::GrandpaApi<Block>
-		+ ParachainHost<Block>
-		+ sp_block_builder::BlockBuilder<Block>
-		+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
-		+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
-		+ sp_api::Metadata<Block>
-		+ sp_offchain::OffchainWorkerApi<Block>
-		+ sp_session::SessionKeys<Block>
-		+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
+	Api:
+	sp_transaction_pool::runtime_api::TaggedTransactionQueue<Block>
+	+ sp_api::ApiExt<Block, Error = sp_blockchain::Error>
+	+ babe_primitives::BabeApi<Block>
+	+ grandpa_primitives::GrandpaApi<Block>
+	+ sp_block_builder::BlockBuilder<Block>
+	+ frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce>
+	+ pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<Block, Balance>
+	+ sp_api::Metadata<Block>
+	+ sp_offchain::OffchainWorkerApi<Block>
+	+ sp_session::SessionKeys<Block>
+	+ authority_discovery_primitives::AuthorityDiscoveryApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {}
 
@@ -345,6 +344,51 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.key_changes(first, last, storage_key, key),
 			Self::Westend(client) => client.key_changes(first, last, storage_key, key),
 			Self::Kusama(client) => client.key_changes(first, last, storage_key, key),
+		}
+	}
+}
+
+impl sp_blockchain::HeaderBackend<Block> for Client {
+	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
+		match self {
+			Self::Polkadot(client) => client.header(&id),
+			Self::Westend(client) => client.header(&id),
+			Self::Kusama(client) => client.header(&id),
+		}
+	}
+
+	fn info(&self) -> sp_blockchain::Info<Block> {
+		match self {
+			Self::Polkadot(client) => client.info(),
+			Self::Westend(client) => client.info(),
+			Self::Kusama(client) => client.info(),
+		}
+	}
+
+	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+		match self {
+			Self::Polkadot(client) => client.status(id),
+			Self::Westend(client) => client.status(id),
+			Self::Kusama(client) => client.status(id),
+		}
+	}
+
+	fn number(
+		&self, 
+		hash: <Block as BlockT>::Hash
+	) -> sp_blockchain::Result<Option<NumberFor<Block>>> {
+		match self {
+			Self::Polkadot(client) => client.number(hash),
+			Self::Westend(client) => client.number(hash),
+			Self::Kusama(client) => client.number(hash),
+		}
+	}
+	
+	fn hash(&self, number: NumberFor<Block>) -> sp_blockchain::Result<Option<<Block as BlockT>::Hash>> {
+		match self {
+			Self::Polkadot(client) => client.hash(number),
+			Self::Westend(client) => client.hash(number),
+			Self::Kusama(client) => client.hash(number),
 		}
 	}
 }
