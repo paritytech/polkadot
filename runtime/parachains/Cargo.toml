@@ -20,6 +20,7 @@ sp-runtime = { git = "https://github.com/rakanalh/substrate", branch = "async-ke
 sp-session = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
 sp-staking = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
 
 pallet-authorship = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
 pallet-balances = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }

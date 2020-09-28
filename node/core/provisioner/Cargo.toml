@@ -17,6 +17,7 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 lazy_static = "1.4"
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-application-crypto = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sc-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
-tokio = { version = "0.2.22", features = ["time"] }
+futures-timer = "3.0.2"
 tempfile = "3.1.0"

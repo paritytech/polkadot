@@ -23,6 +23,7 @@ polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-application-crypto = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sc-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 parking_lot = "0.11.0"
 maplit = "1.0.2"

@@ -31,7 +31,7 @@ use futures_timer::Delay;
 use smallvec::smallvec;
 use std::{sync::Arc, time::Duration};
 use sc_keystore::LocalKeystore;
-use sp_core::traits::CryptoStorePtr;
+use sp_keystore::CryptoStorePtr;
 use sp_application_crypto::AppKey;
 
 macro_rules! view {

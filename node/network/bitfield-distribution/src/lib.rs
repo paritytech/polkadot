@@ -616,7 +616,7 @@ mod test {
 	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use sp_core::traits::CryptoStorePtr;
+	use sp_keystore::CryptoStorePtr;
 	use sp_application_crypto::AppKey;
 	use sc_keystore::LocalKeystore;
 	use std::sync::Arc;

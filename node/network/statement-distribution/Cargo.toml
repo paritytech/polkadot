@@ -27,4 +27,5 @@ assert_matches = "1.3.0"
 sp-keyring = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-application-crypto = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sc-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }

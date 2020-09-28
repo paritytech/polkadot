@@ -23,6 +23,7 @@ sc-network = { git = "https://github.com/rakanalh/substrate", branch = "async-ke
 smallvec = "1.4.1"
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-application-crypto = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 streamunordered = "0.5.1"
 
 [dev-dependencies]

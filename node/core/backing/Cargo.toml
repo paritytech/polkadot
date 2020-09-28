@@ -8,6 +8,7 @@ edition = "2018"
 futures = "0.3.5"
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-api = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sc-client-api = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-blockchain = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 keystore = { package = "sc-keystore", git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
@@ -22,7 +23,6 @@ bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 log = "0.4.8"
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-application-crypto = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-keyring = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 futures = { version = "0.3.5", features = ["thread-pool"] }

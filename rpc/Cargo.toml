@@ -9,7 +9,7 @@ jsonrpc-core = "15.0.0"
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
 sp-blockchain = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
-sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
+sp-keystore = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
 sp-runtime = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
 sp-api = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }
 sp-consensus = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery"  }

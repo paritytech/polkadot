@@ -25,10 +25,8 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use sp_core::{
-	crypto::Public,
-	traits::CryptoStorePtr,
-};
+use sp_core::crypto::Public;
+use sp_keystore::CryptoStorePtr;
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
@@ -286,7 +284,7 @@ impl ProtocolState {
 
 /// Deal with network bridge updates and track what needs to be tracked
 /// which depends on the message type received.
-async fn handle_network_msg<'async_trait, Context>(
+async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	keystore: &CryptoStorePtr,
 	state: &mut ProtocolState,

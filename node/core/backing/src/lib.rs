@@ -27,7 +27,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
-use sp_core::traits::CryptoStorePtr;
+use sp_keystore::CryptoStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV,
@@ -884,8 +884,8 @@ mod tests {
 	};
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
-	use sp_core::traits::CryptoStore;
 	use sp_application_crypto::AppKey;
+	use sp_keystore::CryptoStore;
 	use std::collections::HashMap;
 	use tokio::runtime::Runtime;
 
