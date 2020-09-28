@@ -35,6 +35,7 @@ pub trait Network: Send + 'static {
 	/// Ask the network to connect to these nodes and not disconnect from them until removed from the priority group.
 	fn set_priority_group(&self, group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String>;
 	// TODO (ordian): we might want to add `add_to_priority_group` and `remove_from_priority_group`
+	// https://github.com/paritytech/polkadot/issues/1763
 }
 
 /// An abstraction over the authority discovery service.
