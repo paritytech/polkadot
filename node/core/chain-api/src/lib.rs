@@ -30,6 +30,8 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
 	messages::ChainApiMessage,
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{Block, BlockId};
@@ -57,8 +59,6 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Client: HeaderBackend<Block> + 'static,
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self).map(|_| ()).boxed(),

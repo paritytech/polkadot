@@ -30,11 +30,11 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
-	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx, request_full_validation_data_ctx,
 	request_validators_ctx,
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, AvailableData, CandidateCommitments,
@@ -164,8 +164,6 @@ impl<Context> Subsystem<Context> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(self.run(ctx));
 

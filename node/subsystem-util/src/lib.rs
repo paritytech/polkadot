@@ -19,12 +19,14 @@
 //! Many subsystems have common interests such as canceling a bunch of spawned jobs,
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
+//!
+//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-	metrics,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -35,7 +37,7 @@ use futures::{
 	task,
 };
 use futures_timer::Delay;
-use keystore::KeyStorePtr;
+use sc_keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
@@ -430,6 +432,43 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 			Either::Right((_, _)) => {
 				self.abort_handle.abort();
 			}
+		}
+	}
+}
+
+/// This module reexports Prometheus types and defines the [`Metrics`] trait.
+pub mod metrics {
+	/// Reexport Prometheus types.
+	pub use substrate_prometheus_endpoint as prometheus;
+
+	/// Subsystem- or job-specific Prometheus metrics.
+	///
+	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+	/// to ensure `Default` bounds or as a dummy type ().
+	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
+	pub trait Metrics: Default + Clone {
+		/// Try to register metrics in the Prometheus registry.
+		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+
+		/// Convience method to register metrics in the optional Prometheus registry.
+		/// If the registration fails, prints a warning and returns `Default::default()`.
+		fn register(registry: Option<&prometheus::Registry>) -> Self {
+			registry.map(|r| {
+				match Self::try_register(r) {
+					Err(e) => {
+						log::warn!("Failed to register metrics: {:?}", e);
+						Default::default()
+					},
+					Ok(metrics) => metrics,
+				}
+			}).unwrap_or_default()
+		}
+	}
+
+	// dummy impl
+	impl Metrics for () {
+		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
 		}
 	}
 }
@@ -870,8 +909,6 @@ where
 	Job::ToJob: TryFrom<AllMessages> + Sync,
 	Job::Metrics: Sync,
 {
-	type Metrics = Job::Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
@@ -965,8 +1002,6 @@ macro_rules! delegated_subsystem {
 			Context: $crate::reexports::SubsystemContext,
 			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
-			type Metrics = $metrics;
-
 			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
