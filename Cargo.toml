@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
 futures = "0.3.4"
-service = { package = "polkadot-service", path = "service" }
+service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -36,9 +36,7 @@ members = [
 	"runtime/westend",
 	"runtime/test-runtime",
 	"runtime/test-runtime/client",
-	"service",
 	"statement-table",
-	"service",
 	"validation",
 
 	"node/collation-generation",
@@ -79,9 +77,6 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
-service-rewr= [
-	"cli/service-rewr",
-]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]
