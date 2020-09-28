@@ -551,32 +551,20 @@ mod tests {
 		use super::super::*;
 		use super::{default_bitvec, occupied_core};
 		use futures::executor::block_on;
-		use lazy_static::lazy_static;
-		use std::sync::{Arc, Mutex};
+		use std::sync::Arc;
 		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 		use sp_application_crypto::AppKey;
 		use sp_keystore::CryptoStorePtr;
 		use sc_keystore::LocalKeystore;
-
-		lazy_static! {
-			// we can use a normal mutex here, not a futures-aware one, because we don't use any futures-based
-			// concurrency when accessing this. The risk of contention is that multiple tests are run in parallel,
-			// in independent threads, in which case a standard mutex suffices.
-			static ref VALIDATORS: Mutex<HashMap<ValidatorIndex, ValidatorId>> = Mutex::new(HashMap::new());
-		}
 
 		async fn signed_bitfield(
 			keystore: &CryptoStorePtr,
 			field: CoreAvailability,
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
-			let mut lock = VALIDATORS.lock().unwrap();
 			let public = keystore.sr25519_generate_new(ValidatorId::ID, None)
 				.await
 				.expect("generated sr25519 key");
-			lock
-				.entry(validator_idx)
-				.or_insert(public.into());
 			SignedAvailabilityBitfield::sign(
 				&keystore,
 				field.into(),
