@@ -362,6 +362,8 @@ enum StatementDistributionMessage {
 	/// The statement distribution subsystem assumes that the statement should be correctly
 	/// signed.
 	Share(Hash, SignedFullStatement),
+	/// Register a listener to be notified on any new statements.
+	RegisterStatementListener(ResponseChannel<SignedFullStatement>),
 }
 ```
 
