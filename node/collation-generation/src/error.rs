@@ -14,29 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Runtime modules for parachains code.
-//!
-//! It is crucial to include all the modules from this crate in the runtime, in
-//! particular the `Initializer` module, as it is responsible for initializing the state
-//! of the other modules.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+#[derive(Debug, derive_more::From)]
+pub enum Error {
+	#[from]
+	Subsystem(polkadot_node_subsystem::SubsystemError),
+	#[from]
+	OneshotRecv(futures::channel::oneshot::Canceled),
+	#[from]
+	Runtime(polkadot_node_subsystem::errors::RuntimeApiError),
+	#[from]
+	Util(polkadot_node_subsystem_util::Error),
+	#[from]
+	Erasure(polkadot_erasure_coding::Error),
+}
 
-pub mod configuration;
-pub mod inclusion;
-pub mod inclusion_inherent;
-pub mod initializer;
-pub mod paras;
-pub mod router;
-pub mod scheduler;
-pub mod validity;
-pub mod origin;
-
-pub mod runtime_api_impl;
-
-mod util;
-
-#[cfg(test)]
-mod mock;
-
-pub use origin::{Origin, ensure_parachain};
+pub type Result<T> = std::result::Result<T, Error>;
