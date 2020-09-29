@@ -518,6 +518,10 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub OffchainSolutionWeightLimit: Weight =
+		MaximumBlockWeight::get()
+			.saturating_sub(BlockExecutionWeight::get())
+			.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 parameter_types! {
@@ -559,7 +563,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = MaximumBlockWeight;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }
