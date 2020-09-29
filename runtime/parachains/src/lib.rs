@@ -20,21 +20,17 @@
 //! particular the `Initializer` module, as it is responsible for initializing the state
 //! of the other modules.
 
-
 #![cfg_attr(not(feature = "std"), no_std)]
-
-use sp_std::result;
-use sp_runtime::{RuntimeDebug, traits::BadOrigin};
-use primitives::v1::Id as ParaId;
-use codec::{Decode, Encode};
 
 pub mod configuration;
 pub mod inclusion;
 pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
+pub mod router;
 pub mod scheduler;
 pub mod validity;
+pub mod origin;
 
 pub mod runtime_api_impl;
 
@@ -43,20 +39,4 @@ mod util;
 #[cfg(test)]
 mod mock;
 
-/// Origin for the parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-pub enum Origin {
-	/// It comes from a parachain.
-	Parachain(ParaId),
-}
-
-/// Ensure that the origin `o` represents a parachain.
-/// Returns `Ok` with the parachain ID that effected the extrinsic or an `Err` otherwise.
-pub fn ensure_parachain<OuterOrigin>(o: OuterOrigin) -> result::Result<ParaId, BadOrigin>
-	where OuterOrigin: Into<result::Result<Origin, OuterOrigin>>
-{
-	match o.into() {
-		Ok(Origin::Parachain(id)) => Ok(id),
-		_ => Err(BadOrigin),
-	}
-}
+pub use origin::{Origin, ensure_parachain};

@@ -84,8 +84,8 @@ use polkadot_subsystem::messages::{
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
 	SpawnedSubsystem, ActiveLeavesUpdate,
-	metrics::{self, prometheus},
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_primitives::SpawnNamed;
 
 
@@ -560,8 +560,6 @@ where
 	/// impl<C> Subsystem<C> for ValidationSubsystem
 	///     where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
-	///     type Metrics = ();
-	///
 	///     fn start(
 	///         self,
 	///         mut ctx: C,
@@ -1229,8 +1227,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0;
 			SpawnedSubsystem {
@@ -1259,8 +1255,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let sender = self.0.clone();
 			SpawnedSubsystem {
@@ -1307,8 +1301,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem4
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "test-subsystem-4",
@@ -1513,8 +1505,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1544,8 +1534,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1813,8 +1801,6 @@ mod tests {
 			C: SubsystemContext<Message=M>,
 			M: Send,
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "counter-subsystem",

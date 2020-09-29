@@ -91,7 +91,7 @@ impl frame_system::Trait for Test {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
-	type ModuleToIndex = ();
+	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -107,6 +107,8 @@ impl crate::configuration::Trait for Test { }
 impl crate::paras::Trait for Test {
 	type Origin = Origin;
 }
+
+impl crate::router::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
@@ -124,6 +126,11 @@ pub type Configuration = crate::configuration::Module<Test>;
 
 /// Mocked paras.
 pub type Paras = crate::paras::Module<Test>;
+
+/// Mocked router.
+// TODO: Will be used in the follow ups.
+#[allow(dead_code)]
+pub type Router = crate::router::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;
