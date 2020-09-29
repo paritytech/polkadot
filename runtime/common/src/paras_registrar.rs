@@ -24,7 +24,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ReservableCurrency},
 };
-use frame_system::{self, ensure_signed};
+use frame_system::{self, ensure_root, ensure_signed};
 use primitives::v1::{
 	Id as ParaId, ValidationCode, HeadData,
 };
@@ -57,6 +57,9 @@ pub trait Trait: paras::Trait {
 
 decl_storage! {
 	trait Store for Module<T: Trait> as Registrar {
+		/// Whether parathreads are enabled or not.
+		ParathreadsRegistrationEnabled: bool;
+
 		/// Pending swap operations.
 		PendingSwap: map hasher(twox_64_concat) ParaId => Option<ParaId>;
 
@@ -80,6 +83,8 @@ decl_error! {
 		CodeTooLarge,
 		/// Invalid para head data size.
 		HeadDataTooLarge,
+		/// Parathreads registration is disabled.
+		ParathreadsRegistrationDisabled,
 	}
 }
 
@@ -99,6 +104,8 @@ decl_module! {
 			validation_code: ValidationCode,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+
+			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
 
 			ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 
@@ -133,6 +140,8 @@ decl_module! {
 		fn deregister_parathread(origin) -> DispatchResult {
 			let id = ensure_parachain(<T as Trait>::Origin::from(origin))?;
 
+			ensure!(ParathreadsRegistrationEnabled::get(), Error::<T>::ParathreadsRegistrationDisabled);
+
 			let is_parachain = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
 
 			ensure!(!is_parachain, Error::<T>::InvalidThreadId);
@@ -144,6 +153,25 @@ decl_module! {
 
 			Ok(())
 		}
+
+		#[weight = 0]
+		fn enable_parathread_registration(origin) -> DispatchResult {
+			ensure_root(origin)?;
+
+			ParathreadsRegistrationEnabled::put(true);
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn disable_parathread_registration(origin) -> DispatchResult {
+			ensure_root(origin)?;
+
+			ParathreadsRegistrationEnabled::put(false);
+
+			Ok(())
+		}
+
 
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
@@ -561,7 +589,11 @@ mod tests {
 	#[test]
 	fn register_deregister_chain_works() {
 		new_test_ext().execute_with(|| {
+			run_to_block(1);
 
+			assert_ok!(Registrar::enable_parathread_registration(
+				Origin::root(),
+			));
 			run_to_block(2);
 
 			assert_ok!(Registrar::register_parachain(
@@ -601,6 +633,11 @@ mod tests {
 	#[test]
 	fn swap_handles_funds_correctly() {
 		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_ok!(Registrar::enable_parathread_registration(
+				Origin::root(),
+			));
 			run_to_block(2);
 
 			let initial_1_balance = Balances::free_balance(1);
