@@ -236,7 +236,7 @@ mod tests {
 		impl_outer_origin, impl_outer_dispatch, assert_ok, parameter_types,
 	};
 	use keyring::Sr25519Keyring;
-	use runtime_parachains::{initializer, configuration, inclusion, scheduler};
+	use runtime_parachains::{initializer, configuration, inclusion, router, scheduler};
 	use pallet_session::OneSessionHandler;
 
 	impl_outer_origin! {
@@ -294,7 +294,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
-		type ModuleToIndex = ();
+		type PalletInfo = ();
 		type AccountData = pallet_balances::AccountData<u128>;
 		type OnNewAccount = ();
 		type OnKilledAccount = Balances;
@@ -318,6 +318,7 @@ mod tests {
 		type Event = ();
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
+		type MaxLocks = ();
 		type WeightInfo = ();
 	}
 
@@ -391,6 +392,8 @@ mod tests {
 		type MinimumPeriod = MinimumPeriod;
 		type WeightInfo = ();
 	}
+
+	impl router::Trait for Test { }
 
 	impl pallet_session::historical::Trait for Test {
 		type FullIdentification = pallet_staking::Exposure<u64, Balance>;
