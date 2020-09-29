@@ -4843,6 +4843,7 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
  "sp-core",
@@ -4913,6 +4914,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-blockchain",
@@ -4928,6 +4930,7 @@ dependencies = [
  "maplit",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
@@ -4983,6 +4986,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
  "sp-blockchain",
@@ -5034,7 +5038,6 @@ dependencies = [
  "sc-network",
  "smallvec 1.4.2",
  "sp-core",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -5083,6 +5086,7 @@ dependencies = [
  "smallvec 1.4.2",
  "sp-core",
  "streamunordered",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -5098,6 +5102,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
  "sp-core",

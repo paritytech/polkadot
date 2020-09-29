@@ -30,12 +30,12 @@ use polkadot_node_subsystem::{
 		AllMessages, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
 		ProvisionerMessage, RuntimeApiMessage,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util,
 	delegated_subsystem,
 	request_availability_cores, request_persisted_validation_data, JobTrait, ToJobTrait,
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,

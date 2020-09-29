@@ -34,6 +34,8 @@ use polkadot_primitives::v1::{
 };
 use polkadot_subsystem::{
 	FromOverseer, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::AvailabilityStoreMessage;
@@ -276,8 +278,6 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			if let Err(e) = run(self, ctx).await {

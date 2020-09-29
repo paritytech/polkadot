@@ -30,9 +30,11 @@ use polkadot_node_subsystem::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, CollatorProtocolMessage,
 	},
+};
+use polkadot_node_subsystem_util::{
+	self as util, delegated_subsystem, JobTrait, ToJobTrait,
 	metrics::{self, prometheus},
 };
-use polkadot_node_subsystem_util::{self as util, delegated_subsystem, JobTrait, ToJobTrait};
 use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
