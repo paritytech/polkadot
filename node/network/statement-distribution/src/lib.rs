@@ -59,6 +59,8 @@ const BENEFIT_VALID_STATEMENT_FIRST: Rep = Rep::new(
 /// Typically we will only keep 1, but when a validator equivocates we will need to track 2.
 const VC_THRESHOLD: usize = 2;
 
+const LOG_TARGET: &str = "statement_distribution";
+
 /// The statement distribution subsystem.
 pub struct StatementDistribution;
 
@@ -812,7 +814,7 @@ async fn handle_network_update(
 
 			for new in our_view.difference(&old_view) {
 				if !active_heads.contains_key(&new) {
-					log::warn!(target: "statement_distribution", "Our network bridge view update \
+					log::warn!(target: LOG_TARGET, "Our network bridge view update \
 						inconsistent with `StartWork` messages we have received from overseer. \
 						Contains unknown hash {}", new);
 				}
@@ -862,7 +864,7 @@ async fn run(
 							(Ok(v), Ok(s)) => (v, s),
 							(Err(e), _) | (_, Err(e)) => {
 								log::warn!(
-									target: "statement_distribution",
+									target: LOG_TARGET,
 									"Failed to fetch runtime API data for active leaf: {:?}",
 									e,
 								);
