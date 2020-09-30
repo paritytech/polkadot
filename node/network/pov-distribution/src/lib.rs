@@ -22,9 +22,12 @@
 use polkadot_primitives::v1::{Hash, PoV, CandidateDescriptor};
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, OverseerSignal, SubsystemContext, Subsystem, SubsystemResult, FromOverseer, SpawnedSubsystem,
+	messages::{
+		PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
+	},
 };
-use polkadot_subsystem::messages::{
-	PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
@@ -46,7 +49,10 @@ const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV
 	but was not the first to do so");
 
 /// The PoV Distribution Subsystem.
-pub struct PoVDistribution;
+pub struct PoVDistribution {
+	// Prometheus metrics
+	metrics: Metrics,
+}
 
 impl<C> Subsystem<C> for PoVDistribution
 	where C: SubsystemContext<Message = PoVDistributionMessage>
@@ -56,7 +62,7 @@ impl<C> Subsystem<C> for PoVDistribution
 		// within `run`.
 		SpawnedSubsystem {
 			name: "pov-distribution-subsystem",
-			future: run(ctx).map(|_| ()).boxed(),
+			future: self.run(ctx).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -65,6 +71,7 @@ struct State {
 	relay_parent_state: HashMap<Hash, BlockBasedState>,
 	peer_state: HashMap<PeerId, PeerState>,
 	our_view: View,
+	metrics: Metrics,
 }
 
 struct BlockBasedState {
@@ -206,6 +213,7 @@ async fn notify_one_we_are_awaiting_many(
 async fn distribute_to_awaiting(
 	peers: &mut HashMap<PeerId, PeerState>,
 	ctx: &mut impl SubsystemContext<Message = PoVDistributionMessage>,
+	metrics: &Metrics,
 	relay_parent: Hash,
 	pov_hash: Hash,
 	pov: &PoV,
@@ -230,7 +238,11 @@ async fn distribute_to_awaiting(
 	ctx.send_message(AllMessages::NetworkBridge(NetworkBridgeMessage::SendValidationMessage(
 		peers_to_send,
 		payload,
-	))).await
+	))).await?;
+
+	metrics.on_pov_distributed();
+
+	Ok(())
 }
 
 /// Handles a `FetchPoV` message.
@@ -307,6 +319,7 @@ async fn handle_distribute(
 	distribute_to_awaiting(
 		&mut state.peer_state,
 		ctx,
+		&state.metrics,
 		relay_parent,
 		descriptor.pov_hash,
 		&*pov,
@@ -436,6 +449,7 @@ async fn handle_incoming_pov(
 	distribute_to_awaiting(
 		&mut state.peer_state,
 		ctx,
+		&state.metrics,
 		relay_parent,
 		pov_hash,
 		&*pov,
@@ -508,45 +522,88 @@ async fn handle_network_update(
 	}
 }
 
-async fn run(
-	mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
-) -> SubsystemResult<()> {
-	let mut state = State {
-		relay_parent_state: HashMap::new(),
-		peer_state: HashMap::new(),
-		our_view: View(Vec::new()),
-	};
+impl PoVDistribution {
+	/// Create a new instance of `PovDistribution`.
+	pub fn new(metrics: Metrics) -> Self {
+		Self { metrics }
+	}
 
-	loop {
-		match ctx.recv().await? {
-			FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
-				return Ok(());
-			},
-			FromOverseer::Communication { msg } => match msg {
-				PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
-					handle_fetch(
-						&mut state,
-						&mut ctx,
-						relay_parent,
-						descriptor,
-						response_sender,
-					).await?,
-				PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
-					handle_distribute(
-						&mut state,
-						&mut ctx,
-						relay_parent,
-						descriptor,
-						pov,
-					).await?,
-				PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
-					handle_network_update(
-						&mut state,
-						&mut ctx,
-						event,
-					).await?,
-			},
+	async fn run(
+		self,
+		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,
+	) -> SubsystemResult<()> {
+		let mut state = State {
+			relay_parent_state: HashMap::new(),
+			peer_state: HashMap::new(),
+			our_view: View(Vec::new()),
+			metrics: self.metrics,
+		};
+
+		loop {
+			match ctx.recv().await? {
+				FromOverseer::Signal(signal) => if handle_signal(&mut state, &mut ctx, signal).await? {
+					return Ok(());
+				},
+				FromOverseer::Communication { msg } => match msg {
+					PoVDistributionMessage::FetchPoV(relay_parent, descriptor, response_sender) =>
+						handle_fetch(
+							&mut state,
+							&mut ctx,
+							relay_parent,
+							descriptor,
+							response_sender,
+						).await?,
+					PoVDistributionMessage::DistributePoV(relay_parent, descriptor, pov) =>
+						handle_distribute(
+							&mut state,
+							&mut ctx,
+							relay_parent,
+							descriptor,
+							pov,
+						).await?,
+					PoVDistributionMessage::NetworkBridgeUpdateV1(event) =>
+						handle_network_update(
+							&mut state,
+							&mut ctx,
+							event,
+						).await?,
+				},
+			}
 		}
+	}
+}
+
+
+
+#[derive(Clone)]
+struct MetricsInner {
+	povs_distributed: prometheus::Counter<prometheus::U64>,
+}
+
+/// Availability Distribution metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_pov_distributed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.povs_distributed.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> std::result::Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			povs_distributed: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_povs_distributed_total",
+					"Number of PoVs distributed to other peers."
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
@@ -619,6 +676,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a, hash_b]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -698,6 +756,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -775,6 +834,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -846,6 +906,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -934,6 +995,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -997,6 +1059,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1058,6 +1121,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1116,6 +1180,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1201,6 +1266,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a, hash_b]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1263,6 +1329,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1340,6 +1407,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
@@ -1422,6 +1490,7 @@ mod tests {
 				s
 			},
 			our_view: View(vec![hash_a]),
+			metrics: Default::default(),
 		};
 
 		let pool = sp_core::testing::TaskExecutor::new();
