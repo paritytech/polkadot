@@ -111,14 +111,7 @@ fn note_hash(
 ) -> bool {
 	if observed.contains(&h) { return true; }
 
-	if observed.is_full() {
-		false
-	} else {
-		observed.try_push(h).expect("length of storage guarded above; \
-			only panics if length exceeds capacity; qed");
-
-		true
-	}
+	observed.try_push(h).is_ok()
 }
 
 /// knowledge that a peer has about goings-on in a relay parent.
