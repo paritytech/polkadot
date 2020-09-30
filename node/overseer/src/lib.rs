@@ -1458,9 +1458,9 @@ mod tests {
 				res = overseer_fut => {
 					assert!(res.is_ok());
 					let metrics = extract_metrics(&registry);
-					assert_eq!(metrics.get("activated").copied().unwrap(), 3);
-					assert_eq!(metrics.get("deactivated").copied().unwrap(), 2);
-					assert_eq!(metrics.get("relayed").copied().unwrap(), 1);
+					assert_eq!(metrics["activated"], 3);
+					assert_eq!(metrics["deactivated"], 2);
+					assert_eq!(metrics["relayed"], 1);
 				},
 				complete => (),
 			}
@@ -1475,7 +1475,6 @@ mod tests {
 		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
 		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
 		let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
-		
 		let mut result = HashMap::new();
 		result.insert("activated", activated);
 		result.insert("deactivated", deactivated);

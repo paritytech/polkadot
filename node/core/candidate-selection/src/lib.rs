@@ -396,14 +396,14 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_second(&self, result: core::result::Result<(), ()>) {
+	fn on_second(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.seconds.with_label_values(&[label]).inc();
 		}
 	}
 
-	fn on_invalid_selection(&self, result: core::result::Result<(), ()>) {
+	fn on_invalid_selection(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.invalid_selections.with_label_values(&[label]).inc();

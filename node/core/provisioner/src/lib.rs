@@ -472,7 +472,7 @@ struct MetricsInner {
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_inherent_data_request(&self, response: core::result::Result<(), ()>) {
+	fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {
 				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeded"]).inc(),
