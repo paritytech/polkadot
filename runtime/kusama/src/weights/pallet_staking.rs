@@ -117,13 +117,17 @@ impl<T: frame_system::Trait> pallet_staking::WeightInfo for WeightInfo<T> {
 		(121_485_000 as Weight)
 			.saturating_add((6_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(11 as Weight))
+			.saturating_add(T::DbWeight::get().reads((3 as Weight).saturating_mul(n as Weight)))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes((1 as Weight).saturating_mul(n as Weight)))
 	}
 	fn payout_stakers_alive_staked(n: u32, ) -> Weight {
 		(156_414_000 as Weight)
 			.saturating_add((3_000 as Weight).saturating_mul(n as Weight))
 			.saturating_add(T::DbWeight::get().reads(12 as Weight))
+			.saturating_add(T::DbWeight::get().reads((5 as Weight).saturating_mul(n as Weight)))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
+			.saturating_add(T::DbWeight::get().writes((3 as Weight).saturating_mul(n as Weight)))
 	}
 	fn rebond(l: u32, ) -> Weight {
 		(46_130_000 as Weight)
