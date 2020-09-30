@@ -50,7 +50,7 @@ pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as fr
 
 /// We assume that an on-initialize consumes 10% of the weight on average, hence a single extrinsic
 /// will not be allowed to consume more than `AvailableBlockRatio - 10%`.
-const AVERAGE_ON_INITIALIZE_WEIGHT: Perbill = Perbill::from_percent(10);
+pub const AVERAGE_ON_INITIALIZE_WEIGHT: Perbill = Perbill::from_percent(10);
 
 // Common constants used in all runtimes.
 parameter_types! {

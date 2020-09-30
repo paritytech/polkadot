@@ -282,10 +282,6 @@ parameter_types! {
 	pub storage StakingUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 2;
 	pub storage MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
-	pub OffchainSolutionWeightLimit: Weight =
-		MaximumBlockWeight::get()
-			.saturating_sub(BlockExecutionWeight::get())
-			.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 impl pallet_staking::Trait for Runtime {
@@ -309,7 +305,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
-	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
+	type OffchainSolutionWeightLimit = MaximumBlockWeight;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 

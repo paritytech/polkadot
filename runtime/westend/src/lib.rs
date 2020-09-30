@@ -32,7 +32,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
-	ParachainSessionKeyPlaceholder,
+	ParachainSessionKeyPlaceholder, AVERAGE_ON_INITIALIZE_WEIGHT,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -310,10 +310,13 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	// The unsigned solution is mandatory, and this is the absolute maximum weight that we allow for
+	// it.
 	pub OffchainSolutionWeightLimit: Weight =
 		MaximumBlockWeight::get()
 			.saturating_sub(BlockExecutionWeight::get())
-			.saturating_sub(ExtrinsicBaseWeight::get());
+			.saturating_sub(ExtrinsicBaseWeight::get())
+			.saturating_sub(AVERAGE_ON_INITIALIZE_WEIGHT * MaximumBlockWeight::get());
 }
 
 impl pallet_staking::Trait for Runtime {
