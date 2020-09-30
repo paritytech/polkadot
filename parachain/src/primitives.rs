@@ -127,6 +127,14 @@ impl Id {
 	/// Use IsSystem instead.
 	#[deprecated]
 	pub fn is_system(&self) -> bool { self.0 < USER_INDEX_START }
+
+	/// Returns the para id represented as a u32.
+	///
+	/// An escape hatch meant to be used only in exceptional situations. For instance, when you need
+	/// to put the ID on wire but have no luxury of referencing this type directly.
+	pub fn reveal_inner_u32(self) -> u32 {
+		self.0
+	}
 }
 
 pub trait IsSystem {
