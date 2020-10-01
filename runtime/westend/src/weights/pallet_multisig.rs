@@ -1,21 +1,21 @@
-// This file is part of Substrate.
+// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
-// Copyright (C) 2019-2020 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// 	http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc6
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+//! Weights for pallet_multisig
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0
+//! DATE: 2020-09-28, STEPS: [50], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -26,65 +26,65 @@ use sp_std::marker::PhantomData;
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Trait> pallet_multisig::WeightInfo for WeightInfo<T> {
 	fn as_multi_threshold_1(z: u32, ) -> Weight {
-		(17_161_000 as Weight)
+		(12_481_000 as Weight)
 			.saturating_add((1_000 as Weight).saturating_mul(z as Weight))
 	}
 	fn as_multi_create(s: u32, z: u32, ) -> Weight {
-		(79_857_000 as Weight)
-			.saturating_add((131_000 as Weight).saturating_mul(s as Weight))
+		(65_650_000 as Weight)
+			.saturating_add((92_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add((1_000 as Weight).saturating_mul(z as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn as_multi_create_store(s: u32, z: u32, ) -> Weight {
-		(90_218_000 as Weight)
-			.saturating_add((129_000 as Weight).saturating_mul(s as Weight))
+		(74_115_000 as Weight)
+			.saturating_add((94_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add((3_000 as Weight).saturating_mul(z as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn as_multi_approve(s: u32, z: u32, ) -> Weight {
-		(48_402_000 as Weight)
-			.saturating_add((132_000 as Weight).saturating_mul(s as Weight))
+		(40_671_000 as Weight)
+			.saturating_add((111_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add((1_000 as Weight).saturating_mul(z as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn as_multi_approve_store(s: u32, z: u32, ) -> Weight {
-		(88_390_000 as Weight)
-			.saturating_add((120_000 as Weight).saturating_mul(s as Weight))
+		(71_781_000 as Weight)
+			.saturating_add((126_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add((3_000 as Weight).saturating_mul(z as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
 	fn as_multi_complete(s: u32, z: u32, ) -> Weight {
-		(98_960_000 as Weight)
-			.saturating_add((276_000 as Weight).saturating_mul(s as Weight))
-			.saturating_add((6_000 as Weight).saturating_mul(z as Weight))
+		(83_125_000 as Weight)
+			.saturating_add((248_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add((5_000 as Weight).saturating_mul(z as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	fn approve_as_multi_create(s: u32, ) -> Weight {
-		(80_185_000 as Weight)
-			.saturating_add((121_000 as Weight).saturating_mul(s as Weight))
+		(65_465_000 as Weight)
+			.saturating_add((94_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn approve_as_multi_approve(s: u32, ) -> Weight {
-		(48_386_000 as Weight)
-			.saturating_add((143_000 as Weight).saturating_mul(s as Weight))
+		(39_362_000 as Weight)
+			.saturating_add((113_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn approve_as_multi_complete(s: u32, ) -> Weight {
-		(177_181_000 as Weight)
-			.saturating_add((273_000 as Weight).saturating_mul(s as Weight))
+		(154_095_000 as Weight)
+			.saturating_add((249_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(3 as Weight))
 			.saturating_add(T::DbWeight::get().writes(3 as Weight))
 	}
 	fn cancel_as_multi(s: u32, ) -> Weight {
-		(126_334_000 as Weight)
-			.saturating_add((124_000 as Weight).saturating_mul(s as Weight))
+		(107_420_000 as Weight)
+			.saturating_add((95_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
