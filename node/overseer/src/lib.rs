@@ -192,8 +192,8 @@ impl OverseerHandler {
 	}
 
 	/// Send some message to one of the `Subsystem`s.
-	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.events_tx.send(Event::MsgToSubsystem(msg)).await.map_err(Into::into)
+	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) -> SubsystemResult<()> {
+		self.events_tx.send(Event::MsgToSubsystem(msg.into())).await.map_err(Into::into)
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
