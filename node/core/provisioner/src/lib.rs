@@ -196,9 +196,9 @@ impl ProvisioningJob {
 					.await
 					{
 						log::warn!(target: "provisioner", "failed to assemble or send inherent data: {:?}", err);
-						self.metrics.on_inherent_data_request(false);
+						self.metrics.on_inherent_data_request(Err(()));
 					} else {
-						self.metrics.on_inherent_data_request(true);
+						self.metrics.on_inherent_data_request(Ok(()));
 					}
 				}
 				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
@@ -467,17 +467,16 @@ struct MetricsInner {
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
 }
 
-/// Candidate backing metrics.
+/// Provisioner metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_inherent_data_request(&self, succeeded: bool) {
+	fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			if succeeded {
-				metrics.inherent_data_requests.with_label_values(&["succeded"]).inc();
-			} else {
-				metrics.inherent_data_requests.with_label_values(&["failed"]).inc();
+			match response {
+				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeded"]).inc(),
+				Err(()) => metrics.inherent_data_requests.with_label_values(&["failed"]).inc(),
 			}
 		}
 	}

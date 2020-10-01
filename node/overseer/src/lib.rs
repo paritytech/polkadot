@@ -470,6 +470,7 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG
 struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
+	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
@@ -485,6 +486,12 @@ impl Metrics {
 	fn on_head_deactivated(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.deactivated_heads_total.inc();
+		}
+	}
+
+	fn on_message_relayed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.messages_relayed_total.inc();
 		}
 	}
 }
@@ -503,6 +510,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_deactivated_heads_total",
 					"Number of deactivated heads."
+				)?,
+				registry,
+			)?,
+			messages_relayed_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_messages_relayed_total",
+					"Number of messages relayed by Overseer."
 				)?,
 				registry,
 			)?,
@@ -1046,10 +1060,11 @@ where
 	}
 
 	async fn route_message(&mut self, msg: AllMessages) {
+		self.metrics.on_message_relayed();
 		match msg {
 			AllMessages::CandidateValidation(msg) => {
 				if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
-					let _= s.tx.send(FromOverseer::Communication { msg }).await;
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
 			AllMessages::CandidateBacking(msg) => {
@@ -1209,6 +1224,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 #[cfg(test)]
 mod tests {
 	use std::sync::atomic;
+	use std::collections::HashMap;
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV};
@@ -1435,27 +1451,35 @@ mod tests {
 
 			handler.block_imported(second_block).await.unwrap();
 			handler.block_imported(third_block).await.unwrap();
+			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await.unwrap();
 			handler.stop().await.unwrap();
 
 			select! {
 				res = overseer_fut => {
 					assert!(res.is_ok());
-					let (activated, deactivated) = extract_metrics(&registry);
-					assert_eq!(activated, 3);
-					assert_eq!(deactivated, 2);
+					let metrics = extract_metrics(&registry);
+					assert_eq!(metrics["activated"], 3);
+					assert_eq!(metrics["deactivated"], 2);
+					assert_eq!(metrics["relayed"], 1);
 				},
 				complete => (),
 			}
 		});
 	}
 
-	fn extract_metrics(registry: &prometheus::Registry) -> (u64, u64) {
+	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
 		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
 		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");
 		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
 		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		(activated, deactivated)
+		let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
+		let mut result = HashMap::new();
+		result.insert("activated", activated);
+		result.insert("deactivated", deactivated);
+		result.insert("relayed", relayed);
+		result
 	}
 
 	// Spawn a subsystem that immediately exits.
