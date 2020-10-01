@@ -21,7 +21,6 @@ polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 smallvec = "1.4.1"
 sp-core = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
-substrate-prometheus-endpoint = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 
 [dev-dependencies]
 assert_matches = "1.3.0"

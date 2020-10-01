@@ -21,9 +21,9 @@ dependencies = [
 
 [[package]]
 name = "adler"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ccc9a9dd069569f212bc4330af9f17c4afb5e8ce185e83dbb14f1349dda18b10"
+checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
 name = "aead"
@@ -31,14 +31,14 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fc95d1bdb8e6666b2b217308eeeb09f2d6728d104be3e31916cc74d15420331"
 dependencies = [
- "generic-array 0.14.2",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
 name = "aes"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f7001367fde4c768a19d1029f0a8be5abd9308e1119846d5bd9ad26297b8faf5"
+checksum = "dd2bc6d3f370b5666245ff421e231cba4353df936e26986d2918e61a8fd6aef6"
 dependencies = [
  "aes-soft",
  "aesni",
@@ -47,36 +47,36 @@ dependencies = [
 
 [[package]]
 name = "aes-gcm"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86f5007801316299f922a6198d1d09a0bae95786815d066d5880d13f7c45ead1"
+checksum = "0301c9e9c443494d970a07885e8cf3e587bae8356a1d5abd0999068413f7205f"
 dependencies = [
  "aead",
  "aes",
  "block-cipher",
  "ghash",
- "subtle 2.2.3",
+ "subtle 2.3.0",
 ]
 
 [[package]]
 name = "aes-soft"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4925647ee64e5056cf231608957ce7c81e12d6d6e316b9ce1404778cc1d35fa7"
+checksum = "63dd91889c49327ad7ef3b500fd1109dbd3c509a03db0d4a9ce413b79f575cb6"
 dependencies = [
  "block-cipher",
  "byteorder 1.3.4",
- "opaque-debug 0.2.3",
+ "opaque-debug 0.3.0",
 ]
 
 [[package]]
 name = "aesni"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d050d39b0b7688b3a3254394c3e30a9d66c41dcf9b05b0e2dbdc623f6505d264"
+checksum = "0a6fe808308bb07d393e2ea47780043ec47683fcf19cf5efc8ca51c50cc8c68a"
 dependencies = [
  "block-cipher",
- "opaque-debug 0.2.3",
+ "opaque-debug 0.3.0",
 ]
 
 [[package]]
@@ -134,9 +134,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.31"
+version = "1.0.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85bb70cc08ec97ca5450e6eba421deeea5f172c0fc61f78b5357b2a8e8be195f"
+checksum = "6b602bfe940d21c130f3895acd65221e8a61270debe89d628b9cb4e3ccb8569b"
 
 [[package]]
 name = "approx"
@@ -190,7 +190,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d0864d84b8e07b145449be9a8537db86bf9de5ce03b913214694643b4743502"
 dependencies = [
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -230,10 +230,10 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90f47c78ea98277cb1f5e6f60ba4fc762f5eafe9f6511bc2f7dfd8b75c225650"
 dependencies = [
- "async-io 0.1.5",
- "futures-lite 0.1.10",
+ "async-io 0.1.11",
+ "futures-lite 0.1.11",
  "multitask",
- "parking 1.0.5",
+ "parking 1.0.6",
  "scoped-tls",
  "waker-fn",
 ]
@@ -244,92 +244,88 @@ version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d373d78ded7d0b3fa8039375718cde0aace493f2e34fb60f51cbf567562ca801"
 dependencies = [
- "async-task 4.0.1",
+ "async-task 4.0.2",
  "concurrent-queue",
  "fastrand",
- "futures-lite 1.7.0",
+ "futures-lite 1.8.0",
  "once_cell 1.4.1",
  "vec-arena 1.0.0",
 ]
 
 [[package]]
 name = "async-global-executor"
-version = "1.1.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffd4f132a18f3fe7329c7b907047684f1b06174a900c559b661b2da8bb9cad5f"
+checksum = "fefeb39da249f4c33af940b779a56723ce45809ef5c54dad84bb538d4ffb6d9e"
 dependencies = [
  "async-executor 1.3.0",
- "async-io 1.1.0",
- "futures-lite 1.7.0",
+ "async-io 1.1.5",
+ "futures-lite 1.8.0",
  "num_cpus",
  "once_cell 1.4.1",
 ]
 
 [[package]]
 name = "async-io"
-version = "0.1.5"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8126ef9fb99355c6fd27575d691be4887b884137a5b6f48c2d961f13590c51"
+checksum = "3ae22a338d28c75b53702b66f77979062cb29675db376d99e451af4fa79dedb3"
 dependencies = [
  "cfg-if",
  "concurrent-queue",
- "futures-lite 0.1.10",
+ "futures-lite 0.1.11",
  "libc",
  "once_cell 1.4.1",
- "parking 1.0.5",
+ "parking 2.0.0",
+ "polling 0.1.9",
  "socket2",
- "vec-arena 0.5.0",
+ "vec-arena 0.5.2",
  "wepoll-sys-stjepang",
  "winapi 0.3.9",
 ]
 
 [[package]]
 name = "async-io"
-version = "1.1.0"
+version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38628c78a34f111c5a6b98fc87dfc056cd1590b61afe748b145be4623c56d194"
+checksum = "6e727cebd055ab2861a854f79def078c4b99ea722d54c6800a0e274389882d4c"
 dependencies = [
- "cfg-if",
  "concurrent-queue",
  "fastrand",
- "futures-lite 1.7.0",
- "libc",
+ "futures-lite 1.8.0",
  "log 0.4.11",
+ "nb-connect",
  "once_cell 1.4.1",
  "parking 2.0.0",
- "polling",
- "socket2",
+ "polling 1.1.0",
  "vec-arena 1.0.0",
  "waker-fn",
- "wepoll-sys-stjepang",
- "winapi 0.3.9",
 ]
 
 [[package]]
 name = "async-mutex"
-version = "1.3.0"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66941c2577c4fa351e4ce5fdde8f86c69b88d623f3b955be1bc7362a23434632"
+checksum = "479db852db25d9dbf6204e6cb6253698f175c15726470f78af0d918e99d6156e"
 dependencies = [
  "event-listener",
 ]
 
 [[package]]
 name = "async-std"
-version = "1.6.4"
+version = "1.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c92085acfce8b32e5b261d0b59b8f3309aee69fea421ea3f271f8b93225754f"
+checksum = "a9fa76751505e8df1c7a77762f60486f60c71bbd9b8557f4da6ad47d083732ed"
 dependencies = [
  "async-global-executor",
- "async-io 1.1.0",
+ "async-io 1.1.5",
  "async-mutex",
- "async-task 3.0.0",
  "blocking 1.0.0",
  "crossbeam-utils",
  "futures-channel",
  "futures-core",
  "futures-io",
- "futures-lite 1.7.0",
+ "futures-lite 1.8.0",
  "gloo-timers",
  "kv-log-macro",
  "log 0.4.11",
@@ -350,9 +346,9 @@ checksum = "c17772156ef2829aadc587461c7753af20b7e8db1529bc66855add962a3b35d3"
 
 [[package]]
 name = "async-task"
-version = "4.0.1"
+version = "4.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6725e96011a83fae25074a8734932e8d67763522839be7473dcfe8a0d6a378b1"
+checksum = "8ab27c1aa62945039e44edaeee1dc23c74cc0c303dd5fe0fb462a184f1c3a518"
 
 [[package]]
 name = "async-tls"
@@ -368,13 +364,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.36"
+version = "0.1.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a265e3abeffdce30b2e26b7a11b222fe37c6067404001b434101457d0385eb92"
+checksum = "687c230d85c0a52504709705fc8a53e4a692b83a2184f03dae73e38e1e93a783"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -408,15 +404,15 @@ checksum = "1d49d90015b3c36167a20fe2810c5cd875ad504b39cff3d4eae7977e6b7c1cb2"
 
 [[package]]
 name = "autocfg"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
+checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "backtrace"
-version = "0.3.50"
+version = "0.3.51"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "46254cf2fdcdf1badb5934448c1bcbe046a56537b3987d96c51a7afc5d03f293"
+checksum = "ec1931848a574faa8f7c71a12ea00453ff5effbb5f51afe7f77d7a48cace6ac1"
 dependencies = [
  "addr2line",
  "cfg-if",
@@ -470,7 +466,7 @@ dependencies = [
  "lazycell",
  "log 0.4.11",
  "peeking_take_while",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
  "regex",
  "rustc-hash",
@@ -566,7 +562,7 @@ version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c0940dc441f31689269e10ac70eb1002a3a1d3ad1390e030043662eb7fe4688b"
 dependencies = [
- "block-padding",
+ "block-padding 0.1.5",
  "byte-tools",
  "byteorder 1.3.4",
  "generic-array 0.12.3",
@@ -578,16 +574,17 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4152116fd6e9dadb291ae18fc1ec3575ed6d84c29642d97890f4b4a3417297e4"
 dependencies = [
- "generic-array 0.14.2",
+ "block-padding 0.2.1",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
 name = "block-cipher"
-version = "0.7.1"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa136449e765dc7faa244561ccae839c394048667929af599b5d931ebe7b7f10"
+checksum = "f337a3e6da609650eb74e02bc9fac7b735049f7623ab12f2e4c719316fcc7e80"
 dependencies = [
- "generic-array 0.14.2",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
@@ -600,6 +597,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-padding"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
+
+[[package]]
 name = "blocking"
 version = "0.4.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -607,21 +610,21 @@ checksum = "d2468ff7bf85066b4a3678fede6fe66db31846d753ff0adfbfab2c6a6e81612b"
 dependencies = [
  "async-channel",
  "atomic-waker",
- "futures-lite 0.1.10",
+ "futures-lite 0.1.11",
  "once_cell 1.4.1",
- "parking 1.0.5",
+ "parking 1.0.6",
  "waker-fn",
 ]
 
 [[package]]
 name = "blocking"
-version = "0.5.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76e94bf99b692f54c9d05f97454d3faf11134523fe5b180564a3fb6ed63bcc0a"
+checksum = "ea5800d29218fea137b0880387e5948694a23c93fcdde157006966693a865c7c"
 dependencies = [
  "async-channel",
  "atomic-waker",
- "futures-lite 0.1.10",
+ "futures-lite 0.1.11",
  "once_cell 1.4.1",
  "waker-fn",
 ]
@@ -635,7 +638,7 @@ dependencies = [
  "async-channel",
  "atomic-waker",
  "fastrand",
- "futures-lite 1.7.0",
+ "futures-lite 1.8.0",
  "once_cell 1.4.1",
  "waker-fn",
 ]
@@ -716,9 +719,9 @@ checksum = "631ae5198c9be5e753e5cc215e1bd73c2b466a3565173db433f52bb9d3e66dba"
 
 [[package]]
 name = "cc"
-version = "1.0.58"
+version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9a06fb2e53271d7c279ec1efea6ab691c35a2ae67ec0d91d7acec0caf13b518"
+checksum = "ef611cc68ff783f18535d77ddd080185275713d852c4f5cbb6122c462a7a825c"
 dependencies = [
  "jobserver",
 ]
@@ -740,38 +743,40 @@ checksum = "4785bdd1c96b2a846b2bd7cc02e86b6b3dbf14e7e53446c4f54c92a361040822"
 
 [[package]]
 name = "chacha20"
-version = "0.4.3"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "086c0f07ac275808b7bf9a39f2fd013aae1498be83632814c8c4e0bd53f2dc58"
+checksum = "244fbce0d47e97e8ef2f63b81d5e05882cb518c68531eb33194990d7b7e85845"
 dependencies = [
- "stream-cipher 0.4.1",
+ "stream-cipher 0.7.1",
  "zeroize",
 ]
 
 [[package]]
 name = "chacha20poly1305"
-version = "0.5.1"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18b0c90556d8e3fec7cf18d84a2f53d27b21288f2fe481b830fadcf809e48205"
+checksum = "9bf18d374d66df0c05cdddd528a7db98f78c28e2519b120855c4f84c5027b1f5"
 dependencies = [
  "aead",
  "chacha20",
  "poly1305",
- "stream-cipher 0.4.1",
+ "stream-cipher 0.7.1",
  "zeroize",
 ]
 
 [[package]]
 name = "chrono"
-version = "0.4.13"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c74d84029116787153e02106bf53e66828452a4b325cc8652b788b5967c0a0b6"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
 dependencies = [
  "js-sys",
+ "libc",
  "num-integer",
  "num-traits 0.2.12",
  "time",
  "wasm-bindgen",
+ "winapi 0.3.9",
 ]
 
 [[package]]
@@ -787,9 +792,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "2.33.1"
+version = "2.33.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdfa80d47f954d53a35a64987ca1422f495b8d6483c0fe9f7117b36c2a792129"
+checksum = "37e58ac78573c40708d45522f0d80fa2f01cc4f9b4e2bf749807255454312002"
 dependencies = [
  "ansi_term 0.11.0",
  "atty",
@@ -891,9 +896,9 @@ checksum = "b3a71ab494c0b5b860bdc8407ae08978052417070c2ced38573a9157ad75b8ac"
 
 [[package]]
 name = "cpuid-bool"
-version = "0.1.0"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d375c433320f6c5057ae04a04376eef4d04ce2801448cf8863a78da99107be4"
+checksum = "8aebca1129a03dc6dc2b127edd729435bbc4a37e1d5f4d7513165089ceb02634"
 
 [[package]]
 name = "cranelift-bforest"
@@ -997,6 +1002,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "crossbeam-channel"
+version = "0.4.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b153fe7cbef478c567df0f972e02e6d736db11affe43dfc9c56a9374d1adfb87"
+dependencies = [
+ "crossbeam-utils",
+ "maybe-uninit",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1013,7 +1028,7 @@ version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "058ed274caafc1f60c4997b5fc07bf7dc7cca454af7c6e81edffe5f33f70dace"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "cfg-if",
  "crossbeam-utils",
  "lazy_static",
@@ -1039,7 +1054,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "cfg-if",
  "lazy_static",
 ]
@@ -1066,8 +1081,8 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
 dependencies = [
- "generic-array 0.14.2",
- "subtle 2.2.3",
+ "generic-array 0.14.4",
+ "subtle 2.3.0",
 ]
 
 [[package]]
@@ -1098,15 +1113,28 @@ dependencies = [
  "byteorder 1.3.4",
  "digest 0.8.1",
  "rand_core 0.5.1",
- "subtle 2.2.3",
+ "subtle 2.3.0",
+ "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8492de420e9e60bc9a1d66e2dbb91825390b738a388606600663fc529b4b307"
+dependencies = [
+ "byteorder 1.3.4",
+ "digest 0.9.0",
+ "rand_core 0.5.1",
+ "subtle 2.3.0",
  "zeroize",
 ]
 
 [[package]]
 name = "data-encoding"
-version = "2.2.1"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72aa14c04dfae8dd7d8a2b1cb7ca2152618cd01336dbfe704b8dcbf8d41dbd69"
+checksum = "d4d0e2d24e5ee3b23a01de38eefdcd978907890701f08ffffd4cb457ca4ee8d6"
 
 [[package]]
 name = "derive_more"
@@ -1136,13 +1164,13 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.9"
+version = "0.99.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "298998b1cf6b5b2c8a7b023dfd45821825ce3ba8a8af55c921a0e734e4653f76"
+checksum = "41cb0e6161ad61ed084a36ba71fbba9e3ac5aee3606fb607fe08da6acbcf3d8c"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -1166,7 +1194,7 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
- "generic-array 0.14.2",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
@@ -1231,9 +1259,9 @@ version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "558e40ea573c374cf53507fd240b7ee2f5477df7cfebdb97323ec61c719399c5"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -1250,32 +1278,32 @@ checksum = "1dd4afd79212583ff429b913ad6605242ed7eec277e950b1438f300748f948f4"
 
 [[package]]
 name = "ed25519"
-version = "1.0.1"
+version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf038a7b6fd7ef78ad3348b63f3a17550877b0e28f8d68bcc94894d1412158bc"
+checksum = "07dfc993ea376e864fe29a4099a61ca0bb994c6d7745a61bf60ddb3d64e05237"
 dependencies = [
  "signature",
 ]
 
 [[package]]
 name = "ed25519-dalek"
-version = "1.0.0-pre.4"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "21a8a37f4e8b35af971e6db5e3897e7a6344caa3f92f6544f88125a1f5f0035a"
+checksum = "c762bae6dcaf24c4c84667b8579785430908723d5c889f469d76a41d59cc7a9d"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 3.0.0",
  "ed25519",
  "rand 0.7.3",
  "serde",
- "sha2 0.8.2",
+ "sha2 0.9.1",
  "zeroize",
 ]
 
 [[package]]
 name = "either"
-version = "1.6.0"
+version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd56b59865bce947ac5958779cfa508f6c3b9497cc762b7e24a12d11ccde2c4f"
+checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
 name = "enum_primitive"
@@ -1301,9 +1329,9 @@ version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "946ee94e3dbf58fdd324f9ce245c7b238d46a66f00e86a020b71996349e46cce"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -1321,9 +1349,9 @@ dependencies = [
 
 [[package]]
 name = "environmental"
-version = "1.1.1"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "516aa8d7a71cb00a1c4146f0798549b93d083d4f189b3ced8f3de6b8f11ee6c4"
+checksum = "6576a1755ddffd988788025e75bce9e74b018f7cc226198fe931d077911c6d7e"
 
 [[package]]
 name = "erased-serde"
@@ -1336,9 +1364,9 @@ dependencies = [
 
 [[package]]
 name = "errno"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b480f641ccf0faf324e20c1d3e53d81b7484c698b42ea677f6907ae4db195371"
+checksum = "6eab5ee3df98a279d9b316b1af6ac95422127b1290317e6d18c1743c99418b01"
 dependencies = [
  "errno-dragonfly",
  "libc",
@@ -1369,9 +1397,9 @@ dependencies = [
 
 [[package]]
 name = "event-listener"
-version = "2.4.0"
+version = "2.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1cd41440ae7e4734bbd42302f63eaba892afc93a3912dad84006247f0dedb0e"
+checksum = "f7531096570974c3a9dcf9e4b8e1cede1ec26cf5046219fb3b9d897503b9be59"
 
 [[package]]
 name = "exit-future"
@@ -1398,9 +1426,9 @@ version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa4da3c766cd7a0db8242e326e9e4e081edd567072893ed320008189715366a4"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "synstructure",
 ]
 
@@ -1433,24 +1461,25 @@ dependencies = [
 
 [[package]]
 name = "femme"
-version = "2.1.0"
+version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b6b21baebbed15551f2170010ca4101b9ed3fdc05822791c8bd4631840eab81"
+checksum = "2af1a24f391a5a94d756db5092c6576aad494b88a71a5a36b20c67b63e0df034"
 dependencies = [
  "cfg-if",
  "js-sys",
  "log 0.4.11",
  "serde",
  "serde_derive",
+ "serde_json",
  "wasm-bindgen",
  "web-sys",
 ]
 
 [[package]]
 name = "file-per-thread-logger"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8b3937f028664bd0e13df401ba49a4567ccda587420365823242977f06609ed1"
+checksum = "4fdbe0d94371f9ce939b555dd342d0686cc4c0cadbcd4b61d70af5ff97eb4126"
 dependencies = [
  "env_logger",
  "log 0.4.11",
@@ -1491,9 +1520,9 @@ checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
 name = "flate2"
-version = "1.0.16"
+version = "1.0.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "68c90b0fc46cf89d227cc78b40e494ff81287a92dd07631e5af0d06fe3cf885e"
+checksum = "da80be589a72651dcda34d8b35bcdc9b7254ad06325611074d9cc0fbb19f60ee"
 dependencies = [
  "cfg-if",
  "crc32fast",
@@ -1511,7 +1540,7 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 [[package]]
 name = "fork-tree"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -1519,7 +1548,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1537,7 +1566,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking-cli"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "chrono",
  "frame-benchmarking",
@@ -1557,7 +1586,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1573,7 +1602,7 @@ dependencies = [
 [[package]]
 name = "frame-metadata"
 version = "12.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -1584,7 +1613,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "bitmask",
  "frame-metadata",
@@ -1609,40 +1638,40 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support-procedural-tools",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "frame-support-procedural-tools"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "frame-system"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
@@ -1658,7 +1687,7 @@ dependencies = [
 [[package]]
 name = "frame-system-benchmarking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -1672,7 +1701,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -1692,9 +1721,9 @@ dependencies = [
 
 [[package]]
 name = "fs_extra"
-version = "1.1.0"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f2a4a2034423744d2cc7ca2068453168dcdb82c438419e639a26bd87839c674"
+checksum = "2022715d62ab30faffd124d40b76f4134a550a87792276512b18d63272333394"
 
 [[package]]
 name = "fuchsia-cprng"
@@ -1816,24 +1845,24 @@ checksum = "de27142b013a8e869c14957e6d2edeef89e97c289e69d042ee3a49acd8b51789"
 
 [[package]]
 name = "futures-lite"
-version = "0.1.10"
+version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbe71459749b2e8e66fb95df721b22fa08661ad384a0c5b519e11d3893b4692a"
+checksum = "97999970129b808f0ccba93211201d431fcc12d7e1ffae03a61b5cedd1a7ced2"
 dependencies = [
  "fastrand",
  "futures-core",
  "futures-io",
  "memchr",
- "parking 1.0.5",
+ "parking 2.0.0",
  "pin-project-lite",
  "waker-fn",
 ]
 
 [[package]]
 name = "futures-lite"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b77e08e656f472d8ea84c472fa8b0a7a917883048e1cf2d4e34a323cd0aaf63"
+checksum = "0db18c5f58083b54b0c416638ea73066722c2815c1e54dd8ba85ee3def593c3a"
 dependencies = [
  "fastrand",
  "futures-core",
@@ -1851,9 +1880,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0b5a30a4328ab5473878237c447333c093297bded83a4983d10f4deea240d39"
 dependencies = [
  "proc-macro-hack",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -1949,9 +1978,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "0.14.2"
+version = "0.14.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ac746a5f3bbfdadd6106868134545e684693d54d9d44f6e9588a7d54af0bf980"
+checksum = "501466ecc8a30d1d3b7fc9229b122b2ce8ed6e9d9223f1138d4babb253e51817"
 dependencies = [
  "typenum",
  "version_check",
@@ -1981,13 +2010,13 @@ dependencies = [
 
 [[package]]
 name = "getrandom"
-version = "0.1.14"
+version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7abc8dd8451921606d809ba32e95b6111925cd2906060d2dcc29c070220503eb"
+checksum = "fc587bc0ec293155d5bfa6b9891ec18a1e330c234f896ea47fbada4cadbe47e6"
 dependencies = [
  "cfg-if",
  "libc",
- "wasi",
+ "wasi 0.9.0+wasi-snapshot-preview1",
  "wasm-bindgen",
 ]
 
@@ -2069,9 +2098,9 @@ dependencies = [
 
 [[package]]
 name = "h2"
-version = "0.2.5"
+version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "79b7246d7e4b979c03fa093da39cfb3617a96bbeee6310af63991668d7e843ff"
+checksum = "993f9e0baeed60001cf565546b0d3dbe6a6ad23f2bd31644a133c641eccf6d53"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
@@ -2080,10 +2109,10 @@ dependencies = [
  "futures-util",
  "http 0.2.1",
  "indexmap",
- "log 0.4.11",
  "slab",
  "tokio 0.2.22",
  "tokio-util",
+ "tracing",
 ]
 
 [[package]]
@@ -2123,13 +2152,19 @@ dependencies = [
 
 [[package]]
 name = "hashbrown"
-version = "0.8.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab9b7860757ce258c89fd48d28b68c41713e597a7b09e793f6c6a6e2ea37c827"
+checksum = "e91b62f79061a0bc2e046024cb7ba44b08419ed238ecbd9adbd787434b9e8c25"
 dependencies = [
  "ahash 0.3.8",
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7afe4a420e3fe79967a00898cc1f4db7c8a49a9333a29f8a4bd76a253d5cd04"
 
 [[package]]
 name = "heck"
@@ -2142,9 +2177,9 @@ dependencies = [
 
 [[package]]
 name = "hermit-abi"
-version = "0.1.15"
+version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3deed196b6e7f9e44a2ae8d94225d80302d81208b1bb673fd21fe634645c85a9"
+checksum = "4c30f6d0bc6b00693347368a67d41b58f2fb851215ff1da49e90fe2c5c667151"
 dependencies = [
  "libc",
 ]
@@ -2258,6 +2293,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd179ae861f0c2e53da70d892f5f3029f9594be0c41dc5269cd371691b1dc2f9"
 
 [[package]]
+name = "httpdate"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "494b4d60369511e7dea41cf646832512a94e542f68bb9c49e54518e0f468eb47"
+
+[[package]]
 name = "humantime"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2298,25 +2339,25 @@ dependencies = [
 
 [[package]]
 name = "hyper"
-version = "0.13.6"
+version = "0.13.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a6e7655b9594024ad0ee439f3b5a7299369dc2a3f459b47c696f9ff676f9aa1f"
+checksum = "2f3afcfae8af5ad0576a31e768415edb627824129e8e5a29b8bfccb2f234e835"
 dependencies = [
  "bytes 0.5.6",
  "futures-channel",
  "futures-core",
  "futures-util",
- "h2 0.2.5",
+ "h2 0.2.6",
  "http 0.2.1",
  "http-body 0.3.1",
  "httparse",
+ "httpdate",
  "itoa",
- "log 0.4.11",
  "pin-project",
  "socket2",
- "time",
  "tokio 0.2.22",
  "tower-service",
+ "tracing",
  "want 0.3.0",
 ]
 
@@ -2329,7 +2370,7 @@ dependencies = [
  "bytes 0.5.6",
  "ct-logs",
  "futures-util",
- "hyper 0.13.6",
+ "hyper 0.13.8",
  "log 0.4.11",
  "rustls",
  "rustls-native-certs",
@@ -2384,32 +2425,39 @@ version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7ef5550a42e3740a0e71f909d4c861056a284060af885ae7aa6242820f920d9d"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "indexmap"
-version = "1.4.0"
+version = "1.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c398b2b113b55809ceb9ee3e753fcbac793f1956663f3c36549c1346015c2afe"
+checksum = "55e2e4c765aa53a0424761bf9f41aa7a6ac1efa87238f59560640e27fca028f2"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
+ "hashbrown 0.9.1",
  "serde",
 ]
 
 [[package]]
 name = "instant"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b141fdc7836c525d4d594027d318c84161ca17aaf8113ab1f81ab93ae897485"
+checksum = "63312a18f7ea8760cdd0a7c5aac1a619752a246b833545e3e36d1f81f7cd9e66"
+dependencies = [
+ "cfg-if",
+]
 
 [[package]]
 name = "integer-sqrt"
-version = "0.1.3"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f65877bf7d44897a473350b1046277941cee20b263397e90869c50b6e766088b"
+checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
+dependencies = [
+ "num-traits 0.2.12",
+]
 
 [[package]]
 name = "intervalier"
@@ -2498,18 +2546,18 @@ dependencies = [
 
 [[package]]
 name = "js-sys"
-version = "0.3.41"
+version = "0.3.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c4b9172132a62451e56142bff9afc91c8e4a4500aa5b847da36815b63bfda916"
+checksum = "ca059e81d9486668f12d455a4ea6daa600bd408134cd17e3d3fb5a32d1f016f8"
 dependencies = [
  "wasm-bindgen",
 ]
 
 [[package]]
 name = "jsonrpc-client-transports"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c6f7b1cdf66312002e15682a24430728bd13036c641163c016bc53fb686a7c2d"
+checksum = "489b9c612e60c766f751ab40fcb43cbb55a1e10bb44a9b4307ed510ca598cbd7"
 dependencies = [
  "failure",
  "futures 0.1.29",
@@ -2523,9 +2571,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f30b12567a31d48588a65b6cf870081e6ba1d7b2ae353977cb9820d512e69c70"
+checksum = "0745a6379e3edc893c84ec203589790774e4247420033e71a76d3ab4687991fa"
 dependencies = [
  "futures 0.1.29",
  "log 0.4.11",
@@ -2536,30 +2584,30 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-core-client"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d175ca0cf77439b5495612bf216c650807d252d665b4b70ab2eebd895a88fac1"
+checksum = "6f764902d7b891344a0acb65625f32f6f7c6db006952143bd650209fbe7d94db"
 dependencies = [
  "jsonrpc-client-transports",
 ]
 
 [[package]]
 name = "jsonrpc-derive"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2cc6ea7f785232d9ca8786a44e9fa698f92149dcdc1acc4aa1fc69c4993d79e"
+checksum = "99a847f9ec7bb52149b2786a17c9cb260d6effc6b8eeb8c16b343a487a7563a3"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "jsonrpc-http-server"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9996b26c0c7a59626d0ed6c5ec8bf06218e62ce1474bd2849f9b9fd38a0158c0"
+checksum = "4fb5c4513b7b542f42da107942b7b759f27120b5cc894729f88254b28dff44b7"
 dependencies = [
  "hyper 0.12.35",
  "jsonrpc-core",
@@ -2572,9 +2620,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-ipc-server"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8e8f2278fb2b277175b6e21b23e7ecf30e78daff5ee301d0a2a411d9a821a0a"
+checksum = "cf50e53e4eea8f421a7316c5f63e395f7bc7c4e786a6dc54d76fab6ff7aa7ce7"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-server-utils",
@@ -2586,9 +2634,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-pubsub"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f389c5cd1f3db258a99296892c21047e21ae73ff4c0e2d39650ea86fe994b4c7"
+checksum = "639558e0604013be9787ae52f798506ae42bf4220fe587bdc5625871cc8b9c77"
 dependencies = [
  "jsonrpc-core",
  "log 0.4.11",
@@ -2599,9 +2647,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-server-utils"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c623e1895d0d9110cb0ea7736cfff13191ff52335ad33b21bd5c775ea98b27af"
+checksum = "72f1f3990650c033bd8f6bd46deac76d990f9bbfb5f8dc8c4767bf0a00392176"
 dependencies = [
  "bytes 0.4.12",
  "globset",
@@ -2615,9 +2663,9 @@ dependencies = [
 
 [[package]]
 name = "jsonrpc-ws-server"
-version = "15.0.0"
+version = "15.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "436a92034d0137ab3e3c64a7a6350b428f31cb4d7d1a89f284bcdbcd98a7bc56"
+checksum = "6596fe75209b73a2a75ebe1dce4e60e03b88a2b25e8807b667597f6315150d22"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-server-utils",
@@ -2791,9 +2839,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lazycell"
-version = "1.2.1"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b294d6fa9ee409a054354afc4352b0b9ef7ca222c69b8812cbea9e7d2bf3783f"
+checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "leb128"
@@ -2803,9 +2851,9 @@ checksum = "3576a87f2ba00f6f106fdfcd16db1d698d648a26ad8e0573cad8537c3c362d2a"
 
 [[package]]
 name = "libc"
-version = "0.2.77"
+version = "0.2.78"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f2f96b10ec2560088a8e76961b00d47107b3a625fecb76dedb29ee7ccbf98235"
+checksum = "aa7087f49d294270db4e1928fc110c976cd4b9e5a16348e0a1df09afa99e6c98"
 
 [[package]]
 name = "libloading"
@@ -2903,7 +2951,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f753d9324cd3ec14bf04b8a8cd0d269c87f294153d6bf2a84497a63a5ad22213"
 dependencies = [
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -3059,7 +3107,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ef6c490042f549fb1025f2892dfe6083d97a77558f450c1feebe748ca9eb15a"
 dependencies = [
  "bytes 0.5.6",
- "curve25519-dalek",
+ "curve25519-dalek 2.1.0",
  "futures 0.3.5",
  "lazy_static",
  "libp2p-core",
@@ -3070,7 +3118,7 @@ dependencies = [
  "sha2 0.8.2",
  "snow",
  "static_assertions",
- "x25519-dalek",
+ "x25519-dalek 0.6.0",
  "zeroize",
 ]
 
@@ -3118,7 +3166,7 @@ dependencies = [
  "pin-project",
  "rand 0.7.3",
  "salsa20",
- "sha3",
+ "sha3 0.8.2",
 ]
 
 [[package]]
@@ -3256,18 +3304,17 @@ dependencies = [
  "hmac-drbg",
  "rand 0.7.3",
  "sha2 0.8.2",
- "subtle 2.2.3",
+ "subtle 2.3.0",
  "typenum",
 ]
 
 [[package]]
 name = "libz-sys"
-version = "1.0.25"
+version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2eb5e43362e38e2bca2fd5f5134c4d4564a23a5c28e9b95411652021a8675ebe"
+checksum = "602113192b08db8f38796c4e85c39e960c145965140e918018bcde1952429655"
 dependencies = [
  "cc",
- "libc",
  "pkg-config",
  "vcpkg",
 ]
@@ -3280,9 +3327,9 @@ checksum = "8dd5a6d5999d9907cda8ed67bbd137d3af8085216c2ac62de5be860bd41f304a"
 
 [[package]]
 name = "linked_hash_set"
-version = "0.1.3"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c7c91c4c7bbeb4f2f7c4e5be11e6a05bd6830bc37249c47ce1ad86ad453ff9c"
+checksum = "47186c6da4d81ca383c7c47c1bfc80f4b95f4720514d860a5407aaf4233f9588"
 dependencies = [
  "linked-hash-map",
 ]
@@ -3358,7 +3405,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "111b945ac72ec09eb7bc62a0fbdc3cc6e80555a7245f52a69d3921a75b53b153"
 dependencies = [
- "hashbrown 0.8.0",
+ "hashbrown 0.8.2",
 ]
 
 [[package]]
@@ -3430,21 +3477,21 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
-version = "0.5.5"
+version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c198b026e1bbf08a937e94c6c60f9ec4a2267f5b0d2eec9c1b21b061ce2be55f"
+checksum = "043175f069eda7b85febe4a74abbaeff828d9f8b448515d3151a14a3542811aa"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
 ]
 
 [[package]]
 name = "memory-db"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0777fbb396f666701d939e9b3876c18ada6b3581257d88631f2590bc366d8ebe"
+checksum = "36f36ddb0b2cdc25d38babba472108798e3477f02be5165f038c5e393e50c57a"
 dependencies = [
  "hash-db",
- "hashbrown 0.8.0",
+ "hashbrown 0.8.2",
  "parity-util-mem",
 ]
 
@@ -3490,18 +3537,19 @@ version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c214bf3d90099b52f3e4b328ae0fe34837fd0fab683ad1e10fceb4629106df48"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "miniz_oxide"
-version = "0.4.0"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be0f75932c1f6cfae3c04000e40114adf955636e19040f9c0a2c380702aa1c7f"
+checksum = "c60c0dfe32c10b43a144bad8fc83538c52f58302c92300ea7ec7bf7b38d5a7b9"
 dependencies = [
  "adler",
+ "autocfg 1.0.1",
 ]
 
 [[package]]
@@ -3588,24 +3636,24 @@ checksum = "0debeb9fcf88823ea64d64e4a815ab1643f33127d995978e099942ce38f25238"
 
 [[package]]
 name = "multihash"
-version = "0.11.2"
+version = "0.11.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f75db05d738947aa5389863aadafbcf2e509d7ba099dc2ddcdf4fc66bf7a9e03"
+checksum = "567122ab6492f49b59def14ecc36e13e64dca4188196dd0cd41f9f3f979f3df6"
 dependencies = [
  "blake2b_simd",
  "blake2s_simd",
- "digest 0.8.1",
- "sha-1",
- "sha2 0.8.2",
- "sha3",
- "unsigned-varint 0.3.3",
+ "digest 0.9.0",
+ "sha-1 0.9.1",
+ "sha2 0.9.1",
+ "sha3 0.9.1",
+ "unsigned-varint 0.5.1",
 ]
 
 [[package]]
 name = "multimap"
-version = "0.8.1"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8883adfde9756c1d30b0f519c9b8c502a94b41ac62f696453c37c7fc0a958ce"
+checksum = "1255076139a83bb467426e7f8d0134968a8118844faa755985e077cf31850333"
 
 [[package]]
 name = "multistream-select"
@@ -3659,10 +3707,20 @@ dependencies = [
 ]
 
 [[package]]
-name = "net2"
-version = "0.2.34"
+name = "nb-connect"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ba7c918ac76704fb42afcbbb43891e72731f3dcca3bef2a19786297baf14af7"
+checksum = "701f47aeb98466d0a7fea67e2c2f667c33efa1f2e4fd7f76743aac1153196f72"
+dependencies = [
+ "libc",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "net2"
+version = "0.2.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3ebc3ec692ed7c9a255596c67808dee269f64655d8baf7b4f0638e51ba1d6853"
 dependencies = [
  "cfg-if",
  "libc",
@@ -3724,7 +3782,7 @@ version = "0.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "090c7f9998ee0ff65aa5b723e4009f7b217707f1fb5ea551329cc4d6231fb304"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "num-integer",
  "num-traits 0.2.12",
 ]
@@ -3735,7 +3793,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6b19411a9719e753aff12e5187b74d60d3dc449ec3f4dc21e3989c3f554bc95"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "num-traits 0.2.12",
 ]
 
@@ -3745,7 +3803,7 @@ version = "0.1.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8d59457e662d541ba17869cf51cf177c0b5f0cbf476c66bdc90bf1edac4f875b"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "num-traits 0.2.12",
 ]
 
@@ -3755,7 +3813,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5c000134b5dbf44adc5cb772486d335293351644b801551abe8f75c84cfa4aef"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "num-bigint",
  "num-integer",
  "num-traits 0.2.12",
@@ -3776,7 +3834,7 @@ version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ac267bcc07f48ee5f8935ab0d24f316fb722d7a1292e2913f0cc196b29ffd611"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "libm",
 ]
 
@@ -3855,7 +3913,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3871,7 +3929,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3886,7 +3944,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3911,7 +3969,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3925,7 +3983,7 @@ dependencies = [
 [[package]]
 name = "pallet-collective"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3941,7 +3999,7 @@ dependencies = [
 [[package]]
 name = "pallet-democracy"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3956,7 +4014,7 @@ dependencies = [
 [[package]]
 name = "pallet-elections-phragmen"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3971,7 +4029,7 @@ dependencies = [
 [[package]]
 name = "pallet-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3987,7 +4045,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4009,7 +4067,7 @@ dependencies = [
 [[package]]
 name = "pallet-identity"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -4025,7 +4083,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4045,7 +4103,7 @@ dependencies = [
 [[package]]
 name = "pallet-indices"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4061,7 +4119,7 @@ dependencies = [
 [[package]]
 name = "pallet-membership"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4075,7 +4133,7 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4090,7 +4148,7 @@ dependencies = [
 [[package]]
 name = "pallet-nicks"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4104,7 +4162,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4119,7 +4177,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences-benchmarking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4140,7 +4198,7 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "2.0.1"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4155,7 +4213,7 @@ dependencies = [
 [[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4168,7 +4226,7 @@ dependencies = [
 [[package]]
 name = "pallet-recovery"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -4183,7 +4241,7 @@ dependencies = [
 [[package]]
 name = "pallet-scheduler"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4198,7 +4256,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4218,7 +4276,7 @@ dependencies = [
 [[package]]
 name = "pallet-session-benchmarking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4234,7 +4292,7 @@ dependencies = [
 [[package]]
 name = "pallet-society"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4248,7 +4306,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4270,18 +4328,18 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-curve"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "pallet-sudo"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4295,7 +4353,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4313,7 +4371,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -4330,7 +4388,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -4348,7 +4406,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -4361,7 +4419,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4376,7 +4434,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -4392,7 +4450,7 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -4438,9 +4496,9 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "1.3.4"
+version = "1.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "34d38aeaffc032ec69faa476b3caaca8d4dd7f3f798137ff30359e5c7869ceb6"
+checksum = "7c740e5fbcb6847058b40ac7e5574766c6388f585e184d769910fe0d3a2ca861"
 dependencies = [
  "arrayvec 0.5.1",
  "bitvec",
@@ -4451,14 +4509,14 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "1.2.1"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cd20ff7e0399b274a5f5bb37b712fccb5b3a64b9128200d1c3cc40fe709cb073"
+checksum = "198db82bb1c18fc00176004462dd809b2a6d851669550aa17af6dacd21ae0c14"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -4493,7 +4551,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "297ff91fa36aec49ce183484b102f6b75b46776822bd81525bfc4cc9b0dd0f5c"
 dependencies = [
  "cfg-if",
- "hashbrown 0.8.0",
+ "hashbrown 0.8.2",
  "impl-trait-for-tuples",
  "jemallocator",
  "parity-util-mem-derive",
@@ -4509,8 +4567,8 @@ version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f557c32c6d268a07c921471619c0295f5efad3a0e76d4f97a05c091a51d110b2"
 dependencies = [
- "proc-macro2 1.0.18",
- "syn 1.0.33",
+ "proc-macro2 1.0.24",
+ "syn 1.0.42",
  "synstructure",
 ]
 
@@ -4533,16 +4591,16 @@ dependencies = [
  "mio",
  "mio-extras",
  "rand 0.7.3",
- "sha-1",
+ "sha-1 0.8.2",
  "slab",
  "url 2.1.1",
 ]
 
 [[package]]
 name = "parking"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50d4a6da31f8144a32532fe38fe8fb439a6842e0ec633f0037f0144c14e7f907"
+checksum = "6cb300f271742d4a2a66c01b6b2fa0c83dfebd2e0bf11addb879a3547b4ed87c"
 
 [[package]]
 name = "parking"
@@ -4715,29 +4773,29 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.23"
+version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca4433fff2ae79342e497d9f8ee990d174071408f28f726d6d83af93e58e48aa"
+checksum = "2b9e280448854bd91559252582173b3bd1f8e094a0e644791c0628ca9b1f144f"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "0.4.23"
+version = "0.4.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2c0e815c3ee9a031fdf5af21c10aa17c573c9c6a566328d99e3936c34e36461f"
+checksum = "c8c8b352676bc6a4c3d71970560b913cea444a7a921cc2e2d920225e4b91edaa"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.7"
+version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "282adbf10f2698a7a77f8e983a74b2d18176c19a7fd32a45446139ae7b02b715"
+checksum = "e555d9e657502182ac97b539fb3dae8b79cda19e3e4f8ffb5e8de4f18df93c95"
 
 [[package]]
 name = "pin-utils"
@@ -4747,9 +4805,9 @@ checksum = "8b870d8c151b6f2fb93e84a13146138f05d02ed11c7e7c54f8826aaaf7c9f184"
 
 [[package]]
 name = "pkg-config"
-version = "0.3.17"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05da548ad6865900e60eaba7f589cc0783590a92e940c26953ff81ddbab2d677"
+checksum = "d36492546b6af1463394d46f0c834346f31548646f6ba10849802c9c9a27ac33"
 
 [[package]]
 name = "platforms"
@@ -4806,7 +4864,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "env_logger",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -4861,7 +4919,7 @@ name = "polkadot-collator-protocol"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "env_logger",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -4926,7 +4984,7 @@ dependencies = [
 name = "polkadot-node-collation-generation"
 version = "0.1.0"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-erasure-coding",
@@ -4943,7 +5001,7 @@ name = "polkadot-node-core-av-store"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "kvdb",
  "kvdb-memorydb",
@@ -4953,6 +5011,7 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
  "sp-core",
@@ -4964,7 +5023,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "bitvec",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-erasure-coding",
@@ -4990,7 +5049,7 @@ name = "polkadot-node-core-bitfield-signing"
 version = "0.1.0"
 dependencies = [
  "bitvec",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-node-subsystem",
@@ -5004,7 +5063,7 @@ dependencies = [
 name = "polkadot-node-core-candidate-selection"
 version = "0.1.0"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-node-primitives",
@@ -5019,13 +5078,14 @@ name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-blockchain",
@@ -5041,6 +5101,7 @@ dependencies = [
  "maplit",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
@@ -5077,7 +5138,7 @@ name = "polkadot-node-core-provisioner"
 version = "0.1.0"
 dependencies = [
  "bitvec",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "lazy_static",
@@ -5100,6 +5161,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
  "sp-blockchain",
@@ -5136,7 +5198,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
@@ -5151,7 +5213,6 @@ dependencies = [
  "sc-network",
  "smallvec 1.4.2",
  "sp-core",
- "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -5159,7 +5220,7 @@ name = "polkadot-node-subsystem-test-helpers"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
@@ -5182,26 +5243,25 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "env_logger",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
  "parity-scale-codec",
- "parking_lot 0.10.2",
  "pin-project",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sc-keystore",
  "sc-network",
  "smallvec 1.4.2",
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
  "streamunordered",
+ "substrate-prometheus-endpoint",
 ]
 
 [[package]]
@@ -5217,6 +5277,7 @@ dependencies = [
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
  "sp-core",
@@ -5227,7 +5288,7 @@ dependencies = [
 name = "polkadot-parachain"
 version = "0.8.24"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "parity-scale-codec",
@@ -5258,6 +5319,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "sp-runtime",
@@ -5618,6 +5680,7 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
  "sp-application-crypto",
@@ -5797,6 +5860,19 @@ dependencies = [
 
 [[package]]
 name = "polling"
+version = "0.1.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8fffa183f6bd5f1a8a3e1f60ce2f8d5621e350eed84a62d6daaa5b9d1aaf6fbd"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "log 0.4.11",
+ "wepoll-sys-stjepang",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "polling"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e0720e0b9ea9d52451cf29d3413ba8a9303f8815d9d9653ef70e03ff73e65566"
@@ -5810,18 +5886,18 @@ dependencies = [
 
 [[package]]
 name = "poly1305"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9b42192ab143ed7619bf888a7f9c6733a9a2153b218e2cd557cfdb52fbf9bb1"
+checksum = "22ce46de8e53ee414ca4d02bfefac75d8c12fba948b76622a40b4be34dfce980"
 dependencies = [
  "universal-hash",
 ]
 
 [[package]]
 name = "polyval"
-version = "0.4.0"
+version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d9a50142b55ab3ed0e9f68dfb3709f1d90d29da24e91033f28b96330643107dc"
+checksum = "a5884790f1ce3553ad55fec37b5aaac5882e0e845a2612df744d6c85c9bf046c"
 dependencies = [
  "cfg-if",
  "universal-hash",
@@ -5829,15 +5905,15 @@ dependencies = [
 
 [[package]]
 name = "ppv-lite86"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "237a5ed80e274dbc66f86bd59c1e25edc039660be53194b5fe0a482e0f2612ea"
+checksum = "c36fa947111f5c62a733b652544dd0016a43ce89619538a8ef92724a6f501a20"
 
 [[package]]
 name = "predicates"
-version = "1.0.4"
+version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "347a1b6f0b21e636bc9872fb60b83b8e185f6f5516298b8238699f7f9a531030"
+checksum = "96bfead12e90dccead362d62bb2c90a5f6fc4584963645bc7f71a735e0b0735a"
 dependencies = [
  "difference",
  "predicates-core",
@@ -5883,44 +5959,42 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e10d4b51f154c8a7fb96fd6dad097cb74b863943ec010ac94b9fd1be8861fe1e"
+checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
 dependencies = [
  "toml",
 ]
 
 [[package]]
 name = "proc-macro-error"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fc175e9777c3116627248584e8f8b3e2987405cabe1c0adf7d1dd28f09dc7880"
+checksum = "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c"
 dependencies = [
  "proc-macro-error-attr",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "version_check",
 ]
 
 [[package]]
 name = "proc-macro-error-attr"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cc9795ca17eb581285ec44936da7fc2335a3f34f2ddd13118b6f4d515435c50"
+checksum = "a1be40180e52ecc98ad80b184934baf3d0d29f979574e439af5a55274b35f869"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
- "syn-mid",
  "version_check",
 ]
 
 [[package]]
 name = "proc-macro-hack"
-version = "0.5.16"
+version = "0.5.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7e0456befd48169b9f13ef0f0ad46d492cf9d2dbb918bcf38e01eed4ce3ec5e4"
+checksum = "99c605b9a0adc77b7211c6b1f722dcb613d68d66859a44f3d485a6da332b0598"
 
 [[package]]
 name = "proc-macro-nested"
@@ -5939,9 +6013,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.18"
+version = "1.0.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "beae6331a816b1f65d04c45b078fd8e6c93e8071771f41b8163255bbd8d7c8fa"
+checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
 dependencies = [
  "unicode-xid 0.2.1",
 ]
@@ -5996,9 +6070,9 @@ checksum = "537aa19b95acde10a12fec4301466386f757403de4cd4e5b4fa78fb5ecb18f72"
 dependencies = [
  "anyhow",
  "itertools 0.8.2",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -6054,7 +6128,7 @@ version = "1.0.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aa563d17ecb180e500da1cfd2b028310ac758de548efdd203e18f283af693f37"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
 ]
 
 [[package]]
@@ -6276,11 +6350,11 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
-version = "1.3.1"
+version = "1.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "62f02856753d04e03e26929f820d0a0a337ebe71f849801eea335d464b349080"
+checksum = "dcf6960dc9a5b4ee8d3e4c5787b4a112a8818e0290a42ff664ad60692fdf2032"
 dependencies = [
- "autocfg 1.0.0",
+ "autocfg 1.0.1",
  "crossbeam-deque",
  "either",
  "rayon-core",
@@ -6288,12 +6362,12 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.7.1"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e92e15d89083484e11353891f1af602cc661426deb9564c298b270c726973280"
+checksum = "e8c4fec834fb6e6d2dd5eece3c7b432a52f0ba887cf40e595190c4107edc08bf"
 dependencies = [
+ "crossbeam-channel",
  "crossbeam-deque",
- "crossbeam-queue",
  "crossbeam-utils",
  "lazy_static",
  "num_cpus",
@@ -6310,15 +6384,15 @@ dependencies = [
 
 [[package]]
 name = "redox_syscall"
-version = "0.1.56"
+version = "0.1.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2439c63f3f6139d1b57529d16bc3b8bb855230c8efcc5d3a896c8bea7c3b1e84"
+checksum = "41cc0f7e4d5d4544e8861606a285bb08d3e70712ccc7d2b84d7c0ccfaf4b05ce"
 
 [[package]]
 name = "redox_users"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09b23093265f8d200fa7b4c2c76297f47e681c655f6f1285a8780d6a022f7431"
+checksum = "de0737333e7a9502c789a36d7c7fa6092a49895d4faa31ca5df163857ded2e9d"
 dependencies = [
  "getrandom",
  "redox_syscall",
@@ -6349,9 +6423,9 @@ version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d21b475ab879ef0e315ad99067fa25778c3b0377f57f1b00207448dac1a3144"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -6504,11 +6578,11 @@ dependencies = [
 
 [[package]]
 name = "rust-argon2"
-version = "0.7.0"
+version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bc8af4bda8e1ff4932523b94d3dd20ee30a87232323eda55903ffd71d2fb017"
+checksum = "9dab61250775933275e84053ac235621dfb739556d5c54a2f2e9313b7cf43a19"
 dependencies = [
- "base64 0.11.0",
+ "base64 0.12.3",
  "blake2b_simd",
  "constant_time_eq",
  "crossbeam-utils",
@@ -6549,9 +6623,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.18.0"
+version = "0.18.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cac94b333ee2aac3284c5b8a1b7fb4dd11cba88c244e3fe33cdbd047af0eb693"
+checksum = "5d1126dcf58e93cee7d098dbda643b5f92ed724f1f6a63007c1116eed6700c81"
 dependencies = [
  "base64 0.12.3",
  "log 0.4.11",
@@ -6621,10 +6695,10 @@ dependencies = [
 [[package]]
 name = "sc-authority-discovery"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "bytes 0.5.6",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "either",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -6650,7 +6724,7 @@ dependencies = [
 [[package]]
 name = "sc-basic-authorship"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -6674,7 +6748,7 @@ dependencies = [
 [[package]]
 name = "sc-block-builder"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
@@ -6691,7 +6765,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -6708,24 +6782,24 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "sc-cli"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "ansi_term 0.12.1",
  "atty",
  "bip39",
  "chrono",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "fdlimit",
  "futures 0.3.5",
  "hex",
@@ -6769,9 +6843,9 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "fnv",
  "futures 0.3.5",
  "hash-db",
@@ -6806,7 +6880,7 @@ dependencies = [
 [[package]]
 name = "sc-client-db"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "blake2-rfc",
  "hash-db",
@@ -6836,7 +6910,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "sc-client-api",
  "sp-blockchain",
@@ -6847,9 +6921,9 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "fork-tree",
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -6892,9 +6966,9 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -6916,7 +6990,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -6929,7 +7003,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -6952,7 +7026,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-uncles"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "sc-client-api",
@@ -6966,9 +7040,9 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "lazy_static",
  "libsecp256k1",
  "log 0.4.11",
@@ -6994,9 +7068,9 @@ dependencies = [
 [[package]]
 name = "sc-executor-common"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "log 0.4.11",
  "parity-scale-codec",
  "parity-wasm",
@@ -7011,7 +7085,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmi"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
@@ -7026,7 +7100,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmtime"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
@@ -7044,9 +7118,9 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "finality-grandpa",
  "fork-tree",
  "futures 0.3.5",
@@ -7082,9 +7156,9 @@ dependencies = [
 [[package]]
 name = "sc-finality-grandpa-rpc"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "finality-grandpa",
  "futures 0.3.5",
  "jsonrpc-core",
@@ -7106,7 +7180,7 @@ dependencies = [
 [[package]]
 name = "sc-informant"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "ansi_term 0.12.1",
  "futures 0.3.5",
@@ -7124,10 +7198,10 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-util",
  "hex",
@@ -7138,13 +7212,13 @@ dependencies = [
  "sp-application-crypto",
  "sp-core",
  "sp-keystore",
- "subtle 2.2.3",
+ "subtle 2.3.0",
 ]
 
 [[package]]
 name = "sc-light"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "hash-db",
  "lazy_static",
@@ -7163,14 +7237,14 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "async-std",
  "async-trait",
  "bitflags",
  "bs58",
  "bytes 0.5.6",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "either",
  "erased-serde",
  "fnv",
@@ -7217,7 +7291,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -7232,13 +7306,13 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "hyper 0.13.6",
+ "hyper 0.13.8",
  "hyper-rustls",
  "log 0.4.11",
  "num_cpus",
@@ -7259,7 +7333,7 @@ dependencies = [
 [[package]]
 name = "sc-peerset"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "libp2p",
@@ -7272,7 +7346,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "substrate-prometheus-endpoint",
@@ -7281,7 +7355,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "hash-db",
@@ -7314,9 +7388,9 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -7338,7 +7412,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-server"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.1.29",
  "jsonrpc-core",
@@ -7356,9 +7430,9 @@ dependencies = [
 [[package]]
 name = "sc-service"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "directories",
  "exit-future",
  "futures 0.1.29",
@@ -7419,7 +7493,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
@@ -7433,7 +7507,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -7454,7 +7528,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "erased-serde",
  "log 0.4.11",
@@ -7473,9 +7547,9 @@ dependencies = [
 [[package]]
 name = "sc-transaction-graph"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "linked-hash-map",
  "log 0.4.11",
@@ -7494,9 +7568,9 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-diagnose",
  "intervalier",
@@ -7535,13 +7609,13 @@ checksum = "021b403afe70d81eea68f6ea12f6b3c9588e5d536a94c3bf80f15e7faa267862"
 dependencies = [
  "arrayref",
  "arrayvec 0.5.1",
- "curve25519-dalek",
+ "curve25519-dalek 2.1.0",
  "getrandom",
  "merlin",
  "rand 0.7.3",
  "rand_core 0.5.1",
  "sha2 0.8.2",
- "subtle 2.2.3",
+ "subtle 2.3.0",
  "zeroize",
 ]
 
@@ -7578,9 +7652,9 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e367622f934864ffa1c704ba2b82280aab856e3d8213c84c5720257eb34b15b9"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -7642,12 +7716,6 @@ checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
 
 [[package]]
 name = "send_wrapper"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a0eddf2e8f50ced781f288c19f18621fa72a3779e3cb58dbf23b07469b0abeb4"
-
-[[package]]
-name = "send_wrapper"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "686ef91cf020ad8d4aca9a7047641fd6add626b7b89e14546c2b6a76781cf822"
@@ -7660,29 +7728,29 @@ checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
 
 [[package]]
 name = "serde"
-version = "1.0.114"
+version = "1.0.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5317f7588f0a5078ee60ef675ef96735a1442132dc645eb1d12c018620ed8cd3"
+checksum = "96fe57af81d28386a513cbc6858332abc6117cfdb5999647c6444b8f43a370a5"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.114"
+version = "1.0.116"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a0be94b04690fbaed37cddffc5c134bf537c8e3329d53e982fe04c374978f8e"
+checksum = "f630a6370fd8e457873b4bd2ffdae75408bc291ba72be773772a4c2a065d9ae8"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "serde_json"
-version = "1.0.56"
+version = "1.0.58"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3433e879a558dde8b5e8feb2a04899cf34fdde1fafb894687e52105fc1162ac3"
+checksum = "a230ea9107ca2220eea9d46de97eddcb04cd00e92d13dda78e478dd33fa82bd4"
 dependencies = [
  "itoa",
  "ryu",
@@ -7699,6 +7767,19 @@ dependencies = [
  "digest 0.8.1",
  "fake-simd",
  "opaque-debug 0.2.3",
+]
+
+[[package]]
+name = "sha-1"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "170a36ea86c864a3f16dd2687712dd6646f7019f301e57537c7f4dc9f5916770"
+dependencies = [
+ "block-buffer 0.9.0",
+ "cfg-if",
+ "cpuid-bool",
+ "digest 0.9.0",
+ "opaque-debug 0.3.0",
 ]
 
 [[package]]
@@ -7737,6 +7818,18 @@ dependencies = [
  "digest 0.8.1",
  "keccak",
  "opaque-debug 0.2.3",
+]
+
+[[package]]
+name = "sha3"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f81199417d4e5de3f04b1e871023acea7389672c4135918f05aa9cbf2f2fa809"
+dependencies = [
+ "block-buffer 0.9.0",
+ "digest 0.9.0",
+ "keccak",
+ "opaque-debug 0.3.0",
 ]
 
 [[package]]
@@ -7786,9 +7879,9 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "signal-hook-registry"
-version = "1.2.0"
+version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "94f478ede9f64724c5d173d7bb56099ec3e2d9fc2774aac65d34b8b890405f41"
+checksum = "a3e12110bc539e657a646068aaf5eb5b63af9d0c1f7b29c97113fad80e15f035"
 dependencies = [
  "arc-swap",
  "libc",
@@ -7796,9 +7889,9 @@ dependencies = [
 
 [[package]]
 name = "signature"
-version = "1.1.0"
+version = "1.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65211b7b6fc3f14ff9fc7a2011a434e3e6880585bd2e9e9396315ae24cbf7852"
+checksum = "29f060a7d147e33490ec10da418795238fd7545bba241504d6b31a409f2e6210"
 
 [[package]]
 name = "slab"
@@ -7845,9 +7938,9 @@ version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a945ec7f7ce853e89ffa36be1e27dce9a43e82ff9093bf3461c30d5da74ed11b"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -7894,11 +7987,11 @@ checksum = "67583f4ccc13bbb105a0752058d8ad66c47753d85445952809bcaca891954f83"
 dependencies = [
  "async-channel",
  "async-executor 0.1.2",
- "async-io 0.1.5",
- "blocking 0.5.0",
+ "async-io 0.1.11",
+ "blocking 0.5.2",
  "cfg-if",
  "easy-parallel",
- "futures-lite 0.1.10",
+ "futures-lite 0.1.11",
  "num_cpus",
 ]
 
@@ -7914,9 +8007,9 @@ dependencies = [
 
 [[package]]
 name = "snow"
-version = "0.7.1"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32bf8474159a95551661246cda4976e89356999e3cbfef36f493dacc3fae1e8e"
+checksum = "795dd7aeeee24468e5a32661f6d27f7b5cbed802031b2d7640c7b10f8fb2dd50"
 dependencies = [
  "aes-gcm",
  "blake2",
@@ -7926,15 +8019,15 @@ dependencies = [
  "ring",
  "rustc_version",
  "sha2 0.9.1",
- "subtle 2.2.3",
- "x25519-dalek",
+ "subtle 2.3.0",
+ "x25519-dalek 1.1.0",
 ]
 
 [[package]]
 name = "socket2"
-version = "0.3.12"
+version = "0.3.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03088793f677dce356f3ccc2edb1b314ad191ab702a5de3faf49304f7e104918"
+checksum = "b1fa70dc5c8104ec096f4fe7ede7a221d35ae13dcd19ba1ad9a81d2cab9a1c44"
 dependencies = [
  "cfg-if",
  "libc",
@@ -7944,9 +8037,9 @@ dependencies = [
 
 [[package]]
 name = "soketto"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85457366ae0c6ce56bf05a958aef14cd38513c236568618edbcd9a8c52cb80b0"
+checksum = "b5c71ed3d54db0a699f4948e1bb3e45b450fa31fe602621dee6680361d569c88"
 dependencies = [
  "base64 0.12.3",
  "bytes 0.5.6",
@@ -7955,15 +8048,15 @@ dependencies = [
  "httparse",
  "log 0.4.11",
  "rand 0.7.3",
- "sha-1",
+ "sha-1 0.9.1",
 ]
 
 [[package]]
 name = "sp-allocator"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "log 0.4.11",
  "sp-core",
  "sp-std",
@@ -7973,7 +8066,7 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "hash-db",
  "parity-scale-codec",
@@ -7988,19 +8081,19 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "blake2-rfc",
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "sp-application-crypto"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -8012,7 +8105,7 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "integer-sqrt",
  "num-traits 0.2.12",
@@ -8025,7 +8118,7 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -8037,7 +8130,7 @@ dependencies = [
 [[package]]
 name = "sp-authorship"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -8048,7 +8141,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -8060,9 +8153,9 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "log 0.4.11",
  "lru 0.4.3",
  "parity-scale-codec",
@@ -8077,7 +8170,7 @@ dependencies = [
 [[package]]
 name = "sp-chain-spec"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "serde",
  "serde_json",
@@ -8086,10 +8179,10 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "libp2p",
@@ -8113,7 +8206,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "merlin",
  "parity-scale-codec",
@@ -8133,7 +8226,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -8142,7 +8235,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-vrf"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
@@ -8154,7 +8247,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "base58",
  "blake2-rfc",
@@ -8197,7 +8290,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "kvdb",
  "parking_lot 0.10.2",
@@ -8206,17 +8299,17 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "sp-externalities"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -8227,7 +8320,7 @@ dependencies = [
 [[package]]
 name = "sp-finality-grandpa"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "finality-grandpa",
  "log 0.4.11",
@@ -8244,7 +8337,7 @@ dependencies = [
 [[package]]
 name = "sp-finality-tracker"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -8254,9 +8347,9 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "sp-core",
@@ -8266,7 +8359,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "hash-db",
@@ -8290,7 +8383,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "lazy_static",
  "sp-core",
@@ -8300,11 +8393,11 @@ dependencies = [
 
 [[package]]
 name = "sp-keystore"
-version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+version = "0.8.0"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "async-trait",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "merlin",
  "parity-scale-codec",
@@ -8317,7 +8410,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -8329,18 +8422,18 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections-compact"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "sp-offchain"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -8350,7 +8443,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "backtrace",
  "log 0.4.11",
@@ -8359,7 +8452,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "serde",
  "sp-core",
@@ -8368,7 +8461,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -8390,7 +8483,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
@@ -8406,19 +8499,19 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "sp-serializer"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "serde",
  "serde_json",
@@ -8427,7 +8520,7 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -8440,7 +8533,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -8450,7 +8543,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "hash-db",
  "log 0.4.11",
@@ -8471,12 +8564,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 
 [[package]]
 name = "sp-storage"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -8489,7 +8582,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -8503,7 +8596,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
@@ -8516,9 +8609,9 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "parity-scale-codec",
@@ -8531,7 +8624,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "hash-db",
  "memory-db",
@@ -8545,7 +8638,7 @@ dependencies = [
 [[package]]
 name = "sp-utils"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "futures-core",
@@ -8557,7 +8650,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "impl-serde",
  "parity-scale-codec",
@@ -8569,7 +8662,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -8585,9 +8678,9 @@ checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "stable_deref_trait"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dba1a27d3efae4351c8051072d619e3ade2820635c3958d826bfea39d59b54c8"
+checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
 name = "static_assertions"
@@ -8615,11 +8708,12 @@ dependencies = [
 
 [[package]]
 name = "stream-cipher"
-version = "0.4.1"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09f8ed9974042b8c3672ff3030a69fcc03b74c47c3d1ecb7755e8a3626011e88"
+checksum = "c80e15f898d8d8f25db24c253ea615cc14acf418ff307822995814e7d42cfa89"
 dependencies = [
- "generic-array 0.14.2",
+ "block-cipher",
+ "generic-array 0.14.4",
 ]
 
 [[package]]
@@ -8651,9 +8745,9 @@ checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
 name = "structopt"
-version = "0.3.15"
+version = "0.3.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de2f5e239ee807089b62adce73e48c625e0ed80df02c7ab3f068f5db5281065c"
+checksum = "a33f6461027d7f08a13715659b2948e1602c31a3756aeae9378bfe7518c72e82"
 dependencies = [
  "clap",
  "lazy_static",
@@ -8662,15 +8756,15 @@ dependencies = [
 
 [[package]]
 name = "structopt-derive"
-version = "0.4.8"
+version = "0.4.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "510413f9de616762a4fbeab62509bf15c729603b72d7cd71280fbca431b1c118"
+checksum = "c92e775028122a4b3dd55d58f14fc5120289c69bee99df1d117ae30f84b225c9"
 dependencies = [
  "heck",
  "proc-macro-error",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -8689,9 +8783,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0054a7df764039a6cd8592b9de84be4bec368ff081d203a7d5371cbfa8e65c81"
 dependencies = [
  "heck",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -8710,7 +8804,7 @@ dependencies = [
 [[package]]
 name = "substrate-browser-utils"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "chrono",
  "console_error_panic_hook",
@@ -8736,7 +8830,7 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "platforms",
 ]
@@ -8744,7 +8838,7 @@ dependencies = [
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures 0.3.5",
@@ -8767,12 +8861,12 @@ dependencies = [
 [[package]]
 name = "substrate-prometheus-endpoint"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "async-std",
- "derive_more 0.99.9",
+ "derive_more 0.99.11",
  "futures-util",
- "hyper 0.13.6",
+ "hyper 0.13.8",
  "log 0.4.11",
  "prometheus",
  "tokio 0.2.22",
@@ -8781,7 +8875,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-client"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.1.29",
  "futures 0.3.5",
@@ -8808,7 +8902,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-utils"
 version = "2.0.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "futures 0.3.5",
  "substrate-test-utils-derive",
@@ -8818,11 +8912,11 @@ dependencies = [
 [[package]]
 name = "substrate-test-utils-derive"
 version = "0.8.0"
-source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#360d7302db306b6f920ee9075030ea3a1f16dfce"
+source = "git+https://github.com/rakanalh/substrate?branch=async-keystore-auth-discovery#9e170f25083dabc2d1854470d53aa1138a5e1141"
 dependencies = [
  "proc-macro-crate",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -8839,9 +8933,9 @@ checksum = "2d67a5a62ba6e01cb2192ff309324cb4875d0c451d55fe2319433abe7a05a8ee"
 
 [[package]]
 name = "subtle"
-version = "2.2.3"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "502d53007c02d7605a05df1c1a73ee436952781653da5d0bf57ad608f66932c1"
+checksum = "343f3f510c2915908f155e94f17220b19ccfacf2a64a2a5d8004f2c3e311e7fd"
 
 [[package]]
 name = "syn"
@@ -8856,24 +8950,13 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.33"
+version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8d5d96e8cbb005d6959f119f773bfaebb5684296108fb32600c00cde305b2cd"
+checksum = "9c51d92969d209b54a98397e1b91c8ae82d8c87a7bb87df0b29aa2ad81454228"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
  "unicode-xid 0.2.1",
-]
-
-[[package]]
-name = "syn-mid"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7be3539f6c128a931cf19dcee741c1af532c7fd387baa739c03dd2e96479338a"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
 ]
 
 [[package]]
@@ -8882,9 +8965,9 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "unicode-xid 0.2.1",
 ]
 
@@ -8990,9 +9073,9 @@ version = "1.0.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bd80fc12f73063ac132ac92aceea36734f04a1d93c1240c6944e23a3b8841793"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -9015,11 +9098,12 @@ dependencies = [
 
 [[package]]
 name = "time"
-version = "0.1.43"
+version = "0.1.44"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8a50ef2360fbd1eeb0ecd46795a87a19024eb4b53c5dc916ca1fd95fe62438"
+checksum = "6db9e6914ab8b1ae1c260a4ae7a49b6c5611b40328a735b21862567685e73255"
 dependencies = [
  "libc",
+ "wasi 0.10.0+wasi-snapshot-preview1",
  "winapi 0.3.9",
 ]
 
@@ -9059,9 +9143,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "0.3.3"
+version = "0.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "53953d2d3a5ad81d9f844a32f14ebb121f50b650cd59d0ee2a07cf13c617efed"
+checksum = "238ce071d267c5710f9d31451efec16c5ee22de34df17cc05e56cbc92e967117"
 
 [[package]]
 name = "tokio"
@@ -9191,9 +9275,9 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f0c3acc6aa564495a0f2e1d59fab677cd7f81a19994cfc7f3ad0e64301560389"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
@@ -9230,9 +9314,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-rustls"
-version = "0.14.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "228139ddd4fea3fa345a29233009635235833e52807af7ea6448ead03890d6a9"
+checksum = "e12831b255bcfa39dc0436b01e19fea231a37db570686c06ee72c423479f889a"
 dependencies = [
  "futures-core",
  "rustls",
@@ -9377,11 +9461,13 @@ checksum = "e987b6bf443f4b5b3b6f38704195592cca41c5bb7aedd3c3693c7081f8289860"
 
 [[package]]
 name = "tracing"
-version = "0.1.19"
+version = "0.1.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6d79ca061b032d6ce30c660fded31189ca0b9922bf483cd70759f13a2d86786c"
+checksum = "b0987850db3733619253fe60e17cb59b82d37c7e6c0236bb81e4d6b87c879f27"
 dependencies = [
  "cfg-if",
+ "log 0.4.11",
+ "pin-project-lite",
  "tracing-attributes",
  "tracing-core",
 ]
@@ -9392,16 +9478,16 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "80e0ccfc3378da0cce270c946b676a376943f5cd16aeba64568e7939806f4ada"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
 ]
 
 [[package]]
 name = "tracing-core"
-version = "0.1.16"
+version = "0.1.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5bcf46c1f1f06aeea2d6b81f3c863d0930a596c86ad1920d4e5bad6dd1d7119a"
+checksum = "f50de3927f93d202783f4513cda820ab47ef17f624b03c096e86ef00c67e6b5f"
 dependencies = [
  "lazy_static",
 ]
@@ -9419,9 +9505,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-serde"
-version = "0.1.1"
+version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6ccba2f8f16e0ed268fc765d9b7ff22e965e7185d32f8f1ec8294fe17d86e79"
+checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
 dependencies = [
  "serde",
  "tracing-core",
@@ -9429,9 +9515,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-subscriber"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "abd165311cc4d7a555ad11cc77a37756df836182db0d81aac908c8184c584f40"
+checksum = "82bb5079aa76438620837198db8a5c529fb9878c730bc2b28179b0241cf04c10"
 dependencies = [
  "ansi_term 0.12.1",
  "chrono",
@@ -9456,12 +9542,12 @@ checksum = "a7f741b240f1a48843f9b8e0444fb55fb2a4ff67293b50a9179dfd5ea67f8d41"
 
 [[package]]
 name = "trie-db"
-version = "0.22.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39f1a9a9252d38c5337cf0c5392988821a5cf1b2103245016968f2ab41de9e38"
+checksum = "9e55f7ace33d6237e14137e386f4e1672e2a5c6bbc97fef9f438581a143971f0"
 dependencies = [
  "hash-db",
- "hashbrown 0.8.0",
+ "hashbrown 0.8.2",
  "log 0.4.11",
  "rustc-hex",
  "smallvec 1.4.2",
@@ -9478,9 +9564,9 @@ dependencies = [
 
 [[package]]
 name = "try-lock"
-version = "0.2.2"
+version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
+checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
 
 [[package]]
 name = "twox-hash"
@@ -9499,9 +9585,9 @@ checksum = "373c8a200f9e67a0c95e62a4f52fbf80c23b4381c05a17845531982fa99e6b33"
 
 [[package]]
 name = "uint"
-version = "0.8.3"
+version = "0.8.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "173cd16430c206dc1a430af8a89a0e9c076cf15cb42b4aedb10e8cc8fee73681"
+checksum = "9db035e67dfaf7edd9aebfe8676afcd63eed53c8a4044fed514c8cccf1835177"
 dependencies = [
  "byteorder 1.3.4",
  "crunchy",
@@ -9566,15 +9652,9 @@ version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8326b2c654932e3e4f9196e69d08fdf7cfd718e1dc6f66b347e6024a0c961402"
 dependencies = [
- "generic-array 0.14.2",
- "subtle 2.2.3",
+ "generic-array 0.14.4",
+ "subtle 2.3.0",
 ]
-
-[[package]]
-name = "unsigned-varint"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f67332660eb59a6f1eb24ff1220c9e8d01738a8503c6002e30bcfe4bd9f2b4a9"
 
 [[package]]
 name = "unsigned-varint"
@@ -9634,9 +9714,9 @@ checksum = "6454029bf181f092ad1b853286f23e2c507d8e8194d01d92da4a55c274a5508c"
 
 [[package]]
 name = "vec-arena"
-version = "0.5.0"
+version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17dfb54bf57c9043f4616cb03dab30eff012cc26631b797d8354b916708db919"
+checksum = "8cb18268690309760d59ee1a9b21132c126ba384f374c59a94db4bc03adeb561"
 
 [[package]]
 name = "vec-arena"
@@ -9673,9 +9753,9 @@ dependencies = [
 
 [[package]]
 name = "waker-fn"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9571542c2ce85ce642e6b58b3364da2fb53526360dfb7c211add4f5c23105ff7"
+checksum = "9d5b2c62b4012a3e1eca5a7e077d13b3bf498c4073e33ccd58626607748ceeca"
 
 [[package]]
 name = "want"
@@ -9705,10 +9785,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cccddf32554fecc6acb585f82a32a72e28b48f8c4c1883ddfeeeaa96f7d8e519"
 
 [[package]]
-name = "wasm-bindgen"
-version = "0.2.64"
+name = "wasi"
+version = "0.10.0+wasi-snapshot-preview1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a634620115e4a229108b71bde263bb4220c483b3f07f5ba514ee8d15064c4c2"
+checksum = "1a143597ca7c7793eff794def352d41792a93c481eb1042423ff7ff72ba2c31f"
+
+[[package]]
+name = "wasm-bindgen"
+version = "0.2.68"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1ac64ead5ea5f05873d7c12b545865ca2b8d28adfc50a49b84770a3a97265d42"
 dependencies = [
  "cfg-if",
  "serde",
@@ -9718,24 +9804,24 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-backend"
-version = "0.2.64"
+version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e53963b583d18a5aa3aaae4b4c1cb535218246131ba22a71f05b518098571df"
+checksum = "f22b422e2a757c35a73774860af8e112bff612ce6cb604224e8e47641a9e4f68"
 dependencies = [
  "bumpalo",
  "lazy_static",
  "log 0.4.11",
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "wasm-bindgen-shared",
 ]
 
 [[package]]
 name = "wasm-bindgen-futures"
-version = "0.4.14"
+version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dba48d66049d2a6cc8488702e7259ab7afc9043ad0dc5448444f46f2a453b362"
+checksum = "b7866cab0aa01de1edf8b5d7936938a7e397ee50ce24119aef3e1eaa3b6171da"
 dependencies = [
  "cfg-if",
  "js-sys",
@@ -9745,9 +9831,9 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro"
-version = "0.2.64"
+version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fcfd5ef6eec85623b4c6e844293d4516470d8f19cd72d0d12246017eb9060b8"
+checksum = "6b13312a745c08c469f0b292dd2fcd6411dba5f7160f593da6ef69b64e407038"
 dependencies = [
  "quote 1.0.7",
  "wasm-bindgen-macro-support",
@@ -9755,34 +9841,33 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-macro-support"
-version = "0.2.64"
+version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9adff9ee0e94b926ca81b57f57f86d5545cdcb1d259e21ec9bdd95b901754c75"
+checksum = "f249f06ef7ee334cc3b8ff031bfc11ec99d00f34d86da7498396dc1e3b1498fe"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
 
 [[package]]
 name = "wasm-bindgen-shared"
-version = "0.2.64"
+version = "0.2.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f7b90ea6c632dd06fd765d44542e234d5e63d9bb917ecd64d79778a13bd79ae"
+checksum = "1d649a3145108d7d3fbcde896a468d1bd636791823c9921135218ad89be08307"
 
 [[package]]
 name = "wasm-timer"
-version = "0.2.4"
+version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "324c5e65a08699c9c4334ba136597ab22b85dccd4b65dd1e36ccf8f723a95b54"
+checksum = "be0ecb0db480561e9a7642b5d3e4187c128914e58aa84330b9493e3eb68c5e7f"
 dependencies = [
  "futures 0.3.5",
  "js-sys",
- "parking_lot 0.9.0",
+ "parking_lot 0.11.0",
  "pin-utils",
- "send_wrapper 0.2.0",
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
@@ -9980,27 +10065,27 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "21.0.0"
+version = "24.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b1844f66a2bc8526d71690104c0e78a8e59ffa1597b7245769d174ebb91deb5"
+checksum = "6ff1e3bd3ad0b2ee7784add89c30dc96b89a54b43e5d6d95d774eda1863b3500"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.22"
+version = "1.0.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce85d72b74242c340e9e3492cfb602652d7bb324c3172dd441b5577e39a2e18c"
+checksum = "c7c0bb2872ae453f98cec6ff1bf1a71cde1da6041fce8b0ac39d51eb033e9ec0"
 dependencies = [
  "wast",
 ]
 
 [[package]]
 name = "web-sys"
-version = "0.3.41"
+version = "0.3.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "863539788676619aac1a23e2df3655e96b32b0e05eb72ca34ba045ad573c625d"
+checksum = "4bf6ef87ad7ae8008e15a355ce696bed26012b7caa21605188cfd8214ab51e2d"
 dependencies = [
  "js-sys",
  "wasm-bindgen",
@@ -10036,9 +10121,9 @@ dependencies = [
 
 [[package]]
 name = "wepoll-sys-stjepang"
-version = "1.0.6"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6fd319e971980166b53e17b1026812ad66c6b54063be879eb182342b55284694"
+checksum = "1fdfbb03f290ca0b27922e8d48a0997b4ceea12df33269b9f75e713311eb178d"
 dependencies = [
  "cc",
 ]
@@ -10188,9 +10273,27 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "637ff90c9540fa3073bb577e65033069e4bae7c79d49d74aa3ffdf5342a53217"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 2.1.0",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "x25519-dalek"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bc614d95359fd7afc321b66d2107ede58b246b844cf5d8a0adcca413e439f088"
+dependencies = [
+ "curve25519-dalek 3.0.0",
+ "rand_core 0.5.1",
+ "zeroize",
+]
+
+[[package]]
+name = "xcm"
+version = "0.8.22"
+dependencies = [
+ "parity-scale-codec",
 ]
 
 [[package]]
@@ -10209,22 +10312,22 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.1.0"
+version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3cbac2ed2ba24cc90f5e06485ac8c7c1e5449fe8911aef4d8877218af021a5b8"
+checksum = "05f33972566adbd2d3588b0491eb94b98b43695c4ef897903470ede4f3f5a28a"
 dependencies = [
  "zeroize_derive",
 ]
 
 [[package]]
 name = "zeroize_derive"
-version = "1.0.0"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de251eec69fc7c1bc3923403d18ececb929380e016afe103da75f396704f8ca2"
+checksum = "c3f369ddb18862aba61aa49bf31e74d29f0f162dec753063200e1dc084345d16"
 dependencies = [
- "proc-macro2 1.0.18",
+ "proc-macro2 1.0.24",
  "quote 1.0.7",
- "syn 1.0.33",
+ "syn 1.0.42",
  "synstructure",
 ]
 

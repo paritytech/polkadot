@@ -16,6 +16,7 @@ parity-scale-codec = "1.3.4"
 sp-runtime = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery" }
 sp-staking = { git = "https://github.com/rakanalh/substrate", branch = "async-keystore-auth-discovery", default-features = false }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 arrayvec = "0.5.1"
 indexmap = "1.4.0"
