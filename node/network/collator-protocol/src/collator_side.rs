@@ -29,7 +29,6 @@ use polkadot_subsystem::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
 		NetworkBridgeMessage,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, PeerSet, NetworkBridgeEvent, RequestId,
@@ -37,6 +36,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem_util::{
 	request_validators_ctx,
 	request_validator_groups_ctx,
+	metrics::{self, prometheus},
 };
 
 #[derive(Clone, Default)]

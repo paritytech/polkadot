@@ -26,7 +26,6 @@ use log::trace;
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
 	errors::RuntimeApiError,
-	metrics::{self, prometheus},
 	messages::{
 		AllMessages, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
@@ -35,7 +34,10 @@ use polkadot_node_network_protocol::{
 	PeerId, ReputationChange as Rep,
 };
 use polkadot_primitives::v1::CollatorId;
-use polkadot_node_subsystem_util as util;
+use polkadot_node_subsystem_util::{
+	self as util,
+	metrics::{self, prometheus},
+};
 
 mod collator_side;
 mod validator_side;
@@ -109,9 +111,6 @@ impl<Context> Subsystem<Context> for CollatorProtocolSubsystem
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
-	// The actual `Metrics` type depends on whether we're on the collator or validator side.
-	type Metrics = ();
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "collator-protocol-subsystem",

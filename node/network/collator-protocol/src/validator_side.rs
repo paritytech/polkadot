@@ -34,13 +34,15 @@ use polkadot_subsystem::{
 	messages::{
 		AllMessages, CandidateSelectionMessage, CollatorProtocolMessage, NetworkBridgeMessage,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, RequestId,
 	NetworkBridgeEvent,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{
+	TimeoutExt as _,
+	metrics::{self, prometheus},
+};
 
 use super::{modify_reputation, TARGET, Result};
 
