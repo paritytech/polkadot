@@ -45,7 +45,6 @@ use polkadot_subsystem::{
 		ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage, ValidationFailed,
 		RuntimeApiRequest,
 	},
-	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	self as util,
@@ -55,6 +54,7 @@ use polkadot_node_subsystem_util::{
 	request_from_runtime,
 	Validator,
 	delegated_subsystem,
+	metrics::{self, prometheus},
 };
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
