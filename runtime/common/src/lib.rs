@@ -61,8 +61,9 @@ parameter_types! {
 	/// Portion of the block available to normal class of dispatches.
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 	/// Maximum weight that a _single_ extrinsic can take.
-	pub MaximumExtrinsicWeight: Weight = AvailableBlockRatio::get()
-		.saturating_sub(AVERAGE_ON_INITIALIZE_WEIGHT) * MaximumBlockWeight::get();
+	pub MaximumExtrinsicWeight: Weight =
+		AvailableBlockRatio::get().saturating_sub(AVERAGE_ON_INITIALIZE_WEIGHT)
+		* MaximumBlockWeight::get();
 	/// Maximum length of block. 5MB.
 	pub const MaximumBlockLength: u32 = 5 * 1024 * 1024;
 	/// The portion of the `AvailableBlockRatio` that we adjust the fees with. Blocks filled less

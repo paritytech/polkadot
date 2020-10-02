@@ -25,7 +25,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder, AVERAGE_ON_INITIALIZE_WEIGHT,
+	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
@@ -339,6 +339,9 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 16;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
+		.saturating_sub(BlockExecutionWeight::get())
+		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 type SlashCancelOrigin = EnsureOneOf<
@@ -371,7 +374,7 @@ impl pallet_staking::Trait for Runtime {
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	// The unsigned solution weight targeted by the OCW. We set it to the maximum possible value of
 	// a single extrinsic.
-	type OffchainSolutionWeightLimit = MaximumExtrinsicWeight;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type WeightInfo = weights::pallet_staking::WeightInfo;
 }
 
