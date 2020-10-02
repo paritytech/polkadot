@@ -30,13 +30,16 @@ use frame_support::{
 	weights::Weight, traits::Randomness as RandomnessT,
 };
 use crate::inclusion;
+use crate::paras;
 
 /// A test runtime struct.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Test;
 
 impl_outer_origin! {
-	pub enum Origin for Test { }
+	pub enum Origin for Test {
+		paras
+	}
 }
 
 impl_outer_dispatch! {
@@ -101,7 +104,9 @@ impl crate::initializer::Trait for Test {
 
 impl crate::configuration::Trait for Test { }
 
-impl crate::paras::Trait for Test { }
+impl crate::paras::Trait for Test {
+	type Origin = Origin;
+}
 
 impl crate::router::Trait for Test { }
 

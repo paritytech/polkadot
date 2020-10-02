@@ -282,18 +282,18 @@ impl CandidateSelectionJob {
 			candidate_receipt
 		);
 
-		let succeeded =
+		let result =
 			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
 				log::warn!(
 					target: TARGET,
 					"failed to forward invalidity note: {:?}",
 					err
 				);
-				false
+				Err(())
 			} else {
-				true
+				Ok(())
 			};
-		self.metrics.on_invalid_selection(succeeded);
+		self.metrics.on_invalid_selection(result);
 	}
 }
 
@@ -363,11 +363,11 @@ async fn second_candidate(
 	{
 		Err(err) => {
 			log::warn!(target: TARGET, "failed to send a seconding message");
-			metrics.on_second(false);
+			metrics.on_second(Err(()));
 			Err(err.into())
 		}
 		Ok(_) => {
-			metrics.on_second(true);
+			metrics.on_second(Ok(()));
 			Ok(())
 		}
 	}
@@ -391,21 +391,21 @@ struct MetricsInner {
 	invalid_selections: prometheus::CounterVec<prometheus::U64>,
 }
 
-/// Candidate backing metrics.
+/// Candidate selection metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_second(&self, succeeded: bool) {
+	fn on_second(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			let label = if succeeded { "succeeded" } else { "failed" };
+			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.seconds.with_label_values(&[label]).inc();
 		}
 	}
 
-	fn on_invalid_selection(&self, succeeded: bool) {
+	fn on_invalid_selection(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			let label = if succeeded { "succeeded" } else { "failed" };
+			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.invalid_selections.with_label_values(&[label]).inc();
 		}
 	}

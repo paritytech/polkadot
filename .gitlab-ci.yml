@@ -13,6 +13,11 @@ stages:
 
 image:                             paritytech/ci-linux:production
 
+workflow:
+  rules:
+    - if: $CI_COMMIT_TAG
+    - if: $CI_COMMIT_BRANCH
+
 variables:
   GIT_STRATEGY:                    fetch
   GIT_DEPTH:                       100
@@ -53,19 +58,19 @@ variables:
     - sccache -s
 
 .build-refs:                       &build-refs
-  only:
-    - master
-    - schedules
-    - web
-    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .test-refs:                        &test-refs
-  only:
-    - master
-    - schedules
-    - web
-    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
-    - /^[0-9]+$/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 #### stage:                        test
 
@@ -73,8 +78,8 @@ check-runtime:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  only:
-    - /^[0-9]+$/
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   variables:
     GITLAB_API:                    "https://gitlab.parity.io/api/v4"
     GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
@@ -87,8 +92,8 @@ check-line-width:
   stage:                           test
   image:                           paritytech/tools:latest
   <<:                              *kubernetes-env
-  only:
-    - /^[0-9]+$/
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     - ./scripts/gitlab/check_line_width.sh
   interruptible:                   true
@@ -97,7 +102,6 @@ check-line-width:
 test-deterministic-wasm:
   stage:                           test
   <<:                              *docker-env
-  except:
   script:
     - ./scripts/gitlab/test_deterministic_wasm.sh
 
@@ -142,9 +146,9 @@ build-wasm-release:
   <<:                             *collect-artifacts
   <<:                             *docker-env
   <<:                             *compiler_info
-  # Note: We likely only want to do this for tagged releases, hence the 'only:'
-  only:
-    - /^v[0-9]+\.[0-9]+.*$/        # i.e. v1.0, v2.1rc1
+  # Note: We likely only want to do this for tagged releases, hence the 'rules:'
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   script:
     - time wasm-pack build --target web --out-dir wasm --release cli -- --no-default-features --features browser
     - mkdir -p ./artifacts/wasm
@@ -155,9 +159,17 @@ build-wasm-release:
 build-linux-release:               &build
   stage:                           build
   <<:                              *collect-artifacts
-  <<:                              *build-refs
   <<:                              *docker-env
   <<:                              *compiler_info
+  rules:
+    # .build-refs with manual on PRs
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+      when: manual
+      allow_failure: true
   script:
     - time cargo build --release --verbose
     - mkdir -p ./artifacts
@@ -176,19 +188,6 @@ build-linux-release:               &build
     - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
     - cp -r scripts/docker/* ./artifacts
     - sccache -s
-
-build-linux-release-pr:            &build
-  stage:                           build
-  <<:                              *collect-artifacts
-  <<:                              *test-refs
-  <<:                              *docker-env
-  <<:                              *compiler_info
-  script:
-    - time cargo build --release --verbose
-    - mkdir -p ./artifacts
-    - mv ./target/release/polkadot ./artifacts/.
-    - sha256sum ./artifacts/polkadot | tee ./artifacts/polkadot.sha256
-  when: manual
 
 generate-impl-guide:
   stage:                          build
@@ -288,7 +287,7 @@ check-labels:
   stage:                          .post
   image:                          paritytech/tools:latest
   <<:                             *kubernetes-env
-  only:
-    - /^[0-9]+$/
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
   script:
     - ./scripts/gitlab/check_labels.sh
