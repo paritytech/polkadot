@@ -31,12 +31,13 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor, CandidateEvent,
-	CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
-	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
-	ValidatorSignature,
+	AvailableData, BackedCandidate, BlockNumber,  Header as BlockHeader,
+	CandidateDescriptor, CandidateEvent, CandidateReceipt, 
+	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	TransientValidationData, ValidationCode, ValidatorId, ValidationData,
+	ValidatorIndex, ValidatorSignature,
 };
 use std::sync::Arc;
 
@@ -322,6 +323,9 @@ pub enum ChainApiMessage {
 	/// Request the block number by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
+	/// Request the block header by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockHeader(Hash, ChainApiResponseChannel<Option<BlockHeader>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.
