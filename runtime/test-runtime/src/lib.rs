@@ -439,7 +439,9 @@ impl initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-impl paras::Trait for Runtime {}
+impl paras::Trait for Runtime {
+	type Origin = Origin;
+}
 
 impl router::Trait for Runtime {}
 
@@ -482,7 +484,7 @@ construct_runtime! {
 		Configuration: configuration::{Module, Call, Storage},
 		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
 		Initializer: initializer::{Module, Call, Storage},
-		Paras: paras::{Module, Call, Storage},
+		Paras: paras::{Module, Call, Storage, Origin},
 		Scheduler: scheduler::{Module, Call, Storage},
 
 		// Sudo. Last module.
