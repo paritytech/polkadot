@@ -28,7 +28,7 @@ use primitives::v1::{
 	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
 use runtime_common::{
-	purchase, SlowAdjustingFeeUpdate,
+	SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,

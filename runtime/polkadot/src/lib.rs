@@ -25,7 +25,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder,
+	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
