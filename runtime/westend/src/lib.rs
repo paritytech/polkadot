@@ -28,7 +28,7 @@ use primitives::v1::{
 	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
 use runtime_common::{
-	purchase, SlowAdjustingFeeUpdate,
+	SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
@@ -741,7 +741,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		0
 	}
 }
 

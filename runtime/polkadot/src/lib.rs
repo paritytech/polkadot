@@ -25,7 +25,7 @@ use runtime_common::{
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
-	MaximumExtrinsicWeight, purchase, ParachainSessionKeyPlaceholder,
+	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
@@ -902,8 +902,6 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>();
-
 		// Update scheduler origin usage
 		#[derive(Encode, Decode)]
 		#[allow(non_camel_case_types)]
