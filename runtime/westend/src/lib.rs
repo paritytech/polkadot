@@ -741,7 +741,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		0
 	}
 }
 
