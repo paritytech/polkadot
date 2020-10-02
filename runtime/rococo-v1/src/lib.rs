@@ -62,6 +62,7 @@ use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
 use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
+use runtime_common::paras_registrar;
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -376,6 +377,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Module, Call, Storage},
 		Router: parachains_router::{Module, Call, Storage},
 
+		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 	}
 }
@@ -728,7 +730,9 @@ impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains_paras::Trait for Runtime { }
+impl parachains_paras::Trait for Runtime {
+	type Origin = Origin;
+}
 
 impl parachains_router::Trait for Runtime { }
 
@@ -741,3 +745,9 @@ impl parachains_initializer::Trait for Runtime {
 }
 
 impl paras_sudo_wrapper::Trait for Runtime { }
+
+impl paras_registrar::Trait for Runtime {
+	type Currency = Balances;
+	type ParathreadDeposit = ParathreadDeposit;
+	type Origin = Origin;
+}
