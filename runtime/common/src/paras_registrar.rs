@@ -411,6 +411,7 @@ mod tests {
 		type UnsignedPriority = StakingUnsignedPriority;
 		type MaxIterations = ();
 		type MinSolutionScoreBump = ();
+		type OffchainSolutionWeightLimit = MaximumBlockWeight;
 		type WeightInfo = ();
 	}
 
