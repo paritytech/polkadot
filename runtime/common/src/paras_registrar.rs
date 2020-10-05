@@ -151,6 +151,7 @@ decl_module! {
 			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			<paras::Module<T>>::schedule_para_cleanup(id);
+			<router::Module::<T>>::schedule_para_cleanup(id);
 
 			Ok(())
 		}
