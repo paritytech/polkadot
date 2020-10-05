@@ -37,7 +37,15 @@ function make_sed_expr() {
   printf "s/^/%8s %s: /" "$name" "$type"
 }
 
-# start a node and name its output
+# turn a string into a flag
+function flagify() {
+  printf -- '--%s' "$(tr '[:upper:]' '[:lower:]' <<< "$1")"
+}
+
+# start a node and label its output
+#
+# This function takes a single argument, the node name.
+# The name must be one of those which can be passed to the polkadot binary, in un-flagged form.
 function run_node() {
   name="$1"
   # create a named pipe so we can get the node's PID while also sedding its output
@@ -50,26 +58,21 @@ function run_node() {
   node_pipes+=("$stdout")
   node_pipes+=("$stderr")
 
-  # compute offsets
+  # compute ports from offset
   local port=$((30333+node_offset))
   local rpc_port=$((9933+node_offset))
   local ws_port=$((9944+node_offset))
-  node_offset++
+  node_offset=$((node_offset+1))
 
   # start the node
-  # TODO: do we need a custom chainspec? Probably.
   "$polkadot" \
-    --chain polkadot \
+    --chain polkadot-local \
     --tmp \
-    --dev \
     --port "$port" \
     --rpc-port "$rpc_port" \
     --ws-port "$ws_port" \
-    --rpc-external \
-    --ws-external \
     --rpc-cors all \
-    --validator \
-    --name "$name" \
+    "$(flagify "$name")" \
   > "$stdout" \
   2> "$stderr" \
   &
@@ -95,8 +98,8 @@ function finish {
 trap finish EXIT
 
 # start the nodes
-run_node alice
-run_node bob
+run_node Alice
+run_node Bob
 
 # now wait; this will exit on its own only if both subprocesses exit
 # the practical implication, as both subprocesses are supposed to run forever, is that
