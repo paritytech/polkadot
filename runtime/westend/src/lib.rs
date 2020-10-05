@@ -28,7 +28,7 @@ use primitives::v1::{
 	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
 };
 use runtime_common::{
-	purchase, SlowAdjustingFeeUpdate,
+	SlowAdjustingFeeUpdate,
 	impls::{CurrencyToVoteHandler, ToAuthor},
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
@@ -310,6 +310,9 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
+		.saturating_sub(BlockExecutionWeight::get())
+		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 impl pallet_staking::Trait for Runtime {
@@ -334,6 +337,7 @@ impl pallet_staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
@@ -741,7 +745,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		0
 	}
 }
 
