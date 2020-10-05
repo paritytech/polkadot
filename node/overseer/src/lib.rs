@@ -1883,7 +1883,7 @@ mod tests {
 	struct TestCollator;
 
 	impl Future for TestCollator {
-		type Output = Collation;
+		type Output = Option<Collation>;
 
 		fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
 			panic!("at the Disco")
