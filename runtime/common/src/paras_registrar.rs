@@ -243,6 +243,7 @@ impl<T: Trait> Module<T> {
 		ensure!(is_parachain, Error::<T>::InvalidChainId);
 
 		<paras::Module<T>>::schedule_para_cleanup(id);
+		<router::Module::<T>>::schedule_para_cleanup(id);
 
 		Ok(())
 	}
