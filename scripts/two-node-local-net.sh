@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 
-# run a two node local net
+# Run a two node local net.
+# Unlike the docker-compose script in the /docker folder, this version builds the nodes based
+# on the current state of the code, instead of depending on a published version.
 
 set -e
 
@@ -45,7 +47,9 @@ function flagify() {
 # start a node and label its output
 #
 # This function takes a single argument, the node name.
-# The name must be one of those which can be passed to the polkadot binary, in un-flagged form.
+# The name must be one of those which can be passed to the polkadot binary, in un-flagged form,
+# one of:
+#   alice, bob, charlie, dave, eve, ferdie, one, two
 function run_node() {
   name="$1"
   # create a named pipe so we can get the node's PID while also sedding its output
