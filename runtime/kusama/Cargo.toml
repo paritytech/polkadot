@@ -150,15 +150,19 @@ runtime-benchmarks = [
 	"runtime-common/runtime-benchmarks",
 	"frame-benchmarking",
 	"frame-support/runtime-benchmarks",
-	"frame-system-benchmarking",
 	"frame-system/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
+	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
+	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",
+	"pallet-indices/runtime-benchmarks",
+	"pallet-multisig/runtime-benchmarks",
+	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-society/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -168,8 +172,10 @@ runtime-benchmarks = [
 	"pallet-vesting/runtime-benchmarks",
 	"pallet-offences-benchmarking",
 	"pallet-session-benchmarking",
+	"frame-system-benchmarking",
 	"hex-literal",
 ]
+
 # When enabled, the runtime api will not be build.
 #
 # This is required by Cumulus to access certain types of the
