@@ -198,16 +198,19 @@ where
 	// We may be already connected to some of the validators. In that case,
 	// advertise a collation to them right away.
 	// To the validators that we are not connected to, issue a connection request.
-	let (advertise_to, connect_to): (Vec<_>, Vec<_>) = our_validators.into_iter()
-		.partition(|v| if let Some(peer) = state.known_validators.get(&v) {
-			state.peer_views.contains_key(peer)
-		} else {
-			false
-		});
+	let mut connect_to = Vec::new();
 
-	for advertise_to in advertise_to.into_iter() {
-		if let Some(peer) = state.known_validators.get(&advertise_to).cloned() {
-			advertise_collation(ctx, state, relay_parent, vec![peer]).await?;
+	for validator in our_validators.into_iter() {
+		if let Some(peer) = state.known_validators.get(&validator).cloned() {
+			if let Some(view) = state.peer_views.get(&peer) {
+				if view.contains(&relay_parent) {
+					advertise_collation(ctx, state, relay_parent, vec![peer]).await?;
+				}
+			} else {
+				connect_to.push(validator);
+			}
+		} else {
+			connect_to.push(validator);
 		}
 	}
 
