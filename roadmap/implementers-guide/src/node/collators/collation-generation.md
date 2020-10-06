@@ -36,7 +36,10 @@ pub struct Collation {
 
 struct CollationGenerationConfig {
   key: CollatorPair,
-  collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Option<Collation>>>>
+  /// Collate will be called with the relay chain hash the parachain should build 
+  /// a block on and the `ValidationData` that provides information about the state
+  /// of the parachain on the relay chain.
+  collator: Box<dyn Fn(Hash, &ValidationData) -> Box<dyn Future<Output = Option<Collation>>>>
   para_id: ParaId,
 }
 ```

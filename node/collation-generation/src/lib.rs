@@ -233,7 +233,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let persisted_validation_data_hash = validation_data.persisted.hash();
 
-				let collation = match (task_config.collator)(&validation_data).await {
+				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
 					Some(collation) => collation,
 					None => {
 						log::debug!(
@@ -406,7 +406,7 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_vd: &ValidationData| {
+				collator: Box::new(|_: Hash, _vd: &ValidationData| {
 					Box::new(TestCollator)
 				}),
 				para_id: para_id.into(),
