@@ -244,8 +244,8 @@ impl Ord for CommittedCandidateReceipt {
 /// Nevertheless, we expose it so the backing validators can validate the outputs of a
 /// candidate before voting to submit it to the relay-chain and so collators can
 /// collate candidates that satisfy the criteria implied these transient validation data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct ValidationData<N = BlockNumber> {
 	/// The persisted validation data.
 	pub persisted: PersistedValidationData<N>,

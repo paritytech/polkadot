@@ -108,11 +108,11 @@ struct State {
 	/// We will keep up to one local collation per relay-parent.
 	collations: HashMap<Hash, (CandidateReceipt, PoV)>,
 
-	/// Our validator groups active leafs. 
+	/// Our validator groups active leafs.
 	our_validators_groups: HashMap<Hash, Vec<ValidatorId>>,
 
 	/// Validators we know about via `ConnectToValidators` message.
-	/// 
+	///
 	/// These are the only validators we are interested in talking to and as such
 	/// all actions from peers not in this map will be ignored.
 	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
@@ -124,7 +124,7 @@ struct State {
 }
 
 /// Distribute a collation.
-/// 
+///
 /// Figure out the core our para is assigned to and the relevant validators.
 /// Issue a connection request to these validators.
 /// If the para is not scheduled or next up on any core, at the relay-parent,
@@ -162,8 +162,8 @@ where
 	// Determine which core the para collated-on is assigned to.
 	// If it is not scheduled then ignore the message.
 	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
-	    Some(core) => core,
-	    None => {
+		Some(core) => core,
+		None => {
 			warn!(
 				target: TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
@@ -174,8 +174,8 @@ where
 
 	// Determine the group on that core and the next group on that core.
 	let our_validators = match determine_our_validators(ctx, our_core, num_cores, relay_parent).await? {
-	    Some(validators) => validators,
-	    None => {
+		Some(validators) => validators,
+		None => {
 			warn!(
 				target: TARGET,
 				"There are no validators assigned to {:?} core", our_core,
@@ -228,7 +228,7 @@ where
 }
 
 /// Figure out a group of validators assigned to the para being collated on.
-/// 
+///
 /// This returns validators for the current group and the next group.
 async fn determine_our_validators<Context>(
 	ctx: &mut Context,
@@ -260,7 +260,7 @@ where
 
 	let validators = validators.await??;
 
-	let validators = connect_to_validators 
+	let validators = connect_to_validators
 		.into_iter()
 		.map(|idx| validators[idx as usize].clone())
 		.collect();
@@ -324,8 +324,8 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	let collating_on = match state.collating_on {
-	    Some(collating_on) => collating_on,
-	    None => {
+		Some(collating_on) => collating_on,
+		None => {
 			return Ok(());
 		}
 	};
@@ -461,19 +461,19 @@ where
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-	    Declare(_) => {
+		Declare(_) => {
 			warn!(
 				target: TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
-	    AdvertiseCollation(_, _) => {
+		AdvertiseCollation(_, _) => {
 			warn!(
 				target: TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 		}
-	    RequestCollation(request_id, relay_parent, para_id) => {
+		RequestCollation(request_id, relay_parent, para_id) => {
 			match state.collating_on {
 				Some(our_para_id) => {
 					if our_para_id == para_id {
@@ -497,7 +497,7 @@ where
 				}
 			}
 		}
-	    Collation(_, _, _) => {
+		Collation(_, _, _) => {
 			warn!(
 				target: TARGET,
 				"Collation message is not expected on the collator side of the protocol",
@@ -570,7 +570,7 @@ where
 	use NetworkBridgeEvent::*;
 
 	match bridge_message {
-	    PeerConnected(peer_id, _observed_role) => {
+		PeerConnected(peer_id, _observed_role) => {
 			handle_peer_connected(ctx, state, peer_id).await?;
 		}
 		PeerViewChange(peer_id, view) => {
@@ -582,7 +582,7 @@ where
 		OurViewChange(view) => {
 			handle_our_view_change(state, view).await?;
 		}
-	    PeerMessage(remote, msg) => {
+		PeerMessage(remote, msg) => {
 			handle_incoming_peer_message(ctx, state, remote, msg).await?;
 		}
 	}
