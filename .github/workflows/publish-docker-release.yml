@@ -23,6 +23,8 @@ jobs:
         with:
           push: true
           file: scripts/docker/Dockerfile.release
-          tags: martinparity/polkadot:latest
+          tags: |
+            martinparity/polkadot:latest
+            martinparity/polkadot:${{ github.event.release.tag_name }}
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
