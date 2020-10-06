@@ -197,7 +197,6 @@ where
 
 	// We may be already connected to some of the validators. In that case,
 	// advertise a collation to them right away.
-	// To the validators that we are not connected to, issue a connection request.
 	for validator in our_validators.iter() {
 		if let Some(peer) = state.known_validators.get(&validator).cloned() {
 			if let Some(view) = state.peer_views.get(&peer) {
