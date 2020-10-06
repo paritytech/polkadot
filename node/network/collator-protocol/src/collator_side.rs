@@ -122,7 +122,7 @@ struct State {
 	/// all actions from peers not in this map will be ignored.
 	/// Entries in this map will be cleared as validator groups in `our_validator_groups`
 	/// go out of scope with their respective deactivated leafs.
-	known_validators: HashMap<PeerId, ValidatorId>,
+	known_validators: HashMap<ValidatorId, PeerId>,
 
 	/// Use to await for the next validator connection and revoke the request.
 	last_connection_request: Option<validator_discovery::ConnectionRequest>,
@@ -195,8 +195,24 @@ where
 
 	state.our_validators_groups.insert(relay_parent, our_validators.clone());
 
+	// We may be already connected to some of the validators. In that case,
+	// advertise a collation to them right away.
+	// To the validators that we are not connected to, issue a connection request.
+	let (advertise_to, connect_to): (Vec<_>, Vec<_>) = our_validators.into_iter()
+		.partition(|v| if let Some(peer) = state.known_validators.get(&v) {
+			state.peer_views.contains_key(peer)
+		} else {
+			false
+		});
+
+	for advertise_to in advertise_to.into_iter() {
+		if let Some(peer) = state.known_validators.get(&advertise_to).cloned() {
+			advertise_collation(ctx, state, relay_parent, vec![peer]).await?;
+		}
+	}
+
 	// Issue a discovery request for the validators of the current group and the next group.
-	connect_to_validators(ctx, relay_parent, state, our_validators).await?;
+	connect_to_validators(ctx, relay_parent, state, connect_to).await?;
 
 	state.collations.insert(relay_parent, (receipt, pov));
 
@@ -554,9 +570,11 @@ async fn handle_validator_connected<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	state.peer_views.entry(peer_id.clone()).or_default();
-
-	declare(ctx, state, vec![peer_id]).await?;
+	if !state.peer_views.contains_key(&peer_id) {
+		// Only declare the new peers.
+		declare(ctx, state, vec![peer_id.clone()]).await?;
+		state.peer_views.insert(peer_id, Default::default());
+	}
 
 	Ok(())
 }
@@ -607,7 +625,7 @@ async fn handle_our_view_change(
 	for removed in removed.into_iter() {
 		state.collations.remove(removed);
 		if let Some(group) = state.our_validators_groups.remove(removed) {
-			state.known_validators.retain(|_, v| !group.contains(v));
+			state.known_validators.retain(|v, _| !group.contains(v));
 		}
 	}
 
@@ -636,7 +654,7 @@ where
 	loop {
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
-				state.known_validators.insert(peer_id.clone(), validator_id);
+				state.known_validators.insert(validator_id, peer_id.clone());
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id).await {
 					warn!(
 						target: TARGET,
