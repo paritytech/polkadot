@@ -43,7 +43,7 @@ use sp_core::RuntimeDebug;
 #[cfg(feature = "std")]
 use serde::{Serialize, Deserialize};
 
-pub use crate::Origin;
+use crate::Origin;
 
 pub trait Trait: frame_system::Trait + configuration::Trait {
 	/// The outer origin type.
