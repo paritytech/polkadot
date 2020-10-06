@@ -150,7 +150,7 @@ struct State {
 	/// Peers that have declared themselves as collators.
 	known_collators: HashMap<PeerId, CollatorId>,
 
-	/// Advertisements received from collators. We accept one advertisment
+	/// Advertisements received from collators. We accept one advertisement
 	/// per collator per source per relay-parent.
 	advertisements: HashMap<PeerId, HashSet<(ParaId, Hash)>>,
 
@@ -817,9 +817,9 @@ mod tests {
 			.await
 	}
 
-	// As we receive a relevan advertisment act on it and issue a collation request.
+	// As we receive a relevant advertisement act on it and issue a collation request.
 	#[test]
-	fn act_on_advertisment() {
+	fn act_on_advertisement() {
 		let test_state = TestState::default();
 
 		test_harness(|test_harness| async move {
