@@ -22,12 +22,14 @@
 use polkadot_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,
+	messages::{
+		RuntimeApiMessage, RuntimeApiRequest as Request,
+	},
+	errors::RuntimeApiError,
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
-use polkadot_subsystem::messages::{
-	RuntimeApiMessage, RuntimeApiRequest as Request,
-};
-use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::{ProvideRuntimeApi};
@@ -52,8 +54,6 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self).map(|_| ()).boxed(),

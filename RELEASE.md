@@ -26,6 +26,7 @@ completion, tag the commit and proceed with the [All Releases](#all-releases) st
   hours.
 - [ ] Check that a draft release has been created at https://github.com/paritytech/polkadot/releases with relevant [release notes](#release-notes)
 - [ ] Check that [build artifacts](#build-artifacts) have been added to the draft-release
+- [ ] Check that you have updated the Cargo.toml version.
 
 ## Notes
 

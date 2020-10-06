@@ -340,9 +340,10 @@ impl sp_externalities::ExtensionStore for ValidationExternalities {
 		&mut self,
 		type_id: TypeId,
 	) -> Result<(), sp_externalities::Error> {
-		match self.0.deregister(type_id) {
-			Some(_) => Ok(()),
-			None => Err(sp_externalities::Error::ExtensionIsNotRegistered(type_id))
+		if self.0.deregister(type_id) {
+			Ok(())
+		} else {
+			Err(sp_externalities::Error::ExtensionIsNotRegistered(type_id))
 		}
 	}
 }

@@ -72,7 +72,7 @@ fn test_harness<T: Future<Output = ()>>(
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let subsystem = AvailabilityDistributionSubsystem::new(keystore);
+	let subsystem = AvailabilityDistributionSubsystem::new(keystore, Default::default());
 	let subsystem = subsystem.run(context);
 
 	let test_fut = test(TestHarness { virtual_overseer });

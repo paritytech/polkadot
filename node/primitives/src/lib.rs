@@ -276,7 +276,7 @@ pub struct Collation {
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
-	/// Proof that this block is valid.
+	/// Proof to verify the state transition of the parachain.
 	pub proof_of_validity: PoV,
 }
 
@@ -285,7 +285,7 @@ pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
 	/// Collation function.
-	pub collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Collation> + Unpin + Send> + Send + Sync>,
+	pub collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Option<Collation>> + Unpin + Send> + Send + Sync>,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }

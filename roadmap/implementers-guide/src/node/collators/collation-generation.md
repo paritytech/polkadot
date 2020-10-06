@@ -22,14 +22,21 @@ The process of generating a collation for a parachain is very parachain-specific
 
 ```rust
 pub struct Collation {
-  /// Hash of `CandidateCommitments` as understood by the collator.
-  pub commitments_hash: Hash,
+  /// Fees paid from the chain to the relay chain validators.
+  pub fees: Balance,
+  /// Messages destined to be interpreted by the Relay chain itself.
+  pub upward_messages: Vec<UpwardMessage>,
+  /// New validation code.
+  pub new_validation_code: Option<ValidationCode>,
+  /// The head-data produced as a result of execution.
+  pub head_data: HeadData,
+  /// Proof to verify the state transition of the parachain.
   pub proof_of_validity: PoV,
 }
 
 struct CollationGenerationConfig {
   key: CollatorPair,
-  collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Collation>>>
+  collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Option<Collation>>>>
   para_id: ParaId,
 }
 ```
