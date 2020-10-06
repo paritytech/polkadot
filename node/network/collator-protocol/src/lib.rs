@@ -59,6 +59,16 @@ enum Error {
 	Prometheus(prometheus::PrometheusError),
 }
 
+impl From<util::validator_discovery::Error> for Error {
+	fn from(me: util::validator_discovery::Error) -> Self {
+		match me {
+			util::validator_discovery::Error::Subsystem(s) => Error::Subsystem(s),
+			util::validator_discovery::Error::RuntimeApi(ra) => Error::RuntimeApi(ra),
+			util::validator_discovery::Error::Oneshot(c) => Error::Oneshot(c),
+		}
+	}
+}
+
 type Result<T> = std::result::Result<T, Error>;
 
 enum ProtocolSide {

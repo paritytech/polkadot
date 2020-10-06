@@ -101,7 +101,7 @@ enum CollationRequestResult {
 /// It may timeout or end in a graceful fashion if a requested
 /// collation has been received sucessfully or chain has moved on.
 struct CollationRequest {
-	// The response for this request has been received successfully or 
+	// The response for this request has been received successfully or
 	// chain has moved forward and this request is no longer relevant.
 	received: oneshot::Receiver<()>,
 
@@ -173,7 +173,7 @@ struct State {
 	requests_in_progress: FuturesUnordered<BoxFuture<'static, CollationRequestResult>>,
 
 	/// Delay after which a collation request would time out.
-	request_timeout: Duration, 
+	request_timeout: Duration,
 
 	/// Possessed collations.
 	collations: HashMap<(Hash, ParaId), Vec<(CollatorId, CandidateReceipt, PoV)>>,
@@ -471,22 +471,22 @@ where
 	use protocol_v1::CollatorProtocolMessage::*;
 
 	match msg {
-	    Declare(id) => {
+		Declare(id) => {
 			state.known_collators.insert(origin.clone(), id);
 			state.peer_views.entry(origin).or_default();
 		}
-	    AdvertiseCollation(relay_parent, para_id) => {
+		AdvertiseCollation(relay_parent, para_id) => {
 			state.advertisments.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await?;
 			}
 		}
-	    RequestCollation(_, _, _) => {
+		RequestCollation(_, _, _) => {
 			// This is a validator side of the protocol, collation requests are not expected here.
 			return modify_reputation(ctx, origin, COST_UNEXPECTED_MESSAGE).await;
 		}
-	    Collation(request_id, receipt, pov) => {
+		Collation(request_id, receipt, pov) => {
 			received_collation(ctx, state, origin, request_id, receipt, pov).await?;
 		}
 	}
