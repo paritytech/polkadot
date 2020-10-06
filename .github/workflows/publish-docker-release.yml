@@ -10,17 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Login to Dockerhub
-        uses: docker/login-action@v1
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Build
         id:   docker_build
         uses: docker/build-push-action@v2
         with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          path: ./scripts/docker
+          file: ./scripts/docker/Dockerfile.release
+          repository: ${{ secrets.DOCKERHUB_USERNAME }}/polkadot
+          tags: latest
           push: true
-          file: scripts/docker/Dockerfile.release
-          tags: martinparity/polkadot:latest
       - name: Image digest
         run: echo ${{ steps.docker_build.outputs.digest }}
