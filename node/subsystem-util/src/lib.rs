@@ -57,6 +57,8 @@ use std::{
 };
 use streamunordered::{StreamUnordered, StreamYield};
 
+pub mod validator_discovery;
+
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
 	pub use sp_core::traits::SpawnNamed;

@@ -33,6 +33,7 @@ use runtime_parachains::{
 		self,
 		ParaGenesisArgs,
 	},
+	router,
 	ensure_parachain,
 	Origin,
 };
@@ -40,7 +41,7 @@ use runtime_parachains::{
 type BalanceOf<T> =
 	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 
-pub trait Trait: paras::Trait {
+pub trait Trait: paras::Trait + router::Trait {
 	/// The aggregated origin type must support the `parachains` origin. We require that we can
 	/// infallibly convert between this origin and the system origin, but in reality, they're the
 	/// same type, we just can't express that to the Rust type system without writing a `where`
@@ -150,6 +151,7 @@ decl_module! {
 			let _ = <T as Trait>::Currency::unreserve(&debtor, T::ParathreadDeposit::get());
 
 			<paras::Module<T>>::schedule_para_cleanup(id);
+			<router::Module::<T>>::schedule_para_cleanup(id);
 
 			Ok(())
 		}
@@ -241,6 +243,7 @@ impl<T: Trait> Module<T> {
 		ensure!(is_parachain, Error::<T>::InvalidChainId);
 
 		<paras::Module<T>>::schedule_para_cleanup(id);
+		<router::Module::<T>>::schedule_para_cleanup(id);
 
 		Ok(())
 	}
@@ -269,7 +272,7 @@ mod tests {
 
 	impl_outer_origin! {
 		pub enum Origin for Test {
-			paras,
+			runtime_parachains,
 		}
 	}
 

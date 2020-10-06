@@ -137,12 +137,13 @@ fn rococo_session_keys(
 	_grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId,
-	_authority_discovery: AuthorityDiscoveryId
+	authority_discovery: AuthorityDiscoveryId
 ) -> rococo_runtime::SessionKeys {
 	rococo_runtime::SessionKeys {
 		babe,
 		im_online,
 		parachain_validator,
+		authority_discovery,
 	}
 }
 

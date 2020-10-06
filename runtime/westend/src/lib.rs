@@ -849,6 +849,10 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			Vec::new()
 		}
+
+		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			Vec::new()
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

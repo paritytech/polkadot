@@ -632,6 +632,10 @@ sp_api::impl_runtime_apis! {
 			use core::convert::TryInto;
 			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
 		}
+
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_impl::validator_discovery::<Runtime>(validators)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

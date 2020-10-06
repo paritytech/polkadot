@@ -30,7 +30,7 @@ use frame_support::{
 	weights::Weight, traits::Randomness as RandomnessT,
 };
 use crate::inclusion;
-use crate::paras;
+use crate as parachains;
 
 /// A test runtime struct.
 #[derive(Clone, Eq, PartialEq)]
@@ -38,7 +38,7 @@ pub struct Test;
 
 impl_outer_origin! {
 	pub enum Origin for Test {
-		paras
+		parachains
 	}
 }
 
