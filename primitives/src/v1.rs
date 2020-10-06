@@ -52,6 +52,7 @@ pub use crate::v0::{
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
+pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
@@ -686,6 +687,13 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+
+		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+		/// Currently this request is limited to validators in the current session. 
+		///
+		/// We assume that every validator runs authority discovery,
+		/// which would allow us to establish point-to-point connection to given validators.
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 	}
 }
 

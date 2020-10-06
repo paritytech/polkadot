@@ -4799,6 +4799,7 @@ name = "polkadot-network-bridge"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
+ "async-trait",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
@@ -4808,6 +4809,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
+ "sc-authority-discovery",
  "sc-network",
  "sp-core",
  "sp-keyring",
@@ -5168,6 +5170,7 @@ dependencies = [
  "sp-api",
  "sp-application-crypto",
  "sp-arithmetic",
+ "sp-authority-discovery",
  "sp-core",
  "sp-inherents",
  "sp-runtime",
@@ -5334,6 +5337,7 @@ dependencies = [
  "hex-literal 0.2.1",
  "libsecp256k1",
  "log 0.3.9",
+ "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",

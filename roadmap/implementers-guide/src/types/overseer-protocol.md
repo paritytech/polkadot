@@ -212,11 +212,25 @@ enum NetworkBridgeMessage {
 	SendValidationMessage([PeerId], ValidationProtocolV1),
 	/// Send a message to one or more peers on the collation peerset.
 	SendCollationMessage([PeerId], ValidationProtocolV1),
-	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	/// Connect to peers who represent the given `validator_ids`.
 	///
-	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
-	/// validators.
-	ConnectToValidators(PeerSet, [ValidatorId], ResponseChannel<[(ValidatorId, PeerId)]>>),
+	/// Also ask the network to stay connected to these peers at least
+	/// until the request is revoked.
+	ConnectToValidators {
+		/// Ids of the validators to connect to.
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// Response sender by which the issuer can learn the `PeerId`s of
+		/// the validators as they are connected.
+		/// The response is sent immediately for already connected peers.
+		connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+		/// By revoking the request the caller allows the network to
+		/// free some peer slots thus freeing the resources.
+		/// It doesn't necessarily lead to peers disconnection though.
+		/// The revokation is enacted on in the next connection request.
+		///
+		/// This can be done by sending to the channel or dropping the sender.
+		revoke: ReceiverChannel<()>,
+	},
 }
 ```
 

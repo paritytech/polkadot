@@ -15,6 +15,7 @@ sp-version = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }

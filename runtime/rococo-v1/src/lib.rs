@@ -212,6 +212,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_api_impl::validator_discovery::<Runtime>(validators)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -338,6 +341,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 

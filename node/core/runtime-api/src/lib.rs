@@ -120,6 +120,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
+		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
 	}
 }
 
@@ -169,7 +170,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent,
+		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -257,6 +258,10 @@ mod tests {
 
 			fn candidate_events(&self) -> Vec<CandidateEvent> {
 				self.candidate_events.clone()
+			}
+
+			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+				vec![None; ids.len()]
 			}
 		}
 	}
