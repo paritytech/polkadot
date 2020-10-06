@@ -150,9 +150,9 @@ struct State {
 	/// Peers that have declared themselves as collators.
 	known_collators: HashMap<PeerId, CollatorId>,
 
-	/// Advertisments received from collators. We accept one advertisment
+	/// Advertisements received from collators. We accept one advertisement
 	/// per collator per source per relay-parent.
-	advertisments: HashMap<PeerId, HashSet<(ParaId, Hash)>>,
+	advertisements: HashMap<PeerId, HashSet<(ParaId, Hash)>>,
 
 	/// Derive RequestIds from this.
 	next_request_id: RequestId,
@@ -220,7 +220,7 @@ where
 	let mut relevant_advertiser = None;
 
 	// Has the collator in question advertised a relevant collation?
-	for (k, v) in state.advertisments.iter() {
+	for (k, v) in state.advertisements.iter() {
 		if v.contains(&(para_id, relay_parent)) {
 			if state.known_collators.get(k) == Some(&collator_id) {
 				relevant_advertiser = Some(k.clone());
@@ -278,7 +278,7 @@ where
 
 /// A peer's view has changed. A number of things should be done:
 ///  - Ongoing collation requests have to be cancelled.
-///  - Advertisments by this peer that are no longer relevant have to be removed.
+///  - Advertisements by this peer that are no longer relevant have to be removed.
 async fn handle_peer_view_change(
 	state: &mut State,
 	peer_id: PeerId,
@@ -290,8 +290,8 @@ async fn handle_peer_view_change(
 
 	*current = view;
 
-	if let Some(advertisments) = state.advertisments.get_mut(&peer_id) {
-		advertisments.retain(|(_, relay_parent)| !removed.contains(relay_parent));
+	if let Some(advertisements) = state.advertisements.get_mut(&peer_id) {
+		advertisements.retain(|(_, relay_parent)| !removed.contains(relay_parent));
 	}
 
 	let mut requests_to_cancel = Vec::new();
@@ -476,7 +476,7 @@ where
 			state.peer_views.entry(origin).or_default();
 		}
 		AdvertiseCollation(relay_parent, para_id) => {
-			state.advertisments.entry(origin.clone()).or_default().insert((para_id, relay_parent));
+			state.advertisements.entry(origin.clone()).or_default().insert((para_id, relay_parent));
 
 			if let Some(collator) = state.known_collators.get(&origin) {
 				notify_candidate_selection(ctx, collator.clone(), relay_parent, para_id).await?;
@@ -817,9 +817,9 @@ mod tests {
 			.await
 	}
 
-	// As we receive a relevan advertisment act on it and issue a collation request.
+	// As we receive a relevant advertisement act on it and issue a collation request.
 	#[test]
-	fn act_on_advertisment() {
+	fn act_on_advertisement() {
 		let test_state = TestState::default();
 
 		test_harness(|test_harness| async move {
@@ -1076,7 +1076,7 @@ mod tests {
 	// A test scenario that takes the following steps
 	//  - Two collators connect, declare themselves and advertise a collation relevant to
 	//    our view.
-	//  - This results subsystem acting upon these advertisments and issuing two messages to
+	//  - This results subsystem acting upon these advertisements and issuing two messages to
 	//    the CandidateBacking subsystem.
 	//  - CandidateBacking requests both of the collations.
 	//  - Collation protocol requests these collations.
