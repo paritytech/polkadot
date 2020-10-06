@@ -138,7 +138,12 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		}
 	}
 
-	// this method takes `network_service` and `authority_discovery_service` by value
+	/// On a new connection request, a priority group update will be issued.
+	/// It will ask the network to connect to the validators and not disconnect
+	/// from them at least until all the pending requests containing them are revoked.
+	///
+	/// This method will also clean up all previously revoked requests.
+	// it takes `network_service` and `authority_discovery_service` by value
 	// and returns them as a workaround for the Future: Send requirement imposed by async fn impl.
 	pub async fn on_request(
 		&mut self,
