@@ -50,7 +50,7 @@ pub(super) struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	fn on_advertisment_made(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.advertisments_made.inc();
+			metrics.advertisements_made.inc();
 		}
 	}
 
@@ -63,7 +63,7 @@ impl Metrics {
 
 #[derive(Clone)]
 struct MetricsInner {
-	advertisments_made: prometheus::Counter<prometheus::U64>,
+	advertisements_made: prometheus::Counter<prometheus::U64>,
 	collations_sent: prometheus::Counter<prometheus::U64>,
 }
 
@@ -72,10 +72,10 @@ impl metrics::Metrics for Metrics {
 		-> std::result::Result<Self, prometheus::PrometheusError>
 	{
 		let metrics = MetricsInner {
-			advertisments_made: prometheus::register(
+			advertisements_made: prometheus::register(
 				prometheus::Counter::new(
-					"parachain_advertisments_made_total",
-					"A number of advertisments sent to validators.",
+					"parachain_collation_advertisements_made_total",
+					"A number of collation advertisements sent to validators.",
 				)?,
 				registry,
 			)?,
