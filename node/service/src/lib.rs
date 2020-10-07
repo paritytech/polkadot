@@ -214,7 +214,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore_container.keystore();
+		let keystore = keystore_container.sync_keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 
@@ -227,7 +227,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 				babe: polkadot_rpc::BabeDeps {
 					babe_config: babe_config.clone(),
 					shared_epoch_changes: shared_epoch_changes.clone(),
-					keystore: keystore_container.keystore(),
+					keystore: keystore.clone(),
 				},
 				grandpa: polkadot_rpc::GrandpaDeps {
 					shared_voter_state: shared_voter_state.clone(),
@@ -310,7 +310,7 @@ fn new_full<RuntimeApi, Executor>(
 		client,
 		backend,
 		mut task_manager,
-		keystore_container.keystore(),
+		keystore_container,
 		select_chain,
 		import_queue,
 		transaction_pool,
@@ -347,7 +347,7 @@ fn new_full<RuntimeApi, Executor>(
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_container.keystore(),
+		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
