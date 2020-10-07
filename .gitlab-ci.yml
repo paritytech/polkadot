@@ -219,7 +219,7 @@ publish-docker:
     - docker:dind
   <<:                              *collect-artifacts
   # Don't run on releases - this is handled by the Github Action here:
-  # TODO: Fill this in
+  # .github/workflows/publish-docker-release.yml
   rules:
     - if: $CI_COMMIT_REF_NAME !~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ # i.e., v1.2.3 but NOT v1.2.3-rc1
   variables:
