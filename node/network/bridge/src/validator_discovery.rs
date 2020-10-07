@@ -211,7 +211,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				// depending on the number of sentry nodes,
 				// so we limit the max number of sentries per node to connect to.
 				// They are going to be removed soon though:
-				// https://github.com/rakanalh/substrate/issues/6845
+				// https://github.com/paritytech/substrate/issues/6845
 				for addr in addresses.into_iter().take(MAX_ADDR_PER_PEER) {
 					self.validator_multiaddresses.insert(addr);
 				}

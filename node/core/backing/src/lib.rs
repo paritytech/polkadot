@@ -887,7 +887,6 @@ mod tests {
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{CryptoStore, SyncCryptoStore};
 	use std::collections::HashMap;
-	use tokio::runtime::Runtime;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 		val_ids.iter().map(|v| v.public().into()).collect()
@@ -1008,8 +1007,7 @@ mod tests {
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
-		let mut rt = Runtime::new().unwrap();
-		rt.block_on(future::select(test_fut, subsystem));
+		futures::executor::block_on(future::select(test_fut, subsystem));
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {

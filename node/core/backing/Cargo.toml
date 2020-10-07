@@ -26,6 +26,5 @@ log = "0.4.8"
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.5", features = ["thread-pool"] }
-tokio = "0.2.22"
 assert_matches = "1.3.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
