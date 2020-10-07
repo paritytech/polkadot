@@ -589,7 +589,8 @@ where
 
 	match bridge_message {
 		PeerConnected(_peer_id, _observed_role) => {
-			// validators first connection is handled by `handle_validator_connected`
+			// If it is possible that a disconnected validator would attempt a reconnect
+			// it should be handled here.
 		}
 		PeerViewChange(peer_id, view) => {
 			handle_peer_view_change(ctx, state, peer_id, view).await?;
