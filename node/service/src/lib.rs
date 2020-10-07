@@ -412,7 +412,7 @@ fn new_full<RuntimeApi, Executor>(
 		);
 
 		let babe_config = babe::BabeParams {
-			keystore: keystore_container.keystore(),
+			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -633,7 +633,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
 		config,
-		keystore: keystore_container.keystore(),
+		keystore: keystore_container.sync_keystore(),
 		backend,
 		transaction_pool,
 		client,
