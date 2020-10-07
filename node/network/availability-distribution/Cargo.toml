@@ -17,7 +17,7 @@ polkadot-network-bridge = { path = "../../network/bridge" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"]  }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
