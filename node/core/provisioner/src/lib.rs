@@ -553,7 +553,7 @@ mod tests {
 		use std::sync::Arc;
 		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 		use sp_application_crypto::AppKey;
-		use sp_keystore::CryptoStorePtr;
+		use sp_keystore::{CryptoStore, CryptoStorePtr};
 		use sc_keystore::LocalKeystore;
 
 		async fn signed_bitfield(
@@ -561,7 +561,7 @@ mod tests {
 			field: CoreAvailability,
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
-			let public = keystore.sr25519_generate_new(ValidatorId::ID, None)
+			let public = CryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 				.await
 				.expect("generated sr25519 key");
 			SignedAvailabilityBitfield::sign(
