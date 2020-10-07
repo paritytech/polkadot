@@ -10042,11 +10042,9 @@ name = "xcm-builder"
 version = "0.8.22"
 dependencies = [
  "frame-support",
- "frame-system",
  "parity-scale-codec",
  "polkadot-parachain",
  "sp-arithmetic",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
