@@ -1028,10 +1028,10 @@ mod tests {
 
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
-			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 		).unwrap();
 		let bob_public = SyncCryptoStore::sr25519_generate_new(
-			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
+			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
 		).unwrap();
 
 		// note A
@@ -1272,13 +1272,13 @@ mod tests {
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
-			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 		).unwrap();
 		let bob_public = SyncCryptoStore::sr25519_generate_new(
-			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
+			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
 		).unwrap();
 		let charlie_public = SyncCryptoStore::sr25519_generate_new(
-			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Charlie.to_seed())
+			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Charlie.to_seed())
 		).unwrap();
 
 		let new_head_data = {
@@ -1433,7 +1433,7 @@ mod tests {
 
 				let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 				let alice_public = CryptoStore::sr25519_generate_new(
-					&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 				).await.unwrap();
 
 				let statement = SignedFullStatement::sign(

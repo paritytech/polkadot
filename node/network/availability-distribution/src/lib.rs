@@ -580,7 +580,7 @@ async fn obtain_our_validator_index(
 	keystore: CryptoStorePtr,
 ) -> Option<ValidatorIndex> {
 	for (idx, validator) in validators.iter().enumerate() {
-		if CryptoStore::has_keys(&**keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
+		if CryptoStore::has_keys(&*keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
 			return Some(idx as ValidatorIndex)
 		}
 	}
