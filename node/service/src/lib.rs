@@ -431,7 +431,7 @@ fn new_full<RuntimeApi, Executor>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore_opt = if is_authority {
-		Some(keystore.clone())
+		Some(keystore_container.sync_keystore())
 	} else {
 		None
 	};
