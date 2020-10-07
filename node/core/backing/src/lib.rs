@@ -1212,11 +1212,11 @@ mod tests {
 
 			let candidate_a_hash = candidate_a.hash();
 			let public0 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
 			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1348,11 +1348,11 @@ mod tests {
 
 			let candidate_a_hash = candidate_a.hash();
 			let public0 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
 			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1628,7 +1628,7 @@ mod tests {
 			let candidate_hash = candidate.hash();
 
 			let validator2 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 
@@ -1767,7 +1767,7 @@ mod tests {
 			}.build();
 
 			let public2 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1908,7 +1908,7 @@ mod tests {
 			}.build();
 
 			let public2 = CryptoStore::sr25519_generate_new(
-				&**test_state.keystore,
+				&*test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let seconding = SignedFullStatement::sign(
