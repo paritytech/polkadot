@@ -985,7 +985,7 @@ mod tests {
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
-	use sp_keystore::CryptoStorePtr;
+	use sp_keystore::{CryptoStore, CryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 
 	#[test]
@@ -1027,12 +1027,12 @@ mod tests {
 		let mut head_data = ActiveHeadData::new(validators, session_index);
 
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-		let alice_public = block_on(keystore.sr25519_generate_new(
-			ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
-		)).unwrap();
-		let bob_public = block_on(keystore.sr25519_generate_new(
-			ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
-		)).unwrap();
+		let alice_public = SyncCryptoStore::sr25519_generate_new(
+			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+		).unwrap();
+		let bob_public = SyncCryptoStore::sr25519_generate_new(
+			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
+		).unwrap();
 
 		// note A
 		let a_seconded_val_0 = block_on(SignedFullStatement::sign(
@@ -1271,15 +1271,15 @@ mod tests {
 
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
-		let alice_public = block_on(keystore.sr25519_generate_new(
-			ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
-		)).unwrap();
-		let bob_public = block_on(keystore.sr25519_generate_new(
-			ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
-		)).unwrap();
-		let charlie_public = block_on(keystore.sr25519_generate_new(
-			ValidatorId::ID, Some(&Sr25519Keyring::Charlie.to_seed())
-		)).unwrap();
+		let alice_public = SyncCryptoStore::sr25519_generate_new(
+			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+		).unwrap();
+		let bob_public = SyncCryptoStore::sr25519_generate_new(
+			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Bob.to_seed())
+		).unwrap();
+		let charlie_public = SyncCryptoStore::sr25519_generate_new(
+			&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Charlie.to_seed())
+		).unwrap();
 
 		let new_head_data = {
 			let mut data = ActiveHeadData::new(validators, session_index);
@@ -1432,8 +1432,8 @@ mod tests {
 				};
 
 				let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-				let alice_public = keystore.sr25519_generate_new(
-					ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
+				let alice_public = CryptoStore::sr25519_generate_new(
+					&**keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 				).await.unwrap();
 
 				let statement = SignedFullStatement::sign(

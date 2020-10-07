@@ -677,7 +677,7 @@ mod test {
 	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use sp_keystore::CryptoStorePtr;
+	use sp_keystore::{CryptoStorePtr, SyncCryptoStore};
 	use sp_application_crypto::AppKey;
 	use sc_keystore::LocalKeystore;
 	use std::sync::Arc;
@@ -752,7 +752,7 @@ mod test {
 
 		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
-		let validator = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
+		let validator = SyncCryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
 
 		state.per_relay_parent = view.0.iter().map(|relay_parent| {(
@@ -793,9 +793,9 @@ mod test {
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
 		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
-		let malicious = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
+		let malicious = SyncCryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 								.expect("Malicious key created");
-		let validator = executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, None))
+		let validator = SyncCryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 								.expect("Malicious key created");
 
 		let payload = AvailabilityBitfield(bitvec![bitvec::order::Lsb0, u8; 1u8; 32]);

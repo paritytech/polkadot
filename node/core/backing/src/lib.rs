@@ -885,7 +885,7 @@ mod tests {
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
 	use sp_application_crypto::AppKey;
-	use sp_keystore::CryptoStore;
+	use sp_keystore::{CryptoStore, SyncCryptoStore};
 	use std::collections::HashMap;
 	use tokio::runtime::Runtime;
 
@@ -924,7 +924,7 @@ mod tests {
 
 			let keystore = Arc::new(keystore::LocalKeystore::in_memory());
 			// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
-			futures::executor::block_on(keystore.sr25519_generate_new(ValidatorId::ID, Some(&validators[0].to_seed())))
+			SyncCryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 				.expect("Insert key into keystore");
 
 			let validator_public = validator_pubkeys(&validators);
@@ -1213,10 +1213,12 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-			let public0 = test_state.keystore.sr25519_generate_new(
+			let public0 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
 			).await.expect("Insert key into keystore");
-			let public2 = test_state.keystore.sr25519_generate_new(
+			let public2 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1347,10 +1349,12 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-			let public0 = test_state.keystore.sr25519_generate_new(
+			let public0 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
 			).await.expect("Insert key into keystore");
-			let public2 = test_state.keystore.sr25519_generate_new(
+			let public2 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1625,7 +1629,8 @@ mod tests {
 
 			let candidate_hash = candidate.hash();
 
-			let validator2 = test_state.keystore.sr25519_generate_new(
+			let validator2 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 
@@ -1763,7 +1768,8 @@ mod tests {
 				..Default::default()
 			}.build();
 
-			let public2 = test_state.keystore.sr25519_generate_new(
+			let public2 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
@@ -1903,7 +1909,8 @@ mod tests {
 				..Default::default()
 			}.build();
 
-			let public2 = test_state.keystore.sr25519_generate_new(
+			let public2 = CryptoStore::sr25519_generate_new(
+				&**test_state.keystore,
 				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
 			).await.expect("Insert key into keystore");
 			let seconding = SignedFullStatement::sign(

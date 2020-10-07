@@ -666,7 +666,7 @@ mod tests {
 		SignedAvailabilityBitfield, CompactStatement as Statement, ValidityAttestation, CollatorId,
 		CandidateCommitments, SignedStatement, CandidateDescriptor, ValidationCode,
 	};
-	use sp_keystore::CryptoStorePtr;
+	use sp_keystore::{CryptoStorePtr, SyncCryptoStore};
 	use frame_support::traits::{OnFinalize, OnInitialize};
 	use keyring::Sr25519Keyring;
 	use sc_keystore::LocalKeystore;
@@ -941,7 +941,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 
@@ -1142,7 +1142,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 
@@ -1278,7 +1278,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 
@@ -1739,7 +1739,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 
@@ -1920,7 +1920,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 
@@ -2012,7 +2012,7 @@ mod tests {
 		];
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		for validator in validators.iter() {
-			block_on(keystore.sr25519_generate_new(PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
+			SyncCryptoStore::sr25519_generate_new(&**keystore, PARACHAIN_KEY_TYPE_ID, Some(&validator.to_seed()))).unwrap();
 		}
 		let validator_public = validator_pubkeys(&validators);
 

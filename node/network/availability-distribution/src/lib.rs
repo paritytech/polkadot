@@ -26,7 +26,7 @@ use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
 use sp_core::crypto::Public;
-use sp_keystore::CryptoStorePtr;
+use sp_keystore::{CryptoStore, CryptoStorePtr};
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
@@ -580,7 +580,7 @@ async fn obtain_our_validator_index(
 	keystore: CryptoStorePtr,
 ) -> Option<ValidatorIndex> {
 	for (idx, validator) in validators.iter().enumerate() {
-		if keystore.has_keys(&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
+		if CryptoStore::has_keys(&**keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
 			return Some(idx as ValidatorIndex)
 		}
 	}

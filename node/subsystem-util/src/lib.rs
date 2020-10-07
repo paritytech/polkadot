@@ -289,7 +289,7 @@ specialize_requests_ctx! {
 /// From the given set of validators, find the first key we can sign with, if any.
 pub async fn signing_key(validators: &[ValidatorId], keystore: CryptoStorePtr) -> Option<ValidatorId> {
 	for v in validators.iter() {
-		if keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]).await {
+		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
 			return Some(v.clone());
 		}
 	}

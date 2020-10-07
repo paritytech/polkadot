@@ -31,7 +31,7 @@ use futures_timer::Delay;
 use smallvec::smallvec;
 use std::{sync::Arc, time::Duration};
 use sc_keystore::LocalKeystore;
-use sp_keystore::CryptoStorePtr;
+use sp_keystore::{CryptoStorePtr, SyncCryptoStore};
 use sp_application_crypto::AppKey;
 
 macro_rules! view {
@@ -175,8 +175,7 @@ impl Default for TestState {
 
 		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
-		executor::block_on(keystore
-			.sr25519_generate_new(ValidatorId::ID, Some(&validators[0].to_seed())))
+		SyncCryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 			.expect("Insert key into keystore");
 
 		let validator_public = validator_pubkeys(&validators);
