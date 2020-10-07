@@ -335,7 +335,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_container.keystore(),
+		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
@@ -360,7 +360,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let babe_config = babe::BabeParams {
-			keystore: keystore_container.keystore(),
+			keystore: keystore_container.sync_keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -413,7 +413,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
 	let keystore = if is_authority {
-		Some(keystore_container.keystore())
+		Some(keystore_container.sync_keystore())
 	} else {
 		None
 	};
@@ -618,7 +618,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		rpc_extensions_builder: Box::new(service::NoopRpcExtensionBuilder(rpc_extensions)),
 		task_manager: &mut task_manager,
 		telemetry_connection_sinks: service::TelemetryConnectionSinks::default(),
-		keystore: keystore_container.keystore(),
+		keystore: keystore_container.sync_keystore(),
 		config, backend, transaction_pool, client, network, network_status_sinks,
 		system_rpc_tx,
 	})?;
