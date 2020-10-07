@@ -198,9 +198,10 @@ where
 	// We may be already connected to some of the validators. In that case,
 	// advertise a collation to them right away.
 	for validator in our_validators.iter() {
-		if let Some(peer) = state.known_validators.get(&validator).cloned() {
-			if let Some(view) = state.peer_views.get(&peer) {
+		if let Some(peer) = state.known_validators.get(&validator) {
+			if let Some(view) = state.peer_views.get(peer) {
 				if view.contains(&relay_parent) {
+					let peer = peer.clone();
 					advertise_collation(ctx, state, relay_parent, vec![peer]).await?;
 				}
 			}
