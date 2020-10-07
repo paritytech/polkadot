@@ -29,8 +29,7 @@ impl<T: frame_system::Trait> pallet_utility::WeightInfo for WeightInfo<T> {
 		(18_589_000 as Weight)
 			.saturating_add((1_734_000 as Weight).saturating_mul(c as Weight))
 	}
-	// WARNING! Some components were not used: ["u"]
-	fn as_derivative() -> Weight {
+	fn as_derivative(_u: u32) -> Weight {
 		(5_611_000 as Weight)
 	}
 }
