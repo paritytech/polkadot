@@ -83,7 +83,7 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem
+	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem,
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_primitives::SpawnNamed;
