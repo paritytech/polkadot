@@ -22,6 +22,7 @@
 //!
 //! Supported requests:
 //! * Block hash to number
+//! * Block hash to header
 //! * Finalized block number to hash
 //! * Last finalized block number
 //! * Ancestors
@@ -82,6 +83,13 @@ where
 			FromOverseer::Communication { msg } => match msg {
 				ChainApiMessage::BlockNumber(hash, response_channel) => {
 					let result = subsystem.client.number(hash).map_err(|e| e.to_string().into());
+					subsystem.metrics.on_request(result.is_ok());
+					let _ = response_channel.send(result);
+				},
+				ChainApiMessage::BlockHeader(hash, response_channel) => {
+					let result = subsystem.client
+						.header(BlockId::Hash(hash))
+						.map_err(|e| e.to_string().into());
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
@@ -309,6 +317,30 @@ mod tests {
 
 					sender.send(FromOverseer::Communication {
 						msg: ChainApiMessage::BlockNumber(*hash, tx),
+					}).await;
+
+					assert_eq!(rx.await.unwrap().unwrap(), *expected);
+				}
+
+				sender.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+			}.boxed()
+		})
+	}
+
+	#[test]
+	fn request_block_header() {
+		test_harness(|client, mut sender| {
+			async move {
+				const NOT_HERE: Hash = Hash::repeat_byte(0x5);
+				let test_cases = [
+					(TWO, client.header(BlockId::Hash(TWO)).unwrap()),
+					(NOT_HERE, client.header(BlockId::Hash(NOT_HERE)).unwrap()),
+				];
+				for (hash, expected) in &test_cases {
+					let (tx, rx) = oneshot::channel();
+
+					sender.send(FromOverseer::Communication {
+						msg: ChainApiMessage::BlockHeader(*hash, tx),
 					}).await;
 
 					assert_eq!(rx.await.unwrap().unwrap(), *expected);
