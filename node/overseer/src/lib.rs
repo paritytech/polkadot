@@ -429,10 +429,10 @@ pub struct Overseer<S> {
 /// Each [`Subsystem`] is supposed to implement some interface that is generic over
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-/// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (), PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()> {
+pub struct AllSubsystems<
+	CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (),
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()
+> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
