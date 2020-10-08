@@ -234,7 +234,7 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 /// It forwards all communication from the overseer to the internal message
 /// channel.
 ///
-/// This susbsytem is useful for testing functionality that interacts with the overseer.
+/// This subsystem is useful for testing functionality that interacts with the overseer.
 pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
 
 impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
