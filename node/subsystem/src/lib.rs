@@ -253,7 +253,7 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 		});
 
 		SpawnedSubsystem {
-			name: "ForwardSubsystem",
+			name: "forward-subsystem",
 			future,
 		}
 	}
