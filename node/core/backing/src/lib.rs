@@ -559,8 +559,11 @@ impl CandidateBackingJob {
 
 	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
 		let signed = self.table_context
-			.validator.as_ref()?
-			.sign(self.keystore.clone(), statement).await.ok()?;
+			.validator
+			.as_ref()?
+			.sign(self.keystore.clone(), statement)
+			.await
+			.ok()?;
 		self.metrics.on_statement_signed();
 		Some(signed)
 	}
@@ -921,7 +924,7 @@ mod tests {
 				Sr25519Keyring::Ferdie,
 			];
 
-			let keystore = Arc::new(keystore::LocalKeystore::in_memory());
+			let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
 			// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
 			SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 				.expect("Insert key into keystore");
