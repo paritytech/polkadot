@@ -878,7 +878,8 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 		let signature: ValidatorSignature = CryptoStore::sign_with(
 			&**keystore,
 			ValidatorId::ID,
-			&key.into(), &data
+			&key.into(),
+			&data, 
 		).await?.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?;
 		Ok(Self {
 			payload,
