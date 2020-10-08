@@ -31,12 +31,13 @@ use polkadot_node_primitives::{
 	CollationGenerationConfig, MisbehaviorReport, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::v1::{
-	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber, CandidateDescriptor,
-	CandidateEvent, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, ErasureChunk, GroupRotationInfo, Hash, Id as ParaId,
-	OccupiedCoreAssumption, PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	TransientValidationData, ValidationCode, ValidatorId, ValidationData, ValidatorIndex,
-	ValidatorSignature,
+	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
+	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
+	TransientValidationData, ValidationCode, ValidatorId, ValidationData,
+	ValidatorIndex, ValidatorSignature,
 };
 use std::sync::Arc;
 
@@ -336,6 +337,9 @@ pub enum ChainApiMessage {
 	/// Request the block number by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockNumber(Hash, ChainApiResponseChannel<Option<BlockNumber>>),
+	/// Request the block header by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockHeader(Hash, ChainApiResponseChannel<Option<BlockHeader>>),
 	/// Request the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.
@@ -404,10 +408,10 @@ pub enum RuntimeApiRequest {
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
 	/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-	/// Currently this request is limited to validators in the current session. 
+	/// Currently this request is limited to validators in the current session.
 	///
 	/// Returns `None` for validators not found in the current session.
-	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>), 
+	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>),
 }
 
 /// A message to the Runtime API subsystem.

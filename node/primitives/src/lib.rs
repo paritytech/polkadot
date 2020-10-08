@@ -35,6 +35,7 @@ use polkadot_statement_table::{
 	},
 	v1::Misbehavior as TableMisbehavior,
 };
+use std::pin::Pin;
 
 pub use sp_core::traits::SpawnNamed;
 
@@ -285,7 +286,11 @@ pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
 	/// Collation function.
-	pub collator: Box<dyn Fn(&ValidationData) -> Box<dyn Future<Output = Option<Collation>> + Unpin + Send> + Send + Sync>,
+	///
+	/// Will be called with the hash of the relay chain block the parachain
+	/// block should be build on and the [`ValidationData`] that provides
+	/// information about the state of the parachain on the relay chain.
+	pub collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }
