@@ -271,22 +271,38 @@ fn real_overseer<S: SpawnNamed>(
 	prometheus_registry: Option<&Registry>,
 	s: S,
 ) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
+	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+	use polkadot_node_core_backing::CandidateBackingSubsystem;
+	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
+	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
+	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
+	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
+	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+	use polkadot_node_core_chain_api::ChainApiSubsystem;
+	use polkadot_node_collation_generation::CollationGenerationSubsystem;
+	use polkadot_collator_protocol::CollatorProtocolSubsystem;
+
 	let all_subsystems = AllSubsystems {
-		candidate_validation: DummySubsystem,
-		candidate_backing: DummySubsystem,
-		candidate_selection: DummySubsystem,
-		statement_distribution: DummySubsystem,
-		availability_distribution: DummySubsystem,
-		bitfield_signing: DummySubsystem,
-		bitfield_distribution: DummySubsystem,
-		provisioner: DummySubsystem,
-		pov_distribution: DummySubsystem,
-		runtime_api: DummySubsystem,
-		availability_store: DummySubsystem,
-		network_bridge: DummySubsystem,
-		chain_api: DummySubsystem,
-		collation_generation: DummySubsystem,
-		collator_protocol: DummySubsystem,
+		candidate_validation: CandidateValidationSubsystem::new(),
+		candidate_backing: CandidateBackingSubsystem::new(),
+		candidate_selection: CandidateSelectionSubsystem::new(),
+		statement_distribution: StatementDistributionSubsystem::new(),
+		availability_distribution: AvailabilityDistributionSubsystem::new(),
+		bitfield_signing: BitfieldSigningSubsystem::new(),
+		bitfield_distribution: BitfieldDistributionSubsystem::new(),
+		provisioner: ProvisionerSubsystem::new(),
+		pov_distribution: PoVDistributionSubsystem::new(),
+		runtime_api: RuntimeApiSubsystem::new(),
+		availability_store: AvailabilityStoreSubsystem::new(),
+		network_bridge: NetworkBridgeSubsystem::new(),
+		chain_api: ChainApiSubsystem::new(),
+		collation_generation: CollationGenerationSubsystem::new(),
+		collator_protocol: CollatorProtocolSubsystem::new(),
 	};
 
 	Overseer::new(

@@ -68,9 +68,26 @@ polkadot-parachain = { path = "../../parachain" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-rpc = { path = "../../rpc" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
-polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
 rococo-runtime = { package = "rococo-v1-runtime", path = "../../runtime/rococo-v1" }
 westend-runtime = { path = "../../runtime/westend" }
+
+# Polkadot Subsystems
+polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
+polkadot-node-core-backing = { path = "../core/backing" }
+polkadot-node-core-candidate-selection = { path = "../core/candidate-selection" }
+polkadot-statement-distribution = { path = "../network/statement-distribution" }
+polkadot-availability-distribution = { path = "../network/availability-distribution" }
+polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing" }
+polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution" }
+polkadot-node-core-provisioner = { path = "../core/provisioner" }
+polkadot-pov-distribution = { path = "../network/pov-distribution" }
+polkadot-node-core-runtime-api = { path = "../core/runtime-api" }
+polkadot-node-core-av-store = { path = "../core/av-store" }
+polkadot-network-bridge = { path = "../network/bridge" }
+polkadot-node-core-chain-api = { path = "../core/chain-api" }
+polkadot-node-collation-generation = { path = "../collation-generation" }
+polkadot-collator-protocol = { path = "../network/collator-protocol" }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
