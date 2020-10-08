@@ -677,7 +677,7 @@ mod test {
 	use polkadot_primitives::v1::{Signed, AvailabilityBitfield};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::TimeoutExt;
-	use sp_keystore::{CryptoStorePtr, SyncCryptoStore};
+	use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
 	use sp_application_crypto::AppKey;
 	use sc_keystore::LocalKeystore;
 	use std::sync::Arc;
@@ -742,7 +742,7 @@ mod test {
 		view: View,
 		relay_parent: Hash,
 		keystore_path: &tempfile::TempDir,
-	) -> (ProtocolState, SigningContext, CryptoStorePtr, ValidatorId) {
+	) -> (ProtocolState, SigningContext, SyncCryptoStorePtr, ValidatorId) {
 		let mut state = ProtocolState::default();
 
 		let signing_context = SigningContext {
@@ -750,7 +750,7 @@ mod test {
 			parent_hash: relay_parent.clone(),
 		};
 
-		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
 		let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 			.expect("generating sr25519 key not to fail");
@@ -791,7 +791,7 @@ mod test {
 
 		// another validator not part of the validatorset
 		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 			.expect("Creates keystore"));
 		let malicious = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 								.expect("Malicious key created");

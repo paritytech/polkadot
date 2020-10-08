@@ -31,7 +31,7 @@ use futures_timer::Delay;
 use smallvec::smallvec;
 use std::{sync::Arc, time::Duration};
 use sc_keystore::LocalKeystore;
-use sp_keystore::{CryptoStorePtr, SyncCryptoStore};
+use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
 use sp_application_crypto::AppKey;
 
 macro_rules! view {
@@ -60,7 +60,7 @@ struct TestHarness {
 }
 
 fn test_harness<T: Future<Output = ()>>(
-	keystore: CryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 	test: impl FnOnce(TestHarness) -> T,
 ) {
 	let _ = env_logger::builder()
@@ -147,7 +147,7 @@ struct TestState {
 	validator_index: Option<ValidatorIndex>,
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	head_data: HashMap<ParaId, HeadData>,
-	keystore: CryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 	relay_parent: Hash,
 	ancestors: Vec<Hash>,
 	availability_cores: Vec<CoreState>,
@@ -173,7 +173,7 @@ impl Default for TestState {
 			Sr25519Keyring::Dave,
 		];
 
-		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
 		SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 			.expect("Insert key into keystore");

@@ -985,7 +985,7 @@ mod tests {
 	use polkadot_primitives::v1::CommittedCandidateReceipt;
 	use assert_matches::assert_matches;
 	use futures::executor::{self, block_on};
-	use sp_keystore::{CryptoStore, CryptoStorePtr, SyncCryptoStore};
+	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, SyncCryptoStore};
 	use sc_keystore::LocalKeystore;
 
 	#[test]
@@ -1026,7 +1026,7 @@ mod tests {
 
 		let mut head_data = ActiveHeadData::new(validators, session_index);
 
-		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
 			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 		).unwrap();
@@ -1269,7 +1269,7 @@ mod tests {
 			session_index,
 		};
 
-		let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
 		let alice_public = SyncCryptoStore::sr25519_generate_new(
 			&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
@@ -1431,7 +1431,7 @@ mod tests {
 					session_index,
 				};
 
-				let keystore: CryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+				let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 				let alice_public = CryptoStore::sr25519_generate_new(
 					&*keystore, ValidatorId::ID, Some(&Sr25519Keyring::Alice.to_seed())
 				).await.unwrap();

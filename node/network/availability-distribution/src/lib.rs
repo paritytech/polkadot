@@ -26,7 +26,7 @@ use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
 use sp_core::crypto::Public;
-use sp_keystore::{CryptoStore, CryptoStorePtr};
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
@@ -289,7 +289,7 @@ impl ProtocolState {
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
-	keystore: &CryptoStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
@@ -328,7 +328,7 @@ where
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
-	keystore: &CryptoStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	view: View,
 	metrics: &Metrics,
@@ -577,7 +577,7 @@ where
 /// otherwise, `None` is returned.
 async fn obtain_our_validator_index(
 	validators: &[ValidatorId],
-	keystore: CryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 ) -> Option<ValidatorIndex> {
 	for (idx, validator) in validators.iter().enumerate() {
 		if CryptoStore::has_keys(&*keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
@@ -706,7 +706,7 @@ where
 /// The bitfield distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: CryptoStorePtr,
+	keystore: SyncCryptoStorePtr,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -716,7 +716,7 @@ impl AvailabilityDistributionSubsystem {
 	const K: usize = 3;
 
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: CryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 

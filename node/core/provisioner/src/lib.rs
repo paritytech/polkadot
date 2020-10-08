@@ -553,11 +553,11 @@ mod tests {
 		use std::sync::Arc;
 		use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 		use sp_application_crypto::AppKey;
-		use sp_keystore::{CryptoStore, CryptoStorePtr};
+		use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 		use sc_keystore::LocalKeystore;
 
 		async fn signed_bitfield(
-			keystore: &CryptoStorePtr,
+			keystore: &SyncCryptoStorePtr,
 			field: CoreAvailability,
 			validator_idx: ValidatorIndex,
 		) -> SignedAvailabilityBitfield {
@@ -578,7 +578,7 @@ mod tests {
 			// Configure filesystem-based keystore as generating keys without seed
 			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+			let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
 			let bitvec = default_bitvec();
 
@@ -606,7 +606,7 @@ mod tests {
 			// Configure filesystem-based keystore as generating keys without seed
 			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+			let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
 			let bitvec = default_bitvec();
 
@@ -630,7 +630,7 @@ mod tests {
 			// Configure filesystem-based keystore as generating keys without seed
 			// would trigger the key to be generated on the filesystem.
 			let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-			let keystore : CryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
+			let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
 				.expect("Creates keystore"));
 			let bitvec_zero = default_bitvec();
 			let bitvec_one = {

@@ -51,7 +51,7 @@ use sp_core::{
 use sp_application_crypto::AppKey;
 use sp_keystore::{
 	CryptoStore,
-	CryptoStorePtr,
+	SyncCryptoStorePtr,
 	Error as KeystoreError,
 };
 use std::{
@@ -288,7 +288,7 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(validators: &[ValidatorId], keystore: CryptoStorePtr) -> Option<ValidatorId> {
+pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
 	for v in validators.iter() {
 		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
 			return Some(v.clone());
@@ -311,7 +311,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: CryptoStorePtr,
+		keystore: SyncCryptoStorePtr,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -342,7 +342,7 @@ impl Validator {
 	pub async fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: CryptoStorePtr,
+		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
 		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
 		let index = validators
@@ -377,7 +377,7 @@ impl Validator {
 	/// Sign a payload with this validator
 	pub async fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
-		keystore: CryptoStorePtr,
+		keystore: SyncCryptoStorePtr,
 		payload: Payload,
 	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
 		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
