@@ -30,7 +30,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
@@ -560,7 +560,7 @@ impl pallet_im_online::Trait for Runtime {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();

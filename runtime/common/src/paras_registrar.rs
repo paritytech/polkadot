@@ -395,7 +395,7 @@ mod tests {
 
 	impl pallet_staking::Trait for Test {
 		type RewardRemainder = ();
-		type CurrencyToVote = ();
+		type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
 		type Event = ();
 		type Currency = pallet_balances::Module<Test>;
 		type Slash = ();

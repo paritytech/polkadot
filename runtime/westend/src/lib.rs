@@ -28,8 +28,8 @@ use primitives::v1::{
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	SlowAdjustingFeeUpdate, CurrencyToVote,
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 	ParachainSessionKeyPlaceholder,
@@ -318,7 +318,7 @@ parameter_types! {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
