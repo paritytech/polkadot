@@ -62,12 +62,15 @@ use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
 use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
+use runtime_common::paras_registrar;
 
+use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
 use runtime_parachains::inclusion as parachains_inclusion;
 use runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
 use runtime_parachains::initializer as parachains_initializer;
 use runtime_parachains::paras as parachains_paras;
+use runtime_parachains::router as parachains_router;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
@@ -209,6 +212,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_api_impl::validator_discovery::<Runtime>(validators)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -335,6 +341,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -365,13 +372,16 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 
 		// Parachains modules.
+		ParachainOrigin: parachains_origin::{Module, Origin},
 		Config: parachains_configuration::{Module, Call, Storage},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		Paras: parachains_paras::{Module, Call, Storage},
 		Initializer: parachains_initializer::{Module, Call, Storage},
+		Router: parachains_router::{Module, Call, Storage},
 
+		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 	}
 }
@@ -422,7 +432,7 @@ impl frame_system::Trait for Runtime {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
-	type ModuleToIndex = ModuleToIndex;
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -555,12 +565,14 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type OffchainSolutionWeightLimit = MaximumBlockWeight;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }
 
 parameter_types! {
 	pub const ExistentialDeposit: Balance = 1 * CENTS;
+	pub const MaxLocks: u32 = 50;
 }
 
 impl pallet_balances::Trait for Runtime {
@@ -569,6 +581,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type MaxLocks = MaxLocks;
 	type WeightInfo = ();
 }
 
@@ -594,7 +607,6 @@ impl pallet_offences::Trait for Runtime {
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
-	type WeightInfo = ();
 }
 
 impl pallet_authority_discovery::Trait for Runtime {}
@@ -664,6 +676,8 @@ impl pallet_babe::Trait for Runtime {
 
 	type HandleEquivocation =
 		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -697,6 +711,8 @@ impl pallet_grandpa::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation = pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
+
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -711,13 +727,19 @@ impl pallet_authorship::Trait for Runtime {
 	type EventHandler = (Staking, ImOnline);
 }
 
+impl parachains_origin::Trait for Runtime { }
+
 impl parachains_configuration::Trait for Runtime { }
 
 impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains_paras::Trait for Runtime { }
+impl parachains_paras::Trait for Runtime {
+	type Origin = Origin;
+}
+
+impl parachains_router::Trait for Runtime { }
 
 impl parachains_inclusion_inherent::Trait for Runtime { }
 
@@ -728,3 +750,9 @@ impl parachains_initializer::Trait for Runtime {
 }
 
 impl paras_sudo_wrapper::Trait for Runtime { }
+
+impl paras_registrar::Trait for Runtime {
+	type Currency = Balances;
+	type ParathreadDeposit = ParathreadDeposit;
+	type Origin = Origin;
+}

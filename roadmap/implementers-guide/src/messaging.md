@@ -1,6 +1,6 @@
 # Messaging Overview
 
-Polkadot has a few mechanisms that are responsible for message passing. They can be generally divided
+The Polkadot Host has a few mechanisms that are responsible for message passing. They can be generally divided
 on two categories: Horizontal and Vertical. Horizontal Message Passing (HMP) refers to mechanisms
 that are responsible for exchanging messages between parachains. Vertical Message Passing (VMP) is
 used for communication between the relay chain and parachains.

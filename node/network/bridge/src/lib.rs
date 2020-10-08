@@ -20,7 +20,7 @@ use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
 use futures::stream::BoxStream;
-use futures::channel::oneshot;
+use futures::channel::{mpsc, oneshot};
 
 use sc_network::Event as NetworkEvent;
 use sp_runtime::ConsensusEngineId;
@@ -34,15 +34,18 @@ use polkadot_subsystem::messages::{
 	BitfieldDistributionMessage, PoVDistributionMessage, StatementDistributionMessage,
 	CollatorProtocolMessage,
 };
-use polkadot_primitives::v1::{Block, Hash, ValidatorId};
+use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
 use polkadot_node_network_protocol::{
 	ObservedRole, ReputationChange, PeerId, PeerSet, View, NetworkBridgeEvent, v1 as protocol_v1
 };
 
-use std::collections::hash_map::{HashMap, Entry as HEntry};
+use std::collections::{HashMap, hash_map};
 use std::iter::ExactSizeIterator;
 use std::pin::Pin;
 use std::sync::Arc;
+
+
+mod validator_discovery;
 
 /// The maximum amount of heads a peer is allowed to have in their view at any time.
 ///
@@ -52,11 +55,11 @@ const MAX_VIEW_HEADS: usize = 5;
 /// The engine ID of the validation protocol.
 pub const VALIDATION_PROTOCOL_ID: ConsensusEngineId = *b"pvn1";
 /// The protocol name for the validation peer-set.
-pub const VALIDATION_PROTOCOL_NAME: &[u8] = b"/polkadot/validation/1";
+pub const VALIDATION_PROTOCOL_NAME: &'static str = "/polkadot/validation/1";
 /// The engine ID of the collation protocol.
 pub const COLLATION_PROTOCOL_ID: ConsensusEngineId = *b"pcn1";
 /// The protocol name for the collation peer-set.
-pub const COLLATION_PROTOCOL_NAME: &[u8] = b"/polkadot/collation/1";
+pub const COLLATION_PROTOCOL_NAME: &'static str = "/polkadot/collation/1";
 
 const MALFORMED_MESSAGE_COST: ReputationChange
 	= ReputationChange::new(-500, "Malformed Network-bridge message");
@@ -81,7 +84,7 @@ pub enum WireMessage<M> {
 
 /// Information about the notifications protocol. Should be used during network configuration
 /// or shortly after startup to register the protocol with the network service.
-pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, [u8]>)> {
+pub fn notifications_protocol_info() -> Vec<(ConsensusEngineId, std::borrow::Cow<'static, str>)> {
 	vec![
 		(VALIDATION_PROTOCOL_ID, VALIDATION_PROTOCOL_NAME.into()),
 		(COLLATION_PROTOCOL_ID, COLLATION_PROTOCOL_NAME.into()),
@@ -188,31 +191,41 @@ impl Network for Arc<sc_network::NetworkService<Block, Hash>> {
 }
 
 /// The network bridge subsystem.
-pub struct NetworkBridge<N>(N);
+pub struct NetworkBridge<N, AD> {
+	network_service: N,
+	authority_discovery_service: AD,
+}
 
-impl<N> NetworkBridge<N> {
-	/// Create a new network bridge subsystem with underlying network service.
+impl<N, AD> NetworkBridge<N, AD> {
+	/// Create a new network bridge subsystem with underlying network service and authority discovery service.
 	///
 	/// This assumes that the network service has had the notifications protocol for the network
 	/// bridge already registered. See [`notifications_protocol_info`](notifications_protocol_info).
-	pub fn new(net_service: N) -> Self {
-		NetworkBridge(net_service)
+	pub fn new(network_service: N, authority_discovery_service: AD) -> Self {
+		NetworkBridge {
+			network_service,
+			authority_discovery_service,
+		}
 	}
 }
 
-impl<Net, Context> Subsystem<Context> for NetworkBridge<Net>
+impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network,
+		Net: Network + validator_discovery::Network,
+		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
-	type Metrics = ();
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
+		let Self { network_service, authority_discovery_service } = self;
 		SpawnedSubsystem {
 			name: "network-bridge-subsystem",
-			future: run_network(self.0, ctx).map(|_| ()).boxed(),
+			future: run_network(
+				network_service,
+				authority_discovery_service,
+				ctx,
+			).map(|_| ()).boxed(),
 		}
 	}
 }
@@ -226,7 +239,11 @@ struct PeerData {
 enum Action {
 	SendValidationMessage(Vec<PeerId>, protocol_v1::ValidationProtocol),
 	SendCollationMessage(Vec<PeerId>, protocol_v1::CollationProtocol),
-	ConnectToValidators(PeerSet, Vec<ValidatorId>, oneshot::Sender<Vec<(ValidatorId, PeerId)>>),
+	ConnectToValidators {
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		connected: mpsc::Sender<(AuthorityDiscoveryId, PeerId)>,
+		revoke: oneshot::Receiver<()>,
+	},
 	ReportPeer(PeerId, ReputationChange),
 
 	ActiveLeaves(ActiveLeavesUpdate),
@@ -256,8 +273,11 @@ fn action_from_overseer_message(
 				=> Action::SendValidationMessage(peers, msg),
 			NetworkBridgeMessage::SendCollationMessage(peers, msg)
 				=> Action::SendCollationMessage(peers, msg),
-			NetworkBridgeMessage::ConnectToValidators(peer_set, validators, res)
-				=> Action::ConnectToValidators(peer_set, validators, res),
+			NetworkBridgeMessage::ConnectToValidators {
+				validator_ids,
+				connected,
+				revoke,
+			} => Action::ConnectToValidators { validator_ids, connected, revoke },
 		},
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
@@ -540,11 +560,16 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
-async fn run_network<N: Network>(
-	mut net: N,
+async fn run_network<N, AD>(
+	mut network_service: N,
+	mut authority_discovery_service: AD,
 	mut ctx: impl SubsystemContext<Message=NetworkBridgeMessage>,
-) -> SubsystemResult<()> {
-	let mut event_stream = net.event_stream().fuse();
+) -> SubsystemResult<()>
+where
+	N: Network + validator_discovery::Network,
+	AD: validator_discovery::AuthorityDiscovery,
+{
+	let mut event_stream = network_service.event_stream().fuse();
 
 	// Most recent heads are at the back.
 	let mut live_heads: Vec<Hash> = Vec::with_capacity(MAX_VIEW_HEADS);
@@ -553,7 +578,10 @@ async fn run_network<N: Network>(
 	let mut validation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 	let mut collation_peers: HashMap<PeerId, PeerData> = HashMap::new();
 
+	let mut validator_discovery = validator_discovery::Service::<N, AD>::new();
+
 	loop {
+
 		let action = {
 			let subsystem_next = ctx.recv().fuse();
 			let mut net_event_next = event_stream.next().fuse();
@@ -570,31 +598,43 @@ async fn run_network<N: Network>(
 			Action::Abort => return Ok(()),
 
 			Action::SendValidationMessage(peers, msg) => send_message(
-					&mut net,
+					&mut network_service,
 					peers,
 					PeerSet::Validation,
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
 			Action::SendCollationMessage(peers, msg) => send_message(
-					&mut net,
+					&mut network_service,
 					peers,
 					PeerSet::Collation,
 					WireMessage::ProtocolMessage(msg),
 			).await?,
 
-			Action::ConnectToValidators(_peer_set, _validators, _res) => {
-				// TODO: https://github.com/paritytech/polkadot/issues/1461
-			}
+			Action::ConnectToValidators {
+				validator_ids,
+				connected,
+				revoke,
+			} => {
+				let (ns, ads) = validator_discovery.on_request(
+					validator_ids,
+					connected,
+					revoke,
+					network_service,
+					authority_discovery_service,
+				).await;
+				network_service = ns;
+				authority_discovery_service = ads;
+			},
 
-			Action::ReportPeer(peer, rep) => net.report_peer(peer, rep).await?,
+			Action::ReportPeer(peer, rep) => network_service.report_peer(peer, rep).await?,
 
 			Action::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated }) => {
 				live_heads.extend(activated);
 				live_heads.retain(|h| !deactivated.contains(h));
 
 				update_view(
-					&mut net,
+					&mut network_service,
 					&mut ctx,
 					&live_heads,
 					&mut local_view,
@@ -609,9 +649,11 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => &mut collation_peers,
 				};
 
+				validator_discovery.on_peer_connected(&peer, &mut authority_discovery_service).await;
+
 				match peer_map.entry(peer.clone()) {
-					HEntry::Occupied(_) => continue,
-					HEntry::Vacant(vacant) => {
+					hash_map::Entry::Occupied(_) => continue,
+					hash_map::Entry::Vacant(vacant) => {
 						vacant.insert(PeerData {
 							view: View(Vec::new()),
 						});
@@ -652,6 +694,8 @@ async fn run_network<N: Network>(
 					PeerSet::Collation => &mut collation_peers,
 				};
 
+				validator_discovery.on_peer_disconnected(&peer, &mut authority_discovery_service).await;
+
 				if peer_map.remove(&peer).is_some() {
 					let res = match peer_set {
 						PeerSet::Validation => dispatch_validation_event_to_all(
@@ -679,7 +723,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut validation_peers,
 						v_messages,
-						&mut net,
+						&mut network_service,
 					).await?;
 
 					if let Err(e) = dispatch_validation_events_to_all(
@@ -699,7 +743,7 @@ async fn run_network<N: Network>(
 						peer.clone(),
 						&mut collation_peers,
 						c_messages,
-						&mut net,
+						&mut network_service,
 					).await?;
 
 					if let Err(e) = dispatch_collation_events_to_all(
@@ -718,6 +762,7 @@ async fn run_network<N: Network>(
 	}
 }
 
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -725,6 +770,8 @@ mod tests {
 	use futures::executor;
 
 	use std::sync::Arc;
+	use std::collections::HashSet;
+	use async_trait::async_trait;
 	use parking_lot::Mutex;
 	use assert_matches::assert_matches;
 
@@ -732,6 +779,7 @@ mod tests {
 	use polkadot_node_subsystem_test_helpers::{
 		SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 	};
+	use sc_network::Multiaddr;
 	use sp_keyring::Sr25519Keyring;
 
 	// The subsystem's view of the network - only supports a single call to `event_stream`.
@@ -739,6 +787,8 @@ mod tests {
 		net_events: Arc<Mutex<Option<SingleItemStream<NetworkEvent>>>>,
 		action_tx: mpsc::UnboundedSender<NetworkAction>,
 	}
+
+	struct TestAuthorityDiscovery;
 
 	// The test's view of the network. This receives updates from the subsystem in the form
 	// of `NetworkAction`s.
@@ -750,6 +800,7 @@ mod tests {
 	fn new_test_network() -> (
 		TestNetwork,
 		TestNetworkHandle,
+		TestAuthorityDiscovery,
 	) {
 		let (net_tx, net_rx) = polkadot_node_subsystem_test_helpers::single_item_sink();
 		let (action_tx, action_rx) = mpsc::unbounded();
@@ -763,6 +814,7 @@ mod tests {
 				action_rx,
 				net_tx,
 			},
+			TestAuthorityDiscovery,
 		)
 	}
 
@@ -785,6 +837,23 @@ mod tests {
 			-> Pin<Box<dyn Sink<NetworkAction, Error = SubsystemError> + Send + 'a>>
 		{
 			Box::pin((&mut self.action_tx).sink_map_err(Into::into))
+		}
+	}
+
+	impl validator_discovery::Network for TestNetwork {
+		fn set_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+	}
+
+	#[async_trait]
+	impl validator_discovery::AuthorityDiscovery for TestAuthorityDiscovery {
+		async fn get_addresses_by_authority_id(&mut self, _authority: AuthorityDiscoveryId) -> Option<Vec<Multiaddr>> {
+			None
+		}
+
+		async fn get_authority_id_by_peer_id(&mut self, _peer_id: PeerId) -> Option<AuthorityDiscoveryId> {
+			None
 		}
 	}
 
@@ -844,11 +913,12 @@ mod tests {
 
 	fn test_harness<T: Future<Output=()>>(test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
-		let (network, network_handle) = new_test_network();
+		let (network, network_handle, discovery) = new_test_network();
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool);
 
 		let network_bridge = run_network(
 			network,
+			discovery,
 			context,
 		)
 			.map_err(|_| panic!("subsystem execution failed"))

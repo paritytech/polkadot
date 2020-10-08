@@ -19,12 +19,14 @@
 //! Many subsystems have common interests such as canceling a bunch of spawned jobs,
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
+//!
+//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-	metrics,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -35,7 +37,7 @@ use futures::{
 	task,
 };
 use futures_timer::Delay;
-use keystore::KeyStorePtr;
+use sc_keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
@@ -50,9 +52,12 @@ use std::{
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
+	task::{Poll, Context},
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+
+pub mod validator_discovery;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -433,6 +438,43 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 	}
 }
 
+/// This module reexports Prometheus types and defines the [`Metrics`] trait.
+pub mod metrics {
+	/// Reexport Prometheus types.
+	pub use substrate_prometheus_endpoint as prometheus;
+
+	/// Subsystem- or job-specific Prometheus metrics.
+	///
+	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+	/// to ensure `Default` bounds or as a dummy type ().
+	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
+	pub trait Metrics: Default + Clone {
+		/// Try to register metrics in the Prometheus registry.
+		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+
+		/// Convience method to register metrics in the optional Prometheus registry.
+		/// If the registration fails, prints a warning and returns `Default::default()`.
+		fn register(registry: Option<&prometheus::Registry>) -> Self {
+			registry.map(|r| {
+				match Self::try_register(r) {
+					Err(e) => {
+						log::warn!("Failed to register metrics: {:?}", e);
+						Default::default()
+					},
+					Ok(metrics) => metrics,
+				}
+			}).unwrap_or_default()
+		}
+	}
+
+	// dummy impl
+	impl Metrics for () {
+		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
+		}
+	}
+}
+
 /// This trait governs jobs.
 ///
 /// Jobs are instantiated and killed automatically on appropriate overseer messages.
@@ -611,10 +653,13 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	}
 
 	/// Send a message to the appropriate job for this `parent_hash`.
+	/// Will not return an error if the job is not running.
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) -> Result<(), Error> {
 		match self.running.get_mut(&parent_hash) {
 			Some(job) => job.send_msg(msg).await?,
-			None => return Err(Error::JobNotFound(parent_hash)),
+			None => {
+				// don't bring down the subsystem, this can happen to due a race condition
+			},
 		}
 		Ok(())
 	}
@@ -640,12 +685,17 @@ where
 
 	fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context) -> task::Poll<Option<Self::Item>> {
 		// pin-project the outgoing messages
-		self.project().outgoing_msgs.poll_next(cx).map(|opt| {
+		let result = self.project().outgoing_msgs.poll_next(cx).map(|opt| {
 			opt.and_then(|(stream_yield, _)| match stream_yield {
 				StreamYield::Item(msg) => Some(msg),
 				StreamYield::Finished(_) => None,
 			})
-		})
+		});
+		// we don't want the stream to end if the jobs are empty at some point
+		match result {
+			task::Poll::Ready(None) => task::Poll::Pending,
+			otherwise => otherwise,
+		}
 	}
 }
 
@@ -728,7 +778,7 @@ where
 		loop {
 			select! {
 				incoming = ctx.recv().fuse() => if Self::handle_incoming(incoming, &mut jobs, &run_args, &metrics, &mut err_tx).await { break },
-				outgoing = jobs.next().fuse() => if Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await { break },
+				outgoing = jobs.next().fuse() => Self::handle_outgoing(outgoing, &mut ctx, &mut err_tx).await,
 				complete => break,
 			}
 		}
@@ -838,21 +888,16 @@ where
 		false
 	}
 
-	// handle an outgoing message. return true if we should break afterwards.
+	// handle an outgoing message.
 	async fn handle_outgoing(
 		outgoing: Option<Job::FromJob>,
 		ctx: &mut Context,
 		err_tx: &mut Option<mpsc::Sender<(Option<Hash>, JobsError<Job::Error>)>>,
-	) -> bool {
-		match outgoing {
-			Some(msg) => {
-				if let Err(e) = ctx.send_message(msg.into()).await {
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
-				}
-			}
-			None => return true,
+	) {
+		let msg = outgoing.expect("the Jobs stream never ends; qed");
+		if let Err(e) = ctx.send_message(msg.into()).await {
+			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
 		}
-		false
 	}
 }
 
@@ -866,8 +911,6 @@ where
 	Job::ToJob: TryFrom<AllMessages> + Sync,
 	Job::Metrics: Sync,
 {
-	type Metrics = Job::Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
@@ -961,8 +1004,6 @@ macro_rules! delegated_subsystem {
 			Context: $crate::reexports::SubsystemContext,
 			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
-			type Metrics = $metrics;
-
 			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
@@ -970,9 +1011,51 @@ macro_rules! delegated_subsystem {
 	};
 }
 
+/// A future that wraps another future with a `Delay` allowing for time-limited futures.
+#[pin_project]
+pub struct Timeout<F: Future> {
+	#[pin]
+	future: F,
+	#[pin]
+	delay: Delay,
+}
+
+/// Extends `Future` to allow time-limited futures.
+pub trait TimeoutExt: Future {
+	fn timeout(self, duration: Duration) -> Timeout<Self>
+	where
+		Self: Sized,
+	{
+		Timeout {
+			future: self,
+			delay: Delay::new(duration),
+		}
+	}
+}
+
+impl<F: Future> TimeoutExt for F {}
+
+impl<F: Future> Future for Timeout<F> {
+	type Output = Option<F::Output>;
+
+	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+		let this = self.project();
+
+		if this.delay.poll(ctx).is_ready() {
+			return Poll::Ready(None);
+		}
+
+		if let Poll::Ready(output) = this.future.poll(ctx) {
+			return Poll::Ready(Some(output));
+		}
+
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use super::{Error as UtilError, JobManager, JobTrait, JobsError, ToJobTrait};
+	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -982,9 +1065,8 @@ mod tests {
 		channel::mpsc,
 		executor,
 		stream::{self, StreamExt},
-		Future, FutureExt, SinkExt,
+		future, Future, FutureExt, SinkExt,
 	};
-	use futures_timer::Delay;
 	use polkadot_primitives::v1::Hash;
 	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
@@ -1140,24 +1222,28 @@ mod tests {
 		run_args: HashMap<Hash, Vec<FromJob>>,
 		test: impl FnOnce(OverseerHandle, mpsc::Receiver<(Option<Hash>, JobsError<Error>)>) -> T,
 	) {
+		let _ = env_logger::builder()
+			.is_test(true)
+			.filter(
+				None,
+				log::LevelFilter::Trace,
+			)
+			.try_init();
+
 		let pool = sp_core::testing::TaskExecutor::new();
 		let (context, overseer_handle) = make_subsystem_context(pool.clone());
 		let (err_tx, err_rx) = mpsc::channel(16);
 
 		let subsystem = FakeCandidateSelectionSubsystem::run(context, run_args, (), pool, Some(err_tx));
 		let test_future = test(overseer_handle, err_rx);
-		let timeout = Delay::new(Duration::from_secs(2));
 
-		futures::pin_mut!(test_future);
-		futures::pin_mut!(subsystem);
-		futures::pin_mut!(timeout);
+		futures::pin_mut!(subsystem, test_future);
 
 		executor::block_on(async move {
-			futures::select! {
-				_ = test_future.fuse() => (),
-				_ = subsystem.fuse() => (),
-				_ = timeout.fuse() => panic!("test timed out instead of completing"),
-			}
+			future::join(subsystem, test_future)
+				.timeout(Duration::from_secs(2))
+				.await
+				.expect("test timed out instead of completing")
 		});
 	}
 
@@ -1186,6 +1272,10 @@ mod tests {
 				)))
 				.await;
 
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+
 			let errs: Vec<_> = err_rx.collect().await;
 			assert_eq!(errs.len(), 0);
 		});
@@ -1210,6 +1300,44 @@ mod tests {
 				errs[0].1,
 				JobsError::Utility(UtilError::JobNotFound(match_relay_parent)) if relay_parent == match_relay_parent
 			);
+		});
+	}
+
+	#[test]
+	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
+		let relay_parent = Hash::repeat_byte(0x01);
+		let mut run_args = HashMap::new();
+		run_args.insert(
+			relay_parent.clone(),
+			vec![FromJob::Test],
+		);
+
+		test_harness(run_args, |mut overseer_handle, err_rx| async move {
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate::start_work(relay_parent),
+				)))
+				.await;
+
+			// send to a non running job
+			overseer_handle
+				.send(FromOverseer::Communication {
+					msg: Default::default(),
+				})
+				.await;
+
+			// the subsystem is still alive
+			assert_matches!(
+				overseer_handle.recv().await,
+				AllMessages::CandidateSelection(_)
+			);
+
+			overseer_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+
+			let errs: Vec<_> = err_rx.collect().await;
+			assert_eq!(errs.len(), 0);
 		});
 	}
 

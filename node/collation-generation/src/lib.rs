@@ -19,7 +19,7 @@
 #![deny(missing_docs)]
 
 use futures::{
-	channel::{mpsc, oneshot},
+	channel::mpsc,
 	future::FutureExt,
 	join,
 	select,
@@ -28,14 +28,13 @@ use futures::{
 };
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
-	errors::RuntimeApiError,
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-	metrics::{self, prometheus},
+	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores_ctx, request_full_validation_data_ctx,
+	request_availability_cores_ctx, request_full_validation_data_ctx,
 	request_validators_ctx,
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, AvailableData, CandidateCommitments,
@@ -44,6 +43,10 @@ use polkadot_primitives::v1::{
 };
 use sp_core::crypto::Pair;
 use std::sync::Arc;
+
+mod error;
+
+const LOG_TARGET: &'static str = "collation_generation";
 
 /// Collation Generation Subsystem
 pub struct CollationGenerationSubsystem {
@@ -92,7 +95,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							log::warn!(target: "collation_generation", "failed to forward message to overseer: {:?}", err);
+							log::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
 							break;
 						}
 					}
@@ -126,7 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: "collation_generation", "failed to handle new activations: {:?}", err);
+						log::warn!(target: LOG_TARGET, "failed to handle new activations: {:?}", err);
 						return true;
 					};
 				}
@@ -137,7 +140,7 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::warn!(target: "collation_generation", "double initialization");
+					log::warn!(target: LOG_TARGET, "double initialization");
 					true
 				} else {
 					self.config = Some(Arc::new(config));
@@ -146,7 +149,11 @@ impl CollationGenerationSubsystem {
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
-				log::error!(target: "collation_generation", "error receiving message from subsystem context: {:?}", err);
+				log::error!(
+					target: LOG_TARGET,
+					"error receiving message from subsystem context: {:?}",
+					err
+				);
 				true
 			}
 		}
@@ -157,8 +164,6 @@ impl<Context> Subsystem<Context> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(self.run(ctx));
 
@@ -169,29 +174,13 @@ where
 	}
 }
 
-#[derive(Debug, derive_more::From)]
-enum Error {
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	OneshotRecv(oneshot::Canceled),
-	#[from]
-	Runtime(RuntimeApiError),
-	#[from]
-	Util(util::Error),
-	#[from]
-	Erasure(polkadot_erasure_coding::Error),
-}
-
-type Result<T> = std::result::Result<T, Error>;
-
 async fn handle_new_activations<Context: SubsystemContext>(
 	config: Arc<CollationGenerationConfig>,
 	activated: &[Hash],
 	ctx: &mut Context,
 	metrics: Metrics,
 	sender: &mpsc::Sender<AllMessages>,
-) -> Result<()> {
+) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
 
@@ -244,7 +233,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let persisted_validation_data_hash = validation_data.persisted.hash();
 
-				let collation = (task_config.collator)(&validation_data).await;
+				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
+					Some(collation) => collation,
+					None => {
+						log::debug!(
+							target: LOG_TARGET,
+							"collator returned no collation on collate for para_id {}.",
+							scheduled_core.para_id,
+						);
+						return
+					}
+				};
 
 				let pov_hash = collation.proof_of_validity.hash();
 
@@ -262,7 +261,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
-						log::error!(target: "collation_generation", "failed to calculate erasure root for para_id {}: {:?}", scheduled_core.para_id, err);
+						log::error!(
+							target: LOG_TARGET,
+							"failed to calculate erasure root for para_id {}: {:?}",
+							scheduled_core.para_id,
+							err
+						);
 						return
 					}
 				};
@@ -292,7 +296,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
-					log::warn!(target: "collation_generation", "failed to send collation result for para_id {}: {:?}", scheduled_core.para_id, err);
+					log::warn!(
+						target: LOG_TARGET,
+						"failed to send collation result for para_id {}: {:?}",
+						scheduled_core.para_id,
+						err
+					);
 				}
 			})).await?;
 		}
@@ -305,7 +314,7 @@ fn erasure_root(
 	n_validators: usize,
 	persisted_validation: PersistedValidationData,
 	pov: PoV,
-) -> Result<Hash> {
+) -> crate::error::Result<Hash> {
 	let available_data = AvailableData {
 		validation_data: persisted_validation,
 		pov,
@@ -333,7 +342,7 @@ impl Metrics {
 }
 
 impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> std::result::Result<Self, prometheus::PrometheusError> {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
 			collations_generated_total: prometheus::register(
 				prometheus::Counter::new(
@@ -385,10 +394,10 @@ mod tests {
 		struct TestCollator;
 
 		impl Future for TestCollator {
-			type Output = Collation;
+			type Output = Option<Collation>;
 
 			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(test_collation())
+				Poll::Ready(Some(test_collation()))
 			}
 		}
 
@@ -397,8 +406,8 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_vd: &ValidationData| {
-					Box::new(TestCollator)
+				collator: Box::new(|_: Hash, _vd: &ValidationData| {
+					TestCollator.boxed()
 				}),
 				para_id: para_id.into(),
 			})

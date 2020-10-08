@@ -16,4 +16,4 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 [dev-dependencies]
 lazy_static = "1.4"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = "0.2"
+futures-timer = "3.0.2"
