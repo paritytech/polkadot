@@ -223,37 +223,7 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 		});
 
 		SpawnedSubsystem {
-			name: "DummySubsystem",
-			future,
-		}
-	}
-}
-
-/// A forward subsystem that implements [`Subsystem`].
-///
-/// It forwards all communication from the overseer to the internal message
-/// channel.
-///
-/// This subsystem is useful for testing functionality that interacts with the overseer.
-pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
-
-impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
-	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			loop {
-				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-					Ok(FromOverseer::Communication { msg }) => {
-						let _ = self.0.send(msg).await;
-					},
-					Err(_) => return,
-					_ => (),
-				}
-			}
-		});
-
-		SpawnedSubsystem {
-			name: "forward-subsystem",
+			name: "dummy-subsystem",
 			future,
 		}
 	}
