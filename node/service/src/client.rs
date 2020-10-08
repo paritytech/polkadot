@@ -24,7 +24,7 @@ use sp_runtime::{
 };
 use sc_client_api::{Backend as BackendT, BlockchainEvents, KeyIterator};
 use sp_storage::{StorageData, StorageKey, ChildInfo, PrefixedStorageKey};
-use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance};
+use polkadot_primitives::v1::{Block, ParachainHost, AccountId, Nonce, Balance, Header, BlockNumber, Hash};
 use consensus_common::BlockStatus;
 
 /// A set of APIs that polkadot-like runtimes must implement.
@@ -142,6 +142,7 @@ pub enum Client {
 	Polkadot(Arc<crate::FullClient<polkadot_runtime::RuntimeApi, crate::PolkadotExecutor>>),
 	Westend(Arc<crate::FullClient<westend_runtime::RuntimeApi, crate::WestendExecutor>>),
 	Kusama(Arc<crate::FullClient<kusama_runtime::RuntimeApi, crate::KusamaExecutor>>),
+	Rococo(Arc<crate::FullClient<rococo_runtime::RuntimeApi, crate::RococoExecutor>>),
 }
 
 impl ClientHandle for Client {
@@ -156,6 +157,9 @@ impl ClientHandle for Client {
 			Self::Kusama(client) => {
 				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
 			},
+			Self::Rococo(client) => {
+				T::execute_with_client::<_, _, crate::FullBackend>(t, client.clone())
+			}
 		}
 	}
 }
@@ -166,6 +170,7 @@ impl sc_client_api::UsageProvider<Block> for Client {
 			Self::Polkadot(client) => client.usage_info(),
 			Self::Westend(client) => client.usage_info(),
 			Self::Kusama(client) => client.usage_info(),
+			Self::Rococo(client) => client.usage_info(),
 		}
 	}
 }
@@ -179,6 +184,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Polkadot(client) => client.block_body(id),
 			Self::Westend(client) => client.block_body(id),
 			Self::Kusama(client) => client.block_body(id),
+			Self::Rococo(client) => client.block_body(id),
 		}
 	}
 
@@ -187,6 +193,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Polkadot(client) => client.block(id),
 			Self::Westend(client) => client.block(id),
 			Self::Kusama(client) => client.block(id),
+			Self::Rococo(client) => client.block(id),
 		}
 	}
 
@@ -195,6 +202,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Polkadot(client) => client.block_status(id),
 			Self::Westend(client) => client.block_status(id),
 			Self::Kusama(client) => client.block_status(id),
+			Self::Rococo(client) => client.block_status(id),
 		}
 	}
 
@@ -206,6 +214,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Polkadot(client) => client.justification(id),
 			Self::Westend(client) => client.justification(id),
 			Self::Kusama(client) => client.justification(id),
+			Self::Rococo(client) => client.justification(id),
 		}
 	}
 
@@ -217,6 +226,7 @@ impl sc_client_api::BlockBackend<Block> for Client {
 			Self::Polkadot(client) => client.block_hash(number),
 			Self::Westend(client) => client.block_hash(number),
 			Self::Kusama(client) => client.block_hash(number),
+			Self::Rococo(client) => client.block_hash(number),
 		}
 	}
 }
@@ -231,6 +241,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.storage(id, key),
 			Self::Westend(client) => client.storage(id, key),
 			Self::Kusama(client) => client.storage(id, key),
+			Self::Rococo(client) => client.storage(id, key),
 		}
 	}
 
@@ -243,6 +254,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.storage_keys(id, key_prefix),
 			Self::Westend(client) => client.storage_keys(id, key_prefix),
 			Self::Kusama(client) => client.storage_keys(id, key_prefix),
+			Self::Rococo(client) => client.storage_keys(id, key_prefix),
 		}
 	}
 
@@ -255,6 +267,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.storage_hash(id, key),
 			Self::Westend(client) => client.storage_hash(id, key),
 			Self::Kusama(client) => client.storage_hash(id, key),
+			Self::Rococo(client) => client.storage_hash(id, key),
 		}
 	}
 
@@ -267,6 +280,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.storage_pairs(id, key_prefix),
 			Self::Westend(client) => client.storage_pairs(id, key_prefix),
 			Self::Kusama(client) => client.storage_pairs(id, key_prefix),
+			Self::Rococo(client) => client.storage_pairs(id, key_prefix),
 		}
 	}
 
@@ -280,6 +294,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.storage_keys_iter(id, prefix, start_key),
 			Self::Westend(client) => client.storage_keys_iter(id, prefix, start_key),
 			Self::Kusama(client) => client.storage_keys_iter(id, prefix, start_key),
+			Self::Rococo(client) => client.storage_keys_iter(id, prefix, start_key),
 		}
 	}
 
@@ -293,6 +308,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.child_storage(id, child_info, key),
 			Self::Westend(client) => client.child_storage(id, child_info, key),
 			Self::Kusama(client) => client.child_storage(id, child_info, key),
+			Self::Rococo(client) => client.child_storage(id, child_info, key),
 		}
 	}
 
@@ -306,6 +322,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.child_storage_keys(id, child_info, key_prefix),
 			Self::Westend(client) => client.child_storage_keys(id, child_info, key_prefix),
 			Self::Kusama(client) => client.child_storage_keys(id, child_info, key_prefix),
+			Self::Rococo(client) => client.child_storage_keys(id, child_info, key_prefix),
 		}
 	}
 
@@ -319,6 +336,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.child_storage_hash(id, child_info, key),
 			Self::Westend(client) => client.child_storage_hash(id, child_info, key),
 			Self::Kusama(client) => client.child_storage_hash(id, child_info, key),
+			Self::Rococo(client) => client.child_storage_hash(id, child_info, key),
 		}
 	}
 
@@ -331,6 +349,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.max_key_changes_range(first, last),
 			Self::Westend(client) => client.max_key_changes_range(first, last),
 			Self::Kusama(client) => client.max_key_changes_range(first, last),
+			Self::Rococo(client) => client.max_key_changes_range(first, last),
 		}
 	}
 
@@ -345,6 +364,54 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 			Self::Polkadot(client) => client.key_changes(first, last, storage_key, key),
 			Self::Westend(client) => client.key_changes(first, last, storage_key, key),
 			Self::Kusama(client) => client.key_changes(first, last, storage_key, key),
+			Self::Rococo(client) => client.key_changes(first, last, storage_key, key),
+		}
+	}
+}
+
+impl sp_blockchain::HeaderBackend<Block> for Client {
+	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+		match self {
+			Self::Polkadot(client) => client.header(&id),
+			Self::Westend(client) => client.header(&id),
+			Self::Kusama(client) => client.header(&id),
+			Self::Rococo(client) => client.header(&id),
+		}
+	}
+
+	fn info(&self) -> sp_blockchain::Info<Block> {
+		match self {
+			Self::Polkadot(client) => client.info(),
+			Self::Westend(client) => client.info(),
+			Self::Kusama(client) => client.info(),
+			Self::Rococo(client) => client.info(),
+		}
+	}
+
+	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+		match self {
+			Self::Polkadot(client) => client.status(id),
+			Self::Westend(client) => client.status(id),
+			Self::Kusama(client) => client.status(id),
+			Self::Rococo(client) => client.status(id),
+		}
+	}
+
+	fn number(&self, hash: Hash) -> sp_blockchain::Result<Option<BlockNumber>> {
+		match self {
+			Self::Polkadot(client) => client.number(hash),
+			Self::Westend(client) => client.number(hash),
+			Self::Kusama(client) => client.number(hash),
+			Self::Rococo(client) => client.number(hash),
+		}
+	}
+
+	fn hash(&self, number: BlockNumber) -> sp_blockchain::Result<Option<Hash>> {
+		match self {
+			Self::Polkadot(client) => client.hash(number),
+			Self::Westend(client) => client.hash(number),
+			Self::Kusama(client) => client.hash(number),
+			Self::Rococo(client) => client.hash(number),
 		}
 	}
 }

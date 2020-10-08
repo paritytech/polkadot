@@ -30,7 +30,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
@@ -54,6 +54,8 @@ use sp_runtime::{
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+#[cfg(any(feature = "std", test))]
+use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -74,6 +76,7 @@ use runtime_parachains::router as parachains_router;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_staking::StakerStatus;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -407,6 +410,16 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	transaction_version: 2,
 };
 
+/// Native version.
+#[cfg(any(feature = "std", test))]
+pub fn native_version() -> NativeVersion {
+	NativeVersion {
+		runtime_version: VERSION,
+		can_author_with: Default::default(),
+	}
+}
+
+
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
@@ -547,7 +560,7 @@ impl pallet_im_online::Trait for Runtime {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();

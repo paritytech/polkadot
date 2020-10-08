@@ -55,6 +55,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
+polkadot-runtime-parachains = { path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
