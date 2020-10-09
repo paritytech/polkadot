@@ -25,12 +25,8 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use keystore::KeyStorePtr;
-use sp_core::{
-	crypto::Public,
-	traits::BareCryptoStore,
-};
-use sc_keystore as keystore;
+use sp_core::crypto::Public;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
@@ -293,7 +289,7 @@ impl ProtocolState {
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
@@ -332,7 +328,7 @@ where
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	view: View,
 	metrics: &Metrics,
@@ -353,7 +349,7 @@ where
 		let validator_index = obtain_our_validator_index(
 			&validators,
 			keystore.clone(),
-		);
+		).await;
 		state.add_relay_parent(ctx, added, validators, validator_index).await?;
 	}
 
@@ -579,18 +575,16 @@ where
 /// Obtain the first key which has a signing key.
 /// Returns the index within the validator set as `ValidatorIndex`, if there exists one,
 /// otherwise, `None` is returned.
-fn obtain_our_validator_index(
+async fn obtain_our_validator_index(
 	validators: &[ValidatorId],
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
 ) -> Option<ValidatorIndex> {
-	let keystore = keystore.read();
-	validators.iter().enumerate().find_map(|(idx, validator)| {
-		if keystore.has_keys(&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]) {
-			Some(idx as ValidatorIndex)
-		} else {
-			None
+	for (idx, validator) in validators.iter().enumerate() {
+		if CryptoStore::has_keys(&*keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
+			return Some(idx as ValidatorIndex)
 		}
-	})
+	}
+	None
 }
 
 /// Handle an incoming message from a peer.
@@ -712,7 +706,7 @@ where
 /// The bitfield distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
 	/// Prometheus metrics.
 	metrics: Metrics,
 }
@@ -722,7 +716,7 @@ impl AvailabilityDistributionSubsystem {
 	const K: usize = 3;
 
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: KeyStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 
@@ -741,7 +735,7 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
-						self.keystore.clone(),
+						&self.keystore.clone(),
 						&mut state,
 						&self.metrics,
 						event,

@@ -9,6 +9,7 @@ jsonrpc-core = "15.0.0"
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master"  }
