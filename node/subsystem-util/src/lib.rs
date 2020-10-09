@@ -28,7 +28,7 @@
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
+	errors::RuntimeApiError,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
 };
@@ -99,9 +99,6 @@ pub enum Error {
 	/// A subsystem error
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
-	/// An error in the Chain API.
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
 	/// An error in the Runtime API.
 	#[error(transparent)]
 	RuntimeApi(#[from] RuntimeApiError),
