@@ -475,6 +475,17 @@ pub mod metrics {
 				}
 			}).unwrap_or_default()
 		}
+
+		// Convenience method to register metrics in the optional Promethius registry.
+		//
+		// If no registry is provided, returns `Default::default()`. Otherwise, retursn the same
+		// thing that `try_register` does.
+		fn attempt_to_register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
+			match registry {
+				None => Ok(Self::default()),
+				Some(registry) => Self::try_register(registry),
+			}
+		}
 	}
 
 	// dummy impl

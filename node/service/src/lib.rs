@@ -25,7 +25,6 @@ use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_proposer::ProposerFactory;
-use polkadot_node_subsystem_util::metrics::Metrics;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
 use polkadot_primitives::v1::ParachainHost;
 use prometheus_endpoint::Registry;
@@ -270,13 +269,6 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	})
 }
 
-fn make_metrics<M: Metrics + Default>(registry: Option<&Registry>) -> Result<M, ServiceError> {
-	Ok(match registry {
-		None => M::default(),
-		Some(registry) => M::try_register(registry)?,
-	})
-}
-
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: KeyStorePtr,
@@ -292,6 +284,8 @@ where
 	RuntimeClient::Api: ParachainHost<Block>,
 	Spawner: SpawnNamed + Clone + Unpin,
 {
+	use polkadot_node_subsystem_util::metrics::Metrics;
+
 	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
 	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
 	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
@@ -309,21 +303,65 @@ where
 	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 
 	let all_subsystems = AllSubsystems {
-		availability_distribution: AvailabilityDistributionSubsystem::new(keystore.clone(), make_metrics(registry)?),
-		availability_store: AvailabilityStoreSubsystem::new_on_disk(availability_config, make_metrics(registry)?)?,
-		bitfield_distribution: BitfieldDistributionSubsystem::new(make_metrics(registry)?),
-		bitfield_signing: BitfieldSigningSubsystem::new(spawner.clone(), keystore.clone(), make_metrics(registry)?),
-		candidate_backing: CandidateBackingSubsystem::new(spawner.clone(), keystore.clone(), make_metrics(registry)?),
-		candidate_selection: CandidateSelectionSubsystem::new(spawner.clone(), (), make_metrics(registry)?),
-		candidate_validation: CandidateValidationSubsystem::new(spawner.clone(), make_metrics(registry)?),
-		chain_api: ChainApiSubsystem::new(runtime_client, make_metrics(registry)?),
-		collation_generation: CollationGenerationSubsystem::new(make_metrics(registry)?),
-		collator_protocol: CollatorProtocolSubsystem::new(None, registry),
-		network_bridge: NetworkBridgeSubsystem::new(network_service, authority_discovery),
-		pov_distribution: PoVDistributionSubsystem::new(make_metrics(registry)?),
-		provisioner: ProvisionerSubsystem::new(spawner.clone(), (), make_metrics(registry)?),
-		runtime_api: RuntimeApiSubsystem::new(runtime_client, make_metrics(registry)?),
-		statement_distribution: StatementDistributionSubsystem::new(make_metrics(registry)?),
+		availability_distribution: AvailabilityDistributionSubsystem::new(
+			keystore.clone(),
+			Metrics::attempt_to_register(registry)?,
+		),
+		availability_store: AvailabilityStoreSubsystem::new_on_disk(
+			availability_config,
+			Metrics::attempt_to_register(registry)?,
+		)?,
+		bitfield_distribution: BitfieldDistributionSubsystem::new(
+			Metrics::attempt_to_register(registry)?,
+		),
+		bitfield_signing: BitfieldSigningSubsystem::new(
+			spawner.clone(),
+			keystore.clone(), Metrics::attempt_to_register(registry)?,
+		),
+		candidate_backing: CandidateBackingSubsystem::new(
+			spawner.clone(),
+			keystore.clone(),
+			Metrics::attempt_to_register(registry)?,
+		),
+		candidate_selection: CandidateSelectionSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::attempt_to_register(registry)?,
+		),
+		candidate_validation: CandidateValidationSubsystem::new(
+			spawner.clone(),
+			Metrics::attempt_to_register(registry)?,
+		),
+		chain_api: ChainApiSubsystem::new(
+			runtime_client,
+			Metrics::attempt_to_register(registry)?,
+		),
+		collation_generation: CollationGenerationSubsystem::new(
+			Metrics::attempt_to_register(registry)?,
+		),
+		collator_protocol: CollatorProtocolSubsystem::new(
+			None,
+			registry,
+		),
+		network_bridge: NetworkBridgeSubsystem::new(
+			network_service,
+			authority_discovery,
+		),
+		pov_distribution: PoVDistributionSubsystem::new(
+			Metrics::attempt_to_register(registry)?,
+		),
+		provisioner: ProvisionerSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::attempt_to_register(registry)?,
+		),
+		runtime_api: RuntimeApiSubsystem::new(
+			runtime_client,
+			Metrics::attempt_to_register(registry)?,
+		),
+		statement_distribution: StatementDistributionSubsystem::new(
+			Metrics::attempt_to_register(registry)?,
+		),
 	};
 
 	Overseer::new(
