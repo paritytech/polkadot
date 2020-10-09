@@ -207,7 +207,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		}
 
 		// collect multiaddress of validators
-		let multiaddr_to_add = HashSet::new();
+		let mut multiaddr_to_add = HashSet::new();
 		for authority in validator_ids.iter().cloned() {
 			let result = authority_discovery_service.get_addresses_by_authority_id(authority).await;
 			if let Some(addresses) = result {
@@ -242,7 +242,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		}
 
 		// multiaddresses to remove
-		let multiaddr_to_remove = HashSet::new();
+		let mut multiaddr_to_remove = HashSet::new();
 		for id in revoked_validators.into_iter() {
 			let result = authority_discovery_service.get_addresses_by_authority_id(id).await;
 			if let Some(addresses) = result {
@@ -342,10 +342,16 @@ mod tests {
 		}
 	}
 
+	#[async_trait]
 	impl Network for TestNetwork {
-		fn set_priority_group(&self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_to_priority_group(&self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			let mut group = self.priority_group.lock().unwrap();
-			*group = multiaddresses;
+			group.extend(multiaddresses.into_iter());
+			Ok(())
+		}
+		async fn remove_from_priority_group(&self, _group_id: String, multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			let mut group = self.priority_group.lock().unwrap();
+			group.retain(|elem| !multiaddresses.contains(elem));
 			Ok(())
 		}
 	}
