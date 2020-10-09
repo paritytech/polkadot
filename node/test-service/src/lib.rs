@@ -193,7 +193,7 @@ pub fn run_test_node(
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let authority_discovery_enabled = false;
-	let NewFull {task_manager, client, network, rpc_handlers, node_handles, ..} =
+	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
 		polkadot_test_new_full(config, authority_discovery_enabled)
 			.expect("could not create Polkadot test service");
 
@@ -203,7 +203,7 @@ pub fn run_test_node(
 	PolkadotTestNode {
 		task_manager,
 		client,
-		handles: node_handles,
+		overseer_handler,
 		addr,
 		rpc_handlers,
 	}
@@ -215,8 +215,8 @@ pub struct PolkadotTestNode<S, C> {
 	pub task_manager: S,
 	/// Client's instance.
 	pub client: Arc<C>,
-	/// Node's handles.
-	pub handles: OverseerHandler,
+	/// The overseer handler.
+	pub overseer_handler: OverseerHandler,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
