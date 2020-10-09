@@ -37,6 +37,7 @@ std = [
 	"inherents/std",
 	"trie/std",
 	"sp-api/std",
+	"sp-authority-discovery/std",
 	"sp-keystore",
 	"sp-std/std",
 	"sp-version/std",
