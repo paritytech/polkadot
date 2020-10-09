@@ -301,7 +301,7 @@ fn real_overseer<S: SpawnNamed>(
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub node_handles: OverseerHandler,
+	pub overseer_handler: OverseerHandler,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
@@ -313,7 +313,7 @@ impl<C> NewFull<C> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
-			node_handles: self.node_handles,
+			overseer_handler: self.overseer_handler,
 			network: self.network,
 			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
@@ -415,13 +415,13 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
-	let handler_clone = handler.clone();
+	let (overseer, overseer_handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
+	let overseer_handler_clone = overseer_handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 		use futures::{pin_mut, select, FutureExt};
 
-		let forward = polkadot_overseer::forward_events(overseer_client, handler_clone);
+		let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
 
 		let forward = forward.fuse();
 		let overseer_fut = overseer.run().fuse();
@@ -445,7 +445,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		let proposer = ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
-			handler.clone(),
+			overseer_handler.clone(),
 		);
 
 		let babe_config = babe::BabeParams {
@@ -575,7 +575,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	Ok(NewFull {
 		task_manager,
 		client,
-		node_handles: handler,
+		overseer_handler,
 		network,
 		network_status_sinks,
 		rpc_handlers,
