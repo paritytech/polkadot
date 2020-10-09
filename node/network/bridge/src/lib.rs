@@ -211,7 +211,7 @@ impl<N, AD> NetworkBridge<N, AD> {
 
 impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 	where
-		Net: Network + validator_discovery::Network + Sync,
+		Net: Network + validator_discovery::Network,
 		AD: validator_discovery::AuthorityDiscovery,
 		Context: SubsystemContext<Message=NetworkBridgeMessage>,
 {
@@ -842,11 +842,11 @@ mod tests {
 
 	#[async_trait]
 	impl validator_discovery::Network for TestNetwork {
-		async fn add_to_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_to_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 
-		async fn remove_from_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn remove_from_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
