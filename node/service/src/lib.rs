@@ -295,7 +295,7 @@ where
 	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 	use polkadot_node_core_chain_api::ChainApiSubsystem;
 	use polkadot_node_collation_generation::CollationGenerationSubsystem;
-	use polkadot_collator_protocol::CollatorProtocolSubsystem;
+	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
 	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
 	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
 	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
@@ -305,62 +305,61 @@ where
 	let all_subsystems = AllSubsystems {
 		availability_distribution: AvailabilityDistributionSubsystem::new(
 			keystore.clone(),
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		availability_store: AvailabilityStoreSubsystem::new_on_disk(
 			availability_config,
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		)?,
 		bitfield_distribution: BitfieldDistributionSubsystem::new(
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		bitfield_signing: BitfieldSigningSubsystem::new(
 			spawner.clone(),
-			keystore.clone(), Metrics::attempt_to_register(registry)?,
+			keystore.clone(), Metrics::register(registry)?,
 		),
 		candidate_backing: CandidateBackingSubsystem::new(
 			spawner.clone(),
 			keystore.clone(),
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		candidate_selection: CandidateSelectionSubsystem::new(
 			spawner.clone(),
 			(),
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		candidate_validation: CandidateValidationSubsystem::new(
 			spawner.clone(),
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		chain_api: ChainApiSubsystem::new(
 			runtime_client,
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		collation_generation: CollationGenerationSubsystem::new(
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		collator_protocol: CollatorProtocolSubsystem::new(
-			None,
-			registry,
+			ProtocolSide::Validator(Metrics::register(registry)?),
 		),
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service,
 			authority_discovery,
 		),
 		pov_distribution: PoVDistributionSubsystem::new(
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		provisioner: ProvisionerSubsystem::new(
 			spawner.clone(),
 			(),
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		runtime_api: RuntimeApiSubsystem::new(
 			runtime_client,
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 		statement_distribution: StatementDistributionSubsystem::new(
-			Metrics::attempt_to_register(registry)?,
+			Metrics::register(registry)?,
 		),
 	};
 

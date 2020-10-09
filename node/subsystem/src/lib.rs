@@ -139,6 +139,12 @@ impl From<std::convert::Infallible> for SubsystemError {
 	}
 }
 
+impl From<substrate_prometheus_endpoint::PrometheusError> for SubsystemError {
+	fn from(_: substrate_prometheus_endpoint::PrometheusError) -> Self {
+		Self
+	}
+}
+
 /// An asynchronous subsystem task..
 ///
 /// In essence it's just a newtype wrapping a `BoxFuture`.
