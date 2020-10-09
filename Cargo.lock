@@ -5404,6 +5404,7 @@ dependencies = [
  "polkadot-node-core-provisioner",
  "polkadot-node-core-runtime-api",
  "polkadot-node-subsystem",
+ "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-parachain",
  "polkadot-pov-distribution",

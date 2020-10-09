@@ -23,11 +23,15 @@ mod client;
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
+use polkadot_node_core_av_store::Config as AvailabilityConfig;
 use polkadot_node_core_proposer::ProposerFactory;
+use polkadot_node_subsystem_util::metrics::Metrics;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
-use polkadot_subsystem::DummySubsystem;
+use polkadot_primitives::v1::ParachainHost;
 use prometheus_endpoint::Registry;
+use authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::ExecutorProvider;
+use sc_keystore::KeyStorePtr;
 use sc_executor::native_executor_instance;
 use service::{error::Error as ServiceError, RpcHandlers};
 use sp_blockchain::HeaderBackend;
@@ -42,7 +46,7 @@ pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, Rococ
 pub use codec::Codec;
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
 pub use polkadot_parachain::wasm_executor::run_worker as run_validation_worker;
-pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Id as ParaId};
+pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
 pub use sc_executor::NativeExecutionDispatch;
@@ -266,50 +270,67 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	})
 }
 
-fn real_overseer<S: SpawnNamed>(
+fn make_metrics<M: Metrics + Default>(registry: Option<&Registry>) -> Result<M, ServiceError> {
+	Ok(match registry {
+		None => M::default(),
+		Some(registry) => M::try_register(registry)?,
+	})
+}
+
+fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
-	prometheus_registry: Option<&Registry>,
-	s: S,
-) -> Result<(Overseer<S>, OverseerHandler), ServiceError> {
-	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+	keystore: KeyStorePtr,
+	runtime_client: RuntimeClient,
+	availability_config: AvailabilityConfig,
+	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
+	authority_discovery: AuthorityDiscoveryService,
+	registry: Option<&Registry>,
+	spawner: Spawner,
+) -> Result<(Overseer<Spawner>, OverseerHandler), ServiceError>
+where
+	RuntimeClient: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	RuntimeClient::Api: ParachainHost<Block>,
+	Spawner: SpawnNamed + Clone + Unpin,
+{
+	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
+	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
 	use polkadot_node_core_backing::CandidateBackingSubsystem;
 	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
-	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
-	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 	use polkadot_node_core_chain_api::ChainApiSubsystem;
 	use polkadot_node_collation_generation::CollationGenerationSubsystem;
 	use polkadot_collator_protocol::CollatorProtocolSubsystem;
+	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
+	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
 
 	let all_subsystems = AllSubsystems {
-		candidate_validation: CandidateValidationSubsystem::new(),
-		candidate_backing: CandidateBackingSubsystem::new(),
-		candidate_selection: CandidateSelectionSubsystem::new(),
-		statement_distribution: StatementDistributionSubsystem::new(),
-		availability_distribution: AvailabilityDistributionSubsystem::new(),
-		bitfield_signing: BitfieldSigningSubsystem::new(),
-		bitfield_distribution: BitfieldDistributionSubsystem::new(),
-		provisioner: ProvisionerSubsystem::new(),
-		pov_distribution: PoVDistributionSubsystem::new(),
-		runtime_api: RuntimeApiSubsystem::new(),
-		availability_store: AvailabilityStoreSubsystem::new(),
-		network_bridge: NetworkBridgeSubsystem::new(),
-		chain_api: ChainApiSubsystem::new(),
-		collation_generation: CollationGenerationSubsystem::new(),
-		collator_protocol: CollatorProtocolSubsystem::new(),
+		availability_distribution: AvailabilityDistributionSubsystem::new(keystore.clone(), make_metrics(registry)?),
+		availability_store: AvailabilityStoreSubsystem::new_on_disk(availability_config, make_metrics(registry)?)?,
+		bitfield_distribution: BitfieldDistributionSubsystem::new(make_metrics(registry)?),
+		bitfield_signing: BitfieldSigningSubsystem::new(spawner.clone(), keystore.clone(), make_metrics(registry)?),
+		candidate_backing: CandidateBackingSubsystem::new(spawner.clone(), keystore.clone(), make_metrics(registry)?),
+		candidate_selection: CandidateSelectionSubsystem::new(spawner.clone(), (), make_metrics(registry)?),
+		candidate_validation: CandidateValidationSubsystem::new(spawner.clone(), make_metrics(registry)?),
+		chain_api: ChainApiSubsystem::new(runtime_client, make_metrics(registry)?),
+		collation_generation: CollationGenerationSubsystem::new(make_metrics(registry)?),
+		collator_protocol: CollatorProtocolSubsystem::new(None, registry),
+		network_bridge: NetworkBridgeSubsystem::new(network_service, authority_discovery),
+		pov_distribution: PoVDistributionSubsystem::new(make_metrics(registry)?),
+		provisioner: ProvisionerSubsystem::new(spawner.clone(), (), make_metrics(registry)?),
+		runtime_api: RuntimeApiSubsystem::new(runtime_client, make_metrics(registry)?),
+		statement_distribution: StatementDistributionSubsystem::new(make_metrics(registry)?),
 	};
 
 	Overseer::new(
 		leaves,
 		all_subsystems,
-		prometheus_registry,
-		s,
+		registry,
+		spawner,
 	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
@@ -436,7 +457,16 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(leaves, prometheus_registry.as_ref(), spawner)?;
+	let (overseer, handler) = real_overseer(
+		leaves,
+		keystore.clone(),
+		overseer_client,
+		unimplemented!("TODO: availability_config"),
+		unimplemented!("TODO: network_service"),
+		unimplemented!("TODO: authority_discovery"),
+		prometheus_registry.as_ref(),
+		spawner,
+	)?;
 	let handler_clone = handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
