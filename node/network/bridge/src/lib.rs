@@ -840,8 +840,13 @@ mod tests {
 		}
 	}
 
+	#[async_trait]
 	impl validator_discovery::Network for TestNetwork {
-		fn set_priority_group(&self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+		async fn add_to_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
+			Ok(())
+		}
+
+		async fn remove_from_priority_group(&mut self, _group_id: String, _multiaddresses: HashSet<Multiaddr>) -> Result<(), String> {
 			Ok(())
 		}
 	}
