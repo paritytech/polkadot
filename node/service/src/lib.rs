@@ -30,11 +30,11 @@ use polkadot_primitives::v1::ParachainHost;
 use prometheus_endpoint::Registry;
 use authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::ExecutorProvider;
-use sc_keystore::KeyStorePtr;
 use sc_executor::native_executor_instance;
 use service::{error::Error as ServiceError, RpcHandlers};
 use sp_blockchain::HeaderBackend;
 use sp_core::traits::SpawnNamed;
+use sp_keystore::SyncCryptoStorePtr;
 use sp_trie::PrefixedMemoryDB;
 use std::sync::Arc;
 use std::time::Duration;
@@ -271,7 +271,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
 	runtime_client: RuntimeClient,
 	availability_config: AvailabilityConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
@@ -495,7 +495,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let (overseer, handler) = real_overseer(
 		leaves,
-		keystore.clone(),
+		keystore_container.sync_keystore(),
 		overseer_client,
 		unimplemented!("TODO: availability_config"),
 		unimplemented!("TODO: network_service"),
