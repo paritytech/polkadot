@@ -359,6 +359,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let prometheus_registry = config.prometheus_registry().cloned();
 
+	let (block_import, link_half, babe_link) = import_setup;
 	let (shared_voter_state, finality_proof_provider) = rpc_setup;
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
@@ -372,6 +373,9 @@ pub fn new_full<RuntimeApi, Executor>(
 			block_announce_validator_builder: None,
 			finality_proof_request_builder: None,
 			finality_proof_provider: Some(finality_proof_provider.clone()),
+			sync_state_items: Some((
+				link_half.shared_authority_set().clone(), babe_link.epoch_changes().clone(),
+			))
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -397,8 +401,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		network_status_sinks: network_status_sinks.clone(),
 		system_rpc_tx,
 	})?;
-
-	let (block_import, link_half, babe_link) = import_setup;
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
@@ -656,6 +658,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 			block_announce_validator_builder: None,
 			finality_proof_request_builder: Some(finality_proof_request_builder),
 			finality_proof_provider: Some(finality_proof_provider),
+			sync_state_items: None,
 		})?;
 
 	if config.offchain_worker.enabled {
