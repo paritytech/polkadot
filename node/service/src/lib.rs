@@ -309,7 +309,8 @@ pub struct NewFull<C> {
 
 #[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
-	fn with_client(self, func: impl FnOnce(C) -> Client) -> NewFull<Client> {
+	/// Convert the client type using the given `func`.
+	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
