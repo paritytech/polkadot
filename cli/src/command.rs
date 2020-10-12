@@ -126,7 +126,7 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
+			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -148,7 +148,7 @@ pub fn run() -> Result<()> {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
-						authority_discovery_enabled,
+						authority_discovery_disabled,
 						grandpa_pause,
 					).map(|full| full.task_manager),
 				}
@@ -164,7 +164,7 @@ pub fn run() -> Result<()> {
 
 			set_default_ss58_version(chain_spec);
 
-			let authority_discovery_enabled = cli.run.authority_discovery_enabled;
+			let authority_discovery_disabled = cli.run.authority_discovery_disabled;
 			let grandpa_pause = if cli.run.grandpa_pause.is_empty() {
 				None
 			} else {
@@ -188,7 +188,7 @@ pub fn run() -> Result<()> {
 					network_status_sinks,
 					..
 				} = service::build_full(
-					config, authority_discovery_enabled, grandpa_pause,
+					config, authority_discovery_disabled, grandpa_pause,
 				)?;
 				let client = Arc::new(client);
 
