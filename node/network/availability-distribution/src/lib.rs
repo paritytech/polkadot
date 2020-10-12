@@ -25,12 +25,8 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use keystore::KeyStorePtr;
-use sp_core::{
-	crypto::Public,
-	traits::BareCryptoStore,
-};
-use sc_keystore as keystore;
+use sp_core::crypto::Public;
+use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use log::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
@@ -48,6 +44,9 @@ use polkadot_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
 	SubsystemContext, SubsystemError,
+};
+use polkadot_node_subsystem_util::{
+	metrics::{self, prometheus},
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, ReputationChange as Rep, PeerId,
@@ -290,8 +289,9 @@ impl ProtocolState {
 /// which depends on the message type received.
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
+	metrics: &Metrics,
 	bridge_message: NetworkBridgeEvent<protocol_v1::AvailabilityDistributionMessage>,
 ) -> Result<()>
 where
@@ -307,10 +307,10 @@ where
 			state.peer_views.remove(&peerid);
 		}
 		NetworkBridgeEvent::PeerViewChange(peerid, view) => {
-			handle_peer_view_change(ctx, state, peerid, view).await?;
+			handle_peer_view_change(ctx, state, peerid, view, metrics).await?;
 		}
 		NetworkBridgeEvent::OurViewChange(view) => {
-			handle_our_view_change(ctx, keystore, state, view).await?;
+			handle_our_view_change(ctx, keystore, state, view, metrics).await?;
 		}
 		NetworkBridgeEvent::PeerMessage(remote, msg) => {
 			let gossiped_availability = match msg {
@@ -318,7 +318,7 @@ where
 					AvailabilityGossipMessage { candidate_hash, erasure_chunk: chunk }
 			};
 
-			process_incoming_peer_message(ctx, state, remote, gossiped_availability).await?;
+			process_incoming_peer_message(ctx, state, remote, gossiped_availability, metrics).await?;
 		}
 	}
 	Ok(())
@@ -328,9 +328,10 @@ where
 /// Handle the changes necessary when our view changes.
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
-	keystore: KeyStorePtr,
+	keystore: &SyncCryptoStorePtr,
 	state: &mut ProtocolState,
 	view: View,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -348,7 +349,7 @@ where
 		let validator_index = obtain_our_validator_index(
 			&validators,
 			keystore.clone(),
-		);
+		).await;
 		state.add_relay_parent(ctx, added, validators, validator_index).await?;
 	}
 
@@ -426,7 +427,7 @@ where
 				erasure_chunk,
 			};
 
-			send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await?;
+			send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await?;
 		}
 	}
 
@@ -442,31 +443,34 @@ where
 async fn send_tracked_gossip_message_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message: AvailabilityGossipMessage,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, peers, iter::once(message)).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, peers, iter::once(message)).await
 }
 
 #[inline(always)]
 async fn send_tracked_gossip_messages_to_peer<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peer: PeerId,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	send_tracked_gossip_messages_to_peers(ctx, per_candidate, vec![peer], message_iter).await
+	send_tracked_gossip_messages_to_peers(ctx, per_candidate, metrics, vec![peer], message_iter).await
 }
 
 async fn send_tracked_gossip_messages_to_peers<Context>(
 	ctx: &mut Context,
 	per_candidate: &mut PerCandidate,
+	metrics: &Metrics,
 	peers: Vec<PeerId>,
 	message_iter: impl IntoIterator<Item = AvailabilityGossipMessage>,
 ) -> Result<()>
@@ -503,6 +507,8 @@ where
 		))
 		.await
 		.map_err::<Error, _>(Into::into)?;
+
+		metrics.on_chunk_distributed();
 	}
 
 	Ok(())
@@ -515,6 +521,7 @@ async fn handle_peer_view_change<Context>(
 	state: &mut ProtocolState,
 	origin: PeerId,
 	view: View,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -560,7 +567,7 @@ where
 			.cloned()
 			.collect::<HashSet<_>>();
 
-		send_tracked_gossip_messages_to_peer(ctx, per_candidate, origin.clone(), messages).await?;
+		send_tracked_gossip_messages_to_peer(ctx, per_candidate, metrics, origin.clone(), messages).await?;
 	}
 	Ok(())
 }
@@ -568,18 +575,16 @@ where
 /// Obtain the first key which has a signing key.
 /// Returns the index within the validator set as `ValidatorIndex`, if there exists one,
 /// otherwise, `None` is returned.
-fn obtain_our_validator_index(
+async fn obtain_our_validator_index(
 	validators: &[ValidatorId],
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
 ) -> Option<ValidatorIndex> {
-	let keystore = keystore.read();
-	validators.iter().enumerate().find_map(|(idx, validator)| {
-		if keystore.has_keys(&[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]) {
-			Some(idx as ValidatorIndex)
-		} else {
-			None
+	for (idx, validator) in validators.iter().enumerate() {
+		if CryptoStore::has_keys(&*keystore, &[(validator.to_raw_vec(), PARACHAIN_KEY_TYPE_ID)]).await {
+			return Some(idx as ValidatorIndex)
 		}
-	})
+	}
+	None
 }
 
 /// Handle an incoming message from a peer.
@@ -588,6 +593,7 @@ async fn process_incoming_peer_message<Context>(
 	state: &mut ProtocolState,
 	origin: PeerId,
 	message: AvailabilityGossipMessage,
+	metrics: &Metrics,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
@@ -694,13 +700,15 @@ where
 		.collect::<Vec<_>>();
 
 	// gossip that message to interested peers
-	send_tracked_gossip_message_to_peers(ctx, per_candidate, peers, message).await
+	send_tracked_gossip_message_to_peers(ctx, per_candidate, metrics, peers, message).await
 }
 
 /// The bitfield distribution subsystem.
 pub struct AvailabilityDistributionSubsystem {
 	/// Pointer to a keystore, which is required for determining this nodes validator index.
-	keystore: KeyStorePtr,
+	keystore: SyncCryptoStorePtr,
+	/// Prometheus metrics.
+	metrics: Metrics,
 }
 
 impl AvailabilityDistributionSubsystem {
@@ -708,8 +716,8 @@ impl AvailabilityDistributionSubsystem {
 	const K: usize = 3;
 
 	/// Create a new instance of the availability distribution.
-	pub fn new(keystore: KeyStorePtr) -> Self {
-		Self { keystore }
+	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+		Self { keystore, metrics }
 	}
 
 	/// Start processing work as passed on from the Overseer.
@@ -727,9 +735,10 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					if let Err(e) = handle_network_msg(
 						&mut ctx,
-						self.keystore.clone(),
+						&self.keystore.clone(),
 						&mut state,
-						event
+						&self.metrics,
+						event,
 					).await {
 						warn!(
 							target: TARGET,
@@ -756,8 +765,6 @@ impl<Context> Subsystem<Context> for AvailabilityDistributionSubsystem
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 {
-	type Metrics = ();
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "availability-distribution-subsystem",
@@ -1074,6 +1081,38 @@ where
 	Ok(acc)
 }
 
+
+#[derive(Clone)]
+struct MetricsInner {
+	gossipped_availability_chunks: prometheus::Counter<prometheus::U64>,
+}
+
+/// Availability Distribution metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_chunk_distributed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.gossipped_availability_chunks.inc();
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> std::result::Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			gossipped_availability_chunks: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_gossipped_availability_chunks_total",
+					"Number of availability chunks gossipped to other peers."
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
+	}
+}
 
 #[cfg(test)]
 mod tests;

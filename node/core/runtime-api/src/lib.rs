@@ -22,12 +22,14 @@
 use polkadot_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,
+	messages::{
+		RuntimeApiMessage, RuntimeApiRequest as Request,
+	},
+	errors::RuntimeApiError,
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
-use polkadot_subsystem::messages::{
-	RuntimeApiMessage, RuntimeApiRequest as Request,
-};
-use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
 
 use sp_api::{ProvideRuntimeApi};
@@ -52,8 +54,6 @@ impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			future: run(ctx, self).map(|_| ()).boxed(),
@@ -120,6 +120,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
+		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
 	}
 }
 
@@ -169,7 +170,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent,
+		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -257,6 +258,10 @@ mod tests {
 
 			fn candidate_events(&self) -> Vec<CandidateEvent> {
 				self.candidate_events.clone()
+			}
+
+			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+				vec![None; ids.len()]
 			}
 		}
 	}
