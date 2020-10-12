@@ -1439,17 +1439,17 @@ name = "frame-benchmarking"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "linregress",
  "parity-scale-codec",
  "paste",
  "sp-api",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -1464,11 +1464,11 @@ dependencies = [
  "sc-client-db",
  "sc-executor",
  "sc-service",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
  "structopt",
 ]
 
@@ -1477,26 +1477,15 @@ name = "frame-executive"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "frame-metadata"
-version = "12.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1506,33 +1495,8 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "frame-support"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "bitmask",
- "frame-metadata 12.0.0 (git+https://github.com/paritytech/substrate)",
- "frame-support-procedural 2.0.0 (git+https://github.com/paritytech/substrate)",
- "impl-trait-for-tuples",
- "log 0.4.11",
- "once_cell 1.4.0",
- "parity-scale-codec",
- "paste",
- "serde",
- "smallvec 1.4.2",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -1541,8 +1505,8 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "bitmask",
- "frame-metadata 12.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "frame-support-procedural 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-metadata",
+ "frame-support-procedural",
  "impl-trait-for-tuples",
  "log 0.4.11",
  "once_cell 1.4.0",
@@ -1550,25 +1514,14 @@ dependencies = [
  "paste",
  "serde",
  "smallvec 1.4.2",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "frame-support-procedural"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "frame-support-procedural-tools 2.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
 ]
 
 [[package]]
@@ -1576,19 +1529,7 @@ name = "frame-support-procedural"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support-procedural-tools 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
-name = "frame-support-procedural-tools"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "proc-macro-crate",
+ "frame-support-procedural-tools",
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.33",
@@ -1599,18 +1540,8 @@ name = "frame-support-procedural-tools"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support-procedural-tools-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support-procedural-tools-derive",
  "proc-macro-crate",
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
-name = "frame-support-procedural-tools-derive"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
  "proc-macro2 1.0.18",
  "quote 1.0.7",
  "syn 1.0.33",
@@ -1631,14 +1562,14 @@ name = "frame-system"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-version",
 ]
 
@@ -1648,12 +1579,12 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -2622,7 +2553,7 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -2673,17 +2604,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder-runner",
@@ -3829,15 +3760,15 @@ name = "pallet-authority-discovery"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-authority-discovery",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3845,14 +3776,14 @@ name = "pallet-authorship"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-authorship",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3861,22 +3792,22 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-authorship",
  "pallet-session",
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -3886,12 +3817,12 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3900,14 +3831,14 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3916,13 +3847,13 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3931,13 +3862,13 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
  "sp-npos-elections",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3945,15 +3876,15 @@ name = "pallet-finality-tracker"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
  "sp-finality-tracker",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -3962,20 +3893,20 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-authorship",
  "pallet-finality-tracker",
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -3985,13 +3916,13 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4000,18 +3931,18 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4020,15 +3951,15 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4036,13 +3967,13 @@ name = "pallet-membership"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4051,14 +3982,14 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4066,13 +3997,13 @@ name = "pallet-nicks"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4080,14 +4011,14 @@ name = "pallet-offences"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4096,7 +4027,7 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-babe",
  "pallet-balances",
@@ -4106,9 +4037,9 @@ dependencies = [
  "pallet-session",
  "pallet-staking",
  "parity-scale-codec",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4117,14 +4048,14 @@ version = "2.0.1"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4132,12 +4063,12 @@ name = "pallet-randomness-collective-flip"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "safe-mix",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4146,13 +4077,13 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "enumflags2",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4161,13 +4092,13 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4175,19 +4106,19 @@ name = "pallet-session"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "pallet-timestamp",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4196,14 +4127,14 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-session",
  "pallet-staking",
  "rand 0.7.3",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -4211,13 +4142,13 @@ name = "pallet-society"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4226,19 +4157,19 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-io",
  "sp-npos-elections",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "static_assertions",
 ]
 
@@ -4258,13 +4189,13 @@ name = "pallet-sudo"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4273,15 +4204,15 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "serde",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -4290,16 +4221,16 @@ name = "pallet-transaction-payment"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-transaction-payment-rpc-runtime-api",
  "parity-scale-codec",
  "serde",
  "smallvec 1.4.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4315,9 +4246,9 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -4325,12 +4256,12 @@ name = "pallet-transaction-payment-rpc-runtime-api"
 version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "parity-scale-codec",
  "serde",
  "sp-api",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4339,13 +4270,13 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4354,14 +4285,14 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4371,12 +4302,12 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4762,9 +4693,9 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "smol 0.3.3",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "streamunordered",
  "tempfile",
 ]
@@ -4791,10 +4722,10 @@ dependencies = [
  "polkadot-primitives",
  "sc-keystore",
  "smallvec 1.4.2",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
  "streamunordered",
 ]
 
@@ -4813,9 +4744,9 @@ dependencies = [
  "sc-service",
  "sc-tracing",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
+ "sp-trie",
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
@@ -4843,7 +4774,7 @@ dependencies = [
  "polkadot-primitives",
  "smallvec 1.4.2",
  "smol-timeout",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
 ]
 
@@ -4852,9 +4783,9 @@ name = "polkadot-core-primitives"
 version = "0.7.30"
 dependencies = [
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -4865,8 +4796,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-trie",
 ]
 
 [[package]]
@@ -4886,9 +4817,9 @@ dependencies = [
  "polkadot-primitives",
  "sc-authority-discovery",
  "sc-network",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "streamunordered",
 ]
 
@@ -4905,7 +4836,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -4926,7 +4857,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -4948,11 +4879,11 @@ dependencies = [
  "sc-client-api",
  "sc-keystore",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
 ]
 
 [[package]]
@@ -4966,7 +4897,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
  "wasm-timer",
 ]
 
@@ -4981,7 +4912,7 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5000,7 +4931,7 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
 ]
 
@@ -5015,7 +4946,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5036,9 +4967,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "sp-transaction-pool",
  "tokio-executor 0.2.0-alpha.6",
  "wasm-timer",
@@ -5058,9 +4989,9 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "tempfile",
 ]
 
@@ -5076,7 +5007,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5087,8 +5018,8 @@ dependencies = [
  "polkadot-node-primitives",
  "polkadot-primitives",
  "sc-network",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5099,8 +5030,8 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-statement-table",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -5123,7 +5054,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.4.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5146,7 +5077,7 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.4.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5170,9 +5101,9 @@ dependencies = [
  "polkadot-statement-table",
  "sc-network",
  "smallvec 1.4.2",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "streamunordered",
  "substrate-prometheus-endpoint",
 ]
@@ -5193,7 +5124,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-client-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "streamunordered",
 ]
 
@@ -5210,12 +5141,12 @@ dependencies = [
  "sc-executor",
  "serde",
  "shared_memory",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-wasm-interface",
 ]
 
 [[package]]
@@ -5234,8 +5165,8 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "streamunordered",
 ]
 
@@ -5251,17 +5182,17 @@ dependencies = [
  "pretty_assertions",
  "serde",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-authority-discovery",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "sp-serializer",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
+ "sp-trie",
  "sp-version",
 ]
 
@@ -5286,8 +5217,8 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-transaction-pool",
  "substrate-frame-rpc-system",
 ]
@@ -5299,7 +5230,7 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -5348,17 +5279,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder-runner",
@@ -5372,7 +5303,7 @@ version = "0.8.25"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "hex-literal 0.2.1",
  "libsecp256k1",
@@ -5397,16 +5328,16 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
+ "sp-trie",
  "static_assertions",
  "trie-db",
 ]
@@ -5417,7 +5348,7 @@ version = "0.8.0"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "futures 0.3.5",
  "hex-literal 0.2.1",
@@ -5445,17 +5376,17 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
+ "sp-trie",
  "sp-version",
 ]
 
@@ -5508,16 +5439,16 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
  "westend-runtime",
 ]
@@ -5541,11 +5472,11 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sc-keystore",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-runtime",
  "sp-staking",
  "streamunordered",
 ]
@@ -5556,7 +5487,7 @@ version = "0.8.25"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -5565,7 +5496,7 @@ version = "0.8.25"
 dependencies = [
  "bitvec",
  "frame-executive",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
  "hex-literal 0.2.1",
@@ -5603,17 +5534,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-version",
  "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
@@ -5637,8 +5568,8 @@ dependencies = [
  "sc-service",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "substrate-test-client",
 ]
 
@@ -5674,16 +5605,16 @@ dependencies = [
  "sc-service",
  "sc-transaction-pool",
  "serde_json",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-finality-grandpa",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-state-machine",
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
@@ -5708,13 +5639,13 @@ dependencies = [
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
  "sp-keyring",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-timestamp",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -6360,7 +6291,7 @@ name = "rococo-v1-runtime"
 version = "0.8.25"
 dependencies = [
  "frame-executive",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
  "pallet-authority-discovery",
@@ -6389,14 +6320,14 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder-runner",
@@ -6551,9 +6482,9 @@ dependencies = [
  "sp-api",
  "sp-authority-discovery",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -6573,9 +6504,9 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
  "tokio-executor 0.2.0-alpha.6",
@@ -6592,10 +6523,10 @@ dependencies = [
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -6611,8 +6542,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6659,12 +6590,12 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-panic-handler",
+ "sp-runtime",
+ "sp-state-machine",
  "sp-utils",
  "sp-version",
  "structopt",
@@ -6696,18 +6627,18 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-database",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-externalities",
+ "sp-inherents",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -6732,14 +6663,14 @@ dependencies = [
  "sc-client-api",
  "sc-executor",
  "sc-state-db",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-database",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
  "substrate-prometheus-endpoint",
 ]
 
@@ -6751,7 +6682,7 @@ dependencies = [
  "sc-client-api",
  "sp-blockchain",
  "sp-consensus",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6782,17 +6713,17 @@ dependencies = [
  "schnorrkel",
  "serde",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-timestamp",
  "sp-utils",
  "sp-version",
@@ -6814,13 +6745,13 @@ dependencies = [
  "sc-rpc-api",
  "serde",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6833,7 +6764,7 @@ dependencies = [
  "parking_lot 0.10.2",
  "sc-client-api",
  "sp-blockchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6849,14 +6780,14 @@ dependencies = [
  "sc-client-api",
  "sc-telemetry",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-blockchain",
  "sp-consensus",
  "sp-consensus-slots",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -6868,9 +6799,9 @@ dependencies = [
  "sc-client-api",
  "sp-authorship",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -6889,15 +6820,15 @@ dependencies = [
  "sc-executor-wasmi",
  "sc-executor-wasmtime",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-io",
+ "sp-panic-handler",
+ "sp-runtime-interface",
  "sp-serializer",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-version",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6911,10 +6842,10 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime-interface",
  "sp-serializer",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6927,9 +6858,9 @@ dependencies = [
  "parity-scale-codec",
  "sc-executor-common",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmi",
 ]
 
@@ -6945,9 +6876,9 @@ dependencies = [
  "sc-executor-common",
  "scoped-tls",
  "sp-allocator",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime-interface",
+ "sp-wasm-interface",
  "wasmtime",
 ]
 
@@ -6975,16 +6906,16 @@ dependencies = [
  "sc-telemetry",
  "serde_json",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-finality-grandpa",
  "sp-finality-tracker",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
 ]
@@ -7009,8 +6940,8 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -7025,7 +6956,7 @@ dependencies = [
  "sc-client-api",
  "sc-network",
  "sp-blockchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
  "wasm-timer",
@@ -7045,9 +6976,9 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "serde_json",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
  "subtle 2.2.3",
 ]
 
@@ -7064,10 +6995,10 @@ dependencies = [
  "sc-executor",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -7110,11 +7041,11 @@ dependencies = [
  "slog",
  "slog_derive",
  "smallvec 0.6.13",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "sp-utils",
  "substrate-prometheus-endpoint",
  "thiserror",
@@ -7135,7 +7066,7 @@ dependencies = [
  "log 0.4.11",
  "lru 0.4.3",
  "sc-network",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "wasm-timer",
 ]
 
@@ -7159,9 +7090,9 @@ dependencies = [
  "sc-keystore",
  "sc-network",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-utils",
  "threadpool",
 ]
@@ -7209,13 +7140,13 @@ dependencies = [
  "sp-api",
  "sp-blockchain",
  "sp-chain-spec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-keystore",
  "sp-offchain",
  "sp-rpc",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-state-machine",
  "sp-transaction-pool",
  "sp-utils",
  "sp-version",
@@ -7238,9 +7169,9 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-chain-spec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-rpc",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-version",
 ]
@@ -7259,7 +7190,7 @@ dependencies = [
  "log 0.4.11",
  "serde",
  "serde_json",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "substrate-prometheus-endpoint",
 ]
 
@@ -7303,21 +7234,21 @@ dependencies = [
  "serde_json",
  "slog",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
  "sp-session",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-state-machine",
+ "sp-tracing",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -7337,7 +7268,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.10.2",
  "sc-client-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
 ]
 
 [[package]]
@@ -7374,7 +7305,7 @@ dependencies = [
  "serde",
  "serde_json",
  "slog",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-tracing",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -7394,8 +7325,8 @@ dependencies = [
  "retain_mut",
  "serde",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "sp-transaction-pool",
  "sp-utils",
  "wasm-timer",
@@ -7418,9 +7349,9 @@ dependencies = [
  "sc-transaction-graph",
  "sp-api",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
+ "sp-tracing",
  "sp-transaction-pool",
  "sp-utils",
  "substrate-prometheus-endpoint",
@@ -7875,9 +7806,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "derive_more 0.99.11",
  "log 0.4.11",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-std",
+ "sp-wasm-interface",
 ]
 
 [[package]]
@@ -7888,10 +7819,10 @@ dependencies = [
  "hash-db",
  "parity-scale-codec",
  "sp-api-proc-macro",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
  "sp-version",
 ]
 
@@ -7910,38 +7841,13 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-application-crypto"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-arithmetic"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "integer-sqrt",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -7953,8 +7859,8 @@ dependencies = [
  "num-traits 0.2.12",
  "parity-scale-codec",
  "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -7964,9 +7870,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7975,9 +7881,9 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -7987,9 +7893,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8005,8 +7911,8 @@ dependencies = [
  "sp-block-builder",
  "sp-consensus",
  "sp-database",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -8032,12 +7938,12 @@ dependencies = [
  "parking_lot 0.10.2",
  "serde",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
  "sp-utils",
  "sp-version",
  "substrate-prometheus-endpoint",
@@ -8052,15 +7958,15 @@ dependencies = [
  "merlin",
  "parity-scale-codec",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
  "sp-consensus",
  "sp-consensus-slots",
  "sp-consensus-vrf",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
  "sp-timestamp",
 ]
 
@@ -8070,7 +7976,7 @@ version = "0.8.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "parity-scale-codec",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8080,52 +7986,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-core"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "base58",
- "blake2-rfc",
- "byteorder 1.3.4",
- "dyn-clonable",
- "ed25519-dalek",
- "futures 0.3.5",
- "hash-db",
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "lazy_static",
- "libsecp256k1",
- "log 0.4.11",
- "merlin",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "parity-util-mem",
- "parking_lot 0.10.2",
- "primitive-types",
- "rand 0.7.3",
- "regex",
- "schnorrkel",
- "secrecy",
- "serde",
- "sha2 0.8.2",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "substrate-bip39",
- "tiny-bip39",
- "tiny-keccak 2.0.2",
- "twox-hash",
- "wasmi",
- "zeroize",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8158,11 +8021,11 @@ dependencies = [
  "secrecy",
  "serde",
  "sha2 0.8.2",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-runtime-interface",
+ "sp-std",
+ "sp-storage",
  "substrate-bip39",
  "tiny-bip39",
  "tiny-keccak 2.0.2",
@@ -8183,16 +8046,6 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
-name = "sp-debug-derive"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "proc-macro2 1.0.18",
@@ -8203,23 +8056,12 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "environmental",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
-]
-
-[[package]]
-name = "sp-externalities"
-version = "0.8.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "environmental",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
+ "sp-storage",
 ]
 
 [[package]]
@@ -8232,11 +8074,11 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-api",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8245,20 +8087,8 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "parity-scale-codec",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-inherents"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "derive_more 0.99.11",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-inherents",
+ "sp-std",
 ]
 
 [[package]]
@@ -8269,32 +8099,8 @@ dependencies = [
  "derive_more 0.99.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-io"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "futures 0.3.5",
- "hash-db",
- "libsecp256k1",
- "log 0.4.11",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-keystore 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-state-machine 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
+ "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -8308,15 +8114,15 @@ dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-keystore",
+ "sp-runtime-interface",
+ "sp-state-machine",
+ "sp-std",
+ "sp-tracing",
+ "sp-trie",
+ "sp-wasm-interface",
  "tracing",
  "tracing-core",
 ]
@@ -8327,25 +8133,9 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "lazy_static",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "strum",
-]
-
-[[package]]
-name = "sp-keystore"
-version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "async-trait",
- "derive_more 0.99.11",
- "futures 0.3.5",
- "merlin",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "schnorrkel",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
 ]
 
 [[package]]
@@ -8360,8 +8150,8 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "schnorrkel",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
 ]
 
 [[package]]
@@ -8371,9 +8161,9 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "serde",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-arithmetic",
  "sp-npos-elections-compact",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8393,17 +8183,8 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "backtrace",
- "log 0.4.11",
+ "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8421,29 +8202,7 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "serde",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-runtime"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "either",
- "hash256-std-hasher",
- "impl-trait-for-tuples",
- "log 0.4.11",
- "parity-scale-codec",
- "parity-util-mem",
- "paste",
- "rand 0.7.3",
- "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-inherents 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-core",
 ]
 
 [[package]]
@@ -8460,28 +8219,12 @@ dependencies = [
  "paste",
  "rand 0.7.3",
  "serde",
- "sp-application-crypto 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-arithmetic 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-runtime-interface"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "parity-scale-codec",
- "primitive-types",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-storage 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-tracing 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/paritytech/substrate)",
- "static_assertions",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-std",
 ]
 
 [[package]]
@@ -8491,25 +8234,13 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime-interface-proc-macro 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-storage 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-tracing 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-wasm-interface 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-externalities",
+ "sp-runtime-interface-proc-macro",
+ "sp-std",
+ "sp-storage",
+ "sp-tracing",
+ "sp-wasm-interface",
  "static_assertions",
-]
-
-[[package]]
-name = "sp-runtime-interface-proc-macro"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "Inflector",
- "proc-macro-crate",
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
 ]
 
 [[package]]
@@ -8540,10 +8271,10 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "parity-scale-codec",
  "sp-api",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
 ]
 
 [[package]]
@@ -8552,29 +8283,8 @@ version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
 dependencies = [
  "parity-scale-codec",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-state-machine"
-version = "0.8.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "hash-db",
- "log 0.4.11",
- "num-traits 0.2.12",
- "parity-scale-codec",
- "parking_lot 0.10.2",
- "rand 0.7.3",
- "smallvec 1.4.2",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-externalities 0.8.0 (git+https://github.com/paritytech/substrate)",
- "sp-panic-handler 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-trie 2.0.0 (git+https://github.com/paritytech/substrate)",
- "trie-db",
- "trie-root",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8589,11 +8299,11 @@ dependencies = [
  "parking_lot 0.10.2",
  "rand 0.7.3",
  "smallvec 1.4.2",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-externalities 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-panic-handler 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-externalities",
+ "sp-panic-handler",
+ "sp-std",
+ "sp-trie",
  "trie-db",
  "trie-root",
 ]
@@ -8601,25 +8311,7 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-
-[[package]]
-name = "sp-std"
-version = "2.0.0"
 source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream#58be34f0ad3c23eaee7a16c87ca24139781aad29"
-
-[[package]]
-name = "sp-storage"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "impl-serde",
- "parity-scale-codec",
- "ref-cast",
- "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
-]
 
 [[package]]
 name = "sp-storage"
@@ -8630,8 +8322,8 @@ dependencies = [
  "parity-scale-codec",
  "ref-cast",
  "serde",
- "sp-debug-derive 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-debug-derive",
+ "sp-std",
 ]
 
 [[package]]
@@ -8642,23 +8334,10 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-api",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-std",
  "wasm-timer",
-]
-
-[[package]]
-name = "sp-tracing"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "log 0.4.11",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "tracing",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -8668,7 +8347,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "log 0.4.11",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "tracing",
  "tracing-core",
  "tracing-subscriber",
@@ -8686,21 +8365,7 @@ dependencies = [
  "serde",
  "sp-api",
  "sp-blockchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-trie"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "hash-db",
- "memory-db",
- "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "trie-db",
- "trie-root",
+ "sp-runtime",
 ]
 
 [[package]]
@@ -8711,8 +8376,8 @@ dependencies = [
  "hash-db",
  "memory-db",
  "parity-scale-codec",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-std",
  "trie-db",
  "trie-root",
 ]
@@ -8737,19 +8402,8 @@ dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "serde",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
-]
-
-[[package]]
-name = "sp-wasm-interface"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/substrate#2f3b20b727304a8d14b8f72fab059c00a35ce188"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
- "wasmi",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -8759,7 +8413,7 @@ source = "git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "wasmi",
 ]
 
@@ -8945,8 +8599,8 @@ dependencies = [
  "sp-api",
  "sp-block-builder",
  "sp-blockchain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-runtime",
  "sp-transaction-pool",
 ]
 
@@ -8984,11 +8638,11 @@ dependencies = [
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "sp-keyring",
- "sp-keystore 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-state-machine 0.8.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-state-machine",
 ]
 
 [[package]]
@@ -9116,8 +8770,8 @@ dependencies = [
  "dlmalloc",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-io",
+ "sp-std",
  "substrate-wasm-builder-runner",
  "tiny-keccak 1.5.0",
 ]
@@ -9135,7 +8789,7 @@ version = "0.7.22"
 dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak 1.5.0",
@@ -10232,7 +9886,7 @@ dependencies = [
  "bitvec",
  "frame-benchmarking",
  "frame-executive",
- "frame-support 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -10285,17 +9939,17 @@ dependencies = [
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
- "sp-core 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-inherents 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
- "sp-io 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
  "sp-keyring",
  "sp-offchain",
- "sp-runtime 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-runtime",
  "sp-session",
  "sp-staking",
- "sp-std 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-std",
  "sp-transaction-pool",
- "sp-trie 2.0.0 (git+https://github.com/tomaka/polkadot?branch=no-longer-open-substream)",
+ "sp-trie",
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder-runner",
@@ -10386,13 +10040,13 @@ dependencies = [
 name = "xcm-builder"
 version = "0.8.22"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
  "parity-scale-codec",
  "polkadot-parachain",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
  "xcm-executor",
 ]
@@ -10401,14 +10055,14 @@ dependencies = [
 name = "xcm-executor"
 version = "0.8.22"
 dependencies = [
- "frame-support 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "frame-support",
  "impl-trait-for-tuples",
  "parity-scale-codec",
- "sp-arithmetic 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-core 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-io 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-runtime 2.0.0 (git+https://github.com/paritytech/substrate)",
- "sp-std 2.0.0 (git+https://github.com/paritytech/substrate)",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
  "xcm",
 ]
 
