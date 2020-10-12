@@ -147,7 +147,6 @@ pub fn run() -> Result<()> {
 					Role::Light => service::build_light(config).map(|(task_manager, _)| task_manager),
 					_ => service::build_full(
 						config,
-						None,
 						authority_discovery_enabled,
 						grandpa_pause,
 					).map(|full| full.task_manager),
