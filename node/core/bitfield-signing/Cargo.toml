@@ -12,5 +12,5 @@ log = "0.4.8"
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/tomaka/polkadot", branch = "no-longer-open-substream" }
 wasm-timer = "0.2.4"

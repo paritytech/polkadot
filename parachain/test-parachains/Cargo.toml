@@ -14,7 +14,7 @@ adder = { package = "test-parachain-adder", path = "adder" }
 halt = { package = "test-parachain-halt", path = "halt" }
 
 [dev-dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "no-longer-open-substream" }
 
 [features]
 default = [ "std" ]

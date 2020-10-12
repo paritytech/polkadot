@@ -24,7 +24,7 @@ smol-timeout = "0.1.0"
 smallvec = "1.4.2"
 futures-timer = "3.0.2"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", features = ["std"] }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/tomaka/polkadot", branch = "no-longer-open-substream", features = ["std"] }
+sp-keyring = { git = "https://github.com/tomaka/polkadot", branch = "no-longer-open-substream" }
 
 polkadot-subsystem-testhelpers = { package = "polkadot-node-subsystem-test-helpers", path = "../../subsystem-test-helpers" }
