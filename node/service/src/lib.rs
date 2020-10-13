@@ -280,9 +280,9 @@ fn real_overseer<Spawner, RuntimeClient>(
 	spawner: Spawner,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), ServiceError>
 where
-	RuntimeClient: ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	RuntimeClient::Api: ParachainHost<Block>,
-	Spawner: SpawnNamed + Clone + Unpin,
+	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
 	use polkadot_node_subsystem_util::metrics::Metrics;
 
