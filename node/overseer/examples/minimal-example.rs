@@ -30,10 +30,7 @@ use kv_log_macro as log;
 use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::{Overseer, AllSubsystems};
 
-use polkadot_subsystem::{
-	Subsystem, SubsystemContext, DummySubsystem,
-	SpawnedSubsystem, FromOverseer,
-};
+use polkadot_subsystem::{Subsystem, SubsystemContext, SpawnedSubsystem, FromOverseer};
 use polkadot_subsystem::messages::{
 	CandidateValidationMessage, CandidateBackingMessage, AllMessages,
 };
@@ -76,8 +73,6 @@ impl Subsystem1 {
 impl<C> Subsystem<C> for Subsystem1
 	where C: SubsystemContext<Message=CandidateBackingMessage>
 {
-	type Metrics = (); // no Prometheus metrics
-
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -123,8 +118,6 @@ impl Subsystem2 {
 impl<C> Subsystem<C> for Subsystem2
 	where C: SubsystemContext<Message=CandidateValidationMessage>
 {
-	type Metrics = (); // no Prometheus metrics
-
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
@@ -145,23 +138,9 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
-		let all_subsystems = AllSubsystems {
-			candidate_validation: Subsystem2,
-			candidate_backing: Subsystem1,
-			candidate_selection: DummySubsystem,
-			statement_distribution: DummySubsystem,
-			availability_distribution: DummySubsystem,
-			bitfield_signing: DummySubsystem,
-			bitfield_distribution: DummySubsystem,
-			provisioner: DummySubsystem,
-			pov_distribution: DummySubsystem,
-			runtime_api: DummySubsystem,
-			availability_store: DummySubsystem,
-			network_bridge: DummySubsystem,
-			chain_api: DummySubsystem,
-			collation_generation: DummySubsystem,
-			collator_protocol: DummySubsystem,
-		};
+		let all_subsystems = AllSubsystems::<()>::dummy()
+			.replace_candidate_validation(Subsystem2)
+			.replace_candidate_backing(Subsystem1);
 		let (overseer, _handler) = Overseer::new(
 			vec![],
 			all_subsystems,

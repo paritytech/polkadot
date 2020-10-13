@@ -30,11 +30,11 @@ use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::{
 	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
-	metrics::{self, prometheus},
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores_ctx, request_full_validation_data_ctx,
 	request_validators_ctx,
+	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
 	collator_signature_payload, AvailableData, CandidateCommitments,
@@ -164,8 +164,6 @@ impl<Context> Subsystem<Context> for CollationGenerationSubsystem
 where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(self.run(ctx));
 
@@ -235,7 +233,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let persisted_validation_data_hash = validation_data.persisted.hash();
 
-				let collation = (task_config.collator)(&validation_data).await;
+				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
+					Some(collation) => collation,
+					None => {
+						log::debug!(
+							target: LOG_TARGET,
+							"collator returned no collation on collate for para_id {}.",
+							scheduled_core.para_id,
+						);
+						return
+					}
+				};
 
 				let pov_hash = collation.proof_of_validity.hash();
 
@@ -386,10 +394,10 @@ mod tests {
 		struct TestCollator;
 
 		impl Future for TestCollator {
-			type Output = Collation;
+			type Output = Option<Collation>;
 
 			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(test_collation())
+				Poll::Ready(Some(test_collation()))
 			}
 		}
 
@@ -398,8 +406,8 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_vd: &ValidationData| {
-					Box::new(TestCollator)
+				collator: Box::new(|_: Hash, _vd: &ValidationData| {
+					TestCollator.boxed()
 				}),
 				para_id: para_id.into(),
 			})
