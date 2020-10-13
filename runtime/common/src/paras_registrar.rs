@@ -174,7 +174,6 @@ decl_module! {
 			Ok(())
 		}
 
-
 		/// Swap a parachain with another parachain or parathread. The origin must be a `Parachain`.
 		/// The swap will happen only if there is already an opposite swap pending. If there is not,
 		/// the swap will be stored in the pending swaps map, ready for a later confirmatory swap.
@@ -206,46 +205,50 @@ decl_module! {
 				PendingSwap::insert(id, other);
 			}
 		}
-	}
-}
 
-impl<T: Trait> Module<T> {
-	/// Register a parachain with given code. Must be called by root.
-	/// Fails if given ID is already used.
-	pub fn register_parachain(
-		id: ParaId,
-		genesis_head: HeadData,
-		validation_code: ValidationCode,
-	) -> DispatchResult {
-		ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
+		/// Register a parachain with given code. Must be called by root.
+		/// Fails if given ID is already used.
+		#[weight = 0]
+		pub fn register_parachain(
+			origin,
+			id: ParaId,
+			genesis_head: HeadData,
+			validation_code: ValidationCode,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			ensure!(!Paras::contains_key(id), Error::<T>::ParaAlreadyExists);
 
-		let outgoing = <paras::Module<T>>::outgoing_paras();
+			let outgoing = <paras::Module<T>>::outgoing_paras();
 
-		ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
+			ensure!(outgoing.binary_search(&id).is_err(), Error::<T>::ParaAlreadyExists);
 
-		Paras::insert(id, true);
+			Paras::insert(id, true);
 
-		let genesis = ParaGenesisArgs {
-			genesis_head,
-			validation_code,
-			parachain: true,
-		};
+			let genesis = ParaGenesisArgs {
+				genesis_head,
+				validation_code,
+				parachain: true,
+			};
 
-		<paras::Module<T>>::schedule_para_initialize(id, genesis);
+			<paras::Module<T>>::schedule_para_initialize(id, genesis);
 
-		Ok(())
-	}
+			Ok(())
+		}
 
-	/// Deregister a parachain with the given ID. Must be called by root.
-	pub fn deregister_parachain(id: ParaId) -> DispatchResult {
-		let is_parachain = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
+		/// Deregister a parachain with the given ID. Must be called by root.
+		#[weight = 0]
+		pub fn deregister_parachain(origin, id: ParaId) -> DispatchResult {
+			ensure_root(origin)?;
 
-		ensure!(is_parachain, Error::<T>::InvalidChainId);
+			let is_parachain = Paras::take(id).ok_or(Error::<T>::InvalidChainId)?;
 
-		<paras::Module<T>>::schedule_para_cleanup(id);
-		<router::Module::<T>>::schedule_para_cleanup(id);
+			ensure!(is_parachain, Error::<T>::InvalidChainId);
 
-		Ok(())
+			<paras::Module<T>>::schedule_para_cleanup(id);
+			<router::Module::<T>>::schedule_para_cleanup(id);
+
+			Ok(())
+		}
 	}
 }
 
