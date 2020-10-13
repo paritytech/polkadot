@@ -375,7 +375,7 @@ where
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub node_handles: OverseerHandler,
+	pub overseer_handler: OverseerHandler,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
@@ -383,11 +383,12 @@ pub struct NewFull<C> {
 
 #[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
-	fn with_client(self, func: impl FnOnce(C) -> Client) -> NewFull<Client> {
+	/// Convert the client type using the given `func`.
+	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
-			node_handles: self.node_handles,
+			overseer_handler: self.overseer_handler,
 			network: self.network,
 			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
@@ -402,7 +403,7 @@ impl<C> NewFull<C> {
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -489,7 +490,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, handler) = real_overseer(
+	let (overseer, overseer_handler) = real_overseer(
 		leaves,
 		keystore_container.sync_keystore(),
 		overseer_client,
@@ -499,12 +500,12 @@ pub fn new_full<RuntimeApi, Executor>(
 		prometheus_registry.as_ref(),
 		spawner,
 	)?;
-	let handler_clone = handler.clone();
+	let overseer_handler_clone = overseer_handler.clone();
 
 	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
 		use futures::{pin_mut, select, FutureExt};
 
-		let forward = polkadot_overseer::forward_events(overseer_client, handler_clone);
+		let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
 
 		let forward = forward.fuse();
 		let overseer_fut = overseer.run().fuse();
@@ -528,7 +529,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		let proposer = ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
-			handler.clone(),
+			overseer_handler.clone(),
 		);
 
 		let babe_config = babe::BabeParams {
@@ -619,7 +620,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		use sc_network::Event;
 		use futures::StreamExt;
 
-		if authority_discovery_enabled {
+		if !authority_discovery_disabled {
 			let (sentries, authority_discovery_role) = match role {
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
@@ -658,7 +659,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	Ok(NewFull {
 		task_manager,
 		client,
-		node_handles: handler,
+		overseer_handler,
 		network,
 		network_status_sinks,
 		rpc_handlers,
@@ -826,31 +827,31 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Client>, ServiceError> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
