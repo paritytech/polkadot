@@ -219,6 +219,16 @@ impl OverseerHandler {
 	pub async fn stop(&mut self) -> SubsystemResult<()> {
 		self.events_tx.send(Event::Stop).await.map_err(Into::into)
 	}
+
+	/// Create a dummy overseer handler which cannot send any events
+	///
+	/// This is used when authority discovery is disabled.
+	pub fn dummy() -> OverseerHandler {
+		let (events_tx, _rx) = mpsc::channel(0);
+		OverseerHandler {
+			events_tx,
+		}
+	}
 }
 
 /// Glues together the [`Overseer`] and `BlockchainEvents` by forwarding

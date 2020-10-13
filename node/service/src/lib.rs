@@ -490,37 +490,88 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let (overseer, overseer_handler) = real_overseer(
-		leaves,
-		keystore_container.sync_keystore(),
-		overseer_client,
-		unimplemented!("TODO: availability_config"),
-		unimplemented!("TODO: network_service"),
-		unimplemented!("TODO: authority_discovery"),
-		prometheus_registry.as_ref(),
-		spawner,
-	)?;
-	let overseer_handler_clone = overseer_handler.clone();
+	let authority_discovery_service = {
+		let mut ads = None;
 
-	task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
-		use futures::{pin_mut, select, FutureExt};
+		if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
+			use sc_network::Event;
+			use futures::StreamExt;
 
-		let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+			if !authority_discovery_disabled {
+				let (sentries, authority_discovery_role) = match role {
+					Role::Authority { ref sentry_nodes } => (
+						sentry_nodes.clone(),
+						authority_discovery::Role::Authority (
+								keystore_container.keystore(),
+						),
+					),
+					Role::Sentry {..} => (
+						vec![],
+						authority_discovery::Role::Sentry,
+					),
+					_ => unreachable!("Due to outer matches! constraint; qed."),
+				};
 
-		let forward = forward.fuse();
-		let overseer_fut = overseer.run().fuse();
+				let network_event_stream = network.event_stream("authority-discovery");
+				let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+						Event::Dht(e) => Some(e),
+						_ => None,
+				}});
+				let (authority_discovery_worker, service) = authority_discovery::new_worker_and_service(
+						client.clone(),
+						network.clone(),
+						sentries,
+						Box::pin(dht_event_stream),
+						authority_discovery_role,
+						prometheus_registry.clone(),
+				);
 
-		pin_mut!(overseer_fut);
-		pin_mut!(forward);
-
-		loop {
-			select! {
-				_ = forward => break,
-				_ = overseer_fut => break,
-				complete => break,
+				task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
+				ads = Some(service);
 			}
 		}
-	}));
+
+		ads
+	};
+
+	let overseer_handler = match authority_discovery_service {
+		None => OverseerHandler::dummy(),
+		Some(authority_discovery_service) => {
+			let (overseer, overseer_handler) = real_overseer(
+				leaves,
+				keystore_container.sync_keystore(),
+				overseer_client,
+				unimplemented!("TODO: availability_config"),
+				network.clone(),
+				authority_discovery_service,
+				prometheus_registry.as_ref(),
+				spawner,
+			)?;
+			let overseer_handler_clone = overseer_handler.clone();
+
+			task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
+				use futures::{pin_mut, select, FutureExt};
+
+				let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+
+				let forward = forward.fuse();
+				let overseer_fut = overseer.run().fuse();
+
+				pin_mut!(overseer_fut);
+				pin_mut!(forward);
+
+				loop {
+					select! {
+						_ = forward => break,
+						_ = overseer_fut => break,
+						complete => break,
+					}
+				}
+			}));
+
+			overseer_handler
+		}
+	};
 
 	if role.is_authority() {
 		let can_author_with =
@@ -615,44 +666,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			network.clone(),
 		)?;
 	}
-
-	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
-		use sc_network::Event;
-		use futures::StreamExt;
-
-		if !authority_discovery_disabled {
-			let (sentries, authority_discovery_role) = match role {
-				Role::Authority { ref sentry_nodes } => (
-					sentry_nodes.clone(),
-					authority_discovery::Role::Authority (
-						keystore_container.keystore(),
-					),
-				),
-				Role::Sentry {..} => (
-					vec![],
-					authority_discovery::Role::Sentry,
-				),
-				_ => unreachable!("Due to outer matches! constraint; qed."),
-			};
-
-			let network_event_stream = network.event_stream("authority-discovery");
-			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
-				Event::Dht(e) => Some(e),
-				_ => None,
-			}});
-			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
-				client.clone(),
-				network.clone(),
-				sentries,
-				Box::pin(dht_event_stream),
-				authority_discovery_role,
-				prometheus_registry.clone(),
-			);
-
-			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
-		}
-	}
-
 
 	network_starter.start_network();
 
