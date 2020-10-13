@@ -1,6 +1,6 @@
 [package]
 name = "rococo-v1-runtime"
-version = "0.8.24"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"

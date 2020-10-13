@@ -17,7 +17,10 @@
 //! Utilities for testing subsystems.
 
 use polkadot_node_subsystem::messages::AllMessages;
-use polkadot_node_subsystem::{FromOverseer, SubsystemContext, SubsystemError, SubsystemResult};
+use polkadot_node_subsystem::{
+	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
+	SpawnedSubsystem, OverseerSignal,
+};
 use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::channel::mpsc;
@@ -282,4 +285,60 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 			.await
 			.expect("test timed out instead of completing")
 	});
+}
+
+/// A forward subsystem that implements [`Subsystem`].
+///
+/// It forwards all communication from the overseer to the internal message
+/// channel.
+///
+/// This subsystem is useful for testing functionality that interacts with the overseer.
+pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
+
+impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
+	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
+		let future = Box::pin(async move {
+			loop {
+				match ctx.recv().await {
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Ok(FromOverseer::Communication { msg }) => {
+						let _ = self.0.send(msg).await;
+					},
+					Err(_) => return,
+					_ => (),
+				}
+			}
+		});
+
+		SpawnedSubsystem {
+			name: "forward-subsystem",
+			future,
+		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_overseer::{Overseer, AllSubsystems};
+	use futures::executor::block_on;
+	use polkadot_node_subsystem::messages::CandidateSelectionMessage;
+
+	#[test]
+	fn forward_subsystem_works() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+		let (tx, rx) = mpsc::channel(2);
+		let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_selection(ForwardSubsystem(tx));
+		let (overseer, mut handler) = Overseer::new(
+			Vec::new(),
+			all_subsystems,
+			None,
+			spawner.clone(),
+		).unwrap();
+
+		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
+
+		block_on(handler.send_msg(CandidateSelectionMessage::Invalid(Default::default(), Default::default()))).unwrap();
+		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CandidateSelectionMessage::Invalid(_, _)));
+	}
 }

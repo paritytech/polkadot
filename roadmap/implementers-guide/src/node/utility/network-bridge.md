@@ -92,10 +92,12 @@ Map the message onto the corresponding [Event Handler](#event-handlers) based on
 
 ### ConnectToValidators
 
+> TODO: Currently, this request is limited to the validators in the current session.
+
 - Determine the DHT keys to use for each validator based on the relay-chain state and Runtime API.
 - Recover the Peer IDs of the validators from the DHT. There may be more than one peer ID per validator.
-- Accumulate all `(ValidatorId, PeerId)` pairs and send on the response channel.
-- Feed all Peer IDs to peer set manager the underlying network provides, indicating the expected peer-set.
+- Send all `(ValidatorId, PeerId)` pairs on the response channel.
+- Feed all Peer IDs to peer set manager the underlying network provides.
 
 ## Event Handlers
 

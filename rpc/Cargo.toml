@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-rpc"
-version = "0.8.24"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -9,6 +9,7 @@ jsonrpc-core = "15.0.0"
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master"  }

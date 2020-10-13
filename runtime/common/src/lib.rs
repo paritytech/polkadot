@@ -45,7 +45,7 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Implementations of some helper traits passed into runtime modules as associated types.
-pub use impls::{CurrencyToVoteHandler, ToAuthor};
+pub use impls::ToAuthor;
 
 pub type NegativeImbalance<T> = <pallet_balances::Module<T> as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
 
@@ -88,6 +88,12 @@ pub type SlowAdjustingFeeUpdate<R> = TargetedFeeAdjustment<
 	AdjustmentVariable,
 	MinimumMultiplier
 >;
+
+/// The type used for currency conversion.
+///
+/// This must only be used as long as the balance type is u128.
+pub type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
+static_assertions::assert_eq_size!(primitives::v1::Balance, u128);
 
 /// A placeholder since there is currently no provided session key handler for parachain validator
 /// keys.
