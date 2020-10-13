@@ -87,6 +87,20 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
+impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
+	type Error = &'static str;
+
+	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
+		use sc_service::config::DatabaseConfig::{RocksDb, ParityDb, Custom};
+
+		match config {
+			RocksDb { path, cache_size } => Ok(Self { path, cache_size: Some(cache_size) }),
+			ParityDb { path } => Ok(Self { path, cache_size: None }),
+			Custom(_database_trait_obj) => Err("custom databases are not supported"),
+		}
+	}
+}
+
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {

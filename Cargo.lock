@@ -4857,6 +4857,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "sc-service",
  "sp-core",
 ]
 

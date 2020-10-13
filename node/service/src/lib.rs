@@ -537,11 +537,12 @@ pub fn new_full<RuntimeApi, Executor>(
 	let overseer_handler = match authority_discovery_service {
 		None => OverseerHandler::dummy(),
 		Some(authority_discovery_service) => {
+			use std::convert::TryInto;
 			let (overseer, overseer_handler) = real_overseer(
 				leaves,
 				keystore_container.sync_keystore(),
 				overseer_client,
-				unimplemented!("TODO: availability_config"),
+				config.database.try_into()?,
 				network.clone(),
 				authority_discovery_service,
 				prometheus_registry.as_ref(),
