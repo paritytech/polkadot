@@ -30,9 +30,9 @@ RUN apt-get update && \
     apt update && \
     apt install polkadot && \
 # apt cleanup
-	apt-get autoremove -y && \
-	apt-get clean && \
-	find /var/lib/apt/lists/ -type f -not -name lock -delete
+    apt-get autoremove -y && \
+    apt-get clean && \
+    find /var/lib/apt/lists/ -type f -not -name lock -delete
 
 USER polkadot
 
