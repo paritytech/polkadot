@@ -3,7 +3,7 @@ Polkadot Release Process
 
 ### Branches
 * release-candidate branch: The branch used for staging of the next release.
-  Named like `v0.8.26` 
+  Named like `release-v0.8.26` 
 * release branch: The branch to which successful release-candidates are merged
   and tagged with the new version. Named literally `release`.
 
@@ -11,7 +11,7 @@ Polkadot Release Process
 * The release-candidate branch *must* be made in the paritytech/polkadot repo in
 order for release automation to work correctly
 * Any new pushes/merges to the release-candidate branch (for example, 
-refs/heads/v0.8.26) will result in the rc index being bumped (e.g., v0.8.26-rc1
+refs/heads/release-v0.8.26) will result in the rc index being bumped (e.g., v0.8.26-rc1
 to v0.8.26-rc2) and new wasms built.
 
 ### Release workflow
@@ -20,7 +20,7 @@ Below are the steps of the release workflow. Steps prefixed with NOACTION are
 automated and require no human action.
 
 1. To initiate the release process, branch master off to a release branch and push it to Github:
-  - `git checkout master; git pull; git checkout -b v0.8.26; git push origin refs/heads/v0.8.26`
+  - `git checkout master; git pull; git checkout -b release-v0.8.26; git push origin refs/heads/release-v0.8.26`
 2. NOACTION: The current HEAD of the release-candidate branch is tagged `v0.8.26-rc1`
 3. NOACTION: A draft release and runtime WASMs are created for this
   release-candidate automatically. A link to the draft release will be linked in

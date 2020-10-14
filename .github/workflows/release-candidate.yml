@@ -2,7 +2,7 @@ name: Release-candidate automation
 on:
   push:
     branches:
-      - v[0-9]+.[0-9]+.[0-9]+
+      - release-v[0-9]+.[0-9]+.[0-9]+
 jobs:
   tag_rc:
     runs-on: ubuntu-latest
@@ -14,21 +14,21 @@ jobs:
         name: Compute next rc tag
         shell: bash
         run: |
-          # Get last rc tag if exists, else set it to {branch-name}-rc1
-          branch=${GITHUB_REF#refs/heads/}
-          echo "$branch"
-          echo "::set-output name=branch_name::$branch"
+          # Get last rc tag if exists, else set it to {version}-rc1
+          version=${GITHUB_REF#refs/heads/release-}
+          echo "$version"
+          echo "::set-output name=version::$version"
           git tag -l
-          last_rc=$(git tag -l "$branch-rc*" | sort -V | tail -n 1)
+          last_rc=$(git tag -l "$version-rc*" | sort -V | tail -n 1)
           if [ -n "$last_rc" ]; then
             suffix=$(echo "$last_rc" | grep -Eo '[0-9]+$')
             echo $suffix
             ((suffix++))
             echo $suffix
-            echo "::set-output name=new_tag::$branch-rc$suffix"
+            echo "::set-output name=new_tag::$version-rc$suffix"
             echo "::set-output name=first_rc::false"
           else
-            echo "::set-output name=new_tag::$branch-rc1"
+            echo "::set-output name=new_tag::$version-rc1"
             echo "::set-output name=first_rc::true"
           fi
       - name: Apply new tag
@@ -45,7 +45,7 @@ jobs:
         if: steps.compute_tag.outputs.first_rc == 'true'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          BRANCH: ${{ steps.compute_tag.outputs.branch_name }}
+          BRANCH: ${{ steps.compute_tag.outputs.version }}
         with:
           filename: .github/ISSUE_TEMPLATE/release.md
       - uses: s3krit/matrix-message-action@v0.0.2
@@ -54,4 +54,4 @@ jobs:
           room_id: ${{ secrets.INTERNAL_POLKADOT_MATRIX_ROOM_ID }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
           server: "matrix.parity.io"
-          message: "Release process for polkadot ${{ steps.compute_tag.outputs.branch_name }} has been started. Tracking issue: ${{ steps.create-issue.outputs.url }}"
+          message: "Release process for polkadot ${{ steps.compute_tag.outputs.version }} has been started. Tracking issue: ${{ steps.create-issue.outputs.url }}"
