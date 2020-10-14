@@ -17,6 +17,7 @@
 use super::{Trait, Module, Store};
 use crate::configuration::HostConfiguration;
 use frame_support::{StorageMap, weights::Weight, traits::Get};
+use sp_std::prelude::*;
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
 
@@ -116,6 +117,13 @@ impl<T: Trait> Module<T> {
 		<Self as Store>::DownwardMessageQueues::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
+	}
+
+	/// Returns the downward message queue contents for the given para.
+	///
+	/// The most recent messages are the latest in the vector.
+	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+		<Self as Store>::DownwardMessageQueues::get(&recipient)
 	}
 }
 

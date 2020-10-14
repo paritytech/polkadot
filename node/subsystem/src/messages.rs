@@ -37,7 +37,7 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, ValidationData,
-	ValidatorIndex, ValidatorSignature,
+	ValidatorIndex, ValidatorSignature, InboundDownwardMessage,
 };
 use std::sync::Arc;
 
@@ -430,6 +430,11 @@ pub enum RuntimeApiRequest {
 	///
 	/// Returns `None` for validators not found in the current session.
 	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(
+		ParaId,
+		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.

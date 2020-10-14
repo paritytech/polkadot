@@ -656,6 +656,12 @@ sp_api::impl_runtime_apis! {
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			runtime_impl::validator_discovery::<Runtime>(validators)
 		}
+
+		fn dmq_contents(
+			recipient: ParaId,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			runtime_impl::dmq_contents::<Runtime>(recipient)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

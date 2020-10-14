@@ -723,6 +723,11 @@ sp_api::decl_runtime_apis! {
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
+
+		/// Get all the pending inbound messages in the downward message queue for a para.
+		fn dmq_contents(
+			recipient: Id,
+		) -> Vec<InboundDownwardMessage<N>>;
 	}
 }
 
