@@ -93,11 +93,20 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
 		use sc_service::config::DatabaseConfig::{RocksDb, ParityDb, Custom};
 
-		match config {
-			RocksDb { path, cache_size } => Ok(Self { path, cache_size: Some(cache_size) }),
-			ParityDb { path } => Ok(Self { path, cache_size: None }),
-			Custom(_database_trait_obj) => Err("custom databases are not supported"),
-		}
+		let path = match config {
+			RocksDb { path, .. } => Ok(path),
+			ParityDb { path } => Ok(path),
+			Custom(..) => Err("custom databases are not supported"),
+		}?;
+
+		Ok(Self {
+			// substrate cache size is improper here; just use the default
+			cache_size: None,
+			// DB path is a sub-directory of substrate db path to give two properties:
+			// 1: column numbers don't conflict with substrate
+			// 2: commands like purge-chain work without further changes
+			path: path.join("parachains").join("av-store"),
+		})
 	}
 }
 
