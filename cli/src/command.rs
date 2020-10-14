@@ -141,7 +141,7 @@ pub fn run() -> Result<()> {
 				info!("----------------------------");
 			}
 
-			runner.run_node_until_exit(|config| {
+			runner.run_node_until_exit(|config| async move {
 				let role = config.role.clone();
 
 				match role {
