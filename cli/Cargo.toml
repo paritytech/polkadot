@@ -17,29 +17,29 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sp-runtime = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sc-client-api = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sc-client-db = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sc-executor = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
+sc-tracing = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+frame-benchmarking-cli = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5", optional = true }
+sc-cli = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5", optional = true }
+sc-service = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5", optional = true }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5", optional = true }
 # this crate is used only to enable `trie-memory-tracker` feature
-# see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+# see https://github.com/mxinden/substrate/pull/6745
+sp-trie = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5", default-features = false }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/mxinden/substrate", branch = "async-std-1.6.5" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
