@@ -311,7 +311,8 @@ pub struct NewFull<C> {
 
 #[cfg(feature = "full-node")]
 impl<C> NewFull<C> {
-	fn with_client(self, func: impl FnOnce(C) -> Client) -> NewFull<Client> {
+	/// Convert the client type using the given `func`.
+	pub fn with_client<NC>(self, func: impl FnOnce(C) -> NC) -> NewFull<NC> {
 		NewFull {
 			client: func(self.client),
 			task_manager: self.task_manager,
@@ -330,7 +331,7 @@ impl<C> NewFull<C> {
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -538,7 +539,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		use sc_network::Event;
 		use futures::StreamExt;
 
-		if authority_discovery_enabled {
+		if !authority_discovery_disabled {
 			let (sentries, authority_discovery_role) = match role {
 				Role::Authority { ref sentry_nodes } => (
 					sentry_nodes.clone(),
@@ -745,31 +746,31 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Client>, ServiceError> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
-			authority_discovery_enabled,
+			authority_discovery_disabled,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
