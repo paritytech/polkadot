@@ -221,7 +221,9 @@ publish-docker:
   # Don't run on releases - this is handled by the Github Action here:
   # .github/workflows/publish-docker-release.yml
   rules:
-    - if: $CI_COMMIT_REF_NAME !~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ # i.e., v1.2.3 but NOT v1.2.3-rc1
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
   variables:
     DOCKER_HOST:                   tcp://localhost:2375
     DOCKER_DRIVER:                 overlay2
