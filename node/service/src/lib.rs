@@ -443,6 +443,13 @@ pub fn new_full<RuntimeApi, Executor>(
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
+		// JON: where can we keep these constants?
+		let backoff_authoring_blocks = Some(sc_consensus_slots::SimpleBackoffAuthoringBlocksStrategy {
+			max_interval: 100,
+			unfinalized_slack: 5,
+			authoring_bias: 2,
+		});
+
 		let proposer = ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
@@ -458,6 +465,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			sync_oracle: network.clone(),
 			inherent_data_providers: inherent_data_providers.clone(),
 			force_authoring,
+			backoff_authoring_blocks,
 			babe_link,
 			can_author_with,
 		};
