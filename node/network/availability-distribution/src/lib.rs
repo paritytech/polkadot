@@ -655,6 +655,7 @@ where
 					if let Err(_e) = store_chunk(
 						ctx,
 						message.candidate_hash.clone(),
+						live_candidate.descriptor.relay_parent.clone(),
 						message.erasure_chunk.index,
 						message.erasure_chunk.clone(),
 					).await? {
@@ -942,6 +943,7 @@ where
 async fn store_chunk<Context>(
 	ctx: &mut Context,
 	candidate_hash: Hash,
+	relay_parent: Hash,
 	validator_index: ValidatorIndex,
 	erasure_chunk: ErasureChunk,
 ) -> Result<std::result::Result<(), ()>>
@@ -950,7 +952,13 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::StoreChunk(candidate_hash, validator_index, erasure_chunk, tx),
+		AvailabilityStoreMessage::StoreChunk(
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			erasure_chunk,
+			tx,
+		),
 	)).await?;
 	rx.await.map_err::<Error, _>(Into::into)
 }

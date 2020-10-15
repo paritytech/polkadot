@@ -4834,7 +4834,9 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "derive_more 0.99.9",
+ "env_logger",
  "futures 0.3.5",
+ "futures-timer 3.0.2",
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
@@ -4843,8 +4845,10 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
+ "polkadot-node-subsystem-util",
  "polkadot-overseer",
  "polkadot-primitives",
+ "smallvec 1.4.2",
  "sp-core",
 ]
 
