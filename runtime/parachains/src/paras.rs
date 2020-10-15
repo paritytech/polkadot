@@ -176,7 +176,6 @@ pub struct ParaGenesisArgs {
 	pub parachain: bool,
 }
 
-
 decl_storage! {
 	trait Store for Module<T: Trait> as Paras {
 		/// All parachains. Ordered ascending by ParaId. Parathreads are not included.

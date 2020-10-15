@@ -28,7 +28,8 @@ use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
 	new_full, NewFull, FullClient, AbstractClient, ClientHandle, ExecuteWithClient,
 };
-use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall};
+use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -289,12 +290,15 @@ where
 		&self,
 		id: ParaId,
 		validation_code: ValidationCode,
-		initial_head_data: HeadData,
+		genesis_head: HeadData,
 	) -> Result<(), RpcTransactionError> {
-		let call = polkadot_test_runtime::RegistrarCall::register_parachain(
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
 			id,
-			initial_head_data,
-			validation_code,
+			ParaGenesisArgs {
+				genesis_head,
+				validation_code,
+				parachain: true,
+			},
 		);
 
 		self.call_function(call, Sr25519Keyring::Alice).await.map(drop)
