@@ -91,13 +91,7 @@ impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
 	type Error = &'static str;
 
 	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
-		use sc_service::config::DatabaseConfig::{RocksDb, ParityDb, Custom};
-
-		let path = match config {
-			RocksDb { path, .. } => Ok(path),
-			ParityDb { path } => Ok(path),
-			Custom(..) => Err("custom databases are not supported"),
-		}?;
+		let path = config.path().ok_or("custom databases are not supported")?;
 
 		Ok(Self {
 			// substrate cache size is improper here; just use the default
