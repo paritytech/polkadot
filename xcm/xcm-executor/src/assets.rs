@@ -239,3 +239,66 @@ impl Assets {
 		with
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	#[allow(non_snake_case)]
+	fn AF(id: u8, amount: u128) -> MultiAsset {
+		MultiAsset::AbstractFungible { id: vec![id], amount }
+	}
+	#[allow(non_snake_case)]
+	fn ANF(class: u8, instance_id: u128) -> MultiAsset {
+		MultiAsset::AbstractNonFungible { class: vec![class], instance: AssetInstance::Index { id: instance_id } }
+	}
+	#[allow(non_snake_case)]
+	fn CF(amount: u128) -> MultiAsset {
+		MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount }
+	}
+	#[allow(non_snake_case)]
+	fn CNF(instance_id: u128) -> MultiAsset {
+		MultiAsset::ConcreteNonFungible { class: MultiLocation::Null, instance: AssetInstance::Index { id: instance_id } }
+	}
+
+	#[test]
+	fn into_assets_iter_works() {
+		let mut assets_vec: Vec<MultiAsset> = Vec::new();
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+
+		let assets: Assets = assets_vec.into();
+		let mut iter = assets.into_assets_iter();
+		// Order defined by implementation: CF, AF, CNF, ANF
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn assets_into_works() {
+		let mut assets_vec: Vec<MultiAsset> = Vec::new();
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+		// Push same group of tokens again
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+
+		let assets: Assets = assets_vec.into();
+		let mut iter = assets.into_assets_iter();
+		// Fungibles add
+		assert_eq!(Some(CF(600)), iter.next());
+		assert_eq!(Some(AF(1, 200)), iter.next());
+		// Non-fungibles collapse
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+}
