@@ -291,11 +291,11 @@ mod tests {
 	}
 
 	fn test_harness(
-		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiMessage>)
+		test: impl FnOnce(Arc<TestClient>, TestSubsystemContextHandle<ChainApiMessage>)
 			-> BoxFuture<'static, ()>,
 	) {
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let client = TestClient::default();
+		let client = Arc::new(TestClient::default());
 
 		let subsystem = ChainApiSubsystem::new(client.clone(), Metrics(None));
 		let chain_api_task = run(ctx, subsystem).map(|x| x.unwrap());

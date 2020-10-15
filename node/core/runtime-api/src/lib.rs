@@ -270,7 +270,7 @@ mod tests {
 	#[test]
 	fn requests_validators() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -293,7 +293,7 @@ mod tests {
 	#[test]
 	fn requests_validator_groups() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -316,7 +316,7 @@ mod tests {
 	#[test]
 	fn requests_availability_cores() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -339,12 +339,12 @@ mod tests {
 	#[test]
 	fn requests_persisted_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_data.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -379,12 +379,12 @@ mod tests {
 	#[test]
 	fn requests_full_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_data.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -419,7 +419,7 @@ mod tests {
 	#[test]
 	fn requests_session_index_for_child() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -442,12 +442,12 @@ mod tests {
 	#[test]
 	fn requests_validation_code() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_code.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_code.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -482,12 +482,12 @@ mod tests {
 	#[test]
 	fn requests_candidate_pending_availability() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().candidate_pending_availability.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -523,7 +523,7 @@ mod tests {
 	#[test]
 	fn requests_candidate_events() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
