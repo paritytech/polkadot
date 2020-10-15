@@ -140,10 +140,10 @@ impl Assets {
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
 	///
 	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
-	pub fn min<'a, I: Iterator<Item=&'a MultiAsset>>(&self, assets: I) -> Self {
+	pub fn min<'a, M: 'a + std::borrow::Borrow<MultiAsset>, I: Iterator<Item=M>>(&self, assets: I) -> Self {
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
-			match asset {
+			match asset.borrow() {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.clone(),
 				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
@@ -153,7 +153,7 @@ impl Assets {
 						_ => unreachable!(),
 					};
 					if let Some(v) = self.fungible.get(&id) {
-						result.saturating_subsume_fungible(id, amount.max(*v));
+						result.saturating_subsume_fungible(id, amount.min(*v));
 					}
 				}
 				x @ MultiAsset::ConcreteNonFungible { .. } | x @ MultiAsset::AbstractNonFungible { .. } => {
@@ -163,6 +163,7 @@ impl Assets {
 						_ => unreachable!(),
 					};
 					let item = (class, instance);
+					println!("{:?}", item);
 					if self.non_fungible.contains(&item) {
 						result.non_fungible.insert(item);
 					}
@@ -302,6 +303,7 @@ mod tests {
 		assert_eq!(None, iter.next());
 	}
 
+	#[test]
 	fn min_works() {
 		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
 		assets1_vec.push(AF(1, 100));
@@ -311,23 +313,21 @@ mod tests {
 		let assets1: Assets = assets1_vec.into();
 
 		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
+		// This is less than 100, so it will decrease to 50
 		assets2_vec.push(AF(1, 50));
+		// This asset does not exist, so not included
 		assets2_vec.push(ANF(2, 400));
+		// This is more then 300, so it should stay at 300
+		assets2_vec.push(CF(600));
+		// This asset should be included
 		assets2_vec.push(CNF(400));
 		let assets2: Assets = assets2_vec.into();
 
 		let assets_min = assets1.min(assets2.assets_iter());
-
-		// error[E0271]: type mismatch resolving `<impl std::iter::Iterator as std::iter::Iterator>::Item == &xcm::v0::MultiAsset`
-		// --> xcm/xcm-executor/src/assets.rs:319:28
-		// 	|
-		// 319 |         let assets_min = assets1.min(assets2.assets_iter());
-		// 	|                                  ^^^ expected enum `xcm::v0::MultiAsset`, found `&xcm::v0::MultiAsset`
-
-		// error: aborting due to previous error
-
-		// For more information about this error, try `rustc --explain E0271`.
-		// error: could not compile `xcm-executor`.
-
+		let mut iter = assets_min.into_assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(AF(1, 50)), iter.next());
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(None, iter.next());
 	}
 }
