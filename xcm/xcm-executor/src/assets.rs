@@ -163,7 +163,6 @@ impl Assets {
 						_ => unreachable!(),
 					};
 					let item = (class, instance);
-					println!("{:?}", item);
 					if self.non_fungible.contains(&item) {
 						result.non_fungible.insert(item);
 					}
@@ -217,7 +216,7 @@ impl Assets {
 					// remove the maxmimum possible up to id/amount from self, add the removed onto
 					// result
 					if let Some(entry) = self.non_fungible.take(&(class, instance)) {
-						self.non_fungible.insert(entry);
+						result.non_fungible.insert(entry);
 					}
 				}
 				// TODO: implement partial wildcards.
@@ -329,5 +328,41 @@ mod tests {
 		assert_eq!(Some(AF(1, 50)), iter.next());
 		assert_eq!(Some(CNF(400)), iter.next());
 		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn saturating_take_basic_works() {
+		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
+		assets1_vec.push(AF(1, 100));
+		assets1_vec.push(ANF(2, 200));
+		assets1_vec.push(CF(300));
+		assets1_vec.push(CNF(400));
+		let mut assets1: Assets = assets1_vec.into();
+
+		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
+		// We should take 50
+		assets2_vec.push(AF(1, 50));
+		// This asset should not be taken
+		assets2_vec.push(ANF(2, 400));
+		// This is more then 300, so it takes everything
+		assets2_vec.push(CF(600));
+		// This asset should be taken
+		assets2_vec.push(CNF(400));
+		let assets2: Assets = assets2_vec.into();
+
+		let taken = assets1.saturating_take(assets2.into());
+		let mut iter_taken = taken.into_assets_iter();
+		assert_eq!(Some(CF(300)), iter_taken.next());
+		assert_eq!(Some(AF(1, 50)), iter_taken.next());
+		assert_eq!(Some(CNF(400)), iter_taken.next());
+		assert_eq!(None, iter_taken.next());
+
+		let mut iter_assets = assets1.into_assets_iter();
+		// NOTE: Do we want to return 0 of an asset, or just remove it?
+		assert_eq!(Some(CF(0)), iter_assets.next());
+		assert_eq!(Some(AF(1, 50)), iter_assets.next());
+		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
+		assert_eq!(None, iter_taken.next());
+
 	}
 }
