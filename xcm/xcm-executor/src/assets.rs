@@ -301,4 +301,33 @@ mod tests {
 		assert_eq!(Some(ANF(2, 200)), iter.next());
 		assert_eq!(None, iter.next());
 	}
+
+	fn min_works() {
+		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
+		assets1_vec.push(AF(1, 100));
+		assets1_vec.push(ANF(2, 200));
+		assets1_vec.push(CF(300));
+		assets1_vec.push(CNF(400));
+		let assets1: Assets = assets1_vec.into();
+
+		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
+		assets2_vec.push(AF(1, 50));
+		assets2_vec.push(ANF(2, 400));
+		assets2_vec.push(CNF(400));
+		let assets2: Assets = assets2_vec.into();
+
+		let assets_min = assets1.min(assets2.assets_iter());
+
+		// error[E0271]: type mismatch resolving `<impl std::iter::Iterator as std::iter::Iterator>::Item == &xcm::v0::MultiAsset`
+		// --> xcm/xcm-executor/src/assets.rs:319:28
+		// 	|
+		// 319 |         let assets_min = assets1.min(assets2.assets_iter());
+		// 	|                                  ^^^ expected enum `xcm::v0::MultiAsset`, found `&xcm::v0::MultiAsset`
+
+		// error: aborting due to previous error
+
+		// For more information about this error, try `rustc --explain E0271`.
+		// error: could not compile `xcm-executor`.
+
+	}
 }
