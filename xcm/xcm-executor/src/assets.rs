@@ -146,6 +146,18 @@ impl Assets {
 			match asset.borrow() {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.clone(),
+				MultiAsset::AllFungible => {
+					return Assets {
+						fungible: self.fungible.clone(),
+						non_fungible: Default::default(),
+					}
+				},
+				MultiAsset::AllNonFungible => {
+					return Assets {
+						fungible: Default::default(),
+						non_fungible: self.non_fungible.clone(),
+					}
+				},
 				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
 					let (id, amount) = match x {
 						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id.clone()), *amount),
@@ -155,7 +167,7 @@ impl Assets {
 					if let Some(v) = self.fungible.get(&id) {
 						result.saturating_subsume_fungible(id, amount.min(*v));
 					}
-				}
+				},
 				x @ MultiAsset::ConcreteNonFungible { .. } | x @ MultiAsset::AbstractNonFungible { .. } => {
 					let (class, instance) = match x {
 						MultiAsset::ConcreteNonFungible { class, instance } => (AssetId::Concrete(class.clone()), instance.clone()),
@@ -166,11 +178,9 @@ impl Assets {
 					if self.non_fungible.contains(&item) {
 						result.non_fungible.insert(item);
 					}
-				}
+				},
 				// TODO: implement partial wildcards.
 				_ => (),
-				// MultiAsset::AllFungible
-				// | MultiAsset::AllNonFungible
 				// | MultiAsset::AllAbstractFungible { id }
 				// | MultiAsset::AllAbstractNonFungible { class }
 				// | MultiAsset::AllConcreteFungible { id }
@@ -190,6 +200,28 @@ impl Assets {
 			match asset {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.swapped(Assets::default()),
+				x @ MultiAsset::AllFungible | x @ MultiAsset::AllNonFungible => {
+					let all_fungible = Assets {
+						fungible: self.fungible.clone(),
+						non_fungible: Default::default(),
+					};
+					let all_non_fungible = Assets {
+						fungible: Default::default(),
+						non_fungible: self.non_fungible.clone()
+					};
+					match x {
+						MultiAsset::AllFungible => {
+							self.swapped(all_non_fungible);
+							return all_fungible
+						},
+						MultiAsset::AllNonFungible => {
+							self.swapped(all_fungible);
+							return all_non_fungible
+						},
+						_ => unreachable!(),
+					}
+
+				},
 				x @ MultiAsset::ConcreteFungible {..} | x @ MultiAsset::AbstractFungible {..} => {
 					let (id, amount) = match x {
 						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id), amount),
@@ -303,7 +335,7 @@ mod tests {
 	}
 
 	#[test]
-	fn min_works() {
+	fn min_basic_works() {
 		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
 		assets1_vec.push(AF(1, 100));
 		assets1_vec.push(ANF(2, 200));
@@ -327,6 +359,30 @@ mod tests {
 		assert_eq!(Some(CF(300)), iter.next());
 		assert_eq!(Some(AF(1, 50)), iter.next());
 		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn min_fungible_and_non_fungible_works() {
+		let mut assets_vec: Vec<MultiAsset> = Vec::new();
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+		let assets: Assets = assets_vec.into();
+
+		let fungible = vec![MultiAsset::AllFungible];
+		let non_fungible = vec![MultiAsset::AllNonFungible];
+
+		let fungible = assets.min(fungible.iter());
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.min(non_fungible.iter());
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(Some(ANF(2, 200)), iter.next());
 		assert_eq!(None, iter.next());
 	}
 
@@ -363,6 +419,70 @@ mod tests {
 		assert_eq!(Some(AF(1, 50)), iter_assets.next());
 		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
 		assert_eq!(None, iter_taken.next());
+	}
 
+	#[test]
+	fn swapped_works() {
+		let mut assets: Assets = vec![CF(300)].into();
+		let swap = assets.swapped(vec![CNF(400)].into());
+		assert_eq!(assets.assets_iter().next(), Some(CNF(400)));
+		assert_eq!(swap.assets_iter().next(), Some(CF(300)));
+
+		let mut assets: Assets = vec![CF(300)].into();
+		let swap = assets.swapped(Assets::default());
+		assert_eq!(assets.assets_iter().next(), None);
+		assert_eq!(swap.assets_iter().next(), Some(CF(300)));
+
+	}
+
+	#[test]
+	fn saturating_take_all_and_none_works() {
+		let mut assets_vec: Vec<MultiAsset> = Vec::new();
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+		let mut assets: Assets = assets_vec.into();
+
+		let none = vec![MultiAsset::None];
+		let all = vec![MultiAsset::All];
+
+		let taken_none = assets.saturating_take(none);
+		assert_eq!(None, taken_none.assets_iter().next());
+		let taken_all = assets.saturating_take(all.into());
+		// Everything taken
+		assert_eq!(None, assets.assets_iter().next());
+		let mut all_iter = taken_all.assets_iter();
+		assert_eq!(Some(CF(300)), all_iter.next());
+		assert_eq!(Some(AF(1, 100)), all_iter.next());
+		assert_eq!(Some(CNF(400)), all_iter.next());
+		assert_eq!(Some(ANF(2, 200)), all_iter.next());
+		assert_eq!(None, all_iter.next());
+	}
+
+	#[test]
+	fn saturating_take_fungible_and_non_fungible_works() {
+		let mut assets_vec: Vec<MultiAsset> = Vec::new();
+		assets_vec.push(AF(1, 100));
+		assets_vec.push(ANF(2, 200));
+		assets_vec.push(CF(300));
+		assets_vec.push(CNF(400));
+		let mut assets: Assets = assets_vec.into();
+
+		let fungible = vec![MultiAsset::AllFungible];
+		let non_fungible = vec![MultiAsset::AllNonFungible];
+
+		let fungible = assets.saturating_take(fungible);
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.saturating_take(non_fungible);
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+		// Assets completely drained
+		assert_eq!(None, assets.assets_iter().next());
 	}
 }
