@@ -39,6 +39,8 @@ use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::{
@@ -342,6 +344,7 @@ impl AvailabilityStoreSubsystem {
 			format!("Bad database path: {:?}", config.path),
 		))?;
 
+		std::fs::create_dir_all(&path)?;
 		let db = Database::open(&db_config, &path)?;
 
 		Ok(Self {
@@ -822,8 +825,6 @@ impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
 	where
 		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			if let Err(e) = run(self, ctx).await {

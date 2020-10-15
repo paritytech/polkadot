@@ -30,7 +30,7 @@ use primitives::v1::{
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 };
@@ -54,6 +54,8 @@ use sp_runtime::{
 };
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+#[cfg(any(feature = "std", test))]
+use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use pallet_transaction_payment_rpc_runtime_api::RuntimeDispatchInfo;
 use pallet_grandpa::{AuthorityId as GrandpaId, fg_primitives};
@@ -62,6 +64,7 @@ use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
 use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
+use runtime_common::paras_registrar;
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -73,6 +76,7 @@ use runtime_parachains::router as parachains_router;
 use runtime_parachains::scheduler as parachains_scheduler;
 
 pub use pallet_balances::Call as BalancesCall;
+pub use pallet_staking::StakerStatus;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -211,6 +215,9 @@ sp_api::impl_runtime_apis! {
 				}
 			})
 		}
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_api_impl::validator_discovery::<Runtime>(validators)
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -337,6 +344,7 @@ impl_opaque_keys! {
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -376,6 +384,7 @@ construct_runtime! {
 		Initializer: parachains_initializer::{Module, Call, Storage},
 		Router: parachains_router::{Module, Call, Storage},
 
+		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 	}
 }
@@ -400,6 +409,16 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 2,
 };
+
+/// Native version.
+#[cfg(any(feature = "std", test))]
+pub fn native_version() -> NativeVersion {
+	NativeVersion {
+		runtime_version: VERSION,
+		can_author_with: Default::default(),
+	}
+}
+
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -541,7 +560,7 @@ impl pallet_im_online::Trait for Runtime {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
@@ -559,6 +578,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type OffchainSolutionWeightLimit = MaximumBlockWeight;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 }
@@ -728,7 +748,9 @@ impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
 }
 
-impl parachains_paras::Trait for Runtime { }
+impl parachains_paras::Trait for Runtime {
+	type Origin = Origin;
+}
 
 impl parachains_router::Trait for Runtime { }
 
@@ -741,3 +763,9 @@ impl parachains_initializer::Trait for Runtime {
 }
 
 impl paras_sudo_wrapper::Trait for Runtime { }
+
+impl paras_registrar::Trait for Runtime {
+	type Currency = Balances;
+	type ParathreadDeposit = ParathreadDeposit;
+	type Origin = Origin;
+}

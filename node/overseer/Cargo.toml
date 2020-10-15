@@ -12,6 +12,7 @@ streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
 client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem" }
+polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
 async-trait = "0.1"
 

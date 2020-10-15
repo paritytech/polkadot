@@ -24,9 +24,6 @@ pub enum Subcommand {
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
 
-	/// Build a chain specification with a light client sync state.
-	BuildSyncSpec(sc_cli::BuildSyncSpecCmd),
-
 	/// Validate blocks.
 	CheckBlock(sc_cli::CheckBlockCmd),
 
@@ -79,7 +76,14 @@ pub struct RunCmd {
 	#[structopt(long = "force-westend")]
 	pub force_westend: bool,
 
-	/// Enable the authority discovery module on validator or sentry nodes.
+	/// Force using Rococo native runtime.
+	#[structopt(long = "force-rococo")]
+	pub force_rococo: bool,
+
+	/// Disable the authority discovery module on validator or sentry nodes.
+	///
+	/// Enabled by default on validator and sentry nodes. Always disabled on non
+	/// validator or sentry nodes.
 	///
 	/// When enabled:
 	///
@@ -90,8 +94,8 @@ pub struct RunCmd {
 	/// (2) As a validator or sentry node: Discover addresses of validators or
 	///     addresses of their sentry nodes and maintain a permanent connection
 	///     to a subset.
-	#[structopt(long = "enable-authority-discovery")]
-	pub authority_discovery_enabled: bool,
+	#[structopt(long = "disable-authority-discovery")]
+	pub authority_discovery_disabled: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
 	///

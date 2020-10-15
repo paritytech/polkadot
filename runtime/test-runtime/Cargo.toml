@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-runtime"
-version = "0.8.24"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -55,6 +55,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
+polkadot-runtime-parachains = { path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
