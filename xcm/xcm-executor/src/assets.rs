@@ -450,30 +450,19 @@ mod tests {
 	}
 
 	#[test]
-	fn min_basic_works() {
-		let assets1 = test_assets();
+	fn min_all_and_none_works() {
+		let assets = test_assets();
+		let none = vec![MultiAsset::None];
+		let all = vec![MultiAsset::All];
 
-		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
-		// This is less than 100, so it will decrease to 50
-		assets2_vec.push(AF(1, 50));
-		// This asset does not exist, so not included
-		assets2_vec.push(ANF(2, 400));
-		// This is more then 300, so it should stay at 300
-		assets2_vec.push(CF(600));
-		// This asset should be included
-		assets2_vec.push(CNF(400));
-		let assets2: Assets = assets2_vec.into();
-
-		let assets_min = assets1.min(assets2.assets_iter());
-		let mut iter = assets_min.into_assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(Some(AF(1, 50)), iter.next());
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(None, iter.next());
+		let none_min = assets.min(none.iter());
+		assert_eq!(None, none_min.assets_iter().next());
+		let all_min = assets.min(all.iter());
+		assert!(all_min.assets_iter().eq(assets.assets_iter()));
 	}
 
 	#[test]
-	fn min_fungible_and_non_fungible_works() {
+	fn min_all_fungible_and_all_non_fungible_works() {
 		let assets = test_assets();
 		let fungible = vec![MultiAsset::AllFungible];
 		let non_fungible = vec![MultiAsset::AllNonFungible];
@@ -523,45 +512,26 @@ mod tests {
 	}
 
 	#[test]
-	fn saturating_take_basic_works() {
-		let mut assets1 = test_assets();
+	fn min_basic_works() {
+		let assets1 = test_assets();
 
 		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
-		// We should take 50
+		// This is less than 100, so it will decrease to 50
 		assets2_vec.push(AF(1, 50));
-		// This asset should not be taken
+		// This asset does not exist, so not included
 		assets2_vec.push(ANF(2, 400));
-		// This is more then 300, so it takes everything
+		// This is more then 300, so it should stay at 300
 		assets2_vec.push(CF(600));
-		// This asset should be taken
+		// This asset should be included
 		assets2_vec.push(CNF(400));
 		let assets2: Assets = assets2_vec.into();
 
-		let taken = assets1.saturating_take(assets2.into());
-		let mut iter_taken = taken.into_assets_iter();
-		assert_eq!(Some(CF(300)), iter_taken.next());
-		assert_eq!(Some(AF(1, 50)), iter_taken.next());
-		assert_eq!(Some(CNF(400)), iter_taken.next());
-		assert_eq!(None, iter_taken.next());
-
-		let mut iter_assets = assets1.into_assets_iter();
-		assert_eq!(Some(AF(1, 50)), iter_assets.next());
-		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
-		assert_eq!(None, iter_taken.next());
-	}
-
-	#[test]
-	fn swapped_works() {
-		let mut assets: Assets = vec![CF(300)].into();
-		let swap = assets.swapped(vec![CNF(400)].into());
-		assert_eq!(assets.assets_iter().next(), Some(CNF(400)));
-		assert_eq!(swap.assets_iter().next(), Some(CF(300)));
-
-		let mut assets: Assets = vec![CF(300)].into();
-		let swap = assets.swapped(Assets::default());
-		assert_eq!(assets.assets_iter().next(), None);
-		assert_eq!(swap.assets_iter().next(), Some(CF(300)));
-
+		let assets_min = assets1.min(assets2.assets_iter());
+		let mut iter = assets_min.into_assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(AF(1, 50)), iter.next());
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(None, iter.next());
 	}
 
 	#[test]
@@ -575,16 +545,12 @@ mod tests {
 		let taken_all = assets.saturating_take(all.into());
 		// Everything taken
 		assert_eq!(None, assets.assets_iter().next());
-		let mut all_iter = taken_all.assets_iter();
-		assert_eq!(Some(CF(300)), all_iter.next());
-		assert_eq!(Some(AF(1, 100)), all_iter.next());
-		assert_eq!(Some(CNF(400)), all_iter.next());
-		assert_eq!(Some(ANF(2, 200)), all_iter.next());
-		assert_eq!(None, all_iter.next());
+		let all_iter = taken_all.assets_iter();
+		assert!(all_iter.eq(test_assets().assets_iter()));
 	}
 
 	#[test]
-	fn saturating_take_fungible_and_non_fungible_works() {
+	fn saturating_take_all_fungible_and_all_non_fungible_works() {
 		let mut assets = test_assets();
 		let fungible = vec![MultiAsset::AllFungible];
 		let non_fungible = vec![MultiAsset::AllNonFungible];
@@ -643,5 +609,33 @@ mod tests {
 		assert_eq!(Some(AF(1, 100)), iter.next());
 		assert_eq!(Some(ANF(2, 200)), iter.next());
 		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn saturating_take_basic_works() {
+		let mut assets1 = test_assets();
+
+		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
+		// We should take 50
+		assets2_vec.push(AF(1, 50));
+		// This asset should not be taken
+		assets2_vec.push(ANF(2, 400));
+		// This is more then 300, so it takes everything
+		assets2_vec.push(CF(600));
+		// This asset should be taken
+		assets2_vec.push(CNF(400));
+		let assets2: Assets = assets2_vec.into();
+
+		let taken = assets1.saturating_take(assets2.into());
+		let mut iter_taken = taken.into_assets_iter();
+		assert_eq!(Some(CF(300)), iter_taken.next());
+		assert_eq!(Some(AF(1, 50)), iter_taken.next());
+		assert_eq!(Some(CNF(400)), iter_taken.next());
+		assert_eq!(None, iter_taken.next());
+
+		let mut iter_assets = assets1.into_assets_iter();
+		assert_eq!(Some(AF(1, 50)), iter_assets.next());
+		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
+		assert_eq!(None, iter_taken.next());
 	}
 }
