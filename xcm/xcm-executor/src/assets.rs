@@ -158,6 +158,30 @@ impl Assets {
 						non_fungible: self.non_fungible.clone(),
 					}
 				},
+				MultiAsset::AllAbstractFungible { id } => {
+					let mut result = Assets::default();
+					for asset in self.assets_iter() {
+						match &asset {
+							MultiAsset::AbstractFungible { id: identifier, .. } => {
+								if id == identifier { result.saturating_subsume(asset) }
+							},
+							_ => (),
+						}
+					}
+					return result
+				},
+				MultiAsset::AllAbstractNonFungible { class } => {
+					let mut result = Assets::default();
+					for asset in self.assets_iter() {
+						match &asset {
+							MultiAsset::AbstractNonFungible { class: c, .. } => {
+								if class == c { result.saturating_subsume(asset) }
+							},
+							_ => (),
+						}
+					}
+					return result
+				}
 				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
 					let (id, amount) = match x {
 						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id.clone()), *amount),
@@ -292,15 +316,18 @@ mod tests {
 		MultiAsset::ConcreteNonFungible { class: MultiLocation::Null, instance: AssetInstance::Index { id: instance_id } }
 	}
 
-	#[test]
-	fn into_assets_iter_works() {
+	fn test_assets() -> Assets {
 		let mut assets_vec: Vec<MultiAsset> = Vec::new();
 		assets_vec.push(AF(1, 100));
 		assets_vec.push(ANF(2, 200));
 		assets_vec.push(CF(300));
 		assets_vec.push(CNF(400));
+		assets_vec.into()
+	}
 
-		let assets: Assets = assets_vec.into();
+	#[test]
+	fn into_assets_iter_works() {
+		let assets = test_assets();
 		let mut iter = assets.into_assets_iter();
 		// Order defined by implementation: CF, AF, CNF, ANF
 		assert_eq!(Some(CF(300)), iter.next());
@@ -336,12 +363,7 @@ mod tests {
 
 	#[test]
 	fn min_basic_works() {
-		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
-		assets1_vec.push(AF(1, 100));
-		assets1_vec.push(ANF(2, 200));
-		assets1_vec.push(CF(300));
-		assets1_vec.push(CNF(400));
-		let assets1: Assets = assets1_vec.into();
+		let assets1 = test_assets();
 
 		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
 		// This is less than 100, so it will decrease to 50
@@ -364,13 +386,7 @@ mod tests {
 
 	#[test]
 	fn min_fungible_and_non_fungible_works() {
-		let mut assets_vec: Vec<MultiAsset> = Vec::new();
-		assets_vec.push(AF(1, 100));
-		assets_vec.push(ANF(2, 200));
-		assets_vec.push(CF(300));
-		assets_vec.push(CNF(400));
-		let assets: Assets = assets_vec.into();
-
+		let assets = test_assets();
 		let fungible = vec![MultiAsset::AllFungible];
 		let non_fungible = vec![MultiAsset::AllNonFungible];
 
@@ -387,13 +403,24 @@ mod tests {
 	}
 
 	#[test]
+	fn min_abstract_works() {
+		let assets = test_assets();
+		let fungible = vec![MultiAsset::AllAbstractFungible { id: vec![1] }];
+		let non_fungible = vec![MultiAsset::AllAbstractNonFungible { class: vec![2] }];
+
+		let fungible = assets.min(fungible.iter());
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.min(non_fungible.iter());
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+
+	#[test]
 	fn saturating_take_basic_works() {
-		let mut assets1_vec: Vec<MultiAsset> = Vec::new();
-		assets1_vec.push(AF(1, 100));
-		assets1_vec.push(ANF(2, 200));
-		assets1_vec.push(CF(300));
-		assets1_vec.push(CNF(400));
-		let mut assets1: Assets = assets1_vec.into();
+		let mut assets1 = test_assets();
 
 		let mut assets2_vec: Vec<MultiAsset> = Vec::new();
 		// We should take 50
@@ -437,13 +464,7 @@ mod tests {
 
 	#[test]
 	fn saturating_take_all_and_none_works() {
-		let mut assets_vec: Vec<MultiAsset> = Vec::new();
-		assets_vec.push(AF(1, 100));
-		assets_vec.push(ANF(2, 200));
-		assets_vec.push(CF(300));
-		assets_vec.push(CNF(400));
-		let mut assets: Assets = assets_vec.into();
-
+		let mut assets = test_assets();
 		let none = vec![MultiAsset::None];
 		let all = vec![MultiAsset::All];
 
@@ -462,13 +483,7 @@ mod tests {
 
 	#[test]
 	fn saturating_take_fungible_and_non_fungible_works() {
-		let mut assets_vec: Vec<MultiAsset> = Vec::new();
-		assets_vec.push(AF(1, 100));
-		assets_vec.push(ANF(2, 200));
-		assets_vec.push(CF(300));
-		assets_vec.push(CNF(400));
-		let mut assets: Assets = assets_vec.into();
-
+		let mut assets = test_assets();
 		let fungible = vec![MultiAsset::AllFungible];
 		let non_fungible = vec![MultiAsset::AllNonFungible];
 
