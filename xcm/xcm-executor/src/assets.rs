@@ -56,6 +56,22 @@ impl From<Assets> for Vec<MultiAsset> {
 }
 
 impl Assets {
+	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
+		self.fungible.iter()
+			.map(|(id, &amount)| match id.clone() {
+				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
+				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
+			})
+	}
+
+	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
+		self.non_fungible.iter()
+			.map(|&(ref class, ref instance)| match class.clone() {
+				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance: instance.clone() },
+				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance: instance.clone() },
+			})
+	}
+
 	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
 		let fungible = self.fungible.into_iter()
 			.map(|(id, amount)| match id {
@@ -71,16 +87,8 @@ impl Assets {
 	}
 
 	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
-		let fungible = self.fungible.iter()
-			.map(|(id, &amount)| match id.clone() {
-				AssetId::Concrete(id) => MultiAsset::ConcreteFungible { id, amount },
-				AssetId::Abstract(id) => MultiAsset::AbstractFungible { id, amount },
-			});
-		let non_fungible = self.non_fungible.iter()
-			.map(|&(ref class, ref instance)| match class.clone() {
-				AssetId::Concrete(class) => MultiAsset::ConcreteNonFungible { class, instance: instance.clone() },
-				AssetId::Abstract(class) => MultiAsset::AbstractNonFungible { class, instance: instance.clone() },
-			});
+		let fungible = self.fungible_assets_iter();
+		let non_fungible = self.non_fungible_assets_iter();
 		fungible.chain(non_fungible)
 	}
 
@@ -160,7 +168,7 @@ impl Assets {
 				},
 				MultiAsset::AllAbstractFungible { id } => {
 					let mut result = Assets::default();
-					for asset in self.assets_iter() {
+					for asset in self.fungible_assets_iter() {
 						match &asset {
 							MultiAsset::AbstractFungible { id: identifier, .. } => {
 								if id == identifier { result.saturating_subsume(asset) }
@@ -172,9 +180,33 @@ impl Assets {
 				},
 				MultiAsset::AllAbstractNonFungible { class } => {
 					let mut result = Assets::default();
-					for asset in self.assets_iter() {
+					for asset in self.non_fungible_assets_iter() {
 						match &asset {
 							MultiAsset::AbstractNonFungible { class: c, .. } => {
+								if class == c { result.saturating_subsume(asset) }
+							},
+							_ => (),
+						}
+					}
+					return result
+				}
+				MultiAsset::AllConcreteFungible { id } => {
+					let mut result = Assets::default();
+					for asset in self.fungible_assets_iter() {
+						match &asset {
+							MultiAsset::ConcreteFungible { id: identifier, .. } => {
+								if id == identifier { result.saturating_subsume(asset) }
+							},
+							_ => (),
+						}
+					}
+					return result
+				},
+				MultiAsset::AllConcreteNonFungible { class } => {
+					let mut result = Assets::default();
+					for asset in self.non_fungible_assets_iter() {
+						match &asset {
+							MultiAsset::ConcreteNonFungible { class: c, .. } => {
 								if class == c { result.saturating_subsume(asset) }
 							},
 							_ => (),
@@ -202,13 +234,7 @@ impl Assets {
 					if self.non_fungible.contains(&item) {
 						result.non_fungible.insert(item);
 					}
-				},
-				// TODO: implement partial wildcards.
-				_ => (),
-				// | MultiAsset::AllAbstractFungible { id }
-				// | MultiAsset::AllAbstractNonFungible { class }
-				// | MultiAsset::AllConcreteFungible { id }
-				// | MultiAsset::AllConcreteNonFungible { class } => (),
+				}
 			}
 		}
 		result
@@ -246,6 +272,76 @@ impl Assets {
 					}
 
 				},
+				MultiAsset::AllAbstractFungible { id } => {
+					let all_abstract_fungible: Vec<(AssetId, u128)> = self.fungible.clone()
+						.into_iter()
+						.filter(|(iden, _)| match iden {
+							AssetId::Abstract(iden) => id == *iden,
+							_ => false,
+						}).collect();
+
+					for (id, amount) in all_abstract_fungible {
+						let maybe_value = self.fungible.get(&id);
+						if let Some(&e) = maybe_value {
+							if e > amount {
+								self.fungible.insert(id.clone(), e - amount);
+								result.saturating_subsume_fungible(id, amount);
+							} else {
+								self.fungible.remove(&id);
+								result.saturating_subsume_fungible(id, e.clone());
+							}
+						}
+					}
+				},
+				MultiAsset::AllAbstractNonFungible { class } => {
+					let all_abstract_non_fungible: Vec<(AssetId, AssetInstance)> = self.non_fungible.clone()
+						.into_iter()
+						.filter(|(c, _)| match c {
+							AssetId::Abstract(id) => class == *id,
+							_ => false,
+						}).collect();
+
+					for (c, instance) in all_abstract_non_fungible {
+						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
+							result.non_fungible.insert(entry);
+						}
+					}
+				},
+				MultiAsset::AllConcreteFungible { id } => {
+					let all_concrete_fungible: Vec<(AssetId, u128)> = self.fungible.clone()
+						.into_iter()
+						.filter(|(iden, _)| match iden {
+							AssetId::Concrete(iden) => id == *iden,
+							_ => false,
+						}).collect();
+
+					for (id, amount) in all_concrete_fungible {
+						let maybe_value = self.fungible.get(&id);
+						if let Some(&e) = maybe_value {
+							if e > amount {
+								self.fungible.insert(id.clone(), e - amount);
+								result.saturating_subsume_fungible(id, amount);
+							} else {
+								self.fungible.remove(&id);
+								result.saturating_subsume_fungible(id, e.clone());
+							}
+						}
+					}
+				},
+				MultiAsset::AllConcreteNonFungible { class } => {
+					let all_concrete_non_fungible: Vec<(AssetId, AssetInstance)> = self.non_fungible.clone()
+						.into_iter()
+						.filter(|(c, _)| match c {
+							AssetId::Concrete(id) => class == *id,
+							_ => false,
+						}).collect();
+
+					for (c, instance) in all_concrete_non_fungible {
+						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
+							result.non_fungible.insert(entry);
+						}
+					}
+				},
 				x @ MultiAsset::ConcreteFungible {..} | x @ MultiAsset::AbstractFungible {..} => {
 					let (id, amount) = match x {
 						MultiAsset::ConcreteFungible { id, amount } => (AssetId::Concrete(id), amount),
@@ -254,14 +350,16 @@ impl Assets {
 					};
 					// remove the maxmimum possible up to id/amount from self, add the removed onto
 					// result
-					self.fungible.entry(id.clone())
-						.and_modify(|e| if *e >= amount {
+					let maybe_value = self.fungible.get(&id);
+					if let Some(&e) = maybe_value {
+						if e > amount {
+							self.fungible.insert(id.clone(), e - amount);
 							result.saturating_subsume_fungible(id, amount);
-							*e = *e - amount;
 						} else {
-							result.saturating_subsume_fungible(id, *e);
-							*e = 0
-						});
+							self.fungible.remove(&id);
+							result.saturating_subsume_fungible(id, e.clone());
+						}
+					}
 				}
 				x @ MultiAsset::ConcreteNonFungible {..} | x @ MultiAsset::AbstractNonFungible {..} => {
 					let (class, instance) = match x {
@@ -275,16 +373,6 @@ impl Assets {
 						result.non_fungible.insert(entry);
 					}
 				}
-				// TODO: implement partial wildcards.
-				_ => {
-					Default::default()
-				}
-				// MultiAsset::AllFungible
-				// | MultiAsset::AllNonFungible
-				// | MultiAsset::AllAbstractFungible { id }
-				// | MultiAsset::AllAbstractNonFungible { class }
-				// | MultiAsset::AllConcreteFungible { id }
-				// | MultiAsset::AllConcreteNonFungible { class } => (),
 			}
 		}
 		result
@@ -403,7 +491,7 @@ mod tests {
 	}
 
 	#[test]
-	fn min_abstract_works() {
+	fn min_all_abstract_works() {
 		let assets = test_assets();
 		let fungible = vec![MultiAsset::AllAbstractFungible { id: vec![1] }];
 		let non_fungible = vec![MultiAsset::AllAbstractNonFungible { class: vec![2] }];
@@ -415,6 +503,22 @@ mod tests {
 		let non_fungible = assets.min(non_fungible.iter());
 		let mut iter = non_fungible.assets_iter();
 		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn min_all_concrete_works() {
+		let assets = test_assets();
+		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::Null }];
+		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
+
+		let fungible = assets.min(fungible.iter());
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.min(non_fungible.iter());
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(CNF(400)), iter.next());
 		assert_eq!(None, iter.next());
 	}
 
@@ -441,8 +545,6 @@ mod tests {
 		assert_eq!(None, iter_taken.next());
 
 		let mut iter_assets = assets1.into_assets_iter();
-		// NOTE: Do we want to return 0 of an asset, or just remove it?
-		assert_eq!(Some(CF(0)), iter_assets.next());
 		assert_eq!(Some(AF(1, 50)), iter_assets.next());
 		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
 		assert_eq!(None, iter_taken.next());
@@ -499,5 +601,47 @@ mod tests {
 		assert_eq!(None, iter.next());
 		// Assets completely drained
 		assert_eq!(None, assets.assets_iter().next());
+	}
+
+	#[test]
+	fn saturating_take_all_abstract_works() {
+		let mut assets = test_assets();
+		let fungible = vec![MultiAsset::AllAbstractFungible { id: vec![1] }];
+		let non_fungible = vec![MultiAsset::AllAbstractNonFungible { class: vec![2] }];
+
+		let fungible = assets.saturating_take(fungible);
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.saturating_take(non_fungible);
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
+		// Assets drained of abstract
+		let mut iter = assets.assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(None, iter.next());
+	}
+
+	#[test]
+	fn saturating_take_all_concrete_works() {
+		let mut assets = test_assets();
+		let fungible = vec![MultiAsset::AllConcreteFungible { id: MultiLocation::Null }];
+		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
+
+		let fungible = assets.saturating_take(fungible);
+		let mut iter = fungible.assets_iter();
+		assert_eq!(Some(CF(300)), iter.next());
+		assert_eq!(None, iter.next());
+		let non_fungible = assets.saturating_take(non_fungible);
+		let mut iter = non_fungible.assets_iter();
+		assert_eq!(Some(CNF(400)), iter.next());
+		assert_eq!(None, iter.next());
+		// Assets drained of concrete
+		let mut iter = assets.assets_iter();
+		assert_eq!(Some(AF(1, 100)), iter.next());
+		assert_eq!(Some(ANF(2, 200)), iter.next());
+		assert_eq!(None, iter.next());
 	}
 }
