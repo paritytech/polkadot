@@ -106,6 +106,7 @@ impl AvailabilityStoreSubsystem {
 			format!("Bad database path: {:?}", config.path),
 		))?;
 
+		std::fs::create_dir_all(&path)?;
 		let db = Database::open(&db_config, &path)?;
 
 		Ok(Self {
