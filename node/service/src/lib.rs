@@ -234,12 +234,14 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		let keystore = keystore_container.sync_keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
+		let chain_spec = config.chain_spec.cloned_box();
 
 		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
 				select_chain: select_chain.clone(),
+				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
 				babe: polkadot_rpc::BabeDeps {
 					babe_config: babe_config.clone(),
