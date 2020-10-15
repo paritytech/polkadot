@@ -37,18 +37,19 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
+use std::sync::Arc;
 
 use futures::prelude::*;
 
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
-	client: Client,
+	client: Arc<Client>,
 	metrics: Metrics,
 }
 
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
-	pub fn new(client: Client, metrics: Metrics) -> Self {
+	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
 		ChainApiSubsystem {
 			client,
 			metrics,

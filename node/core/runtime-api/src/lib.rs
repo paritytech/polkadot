@@ -31,6 +31,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use std::sync::Arc;
 
 use sp_api::{ProvideRuntimeApi};
 
@@ -38,19 +39,19 @@ use futures::prelude::*;
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
-	client: Client,
+	client: Arc<Client>,
 	metrics: Metrics,
 }
 
 impl<Client> RuntimeApiSubsystem<Client> {
 	/// Create a new Runtime API subsystem wrapping the given client and metrics.
-	pub fn new(client: Client, metrics: Metrics) -> Self {
+	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
 		RuntimeApiSubsystem { client, metrics }
 	}
 }
 
 impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
-	Client: ProvideRuntimeApi<Block> + Send + 'static,
+	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
@@ -76,7 +77,7 @@ async fn run<Client>(
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				RuntimeApiMessage::Request(relay_parent, request) => make_runtime_api_request(
-					&subsystem.client,
+					&*subsystem.client,
 					&subsystem.metrics,
 					relay_parent,
 					request,

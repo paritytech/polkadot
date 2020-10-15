@@ -36,6 +36,7 @@ use sp_blockchain::HeaderBackend;
 use sp_core::traits::SpawnNamed;
 use sp_keystore::SyncCryptoStorePtr;
 use sp_trie::PrefixedMemoryDB;
+use std::convert::TryInto;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -272,7 +273,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: SyncCryptoStorePtr,
-	runtime_client: RuntimeClient,
+	runtime_client: Arc<RuntimeClient>,
 	availability_config: AvailabilityConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
@@ -333,7 +334,7 @@ where
 			Metrics::register(registry)?,
 		),
 		chain_api: ChainApiSubsystem::new(
-			runtime_client,
+			runtime_client.clone(),
 			Metrics::register(registry)?,
 		),
 		collation_generation: CollationGenerationSubsystem::new(
@@ -454,6 +455,8 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let telemetry_connection_sinks = service::TelemetryConnectionSinks::default();
 
+	let availability_config = config.database.clone().try_into();
+
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
 		config,
 		backend: backend.clone(),
@@ -537,12 +540,12 @@ pub fn new_full<RuntimeApi, Executor>(
 	let overseer_handler = match authority_discovery_service {
 		None => OverseerHandler::dummy(),
 		Some(authority_discovery_service) => {
-			use std::convert::TryInto;
+
 			let (overseer, overseer_handler) = real_overseer(
 				leaves,
 				keystore_container.sync_keystore(),
-				overseer_client,
-				config.database.try_into()?,
+				overseer_client.clone(),
+				availability_config?,
 				network.clone(),
 				authority_discovery_service,
 				prometheus_registry.as_ref(),
