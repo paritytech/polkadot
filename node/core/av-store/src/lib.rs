@@ -245,6 +245,10 @@ impl PartialEq for PoVPruningRecord {
 
 impl Ord for PoVPruningRecord {
 	fn cmp(&self, other: &Self) -> Ordering {
+		if self.candidate_hash == other.candidate_hash {
+			return Ordering::Equal;
+		}
+
 		self.prune_at.cmp(&other.prune_at)
 	}
 }
@@ -273,6 +277,10 @@ impl PartialEq for ChunkPruningRecord {
 
 impl Ord for ChunkPruningRecord {
 	fn cmp(&self, other: &Self) -> Ordering {
+		if self.candidate_hash == other.candidate_hash {
+			return Ordering::Equal;
+		}
+
 		self.prune_at.cmp(&other.prune_at)
 	}
 }
