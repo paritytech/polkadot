@@ -180,7 +180,7 @@ impl NextPoVPruning {
 }
 
 /// At which point in time we need to wakeup and do next pruning of chunks.
-/// Essenially this is the first element in the sorted array of pruning data,
+/// Essentially this is the first element in the sorted array of pruning data,
 /// we just want to cache it here to avoid lifting the whole array just to look at the head.
 ///
 /// This record exists under `NEXT_CHUNK_PRUNING` key, if it does not either:
