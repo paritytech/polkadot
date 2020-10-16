@@ -73,6 +73,73 @@ enum Error {
 	Time(SystemTimeError),
 }
 
+/// A wrapper type for delays.
+#[derive(Debug, Decode, Encode, Eq)]
+enum PruningDelay {
+	/// This pruning should be triggerend in this amount of seconds into the future.
+	In(u64),
+
+	/// Data is in the state where it has no expiration.
+	Indefinite,
+}
+
+impl PruningDelay {
+	fn now() -> Result<Self, Error> {
+		Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs().into())
+	}
+
+	fn into_the_future(secs: u64) -> Result<Self, Error> {
+		Ok(
+			Self::In(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() + secs)
+		)
+	}
+
+	fn as_secs(&self) -> Option<u64> {
+		match self {
+		    PruningDelay::In(delay) => Some(*delay),
+		    PruningDelay::Indefinite => None,
+		}
+	}
+}
+
+impl PartialEq for PruningDelay {
+    fn eq(&self, other: &Self) -> bool {
+		match (self, other) {
+		    (PruningDelay::In(this), PruningDelay::In(that)) => {this == that},
+		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => true,
+			_ => false,
+		}
+    }
+}
+
+impl PartialOrd for PruningDelay {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+		match (self, other) {
+		    (PruningDelay::In(this), PruningDelay::In(that)) => this.partial_cmp(that),
+		    (PruningDelay::In(_), PruningDelay::Indefinite) => Some(Ordering::Less),
+		    (PruningDelay::Indefinite, PruningDelay::In(_)) => Some(Ordering::Greater),
+		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => Some(Ordering::Equal),
+		}
+    }
+}
+
+impl Ord for PruningDelay {
+    fn cmp(&self, other: &Self) -> Ordering {
+		match (self, other) {
+		    (PruningDelay::In(this), PruningDelay::In(that)) => this.cmp(that),
+		    (PruningDelay::In(_), PruningDelay::Indefinite) => Ordering::Less,
+		    (PruningDelay::Indefinite, PruningDelay::In(_)) => Ordering::Greater,
+		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => Ordering::Equal,
+		}
+    }
+}
+
+impl From<u64> for PruningDelay {
+    fn from(delay: u64) -> Self {
+		Self::In(delay)
+    }
+}
+
 /// A key for chunk pruning records.
 const CHUNK_PRUNING_KEY: [u8; 14] = *b"chunks_pruning";
 
@@ -169,7 +236,7 @@ struct PoVPruningRecord {
 	candidate_hash: Hash,
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
-	prune_at: u64,
+	prune_at: PruningDelay,
 }
 
 impl PartialEq for PoVPruningRecord {
@@ -196,7 +263,7 @@ struct ChunkPruningRecord {
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
 	chunk_index: u32,
-	prune_at: u64,
+	prune_at: PruningDelay,
 }
 
 impl PartialEq for ChunkPruningRecord {
@@ -230,7 +297,7 @@ impl AvailabilityStoreSubsystem {
 	fn prune_povs(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut pov_pruning = pov_pruning(&self.inner).unwrap_or_default();
-		let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+		let now = PruningDelay::now()?;
 
 		log::trace!(target: LOG_TARGET, "Pruning PoVs");
 		let outdated_records_count = pov_pruning.iter()
@@ -254,7 +321,7 @@ impl AvailabilityStoreSubsystem {
 	fn prune_chunks(&self) -> Result<(), Error> {
 		let mut tx = DBTransaction::new();
 		let mut chunk_pruning = chunk_pruning(&self.inner).unwrap_or_default();
-		let now = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
+		let now = PruningDelay::now()?;
 
 		log::trace!(target: LOG_TARGET, "Pruning Chunks");
 		let outdated_records_count = chunk_pruning.iter()
@@ -446,8 +513,9 @@ where
 					record.candidate_hash,
 				);
 
-				record.prune_at = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() +
+				record.prune_at = PruningDelay::into_the_future(
 					subsystem.pruning_config.keep_finalized_block_for
+				)?;
 			}
 		}
 
@@ -483,7 +551,7 @@ where
 
 		for record in pov_pruning.iter_mut() {
 			if included.contains(&record.candidate_hash) {
-				record.prune_at = std::u64::MAX;
+				record.prune_at = PruningDelay::Indefinite;
 			}
 		}
 
@@ -597,11 +665,11 @@ fn put_pov_pruning(
 		// We want to wake up in case we have some records that are not scheduled to be kept
 		// indefinitely (data is included and waiting to move to the finalized state) and so
 		// the is at least one value that is not `u64::MAX`.
-		Some(head) if head.prune_at != std::u64::MAX => {
+		Some(PoVPruningRecord { prune_at: PruningDelay::In(prune_at), .. }) => {
 			tx.put_vec(
 				columns::META,
 				&NEXT_POV_PRUNING,
-				NextPoVPruning(head.prune_at).encode(),
+				NextPoVPruning(*prune_at).encode(),
 			);
 		}
 		_ => {
@@ -632,11 +700,11 @@ fn put_chunk_pruning(
 	);
 
 	match chunk_pruning.get(0) {
-		Some(head) if head.prune_at != std::u64::MAX => {
+		Some(ChunkPruningRecord { prune_at: PruningDelay::In(prune_at), .. }) => {
 			tx.put_vec(
 				columns::META,
 				&NEXT_CHUNK_PRUNING,
-				NextChunkPruning(head.prune_at).encode(),
+				NextChunkPruning(*prune_at).encode(),
 			);
 		}
 		_ => {
@@ -695,19 +763,26 @@ fn store_available_data(
 	};
 
 	let mut pov_pruning = pov_pruning(&subsystem.inner).unwrap_or_default();
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+
+	if let Some(next_pruning) = prune_at.as_secs() {
+		tx.put_vec(
+			columns::META,
+			&NEXT_POV_PRUNING,
+			NextPoVPruning(next_pruning).encode(),
+		);
+	}
 
 	let pruning_record = PoVPruningRecord {
 		candidate_hash: candidate_hash.clone(),
 		block_number,
 		candidate_state: CandidateState::Stored,
-		prune_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() +
-			subsystem.pruning_config.keep_stored_block_for,
+		prune_at,
 	};
 
 	let idx = pov_pruning.binary_search(&pruning_record).unwrap_or_else(|x| x);
 
 	pov_pruning.insert(idx, pruning_record);
-	let next_pruning = pov_pruning[0].prune_at;
 
 	tx.put_vec(
 		columns::DATA,
@@ -719,12 +794,6 @@ fn store_available_data(
 		columns::META,
 		&POV_PRUNING_KEY,
 		pov_pruning.encode(),
-	);
-
-	tx.put_vec(
-		columns::META,
-		&NEXT_POV_PRUNING,
-		NextPoVPruning(next_pruning).encode(),
 	);
 
 	subsystem.inner.write(tx)?;
@@ -744,31 +813,32 @@ fn store_chunk(
 	let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
 
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+
+	if let Some(delay) = prune_at.as_secs() {
+		tx.put_vec(
+			columns::META,
+			&NEXT_CHUNK_PRUNING,
+			NextChunkPruning(delay).encode(),
+		);
+	}
 
 	let pruning_record = ChunkPruningRecord {
 		candidate_hash: candidate_hash.clone(),
 		block_number,
 		candidate_state: CandidateState::Stored,
 		chunk_index: chunk.index,
-		prune_at: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() +
-			subsystem.pruning_config.keep_stored_block_for,
+		prune_at,
 	};
 
 	let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|x| x);
 
 	chunk_pruning.insert(idx, pruning_record);
-	let next_pruning = chunk_pruning[0].prune_at;
 
 	tx.put_vec(
 		columns::DATA,
 		&dbkey,
 		chunk.encode(),
-	);
-
-	tx.put_vec(
-		columns::META,
-		&NEXT_CHUNK_PRUNING,
-		NextChunkPruning(next_pruning).encode(),
 	);
 
 	subsystem.inner.write(tx)?;
