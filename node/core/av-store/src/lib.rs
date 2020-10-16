@@ -40,9 +40,7 @@ use polkadot_subsystem::{
 	ActiveLeavesUpdate,
 	errors::{ChainApiError, RuntimeApiError},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
@@ -155,13 +153,13 @@ const NEXT_CHUNK_PRUNING: [u8; 18] = *b"next_chunk_pruning";
 /// The following constants are used under normal conditions:
 
 /// Stored block is kept available for 1 hour.
-const KEEP_STORED_BLOCK_FOR: u64 = 60*60;
+const KEEP_STORED_BLOCK_FOR: Duration = Duration::from_secs(60 * 60);
 
 /// Finalized block is kept for 1 day.
-const KEEP_FINALIZED_BLOCK_FOR: u64 = 24 * 60 * 60;
+const KEEP_FINALIZED_BLOCK_FOR: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Keep chunk of the finalized block for 1 day + 1 hour.
-const KEEP_FINALIZED_CHUNK_FOR: u64 = 25 * 60 * 60;
+const KEEP_FINALIZED_CHUNK_FOR: Duration = Duration::from_secs(25 * 60 * 60);
 
 /// At which point in time we need to wakeup and do next pruning of blocks.
 /// Essenially this is the first element in the sorted array of pruning data,
@@ -205,13 +203,13 @@ impl NextChunkPruning {
 #[derive(Clone)]
 struct PruningConfig {
 	/// How long should a stored block stay available.
-	keep_stored_block_for: u64,
+	keep_stored_block_for: Duration,
 
 	/// How long should a finalized block stay available.
-	keep_finalized_block_for: u64,
+	keep_finalized_block_for: Duration,
 
 	/// How long should a chunk of a finalized block stay available.
-	keep_finalized_chunk_for: u64
+	keep_finalized_chunk_for: Duration,
 }
 
 impl Default for PruningConfig {
@@ -514,8 +512,9 @@ where
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
-					subsystem.pruning_config.keep_finalized_block_for
+					subsystem.pruning_config.keep_finalized_block_for.as_secs()
 				)?;
+				record.candidate_state = CandidateState::Finalized;
 			}
 		}
 
@@ -523,6 +522,27 @@ where
 		pov_pruning.sort();
 
 		put_pov_pruning(db, None, pov_pruning)?;
+	}
+
+	if let Some(mut chunk_pruning) = chunk_pruning(db) {
+		for record in chunk_pruning.iter_mut() {
+			if record.block_number <= block_number {
+				log::trace!(
+					target: LOG_TARGET,
+					"Updating chunk pruning record for finalized block {}",
+					record.candidate_hash,
+				);
+
+				record.prune_at = PruningDelay::into_the_future(
+					subsystem.pruning_config.keep_finalized_chunk_for.as_secs()
+				)?;
+				record.candidate_state = CandidateState::Finalized;
+			}
+		}
+
+		chunk_pruning.sort();
+
+		put_chunk_pruning(db, None, chunk_pruning)?;
 	}
 
 	Ok(())
@@ -539,25 +559,39 @@ where
 	let events = request_candidate_events(ctx, hash).await?;
 
 	log::trace!(target: LOG_TARGET, "block activated {}", hash);
-	if let Some(mut pov_pruning) = pov_pruning(db) {
-		let mut included = HashSet::new();
+	let mut included = HashSet::new();
 
-		for event in events.into_iter() {
-			if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-				log::trace!(target: LOG_TARGET, "Candidate {} was included", receipt.hash());
-				included.insert(receipt.hash());
-			}
+	for event in events.into_iter() {
+		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
+			log::trace!(target: LOG_TARGET, "Candidate {} was included", receipt.hash());
+			included.insert(receipt.hash());
 		}
+	}
 
+	if let Some(mut pov_pruning) = pov_pruning(db) {
 		for record in pov_pruning.iter_mut() {
 			if included.contains(&record.candidate_hash) {
 				record.prune_at = PruningDelay::Indefinite;
+				record.candidate_state = CandidateState::Included;
 			}
 		}
 
 		pov_pruning.sort();
 
 		put_pov_pruning(db, None, pov_pruning)?;
+	}
+
+	if let Some(mut chunk_pruning) = chunk_pruning(db) {
+		for record in chunk_pruning.iter_mut() {
+			if included.contains(&record.candidate_hash) {
+				record.prune_at = PruningDelay::Indefinite;
+				record.candidate_state = CandidateState::Included;
+			}
+		}
+
+		chunk_pruning.sort();
+
+		put_chunk_pruning(db, None, chunk_pruning)?;
 	}
 
 	Ok(())
@@ -763,7 +797,7 @@ fn store_available_data(
 	};
 
 	let mut pov_pruning = pov_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for.as_secs())?;
 
 	if let Some(next_pruning) = prune_at.as_secs() {
 		tx.put_vec(
@@ -813,7 +847,7 @@ fn store_chunk(
 	let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
 
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for.as_secs())?;
 
 	if let Some(delay) = prune_at.as_secs() {
 		tx.put_vec(

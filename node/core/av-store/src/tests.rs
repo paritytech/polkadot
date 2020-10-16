@@ -73,9 +73,9 @@ impl Default for TestState {
 		};
 
 		let pruning_config = PruningConfig {
-			keep_stored_block_for: 1,
-			keep_finalized_block_for: 2,
-			keep_finalized_chunk_for: 2,
+			keep_stored_block_for: Duration::from_secs(1),
+			keep_finalized_block_for: Duration::from_secs(2),
+			keep_finalized_chunk_for: Duration::from_secs(2),
 		};
 
 		Self {
@@ -354,10 +354,7 @@ fn stored_but_not_included_data_is_pruned() {
 		);
 
 		// Wait for twice as long as the stored block kept for.
-		Delay::new(Duration::from_secs(
-				test_state.pruning_config.keep_stored_block_for * 2
-			)
-		).await;
+		Delay::new(test_state.pruning_config.keep_stored_block_for * 2).await;
 
 		// The block was not included by this point so it should be pruned now.
 		assert!(query_available_data(&mut virtual_overseer, candidate_hash).await.is_none());
@@ -432,9 +429,7 @@ fn stored_data_kept_until_finalized() {
 			}
 		);
 
-		Delay::new(Duration::from_secs(
-			test_state.pruning_config.keep_stored_block_for * 10
-		)).await;
+		Delay::new(test_state.pruning_config.keep_stored_block_for * 10).await;
 
 		// At this point data should _still_ be in the store.
 		assert_eq!(
@@ -459,9 +454,7 @@ fn stored_data_kept_until_finalized() {
 		);
 
 		// Wait for a half of the time finalized data should be available for
-		Delay::new(Duration::from_secs(
-			test_state.pruning_config.keep_finalized_block_for / 2
-		)).await;
+		Delay::new(test_state.pruning_config.keep_finalized_block_for / 2).await;
 
 		// At this point data should _still_ be in the store.
 		assert_eq!(
@@ -470,9 +463,7 @@ fn stored_data_kept_until_finalized() {
 		);
 
 		// Wait until it is should be gone.
-		Delay::new(Duration::from_secs(
-			test_state.pruning_config.keep_finalized_block_for
-		)).await;
+		Delay::new(test_state.pruning_config.keep_finalized_block_for).await;
 
 		// At this point data should be gone from the store.
 		assert!(
@@ -628,9 +619,7 @@ fn forkfullness_works() {
 			available_data_2,
 		);
 		// Wait for longer than finalized blocks should be kept for
-		Delay::new(Duration::from_secs(
-			test_state.pruning_config.keep_finalized_block_for + 1
-		)).await;
+		Delay::new(test_state.pruning_config.keep_finalized_block_for + Duration::from_secs(1)).await;
 
 		// Data of both candidates should be gone now.
 		assert!(
@@ -667,4 +656,3 @@ async fn query_chunk(
 
 	rx.await.unwrap()
 }
-
