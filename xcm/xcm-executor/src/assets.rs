@@ -251,27 +251,21 @@ impl Assets {
 			match asset {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.swapped(Assets::default()),
-				x @ MultiAsset::AllFungible | x @ MultiAsset::AllNonFungible => {
-					let all_fungible = Assets {
-						fungible: self.fungible.clone(),
-						non_fungible: Default::default(),
-					};
-					let all_non_fungible = Assets {
-						fungible: Default::default(),
-						non_fungible: self.non_fungible.clone()
-					};
-					match x {
-						MultiAsset::AllFungible => {
-							self.swapped(all_non_fungible);
-							return all_fungible
-						},
-						MultiAsset::AllNonFungible => {
-							self.swapped(all_fungible);
-							return all_non_fungible
-						},
-						_ => unreachable!(),
+				MultiAsset::AllFungible => {
+					// Copy all fungible assets into result.
+					for (id, amount) in self.fungible.clone().into_iter() {
+						result.saturating_subsume_fungible(id, amount);
 					}
-
+					// Clear all fungible assets.
+					self.fungible = Default::default();
+				},
+				MultiAsset::AllNonFungible => {
+					// Copy all non-fungible assets into result.
+					for (class, instance) in self.non_fungible.clone().into_iter() {
+						result.saturating_subsume_non_fungible(class, instance);
+					}
+					// Clear all non-fungible assets.
+					self.non_fungible = Default::default();
 				},
 				MultiAsset::AllAbstractFungible { id } => {
 					let all_abstract_fungible: Vec<(AssetId, u128)> = self.fungible.clone()
