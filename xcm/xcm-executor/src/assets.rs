@@ -18,6 +18,7 @@ use sp_std::{prelude::*, mem::swap, collections::{btree_map::BTreeMap, btree_set
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 use sp_runtime::RuntimeDebug;
 
+/// Classification of an asset being concrete or abstract.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, RuntimeDebug)]
 pub enum AssetId {
 	Concrete(MultiLocation),
@@ -25,6 +26,7 @@ pub enum AssetId {
 }
 
 impl AssetId {
+	/// Prepend a MultiLocation to a concrete asset, giving it a new root location.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
 			l.prepend_with(prepend.clone()).map_err(|_| ())?;
@@ -33,6 +35,7 @@ impl AssetId {
 	}
 }
 
+/// List of concretely identified fungible and non-fungible assets.
 #[derive(Default, Clone, RuntimeDebug)]
 pub struct Assets {
 	pub fungible: BTreeMap<AssetId, u128>,
@@ -56,6 +59,7 @@ impl From<Assets> for Vec<MultiAsset> {
 }
 
 impl Assets {
+	/// An iterator over the fungible assets.
 	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		self.fungible.iter()
 			.map(|(id, &amount)| match id.clone() {
@@ -64,6 +68,7 @@ impl Assets {
 			})
 	}
 
+	/// An iterator over the non-fungible assets.
 	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		self.non_fungible.iter()
 			.map(|&(ref class, ref instance)| match class.clone() {
@@ -72,6 +77,7 @@ impl Assets {
 			})
 	}
 
+	/// An iterator over all assets taking ownership of the values.
 	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
 		let fungible = self.fungible.into_iter()
 			.map(|(id, amount)| match id {
@@ -86,37 +92,35 @@ impl Assets {
 		fungible.chain(non_fungible)
 	}
 
+	/// An iterator over all assets borrowing the values.
 	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		let fungible = self.fungible_assets_iter();
 		let non_fungible = self.non_fungible_assets_iter();
 		fungible.chain(non_fungible)
 	}
 
-	/// Modify `self` to include `MultiAsset`, saturating if necessary.
+	/// Modify `self` to include a `MultiAsset`, saturating if necessary.
+	/// Only works on concretely identified assets; wildcards will be swallowed without error.
 	pub fn saturating_subsume(&mut self, asset: MultiAsset) {
 		match asset {
 			MultiAsset::ConcreteFungible { id, amount } => {
-				self.fungible
-					.entry(AssetId::Concrete(id))
-					.and_modify(|e| *e = e.saturating_add(amount))
-					.or_insert(amount);
+				self.saturating_subsume_fungible(AssetId::Concrete(id), amount);
 			}
 			MultiAsset::AbstractFungible { id, amount } => {
-				self.fungible
-					.entry(AssetId::Abstract(id))
-					.and_modify(|e| *e = e.saturating_add(amount))
-					.or_insert(amount);
+				self.saturating_subsume_fungible(AssetId::Abstract(id), amount);
 			}
 			MultiAsset::ConcreteNonFungible { class, instance} => {
-				self.non_fungible.insert((AssetId::Concrete(class), instance));
+				self.saturating_subsume_non_fungible(AssetId::Concrete(class), instance);
 			}
 			MultiAsset::AbstractNonFungible { class, instance} => {
-				self.non_fungible.insert((AssetId::Abstract(class), instance));
+				self.saturating_subsume_non_fungible(AssetId::Abstract(class), instance);
 			}
 			_ => (),
 		}
 	}
 
+	/// Modify `self` to include a new fungible asset by `id` and `amount`,
+	/// saturating if necessary.
 	pub fn saturating_subsume_fungible(&mut self, id: AssetId, amount: u128) {
 		self.fungible
 			.entry(id)
@@ -124,6 +128,7 @@ impl Assets {
 			.or_insert(amount);
 	}
 
+	/// Modify `self` to include a new non-fungible asset by `class` and `instance`.
 	pub fn saturating_subsume_non_fungible(&mut self, class: AssetId, instance: AssetInstance) {
 		self.non_fungible.insert((class, instance));
 	}
@@ -167,7 +172,6 @@ impl Assets {
 					}
 				},
 				MultiAsset::AllAbstractFungible { id } => {
-					let mut result = Assets::default();
 					for asset in self.fungible_assets_iter() {
 						match &asset {
 							MultiAsset::AbstractFungible { id: identifier, .. } => {
@@ -176,10 +180,8 @@ impl Assets {
 							_ => (),
 						}
 					}
-					return result
 				},
 				MultiAsset::AllAbstractNonFungible { class } => {
-					let mut result = Assets::default();
 					for asset in self.non_fungible_assets_iter() {
 						match &asset {
 							MultiAsset::AbstractNonFungible { class: c, .. } => {
@@ -188,10 +190,8 @@ impl Assets {
 							_ => (),
 						}
 					}
-					return result
 				}
 				MultiAsset::AllConcreteFungible { id } => {
-					let mut result = Assets::default();
 					for asset in self.fungible_assets_iter() {
 						match &asset {
 							MultiAsset::ConcreteFungible { id: identifier, .. } => {
@@ -200,10 +200,8 @@ impl Assets {
 							_ => (),
 						}
 					}
-					return result
 				},
 				MultiAsset::AllConcreteNonFungible { class } => {
-					let mut result = Assets::default();
 					for asset in self.non_fungible_assets_iter() {
 						match &asset {
 							MultiAsset::ConcreteNonFungible { class: c, .. } => {
@@ -212,7 +210,6 @@ impl Assets {
 							_ => (),
 						}
 					}
-					return result
 				}
 				x @ MultiAsset::ConcreteFungible { .. } | x @ MultiAsset::AbstractFungible { .. } => {
 					let (id, amount) = match x {
