@@ -60,6 +60,7 @@ native_executor_instance!(
 );
 
 /// Create a new Polkadot test service for a full node.
+#[sc_cli::substrate_cli_node_name(config.network.node_name.as_str())]
 pub fn polkadot_test_new_full(
 	config: Configuration,
 	authority_discovery_disabled: bool,
@@ -119,7 +120,6 @@ pub fn node_config(
 	);
 	let informant_output_format = OutputFormat {
 		enable_color: false,
-		prefix: format!("[{}] ", key_seed),
 	};
 
 	network_config.boot_nodes = boot_nodes;
