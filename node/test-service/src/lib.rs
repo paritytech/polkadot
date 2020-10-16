@@ -23,12 +23,13 @@ mod chain_spec;
 pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::v1::Block;
+use polkadot_primitives::v1::{Block, Id as ParaId, HeadData, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
 	new_full, NewFull, FullClient, AbstractClient, ClientHandle, ExecuteWithClient,
 };
-use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall};
+use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
@@ -82,9 +83,13 @@ impl ClientHandle for TestClient {
 	}
 }
 
-/// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
-/// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
-/// adjustements to the runtime before the node starts.
+/// Create a Polkadot `Configuration`.
+///
+/// By default an in-memory socket will be used, therefore you need to provide boot
+/// nodes if you want the future node to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -178,9 +183,13 @@ pub fn node_config(
 	}
 }
 
-/// Run a Polkadot test node using the Polkadot test runtime. The node will be using an in-memory socket, therefore you
-/// need to provide boot nodes if you want it to be connected to other nodes. The `storage_update_func` can be used to
-/// make adjustements to the runtime before the node starts.
+/// Run a Polkadot test node using the Polkadot test runtime.
+///
+/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
+/// want it to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn run_test_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
@@ -230,9 +239,10 @@ where
 	/// Send a transaction through RPCHandlers to call a function.
 	pub async fn call_function(
 		&self,
-		function: polkadot_test_runtime::Call,
+		function: impl Into<polkadot_test_runtime::Call>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
+		let function = function.into();
 		let current_block_hash = self.client.info().best_hash;
 		let current_block = self.client.info().best_number.saturated_into();
 		let genesis_block = self.client.hash(0).unwrap().unwrap();
@@ -273,6 +283,25 @@ where
 		);
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
+	}
+
+	/// Register a parachain at this relay chain.
+	pub async fn register_parachain(
+		&self,
+		id: ParaId,
+		validation_code: ValidationCode,
+		genesis_head: HeadData,
+	) -> Result<(), RpcTransactionError> {
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				genesis_head,
+				validation_code,
+				parachain: true,
+			},
+		);
+
+		self.call_function(call, Sr25519Keyring::Alice).await.map(drop)
 	}
 }
 
