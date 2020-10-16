@@ -113,7 +113,7 @@ pub fn node_config(
 	spec.set_storage(storage);
 
 	let mut network_config = NetworkConfiguration::new(
-		format!("Polkadot Test Node for: {}", key_seed),
+		key_seed.to_string(),
 		"network/test/0.1",
 		Default::default(),
 		None,
