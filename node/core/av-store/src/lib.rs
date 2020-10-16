@@ -780,7 +780,7 @@ fn store_available_data(
 		prune_at,
 	};
 
-	let idx = pov_pruning.binary_search(&pruning_record).unwrap_or_else(|x| x);
+	let idx = pov_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
 
 	pov_pruning.insert(idx, pruning_record);
 
@@ -831,7 +831,7 @@ fn store_chunk(
 		prune_at,
 	};
 
-	let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|x| x);
+	let idx = chunk_pruning.binary_search(&pruning_record).unwrap_or_else(|insert_idx| insert_idx);
 
 	chunk_pruning.insert(idx, pruning_record);
 
