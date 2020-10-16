@@ -373,6 +373,7 @@ impl Assets {
 		result
 	}
 
+	/// Swaps two mutable Assets, without deinitializing either one.
 	pub fn swapped(&mut self, mut with: Assets) -> Self {
 		swap(&mut *self, &mut with);
 		with
