@@ -160,14 +160,18 @@ impl Assets {
 				MultiAsset::None => (),
 				MultiAsset::All => return self.clone(),
 				MultiAsset::AllFungible => {
-					return Assets {
+					// Replace `result.fungible` with all fungible assets,
+					// keeping `result.non_fungible` the same.
+					result = Assets {
 						fungible: self.fungible.clone(),
-						non_fungible: Default::default(),
+						non_fungible: result.non_fungible,
 					}
 				},
 				MultiAsset::AllNonFungible => {
-					return Assets {
-						fungible: Default::default(),
+					// Replace `result.non_fungible` with all non-fungible assets,
+					// keeping `result.fungible` the same.
+					result = Assets {
+						fungible: result.fungible,
 						non_fungible: self.non_fungible.clone(),
 					}
 				},
