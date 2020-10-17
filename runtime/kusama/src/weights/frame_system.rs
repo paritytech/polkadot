@@ -25,8 +25,7 @@ use sp_std::marker::PhantomData;
 
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Trait> frame_system::WeightInfo for WeightInfo<T> {
-	// WARNING! Some components were not used: ["b"]
-	fn remark() -> Weight {
+	fn remark(_b: u32) -> Weight {
 		(1_861_000 as Weight)
 	}
 	fn set_heap_pages() -> Weight {
