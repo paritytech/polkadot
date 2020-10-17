@@ -407,7 +407,7 @@ mod tests {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
 				collator: Box::new(|_: Hash, _vd: &ValidationData| {
-					Box::new(TestCollator)
+					TestCollator.boxed()
 				}),
 				para_id: para_id.into(),
 			})

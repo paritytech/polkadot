@@ -22,7 +22,7 @@ use futures::{
 	prelude::*,
 	stream, Future,
 };
-use keystore::KeyStorePtr;
+use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -132,6 +132,9 @@ pub enum Error {
 	/// the runtime API failed to return what we wanted
 	#[from]
 	Runtime(RuntimeApiError),
+	/// the keystore failed to process signing request
+	#[from]
+	Keystore(KeystoreError),
 }
 
 // if there is a candidate pending availability, query the Availability Store
@@ -289,7 +292,7 @@ impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = KeyStorePtr;
+	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";
@@ -308,7 +311,7 @@ impl JobTrait for BitfieldSigningJob {
 
 			// now do all the work we can before we need to wait for the availability store
 			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(relay_parent, keystore, sender.clone()).await {
+			let validator = match Validator::new(relay_parent, keystore.clone(), sender.clone()).await {
 				Ok(validator) => validator,
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
@@ -329,7 +332,10 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			let signed_bitfield = validator.sign(bitfield);
+			let signed_bitfield = validator
+				.sign(keystore.clone(), bitfield)
+				.await
+				.map_err(|e| Error::Keystore(e))?;
 			metrics.on_bitfield_signed();
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message

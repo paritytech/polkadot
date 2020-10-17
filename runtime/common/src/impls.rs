@@ -16,7 +16,6 @@
 
 //! Auxillary struct/enums for polkadot runtime.
 
-use sp_runtime::traits::Convert;
 use frame_support::traits::{OnUnbalanced, Imbalance, Currency};
 use crate::NegativeImbalance;
 
@@ -40,34 +39,4 @@ where
 		<pallet_balances::Module<R>>::resolve_creating(&<pallet_authorship::Module<R>>::author(), amount);
 		<frame_system::Module<R>>::deposit_event(pallet_balances::RawEvent::Deposit(author, numeric_amount));
 	}
-}
-
-/// Converter for currencies to votes.
-pub struct CurrencyToVoteHandler<R>(sp_std::marker::PhantomData<R>);
-
-impl<R> CurrencyToVoteHandler<R>
-where
-	R: pallet_balances::Trait,
-	R::Balance: Into<u128>,
-{
-	fn factor() -> u128 {
-		let issuance: u128 = <pallet_balances::Module<R>>::total_issuance().into();
-		(issuance / u64::max_value() as u128).max(1)
-	}
-}
-
-impl<R> Convert<u128, u64> for CurrencyToVoteHandler<R>
-where
-	R: pallet_balances::Trait,
-	R::Balance: Into<u128>,
-{
-	fn convert(x: u128) -> u64 { (x / Self::factor()) as u64 }
-}
-
-impl<R> Convert<u128, u128> for CurrencyToVoteHandler<R>
-where
-	R: pallet_balances::Trait,
-	R::Balance: Into<u128>,
-{
-	fn convert(x: u128) -> u128 { x * Self::factor() }
 }

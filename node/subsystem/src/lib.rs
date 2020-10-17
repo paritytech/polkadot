@@ -223,7 +223,7 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 		});
 
 		SpawnedSubsystem {
-			name: "DummySubsystem",
+			name: "dummy-subsystem",
 			future,
 		}
 	}

@@ -27,6 +27,7 @@ use sp_block_builder::BlockBuilder;
 use sp_blockchain::{HeaderBackend, HeaderMetadata, Error as BlockChainError};
 use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
+use sp_keystore::SyncCryptoStorePtr;
 use sc_client_api::light::{Fetcher, RemoteBlockchain};
 use sc_consensus_babe::Epoch;
 use sc_finality_grandpa::FinalityProofProvider;
@@ -54,7 +55,7 @@ pub struct BabeDeps {
 	/// BABE pending epoch changes.
 	pub shared_epoch_changes: sc_consensus_epochs::SharedEpochChanges<Block, Epoch>,
 	/// The keystore that manages the keys of the node.
-	pub keystore: sc_keystore::KeyStorePtr,
+	pub keystore: SyncCryptoStorePtr,
 }
 
 /// Dependencies for GRANDPA
