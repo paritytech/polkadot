@@ -234,12 +234,14 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 		let keystore = keystore_container.sync_keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
+		let chain_spec = config.chain_spec.cloned_box();
 
 		move |deny_unsafe, subscription_executor| -> polkadot_rpc::RpcExtension {
 			let deps = polkadot_rpc::FullDeps {
 				client: client.clone(),
 				pool: transaction_pool.clone(),
 				select_chain: select_chain.clone(),
+				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
 				babe: polkadot_rpc::BabeDeps {
 					babe_config: babe_config.clone(),
@@ -514,7 +516,6 @@ pub fn new_full<RuntimeApi, Executor>(
 			config,
 			link: link_half,
 			network: network.clone(),
-			inherent_data_providers: inherent_data_providers.clone(),
 			telemetry_on_connect: Some(telemetry_connection_sinks.on_connect_stream()),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
@@ -526,11 +527,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			grandpa::run_grandpa_voter(grandpa_config)?
 		);
 	} else {
-		grandpa::setup_disabled_grandpa(
-			client.clone(),
-			&inherent_data_providers,
-			network.clone(),
-		)?;
+		grandpa::setup_disabled_grandpa(network.clone())?;
 	}
 
 	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
