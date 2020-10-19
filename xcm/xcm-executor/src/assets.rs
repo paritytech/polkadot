@@ -267,75 +267,43 @@ impl Assets {
 					// Clear all non-fungible assets.
 					self.non_fungible = Default::default();
 				},
-				MultiAsset::AllAbstractFungible { id } => {
-					let all_abstract_fungible = self.fungible.clone()
-						.into_iter()
-						.filter(|(iden, _)| match iden {
-							AssetId::Abstract(iden) => id == *iden,
-							_ => false,
-						});
-
-					for (id, amount) in all_abstract_fungible {
-						let maybe_value = self.fungible.get(&id);
-						if let Some(&e) = maybe_value {
-							if e > amount {
-								self.fungible.insert(id.clone(), e - amount);
-								result.saturating_subsume_fungible(id, amount);
+				x @ MultiAsset::AllAbstractFungible { .. } | x @ MultiAsset::AllConcreteFungible { .. } => {
+					let id = match x {
+						MultiAsset::AllConcreteFungible { id } => AssetId::Concrete(id),
+						MultiAsset::AllAbstractFungible { id } => AssetId::Abstract(id),
+						_ => unreachable!(),
+					};
+					// At the end of this block, we will be left with only the non-matching fungibles.
+					let mut non_matching_fungibles = BTreeMap::<AssetId, u128>::new();
+					self.fungible
+						.iter()
+						.for_each(|(iden, amount)| {
+							if *iden == id {
+								result.saturating_subsume_fungible(iden.clone(), *amount);
 							} else {
-								self.fungible.remove(&id);
-								result.saturating_subsume_fungible(id, e.clone());
+								non_matching_fungibles.insert(iden.clone(), *amount);
 							}
-						}
-					}
-				},
-				MultiAsset::AllAbstractNonFungible { class } => {
-					let all_abstract_non_fungible = self.non_fungible.clone()
-						.into_iter()
-						.filter(|(c, _)| match c {
-							AssetId::Abstract(id) => class == *id,
-							_ => false,
 						});
-
-					for (c, instance) in all_abstract_non_fungible {
-						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
-							result.non_fungible.insert(entry);
-						}
-					}
+					self.fungible = non_matching_fungibles;
 				},
-				MultiAsset::AllConcreteFungible { id } => {
-					let all_concrete_fungible = self.fungible.clone()
-						.into_iter()
-						.filter(|(iden, _)| match iden {
-							AssetId::Concrete(iden) => id == *iden,
-							_ => false,
-						});
-
-					for (id, amount) in all_concrete_fungible {
-						let maybe_value = self.fungible.get(&id);
-						if let Some(&e) = maybe_value {
-							if e > amount {
-								self.fungible.insert(id.clone(), e - amount);
-								result.saturating_subsume_fungible(id, amount);
+				x @ MultiAsset::AllAbstractNonFungible { .. } | x @ MultiAsset::AllConcreteNonFungible { .. } => {
+					let class = match x {
+						MultiAsset::AllConcreteNonFungible { class } => AssetId::Concrete(class),
+						MultiAsset::AllAbstractNonFungible { class } => AssetId::Abstract(class),
+						_ => unreachable!(),
+					};
+					// At the end of this block, we will be left with only the non-matching non-fungibles.
+					let mut non_matching_non_fungibles = BTreeSet::<(AssetId, AssetInstance)>::new();
+					self.non_fungible
+						.iter()
+						.for_each(|(c, instance)| {
+							if class == *c {
+								result.saturating_subsume_non_fungible(c.clone(), instance.clone());
 							} else {
-								self.fungible.remove(&id);
-								result.saturating_subsume_fungible(id, e.clone());
+								non_matching_non_fungibles.insert((c.clone(), instance.clone()));
 							}
-						}
-					}
-				},
-				MultiAsset::AllConcreteNonFungible { class } => {
-					let all_concrete_non_fungible = self.non_fungible.clone()
-						.into_iter()
-						.filter(|(c, _)| match c {
-							AssetId::Concrete(id) => class == *id,
-							_ => false,
 						});
-
-					for (c, instance) in all_concrete_non_fungible {
-						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
-							result.non_fungible.insert(entry);
-						}
-					}
+					self.non_fungible = non_matching_non_fungibles;
 				},
 				x @ MultiAsset::ConcreteFungible {..} | x @ MultiAsset::AbstractFungible {..} => {
 					let (id, amount) = match x {
