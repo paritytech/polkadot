@@ -253,16 +253,16 @@ impl Assets {
 				MultiAsset::All => return self.swapped(Assets::default()),
 				MultiAsset::AllFungible => {
 					// Copy all fungible assets into result.
-					for (id, amount) in self.fungible.clone().into_iter() {
-						result.saturating_subsume_fungible(id, amount);
+					for (id, amount) in self.fungible.iter() {
+						result.saturating_subsume_fungible(id.clone(), *amount);
 					}
 					// Clear all fungible assets.
 					self.fungible = Default::default();
 				},
 				MultiAsset::AllNonFungible => {
 					// Copy all non-fungible assets into result.
-					for (class, instance) in self.non_fungible.clone().into_iter() {
-						result.saturating_subsume_non_fungible(class, instance);
+					for (class, instance) in self.non_fungible.iter() {
+						result.saturating_subsume_non_fungible(class.clone(), instance.clone());
 					}
 					// Clear all non-fungible assets.
 					self.non_fungible = Default::default();
