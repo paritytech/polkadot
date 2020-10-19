@@ -31,7 +31,7 @@ use prometheus_endpoint::Registry;
 use authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::ExecutorProvider;
 use sc_executor::native_executor_instance;
-use service::{error::Error as ServiceError, RpcHandlers};
+use service::RpcHandlers;
 use sp_blockchain::HeaderBackend;
 use sp_core::traits::SpawnNamed;
 use sp_keystore::SyncCryptoStorePtr;
@@ -117,7 +117,7 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 }
 
 // If we're using prometheus, use a registry with a prefix of `polkadot`.
-fn set_prometheus_registry(config: &mut Configuration) -> Result<(), ServiceError> {
+fn set_prometheus_registry(config: &mut Configuration) -> Result<(), Error> {
 	if let Some(PrometheusConfig { registry, .. }) = config.prometheus_config.as_mut() {
 		*registry = Registry::new_custom(Some("polkadot".into()), None)?;
 	}
@@ -279,7 +279,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	authority_discovery: AuthorityDiscoveryService,
 	registry: Option<&Registry>,
 	spawner: Spawner,
-) -> Result<(Overseer<Spawner>, OverseerHandler), ServiceError>
+) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	RuntimeClient::Api: ParachainHost<Block>,
@@ -369,14 +369,14 @@ where
 		all_subsystems,
 		registry,
 		spawner,
-	).map_err(|e| ServiceError::Other(format!("Failed to create an Overseer: {:?}", e)))
+	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
 #[cfg(feature = "full-node")]
 pub struct NewFull<C> {
 	pub task_manager: TaskManager,
 	pub client: C,
-	pub overseer_handler: OverseerHandler,
+	pub overseer_handler: Option<OverseerHandler>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
@@ -500,82 +500,82 @@ pub fn new_full<RuntimeApi, Executor>(
 			use sc_network::Event;
 			use futures::StreamExt;
 
-			if !authority_discovery_disabled {
-				let (sentries, authority_discovery_role) = match role {
-					Role::Authority { ref sentry_nodes } => (
-						sentry_nodes.clone(),
-						authority_discovery::Role::Authority (
-								keystore_container.keystore(),
-						),
-					),
-					Role::Sentry {..} => (
-						vec![],
-						authority_discovery::Role::Sentry,
-					),
-					_ => unreachable!("Due to outer matches! constraint; qed."),
-				};
-
-				let network_event_stream = network.event_stream("authority-discovery");
-				let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
-						Event::Dht(e) => Some(e),
-						_ => None,
-				}});
-				let (authority_discovery_worker, service) = authority_discovery::new_worker_and_service(
-						client.clone(),
-						network.clone(),
-						sentries,
-						Box::pin(dht_event_stream),
-						authority_discovery_role,
-						prometheus_registry.clone(),
-				);
-
-				task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
-				ads = Some(service);
+			if authority_discovery_disabled {
+				Err("authority discovery is mandatory for a validator")?;
 			}
+
+			let (sentries, authority_discovery_role) = match role {
+				Role::Authority { ref sentry_nodes } => (
+					sentry_nodes.clone(),
+					authority_discovery::Role::Authority (
+							keystore_container.keystore(),
+					),
+				),
+				Role::Sentry {..} => (
+					vec![],
+					authority_discovery::Role::Sentry,
+				),
+				_ => unreachable!("Due to outer matches! constraint; qed."),
+			};
+
+			let network_event_stream = network.event_stream("authority-discovery");
+			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+					Event::Dht(e) => Some(e),
+					_ => None,
+			}});
+			let (authority_discovery_worker, service) = authority_discovery::new_worker_and_service(
+					client.clone(),
+					network.clone(),
+					sentries,
+					Box::pin(dht_event_stream),
+					authority_discovery_role,
+					prometheus_registry.clone(),
+			);
+
+			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
+			ads = Some(service);
 		}
 
 		ads
 	};
 
-	let overseer_handler = match authority_discovery_service {
-		None => OverseerHandler::dummy(),
-		Some(authority_discovery_service) => {
+	// we'd say let overseer_handler = authority_discovery_service.map(|authority_discovery_service|, ...),
+	// but in that case we couldn't use ? to propagate errors
+	let overseer_handler = if let Some(authority_discovery_service) = authority_discovery_service {
+		let (overseer, overseer_handler) = real_overseer(
+			leaves,
+			keystore_container.sync_keystore(),
+			overseer_client.clone(),
+			availability_config?,
+			network.clone(),
+			authority_discovery_service,
+			prometheus_registry.as_ref(),
+			spawner,
+		)?;
+		let overseer_handler_clone = overseer_handler.clone();
 
-			let (overseer, overseer_handler) = real_overseer(
-				leaves,
-				keystore_container.sync_keystore(),
-				overseer_client.clone(),
-				availability_config?,
-				network.clone(),
-				authority_discovery_service,
-				prometheus_registry.as_ref(),
-				spawner,
-			)?;
-			let overseer_handler_clone = overseer_handler.clone();
+		task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
+			use futures::{pin_mut, select, FutureExt};
 
-			task_manager.spawn_essential_handle().spawn_blocking("overseer", Box::pin(async move {
-				use futures::{pin_mut, select, FutureExt};
+			let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
 
-				let forward = polkadot_overseer::forward_events(overseer_client, overseer_handler_clone);
+			let forward = forward.fuse();
+			let overseer_fut = overseer.run().fuse();
 
-				let forward = forward.fuse();
-				let overseer_fut = overseer.run().fuse();
+			pin_mut!(overseer_fut);
+			pin_mut!(forward);
 
-				pin_mut!(overseer_fut);
-				pin_mut!(forward);
-
-				loop {
-					select! {
-						_ = forward => break,
-						_ = overseer_fut => break,
-						complete => break,
-					}
+			loop {
+				select! {
+					_ = forward => break,
+					_ = overseer_fut => break,
+					complete => break,
 				}
-			}));
+			}
+		}));
 
-			overseer_handler
-		}
-	};
+		Some(overseer_handler)
+	} else { None };
 
 	if role.is_authority() {
 		let can_author_with =
@@ -584,7 +584,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		let proposer = ProposerFactory::new(
 			client.clone(),
 			transaction_pool,
-			overseer_handler.clone(),
+			overseer_handler.as_ref().ok_or("authorities require real overseer handlers")?.clone(),
 		);
 
 		let babe_config = babe::BabeParams {
@@ -805,7 +805,7 @@ pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 		consensus_common::import_queue::BasicQueue<Block, PrefixedMemoryDB<BlakeTwo256>>,
 		TaskManager,
 	),
-	ServiceError
+	Error
 >
 {
 	config.keystore = service::config::KeystoreConfig::InMemory;
@@ -829,7 +829,7 @@ pub fn new_chain_ops(mut config: &mut Configuration) -> Result<
 }
 
 /// Build a new light node.
-pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), ServiceError> {
+pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), Error> {
 	if config.chain_spec.is_rococo() {
 		new_light::<rococo_runtime::RuntimeApi, RococoExecutor>(config)
 	} else if config.chain_spec.is_kusama() {
@@ -846,7 +846,7 @@ pub fn build_full(
 	config: Configuration,
 	authority_discovery_disabled: bool,
 	grandpa_pause: Option<(u32, u32)>,
-) -> Result<NewFull<Client>, ServiceError> {
+) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,

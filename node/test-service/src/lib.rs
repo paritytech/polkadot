@@ -197,6 +197,7 @@ pub fn run_test_node(
 		polkadot_test_new_full(config, authority_discovery_disabled)
 			.expect("could not create Polkadot test service");
 
+	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
