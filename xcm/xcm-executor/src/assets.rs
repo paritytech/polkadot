@@ -268,12 +268,12 @@ impl Assets {
 					self.non_fungible = Default::default();
 				},
 				MultiAsset::AllAbstractFungible { id } => {
-					let all_abstract_fungible: Vec<(AssetId, u128)> = self.fungible.clone()
+					let all_abstract_fungible = self.fungible.clone()
 						.into_iter()
 						.filter(|(iden, _)| match iden {
 							AssetId::Abstract(iden) => id == *iden,
 							_ => false,
-						}).collect();
+						});
 
 					for (id, amount) in all_abstract_fungible {
 						let maybe_value = self.fungible.get(&id);
@@ -289,12 +289,12 @@ impl Assets {
 					}
 				},
 				MultiAsset::AllAbstractNonFungible { class } => {
-					let all_abstract_non_fungible: Vec<(AssetId, AssetInstance)> = self.non_fungible.clone()
+					let all_abstract_non_fungible = self.non_fungible.clone()
 						.into_iter()
 						.filter(|(c, _)| match c {
 							AssetId::Abstract(id) => class == *id,
 							_ => false,
-						}).collect();
+						});
 
 					for (c, instance) in all_abstract_non_fungible {
 						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
@@ -303,12 +303,12 @@ impl Assets {
 					}
 				},
 				MultiAsset::AllConcreteFungible { id } => {
-					let all_concrete_fungible: Vec<(AssetId, u128)> = self.fungible.clone()
+					let all_concrete_fungible = self.fungible.clone()
 						.into_iter()
 						.filter(|(iden, _)| match iden {
 							AssetId::Concrete(iden) => id == *iden,
 							_ => false,
-						}).collect();
+						});
 
 					for (id, amount) in all_concrete_fungible {
 						let maybe_value = self.fungible.get(&id);
@@ -324,12 +324,12 @@ impl Assets {
 					}
 				},
 				MultiAsset::AllConcreteNonFungible { class } => {
-					let all_concrete_non_fungible: Vec<(AssetId, AssetInstance)> = self.non_fungible.clone()
+					let all_concrete_non_fungible = self.non_fungible.clone()
 						.into_iter()
 						.filter(|(c, _)| match c {
 							AssetId::Concrete(id) => class == *id,
 							_ => false,
-						}).collect();
+						});
 
 					for (c, instance) in all_concrete_non_fungible {
 						if let Some(entry) = self.non_fungible.take(&(c, instance)) {
