@@ -153,7 +153,7 @@ impl Assets {
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
 	///
 	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
-	pub fn min<'a, M: 'a + std::borrow::Borrow<MultiAsset>, I: Iterator<Item=M>>(&self, assets: I) -> Self {
+	pub fn min<'a, M: 'a + sp_std::borrow::Borrow<MultiAsset>, I: Iterator<Item=M>>(&self, assets: I) -> Self {
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
 			match asset.borrow() {
