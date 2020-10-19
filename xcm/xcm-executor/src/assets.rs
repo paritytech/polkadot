@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use sp_std::{prelude::*, mem::swap, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
+use sp_std::{prelude::*, mem, collections::{btree_map::BTreeMap, btree_set::BTreeSet}};
 use xcm::v0::{MultiAsset, MultiLocation, AssetInstance};
 use sp_runtime::RuntimeDebug;
 
@@ -139,12 +139,12 @@ impl Assets {
 	/// ensure that any internal asset IDs are able to be prepended without overflow.
 	pub fn reanchor(&mut self, prepend: &MultiLocation) {
 		let mut fungible = Default::default();
-		sp_std::mem::swap(&mut self.fungible, &mut fungible);
+		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible.into_iter()
 			.map(|(mut id, amount)| { let _ = id.reanchor(prepend); (id, amount) })
 			.collect();
 		let mut non_fungible = Default::default();
-		sp_std::mem::swap(&mut self.non_fungible, &mut non_fungible);
+		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible.into_iter()
 			.map(|(mut class, inst)| { let _ = class.reanchor(prepend); (class, inst) })
 			.collect();
@@ -343,7 +343,7 @@ impl Assets {
 
 	/// Swaps two mutable Assets, without deinitializing either one.
 	pub fn swapped(&mut self, mut with: Assets) -> Self {
-		swap(&mut *self, &mut with);
+		mem::swap(&mut *self, &mut with);
 		with
 	}
 }
@@ -432,15 +432,11 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllNonFungible];
 
 		let fungible = assets.min(fungible.iter());
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![CF(300), AF(1, 100)]);
 		let non_fungible = assets.min(non_fungible.iter());
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(Some(ANF(2, 200)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![CNF(400), ANF(2, 200)]);
 	}
 
 	#[test]
@@ -450,13 +446,11 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllAbstractNonFungible { class: vec![2] }];
 
 		let fungible = assets.min(fungible.iter());
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![AF(1, 100)]);
 		let non_fungible = assets.min(non_fungible.iter());
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(ANF(2, 200)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![ANF(2, 200)]);
 	}
 
 	#[test]
@@ -466,13 +460,11 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
 
 		let fungible = assets.min(fungible.iter());
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![CF(300)]);
 		let non_fungible = assets.min(non_fungible.iter());
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![CNF(400)]);
 	}
 
 	#[test]
@@ -491,11 +483,8 @@ mod tests {
 		let assets2: Assets = assets2_vec.into();
 
 		let assets_min = assets1.min(assets2.assets_iter());
-		let mut iter = assets_min.into_assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(Some(AF(1, 50)), iter.next());
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(None, iter.next());
+		let assets_min = assets_min.into_assets_iter().collect::<Vec<_>>();
+		assert_eq!(assets_min, vec![CF(300), AF(1, 50), CNF(400)]);
 	}
 
 	#[test]
@@ -520,15 +509,11 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllNonFungible];
 
 		let fungible = assets.saturating_take(fungible);
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![CF(300), AF(1, 100)]);
 		let non_fungible = assets.saturating_take(non_fungible);
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(Some(ANF(2, 200)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, [CNF(400), ANF(2, 200)]);
 		// Assets completely drained
 		assert_eq!(None, assets.assets_iter().next());
 	}
@@ -540,18 +525,14 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllAbstractNonFungible { class: vec![2] }];
 
 		let fungible = assets.saturating_take(fungible);
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![AF(1, 100)]);
 		let non_fungible = assets.saturating_take(non_fungible);
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(ANF(2, 200)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![ANF(2, 200)]);
 		// Assets drained of abstract
-		let mut iter = assets.assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(None, iter.next());
+		let final_assets = assets.assets_iter().collect::<Vec<_>>();
+		assert_eq!(final_assets, vec![CF(300), CNF(400)]);
 	}
 
 	#[test]
@@ -561,18 +542,14 @@ mod tests {
 		let non_fungible = vec![MultiAsset::AllConcreteNonFungible { class: MultiLocation::Null }];
 
 		let fungible = assets.saturating_take(fungible);
-		let mut iter = fungible.assets_iter();
-		assert_eq!(Some(CF(300)), iter.next());
-		assert_eq!(None, iter.next());
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![CF(300)]);
 		let non_fungible = assets.saturating_take(non_fungible);
-		let mut iter = non_fungible.assets_iter();
-		assert_eq!(Some(CNF(400)), iter.next());
-		assert_eq!(None, iter.next());
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![CNF(400)]);
 		// Assets drained of concrete
-		let mut iter = assets.assets_iter();
-		assert_eq!(Some(AF(1, 100)), iter.next());
-		assert_eq!(Some(ANF(2, 200)), iter.next());
-		assert_eq!(None, iter.next());
+		let assets = assets.assets_iter().collect::<Vec<_>>();
+		assert_eq!(assets, vec![AF(1, 100), ANF(2, 200)]);
 	}
 
 	#[test]
@@ -591,15 +568,10 @@ mod tests {
 		let assets2: Assets = assets2_vec.into();
 
 		let taken = assets1.saturating_take(assets2.into());
-		let mut iter_taken = taken.into_assets_iter();
-		assert_eq!(Some(CF(300)), iter_taken.next());
-		assert_eq!(Some(AF(1, 50)), iter_taken.next());
-		assert_eq!(Some(CNF(400)), iter_taken.next());
-		assert_eq!(None, iter_taken.next());
+		let taken = taken.into_assets_iter().collect::<Vec<_>>();
+		assert_eq!(taken, vec![CF(300), AF(1, 50), CNF(400)]);
 
-		let mut iter_assets = assets1.into_assets_iter();
-		assert_eq!(Some(AF(1, 50)), iter_assets.next());
-		assert_eq!(Some(ANF(2, 200)), iter_assets.next());
-		assert_eq!(None, iter_taken.next());
+		let assets = assets1.into_assets_iter().collect::<Vec<_>>();
+		assert_eq!(assets, vec![AF(1, 50), ANF(2, 200)]);
 	}
 }
