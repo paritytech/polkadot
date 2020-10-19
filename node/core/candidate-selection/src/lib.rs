@@ -417,8 +417,8 @@ impl metrics::Metrics for Metrics {
 			seconds: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"candidate_selection_invalid_selections_total",
-						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
+						"candidate_selection_seconds_total",
+						"Number of Candidate Selection subsystem seconding events.",
 					),
 					&["succeeded", "failed"],
 				)?,
