@@ -77,7 +77,7 @@ impl Assets {
 			})
 	}
 
-	/// An iterator over all assets taking ownership of the values.
+	/// An iterator over all assets.
 	pub fn into_assets_iter(self) -> impl Iterator<Item=MultiAsset> {
 		let fungible = self.fungible.into_iter()
 			.map(|(id, amount)| match id {
@@ -92,7 +92,7 @@ impl Assets {
 		fungible.chain(non_fungible)
 	}
 
-	/// An iterator over all assets borrowing the values.
+	/// An iterator over all assets.
 	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item=MultiAsset> + 'a {
 		let fungible = self.fungible_assets_iter();
 		let non_fungible = self.non_fungible_assets_iter();
@@ -153,6 +153,27 @@ impl Assets {
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `assets`.
 	///
 	/// Result is undefined if `assets` includes elements which match to the same asset more than once.
+	///
+	/// Example:
+	///
+	/// ```
+	/// use xcm_executor::Assets;
+	/// use xcm::v0::{MultiAsset, MultiLocation};
+	/// let assets_i_have: Assets = vec![
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
+	/// ].into();
+	/// let assets_they_want: Assets = vec![
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 200 },
+	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
+	/// ].into();
+	///
+	/// let assets_we_can_trade: Assets = assets_i_have.min(assets_they_want.assets_iter());
+	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
+	/// ]);
+	/// ```
 	pub fn min<'a, M: 'a + sp_std::borrow::Borrow<MultiAsset>, I: Iterator<Item=M>>(&self, assets: I) -> Self {
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
@@ -245,6 +266,28 @@ impl Assets {
 	/// assets taken.
 	///
 	/// Wildcards work.
+	///
+	/// Example:
+	///
+	/// ```
+	/// use xcm_executor::Assets;
+	/// use xcm::v0::{MultiAsset, MultiLocation};
+	/// let mut assets_i_have: Assets = vec![
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
+	/// ].into();
+	/// let assets_they_want = vec![
+	/// 	MultiAsset::AllAbstractFungible { id: vec![0] },
+	/// ];
+	///
+	/// let assets_they_took: Assets = assets_i_have.saturating_take(assets_they_want);
+	/// assert_eq!(assets_they_took.into_assets_iter().collect::<Vec<_>>(), vec![
+	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 100 },
+	/// ]);
+	/// assert_eq!(assets_i_have.into_assets_iter().collect::<Vec<_>>(), vec![
+	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
+	/// ]);
+	/// ```
 	pub fn saturating_take(&mut self, assets: Vec<MultiAsset>) -> Assets {
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
