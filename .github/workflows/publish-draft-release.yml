@@ -100,7 +100,6 @@ jobs:
         release_name: Polkadot ${{ github.ref }}
         body_path: ./release_text.md
         draft: true
-
   publish-runtimes:
     runs-on: ubuntu-latest
     needs: ['publish-draft-release']

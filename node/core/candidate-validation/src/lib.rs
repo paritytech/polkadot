@@ -27,6 +27,8 @@ use polkadot_subsystem::{
 		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
 		ValidationFailed, RuntimeApiRequest,
 	},
+};
+use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
@@ -113,8 +115,6 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	C: SubsystemContext<Message = CandidateValidationMessage>,
 	S: SpawnNamed + Clone + 'static,
 {
-	type Metrics = Metrics;
-
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",

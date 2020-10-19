@@ -22,21 +22,21 @@ mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
-use polkadot_primitives::v0::{
-	Block, Hash, CollatorId, Id as ParaId,
-};
+use polkadot_overseer::OverseerHandler;
+use polkadot_primitives::v1::{Block, Id as ParaId, HeadData, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, NewFull, FullNodeHandles, AbstractClient, ClientHandle, ExecuteWithClient,
+	new_full, NewFull, FullClient, AbstractClient, ClientHandle, ExecuteWithClient,
 };
-use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall};
+use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
 use sc_executor::native_executor_instance;
 use sc_informant::OutputFormat;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
-	multiaddr, NetworkService,
+	multiaddr,
 };
 use service::{
 	config::{DatabaseConfig, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
@@ -62,28 +62,16 @@ native_executor_instance!(
 /// Create a new Polkadot test service for a full node.
 pub fn polkadot_test_new_full(
 	config: Configuration,
-	collating_for: Option<(CollatorId, ParaId)>,
-	authority_discovery_enabled: bool,
+	authority_discovery_disabled: bool,
 ) -> Result<
-	(
-		TaskManager,
-		Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>,
-		FullNodeHandles,
-		Arc<NetworkService<Block, Hash>>,
-		RpcHandlers,
-	),
+	NewFull<Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>>,
 	ServiceError,
 > {
-	let NewFull { task_manager, client, node_handles, network, rpc_handlers, .. } =
-		new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
-			config,
-			collating_for,
-			authority_discovery_enabled,
-			None,
-			true,
-		)?;
-
-	Ok((task_manager, client, node_handles, network, rpc_handlers))
+	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+		config,
+		authority_discovery_disabled,
+		None,
+	).map_err(Into::into)
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
@@ -95,9 +83,13 @@ impl ClientHandle for TestClient {
 	}
 }
 
-/// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
-/// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
-/// adjustements to the runtime before the node starts.
+/// Create a Polkadot `Configuration`.
+///
+/// By default an in-memory socket will be used, therefore you need to provide boot
+/// nodes if you want the future node to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -191,9 +183,13 @@ pub fn node_config(
 	}
 }
 
-/// Run a Polkadot test node using the Polkadot test runtime. The node will be using an in-memory socket, therefore you
-/// need to provide boot nodes if you want it to be connected to other nodes. The `storage_update_func` can be used to
-/// make adjustements to the runtime before the node starts.
+/// Run a Polkadot test node using the Polkadot test runtime.
+///
+/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
+/// want it to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn run_test_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
@@ -205,9 +201,9 @@ pub fn run_test_node(
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_enabled = false;
-	let (task_manager, client, handles, network, rpc_handlers) =
-		polkadot_test_new_full(config, None, authority_discovery_enabled)
+	let authority_discovery_disabled = true;
+	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
+		polkadot_test_new_full(config, authority_discovery_disabled)
 			.expect("could not create Polkadot test service");
 
 	let peer_id = network.local_peer_id().clone();
@@ -216,7 +212,7 @@ pub fn run_test_node(
 	PolkadotTestNode {
 		task_manager,
 		client,
-		handles,
+		overseer_handler,
 		addr,
 		rpc_handlers,
 	}
@@ -228,8 +224,8 @@ pub struct PolkadotTestNode<S, C> {
 	pub task_manager: S,
 	/// Client's instance.
 	pub client: Arc<C>,
-	/// Node's handles.
-	pub handles: FullNodeHandles,
+	/// The overseer handler.
+	pub overseer_handler: OverseerHandler,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
@@ -243,9 +239,10 @@ where
 	/// Send a transaction through RPCHandlers to call a function.
 	pub async fn call_function(
 		&self,
-		function: polkadot_test_runtime::Call,
+		function: impl Into<polkadot_test_runtime::Call>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
+		let function = function.into();
 		let current_block_hash = self.client.info().best_hash;
 		let current_block = self.client.info().best_number.saturated_into();
 		let genesis_block = self.client.hash(0).unwrap().unwrap();
@@ -286,6 +283,25 @@ where
 		);
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
+	}
+
+	/// Register a parachain at this relay chain.
+	pub async fn register_parachain(
+		&self,
+		id: ParaId,
+		validation_code: ValidationCode,
+		genesis_head: HeadData,
+	) -> Result<(), RpcTransactionError> {
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				genesis_head,
+				validation_code,
+				parachain: true,
+			},
+		);
+
+		self.call_function(call, Sr25519Keyring::Alice).await.map(drop)
 	}
 }
 

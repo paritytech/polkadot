@@ -52,6 +52,7 @@ pub use crate::v0::{
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
+pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
@@ -244,8 +245,8 @@ impl Ord for CommittedCandidateReceipt {
 /// Nevertheless, we expose it so the backing validators can validate the outputs of a
 /// candidate before voting to submit it to the relay-chain and so collators can
 /// collate candidates that satisfy the criteria implied these transient validation data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct ValidationData<N = BlockNumber> {
 	/// The persisted validation data.
 	pub persisted: PersistedValidationData<N>,
@@ -686,6 +687,13 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+
+		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+		/// Currently this request is limited to validators in the current session. 
+		///
+		/// We assume that every validator runs authority discovery,
+		/// which would allow us to establish point-to-point connection to given validators.
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 	}
 }
 

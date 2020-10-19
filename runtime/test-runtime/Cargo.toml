@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-runtime"
-version = "0.8.24"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -36,7 +36,6 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-finality-tracker = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-nicks = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -55,6 +54,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
+polkadot-runtime-parachains = { path = "../parachains", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.2.1"
@@ -93,7 +93,6 @@ std = [
 	"pallet-transaction-payment/std",
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"frame-executive/std",
-	"pallet-finality-tracker/std",
 	"pallet-grandpa/std",
 	"pallet-indices/std",
 	"pallet-nicks/std",
