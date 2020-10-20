@@ -174,7 +174,11 @@ impl Assets {
 	/// 	MultiAsset::AbstractFungible { id: vec![0], amount: 50 },
 	/// ]);
 	/// ```
-	pub fn min<'a, M: 'a + sp_std::borrow::Borrow<MultiAsset>, I: Iterator<Item=M>>(&self, assets: I) -> Self {
+	pub fn min<'a, M, I>(&self, assets: I) -> Self
+	where
+		M: 'a + sp_std::borrow::Borrow<MultiAsset>,
+		I: IntoIterator<Item = M>,
+	{
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
 			match asset.borrow() {
@@ -288,7 +292,10 @@ impl Assets {
 	/// 	MultiAsset::ConcreteFungible { id: MultiLocation::Null, amount: 100 },
 	/// ]);
 	/// ```
-	pub fn saturating_take(&mut self, assets: Vec<MultiAsset>) -> Assets {
+	pub fn saturating_take<I>(&mut self, assets: I) -> Assets
+	where
+		I: IntoIterator<Item = MultiAsset>,
+	{
 		let mut result = Assets::default();
 		for asset in assets.into_iter() {
 			match asset {
@@ -534,7 +541,7 @@ mod tests {
 
 		let taken_none = assets.saturating_take(none);
 		assert_eq!(None, taken_none.assets_iter().next());
-		let taken_all = assets.saturating_take(all.into());
+		let taken_all = assets.saturating_take(all);
 		// Everything taken
 		assert_eq!(None, assets.assets_iter().next());
 		let all_iter = taken_all.assets_iter();
@@ -604,9 +611,8 @@ mod tests {
 		assets2_vec.push(CF(600));
 		// This asset should be taken
 		assets2_vec.push(CNF(400));
-		let assets2: Assets = assets2_vec.into();
 
-		let taken = assets1.saturating_take(assets2.into());
+		let taken = assets1.saturating_take(assets2_vec);
 		let taken = taken.into_assets_iter().collect::<Vec<_>>();
 		assert_eq!(taken, vec![CF(300), AF(1, 50), CNF(400)]);
 
