@@ -81,7 +81,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_collation_requests_total",
 						"Number of collations requested from Collators.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?

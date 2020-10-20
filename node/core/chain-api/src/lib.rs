@@ -162,7 +162,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_chain_api_requests_total",
 						"Number of Chain API requests served.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,

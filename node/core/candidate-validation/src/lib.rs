@@ -79,7 +79,7 @@ impl Metrics {
 					metrics.validation_requests.with_label_values(&["invalid"]).inc();
 				},
 				Err(_) => {
-					metrics.validation_requests.with_label_values(&["failed"]).inc();
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
 				},
 			}
 		}
@@ -95,7 +95,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_validation_requests_total",
 						"Number of validation requests served.",
 					),
-					&["valid", "invalid", "failed"],
+					&["validity"],
 				)?,
 				registry,
 			)?,
