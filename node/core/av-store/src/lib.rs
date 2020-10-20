@@ -526,9 +526,6 @@ where
 			}
 		}
 
-		// has to be kept sorted.
-		pov_pruning.sort();
-
 		put_pov_pruning(db, None, pov_pruning)?;
 	}
 
@@ -547,8 +544,6 @@ where
 				record.candidate_state = CandidateState::Finalized;
 			}
 		}
-
-		chunk_pruning.sort();
 
 		put_chunk_pruning(db, None, chunk_pruning)?;
 	}
@@ -693,9 +688,11 @@ fn chunk_pruning(db: &Arc<dyn KeyValueDB>) -> Option<Vec<ChunkPruningRecord>> {
 fn put_pov_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
-	pov_pruning: Vec<PoVPruningRecord>,
+	mut pov_pruning: Vec<PoVPruningRecord>,
 ) -> Result<(), Error> {
 	let mut tx = tx.unwrap_or_default();
+
+	pov_pruning.sort();
 
 	tx.put_vec(
 		columns::META,
@@ -731,9 +728,11 @@ fn put_pov_pruning(
 fn put_chunk_pruning(
 	db: &Arc<dyn KeyValueDB>,
 	tx: Option<DBTransaction>,
-	chunk_pruning: Vec<ChunkPruningRecord>,
+	mut chunk_pruning: Vec<ChunkPruningRecord>,
 ) -> Result<(), Error> {
 	let mut tx = tx.unwrap_or_default();
+
+	chunk_pruning.sort();
 
 	tx.put_vec(
 		columns::META,
