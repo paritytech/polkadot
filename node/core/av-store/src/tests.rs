@@ -183,13 +183,13 @@ fn store_chunk_works() {
 
 		let (tx, rx) = oneshot::channel();
 
-		let chunk_msg = AvailabilityStoreMessage::StoreChunk(
+		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
 			validator_index,
-			chunk.clone(),
+			chunk: chunk.clone(),
 			tx,
-		);
+		};
 
 		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
 

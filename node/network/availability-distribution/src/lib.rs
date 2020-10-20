@@ -959,13 +959,13 @@ where
 {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(AllMessages::AvailabilityStore(
-		AvailabilityStoreMessage::StoreChunk(
+		AvailabilityStoreMessage::StoreChunk {
 			candidate_hash,
 			relay_parent,
 			validator_index,
-			erasure_chunk,
+			chunk: erasure_chunk,
 			tx,
-		),
+		}
 	)).await?;
 	rx.await.map_err::<Error, _>(Into::into)
 }

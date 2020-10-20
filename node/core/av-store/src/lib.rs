@@ -645,9 +645,9 @@ where
 			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
 				.map_err(|_| oneshot::Canceled)?;
 		}
-		StoreChunk(candidate_hash, relay_parent, id, chunk, tx) => {
+		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
 			let block_number = get_block_number(ctx, relay_parent).await?;
-			match store_chunk(subsystem, &candidate_hash, id, chunk, block_number) {
+			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
 					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
