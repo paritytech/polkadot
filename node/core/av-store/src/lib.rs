@@ -883,6 +883,12 @@ fn store_chunk(
 		chunk.encode(),
 	);
 
+	tx.put_vec(
+		columns::META,
+		&CHUNK_PRUNING_KEY,
+		chunk_pruning.encode(),
+	);
+
 	subsystem.inner.write(tx)?;
 
 	Ok(())

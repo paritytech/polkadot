@@ -316,6 +316,61 @@ fn store_pov_and_query_chunk_works() {
 }
 
 #[test]
+fn stored_but_not_included_chunk_is_pruned() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+	let test_state = TestState::default();
+
+	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+		let candidate_hash = Hash::repeat_byte(1);
+		let relay_parent = Hash::repeat_byte(2);
+		let validator_index = 5;
+
+		let chunk = ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: validator_index,
+			proof: vec![vec![3, 4, 5]],
+		};
+
+		let (tx, rx) = oneshot::channel();
+		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			chunk: chunk.clone(),
+			tx,
+		};
+
+		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
+				hash,
+				tx,
+			)) => {
+				assert_eq!(hash, relay_parent);
+				tx.send(Ok(Some(4))).unwrap();
+			}
+		);
+
+		rx.await.unwrap().unwrap();
+
+		// At this point data should be in the store.
+		assert_eq!(
+			query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap(),
+			chunk,
+		);
+
+		// Wait for twice as long as the stored block kept for.
+		Delay::new(test_state.pruning_config.keep_stored_block_for * 2).await;
+
+		// The block was not included by this point so it should be pruned now.
+		assert!(query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.is_none());
+	});
+}
+
+#[test]
 fn stored_but_not_included_data_is_pruned() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	let test_state = TestState::default();
@@ -464,6 +519,121 @@ fn stored_data_kept_until_finalized() {
 
 		// Wait until it is should be gone.
 		Delay::new(test_state.pruning_config.keep_finalized_block_for).await;
+
+		// At this point data should be gone from the store.
+		assert!(
+			query_available_data(&mut virtual_overseer, candidate_hash).await.is_none(),
+		);
+	});
+}
+
+#[test]
+fn stored_chunk_kept_until_finalized() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+	let test_state = TestState::default();
+
+	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+		let relay_parent = Hash::repeat_byte(2);
+		let validator_index = 5;
+		let candidate = TestCandidateBuilder {
+			..Default::default()
+		}.build();
+		let candidate_hash = candidate.hash();
+
+		let chunk = ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: validator_index,
+			proof: vec![vec![3, 4, 5]],
+		};
+
+		let (tx, rx) = oneshot::channel();
+		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			chunk: chunk.clone(),
+			tx,
+		};
+
+		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
+				hash,
+				tx,
+			)) => {
+				assert_eq!(hash, relay_parent);
+				tx.send(Ok(Some(4))).unwrap();
+			}
+		);
+
+		rx.await.unwrap().unwrap();
+
+		// At this point data should be in the store.
+		assert_eq!(
+			query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap(),
+			chunk,
+		);
+
+		let new_leaf = Hash::repeat_byte(2);
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![new_leaf.clone()],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::CandidateEvents(tx),
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Ok(vec![
+					CandidateEvent::CandidateIncluded(candidate, HeadData::default()),
+				])).unwrap();
+			}
+		);
+
+		Delay::new(test_state.pruning_config.keep_stored_block_for * 10).await;
+
+		// At this point data should _still_ be in the store.
+		assert_eq!(
+			query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap(),
+			chunk,
+		);
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::BlockFinalized(new_leaf)
+		).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
+				hash,
+				tx,
+			)) => {
+				assert_eq!(hash, new_leaf);
+				tx.send(Ok(Some(10))).unwrap();
+			}
+		);
+
+		// Wait for a half of the time finalized data should be available for
+		Delay::new(test_state.pruning_config.keep_finalized_block_for / 2).await;
+
+		// At this point data should _still_ be in the store.
+		assert_eq!(
+			query_chunk(&mut virtual_overseer, candidate_hash, validator_index).await.unwrap(),
+			chunk,
+		);
+
+		// Wait until it is should be gone.
+		Delay::new(test_state.pruning_config.keep_finalized_chunk_for).await;
 
 		// At this point data should be gone from the store.
 		assert!(
