@@ -761,19 +761,20 @@ fn put_chunk_pruning(
 	Ok(())
 }
 
-
+// produces a block number by block's hash.
+// in the the event of an invalid `block_hash`, returns `Ok(0)`
 async fn get_block_number<Context>(
 	ctx: &mut Context,
-	relay_parent: Hash,
+	block_hash: Hash,
 ) -> Result<BlockNumber, Error>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 
-	ctx.send_message(AllMessages::ChainApi(ChainApiMessage::BlockNumber(relay_parent, tx))).await?;
+	ctx.send_message(AllMessages::ChainApi(ChainApiMessage::BlockNumber(block_hash, tx))).await?;
 
-	Ok(rx.await??.map(|number| number + 1).unwrap_or_default())
+	Ok(rx.await??.map(|number| number).unwrap_or_default())
 }
 
 fn store_available_data(
