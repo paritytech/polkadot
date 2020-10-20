@@ -580,7 +580,7 @@ where
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "bitfield-distribution-subsystem",
-			future: Box::pin(async move { Self::run(self, ctx) }.map(|_| ())),
+			future: self.run(ctx).map(|_| ()).boxed(),
 		}
 	}
 }

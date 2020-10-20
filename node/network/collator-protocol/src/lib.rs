@@ -121,7 +121,7 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "collator-protocol-subsystem",
-			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
+			future: self.run(ctx).map(|_| ()).boxed(),
 		}
 	}
 }
