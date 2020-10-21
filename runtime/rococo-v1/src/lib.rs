@@ -340,6 +340,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
+		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
