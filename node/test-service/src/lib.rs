@@ -60,6 +60,7 @@ native_executor_instance!(
 );
 
 /// Create a new Polkadot test service for a full node.
+#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
 pub fn polkadot_test_new_full(
 	config: Configuration,
 	authority_discovery_disabled: bool,
@@ -112,14 +113,13 @@ pub fn node_config(
 	spec.set_storage(storage);
 
 	let mut network_config = NetworkConfiguration::new(
-		format!("Polkadot Test Node for: {}", key_seed),
+		key_seed.to_string(),
 		"network/test/0.1",
 		Default::default(),
 		None,
 	);
 	let informant_output_format = OutputFormat {
 		enable_color: false,
-		prefix: format!("[{}] ", key_seed),
 	};
 
 	network_config.boot_nodes = boot_nodes;
