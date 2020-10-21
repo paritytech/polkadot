@@ -19,6 +19,7 @@ polkadot-rpc = { path = "../../rpc" }
 polkadot-runtime-common = { path = "../../runtime/common" }
 polkadot-service = { path = "../service" }
 polkadot-test-runtime = { path = "../../runtime/test-runtime" }
+polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 
 # Substrate dependencies
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }

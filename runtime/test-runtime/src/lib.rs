@@ -37,7 +37,7 @@ use primitives::v1::{
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate,
+	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
 };
@@ -74,6 +74,7 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -448,6 +449,8 @@ impl router::Trait for Runtime {}
 
 impl scheduler::Trait for Runtime {}
 
+impl paras_sudo_wrapper::Trait for Runtime {}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -487,8 +490,8 @@ construct_runtime! {
 		Initializer: initializer::{Module, Call, Storage},
 		Paras: paras::{Module, Call, Storage, Origin},
 		Scheduler: scheduler::{Module, Call, Storage},
+		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
-		// Sudo. Last module.
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
@@ -606,23 +609,26 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
-			}
+			-> Option<ValidationData<BlockNumber>>
+		{
+			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
+		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
-				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
-			}
+			-> Option<PersistedValidationData<BlockNumber>>
+		{
+			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
 
 		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
 		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode> {
-				runtime_impl::validation_code::<Runtime>(para_id, assumption)
-			}
+			-> Option<ValidationCode>
+		{
+			runtime_impl::validation_code::<Runtime>(para_id, assumption)
+		}
 
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_impl::candidate_pending_availability::<Runtime>(para_id)

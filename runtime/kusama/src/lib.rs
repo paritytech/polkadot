@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2025,
+	spec_version: 2026,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -613,17 +613,6 @@ impl pallet_grandpa::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-parameter_types! {
-	pub WindowSize: BlockNumber = pallet_finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub ReportLatency: BlockNumber = pallet_finality_tracker::DEFAULT_REPORT_LATENCY.into();
-}
-
-impl pallet_finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = ();
-	type WindowSize = WindowSize;
-	type ReportLatency = ReportLatency;
-}
-
 /// Submits transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
@@ -834,7 +823,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
-				Call::FinalityTracker(..) |
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
@@ -959,7 +947,6 @@ construct_runtime! {
 		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
 		Historical: session_historical::{Module} = 34,
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 9,
 		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
