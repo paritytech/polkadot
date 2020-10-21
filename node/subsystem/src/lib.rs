@@ -31,6 +31,7 @@ use futures::future::BoxFuture;
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
+use thiserror::Error;
 
 use crate::messages::AllMessages;
 
@@ -105,8 +106,6 @@ pub enum FromOverseer<M> {
 	},
 }
 
-
-use thiserror::Error;
 /// An error type that describes faults that may happen
 ///
 /// These are:

@@ -112,7 +112,7 @@ where
 						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
-							Err(e) => Some(Err(e.to_string().into())),
+							Err(e) => Some(Err(e.into())),
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {

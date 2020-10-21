@@ -206,7 +206,7 @@ where
 
 // It would have been more ergonomic to use thiserror to derive the
 // From implementations, Display, and std::error::Error, but unfortunately
-// two of the wrapped errors (sp_inherents::Error, SubsystemError) also
+// one of the wrapped errors (sp_inherents::Error) also
 // don't impl std::error::Error, which breaks the thiserror derive.
 #[derive(Debug)]
 pub enum Error {
@@ -261,6 +261,7 @@ impl std::error::Error for Error {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
 			Self::ClosedChannelFromProvisioner(err) => Some(err),
+			Self::Subsystem(err) => Some(err),
 			_ => None
 		}
 	}

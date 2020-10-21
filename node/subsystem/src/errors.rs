@@ -32,6 +32,8 @@ impl core::fmt::Display for RuntimeApiError {
 	}
 }
 
+impl std::error::Error for RuntimeApiError {}
+
 /// A description of an error causing the chain API request to be unservable.
 #[derive(Debug, Clone)]
 pub struct ChainApiError {
@@ -55,3 +57,5 @@ impl core::fmt::Display for ChainApiError {
 		write!(f, "{}", self.msg)
 	}
 }
+
+impl std::error::Error for ChainApiError {}
