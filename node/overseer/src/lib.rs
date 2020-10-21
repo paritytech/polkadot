@@ -173,7 +173,7 @@ enum Event {
 enum ExternalRequest {
 	WaitForActivation {
 		hash: Hash,
-		response_channel: oneshot::Sender<()>,
+		response_channel: oneshot::Sender<SubsystemResult<()>>,
 	},
 }
 
@@ -208,7 +208,7 @@ impl OverseerHandler {
 	/// Note that due the fact the overseer doesn't store the whole active-leaves set, only deltas,
 	/// the response channel may never return if the hash was deactivated before this call.
 	/// In this case, it's the caller's responsibility to ensure a timeout is set.
-	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<()>) -> SubsystemResult<()> {
+	pub async fn wait_for_activation(&mut self, hash: Hash, response_channel: oneshot::Sender<SubsystemResult<()>>) -> SubsystemResult<()> {
 		self.events_tx.send(Event::ExternalRequest(ExternalRequest::WaitForActivation {
 			hash,
 			response_channel
@@ -303,7 +303,7 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await.ok_or(SubsystemError)
+		self.rx.next().await.ok_or(SubsystemError::Context("No next() rx message to process".to_owned()))
 	}
 
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
@@ -398,7 +398,7 @@ pub struct Overseer<S> {
 	s: S,
 
 	/// Here we keep handles to spawned subsystems to be notified when they terminate.
-	running_subsystems: FuturesUnordered<BoxFuture<'static, ()>>,
+	running_subsystems: FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 
 	/// Gather running subsystms' outbound streams into one.
 	running_subsystems_rx: StreamUnordered<mpsc::Receiver<ToOverseer>>,
@@ -407,7 +407,7 @@ pub struct Overseer<S> {
 	events_rx: mpsc::Receiver<Event>,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
-	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<()>>>,
+	activation_external_listeners: HashMap<Hash, Vec<oneshot::Sender<SubsystemResult<()>>>>,
 
 	/// A set of leaves that `Overseer` starts working with.
 	///
@@ -1267,7 +1267,7 @@ where
 
 		loop {
 			select! {
-				_ = self.running_subsystems.next() => {
+				x = self.running_subsystems.next() => {
 					if self.running_subsystems.is_empty() {
 						break;
 					}
@@ -1331,7 +1331,7 @@ where
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
 				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
 				self.stop().await;
-				return Err(SubsystemError);
+				return finished;
 			}
 
 			// Looks like nothing is left to be polled, let's take a break.
@@ -1541,7 +1541,7 @@ where
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
-				let _ = listener.send(());
+				let _ = listener.send(Ok(()));
 			}
 		}
 	}
@@ -1567,7 +1567,7 @@ where
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
 				if self.active_leaves.get(&hash).is_some() {
 					// it's fine if the listener is no longer interested
-					let _ = response_channel.send(());
+					let _ = response_channel.send(Ok(()));
 				} else {
 					self.activation_external_listeners.entry(hash).or_default().push(response_channel);
 				}
@@ -1586,7 +1586,7 @@ where
 
 fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner: &mut S,
-	futures: &mut FuturesUnordered<BoxFuture<'static, ()>>,
+	futures: &mut FuturesUnordered<BoxFuture<'static, SubsystemResult<()>>>,
 	streams: &mut StreamUnordered<mpsc::Receiver<ToOverseer>>,
 	s: impl Subsystem<OverseerSubsystemContext<M>>,
 ) -> SubsystemResult<OverseenSubsystem<M>> {
@@ -1605,7 +1605,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner.spawn(name, fut);
 
 	streams.push(from_rx);
-	futures.push(Box::pin(rx.map(|_| ())));
+	futures.push(Box::pin(rx.map(|e| { log::warn!("Dropping error {:?}", e); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,

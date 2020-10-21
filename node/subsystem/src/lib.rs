@@ -131,6 +131,12 @@ pub enum SubsystemError {
 	/// An infallable error.
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
+
+	#[error("Failed to {0}")]
+	Context(String),
+
+	#[error("xxx")]
+	UnexpectedTermination{subsystem: String, #[source] source: Option<Box<Self>> },
 }
 
 /// An asynchronous subsystem task..
