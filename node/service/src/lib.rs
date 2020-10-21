@@ -584,6 +584,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let proposer = ProposerFactory::new(
+			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
 			overseer_handler.as_ref().ok_or("authorities require real overseer handlers")?.clone(),
