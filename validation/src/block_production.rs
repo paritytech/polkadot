@@ -47,11 +47,13 @@ pub struct ProposerFactory<Client, TxPool, Backend> {
 impl<Client, TxPool, Backend> ProposerFactory<Client, TxPool, Backend> {
 	/// Create a new proposer factory.
 	pub fn new(
+		spawn_handle: Box<dyn SpawnNamed>,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		let factory = sc_basic_authorship::ProposerFactory::new(
+			spawn_handle,
 			client,
 			transaction_pool,
 			prometheus,
