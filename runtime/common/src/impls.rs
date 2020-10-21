@@ -44,6 +44,7 @@ pub struct DealWithFees<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
 	R: pallet_balances::Trait + pallet_treasury::Trait + pallet_authorship::Trait,
+	pallet_treasury::Module<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Trait>::AccountId: From<primitives::v1::AccountId>,
 	<R as frame_system::Trait>::AccountId: Into<primitives::v1::AccountId>,
 	<R as frame_system::Trait>::Event: From<pallet_balances::RawEvent<
@@ -51,7 +52,6 @@ where
 		<R as pallet_balances::Trait>::Balance,
 		pallet_balances::DefaultInstance>
 	>,
-	NegativeImbalance<R>: From<pallet_balances::NegativeImbalance<R>>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item=NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -62,7 +62,7 @@ where
 				tips.merge_into(&mut split.1);
 			}
 			use pallet_treasury::Module as Treasury;
-			//<Treasury<R> as OnUnbalanced<_>>::on_unbalanced(split.0);
+			<Treasury<R> as OnUnbalanced<_>>::on_unbalanced(split.0);
 			<ToAuthor<R> as OnUnbalanced<_>>::on_unbalanced(split.1);
 		}
 	}
@@ -217,7 +217,7 @@ mod tests {
 			// Author gets 100% of tip and 20% of fee = 22
 			assert_eq!(Balances::free_balance(AccountId::default()), 22);
 			// Treasury gets 80% of fee
-			//assert_eq!(Balances::free_balance(Treasury::account_id()), 8);
+			assert_eq!(Balances::free_balance(Treasury::account_id()), 8);
 		});
 	}
 }
