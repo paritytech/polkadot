@@ -22,8 +22,8 @@
 
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
-	impls::ToAuthor,
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::DealWithFees,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
@@ -55,10 +55,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{
-		KeyOwnerProofSystem, Randomness, LockIdentifier, Filter,
-		OnUnbalanced, Imbalance,
-	},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -230,22 +227,6 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-pub struct DealWithFees;
-impl OnUnbalanced<NegativeImbalance<Runtime>> for DealWithFees {
-	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item=NegativeImbalance<Runtime>>) {
-		if let Some(fees) = fees_then_tips.next() {
-			// for fees, 80% to treasury, 20% to author
-			let mut split = fees.ration(80, 20);
-			if let Some(tips) = fees_then_tips.next() {
-				// for tips, if any, 100% to author
-				tips.ration_merge_into(0, 100, &mut split);
-			}
-			Treasury::on_unbalanced(split.0);
-			ToAuthor::on_unbalanced(split.1);
-		}
-	}
-}
-
 impl pallet_balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -262,7 +243,7 @@ parameter_types! {
 
 impl pallet_transaction_payment::Trait for Runtime {
 	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnTransactionPayment = DealWithFees<Runtime>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
