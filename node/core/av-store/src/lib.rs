@@ -33,7 +33,7 @@ use polkadot_primitives::v1::{
 	Hash, AvailableData, ErasureChunk, ValidatorIndex,
 };
 use polkadot_subsystem::{
-	FromOverseer, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
+	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
 };
 use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
@@ -145,17 +145,19 @@ async fn run<Context>(subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let ctx = &mut ctx;
 	loop {
 		select! {
 			incoming = ctx.recv().fuse() => {
 				match incoming {
-					Ok(FromOverseer::Signal(Conclude)) => break,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => break,
 					Ok(FromOverseer::Signal(_)) => (),
 					Ok(FromOverseer::Communication { msg }) => {
 						process_message(&subsystem.inner, &subsystem.metrics, msg)?;
 					}
-					Err(_) => break,
+					Err(e) => {
+						log::error!("AvailabilityStoreSubsystem err: {:#?}", e);
+						break
+					},
 				}
 			}
 			complete => break,
@@ -292,15 +294,14 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			if let Err(e) = run(self, ctx).await {
-				log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
-			}
-		});
+		let future = run(self, ctx)
+			.map(|r| if let Err(e) = r {
+			log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
+		}).boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",
