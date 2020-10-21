@@ -105,6 +105,8 @@ pub enum FromOverseer<M> {
 	},
 }
 
+
+use thiserror::Error;
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -112,31 +114,23 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Debug, PartialEq, Eq)]
-pub struct SubsystemError;
+#[derive(Error, Debug)]
+pub enum SubsystemError {
+	/// A notification connection is no longer valid.
+	#[error(transparent)]
+	NotifyCancellation(#[from] oneshot::Canceled),
 
-impl From<mpsc::SendError> for SubsystemError {
-	fn from(_: mpsc::SendError) -> Self {
-		Self
-	}
-}
+	/// Queue does not accept another item.
+	#[error(transparent)]
+	QueueError(#[from] mpsc::SendError),
 
-impl From<oneshot::Canceled> for SubsystemError {
-	fn from(_: oneshot::Canceled) -> Self {
-		Self
-	}
-}
+	/// An attempt to spawn a futures task did not succeed.
+	#[error(transparent)]
+	TaskSpawn(#[from] futures::task::SpawnError),
 
-impl From<futures::task::SpawnError> for SubsystemError {
-	fn from(_: futures::task::SpawnError) -> Self {
-		Self
-	}
-}
-
-impl From<std::convert::Infallible> for SubsystemError {
-	fn from(e: std::convert::Infallible) -> Self {
-		match e {}
-	}
+	/// An infallable error.
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
 }
 
 /// An asynchronous subsystem task..

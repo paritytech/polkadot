@@ -21,6 +21,7 @@ polkadot-statement-table = { path = "../../statement-table" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 smallvec = "1.4.1"
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+thiserror = "1.0.21"
 
 [dev-dependencies]
 assert_matches = "1.3.0"
