@@ -60,7 +60,7 @@ native_executor_instance!(
 );
 
 /// Create a new Polkadot test service for a full node.
-#[sc_cli::substrate_cli_node_name(config.network.node_name.as_str())]
+#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
 pub fn polkadot_test_new_full(
 	config: Configuration,
 	authority_discovery_disabled: bool,
