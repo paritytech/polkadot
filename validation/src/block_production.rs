@@ -28,6 +28,7 @@ use std::{
 use sp_blockchain::HeaderBackend;
 use block_builder::{BlockBuilderApi, BlockBuilderProvider};
 use consensus::{Proposal, RecordProof};
+use primitives::traits::SpawnNamed;
 use polkadot_primitives::v0::{NEW_HEADS_IDENTIFIER, Block, Header, AttestedCandidate};
 use runtime_primitives::traits::{DigestFor, HashFor};
 use txpool_api::TransactionPool;
