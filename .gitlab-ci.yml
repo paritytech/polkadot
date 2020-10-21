@@ -212,12 +212,18 @@ generate-impl-guide:
     - EXTRATAG="$(cat ./artifacts/EXTRATAG)"
     - echo "Polkadot version = ${VERSION} (EXTRATAG ${EXTRATAG})"
 
-publish-docker-release:
+publish-docker:
   <<:                              *publish-build
   image:                           docker:stable
   services:
     - docker:dind
   <<:                              *collect-artifacts
+  # Don't run on releases - this is handled by the Github Action here:
+  # .github/workflows/publish-docker-release.yml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
   variables:
     DOCKER_HOST:                   tcp://localhost:2375
     DOCKER_DRIVER:                 overlay2
