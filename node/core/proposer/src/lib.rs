@@ -26,7 +26,7 @@ pub struct ProposerFactory<TxPool, Backend, Client> {
 
 impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 	pub fn new(
-		spawn_handle: Box<dyn SpawnNamed>,
+		spawn_handle: impl SpawnNamed + 'static,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
