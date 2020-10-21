@@ -12,7 +12,7 @@ streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
 parity-scale-codec = "1.3.4"
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
@@ -20,5 +20,5 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 [dev-dependencies]
 parking_lot = "0.10.0"
 assert_matches = "1.3.0"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

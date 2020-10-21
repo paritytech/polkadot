@@ -6,49 +6,49 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 
 # Substrate Primitives
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 
 # Substrate Other
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 
 # External Crates
 codec = { package = "parity-scale-codec", version = "1.3.4" }
@@ -74,7 +74,7 @@ westend-runtime = { path = "../../runtime/westend" }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 env_logger = "0.7.0"
 
 [features]

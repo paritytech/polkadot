@@ -12,27 +12,27 @@ rustc-hex = { version = "2.0.1", default-features = false }
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", optional = true }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+frame-system = {git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false, optional = true }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
@@ -43,17 +43,17 @@ rand_chacha = { version = "0.2.2", default-features = false }
 [dev-dependencies]
 futures = "0.3.4"
 hex-literal = "0.2.1"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-randomness-collective-flip = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29" }
 serde_json = "1.0.41"
 libsecp256k1 = "0.3.2"
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master"}
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29", default-features = false }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "libp2p-0.29"}
 
 
 [features]
