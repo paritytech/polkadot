@@ -116,9 +116,12 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = run(ctx, self.spawn, self.metrics)
+			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+			.map(|_| ()).boxed();
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx, self.spawn, self.metrics).map(|_| ()).boxed(),
+			future,
 		}
 	}
 }

@@ -65,21 +65,25 @@ use statement_table::{
 		SignedStatement as TableSignedStatement, Summary as TableSummary,
 	},
 };
+use thiserror::Error;
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
+	#[error("Candidate is not found")]
 	CandidateNotFound,
+	#[error("Signature is invalid")]
 	InvalidSignature,
+	#[error("Storing data was not successful")]
 	StoreFailed,
-	#[from]
+	#[error(transparent)]
 	Erasure(erasure_coding::Error),
-	#[from]
+	#[error(transparent)]
 	ValidationFailed(ValidationFailed),
-	#[from]
+	#[error(transparent)]
 	Oneshot(oneshot::Canceled),
-	#[from]
+	#[error(transparent)]
 	Mpsc(mpsc::SendError),
-	#[from]
+	#[error(transparent)]
 	UtilError(util::Error),
 }
 

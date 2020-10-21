@@ -39,6 +39,7 @@ use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
 use std::{convert::TryFrom, pin::Pin, sync::Arc};
+use thiserror::Error;
 
 const TARGET: &'static str = "candidate_selection";
 
@@ -116,17 +117,17 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
+	#[error(transparent)]
 	Sending(mpsc::SendError),
-	#[from]
+	#[error(transparent)]
 	Util(util::Error),
-	#[from]
+	#[error(transparent)]
 	OneshotRecv(oneshot::Canceled),
-	#[from]
+	#[error(transparent)]
 	ChainApi(ChainApiError),
-	#[from]
+	#[error(transparent)]
 	Runtime(RuntimeApiError),
 }
 
@@ -154,7 +155,7 @@ impl JobTrait for CandidateSelectionJob {
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
-			job.run_loop().await
+			job.run_loop().await.map_err(|e| SubsystemError::with_origin(NAME, e))
 		}
 		.boxed()
 	}

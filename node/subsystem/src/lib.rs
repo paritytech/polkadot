@@ -106,6 +106,7 @@ pub enum FromOverseer<M> {
 	},
 }
 
+
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -134,8 +135,14 @@ pub enum SubsystemError {
 	#[error("Failed to {0}")]
 	Context(String),
 
-	#[error("xxx")]
-	UnexpectedTermination{subsystem: String, #[source] source: Option<Box<Self>> },
+	#[error("Error originated in {origin}")]
+	FromOrigin{ origin: &'static str, #[source] source: Box<Self>},
+}
+
+impl SubsystemError {
+	pub fn with_origin(origin: &'static str, err: impl Into<Self>) -> Self {
+		Self::FromOrigin{ origin, source: Box::new(err.into()) }
+	}
 }
 
 /// An asynchronous subsystem task..

@@ -61,8 +61,9 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(ctx, self).map_err(|e| SubsystemError::with_origin("chain-api", e)).map(|_| ()).boxed();
 		SpawnedSubsystem {
-			future: run(ctx, self).map(|_| ()).boxed(),
+			future: ,
 			name: "chain-api-subsystem",
 		}
 	}

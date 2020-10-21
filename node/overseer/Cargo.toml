@@ -15,6 +15,8 @@ polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../subsystem
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-node-primitives = { package = "polkadot-node-primitives", path = "../primitives" }
 async-trait = "0.1"
+eyre = "0.6.1"
+color-eyre = "0.5.6"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

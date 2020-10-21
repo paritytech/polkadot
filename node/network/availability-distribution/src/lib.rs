@@ -55,22 +55,27 @@ use polkadot_node_network_protocol::{
 use std::collections::{HashMap, HashSet};
 use std::io;
 use std::iter;
-
+use thiserror::Error;
 const TARGET: &'static str = "avad";
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
+	#[error(transparent)]
 	Erasure(polkadot_erasure_coding::Error),
-	#[from]
+	
+	#[error(transparent)]
 	Io(io::Error),
-	#[from]
+	
+	#[error(transparent)]
 	Oneshot(oneshot::Canceled),
-	#[from]
+	
+	#[error(transparent)]
 	Subsystem(SubsystemError),
-	#[from]
+	
+	#[error(transparent)]
 	RuntimeApi(RuntimeApiError),
-	#[from]
+
+	#[error(transparent)]
 	ChainApi(ChainApiError),
 }
 

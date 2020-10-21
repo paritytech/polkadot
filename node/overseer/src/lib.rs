@@ -96,6 +96,8 @@ const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "overseer";
 
+/// A universal helper type for the overseer.
+pub use eyre::Error as OverseerError;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -160,7 +162,7 @@ impl From<FinalityNotification<Block>> for BlockInfo {
 	}
 }
 
-/// Some event from outer world.
+/// Some event from the outer world.
 enum Event {
 	BlockImported(BlockInfo),
 	BlockFinalized(BlockInfo),
@@ -303,7 +305,8 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await.ok_or(SubsystemError::Context("No next() rx message to process".to_owned()))
+		// XXX TODO `eyre::eyre!("No more messages in rx queue to process")`
+		self.rx.next().await.ok_or(SubsystemError::Context("No more messages in rx queue to process".to_owned()))
 	}
 
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)

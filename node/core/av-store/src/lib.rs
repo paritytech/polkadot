@@ -39,6 +39,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::messages::AvailabilityStoreMessage;
+use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
 
@@ -47,15 +48,15 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 1;
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
+	#[error(transparent)]
 	Erasure(erasure::Error),
-	#[from]
+	#[error(transparent)]
 	Io(io::Error),
-	#[from]
+	#[error(transparent)]
 	Oneshot(oneshot::Canceled),
-	#[from]
+	#[error(transparent)]
 	Subsystem(SubsystemError),
 }
 
