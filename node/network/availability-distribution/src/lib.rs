@@ -742,7 +742,7 @@ impl AvailabilityDistributionSubsystem {
 					).await {
 						warn!(
 							target: TARGET,
-							"Failed to handle incomming network messages: {:?}", e
+							"Failed to handle incoming network messages: {:?}", e
 						);
 					}
 				}
