@@ -201,7 +201,7 @@ pub fn run_test_node(
 > {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_disabled = true;
+	let authority_discovery_disabled = false;
 	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
 		polkadot_test_new_full(config, authority_discovery_disabled)
 			.expect("could not create Polkadot test service");
