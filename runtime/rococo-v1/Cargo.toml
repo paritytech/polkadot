@@ -11,41 +11,41 @@ serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
 smallvec = "1.4.1"
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-api = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-io = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-session = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-staking = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+sp-version = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
 
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-babe = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-balances = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-session = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-indices = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-staking = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+frame-executive = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+pallet-offences = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
 
-frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = {git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }

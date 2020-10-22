@@ -17,29 +17,29 @@ crate-type = ["cdylib", "rlib"]
 log = "0.4.8"
 futures = { version = "0.3.4", features = ["compat"] }
 structopt = "0.3.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sp-core = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sp-runtime = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sc-client-api = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sc-client-db = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sc-executor = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
+sc-tracing = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 
 tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate.git", optional = true , branch = "ashley-fork-tree-in-prog" }
+sc-cli = { git = "https://github.com/paritytech/substrate.git", optional = true , branch = "ashley-fork-tree-in-prog" }
+sc-service = { git = "https://github.com/paritytech/substrate.git", optional = true , branch = "ashley-fork-tree-in-prog" }
 
 wasm-bindgen = { version = "0.2.57", optional = true }
 wasm-bindgen-futures = { version = "0.4.7", optional = true }
-browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+browser-utils = { package = "substrate-browser-utils", git = "https://github.com/paritytech/substrate.git", optional = true , branch = "ashley-fork-tree-in-prog" }
 # this crate is used only to enable `trie-memory-tracker` feature
 # see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-trie = { git = "https://github.com/paritytech/substrate.git", default-features = false , branch = "ashley-fork-tree-in-prog" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate.git", branch = "ashley-fork-tree-in-prog" }
 
 [features]
 default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
