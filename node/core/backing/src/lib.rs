@@ -73,14 +73,14 @@ enum Error {
 	CandidateNotFound,
 	#[error("Signature is invalid")]
 	InvalidSignature,
-	#[error("Storing data was not successful")]
-	StoreFailed,
-	#[error(transparent)]
-	Erasure(erasure_coding::Error),
+	#[error("Storing data failed")]
+	StoreFailed(oneshot::Canceled),
+	#[error("Responding to backing request failed")]
+	BackingResponseChannel(oneshot::Canceled),
+	#[error("Obtaining erasure chunks failed")]
+	ObtainErasureChunks(#[from] #[source]erasure_coding::Error),
 	#[error(transparent)]
 	ValidationFailed(ValidationFailed),
-	#[error(transparent)]
-	Oneshot(oneshot::Canceled),
 	#[error(transparent)]
 	Mpsc(mpsc::SendError),
 	#[error(transparent)]
@@ -472,7 +472,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
 
-				tx.send(backed).map_err(|_| oneshot::Canceled)?;
+				tx.send(backed).map_err(|e| Error::BackingResponseChannel(e))?;
 			}
 		}
 
@@ -643,7 +643,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		rx.await?.map_err(|_| Error::StoreFailed)?;
+		rx.await?.map_err(|e| Error::StoreFailed(e))?;
 
 		Ok(())
 	}

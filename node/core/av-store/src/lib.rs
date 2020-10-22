@@ -51,13 +51,13 @@ mod columns {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	Erasure(erasure::Error),
+	Erasure(#[from]erasure::Error),
 	#[error(transparent)]
-	Io(io::Error),
+	Io(#[from]io::Error),
 	#[error(transparent)]
-	Oneshot(oneshot::Canceled),
+	Oneshot(#[from]oneshot::Canceled),
 	#[error(transparent)]
-	Subsystem(SubsystemError),
+	Subsystem(#[from]SubsystemError),
 }
 
 /// An implementation of the Availability Store subsystem.
