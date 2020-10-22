@@ -1328,7 +1328,7 @@ mod test_fees {
 	#[test]
 	fn transfer_cost_min_multiplier() {
 		let min_multiplier = runtime_common::MinimumMultiplier::get();
-		let call = <pallet_balances::Call<Runtime>>::transferKeepAlive(Default::default(), Default::default());
+		let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(Default::default(), Default::default());
 		let info = call.get_dispatch_info();
 		// convert to outer call.
 		let call = Call::Balances(call);
