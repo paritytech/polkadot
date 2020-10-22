@@ -70,9 +70,6 @@ enum Error {
 	Oneshot(oneshot::Canceled),
 	
 	#[error(transparent)]
-	Subsystem(SubsystemError),
-	
-	#[error(transparent)]
 	RuntimeApi(RuntimeApiError),
 
 	#[error(transparent)]

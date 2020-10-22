@@ -543,7 +543,7 @@ pub trait JobTrait: Unpin {
 ///
 /// Wraps the utility error type and the job-specific error
 #[derive(Debug, Error)]
-pub enum JobsError<JobError: std::fmt::Debug> {
+pub enum JobsError<JobError: 'static + std::error::Error> {
 	/// utility error
 	#[error("Utility")]
 	Utility(#[source] Error),
