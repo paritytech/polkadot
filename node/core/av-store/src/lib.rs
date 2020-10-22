@@ -74,8 +74,8 @@ enum Error {
 /// A wrapper type for delays.
 #[derive(Debug, Decode, Encode, Eq)]
 enum PruningDelay {
-	/// This pruning should be triggerend in this amount of seconds into the future.
-	In(u64),
+	/// This pruning should be triggered after this `Duration` from UNIX_EPOCH.
+	In(Duration),
 
 	/// Data is in the state where it has no expiration.
 	Indefinite,
@@ -83,21 +83,25 @@ enum PruningDelay {
 
 impl PruningDelay {
 	fn now() -> Result<Self, Error> {
-		Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs().into())
+		Ok(SystemTime::now().duration_since(UNIX_EPOCH)?.into())
 	}
 
-	fn into_the_future(secs: u64) -> Result<Self, Error> {
-		Ok(
-			Self::In(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs() + secs)
-		)
+	fn into_the_future(duration: Duration) -> Result<Self, Error> {
+		Ok(Self::In(SystemTime::now().duration_since(UNIX_EPOCH)? + duration))
 	}
 
-	fn as_secs(&self) -> Option<u64> {
+	fn as_duration(&self) -> Option<Duration> {
 		match self {
-		    PruningDelay::In(delay) => Some(*delay),
+		    PruningDelay::In(d) => Some(*d),
 		    PruningDelay::Indefinite => None,
 		}
 	}
+}
+
+impl From<Duration> for PruningDelay {
+    fn from(d: Duration) -> Self {
+		Self::In(d)
+    }
 }
 
 impl PartialEq for PruningDelay {
@@ -132,12 +136,6 @@ impl Ord for PruningDelay {
     }
 }
 
-impl From<u64> for PruningDelay {
-    fn from(delay: u64) -> Self {
-		Self::In(delay)
-    }
-}
-
 /// A key for chunk pruning records.
 const CHUNK_PRUNING_KEY: [u8; 14] = *b"chunks_pruning";
 
@@ -161,7 +159,7 @@ const KEEP_FINALIZED_BLOCK_FOR: Duration = Duration::from_secs(24 * 60 * 60);
 /// Keep chunk of the finalized block for 1 day + 1 hour.
 const KEEP_FINALIZED_CHUNK_FOR: Duration = Duration::from_secs(25 * 60 * 60);
 
-/// At which point in time we need to wakeup and do next pruning of blocks.
+/// At which point in time since UNIX_EPOCH we need to wakeup and do next pruning of blocks.
 /// Essenially this is the first element in the sorted array of pruning data,
 /// we just want to cache it here to avoid lifting the whole array just to look at the head.
 ///
@@ -170,16 +168,16 @@ const KEEP_FINALIZED_CHUNK_FOR: Duration = Duration::from_secs(25 * 60 * 60);
 ///  b) There are records but all of them are in `Included` state and do not have exact time to
 ///     be pruned.
 #[derive(Decode, Encode)]
-struct NextPoVPruning(u64);
+struct NextPoVPruning(Duration);
 
 impl NextPoVPruning {
-	// After which amount of seconds into the future from `now` this should fire.
-	fn should_fire_in(&self) -> Result<u64, Error> {
-		Ok(self.0.saturating_sub(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()))
+	// After which duration from `now` this should fire.
+	fn should_fire_in(&self) -> Result<Duration, Error> {
+		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
 	}
 }
 
-/// At which point in time we need to wakeup and do next pruning of chunks.
+/// At which point in time since UNIX_EPOCH we need to wakeup and do next pruning of chunks.
 /// Essentially this is the first element in the sorted array of pruning data,
 /// we just want to cache it here to avoid lifting the whole array just to look at the head.
 ///
@@ -188,12 +186,12 @@ impl NextPoVPruning {
 ///  b) There are records but all of them are in `Included` state and do not have exact time to
 ///     be pruned.
 #[derive(Decode, Encode)]
-struct NextChunkPruning(u64);
+struct NextChunkPruning(Duration);
 
 impl NextChunkPruning {
 	// After which amount of seconds into the future from `now` this should fire.
-	fn should_fire_in(&self) -> Result<u64, Error> {
-		Ok(self.0.saturating_sub(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs()))
+	fn should_fire_in(&self) -> Result<Duration, Error> {
+		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
 	}
 }
 
@@ -353,7 +351,7 @@ impl AvailabilityStoreSubsystem {
 	fn maybe_prune_povs(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_pov_pruning_time(&self.inner) {
 			Some(pruning) => {
-				Either::Left(Delay::new(Duration::from_secs(pruning.should_fire_in()?)))
+				Either::Left(Delay::new(pruning.should_fire_in()?))
 			}
 			None => Either::Right(future::pending::<()>()),
 		};
@@ -367,7 +365,7 @@ impl AvailabilityStoreSubsystem {
 	fn maybe_prune_chunks(&self) -> Result<impl Future<Output = ()>, Error> {
 		let future = match get_next_chunk_pruning_time(&self.inner) {
 			Some(pruning) => {
-				Either::Left(Delay::new(Duration::from_secs(pruning.should_fire_in()?)))
+				Either::Left(Delay::new(pruning.should_fire_in()?))
 			}
 			None => Either::Right(future::pending::<()>()),
 		};
@@ -520,7 +518,7 @@ where
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
-					subsystem.pruning_config.keep_finalized_block_for.as_secs()
+					subsystem.pruning_config.keep_finalized_block_for
 				)?;
 				record.candidate_state = CandidateState::Finalized;
 			}
@@ -539,7 +537,7 @@ where
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
-					subsystem.pruning_config.keep_finalized_chunk_for.as_secs()
+					subsystem.pruning_config.keep_finalized_chunk_for
 				)?;
 				record.candidate_state = CandidateState::Finalized;
 			}
@@ -704,7 +702,7 @@ fn put_pov_pruning(
 	match pov_pruning.get(0) {
 		// We want to wake up in case we have some records that are not scheduled to be kept
 		// indefinitely (data is included and waiting to move to the finalized state) and so
-		// the is at least one value that is not `u64::MAX`.
+		// the is at least one value that is not `PruningDelay::Indefinite`.
 		Some(PoVPruningRecord { prune_at: PruningDelay::In(prune_at), .. }) => {
 			tx.put_vec(
 				columns::META,
@@ -806,9 +804,9 @@ fn store_available_data(
 	};
 
 	let mut pov_pruning = pov_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for.as_secs())?;
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 
-	if let Some(next_pruning) = prune_at.as_secs() {
+	if let Some(next_pruning) = prune_at.as_duration() {
 		tx.put_vec(
 			columns::META,
 			&NEXT_POV_PRUNING,
@@ -856,9 +854,9 @@ fn store_chunk(
 	let dbkey = erasure_chunk_key(candidate_hash, chunk.index);
 
 	let mut chunk_pruning = chunk_pruning(&subsystem.inner).unwrap_or_default();
-	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for.as_secs())?;
+	let prune_at = PruningDelay::into_the_future(subsystem.pruning_config.keep_stored_block_for)?;
 
-	if let Some(delay) = prune_at.as_secs() {
+	if let Some(delay) = prune_at.as_duration() {
 		tx.put_vec(
 			columns::META,
 			&NEXT_CHUNK_PRUNING,
