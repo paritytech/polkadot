@@ -578,9 +578,15 @@ where
 	C: SubsystemContext<Message = BitfieldDistributionMessage> + Sync + Send,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = self.run(ctx)
+			.map_err(|e| {
+				SubsystemError::with_origin("bitfield-distribution", e)
+			})
+			.map(|_| ()).boxed();
+
 		SpawnedSubsystem {
 			name: "bitfield-distribution-subsystem",
-			future: Box::pin(async move { Self::run(self, ctx) }.map(|_| ())),
+			future,
 		}
 	}
 }

@@ -219,13 +219,19 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
 		let Self { network_service, authority_discovery_service } = self;
-		SpawnedSubsystem {
-			name: "network-bridge-subsystem",
-			future: run_network(
+		let future = run_network(
 				network_service,
 				authority_discovery_service,
 				ctx,
-			).map(|_| ()).boxed(),
+			)
+			.map_err(|e| {
+				SubsystemError::with_origin("network-bridge", e)
+			})
+			.map(|_| ())
+			.boxed();
+		SpawnedSubsystem {
+			name: "network-bridge-subsystem",
+			future,
 		}
 	}
 }

@@ -123,7 +123,7 @@ where
 			let (sender, receiver) = futures::channel::oneshot::channel();
 
 			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+			receiver.await.map_err(Error::ClosedChannelFromProvisioner)??;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			// strictly speaking, we don't _have_ to .await this send_msg before opening the

@@ -132,14 +132,22 @@ pub enum SubsystemError {
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
+	/// An other error lacking particular type information.
 	#[error("Failed to {0}")]
 	Context(String),
 
+	/// Per origin (or subsystem) annotations to wrap an error.
 	#[error("Error originated in {origin}")]
-	FromOrigin{ origin: &'static str, #[source] source: Box<Self>},
+	FromOrigin {
+		/// An additional anotation tag for the origin of `source`.
+		origin: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source] source: Box<Self>
+	},
 }
 
 impl SubsystemError {
+	/// Adds a `str` as `origin` to the given error `err`.
 	pub fn with_origin(origin: &'static str, err: impl Into<Self>) -> Self {
 		Self::FromOrigin{ origin, source: Box::new(err.into()) }
 	}

@@ -768,9 +768,16 @@ where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage> + Sync + Send,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+
+		let future = self.run(ctx)
+			.map_err(|e| {
+				SubsystemError::with_origin("availability-distribution", e)
+			})
+			.map(|_| ()).boxed();
+
 		SpawnedSubsystem {
 			name: "availability-distribution-subsystem",
-			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
+			future,
 		}
 	}
 }

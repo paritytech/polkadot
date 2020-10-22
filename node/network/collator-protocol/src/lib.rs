@@ -113,7 +113,9 @@ impl CollatorProtocolSubsystem {
 				id,
 				metrics,
 			).await,
-		}
+		}.map_err(|e| {
+			SubsystemError::with_origin("collator-protocol", e)
+		})
 	}
 }
 

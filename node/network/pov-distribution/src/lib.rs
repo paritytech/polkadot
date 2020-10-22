@@ -60,9 +60,13 @@ impl<C> Subsystem<C> for PoVDistribution
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run`.
+		let future = self.run(ctx)
+			.map_err(|e| SubsystemError::with_origin("pov-distribution", e))
+			.map(|_| ())
+			.boxed();
 		SpawnedSubsystem {
 			name: "pov-distribution-subsystem",
-			future: self.run(ctx).map(|_| ()).boxed(),
+			future,
 		}
 	}
 }
