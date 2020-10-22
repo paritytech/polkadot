@@ -500,7 +500,7 @@ pub trait JobTrait: Unpin {
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
 	/// Job runtime error.
-	type Error: 'static + std::fmt::Debug + std::error::Error + Send;
+	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
@@ -546,10 +546,10 @@ pub trait JobTrait: Unpin {
 pub enum JobsError<JobError: std::fmt::Debug> {
 	/// utility error
 	#[error("Utility")]
-	Utility(Error),
+	Utility(#[source] Error),
 	/// internal job error
 	#[error("Internal")]
-	Job(JobError),
+	Job(#[source] JobError),
 }
 
 /// Jobs manager for a subsystem
