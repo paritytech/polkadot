@@ -42,6 +42,7 @@ use polkadot_primitives::v1::{
 	SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
+use thiserror::Error;
 
 struct ProvisioningJob {
 	relay_parent: Hash,
@@ -115,19 +116,25 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Sending(mpsc::SendError),
-	#[from]
+	#[error(transparent)]
 	Util(util::Error),
-	#[from]
+
+	#[error(transparent)]
 	OneshotRecv(oneshot::Canceled),
-	#[from]
+
+	#[error(transparent)]
 	ChainApi(ChainApiError),
-	#[from]
+
+	#[error(transparent)]
 	Runtime(RuntimeApiError),
-	OneshotSend,
+
+	#[error("Failed to send message to ChainAPI")]
+	ChainApiMessageSend(#[source] mpsc::SendError),
+
+	#[error("Failed to send return message with Inherents")]
+	InherentDataReturnChannel(#[source] mpsc::SendError),
 }
 
 impl JobTrait for ProvisioningJob {
@@ -299,7 +306,7 @@ async fn send_inherent_data(
 
 	return_sender
 		.send((bitfields, candidates))
-		.map_err(|_| Error::OneshotSend)?;
+		.map_err(|e| Error::InherentDataReturnChannel(e))?;
 	Ok(())
 }
 
@@ -423,7 +430,7 @@ async fn get_block_number_under_construction(
 			tx,
 		)))
 		.await
-		.map_err(|_| Error::OneshotSend)?;
+		.map_err(|e| Error::ChainApiMessageSend(e))?;
 	match rx.await? {
 		Ok(Some(n)) => Ok(n + 1),
 		Ok(None) => Ok(0),
@@ -801,7 +808,7 @@ mod tests {
 				Delay::new(std::time::Duration::from_millis(50)).await;
 				let result = select_candidates(&[], &[], &[], Default::default(), &mut tx).await;
 				println!("{:?}", result);
-				assert!(std::matches!(result, Err(Error::OneshotSend)));
+				assert!(std::matches!(result, Err(Error::ChainApiMessageSend(_))));
 			};
 
 			test_harness(overseer, test);
