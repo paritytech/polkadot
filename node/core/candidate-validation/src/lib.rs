@@ -72,7 +72,7 @@ impl Metrics {
 	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
 		if let Some(metrics) = &self.0 {
 			match event {
-				Ok(ValidationResult::Valid(_)) => {
+				Ok(ValidationResult::Valid(_, _)) => {
 					metrics.validation_requests.with_label_values(&["valid"]).inc();
 				},
 				Ok(ValidationResult::Invalid(_)) => {
@@ -477,25 +477,13 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let post_check_result = if let Some(transient) = transient_validation_data {
-				check_wasm_result_against_constraints(
-					&transient,
-					&res,
-				)
-			} else {
-				Ok(())
+			let outputs = ValidationOutputs {
+				head_data: res.head_data,
+				upward_messages: res.upward_messages,
+				fees: 0,
+				new_validation_code: res.new_validation_code,
 			};
-
-			Ok(match post_check_result {
-				Ok(()) => ValidationResult::Valid(ValidationOutputs {
-					head_data: res.head_data,
-					validation_data: persisted_validation_data,
-					upward_messages: res.upward_messages,
-					fees: 0,
-					new_validation_code: res.new_validation_code,
-				}),
-				Err(e) => ValidationResult::Invalid(e),
-			})
+			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
 	}
 }
@@ -837,12 +825,12 @@ mod tests {
 			TaskExecutor::new(),
 		).unwrap();
 
-		assert_matches!(v, ValidationResult::Valid(outputs) => {
+		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.validation_data, validation_data.persisted);
 			assert_eq!(outputs.upward_messages, Vec::new());
 			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(used_validation_data, validation_data.persisted);
 		});
 	}
 
@@ -973,12 +961,12 @@ mod tests {
 			TaskExecutor::new(),
 		).unwrap();
 
-		assert_matches!(v, ValidationResult::Valid(outputs) => {
+		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.validation_data, validation_data.persisted);
 			assert_eq!(outputs.upward_messages, Vec::new());
 			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(used_validation_data, validation_data.persisted);
 		});
 	}
 }

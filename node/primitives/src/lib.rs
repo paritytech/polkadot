@@ -144,8 +144,9 @@ pub enum InvalidCandidate {
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid. The validation process yields these outputs.
-	Valid(ValidationOutputs),
+	/// Candidate is valid. The validation process yields these outputs and the persisted validation
+	/// data used to form inputs.
+	Valid(ValidationOutputs, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
 }

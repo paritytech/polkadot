@@ -315,9 +315,6 @@ pub struct ValidationOutputs {
 	pub fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	pub new_validation_code: Option<ValidationCode>,
-
-	// TODO: Will be removed in the forthcoming commits
-	pub validation_data: PersistedValidationData,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
