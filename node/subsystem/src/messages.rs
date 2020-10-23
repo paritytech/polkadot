@@ -396,6 +396,12 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationData>>,
 	),
+	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
+	CheckValidationOutputs(
+		ParaId,
+		polkadot_primitives::v1::ValidationOutputs,
+		RuntimeApiSender<bool>,
+	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which

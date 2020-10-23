@@ -683,6 +683,10 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
+		// TODO: Adding a Runtime API should be backwards compatible... right?
+		/// Checks if the given validation outputs pass the acceptance criteria.
+		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
