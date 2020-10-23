@@ -76,21 +76,21 @@ westend-runtime = { path = "../../runtime/westend" }
 rococo-runtime = { package = "rococo-v1-runtime", path = "../../runtime/rococo-v1" }
 
 # Polkadot Subsystems
-polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution" }
-polkadot-availability-distribution = { path = "../network/availability-distribution" }
-polkadot-collator-protocol = { path = "../network/collator-protocol" }
-polkadot-network-bridge = { path = "../network/bridge" }
-polkadot-node-collation-generation = { path = "../collation-generation" }
-polkadot-node-core-av-store = { path = "../core/av-store", optional = true}
-polkadot-node-core-backing = { path = "../core/backing" }
-polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing" }
-polkadot-node-core-candidate-selection = { path = "../core/candidate-selection" }
-polkadot-node-core-candidate-validation = { path = "../core/candidate-validation" }
-polkadot-node-core-chain-api = { path = "../core/chain-api" }
-polkadot-node-core-provisioner = { path = "../core/provisioner" }
-polkadot-node-core-runtime-api = { path = "../core/runtime-api" }
-polkadot-pov-distribution = { path = "../network/pov-distribution" }
-polkadot-statement-distribution = { path = "../network/statement-distribution" }
+polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }
+polkadot-availability-distribution = { path = "../network/availability-distribution", optional = true }
+polkadot-collator-protocol = { path = "../network/collator-protocol", optional = true }
+polkadot-network-bridge = { path = "../network/bridge", optional = true }
+polkadot-node-collation-generation = { path = "../collation-generation", optional = true }
+polkadot-node-core-av-store = { path = "../core/av-store", optional = true }
+polkadot-node-core-backing = { path = "../core/backing", optional = true }
+polkadot-node-core-bitfield-signing = { path = "../core/bitfield-signing", optional = true }
+polkadot-node-core-candidate-selection = { path = "../core/candidate-selection", optional = true }
+polkadot-node-core-candidate-validation = { path = "../core/candidate-validation", optional = true }
+polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
+polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
+polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
+polkadot-pov-distribution = { path = "../network/pov-distribution", optional = true }
+polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 
 [dev-dependencies]
 polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
@@ -102,5 +102,19 @@ default = ["db", "full-node"]
 db = ["service/db"]
 runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = [
+	"polkadot-availability-bitfield-distribution",
+	"polkadot-availability-distribution",
+	"polkadot-collator-protocol",
+	"polkadot-network-bridge",
+	"polkadot-node-collation-generation",
 	"polkadot-node-core-av-store",
+	"polkadot-node-core-backing",
+	"polkadot-node-core-bitfield-signing",
+	"polkadot-node-core-candidate-selection",
+	"polkadot-node-core-candidate-validation",
+	"polkadot-node-core-chain-api",
+	"polkadot-node-core-provisioner",
+	"polkadot-node-core-runtime-api",
+	"polkadot-pov-distribution",
+	"polkadot-statement-distribution",
 ]
