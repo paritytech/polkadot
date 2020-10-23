@@ -689,7 +689,7 @@ sp_api::decl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session. 
+		/// Currently this request is limited to validators in the current session.
 		///
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
