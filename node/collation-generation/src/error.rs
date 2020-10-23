@@ -14,19 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use thiserror::Error;
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
-	#[from]
-	Subsystem(polkadot_node_subsystem::SubsystemError),
-	#[from]
-	OneshotRecv(futures::channel::oneshot::Canceled),
-	#[from]
-	Runtime(polkadot_node_subsystem::errors::RuntimeApiError),
-	#[from]
-	Util(polkadot_node_subsystem_util::Error),
-	#[from]
-	Erasure(polkadot_erasure_coding::Error),
+	#[error(transparent)]
+	Subsystem(#[from] polkadot_node_subsystem::SubsystemError),
+	#[error(transparent)]
+	OneshotRecv(#[from] futures::channel::oneshot::Canceled),
+	#[error(transparent)]
+	Runtime(#[from] polkadot_node_subsystem::errors::RuntimeApiError),
+	#[error(transparent)]
+	Util(#[from] polkadot_node_subsystem_util::Error),
+	#[error(transparent)]
+	Erasure(#[from] polkadot_erasure_coding::Error),
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

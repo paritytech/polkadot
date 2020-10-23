@@ -30,6 +30,7 @@ use primitives::v0::{self, Hash as H256, BlakeTwo256, HashT};
 use primitives::v1;
 use sp_core::Blake2Hasher;
 use trie::{EMPTY_PREFIX, MemoryDB, Trie, TrieMut, trie_types::{TrieDBMut, TrieDB}};
+use thiserror::Error;
 
 use self::wrapped_shard::WrappedShard;
 
@@ -39,7 +40,7 @@ mod wrapped_shard;
 const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 
 /// Errors in erasure coding.
-#[derive(Debug, Clone, PartialEq, derive_more::Display)]
+#[derive(Debug, Clone, PartialEq, Error)]
 pub enum Error {
 	/// Returned when there are too many validators.
 	TooManyValidators,
@@ -56,7 +57,7 @@ pub enum Error {
 	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
 	UnevenLength,
 	/// Chunk index out of bounds.
-	#[display(fmt = "Chunk is out of bounds: {} {}", _0, _1)]
+	#[error("Chunk is out of bounds: {0}..={1}")]
 	ChunkIndexOutOfBounds(usize, usize),
 	/// Bad payload in reconstructed bytes.
 	BadPayload,
@@ -65,8 +66,6 @@ pub enum Error {
 	/// Branch out of bounds.
 	BranchOutOfBounds,
 }
-
-impl std::error::Error for Error { }
 
 #[derive(Debug, PartialEq)]
 struct CodeParams {

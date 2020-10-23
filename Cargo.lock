@@ -1121,20 +1121,6 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a141330240c921ec6d074a3e188a7c7ef95668bb95e7d44fa0e5778ec2a7afe"
-dependencies = [
- "lazy_static",
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "regex",
- "rustc_version",
- "syn 0.15.44",
-]
-
-[[package]]
-name = "derive_more"
 version = "0.99.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41cb0e6161ad61ed084a36ba71fbba9e3ac5aee3606fb607fe08da6acbcf3d8c"
@@ -4880,12 +4866,12 @@ dependencies = [
 name = "polkadot-erasure-coding"
 version = "0.8.25"
 dependencies = [
- "derive_more 0.15.0",
  "parity-scale-codec",
  "polkadot-primitives",
  "reed-solomon-erasure",
  "sp-core",
  "sp-trie",
+ "thiserror",
 ]
 
 [[package]]
@@ -4915,7 +4901,6 @@ dependencies = [
 name = "polkadot-node-collation-generation"
 version = "0.1.0"
 dependencies = [
- "derive_more 0.99.11",
  "futures 0.3.5",
  "log 0.4.11",
  "polkadot-erasure-coding",
@@ -4925,6 +4910,7 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
+ "thiserror",
 ]
 
 [[package]]
