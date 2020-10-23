@@ -20,6 +20,9 @@
 //! according to a validation function. This delegates validation to an underlying
 //! pool of processes used for execution of the Wasm.
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
 	FromOverseer, OverseerSignal,
@@ -118,7 +121,8 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = run(ctx, self.spawn, self.metrics)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-			.map(|_| ()).boxed();
+			.map(|_| ())
+			.boxed();
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
 			future,

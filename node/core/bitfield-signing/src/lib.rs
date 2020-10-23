@@ -16,6 +16,9 @@
 
 //! The bitfield signing subsystem produces `SignedAvailabilityBitfield`s once per block.
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use bitvec::bitvec;
 use futures::{
 	channel::{mpsc, oneshot},

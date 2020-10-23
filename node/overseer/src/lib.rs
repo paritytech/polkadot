@@ -54,6 +54,9 @@
 //!             ..................................................................
 //! ```
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use std::fmt::Debug;
 use std::pin::Pin;
 use std::sync::Arc;
@@ -95,9 +98,6 @@ const CHANNEL_CAPACITY: usize = 1024;
 const STOP_DELAY: u64 = 1;
 // Target for logs.
 const LOG_TARGET: &'static str = "overseer";
-
-/// A universal helper type for the overseer.
-pub use color_eyre::eyre::Error as OverseerError;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
@@ -1287,7 +1287,7 @@ where
 
 		for (hash, number) in leaves.into_iter() {
 			update.activated.push(hash);
-			self.active_leaves.insert(hash, number);
+			let _ = self.active_leaves.insert(hash, number);
 			self.on_head_activated(&hash);
 		}
 
@@ -1355,7 +1355,7 @@ where
 		match self.active_leaves.entry(block.hash) {
 			hash_map::Entry::Vacant(entry) => {
 				update.activated.push(block.hash);
-				entry.insert(block.number);
+				let _ = entry.insert(block.number);
 				self.on_head_activated(&block.hash);
 			},
 			hash_map::Entry::Occupied(entry) => {
@@ -1606,7 +1606,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	spawner.spawn(name, fut);
 
-	streams.push(from_rx);
+	let _ = streams.push(from_rx);
 	futures.push(Box::pin(rx.map(|e| { log::warn!("Dropping error {:?}", e); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {

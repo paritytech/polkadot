@@ -16,6 +16,9 @@
 
 //! Network protocol types for parachains.
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_primitives::v1::Hash;
 use parity_scale_codec::{Encode, Decode};
 use std::convert::TryFrom;

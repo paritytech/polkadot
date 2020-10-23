@@ -27,6 +27,9 @@
 //! * Last finalized block number
 //! * Ancestors
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
 	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,

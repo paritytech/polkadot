@@ -16,6 +16,8 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
+#![deny(unused_extern_crates, unused_results)]
+
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;

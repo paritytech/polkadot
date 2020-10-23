@@ -20,6 +20,8 @@
 //! for a particular relay parent.
 //! Independently of that, gossips on received messages from peers to other interested peers.
 
+#![deny(unused_extern_crates, unused_results)]
+
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 

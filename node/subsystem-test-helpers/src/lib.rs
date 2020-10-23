@@ -16,6 +16,9 @@
 
 //! Utilities for testing subsystems.
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
 	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,

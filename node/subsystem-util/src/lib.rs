@@ -22,6 +22,8 @@
 //!
 //! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
+#![deny(unused_extern_crates, unused_results)]
+#![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -650,7 +652,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			outgoing_msgs_handle,
 		};
 
-		self.running.insert(parent_hash, handle);
+		let _ = self.running.insert(parent_hash, handle);
 
 		Ok(())
 	}
@@ -659,7 +661,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	pub async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
 		match self.running.remove(&parent_hash) {
 			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
+				let _ = Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
 				handle.stop().await;
 				Ok(())
 			}
@@ -1044,6 +1046,8 @@ pub struct Timeout<F: Future> {
 
 /// Extends `Future` to allow time-limited futures.
 pub trait TimeoutExt: Future {
+	/// Adds a timeout of `duration` to the given `Future`.
+	/// Returns a new `Future`.
 	fn timeout(self, duration: Duration) -> Timeout<Self>
 	where
 		Self: Sized,

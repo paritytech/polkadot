@@ -22,7 +22,8 @@
 //! peers. Verified in this context means, the erasure chunks contained merkle proof
 //! is checked.
 
-#[deny(unused_extern_crates, unused_results, unused_qualifications)]
+#![deny(unused_extern_crates, unused_results, unused_qualifications)]
+
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
 
@@ -51,6 +52,7 @@ use polkadot_subsystem::{
 use std::collections::{HashMap, HashSet};
 use std::iter;
 use thiserror::Error;
+
 const TARGET: &'static str = "avad";
 
 #[derive(Debug, Error)]
