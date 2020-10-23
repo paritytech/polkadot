@@ -149,7 +149,7 @@ pub enum SubsystemError {
 impl SubsystemError {
 	/// Adds a `str` as `origin` to the given error `err`.
 	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
-		Self::FromOrigin{ origin, source: Box::new(err) }
+		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
 
