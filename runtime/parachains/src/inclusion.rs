@@ -737,6 +737,7 @@ mod tests {
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();
 		config.parathread_cores = 1;
+		config.max_code_size = 3;
 		config
 	}
 
