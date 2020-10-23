@@ -1172,10 +1172,10 @@ mod tests {
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
-	#[derive(Debug, derive_more::From)]
+	#[derive(Debug, Error)]
 	enum Error {
-		#[from]
-		Sending(mpsc::SendError),
+		#[error(transparent)]
+		Sending(#[from]mpsc::SendError),
 	}
 
 	impl JobTrait for FakeCandidateSelectionJob {

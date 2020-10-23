@@ -16,16 +16,20 @@
 
 //! Errors that can occur during the validation process.
 
+use thiserror::Error;
+
 /// Error type for validation
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// Client error
-	Client(sp_blockchain::Error),
+	#[error(transparent)]
+	Client(#[from] sp_blockchain::Error),
 	/// Consensus error
-	Consensus(consensus::error::Error),
+	#[error(transparent)]
+	Consensus(#[from] consensus::error::Error),
 	/// Unexpected error checking inherents
-	#[display(fmt = "Unexpected error while checking inherents: {}", _0)]
-	InherentError(inherents::Error),
+	#[error("Unexpected error while checking inherents: {0}")]
+	InherentError(#[from] inherents::Error),
 }
 
 impl std::error::Error for Error {
