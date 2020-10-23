@@ -216,6 +216,15 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 	)
 }
 
+/// Implementation for the `check_validation_outputs` function of the runtime API.
+pub fn check_validation_outputs<T: initializer::Trait>(
+	para_id: ParaId,
+	outputs: primitives::v1::ValidationOutputs,
+) -> bool {
+	// we strip detailed information from error here for the sake of simplicity of runtime API.
+	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs).is_ok()
+}
+
 /// Implementation for the `session_index_for_child` function of the runtime API.
 pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
 	// Just returns the session index from `inclusion`. Runtime APIs follow
