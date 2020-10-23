@@ -23,7 +23,10 @@ mod client;
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use log::info;
+#[cfg(feature = "full-node")]
 use polkadot_node_core_av_store::Config as AvailabilityConfig;
+#[cfg(not(feature = "full-node"))]
+use polkadot_subsystem::DummySubsystem;
 use polkadot_node_core_proposer::ProposerFactory;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
 use polkadot_primitives::v1::ParachainHost;
@@ -276,6 +279,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	keystore: SyncCryptoStorePtr,
 	runtime_client: Arc<RuntimeClient>,
+	#[cfg(feature = "full-node")]
 	availability_config: AvailabilityConfig,
 	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
 	authority_discovery: AuthorityDiscoveryService,
@@ -290,6 +294,7 @@ where
 	use polkadot_node_subsystem_util::metrics::Metrics;
 
 	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+	#[cfg(feature = "full-node")]
 	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
 	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
 	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
@@ -310,10 +315,13 @@ where
 			keystore.clone(),
 			Metrics::register(registry)?,
 		),
+		#[cfg(feature = "full-node")]
 		availability_store: AvailabilityStoreSubsystem::new_on_disk(
 			availability_config,
 			Metrics::register(registry)?,
 		)?,
+		#[cfg(not(feature = "full-node"))]
+		availability_store: DummySubsystem,
 		bitfield_distribution: BitfieldDistributionSubsystem::new(
 			Metrics::register(registry)?,
 		),
