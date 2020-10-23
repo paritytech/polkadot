@@ -119,6 +119,8 @@ pub struct FromTableMisbehavior {
 pub enum InvalidCandidate {
 	/// Failed to execute.`validate_block`. This includes function panicking.
 	ExecutionError(String),
+	/// Validation outputs check doesn't pass.
+	InvalidOutputs,
 	/// Execution timeout.
 	Timeout,
 	/// Validation input is over the limit.
@@ -133,12 +135,6 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
-	/// Output code is too large
-	NewCodeTooLarge(u64),
-	/// Head-data is over the limit.
-	HeadDataTooLarge(u64),
-	/// Code upgrade triggered but not allowed.
-	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.
