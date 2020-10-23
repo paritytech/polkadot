@@ -4,6 +4,9 @@ search_dirs = ["."]
 extra_dictionaries = ["lingua.dic"]
 
 [hunspell.quirks]
-transform_regex = ["^'([^\\s])'$", "^[0-9]+x$"]
+# `Type`'s
+# 5x
+# He tagged it as 'TheGreatestOfAllTimes'
+transform_regex = ["^'([^\\s])'$", "^[0-9]+(?:\\.[0-9]*)?x$", "^'s$"]
 allow_concatenation = true
 allow_dashes = true
