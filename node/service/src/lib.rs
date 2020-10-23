@@ -22,31 +22,32 @@ mod client;
 
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
-use log::info;
 #[cfg(feature = "full-node")]
-use polkadot_node_core_av_store::Config as AvailabilityConfig;
-#[cfg(not(feature = "full-node"))]
-use polkadot_subsystem::DummySubsystem;
-use polkadot_node_core_proposer::ProposerFactory;
-use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
-use polkadot_primitives::v1::ParachainHost;
+use {
+	std::convert::TryInto,
+	std::time::Duration,
+
+	log::info,
+	polkadot_node_core_av_store::Config as AvailabilityConfig,
+	polkadot_node_core_proposer::ProposerFactory,
+	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
+	polkadot_primitives::v1::ParachainHost,
+	authority_discovery::Service as AuthorityDiscoveryService,
+	sp_blockchain::HeaderBackend,
+	sp_core::traits::SpawnNamed,
+	sp_keystore::SyncCryptoStorePtr,
+	sp_trie::PrefixedMemoryDB,
+	sc_client_api::ExecutorProvider,
+};
+
+use std::sync::Arc;
+
 use prometheus_endpoint::Registry;
-use authority_discovery::Service as AuthorityDiscoveryService;
-use sc_client_api::ExecutorProvider;
 use sc_executor::native_executor_instance;
 use service::RpcHandlers;
-use sp_blockchain::HeaderBackend;
-use sp_core::traits::SpawnNamed;
-use sp_keystore::SyncCryptoStorePtr;
-use sp_trie::PrefixedMemoryDB;
-use std::convert::TryInto;
-use std::sync::Arc;
-use std::time::Duration;
 
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
-#[cfg(feature = "full-node")]
-pub use codec::Codec;
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
 pub use polkadot_parachain::wasm_executor::run_worker as run_validation_worker;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
