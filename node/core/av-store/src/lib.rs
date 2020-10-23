@@ -450,7 +450,12 @@ where
 {
 	let ctx = &mut ctx;
 	loop {
-		let pov_pruning_time = subsystem.maybe_prune_povs()?;
+		// Every time the following two methods are called a read from DB is performed.
+		// But given that these are very small values which are essentially a newtype
+		// wrappers around `Duration` (`NextChunkPruning` and `NextPoVPruning`) and also the
+		// fact of the frequent reads itself we assume these to end up cached in the memory
+		// anyway and thus these db reads to be reasonably fast.
+	 	let pov_pruning_time = subsystem.maybe_prune_povs()?;
 		let chunk_pruning_time = subsystem.maybe_prune_chunks()?;
 
 		let mut pov_pruning_time = pov_pruning_time.fuse();
