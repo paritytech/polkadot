@@ -97,7 +97,7 @@ const STOP_DELAY: u64 = 1;
 const LOG_TARGET: &'static str = "overseer";
 
 /// A universal helper type for the overseer.
-pub use eyre::Error as OverseerError;
+pub use color_eyre::eyre::Error as OverseerError;
 
 /// A type of messages that are sent from [`Subsystem`] to [`Overseer`].
 ///
