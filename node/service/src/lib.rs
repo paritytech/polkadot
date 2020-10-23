@@ -446,6 +446,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
 
 		let proposer = ProposerFactory::new(
+			task_manager.spawn_handle(),
 			client.clone(),
 			transaction_pool,
 			overseer_handler.clone(),

@@ -1,97 +1,45 @@
-# Release Checklist
+Polkadot Release Process
+------------------------
 
-The following checks should be completed before publishing a new release of the
-Polkadot/Kusama/Westend runtime or client.
+### Branches
+* release-candidate branch: The branch used for staging of the next release.
+  Named like `release-v0.8.26` 
+* release branch: The branch to which successful release-candidates are merged
+  and tagged with the new version. Named literally `release`.
 
-### Runtime Releases
+### Notes
+* The release-candidate branch *must* be made in the paritytech/polkadot repo in
+order for release automation to work correctly
+* Any new pushes/merges to the release-candidate branch (for example, 
+refs/heads/release-v0.8.26) will result in the rc index being bumped (e.g., v0.8.26-rc1
+to v0.8.26-rc2) and new wasms built.
 
-The following should be done *prior* to tagging the potential release. Upon
-completion, tag the commit and proceed with the [All Releases](#all-releases) steps.
+### Release workflow
 
-- [ ] List any [native runtime](#native-runtimes) versions associated with the release.
-- [ ] Has incremented  [`spec_version`](#spec-version) for any native runtimes from any existing use on public (non-private/test) networks.
-- [ ] Verify [new migrations](#new-migrations) complete successfully, and the runtime state is
-  correctly updated.
-- [ ] Verify previously [completed migrations](#old-migrations-removed) are removed.
-- [ ] Verify pallet and [extrinsic ordering](#extrinsic-ordering) has stayed the same. Bump
-  `transaction_version` if not.
-- [ ] Verify new extrinsics have been correctly whitelisted/blacklisted for
-  [proxy filters](#proxy-filtering).
-- [ ] Verify [benchmarks](#benchmarks) have been updated for any modified runtime logic.
-- [ ] Verify [Polkadot JS API](#polkadot-js) are up to date with the latest runtime changes.
+Below are the steps of the release workflow. Steps prefixed with NOACTION are
+automated and require no human action.
 
-### All Releases
-
-- [ ] Check that the new client versions have [run on the network](#burn-in) without issue for 12
-  hours.
-- [ ] Check that a draft release has been created at https://github.com/paritytech/polkadot/releases with relevant [release notes](#release-notes)
-- [ ] Check that [build artifacts](#build-artifacts) have been added to the draft-release
-- [ ] Check that you have updated the Cargo.toml version.
-
-## Notes
-
-### Burn In
-
-Ensure that Parity DevOps has run the new release on Westend, Kusama, and Polkadot validators for
-at least 12 hours prior to publishing the release.
-
-### Build Artifacts
-
-Add any necessary assets to the release. They should include:
-
-- Linux binary
-- GPG signature of the Linux binary
-- SHA256 of binary
-- Source code
-- Wasm binaries of any runtimes
-
-### Release notes
-
-The release notes should list:
-
-- The priority of the release (i.e., how quickly users should upgrade)
-- Which native runtimes and their versions are included
-- The proposal hashes of the runtimes as built with [srtool](https://gitlab.com/chevdor/srtool)
-
-The release notes may also list:
-
-- Free text at the beginning of the notes mentioning anything important regarding this release
-- Notable changes (those labelled with B[1-9]-* labels) separated into sections
-
-### Spec Version
-
-A runtime upgrade must bump the spec number. This may follow a pattern with the client release
-(e.g. runtime v12 corresponds to v0.8.12, even if the current runtime is not v11).
-
-### New Migrations
-
-Ensure that any migrations that are required due to storage or logic changes are included in the
-`on_runtime_upgrade` function of the appropriate pallets.
-
-### Old Migrations Removed
-
-Any previous `on_runtime_upgrade` functions from old upgrades must be removed to prevent them from
-executing a second time.
-
-### Extrinsic Ordering
-
-Offline signing libraries depend on a consistent ordering of call indices and functions. Compare
-the metadata of the current and new runtimes and ensure that the `module index, call index` tuples
-map to the same set of functions. In case of a breaking change, increase `transaction_version`.
-
-Note: Adding new functions to the runtime does not constitute a breaking change as long as they are
-added to the end of a pallet (i.e., does not break any other call index).
-
-### Proxy Filtering
-
-The runtime contains proxy filters that map proxy types to allowable calls. If the new runtime
-contains any new calls, verify that the proxy filters are up to date to include them.
-
-### Benchmarks
-
-Run the benchmarking suite with the new runtime and update any function weights if necessary.
-
-### Polkadot JS
-
-Ensure that a release of [Polkadot JS API]() contains any new types or interfaces necessary to
-interact with the new runtime.
+1. To initiate the release process, branch master off to a release branch and push it to Github:
+  - `git checkout master; git pull; git checkout -b release-v0.8.26; git push origin refs/heads/release-v0.8.26`
+2. NOACTION: The current HEAD of the release-candidate branch is tagged `v0.8.26-rc1`
+3. NOACTION: A draft release and runtime WASMs are created for this
+  release-candidate automatically. A link to the draft release will be linked in
+  the internal polkadot matrix channel.
+4. NOACTION: A new Github issue is created containing a checklist of manual
+  steps to be completed before we are confident with the release. This will be
+  linked in Matrix.
+5. Complete the steps in the issue created in step 4, signing them off as
+  completed
+6. (optional) If a fix is required to the release-candidate:
+  1. Merge the fix with `master` first
+  2. Checkout the release-candidate branch and merge `master`
+  3. Revert all changes since the creation of the release-candidate that are
+  **not** required for the fix.
+  4. Push the release-candidate branch to Github - this is now the new release-
+  candidate
+7. Once happy with the release-candidate, perform the release using the release
+  script located at `scripts/release.sh` (or perform the steps in that script
+  manually):
+  - `./scripts/release.sh v0.8.26`
+8. NOACTION: The HEAD of the `release` branch will be tagged with `v0.8.26`,
+  and a final release will be created on Github.

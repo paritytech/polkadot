@@ -19,8 +19,8 @@
 use sp_std::{prelude::*, fmt::Debug};
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{
-	decl_event, decl_storage, decl_module, decl_error, ensure, dispatch::IsSubType,
-	traits::{Currency, Get, VestingSchedule, EnsureOrigin}, weights::{Pays, DispatchClass}
+	decl_event, decl_storage, decl_module, decl_error, ensure,
+	traits::{Currency, Get, VestingSchedule, EnsureOrigin, IsSubType}, weights::{Pays, DispatchClass}
 };
 use frame_system::{ensure_signed, ensure_root, ensure_none};
 use codec::{Encode, Decode};
