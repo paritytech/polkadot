@@ -1,0 +1,9 @@
+[hunspell]
+lang = "en_US"
+search_dirs = ["."]
+extra_dictionaries = ["lingua.dic"]
+
+[hunspell.quirks]
+transform_regex = ["^'([^\\s])'$", "^[0-9]+x$"]
+allow_concatenation = true
+allow_dashes = true
