@@ -445,8 +445,7 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_node_primitives::ValidationOutputs;
-	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData};
+	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData, ValidationOutputs};
 	use sp_core::crypto::Public;
 
 	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(

@@ -32,10 +32,10 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
+use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, ValidationData, PersistedValidationData,
-	TransientValidationData, OccupiedCoreAssumption, Hash,
+	TransientValidationData, OccupiedCoreAssumption, Hash, ValidationOutputs,
 };
 use polkadot_parachain::wasm_executor::{
 	self, ValidationPool, ExecutionMode, ValidationError,

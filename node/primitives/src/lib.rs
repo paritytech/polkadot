@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId,
+	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -112,21 +112,6 @@ pub struct FromTableMisbehavior {
 	pub signing_context: SigningContext,
 	/// Misbehaving validator's public key.
 	pub key: ValidatorId,
-}
-
-/// Outputs of validating a candidate.
-#[derive(Debug)]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// The persisted validation data.
-	pub validation_data: PersistedValidationData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	pub fees: Balance,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Candidate invalidity details

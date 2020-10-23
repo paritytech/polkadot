@@ -303,6 +303,23 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub code_upgrade_allowed: Option<N>,
 }
 
+/// Outputs of validating a candidate.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
+pub struct ValidationOutputs {
+	/// The head-data produced by validation.
+	pub head_data: HeadData,
+	/// Upward messages to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	pub fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	pub new_validation_code: Option<ValidationCode>,
+
+	// TODO: Will be removed in the forthcoming commits
+	pub validation_data: PersistedValidationData,
+}
+
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
