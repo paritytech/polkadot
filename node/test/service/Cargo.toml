@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-test-service"
-version = "0.8.2"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -13,13 +13,13 @@ rand = "0.7.3"
 tempfile = "3.1.0"
 
 # Polkadot dependencies
-polkadot-overseer = { path = "../overseer" }
-polkadot-primitives = { path = "../../primitives" }
-polkadot-rpc = { path = "../../rpc" }
-polkadot-runtime-common = { path = "../../runtime/common" }
-polkadot-service = { path = "../service" }
-polkadot-test-runtime = { path = "../../runtime/test-runtime" }
-polkadot-runtime-parachains = { path = "../../runtime/parachains" }
+polkadot-overseer = { path = "../../overseer" }
+polkadot-primitives = { path = "../../../primitives" }
+polkadot-rpc = { path = "../../../rpc" }
+polkadot-runtime-common = { path = "../../../runtime/common" }
+polkadot-service = { path = "../../service" }
+polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
+polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
 authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -32,6 +32,7 @@ grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytec
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
