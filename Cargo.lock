@@ -4951,7 +4951,7 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "derive_more 0.99.11",
- "env_logger",
+ "env_logger 0.7.1",
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "kvdb",
