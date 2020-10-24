@@ -27,30 +27,30 @@ pub trait InitPolkadotBlockBuilder {
 	/// Init a Polkadot specific block builder that works for the test runtime.
 	///
 	/// This will automatically create and push the inherents for you to make the block valid for the test runtime.
-	fn init_polkadot_block_builder<'a>(&'a self) -> sc_block_builder::BlockBuilder<'a, Block, Client, FullBackend>;
+	fn init_polkadot_block_builder(&self) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 
 	/// Init a Polkadot specific block builder at a specific block that works for the test runtime.
 	///
 	/// Same as [`InitPolkadotBlockBuilder::init_polkadot_block_builder`] besides that it takes a [`BlockId`] to say
 	/// which should be the parent block of the block that is being build.
-	fn init_polkadot_block_builder_at<'a>(
-		&'a self,
+	fn init_polkadot_block_builder_at(
+		&self,
 		at: &BlockId<Block>,
-	) -> sc_block_builder::BlockBuilder<'a, Block, Client, FullBackend>;
+	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 }
 
 impl InitPolkadotBlockBuilder for Client {
-	fn init_polkadot_block_builder<'a>(
-		&'a self,
-	) -> sc_block_builder::BlockBuilder<'a, Block, Client, FullBackend> {
+	fn init_polkadot_block_builder(
+		&self,
+	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend> {
 		let chain_info = self.chain_info();
 		self.init_polkadot_block_builder_at(&BlockId::Hash(chain_info.best_hash))
 	}
 
-	fn init_polkadot_block_builder_at<'a>(
-		&'a self,
+	fn init_polkadot_block_builder_at(
+		&self,
 		at: &BlockId<Block>,
-	) -> sc_block_builder::BlockBuilder<'a, Block, Client, FullBackend> {
+	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend> {
 		let mut block_builder = self.new_block_at(at, Default::default(), false)
 			.expect("Creates new block builder for test runtime");
 
