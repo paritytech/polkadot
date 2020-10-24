@@ -61,7 +61,7 @@ impl InitPolkadotBlockBuilder for Client {
 			.expect("Get last timestamp");
 
 		// `MinimumPeriod` is a storage parameter type that requires externalities to access the value.
-		let minimum_period= BasicExternalities::new_empty()
+		let minimum_period = BasicExternalities::new_empty()
 			.execute_with(|| polkadot_test_runtime::MinimumPeriod::get());
 
 		let timestamp = last_timestamp + minimum_period;
