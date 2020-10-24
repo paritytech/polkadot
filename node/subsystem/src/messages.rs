@@ -36,7 +36,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	TransientValidationData, ValidationCode, ValidatorId, ValidationData,
+	ValidationCode, ValidatorId, ValidationData,
 	ValidatorIndex, ValidatorSignature,
 };
 use std::sync::Arc;
@@ -115,6 +115,8 @@ pub enum CandidateValidationMessage {
 	/// from the runtime API of the chain, based on the `relay_parent`
 	/// of the `CandidateDescriptor`.
 	///
+	/// This will also perform checking of validation outputs against the acceptance criteria.
+	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
 	ValidateFromChainState(
@@ -125,11 +127,14 @@ pub enum CandidateValidationMessage {
 	/// Validate a candidate with provided, exhaustive parameters for validation.
 	///
 	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
-	/// validation without needing to access the state of the relay-chain. Optionally provide the
-	/// `TransientValidationData` for further checks on the outputs.
+	/// validation without needing to access the state of the relay-chain.
+	///
+	/// This request doesn't involve acceptance criteria checking, therefore only useful for the
+	/// cases where the validity of the candidate is established. This is the case for the typical
+	/// use-case: secondary checkers would use this request relying on the full prior checks
+	/// performed by the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
 		Arc<PoV>,
@@ -142,7 +147,7 @@ impl CandidateValidationMessage {
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
 			Self::ValidateFromChainState(_, _, _) => None,
-			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _) => None,
 		}
 	}
 }
@@ -401,6 +406,12 @@ pub enum RuntimeApiRequest {
 		ParaId,
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationData>>,
+	),
+	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
+	CheckValidationOutputs(
+		ParaId,
+		polkadot_primitives::v1::ValidationOutputs,
+		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),
