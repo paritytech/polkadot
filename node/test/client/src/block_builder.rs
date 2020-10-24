@@ -15,12 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{Client, FullBackend};
-use polkadot_test_runtime::GetLastTimestamp;
+use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
 use polkadot_primitives::v1::Block;
 use sp_runtime::generic::BlockId;
 use sp_api::ProvideRuntimeApi;
-use sc_block_builder::BlockBuilderProvider;
+use sc_block_builder::{BlockBuilderProvider, BlockBuilder};
 use sp_state_machine::BasicExternalities;
+use codec::{Encode, Decode};
 
 /// An extension for the test client to init a Polkadot specific block builder.
 pub trait InitPolkadotBlockBuilder {
@@ -42,7 +43,7 @@ pub trait InitPolkadotBlockBuilder {
 impl InitPolkadotBlockBuilder for Client {
 	fn init_polkadot_block_builder(
 		&self,
-	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend> {
+	) -> BlockBuilder<Block, Client, FullBackend> {
 		let chain_info = self.chain_info();
 		self.init_polkadot_block_builder_at(&BlockId::Hash(chain_info.best_hash))
 	}
@@ -50,7 +51,7 @@ impl InitPolkadotBlockBuilder for Client {
 	fn init_polkadot_block_builder_at(
 		&self,
 		at: &BlockId<Block>,
-	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend> {
+	) -> BlockBuilder<Block, Client, FullBackend> {
 		let mut block_builder = self.new_block_at(at, Default::default(), false)
 			.expect("Creates new block builder for test runtime");
 
@@ -75,5 +76,27 @@ impl InitPolkadotBlockBuilder for Client {
 		inherents.into_iter().for_each(|ext| block_builder.push(ext).expect("Pushes inherent"));
 
 		block_builder
+	}
+}
+
+/// Polkadot specific extensions for the [`BlockBuilder`].
+pub trait BlockBuilderExt {
+	/// Push a Polkadot test runtime specific extrinsic to the block.
+	///
+	/// This will internally use the [`BlockBuilder::push`] method, but this method expects a opaque extrinsic. So,
+	/// we provide this wrapper which converts a test runtime specific extrinsic to a opaque extrinsic and pushes it to
+	/// the block.
+	///
+	/// Returns the result of the application of the extrinsic.
+	fn push_polkadot_extrinsic(&mut self, ext: UncheckedExtrinsic) -> Result<(), sp_blockchain::Error>;
+}
+
+impl BlockBuilderExt for BlockBuilder<'_, Block, Client, FullBackend> {
+	fn push_polkadot_extrinsic(&mut self, ext: UncheckedExtrinsic) -> Result<(), sp_blockchain::Error> {
+		let encoded = ext.encode();
+		self.push(
+			Decode::decode(&mut &encoded[..])
+				.expect("The runtime specific extrinsic always decodes to an opaque extrinsic; qed"),
+		)
 	}
 }

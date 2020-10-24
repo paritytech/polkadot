@@ -96,4 +96,22 @@ mod tests{
 
 		client.import(BlockOrigin::Own, block).expect("Imports the block");
 	}
+
+	#[test]
+	fn ensure_test_client_can_push_extrinsic() {
+		let mut client = TestClientBuilder::new().build();
+
+		let transfer = construct_transfer_extrinsic(
+			&client,
+			sp_keyring::Sr25519Keyring::Alice,
+			sp_keyring::Sr25519Keyring::Bob,
+			1000,
+		);
+		let mut block_builder = client.init_polkadot_block_builder();
+		block_builder.push_polkadot_extrinsic(transfer).expect("Pushes extrinsic");
+
+		let block = block_builder.build().expect("Finalizes the block").block;
+
+		client.import(BlockOrigin::Own, block).expect("Imports the block");
+	}
 }

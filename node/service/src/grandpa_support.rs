@@ -249,15 +249,12 @@ mod tests {
 
 		let mut push_blocks = {
 			let mut client = client.clone();
-			let mut base = 0;
 
 			move |n| {
-				for i in 0..n {
+				for _ in 0..n {
 					let block = client.init_polkadot_block_builder().build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
-
-				base += n;
 			}
 		};
 

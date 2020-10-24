@@ -5604,6 +5604,7 @@ dependencies = [
 name = "polkadot-test-client"
 version = "0.8.25"
 dependencies = [
+ "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-runtime",
  "polkadot-test-service",
@@ -5611,9 +5612,11 @@ dependencies = [
  "sc-consensus",
  "sc-service",
  "sp-api",
+ "sp-blockchain",
  "sp-consensus",
  "sp-core",
  "sp-inherents",
+ "sp-keyring",
  "sp-runtime",
  "sp-state-machine",
  "sp-timestamp",
