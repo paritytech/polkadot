@@ -26,7 +26,7 @@ use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId,
+	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -114,26 +114,13 @@ pub struct FromTableMisbehavior {
 	pub key: ValidatorId,
 }
 
-/// Outputs of validating a candidate.
-#[derive(Debug)]
-pub struct ValidationOutputs {
-	/// The head-data produced by validation.
-	pub head_data: HeadData,
-	/// The persisted validation data.
-	pub validation_data: PersistedValidationData,
-	/// Upward messages to the relay chain.
-	pub upward_messages: Vec<UpwardMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	pub fees: Balance,
-	/// The new validation code submitted by the execution, if any.
-	pub new_validation_code: Option<ValidationCode>,
-}
-
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
 	/// Failed to execute.`validate_block`. This includes function panicking.
 	ExecutionError(String),
+	/// Validation outputs check doesn't pass.
+	InvalidOutputs,
 	/// Execution timeout.
 	Timeout,
 	/// Validation input is over the limit.
@@ -148,19 +135,14 @@ pub enum InvalidCandidate {
 	HashMismatch,
 	/// Bad collator signature.
 	BadSignature,
-	/// Output code is too large
-	NewCodeTooLarge(u64),
-	/// Head-data is over the limit.
-	HeadDataTooLarge(u64),
-	/// Code upgrade triggered but not allowed.
-	CodeUpgradeNotAllowed,
 }
 
 /// Result of the validation of the candidate.
 #[derive(Debug)]
 pub enum ValidationResult {
-	/// Candidate is valid. The validation process yields these outputs.
-	Valid(ValidationOutputs),
+	/// Candidate is valid. The validation process yields these outputs and the persisted validation
+	/// data used to form inputs.
+	Valid(ValidationOutputs, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid(InvalidCandidate),
 }

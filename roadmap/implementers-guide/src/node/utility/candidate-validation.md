@@ -24,7 +24,7 @@ Upon receiving a validation request, the first thing the candidate validation su
 
 ### Determining Parameters
 
-For a [`CandidateValidationMessage`][CVM]`::ValidateFromExhaustive`, these parameters are exhaustively provided. The [`TransientValidationData`](../../types/candidate.md#transientvalidationdata) is optional, and is used to perform further checks on the outputs of validation.
+For a [`CandidateValidationMessage`][CVM]`::ValidateFromExhaustive`, these parameters are exhaustively provided.
 
 For a [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`, some more work needs to be done. Due to the uncertainty of Availability Cores (implemented in the [`Scheduler`](../../runtime/scheduler.md) module of the runtime), a candidate at a particular relay-parent and for a particular para may have two different valid validation-data to be executed under depending on what is assumed to happen if the para is occupying a core at the onset of the new block. This is encoded as an `OccupiedCoreAssumption` in the runtime API.
 
@@ -40,9 +40,8 @@ Once we have all parameters, we can spin up a background task to perform the val
   * The collator signature is valid
   * The PoV provided matches the `pov_hash` field of the descriptor
 
-After that, we can invoke the validation function. Lastly, if available, we do some final checks on the output using the `TransientValidationData`:
-  * The produced head-data is no larger than the maximum allowed.
-  * The produced code upgrade, if any, is no larger than the maximum allowed, and a code upgrade was allowed to be signaled.
-  * The amount and size of produced upward messages is not too large.
+### Checking Validation Outputs
+
+If we can assume the presence of the relay-chain state (that is, during processing [`CandidateValidationMessage`][CVM]`::ValidateFromChainState`) we can run all the checks that the relay-chain would run at the inclusion time thus confirming that the candidate will be accepted.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype
