@@ -305,7 +305,18 @@ pub enum AvailabilityStoreMessage {
 	/// Store an `ErasureChunk` in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreChunk(Hash, ValidatorIndex, ErasureChunk, oneshot::Sender<Result<(), ()>>),
+	StoreChunk {
+		/// A hash of the candidate this chunk belongs to.
+		candidate_hash: Hash,
+		/// A relevant relay parent.
+		relay_parent: Hash,
+		/// The index of the validator this chunk belongs to.
+		validator_index: ValidatorIndex,
+		/// The chunk itself.
+		chunk: ErasureChunk,
+		/// Sending side of the channel to send result to.
+		tx: oneshot::Sender<Result<(), ()>>,
+	},
 
 	/// Store a `AvailableData` in the AV store.
 	/// If `ValidatorIndex` is present store corresponding chunk also.
@@ -315,15 +326,10 @@ pub enum AvailabilityStoreMessage {
 }
 
 impl AvailabilityStoreMessage {
-	/// If the current variant contains the relay parent hash, return it.
+	/// In fact, none of the AvailabilityStore messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
 		match self {
-			Self::QueryAvailableData(hash, _) => Some(*hash),
-			Self::QueryDataAvailability(hash, _) => Some(*hash),
-			Self::QueryChunk(hash, _, _) => Some(*hash),
-			Self::QueryChunkAvailability(hash, _, _) => Some(*hash),
-			Self::StoreChunk(hash, _, _, _) => Some(*hash),
-			Self::StoreAvailableData(hash, _, _, _, _) => Some(*hash),
+			_ => None,
 		}
 	}
 }
