@@ -117,8 +117,13 @@ where
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {
-								hash = header.parent_hash;
-								Some(Ok(hash))
+								// stop at the genesis header.
+								if header.number == 1 {
+									None
+								} else {
+									hash = header.parent_hash;
+									Some(Ok(hash))
+								}
 							}
 						}
 					});

@@ -5033,6 +5033,7 @@ dependencies = [
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
+ "sp-arithmetic",
  "sp-blockchain",
  "sp-core",
 ]
