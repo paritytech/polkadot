@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Chain specifications for the test runtime.
+
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use pallet_staking::Forcing;
@@ -21,22 +23,22 @@ use polkadot_primitives::v0::{ValidatorId, AccountId};
 use polkadot_service::chain_spec::{get_account_id_from_seed, get_from_seed, Extensions};
 use polkadot_test_runtime::constants::currency::DOTS;
 use sc_chain_spec::{ChainSpec, ChainType};
-use sp_core::{sr25519, ChangesTrieConfiguration};
+use sp_core::sr25519;
 use sp_runtime::Perbill;
 
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
-/// The `ChainSpec parametrised for polkadot runtime`.
+/// The `ChainSpec` parametrized for polkadot test runtime.
 pub type PolkadotChainSpec =
 	service::GenericChainSpec<polkadot_test_runtime::GenesisConfig, Extensions>;
 
-/// Polkadot local testnet config (multivalidator Alice + Bob)
+/// Local testnet config (multivalidator Alice + Bob)
 pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 	PolkadotChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		|| polkadot_local_testnet_genesis(None),
+		|| polkadot_local_testnet_genesis(),
 		vec![],
 		None,
 		Some(DEFAULT_PROTOCOL_ID),
@@ -45,10 +47,8 @@ pub fn polkadot_local_testnet_config() -> PolkadotChainSpec {
 	)
 }
 
-/// Polkadot local testnet genesis config (multivalidator Alice + Bob)
-pub fn polkadot_local_testnet_genesis(
-	changes_trie_config: Option<ChangesTrieConfiguration>,
-) -> polkadot_test_runtime::GenesisConfig {
+/// Local testnet genesis config (multivalidator Alice + Bob)
+pub fn polkadot_local_testnet_genesis() -> polkadot_test_runtime::GenesisConfig {
 	polkadot_testnet_genesis(
 		vec![
 			get_authority_keys_from_seed("Alice"),
@@ -57,7 +57,6 @@ pub fn polkadot_local_testnet_genesis(
 		],
 		get_account_id_from_seed::<sr25519::Public>("Alice"),
 		None,
-		changes_trie_config,
 	)
 }
 
@@ -96,7 +95,6 @@ fn polkadot_testnet_genesis(
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ValidatorId)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-	changes_trie_config: Option<ChangesTrieConfiguration>,
 ) -> polkadot_test_runtime::GenesisConfig {
 	use polkadot_test_runtime as polkadot;
 
@@ -108,7 +106,7 @@ fn polkadot_testnet_genesis(
 	polkadot::GenesisConfig {
 		frame_system: Some(polkadot::SystemConfig {
 			code: polkadot::WASM_BINARY.expect("Wasm binary must be built for testing").to_vec(),
-			changes_trie_config,
+			..Default::default()
 		}),
 		pallet_indices: Some(polkadot::IndicesConfig { indices: vec![] }),
 		pallet_balances: Some(polkadot::BalancesConfig {
