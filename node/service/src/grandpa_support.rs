@@ -232,37 +232,29 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 #[cfg(test)]
 mod tests {
 	use grandpa::VotingRule;
-	use polkadot_test_runtime_client::prelude::*;
-	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
-	use sc_block_builder::BlockBuilderProvider;
+	use polkadot_test_client::{
+		TestClientBuilder, TestClientBuilderExt, DefaultTestClientBuilderExt, InitPolkadotBlockBuilder,
+		ClientBlockImportExt,
+	};
 	use sp_blockchain::HeaderBackend;
-	use sp_runtime::generic::BlockId;
-	use sp_runtime::traits::Header;
+	use sp_runtime::{generic::BlockId, traits::Header};
+	use consensus_common::BlockOrigin;
 	use std::sync::Arc;
 
 	#[test]
 	fn grandpa_pause_voting_rule_works() {
 		let _ = env_logger::try_init();
 
-		let client = Arc::new(polkadot_test_runtime_client::new());
+		let client = Arc::new(TestClientBuilder::new().build());
 
 		let mut push_blocks = {
 			let mut client = client.clone();
-			let mut base = 0;
 
 			move |n| {
-				for i in 0..n {
-					let mut builder = client.new_block(Default::default()).unwrap();
-
-					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(base + i) {
-						builder.push(extrinsic).unwrap()
-					}
-
-					let block = builder.build().unwrap().block;
+				for _ in 0..n {
+					let block = client.init_polkadot_block_builder().build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
-
-				base += n;
 			}
 		};
 
