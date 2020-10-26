@@ -326,7 +326,8 @@ where
 		),
 		bitfield_signing: BitfieldSigningSubsystem::new(
 			spawner.clone(),
-			keystore.clone(), Metrics::register(registry)?,
+			keystore.clone(),
+			Metrics::register(registry)?,
 		),
 		candidate_backing: CandidateBackingSubsystem::new(
 			spawner.clone(),
