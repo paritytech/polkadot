@@ -120,15 +120,15 @@ impl TryFrom<AllMessages> for FromJob {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	Sending(mpsc::SendError),
+	Sending(#[from] mpsc::SendError),
 	#[error(transparent)]
-	Util(util::Error),
+	Util(#[from] util::Error),
 	#[error(transparent)]
-	OneshotRecv(oneshot::Canceled),
+	OneshotRecv(#[from] oneshot::Canceled),
 	#[error(transparent)]
-	ChainApi(ChainApiError),
+	ChainApi(#[from] ChainApiError),
 	#[error(transparent)]
-	Runtime(RuntimeApiError),
+	Runtime(#[from] RuntimeApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
@@ -150,14 +150,13 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		async move {
+		Box::pin(async move {
 			let job = CandidateSelectionJob::new(metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
-			job.run_loop().await.map_err(|e| SubsystemError::with_origin(NAME, e))
-		}
-		.boxed()
+			job.run_loop().await
+		})
 	}
 }
 
