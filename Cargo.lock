@@ -5507,11 +5507,8 @@ dependencies = [
  "arrayvec 0.5.1",
  "assert_matches",
  "futures 0.3.5",
- "futures-timer 3.0.2",
  "indexmap",
  "log 0.4.11",
- "parity-scale-codec",
- "parking_lot 0.10.2",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5523,9 +5520,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
- "sp-runtime",
  "sp-staking",
- "streamunordered",
 ]
 
 [[package]]

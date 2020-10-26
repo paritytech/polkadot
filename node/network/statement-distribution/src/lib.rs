@@ -19,7 +19,7 @@
 //! This is responsible for distributing signed statements about candidate
 //! validity amongst validators.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
