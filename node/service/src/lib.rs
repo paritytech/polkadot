@@ -531,41 +531,27 @@ pub fn new_full<RuntimeApi, Executor>(
 		grandpa::setup_disabled_grandpa(network.clone())?;
 	}
 
-	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
+	if role.is_authority() && !authority_discovery_disabled {
 		use sc_network::Event;
 		use futures::StreamExt;
 
-		if !authority_discovery_disabled {
-			let (sentries, authority_discovery_role) = match role {
-				Role::Authority { ref sentry_nodes } => (
-					sentry_nodes.clone(),
-					authority_discovery::Role::Authority (
-						keystore_container.keystore(),
-					),
-				),
-				Role::Sentry {..} => (
-					vec![],
-					authority_discovery::Role::Sentry,
-				),
-				_ => unreachable!("Due to outer matches! constraint; qed."),
-			};
-
-			let network_event_stream = network.event_stream("authority-discovery");
-			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+		let authority_discovery_role = authority_discovery::Role::PublishAndDiscover(
+			keystore_container.keystore(),
+		);
+		let dht_event_stream = network.event_stream("authority-discovery")
+			.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
-				client.clone(),
-				network.clone(),
-				sentries,
-				Box::pin(dht_event_stream),
-				authority_discovery_role,
-				prometheus_registry.clone(),
-			);
+		let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
+			client.clone(),
+			network.clone(),
+			Box::pin(dht_event_stream),
+			authority_discovery_role,
+			prometheus_registry.clone(),
+		);
 
-			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
-		}
+		task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
 	}
 
 
