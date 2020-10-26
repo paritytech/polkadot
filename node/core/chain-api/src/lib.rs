@@ -32,7 +32,7 @@
 
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
+	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{
@@ -64,7 +64,10 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = run(ctx, self).map_err(|e| SubsystemError::with_origin("chain-api", e)).map(|_| ()).boxed();
+		let future = run(ctx, self)
+			.map_err(|e| SubsystemError::with_origin("chain-api", e))
+			.map(|_| ())
+			.boxed();
 		SpawnedSubsystem {
 			future,
 			name: "chain-api-subsystem",
@@ -116,7 +119,10 @@ where
 						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
-							Err(e) => Some(Err(e.into())),
+							Err(e) => {
+								let e = e.to_string().into();
+								Some(Err(e))
+							},
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {
