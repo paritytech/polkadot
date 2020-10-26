@@ -131,8 +131,12 @@ decl_error! {
 		WrongCollator,
 		/// Scheduled cores out of order.
 		ScheduledOutOfOrder,
+		/// Head data exceeds the configured maximum.
+		HeadDataTooLarge,
 		/// Code upgrade prematurely.
 		PrematureCodeUpgrade,
+		/// Output code is too large
+		NewCodeTooLarge,
 		/// Candidate not in parent context.
 		CandidateNotInParentContext,
 		/// The bitfield contains a bit relating to an unassigned availability core.
@@ -345,9 +349,7 @@ impl<T: Trait> Module<T> {
 		candidates: Vec<BackedCandidate<T::Hash>>,
 		scheduled: Vec<CoreAssignment>,
 		group_validators: impl Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
-	)
-		-> Result<Vec<CoreIndex>, DispatchError>
-	{
+	) -> Result<Vec<CoreIndex>, DispatchError> {
 		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
 
 		if scheduled.is_empty() {
@@ -356,9 +358,7 @@ impl<T: Trait> Module<T> {
 
 		let validators = Validators::get();
 		let parent_hash = <frame_system::Module<T>>::parent_hash();
-		let config = <configuration::Module<T>>::config();
-		let now = <frame_system::Module<T>>::block_number();
-		let relay_parent_number = now - One::one();
+		let check_cx = CandidateCheckContext::<T>::new();
 
 		// do all checks before writing storage.
 		let core_indices = {
@@ -400,26 +400,16 @@ impl<T: Trait> Module<T> {
 					candidate.descriptor().relay_parent == parent_hash,
 					Error::<T>::CandidateNotInParentContext,
 				);
-
-				// if any, the code upgrade attempt is allowed.
-				let valid_upgrade_attempt =
-					candidate.candidate.commitments.new_validation_code.is_none() ||
-					<paras::Module<T>>::last_code_upgrade(para_id, true)
-						.map_or(
-							true,
-							|last| last <= relay_parent_number &&
-								relay_parent_number.saturating_sub(last)
-									>= config.validation_upgrade_frequency,
-						);
-
-				ensure!(
-					valid_upgrade_attempt,
-					Error::<T>::PrematureCodeUpgrade,
-				);
 				ensure!(
 					candidate.descriptor().check_collator_signature().is_ok(),
 					Error::<T>::NotCollatorSigned,
 				);
+
+				check_cx.check_validation_outputs(
+					para_id,
+					&candidate.candidate.commitments.head_data,
+					&candidate.candidate.commitments.new_validation_code,
+				)?;
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -498,7 +488,7 @@ impl<T: Trait> Module<T> {
 					false,
 					Error::<T>::UnscheduledCandidate,
 				);
-			};
+			}
 
 			// check remainder of scheduled cores, if any.
 			for assignment in scheduled[skip..].iter() {
@@ -530,13 +520,27 @@ impl<T: Trait> Module<T> {
 				core,
 				descriptor,
 				availability_votes,
-				relay_parent_number,
-				backed_in_number: now,
+				relay_parent_number: check_cx.relay_parent_number,
+				backed_in_number: check_cx.now,
 			});
 			<PendingAvailabilityCommitments>::insert(&para_id, commitments);
 		}
 
 		Ok(core_indices)
+	}
+
+	/// Run the acceptance criteria checks on the given candidate commitments.
+	///
+	/// Returns an 'Err` if any of the checks doesn't pass.
+	pub(crate) fn check_validation_outputs(
+		para_id: ParaId,
+		validation_outputs: primitives::v1::ValidationOutputs,
+	) -> Result<(), DispatchError> {
+		CandidateCheckContext::<T>::new().check_validation_outputs(
+			para_id,
+			&validation_outputs.head_data,
+			&validation_outputs.new_validation_code,
+		)
 	}
 
 	fn enact_candidate(
@@ -654,6 +658,57 @@ const fn availability_threshold(n_validators: usize) -> usize {
 	threshold
 }
 
+/// A collection of data required for checking a candidate.
+struct CandidateCheckContext<T: Trait> {
+	config: configuration::HostConfiguration<T::BlockNumber>,
+	now: T::BlockNumber,
+	relay_parent_number: T::BlockNumber,
+}
+
+impl<T: Trait> CandidateCheckContext<T> {
+	fn new() -> Self {
+		let now = <frame_system::Module<T>>::block_number();
+		Self {
+			config: <configuration::Module<T>>::config(),
+			now,
+			relay_parent_number: now - One::one(),
+		}
+	}
+
+	/// Check the given outputs after candidate validation on whether it passes the acceptance
+	/// criteria.
+	fn check_validation_outputs(
+		&self,
+		para_id: ParaId,
+		head_data: &HeadData,
+		new_validation_code: &Option<primitives::v1::ValidationCode>,
+	) -> Result<(), DispatchError> {
+		ensure!(
+			head_data.0.len() <= self.config.max_head_data_size as _,
+			Error::<T>::HeadDataTooLarge
+		);
+
+		// if any, the code upgrade attempt is allowed.
+		if let Some(new_validation_code) = new_validation_code {
+			let valid_upgrade_attempt = <paras::Module<T>>::last_code_upgrade(para_id, true)
+				.map_or(true, |last| {
+					last <= self.relay_parent_number
+						&& self.relay_parent_number.saturating_sub(last)
+							>= self.config.validation_upgrade_frequency
+				});
+			ensure!(valid_upgrade_attempt, Error::<T>::PrematureCodeUpgrade);
+			ensure!(
+				new_validation_code.0.len() <= self.config.max_code_size as _,
+				Error::<T>::NewCodeTooLarge
+			);
+		}
+
+		// TODO: messaging acceptance criteria rules will go here.
+
+		Ok(())
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
@@ -682,6 +737,7 @@ mod tests {
 	fn default_config() -> HostConfiguration<BlockNumber> {
 		let mut config = HostConfiguration::default();
 		config.parathread_cores = 1;
+		config.max_code_size = 3;
 		config
 	}
 

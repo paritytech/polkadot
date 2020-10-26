@@ -303,6 +303,20 @@ pub struct TransientValidationData<N = BlockNumber> {
 	pub code_upgrade_allowed: Option<N>,
 }
 
+/// Outputs of validating a candidate.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
+pub struct ValidationOutputs {
+	/// The head-data produced by validation.
+	pub head_data: HeadData,
+	/// Upward messages to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	pub fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	pub new_validation_code: Option<ValidationCode>,
+}
+
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
@@ -666,6 +680,10 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
+		// TODO: Adding a Runtime API should be backwards compatible... right?
+		/// Checks if the given validation outputs pass the acceptance criteria.
+		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
@@ -689,7 +707,7 @@ sp_api::decl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session. 
+		/// Currently this request is limited to validators in the current session.
 		///
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
