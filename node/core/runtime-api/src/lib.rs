@@ -554,12 +554,14 @@ mod tests {
 	#[test]
 	fn requests_candidate_pending_availability() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = Arc::new(MockRuntimeApi::default());
+		let mut runtime_api = MockRuntimeApi::default();
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		Arc::get_mut(&mut runtime_api).unwrap().candidate_pending_availability.insert(para_a, Default::default());
+		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
+
+		let runtime_api = Arc::new(runtime_api);
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
