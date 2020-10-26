@@ -16,7 +16,7 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_crate_dependencies)]
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
@@ -74,10 +74,10 @@ enum Error {
 	CandidateNotFound,
 	#[error("Signature is invalid")]
 	InvalidSignature,
-	#[error("Storing data failed")]
-	StoreFailed(#[source] oneshot::Canceled),
-	#[error("Responding to backing request failed")]
-	BackingResponseChannel(#[source] oneshot::Canceled),
+	#[error("Failed to send candidates {0:?}")]
+	Send(Vec<NewBackedCandidate>),
+	#[error("Oneshot never resolved")]
+	Oneshot(#[from] #[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
 	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
 	#[error(transparent)]
@@ -474,7 +474,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
 
-				tx.send(backed).map_err(|e| Error::BackingResponseChannel(e))?;
+				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
 		}
 
@@ -646,7 +646,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		rx.await?.map_err(|e| Error::StoreFailed(e))?;
+		let _ = rx.await?;
 
 		Ok(())
 	}
