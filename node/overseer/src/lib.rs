@@ -83,9 +83,9 @@ use polkadot_subsystem::messages::{
 };
 pub use polkadot_subsystem::{
 	Subsystem, SubsystemContext, OverseerSignal, FromOverseer, SubsystemError, SubsystemResult,
-	SpawnedSubsystem, ActiveLeavesUpdate,
-	metrics::{self, prometheus},
+	SpawnedSubsystem, ActiveLeavesUpdate, DummySubsystem,
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_node_primitives::SpawnNamed;
 
 
@@ -192,8 +192,8 @@ impl OverseerHandler {
 	}
 
 	/// Send some message to one of the `Subsystem`s.
-	pub async fn send_msg(&mut self, msg: AllMessages) -> SubsystemResult<()> {
-		self.events_tx.send(Event::MsgToSubsystem(msg)).await.map_err(Into::into)
+	pub async fn send_msg(&mut self, msg: impl Into<AllMessages>) -> SubsystemResult<()> {
+		self.events_tx.send(Event::MsgToSubsystem(msg.into())).await.map_err(Into::into)
 	}
 
 	/// Inform the `Overseer` that that some block was finalized.
@@ -348,7 +348,7 @@ struct OverseenSubsystem<M> {
 }
 
 /// The `Overseer` itself.
-pub struct Overseer<S: SpawnNamed> {
+pub struct Overseer<S> {
 	/// A candidate validation subsystem.
 	candidate_validation_subsystem: OverseenSubsystem<CandidateValidationMessage>,
 
@@ -429,10 +429,10 @@ pub struct Overseer<S: SpawnNamed> {
 /// Each [`Subsystem`] is supposed to implement some interface that is generic over
 /// message type that is specific to this [`Subsystem`]. At the moment not all
 /// subsystems are implemented and the rest can be mocked with the [`DummySubsystem`].
-///
-/// [`Subsystem`]: trait.Subsystem.html
-/// [`DummySubsystem`]: struct.DummySubsystem.html
-pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+pub struct AllSubsystems<
+	CV = (), CB = (), CS = (), SD = (), AD = (), BS = (), BD = (), P = (),
+	PoVD = (), RA = (), AS = (), NB = (), CA = (), CG = (), CP = ()
+> {
 	/// A candidate validation subsystem.
 	pub candidate_validation: CV,
 	/// A candidate backing subsystem.
@@ -465,11 +465,424 @@ pub struct AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG
 	pub collator_protocol: CP,
 }
 
+impl<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
+	AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP>
+{
+	/// Create a new instance of [`AllSubsystems`].
+	///
+	/// Each subsystem is set to [`DummySystem`].
+	///
+	///# Note
+	///
+	/// Because of a bug in rustc it is required that when calling this function,
+	/// you provide a "random" type for the first generic parameter:
+	///
+	/// ```
+	/// polkadot_overseer::AllSubsystems::<()>::dummy();
+	/// ```
+	pub fn dummy() -> AllSubsystems<
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem,
+		DummySubsystem
+	> {
+		AllSubsystems {
+			candidate_validation: DummySubsystem,
+			candidate_backing: DummySubsystem,
+			candidate_selection: DummySubsystem,
+			statement_distribution: DummySubsystem,
+			availability_distribution: DummySubsystem,
+			bitfield_signing: DummySubsystem,
+			bitfield_distribution: DummySubsystem,
+			provisioner: DummySubsystem,
+			pov_distribution: DummySubsystem,
+			runtime_api: DummySubsystem,
+			availability_store: DummySubsystem,
+			network_bridge: DummySubsystem,
+			chain_api: DummySubsystem,
+			collation_generation: DummySubsystem,
+			collator_protocol: DummySubsystem,
+		}
+	}
+
+	/// Replace the `candidate_validation` instance in `self`.
+	pub fn replace_candidate_validation<NEW>(
+		self,
+		candidate_validation: NEW,
+	) -> AllSubsystems<NEW, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `candidate_backing` instance in `self`.
+	pub fn replace_candidate_backing<NEW>(
+		self,
+		candidate_backing: NEW,
+	) -> AllSubsystems<CV, NEW, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `candidate_selection` instance in `self`.
+	pub fn replace_candidate_selection<NEW>(
+		self,
+		candidate_selection: NEW,
+	) -> AllSubsystems<CV, CB, NEW, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `statement_distribution` instance in `self`.
+	pub fn replace_statement_distribution<NEW>(
+		self,
+		statement_distribution: NEW,
+	) -> AllSubsystems<CV, CB, CS, NEW, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `availability_distribution` instance in `self`.
+	pub fn replace_availability_distribution<NEW>(
+		self,
+		availability_distribution: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, NEW, BS, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `bitfield_signing` instance in `self`.
+	pub fn replace_bitfield_signing<NEW>(
+		self,
+		bitfield_signing: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, NEW, BD, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `bitfield_distribution` instance in `self`.
+	pub fn replace_bitfield_distribution<NEW>(
+		self,
+		bitfield_distribution: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, NEW, P, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `provisioner` instance in `self`.
+	pub fn replace_provisioner<NEW>(
+		self,
+		provisioner: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, NEW, PoVD, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `pov_distribution` instance in `self`.
+	pub fn replace_pov_distribution<NEW>(
+		self,
+		pov_distribution: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, NEW, RA, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `runtime_api` instance in `self`.
+	pub fn replace_runtime_api<NEW>(
+		self,
+		runtime_api: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, NEW, AS, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `availability_store` instance in `self`.
+	pub fn replace_availability_store<NEW>(
+		self,
+		availability_store: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, NEW, NB, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `network_bridge` instance in `self`.
+	pub fn replace_network_bridge<NEW>(
+		self,
+		network_bridge: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NEW, CA, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `chain_api` instance in `self`.
+	pub fn replace_chain_api<NEW>(
+		self,
+		chain_api: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, NEW, CG, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `collation_generation` instance in `self`.
+	pub fn replace_collation_generation<NEW>(
+		self,
+		collation_generation: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, NEW, CP> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation,
+			collator_protocol: self.collator_protocol,
+		}
+	}
+
+	/// Replace the `collator_protocol` instance in `self`.
+	pub fn replace_collator_protocol<NEW>(
+		self,
+		collator_protocol: NEW,
+	) -> AllSubsystems<CV, CB, CS, SD, AD, BS, BD, P, PoVD, RA, AS, NB, CA, CG, NEW> {
+		AllSubsystems {
+			candidate_validation: self.candidate_validation,
+			candidate_backing: self.candidate_backing,
+			candidate_selection: self.candidate_selection,
+			statement_distribution: self.statement_distribution,
+			availability_distribution: self.availability_distribution,
+			bitfield_signing: self.bitfield_signing,
+			bitfield_distribution: self.bitfield_distribution,
+			provisioner: self.provisioner,
+			pov_distribution: self.pov_distribution,
+			runtime_api: self.runtime_api,
+			availability_store: self.availability_store,
+			network_bridge: self.network_bridge,
+			chain_api: self.chain_api,
+			collation_generation: self.collation_generation,
+			collator_protocol,
+		}
+	}
+}
+
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
 struct MetricsInner {
 	activated_heads_total: prometheus::Counter<prometheus::U64>,
 	deactivated_heads_total: prometheus::Counter<prometheus::U64>,
+	messages_relayed_total: prometheus::Counter<prometheus::U64>,
 }
 
 #[derive(Default, Clone)]
@@ -485,6 +898,12 @@ impl Metrics {
 	fn on_head_deactivated(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.deactivated_heads_total.inc();
+		}
+	}
+
+	fn on_message_relayed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.messages_relayed_total.inc();
 		}
 	}
 }
@@ -503,6 +922,13 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_deactivated_heads_total",
 					"Number of deactivated heads."
+				)?,
+				registry,
+			)?,
+			messages_relayed_total: prometheus::register(
+				prometheus::Counter::new(
+					"parachain_messages_relayed_total",
+					"Number of messages relayed by Overseer."
 				)?,
 				registry,
 			)?,
@@ -560,8 +986,6 @@ where
 	/// impl<C> Subsystem<C> for ValidationSubsystem
 	///     where C: SubsystemContext<Message=CandidateValidationMessage>
 	/// {
-	///     type Metrics = ();
-	///
 	///     fn start(
 	///         self,
 	///         mut ctx: C,
@@ -579,23 +1003,7 @@ where
 	///
 	/// # fn main() { executor::block_on(async move {
 	/// let spawner = sp_core::testing::TaskExecutor::new();
-	/// let all_subsystems = AllSubsystems {
-	///     candidate_validation: ValidationSubsystem,
-	///     candidate_backing: DummySubsystem,
-	///     candidate_selection: DummySubsystem,
-	///     statement_distribution: DummySubsystem,
-	///     availability_distribution: DummySubsystem,
-	///     bitfield_signing: DummySubsystem,
-	///     bitfield_distribution: DummySubsystem,
-	///     provisioner: DummySubsystem,
-	///     pov_distribution: DummySubsystem,
-	///     runtime_api: DummySubsystem,
-	///     availability_store: DummySubsystem,
-	///     network_bridge: DummySubsystem,
-	///     chain_api: DummySubsystem,
-	///     collation_generation: DummySubsystem,
-	///     collator_protocol: DummySubsystem,
-	/// };
+	/// let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_validation(ValidationSubsystem);
 	/// let (overseer, _handler) = Overseer::new(
 	///     vec![],
 	///     all_subsystems,
@@ -1048,10 +1456,11 @@ where
 	}
 
 	async fn route_message(&mut self, msg: AllMessages) {
+		self.metrics.on_message_relayed();
 		match msg {
 			AllMessages::CandidateValidation(msg) => {
 				if let Some(ref mut s) = self.candidate_validation_subsystem.instance {
-					let _= s.tx.send(FromOverseer::Communication { msg }).await;
+					let _ = s.tx.send(FromOverseer::Communication { msg }).await;
 				}
 			}
 			AllMessages::CandidateBacking(msg) => {
@@ -1211,10 +1620,10 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 #[cfg(test)]
 mod tests {
 	use std::sync::atomic;
+	use std::collections::HashMap;
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
 	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV};
-	use polkadot_subsystem::DummySubsystem;
 	use polkadot_subsystem::messages::RuntimeApiRequest;
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
@@ -1223,14 +1632,11 @@ mod tests {
 
 	use super::*;
 
-
 	struct TestSubsystem1(mpsc::Sender<usize>);
 
 	impl<C> Subsystem<C> for TestSubsystem1
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0;
 			SpawnedSubsystem {
@@ -1259,8 +1665,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem2
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let sender = self.0.clone();
 			SpawnedSubsystem {
@@ -1307,8 +1711,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem4
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut _ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "test-subsystem-4",
@@ -1326,26 +1728,13 @@ mod tests {
 		let spawner = sp_core::testing::TaskExecutor::new();
 
 		executor::block_on(async move {
-			let (s1_tx, mut s1_rx) = mpsc::channel(64);
-			let (s2_tx, mut s2_rx) = mpsc::channel(64);
+			let (s1_tx, mut s1_rx) = mpsc::channel::<usize>(64);
+			let (s2_tx, mut s2_rx) = mpsc::channel::<usize>(64);
 
-			let all_subsystems = AllSubsystems {
-				candidate_validation: TestSubsystem1(s1_tx),
-				candidate_backing: TestSubsystem2(s2_tx),
-				candidate_selection: DummySubsystem,
-				statement_distribution: DummySubsystem,
-				availability_distribution: DummySubsystem,
-				bitfield_signing: DummySubsystem,
-				bitfield_distribution: DummySubsystem,
-				provisioner: DummySubsystem,
-				pov_distribution: DummySubsystem,
-				runtime_api: DummySubsystem,
-				availability_store: DummySubsystem,
-				network_bridge: DummySubsystem,
-				chain_api: DummySubsystem,
-				collation_generation: DummySubsystem,
-				collator_protocol: DummySubsystem,
-			};
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_validation(TestSubsystem1(s1_tx))
+				.replace_candidate_backing(TestSubsystem2(s2_tx));
+
 			let (overseer, mut handler) = Overseer::new(
 				vec![],
 				all_subsystems,
@@ -1413,23 +1802,7 @@ mod tests {
 				number: 3,
 			};
 
-			let all_subsystems = AllSubsystems {
-				collation_generation: DummySubsystem,
-				candidate_validation: DummySubsystem,
-				candidate_backing: DummySubsystem,
-				candidate_selection: DummySubsystem,
-				collator_protocol: DummySubsystem,
-				statement_distribution: DummySubsystem,
-				availability_distribution: DummySubsystem,
-				bitfield_signing: DummySubsystem,
-				bitfield_distribution: DummySubsystem,
-				provisioner: DummySubsystem,
-				pov_distribution: DummySubsystem,
-				runtime_api: DummySubsystem,
-				availability_store: DummySubsystem,
-				network_bridge: DummySubsystem,
-				chain_api: DummySubsystem,
-			};
+			let all_subsystems = AllSubsystems::<()>::dummy();
 			let registry = prometheus::Registry::new();
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
@@ -1443,27 +1816,35 @@ mod tests {
 
 			handler.block_imported(second_block).await.unwrap();
 			handler.block_imported(third_block).await.unwrap();
+			handler.send_msg(AllMessages::CandidateValidation(test_candidate_validation_msg())).await.unwrap();
 			handler.stop().await.unwrap();
 
 			select! {
 				res = overseer_fut => {
 					assert!(res.is_ok());
-					let (activated, deactivated) = extract_metrics(&registry);
-					assert_eq!(activated, 3);
-					assert_eq!(deactivated, 2);
+					let metrics = extract_metrics(&registry);
+					assert_eq!(metrics["activated"], 3);
+					assert_eq!(metrics["deactivated"], 2);
+					assert_eq!(metrics["relayed"], 1);
 				},
 				complete => (),
 			}
 		});
 	}
 
-	fn extract_metrics(registry: &prometheus::Registry) -> (u64, u64) {
+	fn extract_metrics(registry: &prometheus::Registry) -> HashMap<&'static str, u64> {
 		let gather = registry.gather();
 		assert_eq!(gather[0].get_name(), "parachain_activated_heads_total");
 		assert_eq!(gather[1].get_name(), "parachain_deactivated_heads_total");
+		assert_eq!(gather[2].get_name(), "parachain_messages_relayed_total");
 		let activated = gather[0].get_metric()[0].get_counter().get_value() as u64;
 		let deactivated = gather[1].get_metric()[0].get_counter().get_value() as u64;
-		(activated, deactivated)
+		let relayed = gather[2].get_metric()[0].get_counter().get_value() as u64;
+		let mut result = HashMap::new();
+		result.insert("activated", activated);
+		result.insert("deactivated", deactivated);
+		result.insert("relayed", relayed);
+		result
 	}
 
 	// Spawn a subsystem that immediately exits.
@@ -1475,23 +1856,9 @@ mod tests {
 
 		executor::block_on(async move {
 			let (s1_tx, _) = mpsc::channel(64);
-			let all_subsystems = AllSubsystems {
-				candidate_validation: TestSubsystem1(s1_tx),
-				candidate_backing: TestSubsystem4,
-				candidate_selection: DummySubsystem,
-				statement_distribution: DummySubsystem,
-				availability_distribution: DummySubsystem,
-				bitfield_signing: DummySubsystem,
-				bitfield_distribution: DummySubsystem,
-				provisioner: DummySubsystem,
-				pov_distribution: DummySubsystem,
-				runtime_api: DummySubsystem,
-				availability_store: DummySubsystem,
-				network_bridge: DummySubsystem,
-				chain_api: DummySubsystem,
-				collation_generation: DummySubsystem,
-				collator_protocol: DummySubsystem,
-			};
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_validation(TestSubsystem1(s1_tx))
+				.replace_candidate_backing(TestSubsystem4);
 			let (overseer, _handle) = Overseer::new(
 				vec![],
 				all_subsystems,
@@ -1513,8 +1880,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem5
 		where C: SubsystemContext<Message=CandidateValidationMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1544,8 +1909,6 @@ mod tests {
 	impl<C> Subsystem<C> for TestSubsystem6
 		where C: SubsystemContext<Message=CandidateBackingMessage>
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			let mut sender = self.0.clone();
 
@@ -1599,23 +1962,9 @@ mod tests {
 
 			let (tx_5, mut rx_5) = mpsc::channel(64);
 			let (tx_6, mut rx_6) = mpsc::channel(64);
-			let all_subsystems = AllSubsystems {
-				candidate_validation: TestSubsystem5(tx_5),
-				candidate_backing: TestSubsystem6(tx_6),
-				candidate_selection: DummySubsystem,
-				statement_distribution: DummySubsystem,
-				availability_distribution: DummySubsystem,
-				bitfield_signing: DummySubsystem,
-				bitfield_distribution: DummySubsystem,
-				provisioner: DummySubsystem,
-				pov_distribution: DummySubsystem,
-				runtime_api: DummySubsystem,
-				availability_store: DummySubsystem,
-				network_bridge: DummySubsystem,
-				chain_api: DummySubsystem,
-				collation_generation: DummySubsystem,
-				collator_protocol: DummySubsystem,
-			};
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_validation(TestSubsystem5(tx_5))
+				.replace_candidate_backing(TestSubsystem6(tx_6));
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block],
 				all_subsystems,
@@ -1704,23 +2053,10 @@ mod tests {
 			let (tx_5, mut rx_5) = mpsc::channel(64);
 			let (tx_6, mut rx_6) = mpsc::channel(64);
 
-			let all_subsystems = AllSubsystems {
-				candidate_validation: TestSubsystem5(tx_5),
-				candidate_backing: TestSubsystem6(tx_6),
-				candidate_selection: DummySubsystem,
-				statement_distribution: DummySubsystem,
-				availability_distribution: DummySubsystem,
-				bitfield_signing: DummySubsystem,
-				bitfield_distribution: DummySubsystem,
-				provisioner: DummySubsystem,
-				pov_distribution: DummySubsystem,
-				runtime_api: DummySubsystem,
-				availability_store: DummySubsystem,
-				network_bridge: DummySubsystem,
-				chain_api: DummySubsystem,
-				collation_generation: DummySubsystem,
-				collator_protocol: DummySubsystem,
-			};
+			let all_subsystems = AllSubsystems::<()>::dummy()
+				.replace_candidate_validation(TestSubsystem5(tx_5))
+				.replace_candidate_backing(TestSubsystem6(tx_6));
+
 			// start with two forks of different height.
 			let (overseer, mut handler) = Overseer::new(
 				vec![first_block, second_block],
@@ -1813,8 +2149,6 @@ mod tests {
 			C: SubsystemContext<Message=M>,
 			M: Send,
 	{
-		type Metrics = ();
-
 		fn start(self, mut ctx: C) -> SpawnedSubsystem {
 			SpawnedSubsystem {
 				name: "counter-subsystem",
@@ -1866,14 +2200,14 @@ mod tests {
 	fn test_collator_generation_msg() -> CollationGenerationMessage {
 		CollationGenerationMessage::Initialize(CollationGenerationConfig {
 			key: CollatorPair::generate().0,
-			collator: Box::new(|_| Box::new(TestCollator)),
+			collator: Box::new(|_, _| TestCollator.boxed()),
 			para_id: Default::default(),
 		})
 	}
 	struct TestCollator;
 
 	impl Future for TestCollator {
-		type Output = Collation;
+		type Output = Option<Collation>;
 
 		fn poll(self: Pin<&mut Self>, _cx: &mut futures::task::Context) -> Poll<Self::Output> {
 			panic!("at the Disco")

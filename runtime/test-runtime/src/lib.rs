@@ -21,13 +21,23 @@
 #![recursion_limit="256"]
 
 use rstd::prelude::*;
-use codec::{Encode, Decode};
-use primitives::v0 as p_v0;
+use codec::Encode;
+use polkadot_runtime_parachains::{
+	configuration,
+	inclusion,
+	initializer,
+	paras,
+	router,
+	runtime_api_impl::v1 as runtime_impl,
+	scheduler,
+};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash as HashT, Nonce, Signature, Moment,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate, impls::CurrencyToVoteHandler,
+	claims, SlowAdjustingFeeUpdate,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
 };
@@ -78,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot-test-runtime"),
 	impl_name: create_runtime_str!("parity-polkadot-test-runtime"),
 	authoring_version: 2,
-	spec_version: 1054,
+	spec_version: 1055,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -118,7 +128,7 @@ impl frame_system::Trait for Runtime {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = Version;
-	type ModuleToIndex = ModuleToIndex;
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -157,6 +167,8 @@ impl pallet_babe::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation = ();
+
+	type WeightInfo = ();
 }
 
 parameter_types! {
@@ -173,6 +185,7 @@ impl pallet_indices::Trait for Runtime {
 
 parameter_types! {
 	pub storage ExistentialDeposit: Balance = 1 * CENTS;
+	pub storage MaxLocks: u32 = 50;
 }
 
 impl pallet_balances::Trait for Runtime {
@@ -181,6 +194,7 @@ impl pallet_balances::Trait for Runtime {
 	type Event = Event;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type MaxLocks = MaxLocks;
 	type WeightInfo = ();
 }
 
@@ -283,7 +297,7 @@ parameter_types! {
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = frame_support::traits::U128CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
@@ -301,6 +315,7 @@ impl pallet_staking::Trait for Runtime {
 	type Call = Call;
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
+	type OffchainSolutionWeightLimit = MaximumBlockWeight;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type WeightInfo = ();
 
@@ -321,6 +336,8 @@ impl pallet_grandpa::Trait for Runtime {
 	)>>::IdentificationTuple;
 
 	type HandleEquivocation = ();
+
+	type WeightInfo = ();
 }
 
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
@@ -376,7 +393,6 @@ impl pallet_offences::Trait for Runtime {
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 	type WeightSoftLimit = OffencesWeightSoftLimit;
-	type WeightInfo = ();
 }
 
 impl pallet_authority_discovery::Trait for Runtime {}
@@ -414,6 +430,24 @@ impl pallet_sudo::Trait for Runtime {
 	type Call = Call;
 }
 
+impl configuration::Trait for Runtime {}
+
+impl inclusion::Trait for Runtime {
+	type Event = Event;
+}
+
+impl initializer::Trait for Runtime {
+	type Randomness = RandomnessCollectiveFlip;
+}
+
+impl paras::Trait for Runtime {
+	type Origin = Origin;
+}
+
+impl router::Trait for Runtime {}
+
+impl scheduler::Trait for Runtime {}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -446,6 +480,13 @@ construct_runtime! {
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
+
+		// Parachains runtime modules
+		Configuration: configuration::{Module, Call, Storage},
+		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		Initializer: initializer::{Module, Call, Storage},
+		Paras: paras::{Module, Call, Storage, Origin},
+		Scheduler: scheduler::{Module, Call, Storage},
 
 		// Sudo. Last module.
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
@@ -551,55 +592,52 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	// Dummy implementation to continue supporting old parachains runtime temporarily.
-	impl p_v0::ParachainHost<Block> for Runtime {
-		fn validators() -> Vec<p_v0::ValidatorId> {
-			// this is a compile-time check of size equality. note that we don't invoke
-			// the function and nothing here is unsafe.
-			let _ = core::mem::transmute::<p_v0::ValidatorId, AccountId>;
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<ValidatorId> {
+			runtime_impl::validators::<Runtime>()
+		}
 
-			// Yes, these aren't actually the parachain session keys.
-			// It doesn't matter, but we shouldn't return a zero-sized vector here.
-			// As there are no parachains
-			Session::validators()
-				.into_iter()
-				.map(|k| k.using_encoded(|s| Decode::decode(&mut &s[..]))
-					.expect("correct size and raw-bytes; qed"))
-				.collect()
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
+			runtime_impl::validator_groups::<Runtime>()
 		}
-		fn duty_roster() -> p_v0::DutyRoster {
-			let v = Session::validators();
-			p_v0::DutyRoster { validator_duty: (0..v.len()).map(|_| p_v0::Chain::Relay).collect() }
+
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+			runtime_impl::availability_cores::<Runtime>()
 		}
-		fn active_parachains() -> Vec<(p_v0::Id, Option<(p_v0::CollatorId, p_v0::Retriable)>)> {
-			Vec::new()
-		}
-		fn global_validation_data() -> p_v0::GlobalValidationData {
-			p_v0::GlobalValidationData {
-				max_code_size: 1,
-				max_head_data_size: 1,
-				block_number: System::block_number().saturating_sub(1),
-			}
-		}
-		fn local_validation_data(_id: p_v0::Id) -> Option<p_v0::LocalValidationData> {
-			None
-		}
-		fn parachain_code(_id: p_v0::Id) -> Option<p_v0::ValidationCode> {
-			None
-		}
-		fn get_heads(_extrinsics: Vec<<Block as BlockT>::Extrinsic>)
-			-> Option<Vec<p_v0::AbridgedCandidateReceipt>>
+
+		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>>
 		{
-			None
+			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
 		}
-		fn signing_context() -> p_v0::SigningContext {
-			p_v0::SigningContext {
-				parent_hash: System::parent_hash(),
-				session_index: Session::current_index(),
-			}
+
+		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>>
+		{
+			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
-		fn downward_messages(_id: p_v0::Id) -> Vec<p_v0::DownwardMessage> {
-			Vec::new()
+
+		fn session_index_for_child() -> SessionIndex {
+			runtime_impl::session_index_for_child::<Runtime>()
+		}
+
+		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>
+		{
+			runtime_impl::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
+			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
+		}
+
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
+			use core::convert::TryInto;
+			runtime_impl::candidate_events::<Runtime, _>(|trait_event| trait_event.try_into().ok())
+		}
+
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_impl::validator_discovery::<Runtime>(validators)
 		}
 	}
 

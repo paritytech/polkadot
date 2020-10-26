@@ -30,13 +30,16 @@ use frame_support::{
 	weights::Weight, traits::Randomness as RandomnessT,
 };
 use crate::inclusion;
+use crate as parachains;
 
 /// A test runtime struct.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Test;
 
 impl_outer_origin! {
-	pub enum Origin for Test { }
+	pub enum Origin for Test {
+		parachains
+	}
 }
 
 impl_outer_dispatch! {
@@ -88,7 +91,7 @@ impl frame_system::Trait for Test {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
-	type ModuleToIndex = ();
+	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<u128>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -101,7 +104,11 @@ impl crate::initializer::Trait for Test {
 
 impl crate::configuration::Trait for Test { }
 
-impl crate::paras::Trait for Test { }
+impl crate::paras::Trait for Test {
+	type Origin = Origin;
+}
+
+impl crate::router::Trait for Test { }
 
 impl crate::scheduler::Trait for Test { }
 
@@ -119,6 +126,11 @@ pub type Configuration = crate::configuration::Module<Test>;
 
 /// Mocked paras.
 pub type Paras = crate::paras::Module<Test>;
+
+/// Mocked router.
+// TODO: Will be used in the follow ups.
+#[allow(dead_code)]
+pub type Router = crate::router::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;

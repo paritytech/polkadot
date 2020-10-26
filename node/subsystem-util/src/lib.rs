@@ -19,12 +19,14 @@
 //! Many subsystems have common interests such as canceling a bunch of spawned jobs,
 //! or determining what their validator ID is. These common interests are factored into
 //! this module.
+//!
+//! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
+
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	FromOverseer, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemError, SubsystemResult,
-	metrics,
 };
 use futures::{
 	channel::{mpsc, oneshot},
@@ -35,24 +37,34 @@ use futures::{
 	task,
 };
 use futures_timer::Delay;
-use keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidatorPair,
 };
-use sp_core::{Pair, traits::SpawnNamed};
+use sp_core::{
+	traits::SpawnNamed,
+	Public
+};
+use sp_application_crypto::AppKey;
+use sp_keystore::{
+	CryptoStore,
+	SyncCryptoStorePtr,
+	Error as KeystoreError,
+};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
 	marker::Unpin,
 	pin::Pin,
+	task::{Poll, Context},
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+
+pub mod validator_discovery;
 
 /// These reexports are required so that external crates can use the `delegated_subsystem` macro properly.
 pub mod reexports {
@@ -276,11 +288,13 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
-	let keystore = keystore.read();
-	validators
-		.iter()
-		.find_map(|v| keystore.key_pair::<ValidatorPair>(&v).ok())
+pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
+	for v in validators.iter() {
+		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+			return Some(v.clone());
+		}
+	}
+	None
 }
 
 /// Local validator information
@@ -289,7 +303,7 @@ pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option
 /// relay chain block.
 pub struct Validator {
 	signing_context: SigningContext,
-	key: ValidatorPair,
+	key: ValidatorId,
 	index: ValidatorIndex,
 }
 
@@ -297,7 +311,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -319,22 +333,22 @@ impl Validator {
 
 		let validators = validators?;
 
-		Self::construct(&validators, signing_context, keystore)
+		Self::construct(&validators, signing_context, keystore).await
 	}
 
 	/// Construct a validator instance without performing runtime fetches.
 	///
 	/// This can be useful if external code also needs the same data.
-	pub fn construct(
+	pub async fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, &keystore).ok_or(Error::NotAValidator)?;
+		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
 		let index = validators
 			.iter()
 			.enumerate()
-			.find(|(_, k)| k == &&key.public())
+			.find(|(_, k)| k == &&key)
 			.map(|(idx, _)| idx as ValidatorIndex)
 			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
 
@@ -347,7 +361,7 @@ impl Validator {
 
 	/// Get this validator's id.
 	pub fn id(&self) -> ValidatorId {
-		self.key.public()
+		self.key.clone()
 	}
 
 	/// Get this validator's local index.
@@ -361,11 +375,12 @@ impl Validator {
 	}
 
 	/// Sign a payload with this validator
-	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+	pub async fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
+		keystore: SyncCryptoStorePtr,
 		payload: Payload,
-	) -> Signed<Payload, RealPayload> {
-		Signed::sign(payload, &self.signing_context, self.index, &self.key)
+	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
+		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
 	}
 
 	/// Validate the payload with this validator
@@ -429,6 +444,43 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 			Either::Right((_, _)) => {
 				self.abort_handle.abort();
 			}
+		}
+	}
+}
+
+/// This module reexports Prometheus types and defines the [`Metrics`] trait.
+pub mod metrics {
+	/// Reexport Prometheus types.
+	pub use substrate_prometheus_endpoint as prometheus;
+
+	/// Subsystem- or job-specific Prometheus metrics.
+	///
+	/// Usually implemented as a wrapper for `Option<ActualMetrics>`
+	/// to ensure `Default` bounds or as a dummy type ().
+	/// Prometheus metrics internally hold an `Arc` reference, so cloning them is fine.
+	pub trait Metrics: Default + Clone {
+		/// Try to register metrics in the Prometheus registry.
+		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
+
+		/// Convience method to register metrics in the optional Prometheus registry.
+		/// If the registration fails, prints a warning and returns `Default::default()`.
+		fn register(registry: Option<&prometheus::Registry>) -> Self {
+			registry.map(|r| {
+				match Self::try_register(r) {
+					Err(e) => {
+						log::warn!("Failed to register metrics: {:?}", e);
+						Default::default()
+					},
+					Ok(metrics) => metrics,
+				}
+			}).unwrap_or_default()
+		}
+	}
+
+	// dummy impl
+	impl Metrics for () {
+		fn try_register(_registry: &prometheus::Registry) -> Result<(), prometheus::PrometheusError> {
+			Ok(())
 		}
 	}
 }
@@ -869,8 +921,6 @@ where
 	Job::ToJob: TryFrom<AllMessages> + Sync,
 	Job::Metrics: Sync,
 {
-	type Metrics = Job::Metrics;
-
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let spawner = self.spawner.clone();
 		let run_args = self.run_args.clone();
@@ -964,8 +1014,6 @@ macro_rules! delegated_subsystem {
 			Context: $crate::reexports::SubsystemContext,
 			<Context as $crate::reexports::SubsystemContext>::Message: Into<$to_job>,
 		{
-			type Metrics = $metrics;
-
 			fn start(self, ctx: Context) -> $crate::reexports::SpawnedSubsystem {
 				self.manager.start(ctx)
 			}
@@ -973,9 +1021,51 @@ macro_rules! delegated_subsystem {
 	};
 }
 
+/// A future that wraps another future with a `Delay` allowing for time-limited futures.
+#[pin_project]
+pub struct Timeout<F: Future> {
+	#[pin]
+	future: F,
+	#[pin]
+	delay: Delay,
+}
+
+/// Extends `Future` to allow time-limited futures.
+pub trait TimeoutExt: Future {
+	fn timeout(self, duration: Duration) -> Timeout<Self>
+	where
+		Self: Sized,
+	{
+		Timeout {
+			future: self,
+			delay: Delay::new(duration),
+		}
+	}
+}
+
+impl<F: Future> TimeoutExt for F {}
+
+impl<F: Future> Future for Timeout<F> {
+	type Output = Option<F::Output>;
+
+	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
+		let this = self.project();
+
+		if this.delay.poll(ctx).is_ready() {
+			return Poll::Ready(None);
+		}
+
+		if let Poll::Ready(output) = this.future.poll(ctx) {
+			return Poll::Ready(Some(output));
+		}
+
+		Poll::Pending
+	}
+}
+
 #[cfg(test)]
 mod tests {
-	use super::{Error as UtilError, JobManager, JobTrait, JobsError, ToJobTrait};
+	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -988,7 +1078,7 @@ mod tests {
 		future, Future, FutureExt, SinkExt,
 	};
 	use polkadot_primitives::v1::Hash;
-	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context, TimeoutExt as _};
+	use polkadot_node_subsystem_test_helpers::{self as test_helpers, make_subsystem_context};
 	use std::{collections::HashMap, convert::TryFrom, pin::Pin, time::Duration};
 
 	// basic usage: in a nutshell, when you want to define a subsystem, just focus on what its jobs do;

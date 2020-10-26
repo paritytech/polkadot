@@ -194,6 +194,9 @@ enum ChainApiMessage {
 	/// Get the block number by hash.
 	/// Returns `None` if a block with the given hash is not present in the db.
 	BlockNumber(Hash, ResponseChannel<Result<Option<BlockNumber>, Error>>),
+	/// Request the block header by hash.
+	/// Returns `None` if a block with the given hash is not present in the db.
+	BlockHeader(Hash, ResponseChannel<Result<Option<BlockHeader>, Error>>),
 	/// Get the finalized block hash by number.
 	/// Returns `None` if a block with the given number is not present in the db.
 	/// Note: the caller must ensure the block is finalized.
@@ -266,11 +269,25 @@ enum NetworkBridgeMessage {
 	SendValidationMessage([PeerId], ValidationProtocolV1),
 	/// Send a message to one or more peers on the collation peerset.
 	SendCollationMessage([PeerId], ValidationProtocolV1),
-	/// Connect to peers who represent the given `ValidatorId`s at the given relay-parent.
+	/// Connect to peers who represent the given `validator_ids`.
 	///
-	/// Also accepts a response channel by which the issuer can learn the `PeerId`s of those
-	/// validators.
-	ConnectToValidators(PeerSet, [ValidatorId], ResponseChannel<[(ValidatorId, PeerId)]>>),
+	/// Also ask the network to stay connected to these peers at least
+	/// until the request is revoked.
+	ConnectToValidators {
+		/// Ids of the validators to connect to.
+		validator_ids: Vec<AuthorityDiscoveryId>,
+		/// Response sender by which the issuer can learn the `PeerId`s of
+		/// the validators as they are connected.
+		/// The response is sent immediately for already connected peers.
+		connected: ResponseStream<(AuthorityDiscoveryId, PeerId)>,
+		/// By revoking the request the caller allows the network to
+		/// free some peer slots thus freeing the resources.
+		/// It doesn't necessarily lead to peers disconnection though.
+		/// The revokation is enacted on in the next connection request.
+		///
+		/// This can be done by sending to the channel or dropping the sender.
+		revoke: ReceiverChannel<()>,
+	},
 }
 ```
 
@@ -416,6 +433,8 @@ enum StatementDistributionMessage {
 	/// The statement distribution subsystem assumes that the statement should be correctly
 	/// signed.
 	Share(Hash, SignedFullStatement),
+	/// Register a listener to be notified on any new statements.
+	RegisterStatementListener(ResponseChannel<SignedFullStatement>),
 }
 ```
 

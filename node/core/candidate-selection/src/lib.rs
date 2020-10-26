@@ -30,9 +30,11 @@ use polkadot_node_subsystem::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, CollatorProtocolMessage,
 	},
+};
+use polkadot_node_subsystem_util::{
+	self as util, delegated_subsystem, JobTrait, ToJobTrait,
 	metrics::{self, prometheus},
 };
-use polkadot_node_subsystem_util::{self as util, delegated_subsystem, JobTrait, ToJobTrait};
 use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
@@ -212,7 +214,12 @@ impl CandidateSelectionJob {
 	) {
 		if self.seconded_candidate.is_none() {
 			let (candidate_receipt, pov) =
-				match get_collation(relay_parent, para_id, self.sender.clone()).await {
+				match get_collation(
+					relay_parent,
+					para_id,
+					collator_id.clone(),
+					self.sender.clone(),
+				).await {
 					Ok(response) => response,
 					Err(err) => {
 						log::warn!(
@@ -275,18 +282,18 @@ impl CandidateSelectionJob {
 			candidate_receipt
 		);
 
-		let succeeded =
+		let result =
 			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
 				log::warn!(
 					target: TARGET,
 					"failed to forward invalidity note: {:?}",
 					err
 				);
-				false
+				Err(())
 			} else {
-				true
+				Ok(())
 			};
-		self.metrics.on_invalid_selection(succeeded);
+		self.metrics.on_invalid_selection(result);
 	}
 }
 
@@ -296,12 +303,14 @@ impl CandidateSelectionJob {
 async fn get_collation(
 	relay_parent: Hash,
 	para_id: ParaId,
+	collator_id: CollatorId,
 	mut sender: mpsc::Sender<FromJob>,
 ) -> Result<(CandidateReceipt, PoV), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
 		.send(FromJob::Collator(CollatorProtocolMessage::FetchCollation(
 			relay_parent,
+			collator_id,
 			para_id,
 			tx,
 		)))
@@ -354,11 +363,11 @@ async fn second_candidate(
 	{
 		Err(err) => {
 			log::warn!(target: TARGET, "failed to send a seconding message");
-			metrics.on_second(false);
+			metrics.on_second(Err(()));
 			Err(err.into())
 		}
 		Ok(_) => {
-			metrics.on_second(true);
+			metrics.on_second(Ok(()));
 			Ok(())
 		}
 	}
@@ -382,21 +391,21 @@ struct MetricsInner {
 	invalid_selections: prometheus::CounterVec<prometheus::U64>,
 }
 
-/// Candidate backing metrics.
+/// Candidate selection metrics.
 #[derive(Default, Clone)]
 pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
-	fn on_second(&self, succeeded: bool) {
+	fn on_second(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			let label = if succeeded { "succeeded" } else { "failed" };
+			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.seconds.with_label_values(&[label]).inc();
 		}
 	}
 
-	fn on_invalid_selection(&self, succeeded: bool) {
+	fn on_invalid_selection(&self, result: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
-			let label = if succeeded { "succeeded" } else { "failed" };
+			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.invalid_selections.with_label_values(&[label]).inc();
 		}
 	}
@@ -514,7 +523,7 @@ mod tests {
 						CandidateSelectionMessage::Collation(
 							relay_parent,
 							para_id,
-							collator_id_clone,
+							collator_id_clone.clone(),
 						),
 					))
 					.await
@@ -525,11 +534,13 @@ mod tests {
 					match msg {
 						FromJob::Collator(CollatorProtocolMessage::FetchCollation(
 							got_relay_parent,
+							collator_id,
 							got_para_id,
 							return_sender,
 						)) => {
 							assert_eq!(got_relay_parent, relay_parent);
 							assert_eq!(got_para_id, para_id);
+							assert_eq!(collator_id, collator_id_clone);
 
 							return_sender
 								.send((candidate_receipt.clone(), pov.clone()))

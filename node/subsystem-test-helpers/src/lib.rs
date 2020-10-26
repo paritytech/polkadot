@@ -17,14 +17,16 @@
 //! Utilities for testing subsystems.
 
 use polkadot_node_subsystem::messages::AllMessages;
-use polkadot_node_subsystem::{FromOverseer, SubsystemContext, SubsystemError, SubsystemResult};
+use polkadot_node_subsystem::{
+	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
+	SpawnedSubsystem, OverseerSignal,
+};
+use polkadot_node_subsystem_util::TimeoutExt;
 
 use futures::channel::mpsc;
 use futures::poll;
 use futures::prelude::*;
-use futures_timer::Delay;
 use parking_lot::Mutex;
-use pin_project::pin_project;
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
 
 use std::convert::Infallible;
@@ -285,44 +287,58 @@ pub fn subsystem_test_harness<M, OverseerFactory, Overseer, TestFactory, Test>(
 	});
 }
 
-/// A future that wraps another future with a `Delay` allowing for time-limited futures.
-#[pin_project]
-pub struct Timeout<F: Future> {
-	#[pin]
-	future: F,
-	#[pin]
-	delay: Delay,
-}
+/// A forward subsystem that implements [`Subsystem`].
+///
+/// It forwards all communication from the overseer to the internal message
+/// channel.
+///
+/// This subsystem is useful for testing functionality that interacts with the overseer.
+pub struct ForwardSubsystem<Msg>(pub mpsc::Sender<Msg>);
 
-/// Extends `Future` to allow time-limited futures.
-pub trait TimeoutExt: Future {
-	fn timeout(self, duration: Duration) -> Timeout<Self>
-	where
-		Self: Sized,
-	{
-		Timeout {
-			future: self,
-			delay: Delay::new(duration),
+impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for ForwardSubsystem<Msg> {
+	fn start(mut self, mut ctx: C) -> SpawnedSubsystem {
+		let future = Box::pin(async move {
+			loop {
+				match ctx.recv().await {
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Ok(FromOverseer::Communication { msg }) => {
+						let _ = self.0.send(msg).await;
+					},
+					Err(_) => return,
+					_ => (),
+				}
+			}
+		});
+
+		SpawnedSubsystem {
+			name: "forward-subsystem",
+			future,
 		}
 	}
 }
 
-impl<F: Future> TimeoutExt for F {}
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use polkadot_overseer::{Overseer, AllSubsystems};
+	use futures::executor::block_on;
+	use polkadot_node_subsystem::messages::CandidateSelectionMessage;
 
-impl<F: Future> Future for Timeout<F> {
-	type Output = Option<F::Output>;
+	#[test]
+	fn forward_subsystem_works() {
+		let spawner = sp_core::testing::TaskExecutor::new();
+		let (tx, rx) = mpsc::channel(2);
+		let all_subsystems = AllSubsystems::<()>::dummy().replace_candidate_selection(ForwardSubsystem(tx));
+		let (overseer, mut handler) = Overseer::new(
+			Vec::new(),
+			all_subsystems,
+			None,
+			spawner.clone(),
+		).unwrap();
 
-	fn poll(self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Self::Output> {
-		let this = self.project();
+		spawner.spawn("overseer", overseer.run().then(|_| async { () }).boxed());
 
-		if this.delay.poll(ctx).is_ready() {
-			return Poll::Ready(None);
-		}
-
-		if let Poll::Ready(output) = this.future.poll(ctx) {
-			return Poll::Ready(Some(output));
-		}
-
-		Poll::Pending
+		block_on(handler.send_msg(CandidateSelectionMessage::Invalid(Default::default(), Default::default()))).unwrap();
+		assert!(matches!(block_on(rx.into_future()).0.unwrap(), CandidateSelectionMessage::Invalid(_, _)));
 	}
 }
