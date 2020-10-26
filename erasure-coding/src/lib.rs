@@ -65,7 +65,7 @@ pub enum Error {
 	UnevenLength,
 	/// Chunk index out of bounds.
 	#[error("Chunk is out of bounds: {chunk_index} not included in 0..{n_validators}")]
-	ChunkIndexOutOfBounds{ chunk_index: usize, n_validators: usize},
+	ChunkIndexOutOfBounds{ chunk_index: usize, n_validators: usize },
 	/// Bad payload in reconstructed bytes.
 	#[error("Reconstructed payload invalid")]
 	BadPayload,
