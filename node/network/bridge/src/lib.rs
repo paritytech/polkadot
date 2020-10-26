@@ -19,6 +19,8 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
+use streamunordered as _;
+
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
@@ -663,7 +665,7 @@ where
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
 					hash_map::Entry::Vacant(vacant) => {
-						vacant.insert(PeerData {
+						let _ = vacant.insert(PeerData {
 							view: View(Vec::new()),
 						});
 
