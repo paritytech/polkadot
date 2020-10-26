@@ -19,7 +19,6 @@
 #![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
-use streamunordered as _;
 
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
