@@ -16,12 +16,11 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_results)]
 
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
-
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 #[cfg(feature = "full-node")]
