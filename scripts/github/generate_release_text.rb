@@ -7,7 +7,6 @@ require 'git'
 require 'json'
 require 'octokit'
 require 'toml'
-require 'pry'
 require_relative './lib.rb'
 
 current_ref = ENV['GITHUB_REF']
@@ -87,7 +86,6 @@ release_priority = Changelog.highest_priority_for_changes(all_changes)
 # Pulled from the previous Github step
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
-binding.pry
 polkadot_runtime = get_runtime('polkadot', polkadot_path)
 kusama_runtime = get_runtime('kusama', polkadot_path)
 westend_runtime = get_runtime('westend', polkadot_path)
