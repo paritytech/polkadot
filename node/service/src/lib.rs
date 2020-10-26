@@ -507,7 +507,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		use futures::StreamExt;
 
 		if authority_discovery_disabled {
-			return Err("Authority discovery is mandatory for a validator.");
+			Err("Authority discovery is mandatory for a validator.")?;
 		}
 
 		let authority_discovery_role = authority_discovery::Role::PublishAndDiscover(
