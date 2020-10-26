@@ -57,8 +57,8 @@ pub enum Error {
 	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
 	UnevenLength,
 	/// Chunk index out of bounds.
-	#[error("Chunk is out of bounds: {0}..={1}")]
-	ChunkIndexOutOfBounds(usize, usize),
+	#[error("Chunk is out of bounds: {chunk_index} not included in 0..{n_validators}")]
+	ChunkIndexOutOfBounds{ chunk_index: usize, n_validators: usize},
 	/// Bad payload in reconstructed bytes.
 	BadPayload,
 	/// Invalid branch proof.
@@ -205,7 +205,7 @@ fn reconstruct<'a, I: 'a, T: Decode>(n_validators: usize, chunks: I) -> Result<T
 	let mut shard_len = None;
 	for (chunk_data, chunk_idx) in chunks.into_iter().take(n_validators) {
 		if chunk_idx >= n_validators {
-			return Err(Error::ChunkIndexOutOfBounds(chunk_idx, n_validators));
+			return Err(Error::ChunkIndexOutOfBounds{chunk_index: chunk_idx, n_validators});
 		}
 
 		let shard_len = shard_len.get_or_insert_with(|| chunk_data.len());
