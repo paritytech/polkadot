@@ -104,6 +104,13 @@ pub fn native_version() -> NativeVersion {
 	}
 }
 
+sp_api::decl_runtime_apis! {
+	pub trait GetLastTimestamp {
+		/// Returns the last timestamp of a runtime.
+		fn get_last_timestamp() -> u64;
+	}
+}
+
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 }
@@ -620,6 +627,13 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
+		fn check_validation_outputs(
+			para_id: ParaId,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
+
 		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
@@ -727,6 +741,12 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+	}
+
+	impl crate::GetLastTimestamp<Block> for Runtime {
+		fn get_last_timestamp() -> u64 {
+			Timestamp::now()
 		}
 	}
 }
