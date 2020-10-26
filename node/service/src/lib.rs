@@ -262,7 +262,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore_container, select_chain, import_queue, transaction_pool,
+		client,
+		backend,
+		task_manager,
+		keystore_container,
+		select_chain,
+		import_queue,
+		transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -307,6 +313,7 @@ pub struct NewFull<C> {
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
+	pub backend: Arc<FullBackend>,
 }
 
 #[cfg(feature = "full-node")]
@@ -320,6 +327,7 @@ impl<C> NewFull<C> {
 			network: self.network,
 			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
+			backend: self.backend,
 		}
 	}
 }
@@ -564,6 +572,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		network,
 		network_status_sinks,
 		rpc_handlers,
+		backend,
 	})
 }
 
