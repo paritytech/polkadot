@@ -5058,13 +5058,11 @@ name = "polkadot-node-core-runtime-api"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
- "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-api",
- "sp-blockchain",
  "sp-core",
 ]
 
