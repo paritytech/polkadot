@@ -43,27 +43,37 @@ const MAX_VALIDATORS: usize = <galois_16::Field as reed_solomon::Field>::ORDER;
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum Error {
 	/// Returned when there are too many validators.
+	#[error("There are too many validators")]
 	TooManyValidators,
 	/// Cannot encode something for no validators
+	#[error("Validator set is empty")]
 	EmptyValidators,
 	/// Cannot reconstruct: wrong number of validators.
+	#[error("Validator count mismatches between encoding and decoding")]
 	WrongValidatorCount,
 	/// Not enough chunks present.
+	#[error("Not enough chunks to reconstruct message")]
 	NotEnoughChunks,
 	/// Too many chunks present.
+	#[error("Too many chunks present")]
 	TooManyChunks,
 	/// Chunks not of uniform length or the chunks are empty.
+	#[error("Chunks are not unform, mismatch in length or are zero sized")]
 	NonUniformChunks,
 	/// An uneven byte-length of a shard is not valid for GF(2^16) encoding.
+	#[error("Uneven length is not valid for field GF(2^16)")]
 	UnevenLength,
 	/// Chunk index out of bounds.
 	#[error("Chunk is out of bounds: {chunk_index} not included in 0..{n_validators}")]
 	ChunkIndexOutOfBounds{ chunk_index: usize, n_validators: usize},
 	/// Bad payload in reconstructed bytes.
+	#[error("Reconstructed payload invalid")]
 	BadPayload,
 	/// Invalid branch proof.
+	#[error("Invalid branch proof")]
 	InvalidBranchProof,
 	/// Branch out of bounds.
+	#[error("Branch is out of bounds")]
 	BranchOutOfBounds,
 }
 
