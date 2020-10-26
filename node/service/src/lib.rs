@@ -503,50 +503,34 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let authority_discovery_service = {
-		let mut ads = None;
+	let authority_discovery_service = if role.is_authority() {
+		use sc_network::Event;
+		use futures::StreamExt;
 
-		if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
-			use sc_network::Event;
-			use futures::StreamExt;
-
-			if authority_discovery_disabled {
-				Err("authority discovery is mandatory for a validator")?;
-			}
-
-			let (sentries, authority_discovery_role) = match role {
-				Role::Authority { ref sentry_nodes } => (
-					sentry_nodes.clone(),
-					authority_discovery::Role::Authority (
-							keystore_container.keystore(),
-					),
-				),
-				Role::Sentry {..} => (
-					vec![],
-					authority_discovery::Role::Sentry,
-				),
-				_ => unreachable!("Due to outer matches! constraint; qed."),
-			};
-
-			let network_event_stream = network.event_stream("authority-discovery");
-			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
-					Event::Dht(e) => Some(e),
-					_ => None,
-			}});
-			let (authority_discovery_worker, service) = authority_discovery::new_worker_and_service(
-					client.clone(),
-					network.clone(),
-					sentries,
-					Box::pin(dht_event_stream),
-					authority_discovery_role,
-					prometheus_registry.clone(),
-			);
-
-			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
-			ads = Some(service);
+		if authority_discovery_disabled {
+			Err("Authority discovery is mandatory for a validator.")?;
 		}
 
-		ads
+		let authority_discovery_role = authority_discovery::Role::PublishAndDiscover(
+			keystore_container.keystore(),
+		);
+		let dht_event_stream = network.event_stream("authority-discovery")
+			.filter_map(|e| async move { match e {
+				Event::Dht(e) => Some(e),
+				_ => None,
+			}});
+		let (worker, service) = authority_discovery::new_worker_and_service(
+			client.clone(),
+			network.clone(),
+			Box::pin(dht_event_stream),
+			authority_discovery_role,
+			prometheus_registry.clone(),
+		);
+
+		task_manager.spawn_handle().spawn("authority-discovery-worker", worker.run());
+		Some(service)
+	} else {
+		None
 	};
 
 	// we'd say let overseer_handler = authority_discovery_service.map(|authority_discovery_service|, ...),
