@@ -44,7 +44,6 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
-use polkadot_subsystem::messages::AvailabilityStoreMessage;
 use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
@@ -57,6 +56,10 @@ mod columns {
 
 #[derive(Debug, Error)]
 enum Error {
+	#[error(transparent)]
+	RuntimeAPI(#[from] RuntimeApiError),
+	#[error(transparent)]
+	ChainAPI(#[from] ChainApiError),
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
 	#[error(transparent)]
