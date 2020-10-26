@@ -54,7 +54,9 @@
 //!             ..................................................................
 //! ```
 
-#![deny(unused_crate_dependencies, unused_results)]
+// #![deny(unused_results)]
+// unused dependencies can not work for test and examples at the same time
+// yielding false positives
 #![warn(missing_docs)]
 
 use std::fmt::Debug;

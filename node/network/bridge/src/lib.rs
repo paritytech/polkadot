@@ -948,7 +948,7 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(network_bridge);
 
-		executor::block_on(future::select(test_fut, network_bridge));
+		let _ = executor::block_on(future::select(test_fut, network_bridge));
 	}
 
 	async fn assert_sends_validation_event_to_all(
