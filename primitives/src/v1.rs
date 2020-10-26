@@ -52,6 +52,7 @@ pub use crate::v0::{
 pub use crate::v0::{ValidatorPair, CollatorPair};
 
 pub use sp_staking::SessionIndex;
+pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Unique identifier for the Inclusion Inherent
 pub const INCLUSION_INHERENT_IDENTIFIER: InherentIdentifier = *b"inclusn0";
@@ -244,8 +245,8 @@ impl Ord for CommittedCandidateReceipt {
 /// Nevertheless, we expose it so the backing validators can validate the outputs of a
 /// candidate before voting to submit it to the relay-chain and so collators can
 /// collate candidates that satisfy the criteria implied these transient validation data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Default))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct ValidationData<N = BlockNumber> {
 	/// The persisted validation data.
 	pub persisted: PersistedValidationData<N>,
@@ -300,6 +301,20 @@ pub struct TransientValidationData<N = BlockNumber> {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	pub code_upgrade_allowed: Option<N>,
+}
+
+/// Outputs of validating a candidate.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
+pub struct ValidationOutputs {
+	/// The head-data produced by validation.
+	pub head_data: HeadData,
+	/// Upward messages to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// Fees paid to the validators of the relay-chain.
+	pub fees: Balance,
+	/// The new validation code submitted by the execution, if any.
+	pub new_validation_code: Option<ValidationCode>,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
@@ -665,6 +680,10 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
+		// TODO: Adding a Runtime API should be backwards compatible... right?
+		/// Checks if the given validation outputs pass the acceptance criteria.
+		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
@@ -686,6 +705,13 @@ sp_api::decl_runtime_apis! {
 		// initialization.
 		#[skip_initialize_block]
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
+
+		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
+		/// Currently this request is limited to validators in the current session.
+		///
+		/// We assume that every validator runs authority discovery,
+		/// which would allow us to establish point-to-point connection to given validators.
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
 	}
 }
 

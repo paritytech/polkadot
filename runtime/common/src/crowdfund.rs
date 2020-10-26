@@ -269,7 +269,7 @@ decl_module! {
 			let owner = ensure_signed(origin)?;
 
 			ensure!(first_slot < last_slot, Error::<T>::LastSlotBeforeFirstSlot);
-			ensure!(last_slot <= first_slot + 3.into(), Error::<T>::LastSlotTooFarInFuture);
+			ensure!(last_slot <= first_slot + 3u32.into(), Error::<T>::LastSlotTooFarInFuture);
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			let deposit = T::SubmissionDeposit::get();

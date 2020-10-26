@@ -6,7 +6,7 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.8.24"
+version = "0.8.25"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
@@ -14,7 +14,7 @@ readme = "README.md"
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
 futures = "0.3.4"
-service = { package = "polkadot-service", path = "service" }
+service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
 
 [dev-dependencies]
@@ -35,13 +35,11 @@ members = [
 	"runtime/rococo-v1",
 	"runtime/westend",
 	"runtime/test-runtime",
-	"runtime/test-runtime/client",
-	"service",
 	"statement-table",
-	"service",
 	"validation",
 	"xcm",
-
+	"xcm/xcm-builder",
+	"xcm/xcm-executor",
 	"node/collation-generation",
 	"node/core/av-store",
 	"node/core/backing",
@@ -65,8 +63,8 @@ members = [
 	"node/subsystem",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
-	"node/test-service",
-
+	"node/test/client",
+	"node/test/service",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 ]
@@ -80,9 +78,6 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
-service-rewr= [
-	"cli/service-rewr",
-]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

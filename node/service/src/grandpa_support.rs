@@ -25,7 +25,8 @@ use sp_runtime::traits::{Block as BlockT, NumberFor};
 /// `N` + `M`, the voter will keep voting for block `N`.
 pub(crate) struct PauseAfterBlockFor<N>(pub(crate) N, pub(crate) N);
 
-impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>> where
+impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Block>>
+where
 	Block: BlockT,
 	B: sp_blockchain::HeaderBackend<Block>,
 {
@@ -40,10 +41,7 @@ impl<Block, B> grandpa::VotingRule<Block, B> for PauseAfterBlockFor<NumberFor<Bl
 		use sp_runtime::traits::Header as _;
 
 		// walk backwards until we find the target block
-		let find_target = |
-			target_number: NumberFor<Block>,
-			current_header: &Block::Header
-		| {
+		let find_target = |target_number: NumberFor<Block>, current_header: &Block::Header| {
 			let mut target_hash = current_header.hash();
 			let mut target_header = current_header.clone();
 
@@ -233,38 +231,30 @@ pub(crate) fn kusama_hard_forks() -> Vec<(
 
 #[cfg(test)]
 mod tests {
-	use polkadot_test_runtime_client::prelude::*;
-	use polkadot_test_runtime_client::sp_consensus::BlockOrigin;
-	use sc_block_builder::BlockBuilderProvider;
 	use grandpa::VotingRule;
+	use polkadot_test_client::{
+		TestClientBuilder, TestClientBuilderExt, DefaultTestClientBuilderExt, InitPolkadotBlockBuilder,
+		ClientBlockImportExt,
+	};
 	use sp_blockchain::HeaderBackend;
-	use sp_runtime::generic::BlockId;
-	use sp_runtime::traits::Header;
+	use sp_runtime::{generic::BlockId, traits::Header};
+	use consensus_common::BlockOrigin;
 	use std::sync::Arc;
 
 	#[test]
 	fn grandpa_pause_voting_rule_works() {
 		let _ = env_logger::try_init();
 
-		let client = Arc::new(polkadot_test_runtime_client::new());
+		let client = Arc::new(TestClientBuilder::new().build());
 
 		let mut push_blocks = {
 			let mut client = client.clone();
-			let mut base = 0;
 
 			move |n| {
-				for i in 0..n {
-					let mut builder = client.new_block(Default::default()).unwrap();
-
-					for extrinsic in polkadot_test_runtime_client::needed_extrinsics(base + i) {
-						builder.push(extrinsic).unwrap()
-					}
-
-					let block = builder.build().unwrap().block;
+				for _ in 0..n {
+					let block = client.init_polkadot_block_builder().build().unwrap().block;
 					client.import(BlockOrigin::Own, block).unwrap();
 				}
-
-				base += n;
 			}
 		};
 
@@ -279,20 +269,12 @@ mod tests {
 
 		// add 10 blocks
 		push_blocks(10);
-		assert_eq!(
-			client.info().best_number,
-			10,
-		);
+		assert_eq!(client.info().best_number, 10);
 
 		// we have not reached the pause block
 		// therefore nothing should be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(0),
-				&get_header(10),
-				&get_header(10),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(0), &get_header(10), &get_header(10)),
 			None,
 		);
 
@@ -303,12 +285,7 @@ mod tests {
 		// we are targeting the pause block,
 		// the vote should not be restricted
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(20),
-				&get_header(20),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(20), &get_header(20)),
 			None,
 		);
 
@@ -316,12 +293,7 @@ mod tests {
 		// be limited to the pause block.
 		let pause_block = get_header(20);
 		assert_eq!(
-			voting_rule.restrict_vote(
-				&*client,
-				&get_header(10),
-				&get_header(21),
-				&get_header(21),
-			),
+			voting_rule.restrict_vote(&*client, &get_header(10), &get_header(21), &get_header(21)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 

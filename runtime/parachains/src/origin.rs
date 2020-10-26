@@ -22,8 +22,7 @@ use primitives::v1::Id as ParaId;
 use codec::{Decode, Encode};
 
 /// Origin for the parachains.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, sp_core::RuntimeDebug)]
 pub enum Origin {
 	/// It comes from a parachain.
 	Parachain(ParaId),

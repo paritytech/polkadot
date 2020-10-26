@@ -23,13 +23,13 @@
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use primitives::v1::{
-	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment, ValidatorId,
-	ValidatorIndex, CoreState, Id, CandidateEvent, ValidationData, OccupiedCoreAssumption,
-	CommittedCandidateReceipt, PersistedValidationData, GroupRotationInfo, ValidationCode,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	purchase, SlowAdjustingFeeUpdate,
-	impls::{CurrencyToVoteHandler, ToAuthor},
+	SlowAdjustingFeeUpdate, CurrencyToVote,
+	impls::ToAuthor,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio, MaximumBlockLength,
 	BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight, MaximumExtrinsicWeight,
 	ParachainSessionKeyPlaceholder,
@@ -85,8 +85,8 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 45,
-	impl_version: 1,
+	spec_version: 46,
+	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
@@ -140,7 +140,7 @@ impl frame_system::Trait for Runtime {
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
-	type SystemWeightInfo = weights::frame_system::WeightInfo;
+	type SystemWeightInfo = weights::frame_system::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -155,7 +155,7 @@ impl pallet_scheduler::Trait for Runtime {
 	type MaximumWeight = MaximumBlockWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
-	type WeightInfo = weights::pallet_scheduler::WeightInfo;
+	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -197,7 +197,7 @@ impl pallet_indices::Trait for Runtime {
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
 	type Event = Event;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_indices::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -212,7 +212,7 @@ impl pallet_balances::Trait for Runtime {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
-	type WeightInfo = weights::pallet_balances::WeightInfo;
+	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -234,7 +234,7 @@ impl pallet_timestamp::Trait for Runtime {
 	type Moment = u64;
 	type OnTimestampSet = Babe;
 	type MinimumPeriod = MinimumPeriod;
-	type WeightInfo = weights::pallet_timestamp::WeightInfo;
+	type WeightInfo = weights::pallet_timestamp::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -278,7 +278,7 @@ impl pallet_session::Trait for Runtime {
 	type SessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_session::WeightInfo<Runtime>;
 }
 
 impl pallet_session::historical::Trait for Runtime {
@@ -310,12 +310,15 @@ parameter_types! {
 	pub const ElectionLookahead: BlockNumber = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const MaxIterations: u32 = 10;
 	pub MinSolutionScoreBump: Perbill = Perbill::from_rational_approximation(5u32, 10_000);
+	pub OffchainSolutionWeightLimit: Weight = MaximumExtrinsicWeight::get()
+		.saturating_sub(BlockExecutionWeight::get())
+		.saturating_sub(ExtrinsicBaseWeight::get());
 }
 
 impl pallet_staking::Trait for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler<Self>;
+	type CurrencyToVote = CurrencyToVote;
 	type RewardRemainder = ();
 	type Event = Event;
 	type Slash = ();
@@ -334,7 +337,8 @@ impl pallet_staking::Trait for Runtime {
 	type UnsignedPriority = StakingUnsignedPriority;
 	type MaxIterations = MaxIterations;
 	type MinSolutionScoreBump = MinSolutionScoreBump;
-	type WeightInfo = weights::pallet_staking::WeightInfo;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
+	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -377,7 +381,7 @@ impl pallet_im_online::Trait for Runtime {
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 	type UnsignedPriority = StakingUnsignedPriority;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_im_online::WeightInfo<Runtime>;
 }
 
 impl pallet_grandpa::Trait for Runtime {
@@ -397,17 +401,6 @@ impl pallet_grandpa::Trait for Runtime {
 	type HandleEquivocation = pallet_grandpa::EquivocationHandler<Self::KeyOwnerIdentification, Offences>;
 
 	type WeightInfo = ();
-}
-
-parameter_types! {
-	pub WindowSize: BlockNumber = pallet_finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub ReportLatency: BlockNumber = pallet_finality_tracker::DEFAULT_REPORT_LATENCY.into();
-}
-
-impl pallet_finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = ();
-	type WindowSize = WindowSize;
-	type ReportLatency = ReportLatency;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -487,13 +480,13 @@ impl pallet_identity::Trait for Runtime {
 	type MaxRegistrars = MaxRegistrars;
 	type RegistrarOrigin = frame_system::EnsureRoot<AccountId>;
 	type ForceOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_identity::WeightInfo<Runtime>;
 }
 
 impl pallet_utility::Trait for Runtime {
 	type Event = Event;
 	type Call = Call;
-	type WeightInfo = weights::pallet_utility::WeightInfo;
+	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -511,7 +504,7 @@ impl pallet_multisig::Trait for Runtime {
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
 	type MaxSignatories = MaxSignatories;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_multisig::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -540,7 +533,7 @@ impl pallet_vesting::Trait for Runtime {
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
-	type WeightInfo = ();
+	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
 }
 
 impl pallet_sudo::Trait for Runtime {
@@ -586,7 +579,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
-				Call::FinalityTracker(..) |
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
@@ -640,7 +632,7 @@ impl pallet_proxy::Trait for Runtime {
 	type ProxyDepositBase = ProxyDepositBase;
 	type ProxyDepositFactor = ProxyDepositFactor;
 	type MaxProxies = MaxProxies;
-	type WeightInfo = weights::pallet_proxy::WeightInfo;
+	type WeightInfo = weights::pallet_proxy::WeightInfo<Runtime>;
 	type MaxPending = MaxPending;
 	type CallHasher = BlakeTwo256;
 	type AnnouncementDepositBase = AnnouncementDepositBase;
@@ -671,7 +663,6 @@ construct_runtime! {
 		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
 		Historical: session_historical::{Module} = 27,
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 9,
 		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
@@ -741,7 +732,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		purchase::remove_pallet::<Runtime>()
+		0
 	}
 }
 
@@ -830,6 +821,13 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
+		fn check_validation_outputs(
+			_: Id,
+			_: primitives::v1::ValidationOutputs
+		) -> bool {
+			false
+		}
+
 		fn session_index_for_child() -> SessionIndex {
 			0
 		}
@@ -843,6 +841,10 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
+			Vec::new()
+		}
+
+		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			Vec::new()
 		}
 	}
@@ -995,7 +997,10 @@ sp_api::impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_identity, Identity);
 			add_benchmark!(params, batches, pallet_im_online, ImOnline);
+			add_benchmark!(params, batches, pallet_indices, Indices);
+			add_benchmark!(params, batches, pallet_multisig, Multisig);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
+			add_benchmark!(params, batches, pallet_proxy, Proxy);
 			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
 			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_staking, Staking);

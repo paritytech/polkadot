@@ -233,7 +233,17 @@ async fn handle_new_activations<Context: SubsystemContext>(
 			ctx.spawn("collation generation collation builder", Box::pin(async move {
 				let persisted_validation_data_hash = validation_data.persisted.hash();
 
-				let collation = (task_config.collator)(&validation_data).await;
+				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
+					Some(collation) => collation,
+					None => {
+						log::debug!(
+							target: LOG_TARGET,
+							"collator returned no collation on collate for para_id {}.",
+							scheduled_core.para_id,
+						);
+						return
+					}
+				};
 
 				let pov_hash = collation.proof_of_validity.hash();
 
@@ -384,10 +394,10 @@ mod tests {
 		struct TestCollator;
 
 		impl Future for TestCollator {
-			type Output = Collation;
+			type Output = Option<Collation>;
 
 			fn poll(self: Pin<&mut Self>, _cx: &mut FuturesContext) -> Poll<Self::Output> {
-				Poll::Ready(test_collation())
+				Poll::Ready(Some(test_collation()))
 			}
 		}
 
@@ -396,8 +406,8 @@ mod tests {
 		fn test_config<Id: Into<ParaId>>(para_id: Id) -> Arc<CollationGenerationConfig> {
 			Arc::new(CollationGenerationConfig {
 				key: CollatorPair::generate().0,
-				collator: Box::new(|_vd: &ValidationData| {
-					Box::new(TestCollator)
+				collator: Box::new(|_: Hash, _vd: &ValidationData| {
+					TestCollator.boxed()
 				}),
 				para_id: para_id.into(),
 			})

@@ -27,16 +27,15 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 
-use keystore::KeyStorePtr;
+use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CandidateCommitments, CoreState, CoreIndex, CollatorId,
+	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
 	messages::{
@@ -101,6 +100,7 @@ struct CandidateBackingJob {
 	seconded: Option<Hash>,
 	/// We have already reported misbehaviors for these validators.
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
+	keystore: SyncCryptoStorePtr,
 	table: Table<TableContext>,
 	table_context: TableContext,
 	metrics: Metrics,
@@ -286,7 +286,7 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 
 		let statement = match valid {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
@@ -295,6 +295,7 @@ impl CandidateBackingJob {
 				// the collator, do not make available and report the collator.
 				let commitments_check = self.make_pov_available(
 					pov,
+					validation_data,
 					outputs,
 					|commitments| if commitments.hash() == candidate.commitments_hash {
 						Ok(CommittedCandidateReceipt {
@@ -328,9 +329,12 @@ impl CandidateBackingJob {
 		};
 
 		let issued_statement = statement.is_some();
-		if let Some(signed_statement) = statement.and_then(|s| self.sign_statement(s)) {
-			self.import_statement(&signed_statement).await?;
-			self.distribute_signed_statement(signed_statement).await?;
+
+		if let Some(statement) = statement {
+			if let Some(signed_statement) = self.sign_statement(statement).await {
+				self.import_statement(&signed_statement).await?;
+				self.distribute_signed_statement(signed_statement).await?;
+			}
 		}
 
 		Ok(issued_statement)
@@ -506,10 +510,11 @@ impl CandidateBackingJob {
 		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
 
 		let statement = match v {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
 				let commitments_check = self.make_pov_available(
 					(&*pov).clone(),
+					validation_data,
 					outputs,
 					|commitments| if commitments == expected_commitments {
 						Ok(())
@@ -530,7 +535,7 @@ impl CandidateBackingJob {
 
 		self.issued_statements.insert(candidate_hash);
 
-		if let Some(signed_statement) = self.sign_statement(statement) {
+		if let Some(signed_statement) = self.sign_statement(statement).await {
 			self.distribute_signed_statement(signed_statement).await?;
 		}
 
@@ -553,8 +558,13 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
-	fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
-		let signed = self.table_context.validator.as_ref()?.sign(statement);
+	async fn sign_statement(&self, statement: Statement) -> Option<SignedFullStatement> {
+		let signed = self.table_context
+			.validator
+			.as_ref()?
+			.sign(self.keystore.clone(), statement)
+			.await
+			.ok()?;
 		self.metrics.on_statement_signed();
 		Some(signed)
 	}
@@ -643,12 +653,13 @@ impl CandidateBackingJob {
 	async fn make_pov_available<T, E>(
 		&mut self,
 		pov: PoV,
+		validation_data: polkadot_primitives::v1::PersistedValidationData,
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
 		let available_data = AvailableData {
 			pov,
-			validation_data: outputs.validation_data,
+			validation_data,
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -694,14 +705,14 @@ impl util::JobTrait for CandidateBackingJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = KeyStorePtr;
+	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "CandidateBackingJob";
 
 	fn run(
 		parent: Hash,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 		metrics: Metrics,
 		rx_to: mpsc::Receiver<Self::ToJob>,
 		mut tx_from: mpsc::Sender<Self::FromJob>,
@@ -748,7 +759,7 @@ impl util::JobTrait for CandidateBackingJob {
 				&validators,
 				signing_context,
 				keystore.clone(),
-			) {
+			).await {
 				Ok(v) => v,
 				Err(util::Error::NotAValidator) => { return Ok(()) },
 				Err(e) => {
@@ -802,6 +813,7 @@ impl util::JobTrait for CandidateBackingJob {
 				issued_statements: HashSet::new(),
 				seconded: None,
 				reported_misbehavior_for: HashSet::new(),
+				keystore,
 				table: Table::default(),
 				table_context,
 				metrics,
@@ -859,17 +871,17 @@ impl metrics::Metrics for Metrics {
 	}
 }
 
-delegated_subsystem!(CandidateBackingJob(KeyStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
+delegated_subsystem!(CandidateBackingJob(SyncCryptoStorePtr, Metrics) <- ToJob as CandidateBackingSubsystem);
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use assert_matches::assert_matches;
-	use futures::{executor, future, Future};
+	use futures::{future, Future};
 	use polkadot_primitives::v1::{
 		ScheduledCore, BlockData, CandidateCommitments,
 		PersistedValidationData, ValidationData, TransientValidationData, HeadData,
-		ValidatorPair, ValidityAttestation, GroupRotationInfo,
+		ValidityAttestation, GroupRotationInfo,
 	};
 	use polkadot_subsystem::{
 		messages::RuntimeApiRequest,
@@ -877,6 +889,8 @@ mod tests {
 	};
 	use polkadot_node_primitives::InvalidCandidate;
 	use sp_keyring::Sr25519Keyring;
+	use sp_application_crypto::AppKey;
+	use sp_keystore::{CryptoStore, SyncCryptoStore};
 	use std::collections::HashMap;
 
 	fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -885,7 +899,7 @@ mod tests {
 
 	struct TestState {
 		chain_ids: Vec<ParaId>,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 		validators: Vec<Sr25519Keyring>,
 		validator_public: Vec<ValidatorId>,
 		validation_data: ValidationData,
@@ -912,9 +926,9 @@ mod tests {
 				Sr25519Keyring::Ferdie,
 			];
 
-			let keystore = keystore::Store::new_in_memory();
+			let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
 			// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
-			keystore.write().insert_ephemeral_from_seed::<ValidatorPair>(&validators[0].to_seed())
+			SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
 				.expect("Insert key into keystore");
 
 			let validator_public = validator_pubkeys(&validators);
@@ -985,7 +999,7 @@ mod tests {
 		virtual_overseer: polkadot_node_subsystem_test_helpers::TestSubsystemContextHandle<CandidateBackingMessage>,
 	}
 
-	fn test_harness<T: Future<Output=()>>(keystore: KeyStorePtr, test: impl FnOnce(TestHarness) -> T) {
+	fn test_harness<T: Future<Output=()>>(keystore: SyncCryptoStorePtr, test: impl FnOnce(TestHarness) -> T) {
 		let pool = sp_core::testing::TaskExecutor::new();
 
 		let (context, virtual_overseer) = polkadot_node_subsystem_test_helpers::make_subsystem_context(pool.clone());
@@ -998,8 +1012,7 @@ mod tests {
 
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(subsystem);
-
-		executor::block_on(future::select(test_fut, subsystem));
+		futures::executor::block_on(future::select(test_fut, subsystem));
 	}
 
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
@@ -1136,12 +1149,11 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1203,20 +1215,29 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-
+			let public0 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
+			).await.expect("Insert key into keystore");
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&test_state.validators[2].pair().into(),
-			);
+				&public2.into(),
+			).await.expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&test_state.validators[0].pair().into(),
-			);
+				&public0.into(),
+			).await.expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
@@ -1247,12 +1268,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1330,27 +1350,37 @@ mod tests {
 			}.build();
 
 			let candidate_a_hash = candidate_a.hash();
-
+			let public0 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
+			).await.expect("Insert key into keystore");
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&test_state.validators[2].pair().into(),
-			);
+				&public2.into(),
+			).await.expect("should be signed");
 
 			let signed_b = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&test_state.validators[0].pair().into(),
-			);
+				&public0.into(),
+			).await.expect("should be signed");
 
 			let signed_c = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Invalid(candidate_a_hash),
 				&test_state.signing_context,
 				0,
-				&test_state.validators[0].pair().into(),
-			);
+				&public0.into(),
+			).await.expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
 
@@ -1376,12 +1406,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1532,12 +1561,11 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1600,12 +1628,18 @@ mod tests {
 
 			let candidate_hash = candidate.hash();
 
+			let validator2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
+
 			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
 				2,
-				&test_state.validators[2].pair().into(),
-			);
+				&validator2.into(),
+			).await.expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
 			let statement = CandidateBackingMessage::Statement(
@@ -1733,12 +1767,17 @@ mod tests {
 				..Default::default()
 			}.build();
 
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
 			let signed_a = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Seconded(candidate.clone()),
 				&test_state.signing_context,
 				2,
-				&test_state.validators[2].pair().into(),
-			);
+				&public2.into(),
+			).await.expect("should be signed");
 
 			// Send in a `Statement` with a candidate.
 			let statement = CandidateBackingMessage::Statement(
@@ -1869,12 +1908,17 @@ mod tests {
 				..Default::default()
 			}.build();
 
+			let public2 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+			).await.expect("Insert key into keystore");
 			let seconding = SignedFullStatement::sign(
+				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
 				&test_state.signing_context,
 				2,
-				&test_state.validators[2].pair().into(),
-			);
+				&public2.into(),
+			).await.expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(
 				test_state.relay_parent,
