@@ -25,7 +25,6 @@ mod client;
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 #[cfg(feature = "full-node")]
-
 use log::info;
 use polkadot_node_core_proposer::ProposerFactory;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
