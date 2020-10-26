@@ -119,22 +119,22 @@ impl TryFrom<AllMessages> for FromJob {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	Util(util::Error),
+	Util(#[from] util::Error),
 
 	#[error(transparent)]
-	OneshotRecv(oneshot::Canceled),
+	OneshotRecv(#[from] oneshot::Canceled),
 
 	#[error(transparent)]
-	ChainApi(ChainApiError),
+	ChainApi(#[from] ChainApiError),
 
 	#[error(transparent)]
-	Runtime(RuntimeApiError),
+	Runtime(#[from] RuntimeApiError),
 
 	#[error("Failed to send message to ChainAPI")]
 	ChainApiMessageSend(#[source] mpsc::SendError),
 
 	#[error("Failed to send return message with Inherents")]
-	InherentDataReturnChannel(#[source] mpsc::SendError),
+	InherentDataReturnChannel,
 }
 
 impl JobTrait for ProvisioningJob {
@@ -237,7 +237,7 @@ impl ProvisioningJob {
 							let tail = bad_indices[bad_indices.len() - 1];
 							let retain = *idx != tail;
 							if *idx >= tail {
-								bad_indices.pop();
+								let _ = bad_indices.pop();
 							}
 							retain
 						})
@@ -306,7 +306,7 @@ async fn send_inherent_data(
 
 	return_sender
 		.send((bitfields, candidates))
-		.map_err(|e| Error::InherentDataReturnChannel(e))?;
+		.map_err(|_data| Error::InherentDataReturnChannel)?;
 	Ok(())
 }
 
