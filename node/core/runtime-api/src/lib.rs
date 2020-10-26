@@ -444,6 +444,8 @@ mod tests {
 		runtime_api.validation_outputs_results.insert(para_a, false);
 		runtime_api.validation_outputs_results.insert(para_b, true);
 
+		let runtime_api = Arc::new(runtime_api);
+
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
