@@ -49,6 +49,7 @@ const JOB_DELAY: Duration = Duration::from_millis(1500);
 pub struct BitfieldSigningJob;
 
 /// Messages which a `BitfieldSigningJob` is prepared to receive.
+#[allow(missing_docs)]
 pub enum ToJob {
 	BitfieldSigning(BitfieldSigningMessage),
 	Stop,
@@ -83,6 +84,7 @@ impl From<BitfieldSigningMessage> for ToJob {
 }
 
 /// Messages which may be sent from a `BitfieldSigningJob`.
+#[allow(missing_docs)]
 pub enum FromJob {
 	AvailabilityStore(AvailabilityStoreMessage),
 	BitfieldDistribution(BitfieldDistributionMessage),
@@ -120,24 +122,24 @@ impl TryFrom<AllMessages> for FromJob {
 pub enum Error {
 	/// error propagated from the utility subsystem
 	#[error(transparent)]
-	Util(util::Error),
+	Util(#[from] util::Error),
 	/// io error
 	#[error(transparent)]
-	Io(std::io::Error),
+	Io(#[from] std::io::Error),
 	/// a one shot channel was canceled
 	#[error(transparent)]
-	Oneshot(oneshot::Canceled),
+	Oneshot(#[from] oneshot::Canceled),
 	/// a mspc channel failed to send
 	#[error(transparent)]
-	MpscSend(mpsc::SendError),
+	MpscSend(#[from] mpsc::SendError),
 	/// several errors collected into one
-	#[error(transparent)]
+	#[error("Multiple errours occured: {0:?}")]
 	Multiple(Vec<Error>),
 	/// the runtime API failed to return what we wanted
 	#[error(transparent)]
-	Runtime(RuntimeApiError),
+	Runtime(#[from] RuntimeApiError),
 	/// the keystore failed to process signing request
-	#[error(transparent)]
+	#[error("Keystore failed: {0:?}")]
 	Keystore(KeystoreError),
 }
 
@@ -256,7 +258,7 @@ async fn construct_availability_bitfield(
 	if errs.is_empty() {
 		Ok(out.into_inner().into())
 	} else {
-		Err(errs.into())
+		Err(Error::Multiple(errs.into()))
 	}
 }
 
