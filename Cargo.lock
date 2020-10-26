@@ -4985,7 +4985,6 @@ name = "polkadot-node-core-candidate-validation"
 version = "0.1.0"
 dependencies = [
  "assert_matches",
- "derive_more",
  "futures 0.3.5",
  "log 0.4.11",
  "parity-scale-codec",
@@ -4995,7 +4994,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-parachain",
  "polkadot-primitives",
- "sp-blockchain",
  "sp-core",
  "sp-keyring",
 ]

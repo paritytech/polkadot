@@ -24,7 +24,7 @@
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
+	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,
 	messages::{
 		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
