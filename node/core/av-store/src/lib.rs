@@ -58,15 +58,15 @@ mod columns {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	Erasure(#[from]erasure::Error),
+	Erasure(#[from] erasure::Error),
 	#[error(transparent)]
-	Io(#[from]io::Error),
+	Io(#[from] io::Error),
 	#[error(transparent)]
-	Oneshot(#[from]oneshot::Canceled),
+	Oneshot(#[from] oneshot::Canceled),
 	#[error(transparent)]
-	Subsystem(#[from]SubsystemError),
+	Subsystem(#[from] SubsystemError),
 	#[error(transparent)]
-	Time(#[from]SystemTimeError),
+	Time(#[from] SystemTimeError),
 }
 
 /// A wrapper type for delays.
