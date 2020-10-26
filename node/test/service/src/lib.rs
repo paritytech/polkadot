@@ -157,6 +157,7 @@ pub fn node_config(
 		pruning: Default::default(),
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
+		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
 			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
