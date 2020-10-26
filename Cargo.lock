@@ -4837,8 +4837,6 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "log 0.4.11",
- "parity-scale-codec",
- "polkadot-network-bridge",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -4848,6 +4846,7 @@ dependencies = [
  "smol-timeout",
  "sp-core",
  "sp-keyring",
+ "thiserror",
 ]
 
 [[package]]

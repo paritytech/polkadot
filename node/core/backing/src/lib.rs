@@ -75,17 +75,17 @@ enum Error {
 	#[error("Signature is invalid")]
 	InvalidSignature,
 	#[error("Storing data failed")]
-	StoreFailed(oneshot::Canceled),
+	StoreFailed(#[source] oneshot::Canceled),
 	#[error("Responding to backing request failed")]
-	BackingResponseChannel(oneshot::Canceled),
+	BackingResponseChannel(#[source] oneshot::Canceled),
 	#[error("Obtaining erasure chunks failed")]
-	ObtainErasureChunks(#[from] #[source]erasure_coding::Error),
+	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
 	#[error(transparent)]
-	ValidationFailed(ValidationFailed),
+	ValidationFailed(#[from] ValidationFailed),
 	#[error(transparent)]
-	Mpsc(mpsc::SendError),
+	Mpsc(#[from] mpsc::SendError),
 	#[error(transparent)]
-	UtilError(util::Error),
+	UtilError(#[from] util::Error),
 }
 
 /// Holds all data needed for candidate backing job operation.
