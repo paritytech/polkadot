@@ -305,7 +305,11 @@ impl<M: Send + 'static> SubsystemContext for OverseerSubsystemContext<M> {
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await.ok_or(SubsystemError::Context("No more messages in rx queue to process".to_owned()))
+		self.rx.next().await
+			.ok_or(SubsystemError::Context(
+				"No more messages in rx queue to process"
+				.to_owned()
+			))
 	}
 
 	async fn spawn(&mut self, name: &'static str, s: Pin<Box<dyn Future<Output = ()> + Send>>)
