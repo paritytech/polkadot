@@ -44,11 +44,8 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
-<<<<<<< HEAD
 use polkadot_subsystem::messages::AvailabilityStoreMessage;
 use thiserror::Error;
-=======
->>>>>>> origin/master
 
 const LOG_TARGET: &str = "availability";
 
@@ -60,7 +57,6 @@ mod columns {
 
 #[derive(Debug, Error)]
 enum Error {
-<<<<<<< HEAD
 	#[error(transparent)]
 	Erasure(#[from]erasure::Error),
 	#[error(transparent)]
@@ -69,21 +65,8 @@ enum Error {
 	Oneshot(#[from]oneshot::Canceled),
 	#[error(transparent)]
 	Subsystem(#[from]SubsystemError),
-=======
-	#[from]
-	Chain(ChainApiError),
-	#[from]
-	Erasure(erasure::Error),
-	#[from]
-	Io(io::Error),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Runtime(RuntimeApiError),
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	Time(SystemTimeError),
+	#[error(transparent)]
+	Time(#[from]SystemTimeError),
 }
 
 /// A wrapper type for delays.
@@ -302,7 +285,6 @@ impl PartialOrd for ChunkPruningRecord {
 	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
 	}
->>>>>>> origin/master
 }
 
 /// An implementation of the Availability Store subsystem.
