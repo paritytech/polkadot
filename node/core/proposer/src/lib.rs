@@ -6,6 +6,7 @@ use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{Proposal, RecordProof};
@@ -25,12 +26,14 @@ pub struct ProposerFactory<TxPool, Backend, Client> {
 
 impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 	pub fn new(
+		spawn_handle: impl SpawnNamed + 'static,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
+				spawn_handle,
 				client,
 				transaction_pool,
 				None,

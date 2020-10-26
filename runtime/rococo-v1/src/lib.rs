@@ -64,8 +64,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use pallet_session::historical as session_historical;
 use frame_system::EnsureRoot;
-use runtime_common::paras_sudo_wrapper as paras_sudo_wrapper;
-use runtime_common::paras_registrar;
+use runtime_common::{paras_sudo_wrapper, paras_registrar};
 
 use runtime_parachains::origin as parachains_origin;
 use runtime_parachains::configuration as parachains_configuration;
@@ -191,6 +190,13 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn check_validation_outputs(
+			para_id: Id,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
 
 		fn session_index_for_child() -> SessionIndex {
@@ -740,9 +746,9 @@ impl pallet_authorship::Trait for Runtime {
 	type EventHandler = (Staking, ImOnline);
 }
 
-impl parachains_origin::Trait for Runtime { }
+impl parachains_origin::Trait for Runtime {}
 
-impl parachains_configuration::Trait for Runtime { }
+impl parachains_configuration::Trait for Runtime {}
 
 impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
@@ -752,17 +758,17 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime { }
+impl parachains_router::Trait for Runtime {}
 
-impl parachains_inclusion_inherent::Trait for Runtime { }
+impl parachains_inclusion_inherent::Trait for Runtime {}
 
-impl parachains_scheduler::Trait for Runtime { }
+impl parachains_scheduler::Trait for Runtime {}
 
 impl parachains_initializer::Trait for Runtime {
 	type Randomness = Babe;
 }
 
-impl paras_sudo_wrapper::Trait for Runtime { }
+impl paras_sudo_wrapper::Trait for Runtime {}
 
 impl paras_registrar::Trait for Runtime {
 	type Currency = Balances;

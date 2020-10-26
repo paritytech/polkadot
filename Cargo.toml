@@ -35,7 +35,6 @@ members = [
 	"runtime/rococo-v1",
 	"runtime/westend",
 	"runtime/test-runtime",
-	"runtime/test-runtime/client",
 	"statement-table",
 	"validation",
 	"xcm",
@@ -64,8 +63,8 @@ members = [
 	"node/subsystem",
 	"node/subsystem-test-helpers",
 	"node/subsystem-util",
-	"node/test-service",
-
+	"node/test/client",
+	"node/test/service",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
 ]

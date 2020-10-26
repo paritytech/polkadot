@@ -114,6 +114,8 @@ fn make_runtime_api_request<Client>(
 			query!(persisted_validation_data(para, assumption), sender),
 		Request::FullValidationData(para, assumption, sender) =>
 			query!(full_validation_data(para, assumption), sender),
+		Request::CheckValidationOutputs(para, commitments, sender) =>
+			query!(check_validation_outputs(para, commitments), sender),
 		Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(validation_code(para, assumption), sender),
@@ -186,6 +188,7 @@ mod tests {
 		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
 		validation_code: HashMap<ParaId, ValidationCode>,
+		validation_outputs_results: HashMap<ParaId, bool>,
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
 	}
@@ -235,6 +238,19 @@ mod tests {
 				_assumption: OccupiedCoreAssumption,
 			) -> Option<ValidationData> {
 				self.validation_data.get(&para).map(|l| l.clone())
+			}
+
+			fn check_validation_outputs(
+				&self,
+				para_id: ParaId,
+				_commitments: polkadot_primitives::v1::ValidationOutputs,
+			) -> bool {
+				self.validation_outputs_results
+					.get(&para_id)
+					.cloned()
+					.expect(
+						"`check_validation_outputs` called but the expected result hasn't been supplied"
+					)
 			}
 
 			fn session_index_for_child(&self) -> SessionIndex {
@@ -408,6 +424,60 @@ mod tests {
 			}).await;
 
 			assert_eq!(rx.await.unwrap().unwrap(), None);
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_check_validation_outputs() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+		let commitments = polkadot_primitives::v1::ValidationOutputs::default();
+
+		runtime_api.validation_outputs_results.insert(para_a, false);
+		runtime_api.validation_outputs_results.insert(para_b, true);
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CheckValidationOutputs(
+						para_a,
+						commitments.clone(),
+						tx,
+					),
+				)
+			}).await;
+			assert_eq!(
+				rx.await.unwrap().unwrap(),
+				runtime_api.validation_outputs_results[&para_a],
+			);
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle.send(FromOverseer::Communication {
+				msg: RuntimeApiMessage::Request(
+					relay_parent,
+					Request::CheckValidationOutputs(
+						para_b,
+						commitments,
+						tx,
+					),
+				)
+			}).await;
+			assert_eq!(
+				rx.await.unwrap().unwrap(),
+				runtime_api.validation_outputs_results[&para_b],
+			);
 
 			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
 		};
