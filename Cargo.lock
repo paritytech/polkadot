@@ -4789,7 +4789,6 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.0",
  "polkadot-erasure-coding",
- "polkadot-network-bridge",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -4801,7 +4800,6 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
- "streamunordered",
  "thiserror",
 ]
 
