@@ -29,15 +29,12 @@ pub enum Error {
 	Consensus(#[from] consensus::error::Error),
 	/// Unexpected error checking inherents
 	#[error("Unexpected error while checking inherents: {0}")]
-	InherentError(#[from] inherents::Error),
+	InherentError(inherents::Error),
 }
 
-impl std::error::Error for Error {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			Error::Client(ref err) => Some(err),
-			Error::Consensus(ref err) => Some(err),
-			_ => None,
-		}
+
+impl std::convert::From<inherents::Error> for Error {
+	fn from(inner: inherents::Error) -> Self {
+		Self::InherentError(inner)
 	}
 }
