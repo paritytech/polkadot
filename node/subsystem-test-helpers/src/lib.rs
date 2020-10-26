@@ -16,7 +16,7 @@
 
 //! Utilities for testing subsystems.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::messages::AllMessages;

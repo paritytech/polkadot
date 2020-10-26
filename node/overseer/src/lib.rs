@@ -54,7 +54,7 @@
 //!             ..................................................................
 //! ```
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
 use std::fmt::Debug;

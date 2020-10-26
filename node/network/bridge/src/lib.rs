@@ -16,7 +16,7 @@
 
 //! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
 use parity_scale_codec::{Encode, Decode};

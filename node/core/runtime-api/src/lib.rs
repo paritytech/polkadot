@@ -19,7 +19,7 @@
 //! This provides a clean, ownerless wrapper around the parachain-related runtime APIs. This crate
 //! can also be used to cache responses from heavy runtime APIs.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{

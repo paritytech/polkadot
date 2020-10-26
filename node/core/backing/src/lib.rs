@@ -16,7 +16,7 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;

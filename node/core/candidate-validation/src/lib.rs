@@ -20,7 +20,7 @@
 //! according to a validation function. This delegates validation to an underlying
 //! pool of processes used for execution of the Wasm.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 #![warn(missing_docs)]
 
 use polkadot_subsystem::{

@@ -16,7 +16,7 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_crate_dependencies, unused_results)]
 
 pub mod chain_spec;
 mod grandpa_support;

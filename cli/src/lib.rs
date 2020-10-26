@@ -17,7 +17,9 @@
 //! Polkadot CLI library.
 
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
+#![deny(unused_crate_dependencies)]
+
+use sp_trie as _;
 
 #[cfg(feature = "browser")]
 mod browser;

@@ -22,7 +22,9 @@
 //!
 //! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
-#![deny(unused_extern_crates, unused_results)]
+#![deny(unused_results)]
+// #![deny(unused_crate_dependencies] causes false positives
+// https://github.com/rust-lang/rust/issues/57274
 #![warn(missing_docs)]
 
 use polkadot_node_subsystem::{

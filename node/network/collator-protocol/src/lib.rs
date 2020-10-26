@@ -17,7 +17,7 @@
 //! The Collator Protocol allows collators and validators talk to each other.
 //! This subsystem implements both sides of the collator protocol.
 
-#![deny(missing_docs, unused_extern_crates, unused_results)]
+#![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt};
