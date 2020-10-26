@@ -191,6 +191,13 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
+		fn check_validation_outputs(
+			para_id: Id,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
+
 		fn session_index_for_child() -> SessionIndex {
 			runtime_api_impl::session_index_for_child::<Runtime>()
 		}

@@ -32,11 +32,10 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CandidateCommitments, CoreState, CoreIndex, CollatorId,
+	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
 	messages::{
@@ -287,7 +286,7 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 
 		let statement = match valid {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
@@ -296,6 +295,7 @@ impl CandidateBackingJob {
 				// the collator, do not make available and report the collator.
 				let commitments_check = self.make_pov_available(
 					pov,
+					validation_data,
 					outputs,
 					|commitments| if commitments.hash() == candidate.commitments_hash {
 						Ok(CommittedCandidateReceipt {
@@ -510,10 +510,11 @@ impl CandidateBackingJob {
 		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
 
 		let statement = match v {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
 				let commitments_check = self.make_pov_available(
 					(&*pov).clone(),
+					validation_data,
 					outputs,
 					|commitments| if commitments == expected_commitments {
 						Ok(())
@@ -652,12 +653,13 @@ impl CandidateBackingJob {
 	async fn make_pov_available<T, E>(
 		&mut self,
 		pov: PoV,
+		validation_data: polkadot_primitives::v1::PersistedValidationData,
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
 		let available_data = AvailableData {
 			pov,
-			validation_data: outputs.validation_data,
+			validation_data,
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -1147,12 +1149,11 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1267,12 +1268,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1406,12 +1406,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1562,12 +1561,11 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
 							fees: Default::default(),
 							new_validation_code: None,
-						}),
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);

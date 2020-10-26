@@ -93,9 +93,8 @@ polkadot-pov-distribution = { path = "../network/pov-distribution", optional = t
 polkadot-statement-distribution = { path = "../network/statement-distribution", optional = true }
 
 [dev-dependencies]
-polkadot-test-runtime-client = { path = "../../runtime/test-runtime/client" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-env_logger = "0.7.0"
+polkadot-test-client = { path = "../test/client" }
+env_logger = "0.8.1"
 
 [features]
 default = ["db", "full-node"]

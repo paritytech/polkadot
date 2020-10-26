@@ -343,7 +343,10 @@ async fn candidate_is_valid_inner(
 			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
 		))
 		.await?;
-	Ok(std::matches!(rx.await, Ok(Ok(ValidationResult::Valid(_)))))
+	Ok(std::matches!(
+		rx.await,
+		Ok(Ok(ValidationResult::Valid(_, _)))
+	))
 }
 
 async fn second_candidate(
@@ -445,8 +448,7 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_node_primitives::ValidationOutputs;
-	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData};
+	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData, ValidationOutputs};
 	use sp_core::crypto::Public;
 
 	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(
@@ -478,7 +480,7 @@ mod tests {
 		postconditions(job, job_result);
 	}
 
-	fn default_validation_outputs() -> ValidationOutputs {
+	fn default_validation_outputs_and_data() -> (ValidationOutputs, polkadot_primitives::v1::PersistedValidationData) {
 		let head_data: Vec<u8> = (0..32).rev().cycle().take(256).collect();
 		let parent_head_data = head_data
 			.iter()
@@ -486,17 +488,19 @@ mod tests {
 			.map(|x| x.saturating_sub(1))
 			.collect();
 
-		ValidationOutputs {
-			head_data: HeadData(head_data),
-			validation_data: PersistedValidationData {
+		(
+			ValidationOutputs {
+				head_data: HeadData(head_data),
+				upward_messages: Vec::new(),
+				fees: 0,
+				new_validation_code: None,
+			},
+			PersistedValidationData {
 				parent_head: HeadData(parent_head_data),
 				block_number: 123,
 				hrmp_mqc_heads: Vec::new(),
 			},
-			upward_messages: Vec::new(),
-			fees: 0,
-			new_validation_code: None,
-		}
+		)
 	}
 
 	/// when nothing is seconded so far, the collation is fetched and seconded
@@ -556,8 +560,9 @@ mod tests {
 							assert_eq!(got_candidate_descriptor, candidate_receipt.descriptor);
 							assert_eq!(got_pov.as_ref(), &pov);
 
+							let (outputs, data) = default_validation_outputs_and_data();
 							return_sender
-								.send(Ok(ValidationResult::Valid(default_validation_outputs())))
+								.send(Ok(ValidationResult::Valid(outputs, data)))
 								.unwrap();
 						}
 						FromJob::Backing(CandidateBackingMessage::Second(
