@@ -1084,6 +1084,7 @@ impl<F: Future> Future for Timeout<F> {
 #[cfg(test)]
 mod tests {
 	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -1279,7 +1280,7 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);
@@ -1335,7 +1336,7 @@ mod tests {
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);
