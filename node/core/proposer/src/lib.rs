@@ -143,7 +143,7 @@ where
 			let (sender, receiver) = futures::channel::oneshot::channel();
 
 			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)??;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			// strictly speaking, we don't _have_ to .await this send_msg before opening the
@@ -154,7 +154,7 @@ where
 				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
 			)).await?;
 
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
 		}
 		.boxed()
 		.fuse();
@@ -234,7 +234,8 @@ pub enum Error {
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
 	Timeout,
-	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
+	ClosedChannelAwaitingActivation,
+	ClosedChannelAwaitingInherentData,
 	Subsystem(SubsystemError)
 }
 
@@ -269,7 +270,8 @@ impl fmt::Display for Error {
 			Self::Blockchain(err) => write!(f, "blockchain error: {}", err),
 			Self::Inherent(err) => write!(f, "inherent error: {:?}", err),
 			Self::Timeout => write!(f, "timeout: provisioner did not return inherent data after {:?}", PROPOSE_TIMEOUT),
-			Self::ClosedChannelFromProvisioner(err) => write!(f, "provisioner closed inherent data channel before sending: {}", err),
+			Self::ClosedChannelAwaitingActivation => write!(f, "closed channel from overseer when awaiting activation"),
+			Self::ClosedChannelAwaitingInherentData => write!(f, "closed channel from provisioner when awaiting inherent data"),
 			Self::Subsystem(err) => write!(f, "subsystem error: {:?}", err),
 		}
 	}
@@ -280,7 +282,6 @@ impl std::error::Error for Error {
 		match self {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
-			Self::ClosedChannelFromProvisioner(err) => Some(err),
 			Self::Subsystem(err) => Some(err),
 			_ => None
 		}
