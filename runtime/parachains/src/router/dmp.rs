@@ -21,10 +21,11 @@ use sp_std::prelude::*;
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
 
+/// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
 pub enum QueueDownwardMessageError {
-	/// The message being sent exceeds the configured critical message size.
-	ExceedsCriticalMessageSize,
+	/// The message being sent exceeds the configured max message size.
+	ExceedsMaxMessageSize,
 }
 
 /// Routines and getters related to downward message passing.
@@ -45,7 +46,7 @@ impl<T: Trait> Module<T> {
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
-			return Err(QueueDownwardMessageError::ExceedsCriticalMessageSize);
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize);
 		}
 
 		let inbound = InboundDownwardMessage {
