@@ -14,8 +14,8 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-log = "0.4.8"
-structopt = "0.3.8"
+log = "0.4.11"
+structopt = { version = "0.3.8", optional = true }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
@@ -39,6 +39,7 @@ default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
+	"structopt",
 	"sc-cli",
 	"sc-service",
 	"frame-benchmarking-cli",
