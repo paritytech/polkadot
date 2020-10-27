@@ -29,7 +29,7 @@ use std::fmt;
 /// comaptible errors, which require `Send + Sync`
 /// which are not satisfied by the `sp_*` crates.
 #[derive(Debug)]
-struct ErrorWrapper(pub std::sync::Arc<PolkaError>);
+struct ErrorWrapper(std::sync::Arc<PolkaError>);
 
 // nothing is going to be sent to another thread
 // it merely exists to glue two distinct error
