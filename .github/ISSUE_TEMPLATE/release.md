@@ -8,7 +8,7 @@ title: Polkadot {{ env.VERSION }} Release checklist
 This is the release checklist for Polkadot {{ env.VERSION }}. **All** following
 checks should be completed before publishing a new release of the
 Polkadot/Kusama/Westend runtime or client. The current release candidate can be
-checked out with `git checkout {{ env.VERSION }}`
+checked out with `git checkout release-{{ env.VERSION }}`
 
 ### Runtime Releases
 
@@ -93,6 +93,23 @@ Offline signing libraries depend on a consistent ordering of call indices and
 functions. Compare the metadata of the current and new runtimes and ensure that
 the `module index, call index` tuples map to the same set of functions. In case
 of a breaking change, increase `transaction_version`.
+
+To verify the order has not changed:
+
+1. Download the latest release-candidate binary either from the draft-release
+on Github, or
+[AWS](https://releases.parity.io/polkadot/x86_64-debian:stretch/{{ env.VERSION }}-rc1/polkadot)
+(adjust the rc in this URL as necessary).
+2. Run the release-candidate binary using a local chain:
+`./polkadot --chain=polkadot-local` or `./polkadot --chain=kusama.local`
+3. Use [`polkadot-js-tools`](https://github.com/polkadot-js/tools) to compare
+the metadata:
+  - For Polkadot: `docker run --network host jacogr/polkadot-js-tools metadata wss://rpc.polkadot.io ws://localhost:9944`
+  - For Kusama: `docker run --network host jacogr/polkadot-js-tools metadata wss://kusama-rpc.polkadot.io ws://localhost:9944`
+4. Things to look for in the output are lines like:
+  - `[Identity] idx 28 -> 25 (calls 15)` - indicates the index for `Identity` has changed
+  - `[+] Society, Recovery` - indicates the new version includes 2 additional modules/pallets.
+  - If no indices have changed, every modules line should look something like `[Identity] idx 25 (calls 15)`
 
 Note: Adding new functions to the runtime does not constitute a breaking change
 as long as they are added to the end of a pallet (i.e., does not break any
