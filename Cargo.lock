@@ -2618,6 +2618,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "rustc-hex",
+ "separator",
  "serde",
  "serde_derive",
  "serde_json",
@@ -7539,6 +7540,12 @@ name = "send_wrapper"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
+
+[[package]]
+name = "separator"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f97841a747eef040fcd2e7b3b9a220a7205926e60488e673d9e4926d27772ce5"
 
 [[package]]
 name = "serde"

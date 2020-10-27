@@ -1307,3 +1307,75 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 }
+
+#[cfg(test)]
+mod test_fees {
+	use super::*;
+	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::storage::StorageValue;
+	use sp_runtime::FixedPointNumber;
+	use frame_support::weights::GetDispatchInfo;
+	use codec::Encode;
+	use pallet_transaction_payment::Multiplier;
+	use separator::Separatable;
+
+
+	#[test]
+	#[ignore]
+	fn block_cost() {
+		let raw_fee = WeightToFee::calc(&MaximumBlockWeight::get());
+
+		println!(
+			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
+			MaximumBlockWeight::get(),
+			raw_fee.separated_string(),
+		);
+	}
+
+	#[test]
+	#[ignore]
+	fn transfer_cost_min_multiplier() {
+		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(Default::default(), Default::default());
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::Balances(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut ext = sp_io::TestExternalities::new_empty();
+		ext.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::put(min_multiplier);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1000_000_000u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+	}
+}
