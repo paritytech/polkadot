@@ -23,7 +23,7 @@
 //! Subsystems' APIs are defined separately from their implementation, leading to easier mocking.
 
 use futures::channel::{mpsc, oneshot};
-
+use thiserror::Error;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, ReputationChange, PeerId,
 };
@@ -97,7 +97,8 @@ impl CandidateBackingMessage {
 }
 
 /// Blanket error for validation failing for internal reasons.
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("Validation failed with {0:?}")]
 pub struct ValidationFailed(pub String);
 
 /// Messages received by the Validation subsystem.

@@ -44,6 +44,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
+use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
 
@@ -53,22 +54,22 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Chain(ChainApiError),
-	#[from]
-	Erasure(erasure::Error),
-	#[from]
-	Io(io::Error),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Runtime(RuntimeApiError),
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	Time(SystemTimeError),
+	#[error(transparent)]
+	RuntimeAPI(#[from] RuntimeApiError),
+	#[error(transparent)]
+	ChainAPI(#[from] ChainApiError),
+	#[error(transparent)]
+	Erasure(#[from] erasure::Error),
+	#[error(transparent)]
+	Io(#[from] io::Error),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
+	#[error(transparent)]
+	Time(#[from] SystemTimeError),
 }
 
 /// A wrapper type for delays.

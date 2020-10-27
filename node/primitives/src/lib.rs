@@ -20,6 +20,8 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+#![deny(missing_docs)]
+
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{

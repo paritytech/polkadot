@@ -19,6 +19,9 @@
 //! This provides a clean, ownerless wrapper around the parachain-related runtime APIs. This crate
 //! can also be used to cache responses from heavy runtime APIs.
 
+#![deny(unused_crate_dependencies)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	Subsystem, SpawnedSubsystem, SubsystemResult, SubsystemContext,
 	FromOverseer, OverseerSignal,

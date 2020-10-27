@@ -16,10 +16,11 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
+#![deny(unused_results)]
+
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
-
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 #[cfg(feature = "full-node")]
@@ -272,7 +273,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore_container, select_chain, import_queue, transaction_pool,
+		client,
+		backend,
+		task_manager,
+		keystore_container,
+		select_chain,
+		import_queue,
+		transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -390,6 +397,7 @@ pub struct NewFull<C> {
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
+	pub backend: Arc<FullBackend>,
 }
 
 #[cfg(feature = "full-node")]
@@ -403,6 +411,7 @@ impl<C> NewFull<C> {
 			network: self.network,
 			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
+			backend: self.backend,
 		}
 	}
 }
@@ -458,7 +467,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
@@ -670,6 +679,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		network,
 		network_status_sinks,
 		rpc_handlers,
+		backend,
 	})
 }
 
@@ -747,7 +757,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config,
 			backend.clone(),
 			task_manager.spawn_handle(),
