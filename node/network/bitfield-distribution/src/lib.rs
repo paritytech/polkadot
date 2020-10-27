@@ -20,8 +20,10 @@
 //! for a particular relay parent.
 //! Independently of that, gossips on received messages from peers to other interested peers.
 
+#![deny(unused_crate_dependencies)]
+
 use codec::{Decode, Encode};
-use futures::{channel::oneshot, FutureExt};
+use futures::{channel::oneshot, FutureExt, TryFutureExt};
 
 use log::{trace, warn};
 use polkadot_subsystem::messages::*;
@@ -33,6 +35,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange};
+use polkadot_subsystem::SubsystemError;
 use std::collections::{HashMap, HashSet};
 
 const COST_SIGNATURE_INVALID: ReputationChange =
@@ -578,9 +581,15 @@ where
 	C: SubsystemContext<Message = BitfieldDistributionMessage> + Sync + Send,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = self.run(ctx)
+			.map_err(|e| {
+				SubsystemError::with_origin("bitfield-distribution", e)
+			})
+			.map(|_| ()).boxed();
+
 		SpawnedSubsystem {
 			name: "bitfield-distribution-subsystem",
-			future: Box::pin(async move { Self::run(self, ctx) }.map(|_| ())),
+			future,
 		}
 	}
 }

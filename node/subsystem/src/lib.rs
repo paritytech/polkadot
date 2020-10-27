@@ -31,6 +31,7 @@ use futures::future::BoxFuture;
 use polkadot_primitives::v1::Hash;
 use async_trait::async_trait;
 use smallvec::SmallVec;
+use thiserror::Error;
 
 use crate::messages::AllMessages;
 
@@ -105,6 +106,7 @@ pub enum FromOverseer<M> {
 	},
 }
 
+
 /// An error type that describes faults that may happen
 ///
 /// These are:
@@ -112,30 +114,42 @@ pub enum FromOverseer<M> {
 ///   * Subsystems dying when they are not expected to
 ///   * Subsystems not dying when they are told to die
 ///   * etc.
-#[derive(Debug, PartialEq, Eq)]
-pub struct SubsystemError;
+#[derive(Error, Debug)]
+pub enum SubsystemError {
+	/// A notification connection is no longer valid.
+	#[error(transparent)]
+	NotifyCancellation(#[from] oneshot::Canceled),
 
-impl From<mpsc::SendError> for SubsystemError {
-	fn from(_: mpsc::SendError) -> Self {
-		Self
-	}
+	/// Queue does not accept another item.
+	#[error(transparent)]
+	QueueError(#[from] mpsc::SendError),
+
+	/// An attempt to spawn a futures task did not succeed.
+	#[error(transparent)]
+	TaskSpawn(#[from] futures::task::SpawnError),
+
+	/// An infallable error.
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
+
+	/// An other error lacking particular type information.
+	#[error("Failed to {0}")]
+	Context(String),
+
+	/// Per origin (or subsystem) annotations to wrap an error.
+	#[error("Error originated in {origin}")]
+	FromOrigin {
+		/// An additional anotation tag for the origin of `source`.
+		origin: &'static str,
+		/// The wrapped error. Marked as source for tracking the error chain.
+		#[source] source: Box<dyn std::error::Error + Send>
+	},
 }
 
-impl From<oneshot::Canceled> for SubsystemError {
-	fn from(_: oneshot::Canceled) -> Self {
-		Self
-	}
-}
-
-impl From<futures::task::SpawnError> for SubsystemError {
-	fn from(_: futures::task::SpawnError) -> Self {
-		Self
-	}
-}
-
-impl From<std::convert::Infallible> for SubsystemError {
-	fn from(e: std::convert::Infallible) -> Self {
-		match e {}
+impl SubsystemError {
+	/// Adds a `str` as `origin` to the given error `err`.
+	pub fn with_origin<E: 'static + Send + std::error::Error>(origin: &'static str, err: E) -> Self {
+		Self::FromOrigin { origin, source: Box::new(err) }
 	}
 }
 

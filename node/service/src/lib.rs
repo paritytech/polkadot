@@ -16,12 +16,14 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
+#![deny(unused_results)]
+
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
 
-
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+#[cfg(feature = "full-node")]
 use log::info;
 use polkadot_node_core_proposer::ProposerFactory;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
@@ -262,7 +264,13 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	};
 
 	Ok(service::PartialComponents {
-		client, backend, task_manager, keystore_container, select_chain, import_queue, transaction_pool,
+		client,
+		backend,
+		task_manager,
+		keystore_container,
+		select_chain,
+		import_queue,
+		transaction_pool,
 		inherent_data_providers,
 		other: (rpc_extensions_builder, import_setup, rpc_setup)
 	})
@@ -307,6 +315,7 @@ pub struct NewFull<C> {
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
 	pub network_status_sinks: service::NetworkStatusSinks<Block>,
 	pub rpc_handlers: RpcHandlers,
+	pub backend: Arc<FullBackend>,
 }
 
 #[cfg(feature = "full-node")]
@@ -320,6 +329,7 @@ impl<C> NewFull<C> {
 			network: self.network,
 			network_status_sinks: self.network_status_sinks,
 			rpc_handlers: self.rpc_handlers,
+			backend: self.backend,
 		}
 	}
 }
@@ -375,7 +385,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
@@ -531,41 +541,27 @@ pub fn new_full<RuntimeApi, Executor>(
 		grandpa::setup_disabled_grandpa(network.clone())?;
 	}
 
-	if matches!(role, Role::Authority{..} | Role::Sentry{..}) {
+	if role.is_authority() && !authority_discovery_disabled {
 		use sc_network::Event;
 		use futures::StreamExt;
 
-		if !authority_discovery_disabled {
-			let (sentries, authority_discovery_role) = match role {
-				Role::Authority { ref sentry_nodes } => (
-					sentry_nodes.clone(),
-					authority_discovery::Role::Authority (
-						keystore_container.keystore(),
-					),
-				),
-				Role::Sentry {..} => (
-					vec![],
-					authority_discovery::Role::Sentry,
-				),
-				_ => unreachable!("Due to outer matches! constraint; qed."),
-			};
-
-			let network_event_stream = network.event_stream("authority-discovery");
-			let dht_event_stream = network_event_stream.filter_map(|e| async move { match e {
+		let authority_discovery_role = authority_discovery::Role::PublishAndDiscover(
+			keystore_container.keystore(),
+		);
+		let dht_event_stream = network.event_stream("authority-discovery")
+			.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-			let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
-				client.clone(),
-				network.clone(),
-				sentries,
-				Box::pin(dht_event_stream),
-				authority_discovery_role,
-				prometheus_registry.clone(),
-			);
+		let (authority_discovery_worker, _service) = authority_discovery::new_worker_and_service(
+			client.clone(),
+			network.clone(),
+			Box::pin(dht_event_stream),
+			authority_discovery_role,
+			prometheus_registry.clone(),
+		);
 
-			task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
-		}
+		task_manager.spawn_handle().spawn("authority-discovery-worker", authority_discovery_worker.run());
 	}
 
 
@@ -578,6 +574,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		network,
 		network_status_sinks,
 		rpc_handlers,
+		backend,
 	})
 }
 
@@ -655,7 +652,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config,
 			backend.clone(),
 			task_manager.spawn_handle(),

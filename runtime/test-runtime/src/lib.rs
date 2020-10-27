@@ -20,7 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit="256"]
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use codec::Encode;
 use polkadot_runtime_parachains::{
 	configuration,
@@ -101,6 +101,13 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	pub trait GetLastTimestamp {
+		/// Returns the last timestamp of a runtime.
+		fn get_last_timestamp() -> u64;
 	}
 }
 
@@ -620,6 +627,13 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
 		}
 
+		fn check_validation_outputs(
+			para_id: ParaId,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
+
 		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
@@ -727,6 +741,12 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+	}
+
+	impl crate::GetLastTimestamp<Block> for Runtime {
+		fn get_last_timestamp() -> u64 {
+			Timestamp::now()
 		}
 	}
 }

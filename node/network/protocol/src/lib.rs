@@ -16,9 +16,13 @@
 
 //! Network protocol types for parachains.
 
+#![deny(unused_crate_dependencies, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_primitives::v1::Hash;
 use parity_scale_codec::{Encode, Decode};
 use std::convert::TryFrom;
+use std::fmt;
 
 pub use sc_network::{ReputationChange, PeerId};
 
@@ -31,6 +35,15 @@ pub type ProtocolVersion = u32;
 /// An error indicating that this the over-arching message type had the wrong variant
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct WrongVariant;
+
+impl fmt::Display for WrongVariant {
+	fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(formatter, "Wrong message variant")
+	}
+}
+
+impl std::error::Error for WrongVariant {}
+
 
 /// The peer-sets that the network manages. Different subsystems will use different peer-sets.
 #[derive(Debug, Clone, Copy, PartialEq)]

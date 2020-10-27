@@ -26,7 +26,7 @@ async fn call_function_actually_work(task_executor: TaskExecutor) {
 		Default::default(),
 		1,
 	));
-	let output = alice.call_function(function, Bob).await.unwrap();
+	let output = alice.send_extrinsic(function, Bob).await.unwrap();
 
 	let res = output.result.expect("return value expected");
 	let json = serde_json::from_str::<serde_json::Value>(res.as_str()).expect("valid JSON");

@@ -7,7 +7,6 @@ require 'git'
 require 'json'
 require 'octokit'
 require 'toml'
-require 'pry'
 require_relative './lib.rb'
 
 current_ref = ENV['GITHUB_REF']
@@ -54,7 +53,10 @@ substrate_cl = Changelog.new(
   prefix: true
 )
 
-all_changes = polkadot_cl.changes + substrate_cl.changes
+# Combine all changes into a single array and filter out companions
+all_changes = (polkadot_cl.changes + substrate_cl.changes).reject do |c|
+  c[:title] =~ /[Cc]ompanion/
+end
 
 # Set all the variables needed for a release
 
@@ -62,12 +64,28 @@ misc_changes = Changelog.changes_with_label(all_changes, 'B1-releasenotes')
 client_changes = Changelog.changes_with_label(all_changes, 'B5-clientnoteworthy')
 runtime_changes = Changelog.changes_with_label(all_changes, 'B7-runtimenoteworthy')
 
+# Add the audit status for runtime changes
+runtime_changes.each do |c|
+  if c.labels.any? { |l| l[:name] == 'D1-audited👍' }
+    c[:pretty_title] = "✅ `audited` #{c[:pretty_title]}"
+    next
+  end
+  if c.labels.any? { |l| l[:name] == 'D9-needsaudit👮' }
+    c[:pretty_title] = "❌ `AWAITING AUDIT` #{c[:pretty_title]}"
+    next
+  end
+  if c.labels.any? { |l| l[:name] == 'D5-nicetohaveaudit⚠️' }
+    c[:pretty_title] = "⏳ `pending non-critical audit` #{c[:pretty_title]}"
+    next
+  end
+  c[:pretty_title] = "✅ `trivial` #{c[:pretty_title]}"
+end
+
 release_priority = Changelog.highest_priority_for_changes(all_changes)
 
 # Pulled from the previous Github step
 rustc_stable = ENV['RUSTC_STABLE']
 rustc_nightly = ENV['RUSTC_NIGHTLY']
-binding.pry
 polkadot_runtime = get_runtime('polkadot', polkadot_path)
 kusama_runtime = get_runtime('kusama', polkadot_path)
 westend_runtime = get_runtime('westend', polkadot_path)

@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2026,
+	spec_version: 2027,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1107,6 +1107,12 @@ sp_api::impl_runtime_apis! {
 		fn persisted_validation_data(_: Id, _: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<BlockNumber>> {
 			None
+		}
+		fn check_validation_outputs(
+			_: Id,
+			_: primitives::v1::ValidationOutputs,
+		) -> bool {
+			false
 		}
 
 		fn session_index_for_child() -> SessionIndex {

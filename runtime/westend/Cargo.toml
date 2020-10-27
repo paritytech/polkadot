@@ -1,6 +1,6 @@
 [package]
 name = "westend-runtime"
-version = "0.8.25"
+version = "0.8.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 build = "build.rs"
@@ -84,7 +84,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.41"
 
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.6" }
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "2.0.0" }
 
 [features]
 default = ["std"]
