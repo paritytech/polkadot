@@ -317,6 +317,12 @@ impl NeedsDispatchCursor {
 			return;
 		}
 		let _ = self.needs_dispatch.remove(self.cur_idx);
+
+		// we might've removed the last element and that doesn't necessarily mean that `needs_dispatch`
+		// became empty. Reposition the cursor in this case to the beginning.
+		if self.needs_dispatch.get(self.cur_idx).is_none() {
+			self.cur_idx = 0;
+		}
 	}
 
 	/// Flushes the dispatcher state into the persistent storage.
@@ -658,4 +664,46 @@ mod tests {
 			}
 		});
 	}
+
+	#[test]
+	fn dispatch_correctly_handle_remove_of_latest() {
+		let a = ParaId::from(1991);
+		let b = ParaId::from(1999);
+
+		let a_msg_1 = vec![1, 2, 3];
+		let a_msg_2 = vec![3, 2, 1];
+		let b_msg_1 = vec![4, 5, 6];
+
+		new_test_ext(
+			GenesisConfigBuilder {
+				preferred_dispatchable_upward_messages_step_weight: 900,
+				..Default::default()
+			}
+			.build(),
+		)
+		.execute_with(|| {
+			// We want to test here an edge case, where we remove the queue with the highest
+			// para id (i.e. last in the needs_dispatch order).
+			//
+			// If the last entry was removed we should proceed execution, assuming we still have
+			// weight available.
+
+			queue_upward_msg(a, a_msg_1.clone());
+			queue_upward_msg(a, a_msg_2.clone());
+			queue_upward_msg(b, b_msg_1.clone());
+
+			{
+				let mut probe = Probe::new();
+
+				probe.assert_msg(a, a_msg_1.clone(), 300);
+				probe.assert_msg(b, b_msg_1.clone(), 300);
+				probe.assert_msg(a, a_msg_2.clone(), 300);
+
+				Router::process_pending_upward_messages();
+
+				drop(probe);
+			}
+		});
+	}
+
 }
