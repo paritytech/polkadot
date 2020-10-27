@@ -39,6 +39,10 @@ impl<T: Trait> Module<T> {
 	///
 	/// When encoded, the message should not exceed the `config.max_downward_message_size`.
 	/// Otherwise, the message won't be sent and `Err` will be returned.
+	///
+	/// It is possible to send a downward message to a non-existent para. That, however, would lead
+	/// to a dangling storage. If the caller cannot statically prove that the recipient exists
+	/// then the caller should perform a runtime check.
 	pub fn queue_downward_message(
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
