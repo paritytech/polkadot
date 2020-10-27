@@ -18,6 +18,9 @@
 
 #![warn(missing_docs)]
 
-fn main() -> cli::Result<()> {
+use color_eyre::eyre;
+
+fn main() -> eyre::Result<()> {
+	color_eyre::install()?;
 	cli::run()
 }

@@ -13,6 +13,7 @@ readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
+color-eyre = "0.5.6"
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -71,6 +72,11 @@ members = [
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+opt-level = 3
 
 [profile.release]
 # Polkadot runtime requires unwinding.
