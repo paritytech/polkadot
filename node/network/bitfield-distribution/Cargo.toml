@@ -16,10 +16,10 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-application-crypto = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-keystore = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sc-keystore = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
 maplit = "1.0.2"
 env_logger = "0.7.1"
 assert_matches = "1.3.0"

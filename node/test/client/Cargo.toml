@@ -13,18 +13,18 @@ polkadot-test-service = { path = "../service" }
 polkadot-primitives = { path = "../../../primitives" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-client = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sc-service = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sc-block-builder = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sc-consensus = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-blockchain = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-runtime = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-inherents = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-api = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-timestamp = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-consensus = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
+sp-state-machine = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/mxinden/substrate", branch = "buggy-code" }
