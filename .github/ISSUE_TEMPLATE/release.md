@@ -1,4 +1,6 @@
 ---
+name: Release issue template
+about: Tracking issue for new releases
 title: Polkadot {{ env.VERSION }} Release checklist
 ---
 # Release Checklist
