@@ -25,7 +25,7 @@ use cli::Error as PolkaError;
 use std::{error, fmt};
 
 /// A helper to satisfy the requirements of `eyre`
-/// comaptible errors, which require `Send + Sync`
+/// compatible errors, which require `Send + Sync`
 /// which are not satisfied by the `sp_*` crates.
 #[derive(Debug)]
 struct ErrorWrapper(std::sync::Arc<PolkaError>);
