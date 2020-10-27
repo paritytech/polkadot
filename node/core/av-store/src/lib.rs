@@ -970,8 +970,9 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
 			.map(|r| if let Err(e) = r {
-			log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
-		}).boxed();
+				log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
+			})
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",
