@@ -22,8 +22,7 @@ use color_eyre::eyre;
 
 use cli::Error as PolkaError;
 
-use std::error;
-use std::fmt;
+use std::{error, fmt};
 
 /// A helper to satisfy the requirements of `eyre`
 /// comaptible errors, which require `Send + Sync`
