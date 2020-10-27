@@ -521,9 +521,14 @@ pub fn new_full<RuntimeApi, Executor>(
 			Err("Authority discovery is mandatory for a validator.")?;
 		}
 
-		let authority_discovery_role = authority_discovery::Role::PublishAndDiscover(
-			keystore_container.keystore(),
-		);
+		let authority_discovery_role = if role.is_authority() {
+			authority_discovery::Role::PublishAndDiscover(
+				keystore_container.keystore(),
+			)
+		} else {
+			// don't publish our addresses when we're only a collator
+			authority_discovery::Role::Discover
+		};
 		let dht_event_stream = network.event_stream("authority-discovery")
 			.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
