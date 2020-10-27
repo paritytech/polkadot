@@ -1,3 +1,23 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! The proposer proposes new blocks to include
+
+#![deny(unused_crate_dependencies, unused_results)]
+
 use futures::prelude::*;
 use futures::select;
 use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
@@ -123,7 +143,7 @@ where
 			let (sender, receiver) = futures::channel::oneshot::channel();
 
 			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+			receiver.await.map_err(Error::ClosedChannelFromProvisioner)??;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			// strictly speaking, we don't _have_ to .await this send_msg before opening the
@@ -206,7 +226,7 @@ where
 
 // It would have been more ergonomic to use thiserror to derive the
 // From implementations, Display, and std::error::Error, but unfortunately
-// two of the wrapped errors (sp_inherents::Error, SubsystemError) also
+// one of the wrapped errors (sp_inherents::Error) also
 // don't impl std::error::Error, which breaks the thiserror derive.
 #[derive(Debug)]
 pub enum Error {
@@ -261,6 +281,7 @@ impl std::error::Error for Error {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
 			Self::ClosedChannelFromProvisioner(err) => Some(err),
+			Self::Subsystem(err) => Some(err),
 			_ => None
 		}
 	}

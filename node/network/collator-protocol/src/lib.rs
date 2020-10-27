@@ -17,11 +17,12 @@
 //! The Collator Protocol allows collators and validators talk to each other.
 //! This subsystem implements both sides of the collator protocol.
 
-#![deny(missing_docs)]
+#![deny(missing_docs, unused_crate_dependencies)]
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt};
 use log::trace;
+use thiserror::Error;
 
 use polkadot_subsystem::{
 	Subsystem, SubsystemContext, SubsystemError, SpawnedSubsystem,
@@ -45,18 +46,18 @@ mod validator_side;
 const TARGET: &'static str = "colp";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	RuntimeApi(RuntimeApiError),
-	#[from]
-	UtilError(util::Error),
-	#[from]
-	Prometheus(prometheus::PrometheusError),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+	#[error(transparent)]
+	UtilError(#[from] util::Error),
+	#[error(transparent)]
+	Prometheus(#[from] prometheus::PrometheusError),
 }
 
 impl From<util::validator_discovery::Error> for Error {
@@ -113,7 +114,9 @@ impl CollatorProtocolSubsystem {
 				id,
 				metrics,
 			).await,
-		}
+		}.map_err(|e| {
+			SubsystemError::with_origin("collator-protocol", e).into()
+		})
 	}
 }
 

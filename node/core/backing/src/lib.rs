@@ -16,6 +16,8 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
+#![deny(unused_crate_dependencies)]
+
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -64,22 +66,26 @@ use statement_table::{
 		SignedStatement as TableSignedStatement, Summary as TableSummary,
 	},
 };
+use thiserror::Error;
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
+	#[error("Candidate is not found")]
 	CandidateNotFound,
+	#[error("Signature is invalid")]
 	InvalidSignature,
-	StoreFailed,
-	#[from]
-	Erasure(erasure_coding::Error),
-	#[from]
-	ValidationFailed(ValidationFailed),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Mpsc(mpsc::SendError),
-	#[from]
-	UtilError(util::Error),
+	#[error("Failed to send candidates {0:?}")]
+	Send(Vec<NewBackedCandidate>),
+	#[error("Oneshot never resolved")]
+	Oneshot(#[from] #[source] oneshot::Canceled),
+	#[error("Obtaining erasure chunks failed")]
+	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
+	#[error(transparent)]
+	ValidationFailed(#[from] ValidationFailed),
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
+	#[error(transparent)]
+	UtilError(#[from] util::Error),
 }
 
 /// Holds all data needed for candidate backing job operation.
@@ -468,7 +474,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
 
-				tx.send(backed).map_err(|_| oneshot::Canceled)?;
+				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
 		}
 
@@ -640,7 +646,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		rx.await?.map_err(|_| Error::StoreFailed)?;
+		let _ = rx.await?;
 
 		Ok(())
 	}

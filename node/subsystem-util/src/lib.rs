@@ -22,6 +22,10 @@
 //!
 //! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
+#![deny(unused_results)]
+// #![deny(unused_crate_dependencies] causes false positives
+// https://github.com/rust-lang/rust/issues/57274
+#![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -63,6 +67,7 @@ use std::{
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+use thiserror::Error;
 
 pub mod validator_discovery;
 
@@ -82,35 +87,38 @@ pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
-
 /// Utility errors
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[from]
-	Oneshot(oneshot::Canceled),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
 	/// Attempted to send on a MPSC channel which has been canceled
-	#[from]
-	Mpsc(mpsc::SendError),
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
-	#[from]
-	Subsystem(SubsystemError),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
 	/// An error in the Chain API.
-	#[from]
-	ChainApi(ChainApiError),
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
 	/// An error in the Runtime API.
-	#[from]
-	RuntimeApi(RuntimeApiError),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
 	/// The type system wants this even though it doesn't make sense
-	#[from]
-	Infallible(std::convert::Infallible),
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
 	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	#[error("AllMessage not relevant to Job")]
 	SenderConversion(String),
 	/// The local node is not a validator.
+	#[error("Node is not a validator")]
 	NotAValidator,
 	/// The desired job is not present in the jobs list.
+	#[error("Relay parent {0} not of interest")]
 	JobNotFound(Hash),
 	/// Already forwarding errors to another sender
+	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
 }
 
@@ -496,7 +504,7 @@ pub trait JobTrait: Unpin {
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
 	/// Job runtime error.
-	type Error: 'static + std::fmt::Debug + Send;
+	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
@@ -538,13 +546,14 @@ pub trait JobTrait: Unpin {
 /// Error which can be returned by the jobs manager
 ///
 /// Wraps the utility error type and the job-specific error
-#[derive(Debug, derive_more::From)]
-pub enum JobsError<JobError> {
+#[derive(Debug, Error)]
+pub enum JobsError<JobError: 'static + std::error::Error> {
 	/// utility error
-	#[from]
-	Utility(Error),
+	#[error("Utility")]
+	Utility(#[source] Error),
 	/// internal job error
-	Job(JobError),
+	#[error("Internal")]
+	Job(#[source] JobError),
 }
 
 /// Jobs manager for a subsystem
@@ -645,7 +654,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			outgoing_msgs_handle,
 		};
 
-		self.running.insert(parent_hash, handle);
+		let _ = self.running.insert(parent_hash, handle);
 
 		Ok(())
 	}
@@ -654,7 +663,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	pub async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
 		match self.running.remove(&parent_hash) {
 			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
+				let _ = Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
 				handle.stop().await;
 				Ok(())
 			}
@@ -830,7 +839,8 @@ where
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						log::error!("Failed to spawn a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						let e = JobsError::Utility(e);
+						Self::fwd_err(Some(hash), e, err_tx).await;
 						return true;
 					}
 				}
@@ -838,7 +848,8 @@ where
 				for hash in deactivated {
 					if let Err(e) = jobs.stop_job(hash).await {
 						log::error!("Failed to stop a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						let e = JobsError::Utility(e);
+						Self::fwd_err(Some(hash), e, err_tx).await;
 						return true;
 					}
 				}
@@ -863,7 +874,8 @@ where
 					.await
 				{
 					log::error!("failed to stop all jobs on conclude signal: {:?}", e);
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
+					let e = Error::from(e);
+					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
 
 				return true;
@@ -874,14 +886,16 @@ where
 						Some(hash) => {
 							if let Err(err) = jobs.send_msg(hash, to_job).await {
 								log::error!("Failed to send a message to a job: {:?}", err);
-								Self::fwd_err(Some(hash), err.into(), err_tx).await;
+								let e = JobsError::Utility(err);
+								Self::fwd_err(Some(hash), e, err_tx).await;
 								return true;
 							}
 						}
 						None => {
 							if let Err(err) = Job::handle_unanchored_msg(to_job) {
 								log::error!("Failed to handle unhashed message: {:?}", err);
-								Self::fwd_err(None, JobsError::Job(err), err_tx).await;
+								let e = JobsError::Job(err);
+								Self::fwd_err(None, e, err_tx).await;
 								return true;
 							}
 						}
@@ -891,7 +905,8 @@ where
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
-				Self::fwd_err(None, Error::from(err).into(), err_tx).await;
+				let e = JobsError::Utility(Error::from(err));
+				Self::fwd_err(None, e, err_tx).await;
 				return true;
 			}
 		}
@@ -906,7 +921,8 @@ where
 	) {
 		let msg = outgoing.expect("the Jobs stream never ends; qed");
 		if let Err(e) = ctx.send_message(msg.into()).await {
-			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
+			let e = JobsError::Utility(e.into());
+			Self::fwd_err(None, e, err_tx).await;
 		}
 	}
 }
@@ -1032,6 +1048,8 @@ pub struct Timeout<F: Future> {
 
 /// Extends `Future` to allow time-limited futures.
 pub trait TimeoutExt: Future {
+	/// Adds a timeout of `duration` to the given `Future`.
+	/// Returns a new `Future`.
 	fn timeout(self, duration: Duration) -> Timeout<Self>
 	where
 		Self: Sized,
@@ -1066,6 +1084,7 @@ impl<F: Future> Future for Timeout<F> {
 #[cfg(test)]
 mod tests {
 	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -1156,10 +1175,10 @@ mod tests {
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
-	#[derive(Debug, derive_more::From)]
+	#[derive(Debug, Error)]
 	enum Error {
-		#[from]
-		Sending(mpsc::SendError),
+		#[error(transparent)]
+		Sending(#[from]mpsc::SendError),
 	}
 
 	impl JobTrait for FakeCandidateSelectionJob {
@@ -1261,7 +1280,7 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);
@@ -1317,7 +1336,7 @@ mod tests {
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);

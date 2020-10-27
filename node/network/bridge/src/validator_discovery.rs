@@ -192,7 +192,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				Err(e) if e.is_disconnected() => {
 					// the request is already revoked
 					for peer_id in validator_ids {
-						on_revoke(&mut self.requested_validators, peer_id);
+						let _ = on_revoke(&mut self.requested_validators, peer_id);
 					}
 					return (network_service, authority_discovery_service);
 				}
@@ -217,7 +217,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 				// They are going to be removed soon though:
 				// https://github.com/paritytech/substrate/issues/6845
 				for addr in addresses.into_iter().take(MAX_ADDR_PER_PEER) {
-					multiaddr_to_add.insert(addr);
+					let _ = multiaddr_to_add.insert(addr);
 				}
 			}
 		}
@@ -247,7 +247,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			let result = authority_discovery_service.get_addresses_by_authority_id(id).await;
 			if let Some(addresses) = result {
 				for addr in addresses.into_iter().take(MAX_ADDR_PER_PEER) {
-					multiaddr_to_remove.insert(addr);
+					let _ = multiaddr_to_remove.insert(addr);
 				}
 			}
 		}
@@ -283,16 +283,16 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
 			for request in self.non_revoked_discovery_requests.iter_mut() {
-				request.on_authority_connected(&authority, peer_id);
+				let _ = request.on_authority_connected(&authority, peer_id);
 			}
-			self.connected_validators.insert(authority, peer_id.clone());
+			let _ = self.connected_validators.insert(authority, peer_id.clone());
 		}
 	}
 
 	pub async fn on_peer_disconnected(&mut self, peer_id: &PeerId, authority_discovery_service: &mut AD) {
 		let maybe_authority = authority_discovery_service.get_authority_id_by_peer_id(peer_id.clone()).await;
 		if let Some(authority) = maybe_authority {
-			self.connected_validators.remove(&authority);
+			let _ = self.connected_validators.remove(&authority);
 		}
 	}
 }

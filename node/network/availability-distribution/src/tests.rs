@@ -17,22 +17,21 @@
 use super::*;
 use assert_matches::assert_matches;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
+use polkadot_node_network_protocol::ObservedRole;
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
-	GroupRotationInfo, HeadData, PersistedValidationData, OccupiedCore,
-	PoV, ScheduledCore,
+	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore,
 };
 use polkadot_subsystem_testhelpers::{self as test_helpers};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_node_network_protocol::ObservedRole;
 
 use futures::{executor, future, Future};
 use futures_timer::Delay;
-use smallvec::smallvec;
-use std::{sync::Arc, time::Duration};
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStorePtr, SyncCryptoStore};
+use smallvec::smallvec;
 use sp_application_crypto::AppKey;
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use std::{sync::Arc, time::Duration};
 
 macro_rules! view {
 		( $( $hash:expr ),* $(,)? ) => [
@@ -46,9 +45,9 @@ macro_rules! delay {
 	};
 }
 
-fn chunk_protocol_message(message: AvailabilityGossipMessage)
-	-> protocol_v1::AvailabilityDistributionMessage
-{
+fn chunk_protocol_message(
+	message: AvailabilityGossipMessage,
+) -> protocol_v1::AvailabilityDistributionMessage {
 	protocol_v1::AvailabilityDistributionMessage::Chunk(
 		message.candidate_hash,
 		message.erasure_chunk,
@@ -175,8 +174,12 @@ impl Default for TestState {
 
 		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
 
-		SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validators[0].to_seed()))
-			.expect("Insert key into keystore");
+		SyncCryptoStore::sr25519_generate_new(
+			&*keystore,
+			ValidatorId::ID,
+			Some(&validators[0].to_seed()),
+		)
+		.expect("Insert key into keystore");
 
 		let validator_public = validator_pubkeys(&validators);
 
@@ -867,10 +870,7 @@ fn reputation_verification() {
 			overseer_send(
 				&mut virtual_overseer,
 				AvailabilityDistributionMessage::NetworkBridgeUpdateV1(
-					NetworkBridgeEvent::PeerMessage(
-						peer_a.clone(),
-						chunk_protocol_message(valid2),
-					),
+					NetworkBridgeEvent::PeerMessage(peer_a.clone(), chunk_protocol_message(valid2)),
 				),
 			)
 			.await;
