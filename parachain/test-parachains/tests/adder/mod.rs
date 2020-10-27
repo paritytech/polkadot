@@ -28,34 +28,7 @@ use parachain::{
 	wasm_executor::{ValidationPool, ExecutionMode}
 };
 use codec::{Decode, Encode};
-
-/// Head data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
-struct HeadData {
-	/// Block number
-	number: u64,
-	/// parent block keccak256
-	parent_hash: [u8; 32],
-	/// hash of post-execution state.
-	post_state: [u8; 32],
-}
-
-/// Block data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
-struct BlockData {
-	/// State to begin from.
-	state: u64,
-	/// Amount to add (overflowing)
-	add: u64,
-}
-
-fn hash_state(state: u64) -> [u8; 32] {
-	tiny_keccak::keccak256(state.encode().as_slice())
-}
-
-fn hash_head(head: &HeadData) -> [u8; 32] {
-	tiny_keccak::keccak256(head.encode().as_slice())
-}
+use adder::{HeadData, BlockData, hash_state};
 
 fn execution_mode() -> ExecutionMode {
 	ExecutionMode::ExternalProcessCustomHost {
@@ -88,7 +61,6 @@ fn execute_good_on_parent(execution_mode: ExecutionMode) {
 		state: 0,
 		add: 512,
 	};
-
 
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
