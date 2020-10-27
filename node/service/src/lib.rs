@@ -590,12 +590,10 @@ pub fn new_full<RuntimeApi, Executor>(
 			pin_mut!(overseer_fut);
 			pin_mut!(forward);
 
-			loop {
-				select! {
-					_ = forward => break,
-					_ = overseer_fut => break,
-					complete => break,
-				}
+			select! {
+				_ = forward => (),
+				_ = overseer_fut => (),
+				complete => (),
 			}
 		}));
 
