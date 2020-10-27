@@ -39,7 +39,7 @@ unsafe impl Send for ErrorWrapper {}
 
 impl error::Error for ErrorWrapper {
 	fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-		(&*self.0).source()
+		(&*self.0).source().and_then(|e| e.source())
 	}
 	fn description(&self) -> &str {
 		"Error Wrapper"
