@@ -16,6 +16,8 @@ struct SessionInfo {
     approval_keys: Vec<(AssignmentId, ApprovalId)>,
     // validators in shuffled ordering
     validator_groups: Vec<Vec<ValidatorIndex>>,
+    // The number of availability cores used by the protocol during this session.
+    n_cores: u32,
     // the zeroth delay tranche width.
     zeroth_delay_tranche_width: u32,
     // The number of samples we do of relay_vrf_modulo.

@@ -17,11 +17,12 @@ These certificates can be checked in the context of a specific block, candidate,
 ```rust
 enum AssignmentCertKind {
     RelayVRFModulo {
-        relay_vrf: VRFInOut,
+        relay_vrf: (VRFInOut, VRFProof),
         sample: u32,
     },
     RelayVRFDelay {
-        relay_vrf: VRFInOut,
+        relay_vrf: (VRFInOut, VRFProof),
+        core_index: CoreIndex,
     }
 }
 
@@ -70,7 +71,7 @@ struct CheckedAssignmentCert {
 ## DelayTranche
 
 ```rust
-type DelayTranche = u16;
+type DelayTranche = u32;
 ```
 
 ## RelayVRFStory
