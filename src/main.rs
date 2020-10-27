@@ -20,7 +20,34 @@
 
 use color_eyre::eyre;
 
+use cli::Error as PolkaError;
+
+#[derive(Debug)]
+struct ErrorWrapper(pub std::sync::Arc<PolkaError>);
+
+// nothing is going to be sent to another thread
+// it merely exists to glue two distinct error
+// types together
+unsafe impl Sync for ErrorWrapper {}
+unsafe impl Send for ErrorWrapper {}
+
+impl std::error::Error for ErrorWrapper {
+	fn source(&self) -> Option<&(dyn Error + 'static)> {
+		(&*self.0).source()
+	}
+	fn description(&self) -> &str {
+		"Error Wrapper"
+	}
+}
+
+impl std::fmt::Display for ErrorWrapper {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+		write!(f, &*self.0)
+	}
+}
+
 fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
-	cli::run()
+	cli::run().map_err(|e| ErrorWrapper(std::sync::Arc::new(e)))?;
+	Ok(())
 }
