@@ -174,7 +174,7 @@ struct NextPoVPruning(Duration);
 impl NextPoVPruning {
 	// After which duration from `now` this should fire.
 	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
+		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
 	}
 }
 
@@ -192,7 +192,7 @@ struct NextChunkPruning(Duration);
 impl NextChunkPruning {
 	// After which amount of seconds into the future from `now` this should fire.
 	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
+		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
 	}
 }
 
