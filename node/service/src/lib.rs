@@ -416,6 +416,22 @@ impl<C> NewFull<C> {
 	}
 }
 
+/// Is this node a collator?
+#[cfg(feature = "full-node")]
+#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+pub enum IsCollator {
+	/// This node is a collator.
+	True,
+	/// This node is not a collator.
+	False,
+}
+
+impl From<IsCollator> for bool {
+	fn from(is_collator: IsCollator) -> bool {
+		is_collator == IsCollator::True
+	}
+}
+
 /// Create a new full node of arbitrary runtime and executor.
 ///
 /// This is an advanced feature and not recommended for general use. Generally, `build_full` is
@@ -424,7 +440,7 @@ impl<C> NewFull<C> {
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	authority_discovery_disabled: bool,
-	is_collator: bool,
+	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
@@ -513,7 +529,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let authority_discovery_service = if role.is_authority() || is_collator {
+	let authority_discovery_service = if role.is_authority() || is_collator.into() {
 		use sc_network::Event;
 		use futures::StreamExt;
 
@@ -851,7 +867,7 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 pub fn build_full(
 	config: Configuration,
 	authority_discovery_disabled: bool,
-	is_collator: bool,
+	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {

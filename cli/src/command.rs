@@ -148,7 +148,7 @@ pub fn run() -> Result<()> {
 					_ => service::build_full(
 						config,
 						authority_discovery_disabled,
-						cli.run.is_collator,
+						service::IsCollator::False,
 						grandpa_pause,
 					).map(|full| full.task_manager),
 				}
