@@ -76,6 +76,7 @@ pub fn polkadot_test_new_full(
 	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
 		authority_discovery_disabled,
+		false,
 		None,
 	).map_err(Into::into)
 }

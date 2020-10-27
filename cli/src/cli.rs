@@ -105,6 +105,12 @@ pub struct RunCmd {
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
 	#[structopt(long = "grandpa-pause", number_of_values(2))]
 	pub grandpa_pause: Vec<u32>,
+
+	/// Set when this node is a collator.
+	///
+	/// When enabled, enables authority discovery.
+	#[structopt(long = "collator")]
+	pub is_collator: bool,
 }
 
 #[allow(missing_docs)]
