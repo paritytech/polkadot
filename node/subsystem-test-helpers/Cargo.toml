@@ -7,7 +7,6 @@ description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1"
-derive_more = "0.99.9"
 futures = "0.3.5"
 futures-timer = "3.0.2"
 log = "0.4.8"

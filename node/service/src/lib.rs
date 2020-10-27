@@ -16,12 +16,14 @@
 
 //! Polkadot service. Specialized wrapper over substrate service.
 
+#![deny(unused_results)]
+
 pub mod chain_spec;
 mod grandpa_support;
 mod client;
 
-
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+#[cfg(feature = "full-node")]
 use log::info;
 use polkadot_node_core_proposer::ProposerFactory;
 use polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler};
@@ -383,7 +385,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config, backend.clone(), task_manager.spawn_handle(), client.clone(), network.clone(),
 		);
 	}
@@ -650,7 +652,7 @@ fn new_light<Runtime, Dispatch>(mut config: Configuration) -> Result<(TaskManage
 		})?;
 
 	if config.offchain_worker.enabled {
-		service::build_offchain_workers(
+		let _ = service::build_offchain_workers(
 			&config,
 			backend.clone(),
 			task_manager.spawn_handle(),

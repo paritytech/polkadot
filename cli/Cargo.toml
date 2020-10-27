@@ -14,19 +14,12 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-log = "0.4.8"
-futures = { version = "0.3.4", features = ["compat"] }
-structopt = "0.3.8"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+log = "0.4.11"
+structopt = { version = "0.3.8", optional = true }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 service = { package = "polkadot-service", path = "../node/service", default-features = false, optional = true }
 
-tokio = { version = "0.2.13", features = ["rt-threaded"], optional = true }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -46,7 +39,7 @@ default = [ "wasmtime", "db", "cli", "full-node", "trie-memory-tracker" ]
 wasmtime = [ "sc-cli/wasmtime" ]
 db = [ "service/db" ]
 cli = [
-	"tokio",
+	"structopt",
 	"sc-cli",
 	"sc-service",
 	"frame-benchmarking-cli",

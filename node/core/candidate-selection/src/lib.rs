@@ -17,7 +17,7 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
-#![deny(missing_docs)]
+#![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
 use futures::{
 	channel::{mpsc, oneshot},
@@ -39,6 +39,7 @@ use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
 use std::{convert::TryFrom, pin::Pin, sync::Arc};
+use thiserror::Error;
 
 const TARGET: &'static str = "candidate_selection";
 
@@ -116,18 +117,18 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Sending(mpsc::SendError),
-	#[from]
-	Util(util::Error),
-	#[from]
-	OneshotRecv(oneshot::Canceled),
-	#[from]
-	ChainApi(ChainApiError),
-	#[from]
-	Runtime(RuntimeApiError),
+	#[error(transparent)]
+	Sending(#[from] mpsc::SendError),
+	#[error(transparent)]
+	Util(#[from] util::Error),
+	#[error(transparent)]
+	OneshotRecv(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
+	#[error(transparent)]
+	Runtime(#[from] RuntimeApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
@@ -149,14 +150,13 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		async move {
+		Box::pin(async move {
 			let job = CandidateSelectionJob::new(metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
 			job.run_loop().await
-		}
-		.boxed()
+		})
 	}
 }
 

@@ -17,7 +17,7 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 
 # all optional crates.
-derive_more = { version = "0.99.2", optional = true }
+derive_more = { version = "0.99.11", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
