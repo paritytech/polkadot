@@ -110,6 +110,7 @@ impl Collator {
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: PoV { block_data: block_data.encode().into() },
+				processed_downward_messages: 0,
 			};
 
 			async move { Some(collation) }.boxed()
@@ -145,6 +146,7 @@ mod tests {
 				block_data: collation.proof_of_validity.block_data,
 				relay_chain_height: 1,
 				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
 			},
 			&ExecutionMode::InProcess,
 			sp_core::testing::TaskExecutor::new(),
