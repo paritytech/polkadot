@@ -236,5 +236,6 @@ pub fn run() -> Result<()> {
 				cmd.run::<service::kusama_runtime::Block, service::KusamaExecutor>(config)
 			})
 		},
+		Some(Subcommand::Key(cmd)) => cmd.run(),
 	}
 }
