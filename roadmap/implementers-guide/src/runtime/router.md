@@ -46,7 +46,7 @@ DownwardMessageQueues: map ParaId => Vec<InboundDownwardMessage>;
 /// - `prev_head`: is the previous head hash or zero if none.
 /// - `B`: is the relay-chain block number in which a message was appended.
 /// - `H(M)`: is the hash of the message being appended.
-DownwardMessageQueueHeads: map ParaId => Option<Hash>;
+DownwardMessageQueueHeads: map ParaId => Hash;
 ```
 
 ### HRMP
