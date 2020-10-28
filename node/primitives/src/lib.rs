@@ -27,7 +27,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
+	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
 	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
 };
 use polkadot_statement_table::{
@@ -253,8 +253,6 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 pub struct Collation {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// New validation code.

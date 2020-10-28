@@ -272,7 +272,6 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				};
 
 				let commitments = CandidateCommitments {
-					fees: collation.fees,
 					upward_messages: collation.upward_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
@@ -381,7 +380,6 @@ mod tests {
 
 		fn test_collation() -> Collation {
 			Collation {
-				fees: Default::default(),
 				upward_messages: Default::default(),
 				new_validation_code: Default::default(),
 				head_data: Default::default(),

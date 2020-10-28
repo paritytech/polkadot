@@ -677,7 +677,6 @@ impl CandidateBackingJob {
 		let erasure_root = branches.root();
 
 		let commitments = CandidateCommitments {
-			fees: outputs.fees,
 			upward_messages: outputs.upward_messages,
 			erasure_root,
 			new_validation_code: outputs.new_validation_code,
@@ -1160,7 +1159,6 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
 						}, test_state.validation_data.persisted),
@@ -1280,7 +1278,6 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
 						}, test_state.validation_data.persisted),
@@ -1419,7 +1416,6 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
 						}, test_state.validation_data.persisted),
@@ -1575,7 +1571,6 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
 						}, test_state.validation_data.persisted),

@@ -318,8 +318,6 @@ pub struct ValidationOutputs {
 	pub head_data: HeadData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	pub fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The number of messages processed from the DMQ.
@@ -330,8 +328,6 @@ pub struct ValidationOutputs {
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
