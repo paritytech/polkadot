@@ -19,7 +19,7 @@ Output:
 
 The approval voting subsystem is responsible for casting votes and determining approval of candidates and as a result, blocks.
 
-This subsystem wraps a database which is used to store metadata about unfinalized blocks and the candidates within them. Candidates may appear in multiple blocks, but their approval status should be the same across all, due to the invariant that candidates must be included within the same session as their relay-parent.
+This subsystem wraps a database which is used to store metadata about unfinalized blocks and the candidates within them. Candidates may appear in multiple blocks, and assignment criteria are chosen differently based on the hash of the block they appear in.
 
 ## Database Schema
 
@@ -34,14 +34,25 @@ Structs:
 ```rust
 struct TrancheEntry {
     tranche: DelayTranche,
-    // assigned validators who have not yet approved, and the delay tranche
-    // where we received their assignment.
-    assignments: Vec<(ValidatorIndex, DelayTranche)>,
+    // assigned validators who have not yet approved, and the instant we received
+    // their assignment.
+    assignments: Vec<(ValidatorIndex, Instant)>,
+}
+
+struct OurAssignment {
+  cert: AssignmentCert,
+  tranche: DelayTranche,
+  validator_index: ValidatorIndex,
 }
 
 struct ApprovalEntry {
     tranches: Vec<TrancheEntry>, // sorted ascending by tranche number.
     backing_group: GroupIndex,
+    // When the next wakeup for this entry should occur. This is either to
+    // check a no-show or to check if we need to broadcast an assignment.
+    next_wakeup: Tick,
+    our_assignment: Option<OurAssignment>,
+    assignments: Bitfield, // n_validators bits
     approved: bool,
 }
 
@@ -51,7 +62,7 @@ struct CandidateEntry {
     // Assignments are based on blocks, so we need to track assignments separately
     // based on the block we are looking at.
     block_assignments: HashMap<Hash, ApprovalEntry>,
-    approvals: Vec<ValidatorIndex>,
+    approvals: Bitfield, // n_validators bits
 }
 
 struct BlockEntry {
@@ -65,10 +76,19 @@ struct BlockEntry {
     // The candidates included as-of this block and the index of the core they are
     // leaving. Sorted ascending by core index.
     candidates: Vec<(CoreIndex, Hash)>,
+    // A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
+    // The i'th bit is `true` iff the candidate has been approved in the context of
+    // this block. The block can be considered approved if the bitfield is equal to !0.
+    approved_bitfield: Bitfield,
     rotation_offset: GroupIndex,
     children: Vec<Hash>,
-    approved: bool,
 }
+
+// slot_duration * 2 + DelayTranche gives the number of delay tranches since the
+// unix epoch.
+type Tick = u64;
+
+struct TrackerEntry 
 
 struct StoredBlockRange(BlockNumber, BlockNumber)
 ```
@@ -91,6 +111,8 @@ struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
     keystore: KeyStorePtr,
+    wakeups: BTreeMap<Tick, (Hash, Hash)>, // Tick -> (Relay Block, Candidate Hash)
+    reverse_wakeups: Map<(Hash, Hash), Tick>,
     // TODO: our own actively scheduled stuff.
 }
 ```
@@ -101,12 +123,30 @@ On start-up, we clear everything currently stored by the database. This is done 
 
 On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`.
 
-On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`, we determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. We update the `StoredBlockRange` and the `BlockNumber` maps. We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate. Ensure that the `CandidateEntry` contains a `block_assignments` entry for each candidate. 
+On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
+  * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. 
+  * We update the `StoredBlockRange` and the `BlockNumber` maps. We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
+  * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate. 
+  * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
+  * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
+    * Only if not a member of the backing group.
+    * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria)
+  * If `our_assignment` is `Some`
+    * If the delay tranche is 0, import and broadcast right away.
+    * Otherwise, schedule a wakeup for the candidate at the tick of the delay tranche by computing the tick and making entries in the `wakeups` and `reverse_wakeups` maps.
 
 On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we check the assignment cert against the block entry. The cert itself contains information necessary to determine the candidate that is being assigned-to. In detail:
   * Load the `BlockEntry` for the relay-parent referenced by the message.
   * Fetch the `SessionInfo` for the session of the block
   * Determine the assignment key of the validator based on that.
   * Check the assignment cert
-    * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index`. Otherwise, it can be ignored.
-    * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate.
+    * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
+    * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
+    * Import the assignment
+
+Importing an unchecked assignment
+  * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
+  * Ensure the validator index is not part of the backing group for the candidate.
+  * Ensure the validator index is not present in the approval entry already.
+  * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
+  * Note the candidate index within the approval entry.
