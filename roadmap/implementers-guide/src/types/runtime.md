@@ -45,7 +45,13 @@ struct HostConfiguration {
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
 	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub max_upward_message_size: u32,
 	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub max_upward_message_num_per_candidate: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///

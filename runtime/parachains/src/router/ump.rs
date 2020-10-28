@@ -23,7 +23,8 @@ use primitives::v1::{Id as ParaId, UpwardMessage};
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
 ///
-/// The message is opaque from the perspective of UMP. The message size can range from 0 and there is no upper bound.
+/// The message is opaque from the perspective of UMP. The message size can range from 0 to
+/// `config.max_upward_message_size`.
 ///
 /// It's up to the implementation of this trait to decide what to do with a message as long as it
 /// returns the amount of weight consumed in the process of handling. Ignoring a message is a valid
@@ -85,8 +86,12 @@ impl<T: Trait> Module<T> {
 			<Self as Store>::RelayDispatchQueueSize::get(&para);
 
 		for msg in upward_messages {
+			let msg_size = msg.len() as u32;
+			if msg_size > config.max_upward_message_size {
+				return false;
+			}
 			para_queue_count += 1;
-			para_queue_size += msg.len() as u32;
+			para_queue_size += msg_size;
 		}
 
 		// make sure that the queue is not overfilled.

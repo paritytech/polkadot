@@ -76,7 +76,13 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
 	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
 	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
 	pub max_upward_message_num_per_candidate: u32,
 }
 
@@ -251,6 +257,16 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum size of an upward message that can be sent by a candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_message_size, new) != new
+			});
+			Ok(())
+		}
+
 		/// Sets the maximum number of messages that a candidate can contain.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_max_upward_message_num_per_candidate(origin, new: u32) -> DispatchResult {
@@ -342,6 +358,7 @@ mod tests {
 			    max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
 				preferred_dispatchable_upward_messages_step_weight: 20000,
+				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
 			};
 
@@ -391,6 +408,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_preferred_dispatchable_upward_messages_step_weight(
 				Origin::root(), new_config.preferred_dispatchable_upward_messages_step_weight,
+			).unwrap();
+			Configuration::set_max_upward_message_size(
+				Origin::root(), new_config.max_upward_message_size,
 			).unwrap();
 			Configuration::set_max_upward_message_num_per_candidate(
 				Origin::root(), new_config.max_upward_message_num_per_candidate,

@@ -173,6 +173,7 @@ Candidate Acceptance Function:
 
 * `check_upward_messages(P: ParaId, Vec<UpwardMessage>`):
     1. Checks that there are at most `config.max_upward_message_num_per_candidate` messages.
+    1. Checks that no message exceeds `config.max_upward_message_size`.
     1. Verify that `RelayDispatchQueueSize` for `P` has enough capacity for the messages
 * `check_processed_downward_messages(P: ParaId, processed_downward_messages)`:
     1. Checks that `DownwardMessageQueues` for `P` is at least `processed_downward_messages` long.
