@@ -4755,6 +4755,7 @@ dependencies = [
  "polkadot-cli",
  "polkadot-service",
  "tempfile",
+ "thiserror",
 ]
 
 [[package]]
@@ -4820,6 +4821,7 @@ dependencies = [
  "structopt",
  "substrate-browser-utils",
  "substrate-build-script-utils",
+ "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -5200,6 +5202,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
+ "thiserror",
 ]
 
 [[package]]
