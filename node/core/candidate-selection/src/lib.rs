@@ -492,7 +492,6 @@ mod tests {
 			ValidationOutputs {
 				head_data: HeadData(head_data),
 				upward_messages: Vec::new(),
-				fees: 0,
 				new_validation_code: None,
 				processed_downward_messages: 0,
 			},

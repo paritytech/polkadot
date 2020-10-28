@@ -490,7 +490,6 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			let outputs = ValidationOutputs {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
-				fees: 0,
 				new_validation_code: res.new_validation_code,
 				processed_downward_messages: res.processed_downward_messages,
 			};
@@ -850,7 +849,6 @@ mod tests {
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
 			assert_eq!(outputs.upward_messages, Vec::new());
-			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
 			assert_eq!(used_validation_data, validation_data);
 		});
