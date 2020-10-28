@@ -437,10 +437,7 @@ pub enum IsCollator {
 impl IsCollator {
 	/// Is this a collator?
 	fn is_collator(&self) -> bool {
-		match self {
-			Self::Yes(_) => true,
-			_ => false,
-		}
+		matches!(self, Self::Yes(_))
 	}
 }
 
