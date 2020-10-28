@@ -295,6 +295,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	authority_discovery: AuthorityDiscoveryService,
 	registry: Option<&Registry>,
 	spawner: Spawner,
+	is_collator: IsCollator,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -357,9 +358,15 @@ where
 		collation_generation: CollationGenerationSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		collator_protocol: CollatorProtocolSubsystem::new(
-			ProtocolSide::Validator(Metrics::register(registry)?),
-		),
+		collator_protocol: {
+			let side = match is_collator {
+			    IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
+			    IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+			};
+			CollatorProtocolSubsystem::new(
+				side,
+			)
+		},
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service,
 			authority_discovery,
@@ -418,10 +425,10 @@ impl<C> NewFull<C> {
 
 /// Is this node a collator?
 #[cfg(feature = "full-node")]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IsCollator {
 	/// This node is a collator.
-	Yes,
+	Yes(CollatorId),
 	/// This node is not a collator.
 	No,
 }
@@ -430,7 +437,7 @@ pub enum IsCollator {
 impl IsCollator {
 	/// Is this a collator?
 	fn is_collator(&self) -> bool {
-		*self == Self::Yes
+		matches!(self, Self::Yes(_))
 	}
 }
 
@@ -573,6 +580,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			authority_discovery_service,
 			prometheus_registry.as_ref(),
 			spawner,
+			is_collator,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
