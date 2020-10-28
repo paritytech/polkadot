@@ -167,9 +167,11 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored.
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, add another tranche. We've now taken `l` tranches.
-    * Count no-shows in tranches `k..l` and for each of those, add another tranche. Repeat so on until we can't take any more tranches.
-  * If `OurAssignment` has tranche `<= n_tranches`, and has not already been triggered:
+    * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
+    * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
+      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `ALL` which indicates that new assignments are needed.
+      * All no-shows are covered. Return the number of tranches taken.
+  * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
     * Kick off approval work (TODO)
