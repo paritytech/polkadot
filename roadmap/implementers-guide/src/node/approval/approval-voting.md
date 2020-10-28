@@ -36,13 +36,14 @@ struct TrancheEntry {
     tranche: DelayTranche,
     // assigned validators who have not yet approved, and the instant we received
     // their assignment.
-    assignments: Vec<(ValidatorIndex, Instant)>,
+    assignments: Vec<(ValidatorIndex, Tick)>,
 }
 
 struct OurAssignment {
   cert: AssignmentCert,
   tranche: DelayTranche,
   validator_index: ValidatorIndex,
+  triggered: bool,
 }
 
 struct ApprovalEntry {
@@ -111,15 +112,21 @@ struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
     keystore: KeyStorePtr,
-    wakeups: BTreeMap<Tick, (Hash, Hash)>, // Tick -> (Relay Block, Candidate Hash)
+    wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
     reverse_wakeups: Map<(Hash, Hash), Tick>,
-    // TODO: our own actively scheduled stuff.
 }
 ```
 
 [`SessionInfo`](../../runtime/session_info.md)
 
 On start-up, we clear everything currently stored by the database. This is done by loading the `StoredBlockRange`, iterating through each block number, iterating through each block hash, and iterating through each candidate referenced by each block. Although this is O(n^3), we don't expect to have more than a few unfinalized blocks at any time and in extreme cases, a few thousand. The clearing operation should be relatively fast as a result.
+
+Main loop:
+  * Select over either the next `Tick` in `wakeups` or the next incoming message
+  * If we are processing a `Tick`, trigger `wakeup_process` for each `(Hash, Hash)` pair scheduled under the `Tick` and then remove all entries under the `Tick`.
+  * If we are processing a message, handle the message as described below.
+
+### Incoming Messages
 
 On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`.
 
@@ -131,9 +138,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
     * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria)
-  * If `our_assignment` is `Some`
-    * If the delay tranche is 0, import and broadcast right away.
-    * Otherwise, schedule a wakeup for the candidate at the tick of the delay tranche by computing the tick and making entries in the `wakeups` and `reverse_wakeups` maps.
+  * invoke `process_wakeup(relay_block, candidate)` for each new candidate in each new block - this will automatically broadcast a 0-tranche assignment, kick off approval work, and schedule the next delay.
 
 On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we check the assignment cert against the block entry. The cert itself contains information necessary to determine the candidate that is being assigned-to. In detail:
   * Load the `BlockEntry` for the relay-parent referenced by the message.
@@ -142,11 +147,34 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Check the assignment cert
     * If the cert kind is `RelayVRFModulo`, then the certificate is valid as long as `sample < session_info.relay_vrf_samples` and the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ sample.encode()` as described with [the approvals protocol section](../../protocol-approval.md#assignment-criteria). We set `core_index = vrf.make_bytes().to_u32() % session_info.n_cores`. If the `BlockEntry` causes inclusion of a candidate at `core_index`, then this is a valid assignment for the candidate at `core_index` and has delay tranche 0. Otherwise, it can be ignored.
     * If the cert kind is `RelayVRFDelay`, then we check if the VRF is valid for the validator's key with the input `block_entry.relay_vrf_story ++ cert.core_index.encode()` as described in [the approvals protocol section](../../protocol-approval.md#assignment-criteria). The cert can be ignored if the block did not cause inclusion of a candidate on that core index. Otherwise, this is a valid assignment for the included candidate. The delay tranche for the assignment is determined by reducing `(vrf.make_bytes().to_u64() % (session_info.n_delay_tranches + session_info.zeroth_delay_tranche_width)).saturating_sub(session_info.zeroth_delay_tranche_width)`.
-    * Import the assignment
+    * `import_checked_assignment`
+    * return the appropriate `VoteCheckResult` on the response channel.
 
-Importing an unchecked assignment
+// TODO: `CheckAndImportApproval(approval_vote, val_index, response_channel)`
+
+// TODO: `ApprovedAncestor`
+
+### Utility
+
+`import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
   * Ensure the validator index is not part of the backing group for the candidate.
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
+
+`process_wakeup(relay_block, candidate_hash)`
+  * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored.
+  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
+    * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
+    * Then, count no-shows in tranches `0..k`. For each no-show, add another tranche. We've now taken `l` tranches.
+    * Count no-shows in tranches `k..l` and for each of those, add another tranche. Repeat so on until we can't take any more tranches.
+  * If `OurAssignment` has tranche `<= n_tranches`, and has not already been triggered:
+    * Import to `ApprovalEntry`
+    * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
+    * Kick off approval work (TODO)
+  * Schedule another wakeup based on `next_wakeup`
+
+`next_wakeup(approval_entry, candidate_entry)`:
+  * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
+  * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
