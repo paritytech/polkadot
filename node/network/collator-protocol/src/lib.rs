@@ -101,12 +101,12 @@ impl CollatorProtocolSubsystem {
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,
 	{
 		match self.protocol_side {
-		    ProtocolSide::Validator(metrics) => validator_side::run(
+			ProtocolSide::Validator(metrics) => validator_side::run(
 				ctx,
 				REQUEST_TIMEOUT,
 				metrics,
 			).await,
-		    ProtocolSide::Collator(id, metrics) => collator_side::run(
+			ProtocolSide::Collator(id, metrics) => collator_side::run(
 				ctx,
 				id,
 				metrics,

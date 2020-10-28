@@ -73,7 +73,7 @@ polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
 kusama-runtime = { path = "../../runtime/kusama" }
 westend-runtime = { path = "../../runtime/westend" }
-rococo-runtime = { package = "rococo-v1-runtime", path = "../../runtime/rococo-v1" }
+rococo-runtime = { path = "../../runtime/rococo" }
 
 # Polkadot Subsystems
 polkadot-availability-bitfield-distribution = { path = "../network/bitfield-distribution", optional = true }

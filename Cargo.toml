@@ -32,7 +32,7 @@ members = [
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
-	"runtime/rococo-v1",
+	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
 	"statement-table",
