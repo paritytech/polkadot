@@ -85,7 +85,7 @@ enum ApprovalNetworkingMessage {
 	/// to be valid for the given relay-parent and validator index.
 	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
 	/// Distribute an approval vote for the local validator.
-	DistributeApproval(Hash, SignedApprovalVote),
+	DistributeApproval(IndirectApprovalVote),
 }
 ```
 
@@ -108,6 +108,21 @@ enum AvailabilityDistributionMessage {
 	/// Event from the network.
 	/// An update on network state from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
+}
+```
+
+## Availability Recovery Message
+
+Messages received by the availability recovery subsystem.
+
+```rust
+enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateDescriptor, 
+		SessionIndex, 
+		ResponseChannel<Option<AvailableData>>,
+	),
 }
 ```
 

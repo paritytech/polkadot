@@ -108,12 +108,21 @@ CandidateHash => CandidateEntry
 In-memory state:
 
 ```rust
+struct ApprovalVoteRequest {
+  validator_index: ValidatorIndex,
+  block_hash: Hash,
+  candidate_index: u32,
+}
+
 struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
     keystore: KeyStorePtr,
     wakeups: BTreeMap<Tick, Vec<(Hash, Hash)>>, // Tick -> [(Relay Block, Candidate Hash)]
-    reverse_wakeups: Map<(Hash, Hash), Tick>,
+    
+    // These are connected to each other.
+    approval_vote_tx: mpsc::Sender<ApprovalVoteRequest>,
+    approval_vote_rx: mpsc::Receiver<ApprovalVoteRequest>,
 }
 ```
 
@@ -122,9 +131,10 @@ struct State {
 On start-up, we clear everything currently stored by the database. This is done by loading the `StoredBlockRange`, iterating through each block number, iterating through each block hash, and iterating through each candidate referenced by each block. Although this is O(n^3), we don't expect to have more than a few unfinalized blocks at any time and in extreme cases, a few thousand. The clearing operation should be relatively fast as a result.
 
 Main loop:
-  * Select over either the next `Tick` in `wakeups` or the next incoming message
-  * If we are processing a `Tick`, trigger `wakeup_process` for each `(Hash, Hash)` pair scheduled under the `Tick` and then remove all entries under the `Tick`.
-  * If we are processing a message, handle the message as described below.
+  * Each iteration, select over all of
+    * The next `Tick` in `wakeups`: trigger `wakeup_process` for each `(Hash, Hash)` pair scheduled under the `Tick` and then remove all entries under the `Tick`.
+    * The next message from the overseer: handle the message as described in the [Incoming Messages section](#incoming-messages)
+    * The next request from `approval_vote_rx`: handle with `issue_approval`
 
 ### Incoming Messages
 
@@ -133,7 +143,7 @@ On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. 
   * We update the `StoredBlockRange` and the `BlockNumber` maps. We use the RuntimeApiSubsystem to determine the set of candidates included in these blocks and use BABE logic to determine the slot number and VRF of the blocks. 
-  * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate. 
+  * We also note how late we appear to have received the block. We create a `BlockEntry` for each block and a `CandidateEntry` for each candidate obtained from `CandidateIncluded` events after making a `RuntimeApiRequest::CandidateEvents` request.
   * Ensure that the `CandidateEntry` contains a `block_assignments` entry for the block, with the correct backing group set.
   * If a validator in this session, compute and assign `our_assignment` for the `block_assignments`
     * Only if not a member of the backing group.
@@ -200,4 +210,19 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-// TODO our approval work
+`launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
+  * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
+  * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
+  * Load the historical validation code of the parachain (TODO)
+  * Spawn a background task with a clone of `approval_vote_tx`
+    * Wait for the available data
+    * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
+    * Wait for the result of validation
+    * If valid, issue a message on `approval_vote_tx` detailing the request.
+
+`issue_approval(request)`:
+  * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
+  * Construct a `SignedApprovalVote` with the validator index for the session.
+  * Transform into an `IndirectSignedApprovalVote` using the `block_hash` and `candidate_index` from the request.
+  * `import_checked_approval(block_entry, candidate_entry, validator_index)`
+  * Dispatch an `ApprovalNetworkingMessage::DistributeApproval` message.
