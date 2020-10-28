@@ -90,6 +90,8 @@ struct HrmpChannel {
     sender_deposit: Balance,
     /// The amount that the recipient supplied as a deposit when accepting opening this channel.
     recipient_deposit: Balance,
+    /// The maximum message size that could be put into the channel.
+    limit_message_size: u32,
     /// The maximum number of messages that can be pending in the channel at once.
     limit_used_places: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
@@ -104,12 +106,12 @@ struct HrmpChannel {
     used_bytes: u32,
     /// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
     /// `(prev_head, B, H(M))`, where
-    /// - `prev_head`: is the previous value of `mqc_head`.
+    /// - `prev_head`: is the previous value of `mqc_head` or zero if none.
     /// - `B`: is the [relay-chain] block number in which a message was appended
     /// - `H(M)`: is the hash of the message being appended.
     /// This value is initialized to a special value that consists of all zeroes which indicates
     /// that no messages were previously added.
-    mqc_head: Hash,
+    mqc_head: Option<Hash>,
 }
 ```
 HRMP related storage layout
@@ -144,14 +146,23 @@ HrmpCloseChannelRequests: map HrmpChannelId => Option<()>;
 HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
 
 /// The HRMP watermark associated with each para.
+/// Invariant: every para should be onboarded.
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
 /// HRMP channel data associated with each para.
 HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
-/// The indexes that map all senders to their recievers and vise versa.
+/// Ingress/egress indexes allow to find all the senders and receivers given the opposite
+/// side. I.e.
+///
+/// (a) ingress index allows to find all the senders for a given recipient.
+/// (b) egress index allows to find all the recipients for a given sender.
+///
 /// Invariants:
-/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels` as `(I, P)`.
-/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels` as `(P, E)`.
+/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels`
+///   as `(I, P)`.
+/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels`
+///   as `(P, E)`.
 /// - there should be no other dangling channels in `HrmpChannels`.
+/// - the vectors are sorted.
 HrmpIngressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 /// Storage for the messages for each channel.
@@ -184,7 +195,8 @@ Candidate Acceptance Function:
     1. `new_hrmp_watermark` should be either
         1. equal to the context's block number
         1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
-* `verify_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
+* `check_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
+    1. Checks that horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
     1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
         1. exists
         1. `M`'s payload size doesn't exceed a preconfigured limit `C.limit_message_size`
@@ -208,6 +220,10 @@ Candidate Enactment:
         1. Decrement `C.used_places`
         1. Decrement `C.used_bytes` by `M`'s payload size.
     1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
+    > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggresive
+    > parametrization this shouldn't be a big of a deal.
+    > If that becomes a problem consider introducing an extra dictionary which says at what block the given sender
+    > sent a message to the recipient.
 * `prune_dmq(P: ParaId, processed_downward_messages)`:
     1. Remove the first `processed_downward_messages` from the `DownwardMessageQueues` of `P`.
 * `enact_upward_messages(P: ParaId, Vec<UpwardMessage>)`:
