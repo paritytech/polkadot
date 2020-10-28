@@ -189,6 +189,7 @@ Candidate Acceptance Function:
         1. equal to the context's block number
         1. or in `HrmpChannelDigests` for `P` an entry with the block number should exist
 * `check_outbound_hrmp(sender: ParaId, Vec<OutboundHrmpMessage>)`:
+    1. Checks that there are at most `config.hrmp_max_message_num_per_candidate` messages.
     1. Checks that horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
     1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
         1. exists
