@@ -421,14 +421,16 @@ impl<C> NewFull<C> {
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum IsCollator {
 	/// This node is a collator.
-	True,
+	Yes,
 	/// This node is not a collator.
-	False,
+	No,
 }
 
-impl From<IsCollator> for bool {
-	fn from(is_collator: IsCollator) -> bool {
-		is_collator == IsCollator::True
+#[cfg(feature = "full-node")]
+impl IsCollator {
+	/// Is this a collator?
+	fn is_collator(&self) -> bool {
+		*self == Self::Yes
 	}
 }
 
@@ -529,7 +531,7 @@ pub fn new_full<RuntimeApi, Executor>(
 		})
 		.collect();
 
-	let authority_discovery_service = if role.is_authority() || is_collator.into() {
+	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
 		use futures::StreamExt;
 
