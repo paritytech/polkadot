@@ -67,9 +67,9 @@ struct HostConfiguration {
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
 	pub hrmp_recipient_deposit: u32,
 	/// The maximum number of messages allowed in an HRMP channel at once.
-	pub hrmp_channel_max_places: u32,
+	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
-	pub hrmp_channel_max_size: u32,
+	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
 	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
