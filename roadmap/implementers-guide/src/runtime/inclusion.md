@@ -71,8 +71,7 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. call `Router::check_upward_messages(para, commitments.upward_messages)` to check that the upward messages are valid.
   1. call `Router::check_processed_downward_messages(para, commitments.processed_downward_messages)` to check that the DMQ is properly drained.
   1. call `Router::check_hrmp_watermark(para, commitments.hrmp_watermark)` for each candidate to check rules of processing the HRMP watermark.
-  1. check that in the commitments of each candidate the horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
-  1. using `Router::verify_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate send a valid set of horizontal messages
+  1. using `Router::check_outbound_hrmp(sender, commitments.horizontal_messages)` ensure that the each candidate send a valid set of horizontal messages
   1. create an entry in the `PendingAvailability` map for each backed candidate with a blank `availability_votes` bitfield.
   1. create a corresponding entry in the `PendingAvailabilityCommitments` with the commitments.
   1. Return a `Vec<CoreIndex>` of all scheduled cores of the list of passed assignments that a candidate was successfully backed for, sorted ascending by CoreIndex.
@@ -80,9 +79,9 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. If the receipt contains a code upgrade, Call `Paras::schedule_code_upgrade(para_id, code, relay_parent_number + config.validationl_upgrade_delay)`.
     > TODO: Note that this is safe as long as we never enact candidates where the relay parent is across a session boundary. In that case, which we should be careful to avoid with contextual execution, the configuration might have changed and the para may de-sync from the host's understanding of it.
   1. call `Router::enact_upward_messages` for each backed candidate, using the [`UpwardMessage`s](../types/messages.md#upward-message) from the [`CandidateCommitments`](../types/candidate.md#candidate-commitments).
-  1. call `Router::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
-  1. call `Router::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
   1. call `Router::prune_dmq` with the para id of the candidate and the candidate's `processed_downward_messages`.
+  1. call `Router::prune_hrmp` with the para id of the candiate and the candidate's `hrmp_watermark`.
+  1. call `Router::queue_outbound_hrmp` with the para id of the candidate and the list of horizontal messages taken from the commitment,
   1. Call `Paras::note_new_head` using the `HeadData` from the receipt and `relay_parent_number`.
 * `collect_pending`:
 
