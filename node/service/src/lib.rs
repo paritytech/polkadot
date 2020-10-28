@@ -609,6 +609,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			client.clone(),
 			transaction_pool,
 			overseer_handler.as_ref().ok_or("authorities require real overseer handlers")?.clone(),
+			prometheus_registry.as_ref(),
 		);
 
 		let babe_config = babe::BabeParams {
