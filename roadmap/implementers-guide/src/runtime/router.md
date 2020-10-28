@@ -21,14 +21,24 @@ RelayDispatchQueues: map ParaId => Vec<(ParachainDispatchOrigin, RawDispatchable
 /// First item in the tuple is the count of messages and second
 /// is the total length (in bytes) of the message payloads.
 ///
-/// Note that this is an auxilary mapping: it's possible to tell the byte size  and the number of
+/// Note that this is an auxilary mapping: it's possible to tell the byte size and the number of
 /// messages only looking at `RelayDispatchQueues`. This mapping is separate to avoid the cost of
 /// loading the whole message queue if only the total size and count are required.
+///
+/// Invariant:
+/// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
 RelayDispatchQueueSize: map ParaId => (u32, u32);
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
+///
+/// Invariant:
+/// - The set of items from this vector should be exactly the set of the keys in
+///   `RelayDispatchQueues` and `RelayDispatchQueueSize`.
 NeedsDispatch: Vec<ParaId>;
-/// This is the para that will get dispatched first during the next upward dispatchable queue
+/// This is the para that gets dispatched first during the next upward dispatchable queue
 /// execution round.
+///
+/// Invariant:
+/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
 NextDispatchRoundStartWith: Option<ParaId>;
 ```
 
@@ -260,9 +270,7 @@ any of dispatchables return an error.
         1. Decode `D` into a dispatchable. Otherwise, if succeeded:
             1. If `weight_of(D) > config.dispatchable_upward_message_critical_weight` then skip the dispatchable. Otherwise:
                 1. Execute `D` and add the actual amount of weight consumed to `T`.
-            1. If `weight_of(D) + T > config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
-            > NOTE that in practice we would need to approach the weight calculation more thoroughly, i.e. incorporate all operations
-            > that could take place on the course of handling these dispatchables.
+        1. If `T >= config.preferred_dispatchable_upward_messages_step_weight`, set `NextDispatchRoundStartWith` to `P` and finish processing.
         1. If `RelayDispatchQueues` for `P` became empty, remove `P` from `NeedsDispatch`.
         1. If `NeedsDispatch` became empty then finish processing and set `NextDispatchRoundStartWith` to `None`.
 

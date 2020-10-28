@@ -35,7 +35,7 @@ struct HostConfiguration {
 	/// The amount of blocks ahead to schedule parathreads.
 	pub scheduling_lookahead: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	pub max_upward_queue_count: u32,
+	pub max_upward_queue_capacity: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
@@ -44,7 +44,7 @@ struct HostConfiguration {
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
-	pub preferred_dispatchable_upward_messages_step_weight: u32,
+	pub preferred_dispatchable_upward_messages_step_weight: Weight,
 	/// Any dispatchable upward message that requests more than the critical amount is rejected.
 	///
 	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
@@ -52,7 +52,7 @@ struct HostConfiguration {
 	/// and `dispatchable_upward_message_critical_weight` doesn't exceed the amount of weight left
 	/// under a typical worst case (e.g. no upgrades, etc) weight consumed by the required phases of
 	/// block execution (i.e. initialization, finalization and inherents).
-	pub dispatchable_upward_message_critical_weight: u32,
+	pub dispatchable_upward_message_critical_weight: Weight,
 	/// The maximum number of messages that a candidate can contain.
 	pub max_upward_message_num_per_candidate: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
