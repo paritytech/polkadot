@@ -68,14 +68,12 @@ pub use polkadot_service::FullBackend;
 #[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
 pub fn polkadot_test_new_full(
 	config: Configuration,
-	authority_discovery_disabled: bool,
 ) -> Result<
 	NewFull<Arc<Client>>,
 	ServiceError,
 > {
 	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
-		authority_discovery_disabled,
 		IsCollator::No,
 		None,
 	).map_err(Into::into)
@@ -205,9 +203,8 @@ pub fn run_test_node(
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_disabled = false;
 	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
-		polkadot_test_new_full(config, authority_discovery_disabled)
+		polkadot_test_new_full(config)
 			.expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");

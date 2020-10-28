@@ -295,6 +295,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	authority_discovery: AuthorityDiscoveryService,
 	registry: Option<&Registry>,
 	spawner: Spawner,
+	is_collator: IsCollator,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -357,9 +358,15 @@ where
 		collation_generation: CollationGenerationSubsystem::new(
 			Metrics::register(registry)?,
 		),
-		collator_protocol: CollatorProtocolSubsystem::new(
-			ProtocolSide::Validator(Metrics::register(registry)?),
-		),
+		collator_protocol: {
+			let side = match is_collator {
+			    IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
+			    IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+			};
+			CollatorProtocolSubsystem::new(
+				side,
+			)
+		},
 		network_bridge: NetworkBridgeSubsystem::new(
 			network_service,
 			authority_discovery,
@@ -418,10 +425,10 @@ impl<C> NewFull<C> {
 
 /// Is this node a collator?
 #[cfg(feature = "full-node")]
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum IsCollator {
 	/// This node is a collator.
-	Yes,
+	Yes(CollatorId),
 	/// This node is not a collator.
 	No,
 }
@@ -430,7 +437,7 @@ pub enum IsCollator {
 impl IsCollator {
 	/// Is this a collator?
 	fn is_collator(&self) -> bool {
-		*self == Self::Yes
+		matches!(self, Self::Yes(_))
 	}
 }
 
@@ -441,7 +448,6 @@ impl IsCollator {
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
-	authority_discovery_disabled: bool,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
@@ -535,10 +541,6 @@ pub fn new_full<RuntimeApi, Executor>(
 		use sc_network::Event;
 		use futures::StreamExt;
 
-		if authority_discovery_disabled {
-			Err("Authority discovery is mandatory for a validator.")?;
-		}
-
 		let authority_discovery_role = if role.is_authority() {
 			authority_discovery::Role::PublishAndDiscover(
 				keystore_container.keystore(),
@@ -578,6 +580,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			authority_discovery_service,
 			prometheus_registry.as_ref(),
 			spawner,
+			is_collator,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 
@@ -867,35 +870,30 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
-	authority_discovery_disabled: bool,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Polkadot))
