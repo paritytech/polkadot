@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use sp_std::prelude::*;
 use codec::Encode;
@@ -223,6 +223,12 @@ sp_api::impl_runtime_apis! {
 		}
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			runtime_api_impl::validator_discovery::<Runtime>(validators)
+		}
+
+		fn dmq_contents(
+			recipient: Id,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
 	}
 
