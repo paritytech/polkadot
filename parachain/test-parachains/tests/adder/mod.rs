@@ -78,7 +78,7 @@ fn execute_good_on_parent(execution_mode: ExecutionMode) {
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 	assert_eq!(new_head.number, 1);
-	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
+	assert_eq!(new_head.parent_hash, parent_head.hash());
 	assert_eq!(new_head.post_state, hash_state(512));
 }
 
@@ -117,11 +117,11 @@ fn execute_good_chain_on_parent() {
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 		assert_eq!(new_head.number, number + 1);
-		assert_eq!(new_head.parent_hash, hash_head(&parent_head));
+		assert_eq!(new_head.parent_hash, parent_head.hash());
 		assert_eq!(new_head.post_state, hash_state(last_state + add));
 
 		number += 1;
-		parent_hash = hash_head(&new_head);
+		parent_hash = new_head.hash();
 		last_state += add;
 	}
 }
