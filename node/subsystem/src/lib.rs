@@ -219,9 +219,33 @@ pub trait SubsystemContext: Send + 'static {
 ///
 /// [`Overseer`]: struct.Overseer.html
 /// [`Subsystem`]: trait.Subsystem.html
+#[async_trait]
 pub trait Subsystem<C: SubsystemContext> {
+	/// This subsystem's name
+	const NAME: &'static str;
+
+	/// Run this subsystem's main loop.
+	async fn run(self, ctx: C) -> SubsystemResult<()>;
+
 	/// Start this `Subsystem` and return `SpawnedSubsystem`.
-	fn start(self, ctx: C) -> SpawnedSubsystem;
+	///
+	/// This is implemented by default in terms of `run`.
+	fn start(self, ctx: C, errs: mpsc::Sender<SubsystemError>) -> SpawnedSubsystem
+	where
+		Self: 'static + Sized + Send,
+	{
+		let future = async move {
+			if let Err(err) = self.run(ctx).await {
+				errs.send(SubsystemError::with_origin(Self::NAME, err)).await;
+			};
+		}
+		.boxed();
+
+		SpawnedSubsystem {
+			name: Self::NAME,
+			future,
+		}
+	}
 }
 
 /// A dummy subsystem that implements [`Subsystem`] for all
