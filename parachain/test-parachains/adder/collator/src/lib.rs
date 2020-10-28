@@ -76,7 +76,7 @@ pub struct Collator {
 }
 
 impl Collator {
-	/// Create a new
+	/// Create a new collator instance with the state initialized as genesis.
 	pub fn init() -> Self {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
