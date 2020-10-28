@@ -52,6 +52,7 @@ enum VoteCheckResult {
 
 enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		Hash, 
 		AssignmentCert, 
@@ -60,9 +61,10 @@ enum ApprovalVotingMessage {
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
 	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
 	CheckAndImportApproval(
-		ApprovalVote,
-		ValidatorIndex,
+		IndirectSignedApprovalVote,
 		ResponseChannel<VoteCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is

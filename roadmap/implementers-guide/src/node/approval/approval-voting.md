@@ -141,7 +141,7 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * invoke `process_wakeup(relay_block, candidate)` for each new candidate in each new block - this will automatically broadcast a 0-tranche assignment, kick off approval work, and schedule the next delay.
 
 On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we check the assignment cert against the block entry. The cert itself contains information necessary to determine the candidate that is being assigned-to. In detail:
-  * Load the `BlockEntry` for the relay-parent referenced by the message.
+  * Load the `BlockEntry` for the relay-parent referenced by the message. If there is none, return `VoteCheckResult::Report`.
   * Fetch the `SessionInfo` for the session of the block
   * Determine the assignment key of the validator based on that.
   * Check the assignment cert
@@ -150,7 +150,12 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * `import_checked_assignment`
     * return the appropriate `VoteCheckResult` on the response channel.
 
-// TODO: `CheckAndImportApproval(approval_vote, val_index, response_channel)`
+On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)` message:
+  * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `VoteCheckResult::Bad`.
+  * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `VoteCheckResult::Bad`.
+  * Construct a `SignedApprovalVote` using the candidate hash and check against the validator's approval key, based on the session info of the block. If invalid or no such validator, return `VoteCheckResult::Bad`.
+  * Send `VoteCheckResult::Accepted`,
+  * `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
 
 // TODO: `ApprovedAncestor`
 
@@ -163,14 +168,28 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
 
-`process_wakeup(relay_block, candidate_hash)`
-  * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored.
+`import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
+  * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`.
+  * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
+    * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
+    * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
+
+`tranches_to_approve(approval_entry) -> tranches`
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
     * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
       * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `ALL` which indicates that new assignments are needed.
-      * All no-shows are covered. Return the number of tranches taken.
+      * All no-shows are covered. Set `n_tranches` to the number of tranches taken
+    * return `n_tranches`
+
+`check_approval(block_entry, approval_entry, n_tranches) -> bool`
+  * If `n_tranches` is ALL, return false
+  * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
+
+`process_wakeup(relay_block, candidate_hash)`
+  * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
+  * Set `n_tranches = tranches_to_approve(approval_entry)`
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
@@ -180,3 +199,5 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
 `next_wakeup(approval_entry, candidate_entry)`:
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
+
+// TODO our approval work

@@ -41,7 +41,7 @@ struct AssignmentCert {
 A vote of approval on a candidate.
 
 ```rust
-struct ApprovalVote(Hash, ExecutionTimePair);
+struct ApprovalVote(Hash);
 ```
 
 ## SignedApprovalVote
@@ -49,6 +49,23 @@ struct ApprovalVote(Hash, ExecutionTimePair);
 ```rust
 struct SignedApprovalVote {
     vote: ApprovalVote,
+    validator: ValidatorIndex,
+    signature: ApprovalSignature,
+}
+```
+
+## IndirectSignedApprovalVote
+
+A signed approval vote which references the candidate indirectly via the block. If there exists a look-up to the candidate hash from the block hash and candidate index, then this can be transformed into a `SignedApprovalVote`.
+
+Although this vote references the candidate by a specific block hash and candidate index, the vote actually applies to
+
+```rust
+struct IndirectSignedApprovalVote {
+    // A block hash where the candidate appears.
+    block_hash: Hash,
+    // The index of the candidate in the list of candidates fully included as-of the block.
+    candidate_index: u32,
     validator: ValidatorIndex,
     signature: ApprovalSignature,
 }
