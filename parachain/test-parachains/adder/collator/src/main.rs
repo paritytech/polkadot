@@ -18,7 +18,7 @@
 
 use sc_cli::{Result, Role, SubstrateCli};
 use polkadot_cli::Cli;
-use polkadot_node_subsystem::messages::CollationGenerationMessage;
+use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_primitives::v1::{CollatorPair, Id as ParaId};
 use test_parachain_adder_collator::Collator;
@@ -41,10 +41,12 @@ fn main() -> Result<()> {
 		match role {
 			Role::Light => Err("Light client not supported".into()),
 			_ => {
+				let collator_key = CollatorPair::generate().0;
+
 				let full_node = polkadot_service::build_full(
 					config,
 					false,
-					polkadot_service::IsCollator::Yes,
+					polkadot_service::IsCollator::Yes(collator_key.clone()),
 					None,
 				)?;
 				let mut overseer_handler = full_node.overseer_handler
@@ -59,7 +61,7 @@ fn main() -> Result<()> {
 				log::info!("Validation code: {}", validation_code_hex);
 
 				let config = CollationGenerationConfig {
-					key: CollatorPair::generate().0,
+					key: collator_key,
 					collator: collator.create_collation_function(),
 					para_id: PARA_ID,
 				};
@@ -67,6 +69,11 @@ fn main() -> Result<()> {
 					.send_msg(CollationGenerationMessage::Initialize(config))
 					.await
 					.expect("Registers collator");
+
+				overseer_handler
+					.send_msg(CollatorProtocolMessage::CollateOn(PARA_ID))
+					.await
+					.expect("Collates on");
 
 				Ok(full_node.task_manager)
 			},

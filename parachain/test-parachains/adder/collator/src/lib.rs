@@ -105,7 +105,6 @@ impl Collator {
 			let (block_data, head_data) = state.lock().unwrap().advance();
 
 			let collation = Collation {
-				fees: 0,
 				upward_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
