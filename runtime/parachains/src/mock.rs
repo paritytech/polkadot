@@ -128,8 +128,6 @@ pub type Configuration = crate::configuration::Module<Test>;
 pub type Paras = crate::paras::Module<Test>;
 
 /// Mocked router.
-// TODO: Will be used in the follow ups.
-#[allow(dead_code)]
 pub type Router = crate::router::Module<Test>;
 
 /// Mocked scheduler.

@@ -19,6 +19,9 @@
 //! This is responsible for distributing signed statements about candidate
 //! validity amongst validators.
 
+#![deny(unused_crate_dependencies)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	Subsystem, SubsystemResult, SubsystemContext, SpawnedSubsystem,
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal,
@@ -79,6 +82,15 @@ impl<C> Subsystem<C> for StatementDistribution
 		SpawnedSubsystem {
 			name: "statement-distribution-subsystem",
 			future: self.run(ctx).map(|_| ()).boxed(),
+		}
+	}
+}
+
+impl StatementDistribution {
+	/// Create a new Statement Distribution Subsystem
+	pub fn new(metrics: Metrics) -> StatementDistribution {
+		StatementDistribution {
+			metrics,
 		}
 	}
 }

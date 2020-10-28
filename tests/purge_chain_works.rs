@@ -35,8 +35,11 @@ fn purge_chain_works() {
 		.unwrap();
 
 	// Let it produce some blocks.
-	thread::sleep(Duration::from_secs(30));
-	assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	// poll once per second for faster failure
+	for _ in 0..30 {
+		thread::sleep(Duration::from_secs(1));
+		assert!(cmd.try_wait().unwrap().is_none(), "the process should still be running");
+	}
 
 	// Stop the process
 	kill(Pid::from_raw(cmd.id().try_into().unwrap()), SIGINT).unwrap();

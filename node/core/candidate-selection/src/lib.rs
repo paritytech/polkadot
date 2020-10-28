@@ -17,7 +17,7 @@
 //! The provisioner is responsible for assembling a relay chain block
 //! from a set of available parachain candidates of its choice.
 
-#![deny(missing_docs)]
+#![deny(missing_docs, unused_crate_dependencies, unused_results)]
 
 use futures::{
 	channel::{mpsc, oneshot},
@@ -39,6 +39,7 @@ use polkadot_primitives::v1::{
 	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
 };
 use std::{convert::TryFrom, pin::Pin, sync::Arc};
+use thiserror::Error;
 
 const TARGET: &'static str = "candidate_selection";
 
@@ -116,18 +117,18 @@ impl TryFrom<AllMessages> for FromJob {
 	}
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Sending(mpsc::SendError),
-	#[from]
-	Util(util::Error),
-	#[from]
-	OneshotRecv(oneshot::Canceled),
-	#[from]
-	ChainApi(ChainApiError),
-	#[from]
-	Runtime(RuntimeApiError),
+	#[error(transparent)]
+	Sending(#[from] mpsc::SendError),
+	#[error(transparent)]
+	Util(#[from] util::Error),
+	#[error(transparent)]
+	OneshotRecv(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
+	#[error(transparent)]
+	Runtime(#[from] RuntimeApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
@@ -149,14 +150,13 @@ impl JobTrait for CandidateSelectionJob {
 		receiver: mpsc::Receiver<ToJob>,
 		sender: mpsc::Sender<FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		async move {
+		Box::pin(async move {
 			let job = CandidateSelectionJob::new(metrics, sender, receiver);
 
 			// it isn't necessary to break run_loop into its own function,
 			// but it's convenient to separate the concerns in this way
 			job.run_loop().await
-		}
-		.boxed()
+		})
 	}
 }
 
@@ -343,7 +343,10 @@ async fn candidate_is_valid_inner(
 			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
 		))
 		.await?;
-	Ok(std::matches!(rx.await, Ok(Ok(ValidationResult::Valid(_)))))
+	Ok(std::matches!(
+		rx.await,
+		Ok(Ok(ValidationResult::Valid(_, _)))
+	))
 }
 
 async fn second_candidate(
@@ -417,10 +420,10 @@ impl metrics::Metrics for Metrics {
 			seconds: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"candidate_selection_invalid_selections_total",
-						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
+						"candidate_selection_seconds_total",
+						"Number of Candidate Selection subsystem seconding events.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -430,7 +433,7 @@ impl metrics::Metrics for Metrics {
 						"candidate_selection_invalid_selections_total",
 						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -445,8 +448,7 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_node_primitives::ValidationOutputs;
-	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData};
+	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData, ValidationOutputs};
 	use sp_core::crypto::Public;
 
 	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(
@@ -478,7 +480,7 @@ mod tests {
 		postconditions(job, job_result);
 	}
 
-	fn default_validation_outputs() -> ValidationOutputs {
+	fn default_validation_outputs_and_data() -> (ValidationOutputs, polkadot_primitives::v1::PersistedValidationData) {
 		let head_data: Vec<u8> = (0..32).rev().cycle().take(256).collect();
 		let parent_head_data = head_data
 			.iter()
@@ -486,17 +488,20 @@ mod tests {
 			.map(|x| x.saturating_sub(1))
 			.collect();
 
-		ValidationOutputs {
-			head_data: HeadData(head_data),
-			validation_data: PersistedValidationData {
+		(
+			ValidationOutputs {
+				head_data: HeadData(head_data),
+				upward_messages: Vec::new(),
+				new_validation_code: None,
+				processed_downward_messages: 0,
+			},
+			PersistedValidationData {
 				parent_head: HeadData(parent_head_data),
 				block_number: 123,
 				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
 			},
-			upward_messages: Vec::new(),
-			fees: 0,
-			new_validation_code: None,
-		}
+		)
 	}
 
 	/// when nothing is seconded so far, the collation is fetched and seconded
@@ -556,8 +561,9 @@ mod tests {
 							assert_eq!(got_candidate_descriptor, candidate_receipt.descriptor);
 							assert_eq!(got_pov.as_ref(), &pov);
 
+							let (outputs, data) = default_validation_outputs_and_data();
 							return_sender
-								.send(Ok(ValidationResult::Valid(default_validation_outputs())))
+								.send(Ok(ValidationResult::Valid(outputs, data)))
 								.unwrap();
 						}
 						FromJob::Backing(CandidateBackingMessage::Second(

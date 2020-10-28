@@ -22,8 +22,6 @@ The process of generating a collation for a parachain is very parachain-specific
 
 ```rust
 pub struct Collation {
-  /// Fees paid from the chain to the relay chain validators.
-  pub fees: Balance,
   /// Messages destined to be interpreted by the Relay chain itself.
   pub upward_messages: Vec<UpwardMessage>,
   /// New validation code.

@@ -16,6 +16,8 @@
 
 //! Utilities for testing subsystems.
 
+#![warn(missing_docs)]
+
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem::{
 	FromOverseer, SubsystemContext, SubsystemError, SubsystemResult, Subsystem,
@@ -169,7 +171,8 @@ impl<M: Send + 'static, S: SpawnNamed + Send + 'static> SubsystemContext
 	}
 
 	async fn recv(&mut self) -> SubsystemResult<FromOverseer<M>> {
-		self.rx.next().await.ok_or(SubsystemError)
+		self.rx.next().await
+			.ok_or_else(|| SubsystemError::Context("Receiving end closed".to_owned()))
 	}
 
 	async fn spawn(

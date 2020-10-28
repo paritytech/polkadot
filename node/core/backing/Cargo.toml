@@ -6,19 +6,16 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-subsystem = { package = "polkadot-node-subsystem", path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure-coding" }
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
-derive_more = "0.99.9"
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
-log = "0.4.8"
+log = "0.4.11"
+thiserror = "1.0.21"
 
 [dev-dependencies]
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

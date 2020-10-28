@@ -24,6 +24,7 @@ use futures::{
 	task::{Poll, self},
 	stream,
 };
+use thiserror::Error;
 
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError, SubsystemError,
@@ -34,17 +35,17 @@ use polkadot_primitives::v1::{Hash, ValidatorId, AuthorityDiscoveryId};
 use sc_network::PeerId;
 
 /// Error when making a request to connect to validators.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[from]
-	Oneshot(oneshot::Canceled),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
 	/// A subsystem error.
-	#[from]
-	Subsystem(SubsystemError),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
 	/// An error in the Runtime API.
-	#[from]
-	RuntimeApi(RuntimeApiError),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
 }
 
 /// Utility function to make it easier to connect to validators.

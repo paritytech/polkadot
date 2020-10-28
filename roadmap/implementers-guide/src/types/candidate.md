@@ -247,8 +247,6 @@ The execution and validation of parachain or parathread candidates produces a nu
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	fees: Balance,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
@@ -293,8 +291,6 @@ struct ValidationOutputs {
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
 	/// The number of messages processed from the DMQ.
