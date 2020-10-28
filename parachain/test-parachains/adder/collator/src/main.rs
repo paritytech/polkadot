@@ -45,8 +45,7 @@ fn main() -> Result<()> {
 
 				let full_node = polkadot_service::build_full(
 					config,
-					false,
-					polkadot_service::IsCollator::Yes(collator_key.clone()),
+					polkadot_service::IsCollator::Yes(collator_key.public()),
 					None,
 				)?;
 				let mut overseer_handler = full_node.overseer_handler
