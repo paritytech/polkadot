@@ -77,19 +77,19 @@ pub struct Collator {
 
 impl Collator {
 	/// Create a new collator instance with the state initialized as genesis.
-	pub fn init() -> Self {
+	pub fn new() -> Self {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
 		}
 	}
 
 	/// Get the SCALE encoded genesis head of the adder parachain.
-	pub fn get_genesis_head(&self) -> Vec<u8> {
+	pub fn genesis_head(&self) -> Vec<u8> {
 		self.state.lock().unwrap().genesis_state.encode()
 	}
 
 	/// Get the validation code of the adder parachain.
-	pub fn get_validation_code(&self) -> &[u8] {
+	pub fn validation_code(&self) -> &[u8] {
 		test_parachain_adder::wasm_binary_unwrap()
 	}
 
@@ -128,7 +128,7 @@ mod tests {
 
 	#[test]
 	fn collator_works() {
-		let collator = Collator::init();
+		let collator = Collator::new();
 		let collation_function = collator.create_collation_function();
 
 		for _ in 0..5 {
@@ -140,7 +140,7 @@ mod tests {
 
 	fn validate_collation(collator: &Collator, parent_head: HeadData, collation: Collation) {
 		let ret = polkadot_parachain::wasm_executor::validate_candidate(
-			collator.get_validation_code(),
+			collator.validation_code(),
 			ValidationParams {
 				parent_head: parent_head.encode().into(),
 				block_data: collation.proof_of_validity.block_data,

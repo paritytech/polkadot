@@ -50,9 +50,9 @@ fn main() -> Result<()> {
 				let mut overseer_handler = full_node.overseer_handler
 					.expect("Overseer handler should be initialized for collators");
 
-				let collator = Collator::init();
-				let genesis_head_hex = format!("0x{:?}", HexDisplay::from(&collator.get_genesis_head()));
-				let validation_code_hex = format!("0x{:?}", HexDisplay::from(&collator.get_validation_code()));
+				let collator = Collator::new();
+				let genesis_head_hex = format!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
+				let validation_code_hex = format!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
 				log::info!("Running adder collator for parachain id: {}", PARA_ID);
 				log::info!("Genesis state: {}", genesis_head_hex);
