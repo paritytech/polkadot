@@ -103,7 +103,7 @@ impl<T> sp_runtime::BoundToRuntimeAppPublic for ParachainSessionKeyPlaceholder<T
 }
 
 impl<T: pallet_session::Trait>
-	pallet_session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
+	sp_session::OneSessionHandler<T::AccountId> for ParachainSessionKeyPlaceholder<T>
 {
 	type Key = ValidatorId;
 

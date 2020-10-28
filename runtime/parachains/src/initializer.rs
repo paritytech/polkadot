@@ -214,7 +214,7 @@ impl<T: Trait> sp_runtime::BoundToRuntimeAppPublic for Module<T> {
 	type Public = ValidatorId;
 }
 
-impl<T: pallet_session::Trait + Trait> pallet_session::OneSessionHandler<T::AccountId> for Module<T> {
+impl<T: pallet_session::Trait + Trait> sp_session::OneSessionHandler<T::AccountId> for Module<T> {
 	type Key = ValidatorId;
 
 	fn on_genesis_session<'a, I: 'a>(_validators: I)
