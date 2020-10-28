@@ -58,6 +58,13 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// The maximum size of a message that can be put in a downward message queue.
+	///
+	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
+	/// the PoV size. Of course, there is a lot of other different things that a parachain may
+	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
+	/// size.
+	pub max_downward_message_size: u32,
 }
 
 pub trait Trait: frame_system::Trait { }
@@ -190,6 +197,16 @@ decl_module! {
 			});
 			Ok(())
 		}
+
+		/// Set the critical downward message size.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_downward_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_downward_message_size, new) != new
+			});
+			Ok(())
+		}
 	}
 }
 
@@ -268,6 +285,7 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				max_downward_message_size: 2048,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
@@ -304,6 +322,9 @@ mod tests {
 			).unwrap();
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
+			).unwrap();
+			Configuration::set_max_downward_message_size(
+				Origin::root(), new_config.max_downward_message_size,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));

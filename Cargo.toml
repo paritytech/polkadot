@@ -6,13 +6,14 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.8.25"
+version = "0.8.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
+color-eyre = "0.5.6"
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -72,6 +73,11 @@ members = [
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+opt-level = 3
 
 [profile.release]
 # Polkadot runtime requires unwinding.

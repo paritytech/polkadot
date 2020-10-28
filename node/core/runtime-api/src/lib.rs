@@ -127,6 +127,7 @@ fn make_runtime_api_request<Client>(
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
 		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
+		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
 	}
 }
 
@@ -176,7 +177,7 @@ mod tests {
 	use polkadot_primitives::v1::{
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
-		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId,
+		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -195,6 +196,7 @@ mod tests {
 		validation_outputs_results: HashMap<ParaId, bool>,
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
+		dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
 	}
 
 	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -282,6 +284,13 @@ mod tests {
 
 			fn validator_discovery(ids: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 				vec![None; ids.len()]
+			}
+
+			fn dmq_contents(
+				&self,
+				recipient: ParaId,
+			) -> Vec<polkadot_primitives::v1::InboundDownwardMessage> {
+				self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 			}
 		}
 	}
@@ -619,4 +628,54 @@ mod tests {
 
 		futures::executor::block_on(future::join(subsystem_task, test_task));
 	}
+
+	#[test]
+	fn requests_dmq_contents() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+		let mut runtime_api = MockRuntimeApi::default();
+		let relay_parent = [1; 32].into();
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		runtime_api.dmq_contents.insert(para_a, vec![]);
+		runtime_api.dmq_contents.insert(
+			para_b,
+			vec![InboundDownwardMessage {
+				sent_at: 228,
+				msg: b"Novus Ordo Seclorum".to_vec(),
+			}],
+		);
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(relay_parent, Request::DmqContents(para_a, tx)),
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), vec![]);
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(relay_parent, Request::DmqContents(para_b, tx)),
+				})
+				.await;
+			assert_eq!(
+				rx.await.unwrap().unwrap(),
+				vec![InboundDownwardMessage {
+					sent_at: 228,
+					msg: b"Novus Ordo Seclorum".to_vec(),
+				}]
+			);
+
+			ctx_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+		};
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
 }

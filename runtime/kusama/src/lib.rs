@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2026,
+	spec_version: 2027,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1134,6 +1134,12 @@ sp_api::impl_runtime_apis! {
 		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			Vec::new()
 		}
+
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			Vec::new()
+		}
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
@@ -1305,5 +1311,77 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(test)]
+mod test_fees {
+	use super::*;
+	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::storage::StorageValue;
+	use sp_runtime::FixedPointNumber;
+	use frame_support::weights::GetDispatchInfo;
+	use codec::Encode;
+	use pallet_transaction_payment::Multiplier;
+	use separator::Separatable;
+
+
+	#[test]
+	#[ignore]
+	fn block_cost() {
+		let raw_fee = WeightToFee::calc(&MaximumBlockWeight::get());
+
+		println!(
+			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
+			MaximumBlockWeight::get(),
+			raw_fee.separated_string(),
+		);
+	}
+
+	#[test]
+	#[ignore]
+	fn transfer_cost_min_multiplier() {
+		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(Default::default(), Default::default());
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::Balances(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut ext = sp_io::TestExternalities::new_empty();
+		ext.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::put(min_multiplier);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1000_000_000u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
 	}
 }

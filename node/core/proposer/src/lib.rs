@@ -33,6 +33,7 @@ use sp_consensus::{Proposal, RecordProof};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
+use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
@@ -50,13 +51,14 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
+		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
 				spawn_handle,
 				client,
 				transaction_pool,
-				None,
+				prometheus,
 			),
 			overseer,
 		}
