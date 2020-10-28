@@ -1607,7 +1607,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
-			log::error!("Subsystem {} exited with error {:?}", name.clone(), e);
+			log::error!("Subsystem {} exited with error {:?}", name, e);
 		}
 		let _ = tx.send(());
 	});
