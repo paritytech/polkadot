@@ -557,6 +557,7 @@ parameter_types! {
 impl pallet_im_online::Trait for Runtime {
 	type AuthorityId = ImOnlineId;
 	type Event = Event;
+	type ValidatorSet = Historical;
 	type ReportUnresponsiveness = Offences;
 	type SessionDuration = SessionDuration;
 	type UnsignedPriority = StakingUnsignedPriority;
