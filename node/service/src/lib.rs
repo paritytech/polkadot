@@ -441,7 +441,6 @@ impl IsCollator {
 #[cfg(feature = "full-node")]
 pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
-	authority_discovery_disabled: bool,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
@@ -534,10 +533,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	let authority_discovery_service = if role.is_authority() || is_collator.is_collator() {
 		use sc_network::Event;
 		use futures::StreamExt;
-
-		if authority_discovery_disabled {
-			Err("Authority discovery is mandatory for a validator.")?;
-		}
 
 		let authority_discovery_role = if role.is_authority() {
 			authority_discovery::Role::PublishAndDiscover(
@@ -867,35 +862,30 @@ pub fn build_light(config: Configuration) -> Result<(TaskManager, RpcHandlers), 
 #[cfg(feature = "full-node")]
 pub fn build_full(
 	config: Configuration,
-	authority_discovery_disabled: bool,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
-			authority_discovery_disabled,
 			is_collator,
 			grandpa_pause,
 		).map(|full| full.with_client(Client::Polkadot))
