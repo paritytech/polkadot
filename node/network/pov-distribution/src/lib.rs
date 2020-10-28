@@ -66,7 +66,6 @@ impl<C> Subsystem<C> for PoVDistribution
 		// within `run`.
 		let future = self.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("pov-distribution", e))
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "pov-distribution-subsystem",

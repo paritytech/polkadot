@@ -81,7 +81,7 @@ impl<C> Subsystem<C> for StatementDistribution
 		// within `run`.
 		SpawnedSubsystem {
 			name: "statement-distribution-subsystem",
-			future: self.run(ctx).map(|_| ()).boxed(),
+			future: self.run(ctx).boxed(),
 		}
 	}
 }
