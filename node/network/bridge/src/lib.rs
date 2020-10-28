@@ -231,7 +231,6 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 			.map_err(|e| {
 				SubsystemError::with_origin("network-bridge", e)
 			})
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "network-bridge-subsystem",
