@@ -37,7 +37,7 @@ use polkadot_node_network_protocol::{
 use polkadot_primitives::v1::CollatorId;
 use polkadot_node_subsystem_util::{
 	self as util,
-	metrics::{self, prometheus},
+	metrics::prometheus,
 };
 
 mod collator_side;
@@ -72,28 +72,25 @@ impl From<util::validator_discovery::Error> for Error {
 
 type Result<T> = std::result::Result<T, Error>;
 
-enum ProtocolSide {
+/// What side of the collator protocol is being engaged
+pub enum ProtocolSide {
+	/// Validators operate on the relay chain.
 	Validator(validator_side::Metrics),
+	/// Collators operate on a parachain.
 	Collator(CollatorId, collator_side::Metrics),
 }
 
 /// The collator protocol subsystem.
 pub struct CollatorProtocolSubsystem {
-	protocol_side: ProtocolSide, 
+	protocol_side: ProtocolSide,
 }
 
 impl CollatorProtocolSubsystem {
 	/// Start the collator protocol.
 	/// If `id` is `Some` this is a collator side of the protocol.
-	/// If `id` is `None` this is a validator side of the protocol. 
+	/// If `id` is `None` this is a validator side of the protocol.
 	/// Caller must provide a registry for prometheus metrics.
-	pub fn new(id: Option<CollatorId>, registry: Option<&prometheus::Registry>) -> Self {
-		use metrics::Metrics;
-		let protocol_side = match id {
-			Some(id) => ProtocolSide::Collator(id, collator_side::Metrics::register(registry)),
-			None => ProtocolSide::Validator(validator_side::Metrics::register(registry)),
-		};
-
+	pub fn new(protocol_side: ProtocolSide) -> Self {
 		Self {
 			protocol_side,
 		}
@@ -127,7 +124,7 @@ where
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
 			name: "collator-protocol-subsystem",
-			future: Box::pin(async move { self.run(ctx) }.map(|_| ())),
+			future: self.run(ctx).map(|_| ()).boxed(),
 		}
 	}
 }

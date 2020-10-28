@@ -34,6 +34,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{Block, BlockId, Hash, ParachainHost};
+use std::sync::Arc;
 
 use sp_api::{ProvideRuntimeApi};
 
@@ -41,19 +42,19 @@ use futures::prelude::*;
 
 /// The `RuntimeApiSubsystem`. See module docs for more details.
 pub struct RuntimeApiSubsystem<Client> {
-	client: Client,
+	client: Arc<Client>,
 	metrics: Metrics,
 }
 
 impl<Client> RuntimeApiSubsystem<Client> {
 	/// Create a new Runtime API subsystem wrapping the given client and metrics.
-	pub fn new(client: Client, metrics: Metrics) -> Self {
+	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
 		RuntimeApiSubsystem { client, metrics }
 	}
 }
 
 impl<Client, Context> Subsystem<Context> for RuntimeApiSubsystem<Client> where
-	Client: ProvideRuntimeApi<Block> + Send + 'static,
+	Client: ProvideRuntimeApi<Block> + Send + 'static + Sync,
 	Client::Api: ParachainHost<Block>,
 	Context: SubsystemContext<Message = RuntimeApiMessage>
 {
@@ -79,7 +80,7 @@ async fn run<Client>(
 			FromOverseer::Signal(OverseerSignal::BlockFinalized(_)) => {},
 			FromOverseer::Communication { msg } => match msg {
 				RuntimeApiMessage::Request(relay_parent, request) => make_runtime_api_request(
-					&subsystem.client,
+					&*subsystem.client,
 					&subsystem.metrics,
 					relay_parent,
 					request,
@@ -159,7 +160,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_runtime_api_requests_total",
 						"Number of Runtime API requests served.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -288,7 +289,7 @@ mod tests {
 	#[test]
 	fn requests_validators() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -311,7 +312,7 @@ mod tests {
 	#[test]
 	fn requests_validator_groups() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -334,7 +335,7 @@ mod tests {
 	#[test]
 	fn requests_availability_cores() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -357,12 +358,12 @@ mod tests {
 	#[test]
 	fn requests_persisted_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_data.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -397,12 +398,12 @@ mod tests {
 	#[test]
 	fn requests_full_validation_data() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_data.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_data.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -445,6 +446,8 @@ mod tests {
 
 		runtime_api.validation_outputs_results.insert(para_a, false);
 		runtime_api.validation_outputs_results.insert(para_b, true);
+
+		let runtime_api = Arc::new(runtime_api);
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -491,7 +494,7 @@ mod tests {
 	#[test]
 	fn requests_session_index_for_child() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
@@ -514,12 +517,12 @@ mod tests {
 	#[test]
 	fn requests_validation_code() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+		let mut runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.validation_code.insert(para_a, Default::default());
+		Arc::get_mut(&mut runtime_api).unwrap().validation_code.insert(para_a, Default::default());
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
@@ -561,6 +564,8 @@ mod tests {
 
 		runtime_api.candidate_pending_availability.insert(para_a, Default::default());
 
+		let runtime_api = Arc::new(runtime_api);
+
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 		let test_task = async move {
@@ -595,7 +600,7 @@ mod tests {
 	#[test]
 	fn requests_candidate_events() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let runtime_api = MockRuntimeApi::default();
+		let runtime_api = Arc::new(MockRuntimeApi::default());
 		let relay_parent = [1; 32].into();
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));

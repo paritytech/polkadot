@@ -132,6 +132,10 @@ pub enum SubsystemError {
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
+	/// Prometheus had a problem
+	#[error(transparent)]
+	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
+
 	/// An other error lacking particular type information.
 	#[error("Failed to {0}")]
 	Context(String),

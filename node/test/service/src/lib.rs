@@ -26,7 +26,7 @@ use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{Id as ParaId, HeadData, ValidationCode, Balance};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, NewFull, FullClient, ClientHandle, ExecuteWithClient,
+	new_full, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
 use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, UncheckedExtrinsic};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
@@ -76,6 +76,7 @@ pub fn polkadot_test_new_full(
 	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
 		authority_discovery_disabled,
+		IsCollator::No,
 		None,
 	).map_err(Into::into)
 }
@@ -204,11 +205,12 @@ pub fn run_test_node(
 ) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_disabled = true;
+	let authority_discovery_disabled = false;
 	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
 		polkadot_test_new_full(config, authority_discovery_disabled)
 			.expect("could not create Polkadot test service");
 
+	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 

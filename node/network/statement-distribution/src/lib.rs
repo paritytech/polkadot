@@ -86,6 +86,15 @@ impl<C> Subsystem<C> for StatementDistribution
 	}
 }
 
+impl StatementDistribution {
+	/// Create a new Statement Distribution Subsystem
+	pub fn new(metrics: Metrics) -> StatementDistribution {
+		StatementDistribution {
+			metrics,
+		}
+	}
+}
+
 /// Tracks our impression of a single peer's view of the candidates a validator has seconded
 /// for a given relay-parent.
 ///

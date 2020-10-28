@@ -169,7 +169,7 @@ impl BitfieldDistribution {
 					trace!(target: TARGET, "Processing NetworkMessage");
 					// a network message was received
 					if let Err(e) = handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await {
-						warn!(target: TARGET, "Failed to handle incomming network messages: {:?}", e);
+						warn!(target: TARGET, "Failed to handle incoming network messages: {:?}", e);
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {

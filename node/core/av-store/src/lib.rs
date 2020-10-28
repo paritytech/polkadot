@@ -397,6 +397,23 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
+impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
+	type Error = &'static str;
+
+	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
+		let path = config.path().ok_or("custom databases are not supported")?;
+
+		Ok(Self {
+			// substrate cache size is improper here; just use the default
+			cache_size: None,
+			// DB path is a sub-directory of substrate db path to give two properties:
+			// 1: column numbers don't conflict with substrate
+			// 2: commands like purge-chain work without further changes
+			path: path.join("parachains").join("av-store"),
+		})
+	}
+}
+
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
@@ -449,7 +466,6 @@ async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Contex
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let ctx = &mut ctx;
 	loop {
 		// Every time the following two methods are called a read from DB is performed.
 		// But given that these are very small values which are essentially a newtype
@@ -470,16 +486,19 @@ where
 						ActiveLeavesUpdate { activated, .. })
 					)) => {
 						for activated in activated.into_iter() {
-							process_block_activated(ctx, &subsystem.inner, activated).await?;
+							process_block_activated(&mut ctx, &subsystem.inner, activated).await?;
 						}
 					}
 					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-						process_block_finalized(&subsystem, ctx, &subsystem.inner, hash).await?;
+						process_block_finalized(&subsystem, &mut ctx, &subsystem.inner, hash).await?;
 					}
 					Ok(FromOverseer::Communication { msg }) => {
-						process_message(&mut subsystem, ctx, msg).await?;
+						process_message(&mut subsystem, &mut ctx, msg).await?;
 					}
-					Err(_) => break,
+					Err(e) => {
+						log::error!("AvailabilityStoreSubsystem err: {:#?}", e);
+						break
+					},
 				}
 			}
 			pov_pruning_time = pov_pruning_time => {
@@ -945,15 +964,15 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			if let Err(e) = run(self, ctx).await {
-				log::error!(target: LOG_TARGET, "Subsystem exited with an error {:?}", e);
-			}
-		});
+		let future = run(self, ctx)
+			.map(|r| if let Err(e) = r {
+				log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
+			})
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",

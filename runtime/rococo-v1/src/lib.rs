@@ -347,6 +347,7 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 
 impl_opaque_keys! {
 	pub struct SessionKeys {
+		pub grandpa: Grandpa,
 		pub babe: Babe,
 		pub im_online: ImOnline,
 		pub parachain_validator: Initializer,
@@ -384,7 +385,7 @@ construct_runtime! {
 		ParachainOrigin: parachains_origin::{Module, Origin},
 		Config: parachains_configuration::{Module, Call, Storage},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
-		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage},
+		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		Paras: parachains_paras::{Module, Call, Storage},
 		Initializer: parachains_initializer::{Module, Call, Storage},

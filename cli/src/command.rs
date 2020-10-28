@@ -148,6 +148,7 @@ pub fn run() -> Result<()> {
 					_ => service::build_full(
 						config,
 						authority_discovery_disabled,
+						service::IsCollator::No,
 						grandpa_pause,
 					).map(|full| full.task_manager),
 				}

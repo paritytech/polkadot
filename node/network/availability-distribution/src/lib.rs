@@ -796,7 +796,7 @@ impl AvailabilityDistributionSubsystem {
 					{
 						warn!(
 							target: TARGET,
-							"Failed to handle incomming network messages: {:?}", e
+							"Failed to handle incoming network messages: {:?}", e
 						);
 					}
 				}
@@ -1023,7 +1023,7 @@ where
             }
         )).await
         .map_err(|e| Error::StoreChunkSendQuery(e))?;
-    
+
     rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
 }
 

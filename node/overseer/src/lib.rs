@@ -1177,7 +1177,7 @@ where
 
 		let active_leaves = HashMap::new();
 
-		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry);
+		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 		let activation_external_listeners = HashMap::new();
 
 		let this = Self {

@@ -470,18 +470,15 @@ pub mod metrics {
 		/// Try to register metrics in the Prometheus registry.
 		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-		/// Convience method to register metrics in the optional Prometheus registry.
-		/// If the registration fails, prints a warning and returns `Default::default()`.
-		fn register(registry: Option<&prometheus::Registry>) -> Self {
-			registry.map(|r| {
-				match Self::try_register(r) {
-					Err(e) => {
-						log::warn!("Failed to register metrics: {:?}", e);
-						Default::default()
-					},
-					Ok(metrics) => metrics,
-				}
-			}).unwrap_or_default()
+		/// Convenience method to register metrics in the optional Promethius registry.
+		///
+		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
+		/// thing that `try_register` does.
+		fn register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
+			match registry {
+				None => Ok(Self::default()),
+				Some(registry) => Self::try_register(registry),
+			}
 		}
 	}
 
