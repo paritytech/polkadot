@@ -632,19 +632,25 @@ mod tests {
 	#[test]
 	fn requests_dmq_contents() {
 		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
-		let mut runtime_api = MockRuntimeApi::default();
+
 		let relay_parent = [1; 32].into();
 		let para_a = 5.into();
 		let para_b = 6.into();
 
-		runtime_api.dmq_contents.insert(para_a, vec![]);
-		runtime_api.dmq_contents.insert(
-			para_b,
-			vec![InboundDownwardMessage {
-				sent_at: 228,
-				msg: b"Novus Ordo Seclorum".to_vec(),
-			}],
-		);
+		let runtime_api = Arc::new({
+			let mut runtime_api = MockRuntimeApi::default();
+
+			runtime_api.dmq_contents.insert(para_a, vec![]);
+			runtime_api.dmq_contents.insert(
+				para_b,
+				vec![InboundDownwardMessage {
+					sent_at: 228,
+					msg: b"Novus Ordo Seclorum".to_vec(),
+				}],
+			);
+
+			runtime_api
+		});
 
 		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
 		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
