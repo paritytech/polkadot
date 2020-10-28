@@ -78,10 +78,12 @@ struct HrmpOpenChannelRequest {
     age: SessionIndex,
     /// The amount that the sender supplied at the time of creation of this request.
     sender_deposit: Balance,
+    /// The maximum message size that could be put into the channel.
+    max_message_size: u32,
     /// The maximum number of messages that can be pending in the channel at once.
-    limit_used_places: u32,
+    max_capacity: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
-    limit_used_bytes: u32,
+    max_total_size: u32,
 }
 
 /// A metadata of an HRMP channel.
@@ -93,17 +95,17 @@ struct HrmpChannel {
     /// The maximum message size that could be put into the channel.
     limit_message_size: u32,
     /// The maximum number of messages that can be pending in the channel at once.
-    limit_used_places: u32,
+    max_capacity: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
-    limit_used_bytes: u32,
+    max_total_size: u32,
     /// The maximum message size that could be put into the channel.
-    limit_message_size: u32,
+    max_message_size: u32,
     /// The current number of messages pending in the channel.
-    /// Invariant: should be less or equal to `limit_used_places`.
-    used_places: u32,
+    /// Invariant: should be less or equal to `max_capacity`.
+    msg_count: u32,
     /// The total size in bytes of all message payloads in the channel.
-    /// Invariant: should be less or equal to `limit_used_bytes`.
-    used_bytes: u32,
+    /// Invariant: should be less or equal to `max_total_size`.
+    total_size: u32,
     /// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
     /// `(prev_head, B, H(M))`, where
     /// - `prev_head`: is the previous value of `mqc_head` or zero if none.
@@ -199,9 +201,9 @@ Candidate Acceptance Function:
     1. Checks that horizontal messages are sorted by ascending recipient ParaId and there is no two horizontal messages have the same recipient.
     1. For each horizontal message `M` with the channel `C` identified by `(sender, M.recipient)` check:
         1. exists
-        1. `M`'s payload size doesn't exceed a preconfigured limit `C.limit_message_size`
-        1. `M`'s payload size summed with the `C.used_bytes` doesn't exceed a preconfigured limit `C.limit_used_bytes`.
-        1. `C.used_places + 1` doesn't exceed a preconfigured limit `C.limit_used_places`.
+        1. `M`'s payload size doesn't exceed a preconfigured limit `C.max_message_size`
+        1. `M`'s payload size summed with the `C.total_size` doesn't exceed a preconfigured limit `C.max_total_size`.
+        1. `C.msg_count + 1` doesn't exceed a preconfigured limit `C.max_capacity`.
 
 Candidate Enactment:
 
@@ -209,16 +211,16 @@ Candidate Enactment:
     1. For each horizontal message `HM` with the channel `C` identified by `(sender, HM.recipient)`:
         1. Append `HM` into `HrmpChannelContents` that corresponds to `C` with `sent_at` equals to the current block number.
         1. Locate or create an entry in `HrmpChannelDigests` for `HM.recipient` and append `sender` into the entry's list.
-        1. Increment `C.used_places`
-        1. Increment `C.used_bytes` by `HM`'s payload size
+        1. Increment `C.msg_count`
+        1. Increment `C.total_size` by `HM`'s payload size
         1. Append a new link to the MQC and save the new head in `C.mqc_head`. Note that the current block number as of enactment is used for the link.
 * `prune_hrmp(recipient, new_hrmp_watermark)`:
     1. From `HrmpChannelDigests` for `recipient` remove all entries up to an entry with block number equal to `new_hrmp_watermark`.
     1. From the removed digests construct a set of paras that sent new messages within the interval between the old and new watermarks.
     1. For each channel `C` identified by `(sender, recipient)` for each `sender` coming from the set, prune messages up to the `new_hrmp_watermark`.
     1. For each pruned message `M` from channel `C`:
-        1. Decrement `C.used_places`
-        1. Decrement `C.used_bytes` by `M`'s payload size.
+        1. Decrement `C.msg_count`
+        1. Decrement `C.total_size` by `M`'s payload size.
     1. Set `HrmpWatermarks` for `P` to be equal to `new_hrmp_watermark`
     > NOTE: That collecting digests can be inefficient and the time it takes grows very fast. Thanks to the aggresive
     > parametrization this shouldn't be a big of a deal.
@@ -267,10 +269,10 @@ The following entry-points are meant to be used for HRMP channel management.
 Those entry-points are meant to be called from a parachain. `origin` is defined as the `ParaId` of
 the parachain executed the message.
 
-* `hrmp_init_open_channel(recipient, max_places, max_message_size)`:
+* `hrmp_init_open_channel(recipient, proposed_max_capacity, proposed_max_message_size)`:
     1. Check that the `origin` is not `recipient`.
-    1. Check that `max_places` is less or equal to `config.hrmp_channel_max_places` and greater than zero.
-    1. Check that `max_message_size` is less or equal to `config.hrmp_channel_max_message_size` and greater than zero.
+    1. Check that `proposed_max_capacity` is less or equal to `config.hrmp_channel_max_capacity` and greater than zero.
+    1. Check that `proposed_max_message_size` is less or equal to `config.hrmp_channel_max_message_size` and greater than zero.
     1. Check that `recipient` is a valid para.
     1. Check that there is no existing channel for `(origin, recipient)` in `HrmpChannels`.
     1. Check that there is no existing open channel request (`origin`, `recipient`) in `HrmpOpenChannelRequests`.
@@ -284,15 +286,15 @@ the parachain executed the message.
     1. Append `(origin, recipient)` to `HrmpOpenChannelRequestsList`.
     1. Add a new entry to `HrmpOpenChannelRequests` for `(origin, recipient)`
         1. Set `sender_deposit` to `config.hrmp_sender_deposit`
-        1. Set `limit_used_places` to `max_places`
-        1. Set `limit_message_size` to `max_message_size`
-        1. Set `limit_used_bytes` to `config.hrmp_channel_max_size`
+        1. Set `max_capacity` to `proposed_max_capacity`
+        1. Set `max_message_size` to `proposed_max_message_size`
+        1. Set `max_total_size` to `config.hrmp_channel_max_total_size`
     1. Send a downward message to `recipient` notifying about an inbound HRMP channel request.
         - The DM is sent using `queue_downward_message`.
         - The DM is represented by the `HrmpNewChannelOpenRequest`  XCM message.
             - `sender` is set to `origin`,
-            - `max_message_size` is set to `max_message_size`,
-            - `max_capacity` is set to `max_places`.
+            - `max_message_size` is set to `proposed_max_message_size`,
+            - `max_capacity` is set to `proposed_max_capacity`.
 * `hrmp_accept_open_channel(sender)`:
     1. Check that there is an existing request between (`sender`, `origin`) in `HrmpOpenChannelRequests`
         1. Check that it is not confirmed.
