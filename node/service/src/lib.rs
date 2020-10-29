@@ -288,14 +288,14 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 #[cfg(feature="full-node")]
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
-	keystore: SyncCryptoStorePtr,
-	runtime_client: Arc<RuntimeClient>,
-	availability_config: AvailabilityConfig,
-	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
-	authority_discovery: AuthorityDiscoveryService,
+	_: SyncCryptoStorePtr,
+	_: Arc<RuntimeClient>,
+	_: AvailabilityConfig,
+	_: Arc<sc_network::NetworkService<Block, Hash>>,
+	_: AuthorityDiscoveryService,
 	registry: Option<&Registry>,
 	spawner: Spawner,
-	is_collator: IsCollator,
+	_: IsCollator,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -304,7 +304,7 @@ where
 {
 	Overseer::new(
 		leaves,
-		AllSubsystems::dummy::<()>(),
+		AllSubsystems::<()>::dummy(),
 		registry,
 		spawner,
 	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
