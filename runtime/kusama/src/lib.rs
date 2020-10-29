@@ -21,7 +21,7 @@
 #![recursion_limit = "256"]
 
 use sp_std::prelude::*;
-use sp_core::u32_trait::{_1, _2, _3, _4, _5};
+use sp_core::u32_trait::{_1, _2, _3, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
@@ -30,8 +30,8 @@ use primitives::v1::{
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
-	impls::ToAuthor,
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::DealWithFees,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
@@ -55,7 +55,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -214,14 +214,6 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
->;
-
 impl pallet_balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -238,7 +230,7 @@ parameter_types! {
 
 impl pallet_transaction_payment::Trait for Runtime {
 	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnTransactionPayment = DealWithFees<Self>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
