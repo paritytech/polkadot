@@ -68,10 +68,13 @@ enum ApprovalVotingMessage {
 		ResponseChannel<VoteCheckResult>,
 	),
 	/// Returns the highest possible ancestor hash of the provided block hash which is
-	/// acceptable to vote on finality for. It can also return the same
-	/// block hash, if that is acceptable to vote upon. Return `None` if the input
-	/// hash is unrecognized.
-	ApprovedAncestor(Hash, ResponseChannel<Option<Hash>>),
+	/// acceptable to vote on finality for. 
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	/// 
+	/// It can also return the same block hash, if that is acceptable to vote upon. 
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
 }
 ```
 

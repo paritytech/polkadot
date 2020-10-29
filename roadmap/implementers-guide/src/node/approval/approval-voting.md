@@ -167,7 +167,13 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Send `VoteCheckResult::Accepted`,
   * `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
 
-// TODO: `ApprovedAncestor`
+On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
+  * Iterate over the ancestry of the hash all the way back to block number given, starting from the provided block hash.
+  * Keep track of an `all_approved_max: Option<Hash>`.
+  * For each block hash encountered, load the `BlockEntry` associated. If any are not found, return `None` on the response channel and conclude.
+  * If the block entry has `approval_bitfield == !0` and `all_approved_max == None`, set `all_approved_max = Some(current_hash)`.
+  * If the block entry as `approval_bitfield != !0`, set `all_approved_max = None`.
+  * After iterating all ancestry, return `all_approved_max`.
 
 ### Utility
 
