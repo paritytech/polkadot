@@ -373,6 +373,8 @@ pub fn new_full<RuntimeApi, Executor>(
 {
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
+	let backoff_authoring_blocks =
+		Some(sc_consensus_slots::SimpleBackoffAuthoringBlocksStrategy::default());
 	let disable_grandpa = config.disable_grandpa;
 	let name = config.network.node_name.clone();
 
@@ -522,13 +524,6 @@ pub fn new_full<RuntimeApi, Executor>(
 	if role.is_authority() {
 		let can_author_with =
 			consensus_common::CanAuthorWithNativeVersion::new(client.executor().clone());
-
-		// JON: where can we keep these constants?
-		let backoff_authoring_blocks = Some(sc_consensus_slots::SimpleBackoffAuthoringBlocksStrategy {
-			max_interval: 100,
-			unfinalized_slack: 5,
-			authoring_bias: 2,
-		});
 
 		let proposer = ProposerFactory::new(
 			task_manager.spawn_handle(),
