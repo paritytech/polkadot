@@ -23,7 +23,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use futures::channel::{mpsc, oneshot};
 
-use libp2p::core::multiaddr::{Multiaddr, Protocol};
+use sc_network::multiaddr::{Multiaddr, Protocol};
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_primitives::v1::{AuthorityDiscoveryId, Block, Hash};
