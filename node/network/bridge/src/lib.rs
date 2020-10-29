@@ -16,7 +16,7 @@
 
 //! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
 
-#![deny(unused_crate_dependencies, unused_results)]
+#![deny(unused_crate_dependencies)]
 #![warn(missing_docs)]
 
 
@@ -703,7 +703,7 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_disconnected(&peer, &mut authority_discovery_service).await;
+				validator_discovery.on_peer_disconnected(&peer);
 
 				if peer_map.remove(&peer).is_some() {
 					let res = match peer_set {
