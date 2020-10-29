@@ -486,7 +486,9 @@ where
 						ActiveLeavesUpdate { activated, .. })
 					)) => {
 						for activated in activated.into_iter() {
-							process_block_activated(&mut ctx, &subsystem.inner, activated).await?;
+							if let Err(e) = process_block_activated(&mut ctx, &subsystem.inner, activated).await {
+								log::error!("Failed to process activated leave: {:?}", e);
+							}
 						}
 					}
 					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
