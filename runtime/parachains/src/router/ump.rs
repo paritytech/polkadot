@@ -479,6 +479,7 @@ mod tests {
 	use std::collections::HashSet;
 
 	struct GenesisConfigBuilder {
+		max_upward_message_size: u32,
 		max_upward_message_num_per_candidate: u32,
 		max_upward_queue_capacity: u32,
 		max_upward_queue_size: u32,
@@ -488,6 +489,7 @@ mod tests {
 	impl Default for GenesisConfigBuilder {
 		fn default() -> Self {
 			Self {
+				max_upward_message_size: 16,
 				max_upward_message_num_per_candidate: 2,
 				max_upward_queue_capacity: 4,
 				max_upward_queue_size: 64,
@@ -501,6 +503,7 @@ mod tests {
 			let mut genesis = default_genesis_config();
 			let config = &mut genesis.configuration.config;
 
+			config.max_upward_message_size = self.max_upward_message_size;
 			config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
 			config.max_upward_queue_capacity = self.max_upward_queue_capacity;
 			config.max_upward_queue_size = self.max_upward_queue_size;
