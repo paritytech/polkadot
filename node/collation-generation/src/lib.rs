@@ -165,7 +165,10 @@ where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(self.run(ctx));
+		let future = Box::pin(async move {
+			self.run(ctx).await;
+			Ok(())
+		});
 
 		SpawnedSubsystem {
 			name: "collation-generation-subsystem",

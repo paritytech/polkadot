@@ -942,6 +942,7 @@ where
 
 		let future = Box::pin(async move {
 			Self::run(ctx, run_args, metrics, spawner, errors).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {

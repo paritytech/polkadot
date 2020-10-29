@@ -5,6 +5,29 @@ Types of messages that are passed between parachains and the relay chain: UMP, D
 There is also HRMP (Horizontally Relay-routed Message Passing) which provides the same functionality
 although with smaller scalability potential.
 
+## Vertical Message Passing
+
+Types required for message passing between the relay-chain and a parachain.
+
+Actual contents of the messages is specified by the XCM standard.
+
+```rust,ignore
+/// A message sent from the relay-chain down to a parachain.
+///
+/// The size of the message is limited by the `config.max_downward_message_size`
+/// parameter.
+type DownwardMessage = Vec<u8>;
+
+/// This struct extends `DownwardMessage` by adding the relay-chain block number when the message was
+/// enqueued in the downward message queue.
+struct InboundDownwardMessage {
+	/// The block number at which this messages was put into the downward message queue.
+	pub sent_at: BlockNumber,
+	/// The actual downward message to processes.
+	pub msg: DownwardMessage,
+}
+```
+
 ## HrmpChannelId
 
 A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
@@ -103,34 +126,5 @@ struct InboundHrmpMessage {
 	pub sent_at: BlockNumber,
 	/// The message payload.
 	pub data: Vec<u8>,
-}
-```
-
-## Downward Message
-
-`DownwardMessage` - is a message that goes down from the relay chain to a parachain. Such a message
-could be seen as a notification, however, it is conceivable that they might be used by the relay
-chain to send a request to the parachain (likely, through the `ParachainSpecific` variant).
-
-The serialized size of the message is limited by the `config.critical_downward_message_size` parameter.
-
-```rust,ignore
-enum DownwardMessage {
-	/// Some funds were transferred into the parachain's account. The hash is the identifier that
-	/// was given with the transfer.
-	TransferInto(AccountId, Balance, Remark),
-	/// An opaque message which interpretation is up to the recipient para. This variant ought
-	/// to be used as a basis for special protocols between the relay chain and, typically system,
-	/// paras.
-	ParachainSpecific(Vec<u8>),
-}
-
-/// A wrapped version of `DownwardMessage`. The difference is that it has attached the block number when
-/// the message was sent.
-struct InboundDownwardMessage {
-	/// The block number at which this messages was put into the downward message queue.
-	pub sent_at: BlockNumber,
-	/// The actual downward message to processes.
-	pub msg: DownwardMessage,
 }
 ```
