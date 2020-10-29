@@ -23,10 +23,11 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
+	InboundDownwardMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras};
+use crate::{initializer, inclusion, scheduler, configuration, paras, router};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -216,6 +217,15 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 	)
 }
 
+/// Implementation for the `check_validation_outputs` function of the runtime API.
+pub fn check_validation_outputs<T: initializer::Trait>(
+	para_id: ParaId,
+	outputs: primitives::v1::ValidationOutputs,
+) -> bool {
+	// we strip detailed information from error here for the sake of simplicity of runtime API.
+	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs).is_ok()
+}
+
 /// Implementation for the `session_index_for_child` function of the runtime API.
 pub fn session_index_for_child<T: initializer::Trait>() -> SessionIndex {
 	// Just returns the session index from `inclusion`. Runtime APIs follow
@@ -268,7 +278,7 @@ where
 }
 
 /// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-/// Currently this request is limited to validators in the current session. 
+/// Currently this request is limited to validators in the current session.
 ///
 /// We assume that every validator runs authority discovery,
 /// which would allow us to establish point-to-point connection to given validators.
@@ -289,4 +299,11 @@ where
 		let validator_index = current_validators.iter().position(|v| v == id);
 		validator_index.and_then(|i| authorities.get(i).cloned())
 	}).collect()
+}
+
+/// Implementation for the `dmq_contents` function of the runtime API.
+pub fn dmq_contents<T: router::Trait>(
+	recipient: ParaId,
+) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	<router::Module<T>>::dmq_contents(recipient)
 }

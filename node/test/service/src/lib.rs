@@ -18,21 +18,20 @@
 
 #![warn(missing_docs)]
 
-mod chain_spec;
+pub mod chain_spec;
 
 pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::v0::{
-	Block, CollatorId, Id as ParaId,
-};
+use polkadot_primitives::v1::{Id as ParaId, HeadData, ValidationCode, Balance};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, NewFull, FullClient, AbstractClient, ClientHandle, ExecuteWithClient,
+	new_full, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
-use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION};
+use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, UncheckedExtrinsic};
+use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
-use sc_client_api::{execution_extensions::ExecutionStrategies, BlockchainEvents};
+use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_executor::native_executor_instance;
 use sc_informant::OutputFormat;
 use sc_network::{
@@ -44,11 +43,11 @@ use service::{
 	error::Error as ServiceError,
 	RpcHandlers, TaskExecutor, TaskManager,
 };
-use service::{BasePath, Configuration, Role, TFullBackend};
+use service::{BasePath, Configuration, Role};
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
-use sp_runtime::{codec::Encode, generic};
+use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
 use std::sync::Arc;
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
@@ -60,25 +59,28 @@ native_executor_instance!(
 	frame_benchmarking::benchmarking::HostFunctions,
 );
 
+/// The client type being used by the test service.
+pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>;
+
+pub use polkadot_service::FullBackend;
+
 /// Create a new Polkadot test service for a full node.
+#[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
 pub fn polkadot_test_new_full(
 	config: Configuration,
-	collating_for: Option<(CollatorId, ParaId)>,
-	authority_discovery_enabled: bool,
 ) -> Result<
-	NewFull<Arc<FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>>,
+	NewFull<Arc<Client>>,
 	ServiceError,
 > {
 	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
-		collating_for,
-		authority_discovery_enabled,
+		IsCollator::No,
 		None,
 	).map_err(Into::into)
 }
 
 /// A wrapper for the test client that implements `ClientHandle`.
-pub struct TestClient(pub Arc<polkadot_service::FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>>);
+pub struct TestClient(pub Arc<Client>);
 
 impl ClientHandle for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
@@ -86,9 +88,13 @@ impl ClientHandle for TestClient {
 	}
 }
 
-/// Create a Polkadot `Configuration`. By default an in-memory socket will be used, therefore you need to provide boot
-/// nodes if you want the future node to be connected to other nodes. The `storage_update_func` can be used to make
-/// adjustements to the runtime before the node starts.
+/// Create a Polkadot `Configuration`.
+///
+/// By default an in-memory socket will be used, therefore you need to provide boot
+/// nodes if you want the future node to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn node_config(
 	storage_update_func: impl Fn(),
 	task_executor: TaskExecutor,
@@ -111,14 +117,13 @@ pub fn node_config(
 	spec.set_storage(storage);
 
 	let mut network_config = NetworkConfiguration::new(
-		format!("Polkadot Test Node for: {}", key_seed),
+		key_seed.to_string(),
 		"network/test/0.1",
 		Default::default(),
 		None,
 	);
 	let informant_output_format = OutputFormat {
 		enable_color: false,
-		prefix: format!("[{}] ", key_seed),
 	};
 
 	network_config.boot_nodes = boot_nodes;
@@ -151,6 +156,7 @@ pub fn node_config(
 		pruning: Default::default(),
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Interpreted,
+		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
 			syncing: sc_client_api::ExecutionStrategy::NativeWhenPossible,
@@ -182,111 +188,150 @@ pub fn node_config(
 	}
 }
 
-/// Run a Polkadot test node using the Polkadot test runtime. The node will be using an in-memory socket, therefore you
-/// need to provide boot nodes if you want it to be connected to other nodes. The `storage_update_func` can be used to
-/// make adjustements to the runtime before the node starts.
+/// Run a Polkadot test node using the Polkadot test runtime.
+///
+/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
+/// want it to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
 pub fn run_test_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
-) -> PolkadotTestNode<
-	TaskManager,
-	impl AbstractClient<Block, TFullBackend<Block>>,
-> {
+) -> PolkadotTestNode {
 	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let authority_discovery_enabled = false;
-	let NewFull {task_manager, client, network, rpc_handlers, node_handles, ..} =
-		polkadot_test_new_full(config, None, authority_discovery_enabled)
+	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
+		polkadot_test_new_full(config)
 			.expect("could not create Polkadot test service");
 
+	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
 	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
 
 	PolkadotTestNode {
 		task_manager,
 		client,
-		handles: node_handles,
+		overseer_handler,
 		addr,
 		rpc_handlers,
 	}
 }
 
 /// A Polkadot test node instance used for testing.
-pub struct PolkadotTestNode<S, C> {
+pub struct PolkadotTestNode {
 	/// TaskManager's instance.
-	pub task_manager: S,
+	pub task_manager: TaskManager,
 	/// Client's instance.
-	pub client: Arc<C>,
-	/// Node's handles.
-	pub handles: OverseerHandler,
+	pub client: Arc<Client>,
+	/// The overseer handler.
+	pub overseer_handler: OverseerHandler,
 	/// The `MultiaddrWithPeerId` to this node. This is useful if you want to pass it as "boot node" to other nodes.
 	pub addr: MultiaddrWithPeerId,
 	/// RPCHandlers to make RPC queries.
 	pub rpc_handlers: RpcHandlers,
 }
 
-impl<S, C> PolkadotTestNode<S, C>
-where
-	C: HeaderBackend<Block>,
-{
-	/// Send a transaction through RPCHandlers to call a function.
-	pub async fn call_function(
+impl PolkadotTestNode {
+	/// Send an extrinsic to this node.
+	pub async fn send_extrinsic(
 		&self,
-		function: polkadot_test_runtime::Call,
+		function: impl Into<polkadot_test_runtime::Call>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
-		let current_block_hash = self.client.info().best_hash;
-		let current_block = self.client.info().best_number.saturated_into();
-		let genesis_block = self.client.hash(0).unwrap().unwrap();
-		let nonce = 0;
-		let period = BlockHashCount::get()
-			.checked_next_power_of_two()
-			.map(|c| c / 2)
-			.unwrap_or(2) as u64;
-		let tip = 0;
-		let extra: SignedExtra = (
-			frame_system::CheckSpecVersion::<Runtime>::new(),
-			frame_system::CheckTxVersion::<Runtime>::new(),
-			frame_system::CheckGenesis::<Runtime>::new(),
-			frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
-			frame_system::CheckNonce::<Runtime>::from(nonce),
-			frame_system::CheckWeight::<Runtime>::new(),
-			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
-		);
-		let raw_payload = SignedPayload::from_raw(
-			function.clone(),
-			extra.clone(),
-			(
-				VERSION.spec_version,
-				VERSION.transaction_version,
-				genesis_block,
-				current_block_hash,
-				(),
-				(),
-				(),
-			),
-		);
-		let signature = raw_payload.using_encoded(|e| caller.sign(e));
-		let extrinsic = polkadot_test_runtime::UncheckedExtrinsic::new_signed(
-			function.clone(),
-			polkadot_test_runtime::Address::Id(caller.public().into()),
-			polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
-			extra.clone(),
-		);
+		let extrinsic = construct_extrinsic(&*self.client, function, caller);
 
 		self.rpc_handlers.send_transaction(extrinsic.into()).await
 	}
-}
 
-impl<S, C> PolkadotTestNode<S, C>
-where
-	C: BlockchainEvents<Block>,
-{
+	/// Register a parachain at this relay chain.
+	pub async fn register_parachain(
+		&self,
+		id: ParaId,
+		validation_code: ValidationCode,
+		genesis_head: HeadData,
+	) -> Result<(), RpcTransactionError> {
+		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
+			id,
+			ParaGenesisArgs {
+				genesis_head,
+				validation_code,
+				parachain: true,
+			},
+		);
+
+		self.send_extrinsic(call, Sr25519Keyring::Alice).await.map(drop)
+	}
+
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
 	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
 	}
+}
+
+/// Construct an extrinsic that can be applied to the test runtime.
+pub fn construct_extrinsic(
+	client: &Client,
+	function: impl Into<polkadot_test_runtime::Call>,
+	caller: Sr25519Keyring,
+) -> UncheckedExtrinsic {
+	let function = function.into();
+	let current_block_hash = client.info().best_hash;
+	let current_block = client.info().best_number.saturated_into();
+	let genesis_block = client.hash(0).unwrap().unwrap();
+	let nonce = 0;
+	let period = BlockHashCount::get()
+		.checked_next_power_of_two()
+		.map(|c| c / 2)
+		.unwrap_or(2) as u64;
+	let tip = 0;
+	let extra: SignedExtra = (
+		frame_system::CheckSpecVersion::<Runtime>::new(),
+		frame_system::CheckTxVersion::<Runtime>::new(),
+		frame_system::CheckGenesis::<Runtime>::new(),
+		frame_system::CheckEra::<Runtime>::from(generic::Era::mortal(period, current_block)),
+		frame_system::CheckNonce::<Runtime>::from(nonce),
+		frame_system::CheckWeight::<Runtime>::new(),
+		pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
+	);
+	let raw_payload = SignedPayload::from_raw(
+		function.clone(),
+		extra.clone(),
+		(
+			VERSION.spec_version,
+			VERSION.transaction_version,
+			genesis_block,
+			current_block_hash,
+			(),
+			(),
+			(),
+		),
+	);
+	let signature = raw_payload.using_encoded(|e| caller.sign(e));
+	UncheckedExtrinsic::new_signed(
+		function.clone(),
+		polkadot_test_runtime::Address::Id(caller.public().into()),
+		polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
+		extra.clone(),
+	)
+}
+
+/// Construct a transfer extrinsic.
+pub fn construct_transfer_extrinsic(
+	client: &Client,
+	origin: sp_keyring::AccountKeyring,
+	dest: sp_keyring::AccountKeyring,
+	value: Balance,
+) -> UncheckedExtrinsic {
+	let function = polkadot_test_runtime::Call::Balances(
+		pallet_balances::Call::transfer(
+			MultiSigner::from(dest.public()).into_account().into(),
+			value,
+		),
+	);
+
+	construct_extrinsic(client, function, origin)
 }

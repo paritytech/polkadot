@@ -1,3 +1,23 @@
+// Copyright 2020 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+//! The proposer proposes new blocks to include
+
+#![deny(unused_crate_dependencies, unused_results)]
+
 use futures::prelude::*;
 use futures::select;
 use polkadot_node_subsystem::{messages::{AllMessages, ProvisionerInherentData, ProvisionerMessage}, SubsystemError};
@@ -6,12 +26,14 @@ use polkadot_primitives::v1::{
 	Block, Hash, Header,
 };
 use sc_block_builder::{BlockBuilderApi, BlockBuilderProvider};
+use sp_core::traits::SpawnNamed;
 use sp_api::{ApiExt, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
 use sp_consensus::{Proposal, RecordProof};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
+use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
@@ -25,15 +47,18 @@ pub struct ProposerFactory<TxPool, Backend, Client> {
 
 impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 	pub fn new(
+		spawn_handle: impl SpawnNamed + 'static,
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
+		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
+				spawn_handle,
 				client,
 				transaction_pool,
-				None,
+				prometheus,
 			),
 			overseer,
 		}
@@ -120,7 +145,7 @@ where
 			let (sender, receiver) = futures::channel::oneshot::channel();
 
 			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)?;
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			// strictly speaking, we don't _have_ to .await this send_msg before opening the
@@ -131,7 +156,7 @@ where
 				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
 			)).await?;
 
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
+			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
 		}
 		.boxed()
 		.fuse();
@@ -203,7 +228,7 @@ where
 
 // It would have been more ergonomic to use thiserror to derive the
 // From implementations, Display, and std::error::Error, but unfortunately
-// two of the wrapped errors (sp_inherents::Error, SubsystemError) also
+// one of the wrapped errors (sp_inherents::Error) also
 // don't impl std::error::Error, which breaks the thiserror derive.
 #[derive(Debug)]
 pub enum Error {
@@ -211,7 +236,8 @@ pub enum Error {
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
 	Timeout,
-	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
+	ClosedChannelAwaitingActivation,
+	ClosedChannelAwaitingInherentData,
 	Subsystem(SubsystemError)
 }
 
@@ -246,7 +272,8 @@ impl fmt::Display for Error {
 			Self::Blockchain(err) => write!(f, "blockchain error: {}", err),
 			Self::Inherent(err) => write!(f, "inherent error: {:?}", err),
 			Self::Timeout => write!(f, "timeout: provisioner did not return inherent data after {:?}", PROPOSE_TIMEOUT),
-			Self::ClosedChannelFromProvisioner(err) => write!(f, "provisioner closed inherent data channel before sending: {}", err),
+			Self::ClosedChannelAwaitingActivation => write!(f, "closed channel from overseer when awaiting activation"),
+			Self::ClosedChannelAwaitingInherentData => write!(f, "closed channel from provisioner when awaiting inherent data"),
 			Self::Subsystem(err) => write!(f, "subsystem error: {:?}", err),
 		}
 	}
@@ -257,7 +284,7 @@ impl std::error::Error for Error {
 		match self {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
-			Self::ClosedChannelFromProvisioner(err) => Some(err),
+			Self::Subsystem(err) => Some(err),
 			_ => None
 		}
 	}

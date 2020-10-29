@@ -22,6 +22,10 @@
 //!
 //! This crate also reexports Prometheus metric types which are expected to be implemented by subsystems.
 
+#![deny(unused_results)]
+// #![deny(unused_crate_dependencies] causes false positives
+// https://github.com/rust-lang/rust/issues/57274
+#![warn(missing_docs)]
 
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
@@ -37,16 +41,23 @@ use futures::{
 	task,
 };
 use futures_timer::Delay;
-use sc_keystore::KeyStorePtr;
 use parity_scale_codec::Encode;
 use pin_project::{pin_project, pinned_drop};
 use polkadot_primitives::v1::{
 	CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs, PersistedValidationData,
 	GroupRotationInfo, Hash, Id as ParaId, ValidationData, OccupiedCoreAssumption,
 	SessionIndex, Signed, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidatorPair,
 };
-use sp_core::{Pair, traits::SpawnNamed};
+use sp_core::{
+	traits::SpawnNamed,
+	Public
+};
+use sp_application_crypto::AppKey;
+use sp_keystore::{
+	CryptoStore,
+	SyncCryptoStorePtr,
+	Error as KeystoreError,
+};
 use std::{
 	collections::HashMap,
 	convert::{TryFrom, TryInto},
@@ -56,6 +67,7 @@ use std::{
 	time::Duration,
 };
 use streamunordered::{StreamUnordered, StreamYield};
+use thiserror::Error;
 
 pub mod validator_discovery;
 
@@ -75,35 +87,38 @@ pub const JOB_GRACEFUL_STOP_DURATION: Duration = Duration::from_secs(1);
 /// Capacity of channels to and from individual jobs
 pub const JOB_CHANNEL_CAPACITY: usize = 64;
 
-
 /// Utility errors
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// Attempted to send or receive on a oneshot channel which had been canceled
-	#[from]
-	Oneshot(oneshot::Canceled),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
 	/// Attempted to send on a MPSC channel which has been canceled
-	#[from]
-	Mpsc(mpsc::SendError),
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
 	/// A subsystem error
-	#[from]
-	Subsystem(SubsystemError),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
 	/// An error in the Chain API.
-	#[from]
-	ChainApi(ChainApiError),
+	#[error(transparent)]
+	ChainApi(#[from] ChainApiError),
 	/// An error in the Runtime API.
-	#[from]
-	RuntimeApi(RuntimeApiError),
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
 	/// The type system wants this even though it doesn't make sense
-	#[from]
-	Infallible(std::convert::Infallible),
+	#[error(transparent)]
+	Infallible(#[from] std::convert::Infallible),
 	/// Attempted to convert from an AllMessages to a FromJob, and failed.
+	#[error("AllMessage not relevant to Job")]
 	SenderConversion(String),
 	/// The local node is not a validator.
+	#[error("Node is not a validator")]
 	NotAValidator,
 	/// The desired job is not present in the jobs list.
+	#[error("Relay parent {0} not of interest")]
 	JobNotFound(Hash),
 	/// Already forwarding errors to another sender
+	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
 }
 
@@ -281,11 +296,13 @@ specialize_requests_ctx! {
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option<ValidatorPair> {
-	let keystore = keystore.read();
-	validators
-		.iter()
-		.find_map(|v| keystore.key_pair::<ValidatorPair>(&v).ok())
+pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePtr) -> Option<ValidatorId> {
+	for v in validators.iter() {
+		if CryptoStore::has_keys(&*keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+			return Some(v.clone());
+		}
+	}
+	None
 }
 
 /// Local validator information
@@ -294,7 +311,7 @@ pub fn signing_key(validators: &[ValidatorId], keystore: &KeyStorePtr) -> Option
 /// relay chain block.
 pub struct Validator {
 	signing_context: SigningContext,
-	key: ValidatorPair,
+	key: ValidatorId,
 	index: ValidatorIndex,
 }
 
@@ -302,7 +319,7 @@ impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
 	pub async fn new<FromJob>(
 		parent: Hash,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 		mut sender: mpsc::Sender<FromJob>,
 	) -> Result<Self, Error>
 	where
@@ -324,22 +341,22 @@ impl Validator {
 
 		let validators = validators?;
 
-		Self::construct(&validators, signing_context, keystore)
+		Self::construct(&validators, signing_context, keystore).await
 	}
 
 	/// Construct a validator instance without performing runtime fetches.
 	///
 	/// This can be useful if external code also needs the same data.
-	pub fn construct(
+	pub async fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: KeyStorePtr,
+		keystore: SyncCryptoStorePtr,
 	) -> Result<Self, Error> {
-		let key = signing_key(validators, &keystore).ok_or(Error::NotAValidator)?;
+		let key = signing_key(validators, keystore).await.ok_or(Error::NotAValidator)?;
 		let index = validators
 			.iter()
 			.enumerate()
-			.find(|(_, k)| k == &&key.public())
+			.find(|(_, k)| k == &&key)
 			.map(|(idx, _)| idx as ValidatorIndex)
 			.expect("signing_key would have already returned NotAValidator if the item we're searching for isn't in this list; qed");
 
@@ -352,7 +369,7 @@ impl Validator {
 
 	/// Get this validator's id.
 	pub fn id(&self) -> ValidatorId {
-		self.key.public()
+		self.key.clone()
 	}
 
 	/// Get this validator's local index.
@@ -366,11 +383,12 @@ impl Validator {
 	}
 
 	/// Sign a payload with this validator
-	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+	pub async fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
+		keystore: SyncCryptoStorePtr,
 		payload: Payload,
-	) -> Signed<Payload, RealPayload> {
-		Signed::sign(payload, &self.signing_context, self.index, &self.key)
+	) -> Result<Signed<Payload, RealPayload>, KeystoreError> {
+		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
 	}
 
 	/// Validate the payload with this validator
@@ -452,18 +470,15 @@ pub mod metrics {
 		/// Try to register metrics in the Prometheus registry.
 		fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError>;
 
-		/// Convience method to register metrics in the optional Prometheus registry.
-		/// If the registration fails, prints a warning and returns `Default::default()`.
-		fn register(registry: Option<&prometheus::Registry>) -> Self {
-			registry.map(|r| {
-				match Self::try_register(r) {
-					Err(e) => {
-						log::warn!("Failed to register metrics: {:?}", e);
-						Default::default()
-					},
-					Ok(metrics) => metrics,
-				}
-			}).unwrap_or_default()
+		/// Convenience method to register metrics in the optional Promethius registry.
+		///
+		/// If no registry is provided, returns `Default::default()`. Otherwise, returns the same
+		/// thing that `try_register` does.
+		fn register(registry: Option<&prometheus::Registry>) -> Result<Self, prometheus::PrometheusError> {
+			match registry {
+				None => Ok(Self::default()),
+				Some(registry) => Self::try_register(registry),
+			}
 		}
 	}
 
@@ -486,7 +501,7 @@ pub trait JobTrait: Unpin {
 	/// Message type from the job. Typically a subset of AllMessages.
 	type FromJob: 'static + Into<AllMessages> + Send;
 	/// Job runtime error.
-	type Error: 'static + std::fmt::Debug + Send;
+	type Error: 'static + std::error::Error + Send;
 	/// Extra arguments this job needs to run properly.
 	///
 	/// If no extra information is needed, it is perfectly acceptable to set it to `()`.
@@ -528,13 +543,14 @@ pub trait JobTrait: Unpin {
 /// Error which can be returned by the jobs manager
 ///
 /// Wraps the utility error type and the job-specific error
-#[derive(Debug, derive_more::From)]
-pub enum JobsError<JobError> {
+#[derive(Debug, Error)]
+pub enum JobsError<JobError: 'static + std::error::Error> {
 	/// utility error
-	#[from]
-	Utility(Error),
+	#[error("Utility")]
+	Utility(#[source] Error),
 	/// internal job error
-	Job(JobError),
+	#[error("Internal")]
+	Job(#[source] JobError),
 }
 
 /// Jobs manager for a subsystem
@@ -635,7 +651,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			outgoing_msgs_handle,
 		};
 
-		self.running.insert(parent_hash, handle);
+		let _ = self.running.insert(parent_hash, handle);
 
 		Ok(())
 	}
@@ -644,7 +660,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	pub async fn stop_job(&mut self, parent_hash: Hash) -> Result<(), Error> {
 		match self.running.remove(&parent_hash) {
 			Some(handle) => {
-				Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
+				let _ = Pin::new(&mut self.outgoing_msgs).remove(handle.outgoing_msgs_handle);
 				handle.stop().await;
 				Ok(())
 			}
@@ -820,7 +836,8 @@ where
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						log::error!("Failed to spawn a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						let e = JobsError::Utility(e);
+						Self::fwd_err(Some(hash), e, err_tx).await;
 						return true;
 					}
 				}
@@ -828,7 +845,8 @@ where
 				for hash in deactivated {
 					if let Err(e) = jobs.stop_job(hash).await {
 						log::error!("Failed to stop a job: {:?}", e);
-						Self::fwd_err(Some(hash), e.into(), err_tx).await;
+						let e = JobsError::Utility(e);
+						Self::fwd_err(Some(hash), e, err_tx).await;
 						return true;
 					}
 				}
@@ -853,7 +871,8 @@ where
 					.await
 				{
 					log::error!("failed to stop all jobs on conclude signal: {:?}", e);
-					Self::fwd_err(None, Error::from(e).into(), err_tx).await;
+					let e = Error::from(e);
+					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
 
 				return true;
@@ -864,14 +883,16 @@ where
 						Some(hash) => {
 							if let Err(err) = jobs.send_msg(hash, to_job).await {
 								log::error!("Failed to send a message to a job: {:?}", err);
-								Self::fwd_err(Some(hash), err.into(), err_tx).await;
+								let e = JobsError::Utility(err);
+								Self::fwd_err(Some(hash), e, err_tx).await;
 								return true;
 							}
 						}
 						None => {
 							if let Err(err) = Job::handle_unanchored_msg(to_job) {
 								log::error!("Failed to handle unhashed message: {:?}", err);
-								Self::fwd_err(None, JobsError::Job(err), err_tx).await;
+								let e = JobsError::Job(err);
+								Self::fwd_err(None, e, err_tx).await;
 								return true;
 							}
 						}
@@ -881,7 +902,8 @@ where
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				log::error!("error receiving message from subsystem context: {:?}", err);
-				Self::fwd_err(None, Error::from(err).into(), err_tx).await;
+				let e = JobsError::Utility(Error::from(err));
+				Self::fwd_err(None, e, err_tx).await;
 				return true;
 			}
 		}
@@ -896,7 +918,8 @@ where
 	) {
 		let msg = outgoing.expect("the Jobs stream never ends; qed");
 		if let Err(e) = ctx.send_message(msg.into()).await {
-			Self::fwd_err(None, Error::from(e).into(), err_tx).await;
+			let e = JobsError::Utility(e.into());
+			Self::fwd_err(None, e, err_tx).await;
 		}
 	}
 }
@@ -919,6 +942,7 @@ where
 
 		let future = Box::pin(async move {
 			Self::run(ctx, run_args, metrics, spawner, errors).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {
@@ -1022,6 +1046,8 @@ pub struct Timeout<F: Future> {
 
 /// Extends `Future` to allow time-limited futures.
 pub trait TimeoutExt: Future {
+	/// Adds a timeout of `duration` to the given `Future`.
+	/// Returns a new `Future`.
 	fn timeout(self, duration: Duration) -> Timeout<Self>
 	where
 		Self: Sized,
@@ -1056,6 +1082,7 @@ impl<F: Future> Future for Timeout<F> {
 #[cfg(test)]
 mod tests {
 	use super::{Error as UtilError, JobManager, JobTrait, JobsError, TimeoutExt, ToJobTrait};
+	use thiserror::Error;
 	use polkadot_node_subsystem::{
 		messages::{AllMessages, CandidateSelectionMessage},
 		ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem,
@@ -1146,10 +1173,10 @@ mod tests {
 	// Error will mostly be a wrapper to make the try operator more convenient;
 	// deriving From implementations for most variants is recommended.
 	// It must implement Debug for logging.
-	#[derive(Debug, derive_more::From)]
+	#[derive(Debug, Error)]
 	enum Error {
-		#[from]
-		Sending(mpsc::SendError),
+		#[error(transparent)]
+		Sending(#[from]mpsc::SendError),
 	}
 
 	impl JobTrait for FakeCandidateSelectionJob {
@@ -1251,7 +1278,7 @@ mod tests {
 	fn starting_and_stopping_job_works() {
 		let relay_parent: Hash = [0; 32].into();
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);
@@ -1307,7 +1334,7 @@ mod tests {
 	fn sending_to_a_non_running_job_do_not_stop_the_subsystem() {
 		let relay_parent = Hash::repeat_byte(0x01);
 		let mut run_args = HashMap::new();
-		run_args.insert(
+		let _ = run_args.insert(
 			relay_parent.clone(),
 			vec![FromJob::Test],
 		);

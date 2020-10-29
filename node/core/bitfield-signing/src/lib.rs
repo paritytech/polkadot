@@ -16,13 +16,16 @@
 
 //! The bitfield signing subsystem produces `SignedAvailabilityBitfield`s once per block.
 
+#![deny(unused_crate_dependencies, unused_results)]
+#![warn(missing_docs)]
+
 use bitvec::bitvec;
 use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 	stream, Future,
 };
-use keystore::KeyStorePtr;
+use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use polkadot_node_subsystem::{
 	messages::{
 		self, AllMessages, AvailabilityStoreMessage, BitfieldDistributionMessage,
@@ -37,6 +40,7 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::v1::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use std::{convert::TryFrom, pin::Pin, time::Duration};
 use wasm_timer::{Delay, Instant};
+use thiserror::Error;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
@@ -45,6 +49,7 @@ const JOB_DELAY: Duration = Duration::from_millis(1500);
 pub struct BitfieldSigningJob;
 
 /// Messages which a `BitfieldSigningJob` is prepared to receive.
+#[allow(missing_docs)]
 pub enum ToJob {
 	BitfieldSigning(BitfieldSigningMessage),
 	Stop,
@@ -79,6 +84,7 @@ impl From<BitfieldSigningMessage> for ToJob {
 }
 
 /// Messages which may be sent from a `BitfieldSigningJob`.
+#[allow(missing_docs)]
 pub enum FromJob {
 	AvailabilityStore(AvailabilityStoreMessage),
 	BitfieldDistribution(BitfieldDistributionMessage),
@@ -112,26 +118,29 @@ impl TryFrom<AllMessages> for FromJob {
 }
 
 /// Errors we may encounter in the course of executing the `BitfieldSigningSubsystem`.
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 pub enum Error {
 	/// error propagated from the utility subsystem
-	#[from]
-	Util(util::Error),
+	#[error(transparent)]
+	Util(#[from] util::Error),
 	/// io error
-	#[from]
-	Io(std::io::Error),
+	#[error(transparent)]
+	Io(#[from] std::io::Error),
 	/// a one shot channel was canceled
-	#[from]
-	Oneshot(oneshot::Canceled),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
 	/// a mspc channel failed to send
-	#[from]
-	MpscSend(mpsc::SendError),
+	#[error(transparent)]
+	MpscSend(#[from] mpsc::SendError),
 	/// several errors collected into one
-	#[from]
+	#[error("Multiple errours occured: {0:?}")]
 	Multiple(Vec<Error>),
 	/// the runtime API failed to return what we wanted
-	#[from]
-	Runtime(RuntimeApiError),
+	#[error(transparent)]
+	Runtime(#[from] RuntimeApiError),
+	/// the keystore failed to process signing request
+	#[error("Keystore failed: {0:?}")]
+	Keystore(KeystoreError),
 }
 
 // if there is a candidate pending availability, query the Availability Store
@@ -249,7 +258,7 @@ async fn construct_availability_bitfield(
 	if errs.is_empty() {
 		Ok(out.into_inner().into())
 	} else {
-		Err(errs.into())
+		Err(Error::Multiple(errs.into()))
 	}
 }
 
@@ -289,7 +298,7 @@ impl JobTrait for BitfieldSigningJob {
 	type ToJob = ToJob;
 	type FromJob = FromJob;
 	type Error = Error;
-	type RunArgs = KeyStorePtr;
+	type RunArgs = SyncCryptoStorePtr;
 	type Metrics = Metrics;
 
 	const NAME: &'static str = "BitfieldSigningJob";
@@ -308,7 +317,7 @@ impl JobTrait for BitfieldSigningJob {
 
 			// now do all the work we can before we need to wait for the availability store
 			// if we're not a validator, we can just succeed effortlessly
-			let validator = match Validator::new(relay_parent, keystore, sender.clone()).await {
+			let validator = match Validator::new(relay_parent, keystore.clone(), sender.clone()).await {
 				Ok(validator) => validator,
 				Err(util::Error::NotAValidator) => return Ok(()),
 				Err(err) => return Err(Error::Util(err)),
@@ -329,7 +338,10 @@ impl JobTrait for BitfieldSigningJob {
 				Ok(bitfield) => bitfield,
 			};
 
-			let signed_bitfield = validator.sign(bitfield);
+			let signed_bitfield = validator
+				.sign(keystore.clone(), bitfield)
+				.await
+				.map_err(|e| Error::Keystore(e))?;
 			metrics.on_bitfield_signed();
 
 			// make an anonymous scope to contain some use statements to simplify creating the outbound message

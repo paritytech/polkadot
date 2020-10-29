@@ -348,6 +348,12 @@ enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		ResponseChannel<Option<ValidationData>>,
 	),
+	/// Sends back `true` if the commitments pass all acceptance criteria checks.
+	CheckValidationOutputs(
+		ParaId,
+		CandidateCommitments,
+		RuntimeApiSender<bool>,
+	),
 	/// Get information about all availability cores.
 	AvailabilityCores(ResponseChannel<Vec<CoreState>>),
 	/// Get a committed candidate receipt for all candidates pending availability.
@@ -392,39 +398,52 @@ Various modules request that the [Candidate Validation subsystem](../node/utilit
 
 /// Result of the validation of the candidate.
 enum ValidationResult {
-	/// Candidate is valid, and here are the outputs. In practice, this should be a shared type
-	/// so that validation caching can be done.
-	Valid(ValidationOutputs),
+	/// Candidate is valid, and here are the outputs and the validation data used to form inputs.
+	/// In practice, this should be a shared type so that validation caching can be done.
+	Valid(ValidationOutputs, PersistedValidationData),
 	/// Candidate is invalid.
 	Invalid,
 }
 
-/// Messages issued to the candidate validation subsystem.
+/// Messages received by the Validation subsystem.
 ///
 /// ## Validation Requests
 ///
 /// Validation requests made to the subsystem should return an error only on internal error.
-/// Otherwise, they should return either `Ok(ValidationResult::Valid(_))` or `Ok(ValidationResult::Invalid)`.
-enum CandidateValidationMessage {
-	/// Validate a candidate with provided parameters. This will implicitly attempt to gather the
-	/// `OmittedValidationData` and `ValidationCode` from the runtime API of the chain,
-	/// based on the `relay_parent` of the `CandidateDescriptor`.
+/// Otherwise, they should return either `Ok(ValidationResult::Valid(_))`
+/// or `Ok(ValidationResult::Invalid)`.
+#[derive(Debug)]
+pub enum CandidateValidationMessage {
+	/// Validate a candidate with provided parameters using relay-chain state.
+	///
+	/// This will implicitly attempt to gather the `PersistedValidationData` and `ValidationCode`
+	/// from the runtime API of the chain, based on the `relay_parent`
+	/// of the `CandidateDescriptor`.
+	///
+	/// This will also perform checking of validation outputs against the acceptance criteria.
 	///
 	/// If there is no state available which can provide this data or the core for
 	/// the para is not free at the relay-parent, an error is returned.
-	ValidateFromChainState(CandidateDescriptor, PoV, ResponseChannel<Result<ValidationResult>>),
-
-	/// Validate a candidate with provided parameters. Explicitly provide the `PersistedValidationData`
-	/// and `ValidationCode` so this can do full validation without needing to access the state of
-	/// the relay-chain. Optionally provide the `TransientValidationData` which will lead to checks
-	/// on the output.
+	ValidateFromChainState(
+		CandidateDescriptor,
+		Arc<PoV>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
+	),
+	/// Validate a candidate with provided, exhaustive parameters for validation.
+	///
+	/// Explicitly provide the `PersistedValidationData` and `ValidationCode` so this can do full
+	/// validation without needing to access the state of the relay-chain.
+	///
+	/// This request doesn't involve acceptance criteria checking, therefore only useful for the
+	/// cases where the validity of the candidate is established. This is the case for the typical
+	/// use-case: secondary checkers would use this request relying on the full prior checks
+	/// performed by the relay-chain.
 	ValidateFromExhaustive(
 		PersistedValidationData,
-		Option<TransientValidationData>,
 		ValidationCode,
 		CandidateDescriptor,
-		PoV,
-		ResponseChannel<Result<ValidationResult>>,
+		Arc<PoV>,
+		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 }
 ```

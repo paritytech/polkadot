@@ -31,7 +31,7 @@ pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 pub use polkadot_core_primitives::v1::{
 	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex,
 	ChainId, Hash, Nonce, Balance, Header, Block, BlockId, UncheckedExtrinsic,
-	Remark, DownwardMessage,
+	Remark, DownwardMessage, InboundDownwardMessage,
 };
 
 // Export some polkadot-parachain primitives
@@ -266,6 +266,11 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
 	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	/// The MQC head for the DMQ.
+	///
+	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
+	/// passed by the collator.
+	pub dmq_mqc_head: Hash,
 }
 
 impl<N: Encode> PersistedValidationData<N> {
@@ -301,14 +306,28 @@ pub struct TransientValidationData<N = BlockNumber> {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	pub code_upgrade_allowed: Option<N>,
+	/// The number of messages pending of the downward message queue.
+	pub dmq_length: u32,
+}
+
+/// Outputs of validating a candidate.
+#[derive(Encode, Decode)]
+#[cfg_attr(feature = "std", derive(Clone, Debug, Default))]
+pub struct ValidationOutputs {
+	/// The head-data produced by validation.
+	pub head_data: HeadData,
+	/// Upward messages to the relay chain.
+	pub upward_messages: Vec<UpwardMessage>,
+	/// The new validation code submitted by the execution, if any.
+	pub new_validation_code: Option<ValidationCode>,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
 pub struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The root of a block's erasure encoding Merkle tree.
@@ -317,6 +336,8 @@ pub struct CandidateCommitments {
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
 }
 
 impl CandidateCommitments {
@@ -666,6 +687,10 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
+		// TODO: Adding a Runtime API should be backwards compatible... right?
+		/// Checks if the given validation outputs pass the acceptance criteria.
+		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
+
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
@@ -689,11 +714,16 @@ sp_api::decl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<H>>;
 
 		/// Get the `AuthorityDiscoveryId`s corresponding to the given `ValidatorId`s.
-		/// Currently this request is limited to validators in the current session. 
+		/// Currently this request is limited to validators in the current session.
 		///
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
+
+		/// Get all the pending inbound messages in the downward message queue for a para.
+		fn dmq_contents(
+			recipient: Id,
+		) -> Vec<InboundDownwardMessage<N>>;
 	}
 }
 
