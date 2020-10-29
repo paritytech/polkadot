@@ -59,7 +59,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	pub max_upward_queue_capacity: u32,
+	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
 	/// no further messages may be added to it. If it exceeds this then the queue may contain only
 	/// a single message.
@@ -219,10 +219,10 @@ decl_module! {
 
 		/// Sets the maximum items that can present in a upward dispatch queue at once.
 		#[weight = (1_000, DispatchClass::Operational)]
-		pub fn set_max_upward_queue_capacity(origin, new: u32) -> DispatchResult {
+		pub fn set_max_upward_queue_count(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
-				sp_std::mem::replace(&mut config.max_upward_queue_capacity, new) != new
+				sp_std::mem::replace(&mut config.max_upward_queue_count, new) != new
 			});
 			Ok(())
 		}
@@ -354,7 +354,7 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
-				max_upward_queue_capacity: 1337,
+				max_upward_queue_count: 1337,
 			    max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
 				preferred_dispatchable_upward_messages_step_weight: 20000,
@@ -397,8 +397,8 @@ mod tests {
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
 			).unwrap();
-			Configuration::set_max_upward_queue_capacity(
-				Origin::root(), new_config.max_upward_queue_capacity,
+			Configuration::set_max_upward_queue_count(
+				Origin::root(), new_config.max_upward_queue_count,
 			).unwrap();
 			Configuration::set_max_upward_queue_size(
 				Origin::root(), new_config.max_upward_queue_size,

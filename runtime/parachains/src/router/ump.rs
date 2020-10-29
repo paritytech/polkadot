@@ -96,7 +96,7 @@ impl<T: Trait> Module<T> {
 
 		// make sure that the queue is not overfilled.
 		// we do it here only once since returning false invalidates the whole relay-chain block.
-		if para_queue_count > config.max_upward_queue_capacity
+		if para_queue_count > config.max_upward_queue_count
 			|| para_queue_size > config.max_upward_queue_size
 		{
 			return false;
@@ -481,7 +481,7 @@ mod tests {
 	struct GenesisConfigBuilder {
 		max_upward_message_size: u32,
 		max_upward_message_num_per_candidate: u32,
-		max_upward_queue_capacity: u32,
+		max_upward_queue_count: u32,
 		max_upward_queue_size: u32,
 		preferred_dispatchable_upward_messages_step_weight: Weight,
 	}
@@ -491,7 +491,7 @@ mod tests {
 			Self {
 				max_upward_message_size: 16,
 				max_upward_message_num_per_candidate: 2,
-				max_upward_queue_capacity: 4,
+				max_upward_queue_count: 4,
 				max_upward_queue_size: 64,
 				preferred_dispatchable_upward_messages_step_weight: 1000,
 			}
@@ -505,7 +505,7 @@ mod tests {
 
 			config.max_upward_message_size = self.max_upward_message_size;
 			config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
-			config.max_upward_queue_capacity = self.max_upward_queue_capacity;
+			config.max_upward_queue_count = self.max_upward_queue_count;
 			config.max_upward_queue_size = self.max_upward_queue_size;
 			config.preferred_dispatchable_upward_messages_step_weight =
 				self.preferred_dispatchable_upward_messages_step_weight;
