@@ -7,20 +7,18 @@ description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1"
-derive_more = "0.99.9"
 futures = "0.3.5"
 futures-timer = "3.0.2"
-log = "0.4.8"
+log = "0.4.11"
+thiserror = "1.0.21"
 parity-scale-codec = "1.3.4"
 parking_lot = { version = "0.10.0", optional = true }
 pin-project = "0.4.22"
-smallvec = "1.4.1"
 streamunordered = "0.5.1"
 
 polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-primitives = { path = "../../primitives" }
-polkadot-statement-table = { path = "../../statement-table" }
 
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

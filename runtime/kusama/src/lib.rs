@@ -18,10 +18,10 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
 use sp_std::prelude::*;
-use sp_core::u32_trait::{_1, _2, _3, _4, _5};
+use sp_core::u32_trait::{_1, _2, _3, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
@@ -30,8 +30,8 @@ use primitives::v1::{
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
-	impls::ToAuthor,
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::DealWithFees,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
@@ -55,7 +55,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -88,7 +88,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2025,
+	spec_version: 2026,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -214,14 +214,6 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
->;
-
 impl pallet_balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -238,7 +230,7 @@ parameter_types! {
 
 impl pallet_transaction_payment::Trait for Runtime {
 	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnTransactionPayment = DealWithFees<Self>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -613,17 +605,6 @@ impl pallet_grandpa::Trait for Runtime {
 	type WeightInfo = ();
 }
 
-parameter_types! {
-	pub WindowSize: BlockNumber = pallet_finality_tracker::DEFAULT_WINDOW_SIZE.into();
-	pub ReportLatency: BlockNumber = pallet_finality_tracker::DEFAULT_REPORT_LATENCY.into();
-}
-
-impl pallet_finality_tracker::Trait for Runtime {
-	type OnFinalizationStalled = ();
-	type WindowSize = WindowSize;
-	type ReportLatency = ReportLatency;
-}
-
 /// Submits transaction with the node's public and signature type. Adheres to the signed extension
 /// format of the chain.
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime where
@@ -834,7 +815,6 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Staking(..) |
 				Call::Offences(..) |
 				Call::Session(..) |
-				Call::FinalityTracker(..) |
 				Call::Grandpa(..) |
 				Call::ImOnline(..) |
 				Call::AuthorityDiscovery(..) |
@@ -959,7 +939,6 @@ construct_runtime! {
 		Offences: pallet_offences::{Module, Call, Storage, Event} = 7,
 		Historical: session_historical::{Module} = 34,
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>} = 8,
-		FinalityTracker: pallet_finality_tracker::{Module, Call, Storage, Inherent} = 9,
 		Grandpa: pallet_grandpa::{Module, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Module, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config} = 12,
@@ -1121,6 +1100,12 @@ sp_api::impl_runtime_apis! {
 			-> Option<PersistedValidationData<BlockNumber>> {
 			None
 		}
+		fn check_validation_outputs(
+			_: Id,
+			_: primitives::v1::ValidationOutputs,
+		) -> bool {
+			false
+		}
 
 		fn session_index_for_child() -> SessionIndex {
 			0
@@ -1139,6 +1124,12 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			Vec::new()
+		}
+
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
 		}
 	}
@@ -1312,5 +1303,77 @@ sp_api::impl_runtime_apis! {
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)
 		}
+	}
+}
+
+#[cfg(test)]
+mod test_fees {
+	use super::*;
+	use frame_support::weights::WeightToFeePolynomial;
+	use frame_support::storage::StorageValue;
+	use sp_runtime::FixedPointNumber;
+	use frame_support::weights::GetDispatchInfo;
+	use codec::Encode;
+	use pallet_transaction_payment::Multiplier;
+	use separator::Separatable;
+
+
+	#[test]
+	#[ignore]
+	fn block_cost() {
+		let raw_fee = WeightToFee::calc(&MaximumBlockWeight::get());
+
+		println!(
+			"Full Block weight == {} // WeightToFee(full_block) == {} plank",
+			MaximumBlockWeight::get(),
+			raw_fee.separated_string(),
+		);
+	}
+
+	#[test]
+	#[ignore]
+	fn transfer_cost_min_multiplier() {
+		let min_multiplier = runtime_common::MinimumMultiplier::get();
+		let call = <pallet_balances::Call<Runtime>>::transfer_keep_alive(Default::default(), Default::default());
+		let info = call.get_dispatch_info();
+		// convert to outer call.
+		let call = Call::Balances(call);
+		let len = call.using_encoded(|e| e.len()) as u32;
+
+		let mut ext = sp_io::TestExternalities::new_empty();
+		ext.execute_with(|| {
+			pallet_transaction_payment::NextFeeMultiplier::put(min_multiplier);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1000_000_000u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
+
+		ext.execute_with(|| {
+			let mul = Multiplier::saturating_from_rational(1, 1u128);
+			pallet_transaction_payment::NextFeeMultiplier::put(mul);
+			let fee = TransactionPayment::compute_fee(len, &info, 0);
+			println!(
+				"weight = {:?} // multiplier = {:?} // full transfer fee = {:?}",
+				info.weight.separated_string(),
+				pallet_transaction_payment::NextFeeMultiplier::get(),
+				fee.separated_string(),
+			);
+		});
 	}
 }

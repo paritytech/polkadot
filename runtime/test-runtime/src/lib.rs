@@ -18,9 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
-use rstd::prelude::*;
+use sp_std::prelude::*;
 use codec::Encode;
 use polkadot_runtime_parachains::{
 	configuration,
@@ -37,7 +37,7 @@ use primitives::v1::{
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
 };
 use runtime_common::{
-	claims, SlowAdjustingFeeUpdate,
+	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
 };
@@ -74,6 +74,7 @@ pub use pallet_staking::StakerStatus;
 pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
+pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -100,6 +101,13 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion {
 		runtime_version: VERSION,
 		can_author_with: Default::default(),
+	}
+}
+
+sp_api::decl_runtime_apis! {
+	pub trait GetLastTimestamp {
+		/// Returns the last timestamp of a runtime.
+		fn get_last_timestamp() -> u64;
 	}
 }
 
@@ -448,6 +456,8 @@ impl router::Trait for Runtime {}
 
 impl scheduler::Trait for Runtime {}
 
+impl paras_sudo_wrapper::Trait for Runtime {}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -487,8 +497,8 @@ construct_runtime! {
 		Initializer: initializer::{Module, Call, Storage},
 		Paras: paras::{Module, Call, Storage, Origin},
 		Scheduler: scheduler::{Module, Call, Storage},
+		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
-		// Sudo. Last module.
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 	}
 }
@@ -606,23 +616,33 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn full_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-				runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
-			}
+			-> Option<ValidationData<BlockNumber>>
+		{
+			runtime_impl::full_validation_data::<Runtime>(para_id, assumption)
+		}
 
 		fn persisted_validation_data(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
-				runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
-			}
+			-> Option<PersistedValidationData<BlockNumber>>
+		{
+			runtime_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn check_validation_outputs(
+			para_id: ParaId,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
 
 		fn session_index_for_child() -> SessionIndex {
 			runtime_impl::session_index_for_child::<Runtime>()
 		}
 
 		fn validation_code(para_id: ParaId, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode> {
-				runtime_impl::validation_code::<Runtime>(para_id, assumption)
-			}
+			-> Option<ValidationCode>
+		{
+			runtime_impl::validation_code::<Runtime>(para_id, assumption)
+		}
 
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
@@ -635,6 +655,12 @@ sp_api::impl_runtime_apis! {
 
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			runtime_impl::validator_discovery::<Runtime>(validators)
+		}
+
+		fn dmq_contents(
+			recipient: ParaId,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			runtime_impl::dmq_contents::<Runtime>(recipient)
 		}
 	}
 
@@ -721,6 +747,12 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
 			TransactionPayment::query_info(uxt, len)
+		}
+	}
+
+	impl crate::GetLastTimestamp<Block> for Runtime {
+		fn get_last_timestamp() -> u64 {
+			Timestamp::now()
 		}
 	}
 }

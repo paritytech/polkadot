@@ -20,8 +20,11 @@
 //! according to a validation function. This delegates validation to an underlying
 //! pool of processes used for execution of the Wasm.
 
+#![deny(unused_crate_dependencies, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
-	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult,
+	Subsystem, SubsystemContext, SpawnedSubsystem, SubsystemResult, SubsystemError,
 	FromOverseer, OverseerSignal,
 	messages::{
 		AllMessages, CandidateValidationMessage, RuntimeApiMessage,
@@ -32,10 +35,10 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_subsystem::errors::RuntimeApiError;
-use polkadot_node_primitives::{ValidationResult, ValidationOutputs, InvalidCandidate};
+use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
-	ValidationCode, PoV, CandidateDescriptor, ValidationData, PersistedValidationData,
-	TransientValidationData, OccupiedCoreAssumption, Hash,
+	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
+	OccupiedCoreAssumption, Hash, ValidationOutputs,
 };
 use polkadot_parachain::wasm_executor::{
 	self, ValidationPool, ExecutionMode, ValidationError,
@@ -72,14 +75,14 @@ impl Metrics {
 	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
 		if let Some(metrics) = &self.0 {
 			match event {
-				Ok(ValidationResult::Valid(_)) => {
+				Ok(ValidationResult::Valid(_, _)) => {
 					metrics.validation_requests.with_label_values(&["valid"]).inc();
 				},
 				Ok(ValidationResult::Invalid(_)) => {
 					metrics.validation_requests.with_label_values(&["invalid"]).inc();
 				},
 				Err(_) => {
-					metrics.validation_requests.with_label_values(&["failed"]).inc();
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
 				},
 			}
 		}
@@ -95,7 +98,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_validation_requests_total",
 						"Number of validation requests served.",
 					),
-					&["valid", "invalid", "failed"],
+					&["validity"],
 				)?,
 				registry,
 			)?,
@@ -116,9 +119,12 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
+		let future = run(ctx, self.spawn, self.metrics)
+			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
+			.boxed();
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
-			future: run(ctx, self.spawn, self.metrics).map(|_| ()).boxed(),
+			future,
 		}
 	}
 }
@@ -161,7 +167,6 @@ async fn run(
 				}
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
-					transient_validation_data,
 					validation_code,
 					descriptor,
 					pov,
@@ -171,7 +176,6 @@ async fn run(
 						&mut ctx,
 						execution_mode.clone(),
 						persisted_validation_data,
-						transient_validation_data,
 						validation_code,
 						descriptor,
 						pov,
@@ -214,7 +218,7 @@ async fn runtime_api_request<T>(
 
 #[derive(Debug)]
 enum AssumptionCheckOutcome {
-	Matches(ValidationData, ValidationCode),
+	Matches(PersistedValidationData, ValidationCode),
 	DoesNotMatch,
 	BadRequest,
 }
@@ -229,7 +233,7 @@ async fn check_assumption_validation_data(
 		let d = runtime_api_request(
 			ctx,
 			descriptor.relay_parent,
-			RuntimeApiRequest::FullValidationData(
+			RuntimeApiRequest::PersistedValidationData(
 				descriptor.para_id,
 				assumption,
 				tx,
@@ -245,7 +249,7 @@ async fn check_assumption_validation_data(
 		}
 	};
 
-	let persisted_validation_data_hash = validation_data.persisted.hash();
+	let persisted_validation_data_hash = validation_data.hash();
 
 	SubsystemResult::Ok(if descriptor.persisted_validation_data_hash == persisted_validation_data_hash {
 		let (code_tx, code_rx) = oneshot::channel();
@@ -269,6 +273,37 @@ async fn check_assumption_validation_data(
 	})
 }
 
+async fn find_assumed_validation_data(
+	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
+	descriptor: &CandidateDescriptor,
+) -> SubsystemResult<AssumptionCheckOutcome> {
+	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
+	// one of up to two possible values that we can derive from the state of the
+	// relay-parent. We can fetch these values by getting the persisted validation data
+	// based on the different `OccupiedCoreAssumption`s.
+
+	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
+		OccupiedCoreAssumption::Included,
+		OccupiedCoreAssumption::TimedOut,
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
+		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
+		// matched as well.
+	];
+
+	// Consider running these checks in parallel to reduce validation latency.
+	for assumption in ASSUMPTIONS {
+		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
+
+		let () = match outcome {
+			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
+			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
+			AssumptionCheckOutcome::DoesNotMatch => continue,
+		};
+	}
+
+	Ok(AssumptionCheckOutcome::DoesNotMatch)
+}
+
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	execution_mode: ExecutionMode,
@@ -276,63 +311,62 @@ async fn spawn_validate_from_chain_state(
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
-	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
-	// one of up to two possible values that we can derive from the state of the
-	// relay-parent. We can fetch these values by getting the persisted validation data
-	// based on the different `OccupiedCoreAssumption`s.
-	match check_assumption_validation_data(
+	let (validation_data, validation_code) =
+		match find_assumed_validation_data(ctx, &descriptor).await? {
+			AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
+				(validation_data, validation_code)
+			}
+			AssumptionCheckOutcome::DoesNotMatch => {
+				// If neither the assumption of the occupied core having the para included or the assumption
+				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+				// is not based on the relay parent and is thus invalid.
+				return Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)));
+			}
+			AssumptionCheckOutcome::BadRequest => {
+				return Ok(Err(ValidationFailed("Assumption Check: Bad request".into())));
+			}
+		};
+
+	let validation_result = spawn_validate_exhaustive(
 		ctx,
-		&descriptor,
-		OccupiedCoreAssumption::Included,
-	).await? {
-		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
-			return spawn_validate_exhaustive(
-				ctx,
-				execution_mode,
-				validation_data.persisted,
-				Some(validation_data.transient),
-				validation_code,
-				descriptor,
-				pov,
-				spawn,
-			).await;
+		execution_mode,
+		validation_data,
+		validation_code,
+		descriptor.clone(),
+		pov,
+		spawn,
+	)
+	.await;
+
+	if let Ok(Ok(ValidationResult::Valid(ref outputs, _))) = validation_result {
+		let (tx, rx) = oneshot::channel();
+		match runtime_api_request(
+			ctx,
+			descriptor.relay_parent,
+			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
+			rx,
+		)
+		.await?
+		{
+			Ok(true) => {}
+			Ok(false) => {
+				return Ok(Ok(ValidationResult::Invalid(
+					InvalidCandidate::InvalidOutputs,
+				)));
+			}
+			Err(_) => {
+				return Ok(Err(ValidationFailed("Check Validation Outputs: Bad request".into())));
+			}
 		}
-		AssumptionCheckOutcome::DoesNotMatch => {},
-		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed("Bad request".into()))),
 	}
 
-	match check_assumption_validation_data(
-		ctx,
-		&descriptor,
-		OccupiedCoreAssumption::TimedOut,
-	).await? {
-		AssumptionCheckOutcome::Matches(validation_data, validation_code) => {
-			return spawn_validate_exhaustive(
-				ctx,
-				execution_mode,
-				validation_data.persisted,
-				Some(validation_data.transient),
-				validation_code,
-				descriptor,
-				pov,
-				spawn,
-			).await;
-		}
-		AssumptionCheckOutcome::DoesNotMatch => {},
-		AssumptionCheckOutcome::BadRequest => return Ok(Err(ValidationFailed("Bad request".into()))),
-	}
-
-	// If neither the assumption of the occupied core having the para included or the assumption
-	// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-	// is not based on the relay parent and is thus invalid.
-	Ok(Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)))
+	validation_result
 }
 
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
 	execution_mode: ExecutionMode,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -343,7 +377,6 @@ async fn spawn_validate_exhaustive(
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			execution_mode,
 			persisted_validation_data,
-			transient_validation_data,
 			validation_code,
 			descriptor,
 			pov,
@@ -379,30 +412,6 @@ fn perform_basic_checks(
 
 	if let Err(()) = candidate.check_collator_signature() {
 		return Err(InvalidCandidate::BadSignature);
-	}
-
-	Ok(())
-}
-
-/// Check the result of Wasm execution against the constraints given by the relay-chain.
-///
-/// Returns `Ok(())` if checks pass, error otherwise.
-fn check_wasm_result_against_constraints(
-	transient_params: &TransientValidationData,
-	result: &WasmValidationResult,
-) -> Result<(), InvalidCandidate> {
-	if result.head_data.0.len() > transient_params.max_head_data_size as _ {
-		return Err(InvalidCandidate::HeadDataTooLarge(result.head_data.0.len() as u64))
-	}
-
-	if let Some(ref code) = result.new_validation_code {
-		if transient_params.code_upgrade_allowed.is_none() {
-			return Err(InvalidCandidate::CodeUpgradeNotAllowed)
-		}
-
-		if code.0.len() > transient_params.max_code_size as _ {
-			return Err(InvalidCandidate::NewCodeTooLarge(code.0.len() as u64))
-		}
 	}
 
 	Ok(())
@@ -445,7 +454,6 @@ impl ValidationBackend for RealValidationBackend {
 fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	backend_arg: B::Arg,
 	persisted_validation_data: PersistedValidationData,
-	transient_validation_data: Option<TransientValidationData>,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
@@ -459,6 +467,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_chain_height: persisted_validation_data.block_number,
+		dmq_mqc_head: persisted_validation_data.dmq_mqc_head,
 		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
@@ -477,25 +486,13 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e.to_string()))),
 		Err(ValidationError::Internal(e)) => Err(ValidationFailed(e.to_string())),
 		Ok(res) => {
-			let post_check_result = if let Some(transient) = transient_validation_data {
-				check_wasm_result_against_constraints(
-					&transient,
-					&res,
-				)
-			} else {
-				Ok(())
+			let outputs = ValidationOutputs {
+				head_data: res.head_data,
+				upward_messages: res.upward_messages,
+				new_validation_code: res.new_validation_code,
+				processed_downward_messages: res.processed_downward_messages,
 			};
-
-			Ok(match post_check_result {
-				Ok(()) => ValidationResult::Valid(ValidationOutputs {
-					head_data: res.head_data,
-					validation_data: persisted_validation_data,
-					upward_messages: res.upward_messages,
-					fees: 0,
-					new_validation_code: res.new_validation_code,
-				}),
-				Err(e) => ValidationResult::Invalid(e),
-			})
+			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
 	}
 }
@@ -544,10 +541,10 @@ mod tests {
 
 	#[test]
 	fn correctly_checks_included_assumption() {
-		let validation_data: ValidationData = Default::default();
+		let validation_data: PersistedValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let persisted_validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
@@ -570,7 +567,11 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::Included,
+						tx
+					),
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -604,10 +605,10 @@ mod tests {
 
 	#[test]
 	fn correctly_checks_timed_out_assumption() {
-		let validation_data: ValidationData = Default::default();
+		let validation_data: PersistedValidationData = Default::default();
 		let validation_code: ValidationCode = vec![1, 2, 3].into();
 
-		let persisted_validation_data_hash = validation_data.persisted.hash();
+		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
@@ -630,7 +631,11 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::TimedOut,
+						tx
+					),
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -664,8 +669,8 @@ mod tests {
 
 	#[test]
 	fn check_is_bad_request_if_no_validation_data() {
-		let validation_data: ValidationData = Default::default();
-		let persisted_validation_data_hash = validation_data.persisted.hash();
+		let validation_data: PersistedValidationData = Default::default();
+		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
@@ -688,7 +693,11 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::Included,
+						tx
+					),
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -706,8 +715,8 @@ mod tests {
 
 	#[test]
 	fn check_is_bad_request_if_no_validation_code() {
-		let validation_data: ValidationData = Default::default();
-		let persisted_validation_data_hash = validation_data.persisted.hash();
+		let validation_data: PersistedValidationData = Default::default();
+		let persisted_validation_data_hash = validation_data.hash();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
@@ -730,7 +739,11 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::TimedOut, tx)
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::TimedOut,
+						tx
+					),
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -761,7 +774,7 @@ mod tests {
 
 	#[test]
 	fn check_does_not_match() {
-		let validation_data: ValidationData = Default::default();
+		let validation_data: PersistedValidationData = Default::default();
 		let relay_parent = [2; 32].into();
 		let para_id = 5.into();
 
@@ -784,7 +797,11 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::FullValidationData(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::PersistedValidationData(
+						p,
+						OccupiedCoreAssumption::Included,
+						tx
+					),
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -802,10 +819,7 @@ mod tests {
 
 	#[test]
 	fn candidate_validation_ok_is_ok() {
-		let mut validation_data: ValidationData = Default::default();
-		validation_data.transient.max_head_data_size = 1024;
-		validation_data.transient.max_code_size = 1024;
-		validation_data.transient.code_upgrade_allowed = Some(20);
+		let validation_data: PersistedValidationData = Default::default();
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -822,37 +836,26 @@ mod tests {
 			processed_downward_messages: 0,
 		};
 
-		assert!(check_wasm_result_against_constraints(
-			&validation_data.transient,
-			&validation_result,
-		).is_ok());
-
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg { result: Ok(validation_result) },
-			validation_data.persisted.clone(),
-			Some(validation_data.transient),
+			validation_data.clone(),
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
 		).unwrap();
 
-		assert_matches!(v, ValidationResult::Valid(outputs) => {
+		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.validation_data, validation_data.persisted);
 			assert_eq!(outputs.upward_messages, Vec::new());
-			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(used_validation_data, validation_data);
 		});
 	}
 
 	#[test]
 	fn candidate_validation_bad_return_is_invalid() {
-		let mut validation_data: ValidationData = Default::default();
-
-		validation_data.transient.max_head_data_size = 1024;
-		validation_data.transient.max_code_size = 1024;
-		validation_data.transient.code_upgrade_allowed = Some(20);
+		let validation_data: PersistedValidationData = Default::default();
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -861,18 +864,6 @@ mod tests {
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
-
-		let validation_result = WasmValidationResult {
-			head_data: HeadData(vec![1, 1, 1]),
-			new_validation_code: Some(vec![2, 2, 2].into()),
-			upward_messages: Vec::new(),
-			processed_downward_messages: 0,
-		};
-
-		assert!(check_wasm_result_against_constraints(
-			&validation_data.transient,
-			&validation_result,
-		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -880,8 +871,7 @@ mod tests {
 					WasmInvalidCandidate::BadReturn
 				))
 			},
-			validation_data.persisted,
-			Some(validation_data.transient),
+			validation_data,
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -891,14 +881,9 @@ mod tests {
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
 	}
 
-
 	#[test]
 	fn candidate_validation_timeout_is_internal_error() {
-		let mut validation_data: ValidationData = Default::default();
-
-		validation_data.transient.max_head_data_size = 1024;
-		validation_data.transient.max_code_size = 1024;
-		validation_data.transient.code_upgrade_allowed = Some(20);
+		let validation_data: PersistedValidationData = Default::default();
 
 		let pov = PoV { block_data: BlockData(vec![1; 32]) };
 
@@ -907,18 +892,6 @@ mod tests {
 		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
 
 		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
-
-		let validation_result = WasmValidationResult {
-			head_data: HeadData(vec![1, 1, 1]),
-			new_validation_code: Some(vec![2, 2, 2].into()),
-			upward_messages: Vec::new(),
-			processed_downward_messages: 0,
-		};
-
-		assert!(check_wasm_result_against_constraints(
-			&validation_data.transient,
-			&validation_result,
-		).is_ok());
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
 			MockValidationArg {
@@ -926,8 +899,7 @@ mod tests {
 					WasmInvalidCandidate::Timeout
 				))
 			},
-			validation_data.persisted,
-			Some(validation_data.transient),
+			validation_data,
 			vec![1, 2, 3].into(),
 			descriptor,
 			Arc::new(pov),
@@ -935,50 +907,5 @@ mod tests {
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
-	}
-
-	#[test]
-	fn candidate_validation_ok_does_not_validate_outputs_if_no_transient() {
-		let mut validation_data: ValidationData = Default::default();
-		validation_data.transient.max_head_data_size = 1;
-		validation_data.transient.max_code_size = 1;
-
-		let pov = PoV { block_data: BlockData(vec![1; 32]) };
-
-		let mut descriptor = CandidateDescriptor::default();
-		descriptor.pov_hash = pov.hash();
-		collator_sign(&mut descriptor, Sr25519Keyring::Alice);
-
-		assert!(perform_basic_checks(&descriptor, Some(1024), &pov).is_ok());
-
-		let validation_result = WasmValidationResult {
-			head_data: HeadData(vec![1, 1, 1]),
-			new_validation_code: Some(vec![2, 2, 2].into()),
-			upward_messages: Vec::new(),
-			processed_downward_messages: 0,
-		};
-
-		assert!(check_wasm_result_against_constraints(
-			&validation_data.transient,
-			&validation_result,
-		).is_err());
-
-		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
-			MockValidationArg { result: Ok(validation_result) },
-			validation_data.persisted.clone(),
-			None,
-			vec![1, 2, 3].into(),
-			descriptor,
-			Arc::new(pov),
-			TaskExecutor::new(),
-		).unwrap();
-
-		assert_matches!(v, ValidationResult::Valid(outputs) => {
-			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
-			assert_eq!(outputs.validation_data, validation_data.persisted);
-			assert_eq!(outputs.upward_messages, Vec::new());
-			assert_eq!(outputs.fees, 0);
-			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
-		});
 	}
 }

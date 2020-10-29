@@ -16,6 +16,8 @@
 
 //! Implements a `CandidateBackingSubsystem`.
 
+#![deny(unused_crate_dependencies)]
+
 use std::collections::{HashMap, HashSet};
 use std::convert::TryFrom;
 use std::pin::Pin;
@@ -32,11 +34,10 @@ use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
 	ValidatorIndex, SigningContext, PoV,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
-	CandidateCommitments, CoreState, CoreIndex, CollatorId,
+	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
 };
 use polkadot_node_primitives::{
-	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport,
-	ValidationOutputs, ValidationResult,
+	FromTableMisbehavior, Statement, SignedFullStatement, MisbehaviorReport, ValidationResult,
 };
 use polkadot_subsystem::{
 	messages::{
@@ -65,22 +66,26 @@ use statement_table::{
 		SignedStatement as TableSignedStatement, Summary as TableSummary,
 	},
 };
+use thiserror::Error;
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
+	#[error("Candidate is not found")]
 	CandidateNotFound,
+	#[error("Signature is invalid")]
 	InvalidSignature,
-	StoreFailed,
-	#[from]
-	Erasure(erasure_coding::Error),
-	#[from]
-	ValidationFailed(ValidationFailed),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Mpsc(mpsc::SendError),
-	#[from]
-	UtilError(util::Error),
+	#[error("Failed to send candidates {0:?}")]
+	Send(Vec<NewBackedCandidate>),
+	#[error("Oneshot never resolved")]
+	Oneshot(#[from] #[source] oneshot::Canceled),
+	#[error("Obtaining erasure chunks failed")]
+	ObtainErasureChunks(#[from] #[source] erasure_coding::Error),
+	#[error(transparent)]
+	ValidationFailed(#[from] ValidationFailed),
+	#[error(transparent)]
+	Mpsc(#[from] mpsc::SendError),
+	#[error(transparent)]
+	UtilError(#[from] util::Error),
 }
 
 /// Holds all data needed for candidate backing job operation.
@@ -287,7 +292,7 @@ impl CandidateBackingJob {
 		let candidate_hash = candidate.hash();
 
 		let statement = match valid {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// make PoV available for later distribution. Send data to the availability
 				// store to keep. Sign and dispatch `valid` statement to network if we
 				// have not seconded the given candidate.
@@ -296,6 +301,7 @@ impl CandidateBackingJob {
 				// the collator, do not make available and report the collator.
 				let commitments_check = self.make_pov_available(
 					pov,
+					validation_data,
 					outputs,
 					|commitments| if commitments.hash() == candidate.commitments_hash {
 						Ok(CommittedCandidateReceipt {
@@ -468,7 +474,7 @@ impl CandidateBackingJob {
 			CandidateBackingMessage::GetBackedCandidates(_, tx) => {
 				let backed = self.get_backed();
 
-				tx.send(backed).map_err(|_| oneshot::Canceled)?;
+				tx.send(backed).map_err(|data| Error::Send(data))?;
 			}
 		}
 
@@ -510,10 +516,11 @@ impl CandidateBackingJob {
 		let v = self.request_candidate_validation(descriptor, pov.clone()).await?;
 
 		let statement = match v {
-			ValidationResult::Valid(outputs) => {
+			ValidationResult::Valid(outputs, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
 				let commitments_check = self.make_pov_available(
 					(&*pov).clone(),
+					validation_data,
 					outputs,
 					|commitments| if commitments == expected_commitments {
 						Ok(())
@@ -639,7 +646,7 @@ impl CandidateBackingJob {
 			)
 		).await?;
 
-		rx.await?.map_err(|_| Error::StoreFailed)?;
+		let _ = rx.await?;
 
 		Ok(())
 	}
@@ -652,12 +659,13 @@ impl CandidateBackingJob {
 	async fn make_pov_available<T, E>(
 		&mut self,
 		pov: PoV,
+		validation_data: polkadot_primitives::v1::PersistedValidationData,
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
 	) -> Result<Result<T, E>, Error> {
 		let available_data = AvailableData {
 			pov,
-			validation_data: outputs.validation_data,
+			validation_data,
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(
@@ -669,11 +677,11 @@ impl CandidateBackingJob {
 		let erasure_root = branches.root();
 
 		let commitments = CandidateCommitments {
-			fees: outputs.fees,
 			upward_messages: outputs.upward_messages,
 			erasure_root,
 			new_validation_code: outputs.new_validation_code,
 			head_data: outputs.head_data,
+			processed_downward_messages: outputs.processed_downward_messages,
 		};
 
 		let res = match with_commitments(commitments) {
@@ -969,12 +977,14 @@ mod tests {
 					parent_head: HeadData(vec![7, 8, 9]),
 					block_number: Default::default(),
 					hrmp_mqc_heads: Vec::new(),
+					dmq_mqc_head: Default::default(),
 				},
 				transient: TransientValidationData {
 					max_code_size: 1000,
 					max_head_data_size: 1000,
 					balance: Default::default(),
 					code_upgrade_allowed: None,
+					dmq_length: 0,
 				},
 			};
 
@@ -1147,12 +1157,11 @@ mod tests {
 				) if pov == pov && &c == candidate.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
-						}),
+							processed_downward_messages: 0,
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1267,12 +1276,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
-						}),
+							processed_downward_messages: 0,
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1406,12 +1414,11 @@ mod tests {
 				) if pov == pov && &c == candidate_a.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
-						}),
+							processed_downward_messages: 0,
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);
@@ -1562,12 +1569,11 @@ mod tests {
 				) if pov == pov && &c == candidate_b.descriptor() => {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
-							validation_data: test_state.validation_data.persisted,
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
-							fees: Default::default(),
 							new_validation_code: None,
-						}),
+							processed_downward_messages: 0,
+						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
 			);

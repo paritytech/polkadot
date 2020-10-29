@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-parachain"
-version = "0.8.25"
+version = "0.8.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
 edition = "2018"
@@ -17,7 +17,8 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 
 # all optional crates.
-derive_more = { version = "0.99.2", optional = true }
+thiserror = { version = "1.0.21", optional = true }
+derive_more = { version = "0.99.11", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -34,6 +35,7 @@ default = ["std"]
 wasm-api = []
 std = [
 	"codec/std",
+	"thiserror",
 	"derive_more",
 	"serde/std",
 	"sp-std/std",

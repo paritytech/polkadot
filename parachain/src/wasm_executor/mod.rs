@@ -81,63 +81,61 @@ pub enum ExecutionMode {
 }
 
 
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, thiserror::Error)]
 /// Candidate validation error.
 pub enum ValidationError {
 	/// Validation failed due to internal reasons. The candidate might still be valid.
-	Internal(InternalError),
+	#[error(transparent)]
+	Internal(#[from] InternalError),
 	/// Candidate is invalid.
-	InvalidCandidate(InvalidCandidate),
+	#[error(transparent)]
+	InvalidCandidate(#[from] InvalidCandidate),
 }
 
 /// Error type that indicates invalid candidate.
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, thiserror::Error)]
 pub enum InvalidCandidate {
 	/// Wasm executor error.
-	#[display(fmt = "WASM executor error: {:?}", _0)]
-	WasmExecutor(sc_executor::error::Error),
+	#[error("WASM executor error")]
+	WasmExecutor(#[from] sc_executor::error::Error),
 	/// Call data is too large.
-	#[display(fmt = "Validation parameters are {} bytes, max allowed is {}", _0, MAX_RUNTIME_MEM)]
-	#[from(ignore)]
+	#[error("Validation parameters are {0} bytes, max allowed is {}", MAX_RUNTIME_MEM)]
 	ParamsTooLarge(usize),
 	/// Code size it too large.
-	#[display(fmt = "WASM code is {} bytes, max allowed is {}", _0, MAX_CODE_MEM)]
+	#[error("WASM code is {0} bytes, max allowed is {}", MAX_CODE_MEM)]
 	CodeTooLarge(usize),
 	/// Error decoding returned data.
-	#[display(fmt = "Validation function returned invalid data.")]
+	#[error("Validation function returned invalid data.")]
 	BadReturn,
-	#[display(fmt = "Validation function timeout.")]
+	#[error("Validation function timeout.")]
 	Timeout,
-	#[display(fmt = "External WASM execution error: {}", _0)]
+	#[error("External WASM execution error: {0}")]
 	ExternalWasmExecutor(String),
 }
 
+impl core::convert::From<String> for InvalidCandidate {
+	fn from(s: String) -> Self {
+		Self::ExternalWasmExecutor(s)
+	}
+}
+
 /// Host error during candidate validation. This does not indicate an invalid candidate.
-#[derive(Debug, derive_more::Display, derive_more::From)]
+#[derive(Debug, thiserror::Error)]
 pub enum InternalError {
-	#[display(fmt = "IO error: {}", _0)]
-	Io(std::io::Error),
-	#[display(fmt = "System error: {}", _0)]
-	System(Box<dyn std::error::Error + Send>),
-	#[display(fmt = "Shared memory error: {}", _0)]
+	#[error("IO error: {0}")]
+	Io(#[from] std::io::Error),
+
+	#[error("System error: {0}")]
+	System(#[from] Box<dyn std::error::Error + Send + Sync + 'static>),
+
 	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-	SharedMem(shared_memory::SharedMemError),
-	#[display(fmt = "WASM worker error: {}", _0)]
+	#[error("Shared memory error: {0}")]
+	SharedMem(#[from] shared_memory::SharedMemError),
+
+	#[error("WASM worker error: {0}")]
 	WasmWorker(String),
 }
 
-impl std::error::Error for ValidationError {
-	fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-		match self {
-			ValidationError::Internal(InternalError::Io(ref err)) => Some(err),
-			ValidationError::Internal(InternalError::System(ref err)) => Some(&**err),
-			#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-			ValidationError::Internal(InternalError::SharedMem(ref err)) => Some(err),
-			ValidationError::InvalidCandidate(InvalidCandidate::WasmExecutor(ref err)) => Some(err),
-			_ => None,
-		}
-	}
-}
 
 /// Validate a candidate under the given validation code.
 ///

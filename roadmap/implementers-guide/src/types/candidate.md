@@ -129,7 +129,7 @@ struct PersistedValidationData {
 	///
 	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
 	/// passed by the collator.
-	dmq_mqc_head: Option<Hash>,
+	dmq_mqc_head: Hash,
 	/// The list of MQC heads for the inbound channels paired with the sender para ids. This
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
@@ -247,8 +247,6 @@ The execution and validation of parachain or parathread candidates produces a nu
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default))]
 struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	fees: Balance,
 	/// Messages directed to other paras routed via the relay chain.
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Messages destined to be interpreted by the Relay chain itself.
@@ -293,8 +291,6 @@ struct ValidationOutputs {
 	horizontal_messages: Vec<OutboundHrmpMessage>,
 	/// Upwards messages to the relay chain.
 	upwards_messages: Vec<UpwardsMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	fees: Balance,
 	/// The new validation code submitted by the execution, if any.
 	new_validation_code: Option<ValidationCode>,
 	/// The number of messages processed from the DMQ.

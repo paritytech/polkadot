@@ -45,7 +45,7 @@ use polkadot_node_subsystem_util::{
 };
 
 #[derive(Clone, Default)]
-pub(super) struct Metrics(Option<MetricsInner>);
+pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	fn on_advertisment_made(&self) {
