@@ -355,7 +355,7 @@ mod tests {
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
 				max_upward_queue_count: 1337,
-			    max_upward_queue_size: 228,
+				max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
 				preferred_dispatchable_upward_messages_step_weight: 20000,
 				max_upward_message_size: 448,
