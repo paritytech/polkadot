@@ -203,7 +203,7 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
-    * Kick off approval work (TODO)
+    * Kick off approval work with `launch_approval`
   * Schedule another wakeup based on `next_wakeup`
 
 `next_wakeup(approval_entry, candidate_entry)`:
@@ -213,7 +213,7 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
 `launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
-  * Load the historical validation code of the parachain (TODO)
+  * Load the historical validation code of the parachain (TODO: https://github.com/paritytech/polkadot/issues/1877)
   * Spawn a background task with a clone of `approval_vote_tx`
     * Wait for the available data
     * Issue a `CandidateValidationMessage::ValidateFromExhaustive` message
