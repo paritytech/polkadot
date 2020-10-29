@@ -96,13 +96,8 @@ impl<T: Trait> Module<T> {
 
 		// make sure that the queue is not overfilled.
 		// we do it here only once since returning false invalidates the whole relay-chain block.
-		if para_queue_count > config.max_upward_queue_count
-			|| para_queue_size > config.max_upward_queue_size
-		{
-			return false;
-		}
-
-		true
+		para_queue_count <= config.max_upward_queue_count
+			&& para_queue_size <= config.max_upward_queue_size
 	}
 
 	/// Enacts all the upward messages sent by a candidate.
