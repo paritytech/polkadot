@@ -285,9 +285,9 @@ async fn find_assumed_validation_data(
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
 		OccupiedCoreAssumption::TimedOut,
-		// TODO: Why don't we check `Free`? The guide assumes there are only two possible assumptions.
-		//
-		// Source that info and leave a comment here.
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
+		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
+		// matched as well.
 	];
 
 	// Consider running these checks in parallel to reduce validation latency.

@@ -61,7 +61,7 @@ struct HostConfiguration {
 	/// the PoV size. Of course, there is a lot of other different things that a parachain may
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
-	pub critical_downward_message_size: u32,
+	pub max_downward_message_size: u32,
 	/// Number of sessions after which an HRMP open channel request expires.
 	pub hrmp_open_request_ttl: u32,
 	/// The deposit that the sender should provide for opening an HRMP channel.
