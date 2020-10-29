@@ -69,7 +69,7 @@
 use frame_support::{
 	decl_module, decl_storage, decl_event, decl_error, storage::child, ensure,
 	traits::{
-		Currency, Get, OnUnbalanced, WithdrawReason, ExistenceRequirement::AllowDeath
+		Currency, Get, OnUnbalanced, WithdrawReasons, ExistenceRequirement::AllowDeath
 	},
 };
 use frame_system::ensure_signed;
@@ -273,7 +273,7 @@ decl_module! {
 			ensure!(end > <frame_system::Module<T>>::block_number(), Error::<T>::CannotEndInPast);
 
 			let deposit = T::SubmissionDeposit::get();
-			let transfer = WithdrawReason::Transfer.into();
+			let transfer = WithdrawReasons::TRANSFER;
 			let imb = T::Currency::withdraw(&owner, deposit, transfer, AllowDeath)?;
 
 			let index = FundCount::get();
@@ -455,7 +455,7 @@ decl_module! {
 
 			// Avoid using transfer to ensure we don't pay any fees.
 			let fund_account = &Self::fund_account_id(index);
-			let transfer = WithdrawReason::Transfer.into();
+			let transfer = WithdrawReasons::TRANSFER;
 			let imbalance = T::Currency::withdraw(fund_account, balance, transfer, AllowDeath)?;
 			let _ = T::Currency::resolve_into_existing(&who, imbalance);
 
@@ -485,7 +485,7 @@ decl_module! {
 			let account = Self::fund_account_id(index);
 
 			// Avoid using transfer to ensure we don't pay any fees.
-			let transfer = WithdrawReason::Transfer.into();
+			let transfer = WithdrawReasons::TRANSFER;
 			let imbalance = T::Currency::withdraw(&account, fund.deposit, transfer, AllowDeath)?;
 			let _ = T::Currency::resolve_into_existing(&fund.owner, imbalance);
 

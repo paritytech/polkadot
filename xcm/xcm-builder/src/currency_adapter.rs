@@ -17,7 +17,7 @@
 use sp_std::{result, convert::TryInto, marker::PhantomData};
 use xcm::v0::{Error, Result, MultiAsset, MultiLocation};
 use sp_arithmetic::traits::SaturatedConversion;
-use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReason};
+use frame_support::traits::{ExistenceRequirement::AllowDeath, WithdrawReasons};
 use xcm_executor::traits::{MatchesFungible, LocationConversion, TransactAsset};
 
 pub struct CurrencyAdapter<Currency, Matcher, AccountIdConverter, AccountId>(
@@ -48,7 +48,7 @@ impl<
 		let amount = Matcher::matches_fungible(&what).ok_or(())?.saturated_into();
 		let who = AccountIdConverter::from_location(who).ok_or(())?;
 		let balance_amount = amount.try_into().map_err(|_| ())?;
-		Currency::withdraw(&who, balance_amount, WithdrawReason::Transfer.into(), AllowDeath).map_err(|_| ())?;
+		Currency::withdraw(&who, balance_amount, WithdrawReasons::TRANSFER, AllowDeath).map_err(|_| ())?;
 		Ok(what.clone())
 	}
 }
