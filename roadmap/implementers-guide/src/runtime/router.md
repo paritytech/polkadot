@@ -33,7 +33,7 @@ RelayDispatchQueues: map ParaId => Vec<UpwardMessage>;
 ///
 /// Invariant:
 /// - The set of keys should exactly match the set of keys of `RelayDispatchQueues`.
-RelayDispatchQueueSize: map ParaId => (u32, u32);
+RelayDispatchQueueSize: map ParaId => (u32, u32); // (num_messages, total_bytes)
 /// The ordered list of `ParaId`s that have a `RelayDispatchQueue` entry.
 ///
 /// Invariant:
