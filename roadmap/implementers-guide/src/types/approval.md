@@ -73,7 +73,7 @@ struct IndirectSignedApprovalVote {
 
 ## CheckedAssignmentCert
 
-An assignment cert which has been completely checked. This type should be declared in such a way as to be instantiable only when the checks have actually been done. Fields should be accessible via getters, not direct struct access.
+An assignment cert which has checked both the VRF and the validity of the implied assignment according to the selection criteria rules of the protocol. This type should be declared in such a way as to be instantiable only when the checks have actually been done. Fields should be accessible via getters, not direct struct access.
 
 ```rust
 struct CheckedAssignmentCert {

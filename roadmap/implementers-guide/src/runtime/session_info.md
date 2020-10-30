@@ -14,7 +14,9 @@ struct SessionInfo {
     discovery_keys: Vec<DiscoveryId>,
     // The assignment and approval keys for validators.
     approval_keys: Vec<(AssignmentId, ApprovalId)>,
-    // validators in shuffled ordering
+    // validators in shuffled ordering - these are the validator groups as produced
+    // by the `Scheduler` module for the session and are typically referred to by
+    // `GroupIndex`.
     validator_groups: Vec<Vec<ValidatorIndex>>,
     // The number of availability cores used by the protocol during this session.
     n_cores: u32,

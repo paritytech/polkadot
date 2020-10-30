@@ -130,7 +130,7 @@ struct State {
 
 [`SessionInfo`](../../runtime/session_info.md)
 
-On start-up, we clear everything currently stored by the database. This is done by loading the `StoredBlockRange`, iterating through each block number, iterating through each block hash, and iterating through each candidate referenced by each block. Although this is O(n^3), we don't expect to have more than a few unfinalized blocks at any time and in extreme cases, a few thousand. The clearing operation should be relatively fast as a result.
+On start-up, we clear everything currently stored by the database. This is done by loading the `StoredBlockRange`, iterating through each block number, iterating through each block hash, and iterating through each candidate referenced by each block. Although this is `O(o*n*p)`, we don't expect to have more than a few unfinalized blocks at any time and in extreme cases, a few thousand. The clearing operation should be relatively fast as a result.
 
 Main loop:
   * Each iteration, select over all of
@@ -140,7 +140,12 @@ Main loop:
 
 ### Incoming Messages
 
+#### `OverseerSignal::BlockFinalized`
+
 On receiving an `OverseerSignal::BlockFinalized(h)`, we fetch the block number `b` of that block from the ChainApi subsystem. We update our `StoredBlockRange` to begin at `b+1`. Additionally, we remove all block entries and candidates referenced by them up to and including `b`. Lastly, we prune out all descendents of `h` transitively: when we remove a `BlockEntry` with number `b` that is not equal to `h`, we recursively delete all the `BlockEntry`s referenced as children. We remove the `block_assignments` entry for the block hash and if `block_assignments` is now empty, remove the `CandidateEntry`.
+
+
+#### `OverseerSignal::ActiveLeavesUpdate`
 
 On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
   * We determine the set of new blocks that were not in our previous view. This is done by querying the ancestry of all new items in the view and contrasting against the stored `BlockNumber`s. Typically, there will be only one new block. We fetch the headers and information on these blocks from the ChainApi subsystem. 
@@ -152,6 +157,8 @@ On receiving an `OverseerSignal::ActiveLeavesUpdate(update)`:
     * Run `RelayVRFModulo` and `RelayVRFDelay` according to the [the approvals protocol section](../../protocol-approval.md#assignment-criteria)
   * invoke `process_wakeup(relay_block, candidate)` for each new candidate in each new block - this will automatically broadcast a 0-tranche assignment, kick off approval work, and schedule the next delay.
 
+#### `ApprovalVotingMessage::CheckAndImportAssignment`
+
 On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we check the assignment cert against the block entry. The cert itself contains information necessary to determine the candidate that is being assigned-to. In detail:
   * Load the `BlockEntry` for the relay-parent referenced by the message. If there is none, return `VoteCheckResult::Report`.
   * Fetch the `SessionInfo` for the session of the block
@@ -162,6 +169,8 @@ On receiving a `ApprovalVotingMessage::CheckAndImportAssignment` message, we che
     * `import_checked_assignment`
     * return the appropriate `VoteCheckResult` on the response channel.
 
+#### `ApprovalVotingMessage::CheckAndImportApproval`
+
 On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)` message:
   * Fetch the `BlockEntry` from the indirect approval vote's `block_hash`. If none, return `VoteCheckResult::Bad`.
   * Fetch the `CandidateEntry` from the indirect approval vote's `candidate_index`. If the block did not trigger inclusion of enough candidates, return `VoteCheckResult::Bad`.
@@ -169,30 +178,32 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
   * Send `VoteCheckResult::Accepted`,
   * `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
 
+#### `ApprovalVotingMessage::ApprovedAncestor`
+
 On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Iterate over the ancestry of the hash all the way back to block number given, starting from the provided block hash.
   * Keep track of an `all_approved_max: Option<Hash>`.
   * For each block hash encountered, load the `BlockEntry` associated. If any are not found, return `None` on the response channel and conclude.
-  * If the block entry has `approval_bitfield == !0` and `all_approved_max == None`, set `all_approved_max = Some(current_hash)`.
-  * If the block entry as `approval_bitfield != !0`, set `all_approved_max = None`.
+  * If the block entry's `approval_bitfield` has all bits set to 1 and `all_approved_max == None`, set `all_approved_max = Some(current_hash)`.
+  * If the block entry's `approval_bitfield` has any 0 bits, set `all_approved_max = None`.
   * After iterating all ancestry, return `all_approved_max`.
 
 ### Utility
 
-`import_checked_assignment`
+#### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
   * Ensure the validator index is not part of the backing group for the candidate.
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
 
-`import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
+#### `import_checked_approval(BlockEntry, CandidateEntry, ValidatorIndex)`
   * Set the corresponding bit of the `approvals` bitfield in the `CandidateEntry` to `1`.
   * For each `ApprovalEntry` in the `CandidateEntry` (typically only 1), check whether the validator is assigned as a checker.
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
-`tranches_to_approve(approval_entry) -> tranches`
+#### `tranches_to_approve(approval_entry) -> tranches`
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
     * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
     * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
@@ -201,11 +212,11 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
       * All no-shows are covered. Set `n_tranches` to the number of tranches taken
     * return `n_tranches`
 
-`check_approval(block_entry, approval_entry, n_tranches) -> bool`
+#### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
   * If `n_tranches` is ALL, return false
   * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
 
-`process_wakeup(relay_block, candidate_hash)`
+#### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
   * Set `n_tranches = tranches_to_approve(approval_entry)`
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
@@ -214,11 +225,11 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Kick off approval work with `launch_approval`
   * Schedule another wakeup based on `next_wakeup`
 
-`next_wakeup(approval_entry, candidate_entry)`:
+#### `next_wakeup(approval_entry, candidate_entry)`:
   * Return the earlier of our next no-show timeout or the tranche of our assignment, if not yet triggered
   * Our next no-show timeout is computed by finding the earliest-received assignment within `n_tranches` for which we have not received an approval and adding `to_ticks(session_info.no_show_slots)` to it.
 
-`launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
+#### `launch_approval(SessionIndex, CandidateDescriptor, ValidatorIndex, block_hash, candidate_index)`:
   * Extract the public key of the `ValidatorIndex` from the `SessionInfo` for the session.
   * Issue an `AvailabilityRecoveryMessage::RecoverAvailableData(candidate, session_index, response_sender)`
   * Load the historical validation code of the parachain (TODO: https://github.com/paritytech/polkadot/issues/1877)
@@ -228,7 +239,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * Wait for the result of validation
     * If valid, issue a message on `approval_vote_tx` detailing the request.
 
-`issue_approval(request)`:
+#### `issue_approval(request)`:
   * Fetch the block entry and candidate entry. Ignore if `None` - we've probably just lost a race with finality.
   * Construct a `SignedApprovalVote` with the validator index for the session.
   * Transform into an `IndirectSignedApprovalVote` using the `block_hash` and `candidate_index` from the request.
