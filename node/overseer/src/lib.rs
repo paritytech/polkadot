@@ -1606,7 +1606,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	let (tx, rx) = oneshot::channel();
 
 	let fut = Box::pin(async move {
-		future.await;
+		if let Err(e) = future.await {
+			log::error!("Subsystem {} exited with error {:?}", name, e);
+		}
 		let _ = tx.send(());
 	});
 
@@ -1658,8 +1660,8 @@ mod tests {
 								i += 1;
 								continue;
 							}
-							Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-							Err(_) => return,
+							Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+							Err(_) => return Ok(()),
 							_ => (),
 						}
 					}
@@ -1704,11 +1706,13 @@ mod tests {
 							Ok(Some(_)) => {
 								continue;
 							}
-							Err(_) => return,
+							Err(_) => return Ok(()),
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -1724,6 +1728,7 @@ mod tests {
 				name: "test-subsystem-4",
 				future: Box::pin(async move {
 					// Do nothing and exit.
+					Ok(())
 				}),
 			}
 		}
@@ -1902,11 +1907,13 @@ mod tests {
 								continue;
 							},
 							Ok(Some(_)) => continue,
-							Err(_) => return,
+							Err(_) => break,
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -1931,11 +1938,13 @@ mod tests {
 								continue;
 							},
 							Ok(Some(_)) => continue,
-							Err(_) => return,
+							Err(_) => break,
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -2180,6 +2189,8 @@ mod tests {
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}

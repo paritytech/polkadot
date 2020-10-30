@@ -585,7 +585,7 @@ where
 			.map_err(|e| {
 				SubsystemError::with_origin("bitfield-distribution", e)
 			})
-			.map(|_| ()).boxed();
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "bitfield-distribution-subsystem",

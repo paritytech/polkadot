@@ -20,40 +20,8 @@
 
 use color_eyre::eyre;
 
-use cli::Error as PolkaError;
-
-use std::{error, fmt};
-
-/// A helper to satisfy the requirements of `eyre`
-/// compatible errors, which require `Send + Sync`
-/// which are not satisfied by the `sp_*` crates.
-#[derive(Debug)]
-struct ErrorWrapper(std::sync::Arc<PolkaError>);
-
-// nothing is going to be sent to another thread
-// it merely exists to glue two distinct error
-// types together where the requirements differ
-// with `Sync + Send` and without them for `wasm`.
-unsafe impl Sync for ErrorWrapper {}
-unsafe impl Send for ErrorWrapper {}
-
-impl error::Error for ErrorWrapper {
-	fn source(&self) -> Option<&(dyn error::Error + 'static)> {
-		(&*self.0).source().and_then(|e| e.source())
-	}
-	fn description(&self) -> &str {
-		"Error Wrapper"
-	}
-}
-
-impl fmt::Display for ErrorWrapper {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{}", &*self.0)
-	}
-}
-
 fn main() -> eyre::Result<()> {
 	color_eyre::install()?;
-	cli::run().map_err(|e| ErrorWrapper(std::sync::Arc::new(e)))?;
+	cli::run()?;
 	Ok(())
 }

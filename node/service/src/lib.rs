@@ -288,109 +288,23 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 #[cfg(feature="full-node")]
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
-	keystore: SyncCryptoStorePtr,
-	runtime_client: Arc<RuntimeClient>,
-	availability_config: AvailabilityConfig,
-	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
-	authority_discovery: AuthorityDiscoveryService,
+	_: SyncCryptoStorePtr,
+	_: Arc<RuntimeClient>,
+	_: AvailabilityConfig,
+	_: Arc<sc_network::NetworkService<Block, Hash>>,
+	_: AuthorityDiscoveryService,
 	registry: Option<&Registry>,
 	spawner: Spawner,
-	is_collator: IsCollator,
+	_: IsCollator,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
 	RuntimeClient::Api: ParachainHost<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
-	use polkadot_node_subsystem_util::metrics::Metrics;
-
-	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
-	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
-	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
-	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
-	use polkadot_node_core_backing::CandidateBackingSubsystem;
-	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
-	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
-	use polkadot_node_core_chain_api::ChainApiSubsystem;
-	use polkadot_node_collation_generation::CollationGenerationSubsystem;
-	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
-	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
-	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
-	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
-	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
-
-	let all_subsystems = AllSubsystems {
-		availability_distribution: AvailabilityDistributionSubsystem::new(
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		availability_store: AvailabilityStoreSubsystem::new_on_disk(
-			availability_config,
-			Metrics::register(registry)?,
-		)?,
-		bitfield_distribution: BitfieldDistributionSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		bitfield_signing: BitfieldSigningSubsystem::new(
-			spawner.clone(),
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		candidate_backing: CandidateBackingSubsystem::new(
-			spawner.clone(),
-			keystore.clone(),
-			Metrics::register(registry)?,
-		),
-		candidate_selection: CandidateSelectionSubsystem::new(
-			spawner.clone(),
-			(),
-			Metrics::register(registry)?,
-		),
-		candidate_validation: CandidateValidationSubsystem::new(
-			spawner.clone(),
-			Metrics::register(registry)?,
-		),
-		chain_api: ChainApiSubsystem::new(
-			runtime_client.clone(),
-			Metrics::register(registry)?,
-		),
-		collation_generation: CollationGenerationSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		collator_protocol: {
-			let side = match is_collator {
-			    IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
-			    IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
-			};
-			CollatorProtocolSubsystem::new(
-				side,
-			)
-		},
-		network_bridge: NetworkBridgeSubsystem::new(
-			network_service,
-			authority_discovery,
-		),
-		pov_distribution: PoVDistributionSubsystem::new(
-			Metrics::register(registry)?,
-		),
-		provisioner: ProvisionerSubsystem::new(
-			spawner.clone(),
-			(),
-			Metrics::register(registry)?,
-		),
-		runtime_api: RuntimeApiSubsystem::new(
-			runtime_client,
-			Metrics::register(registry)?,
-		),
-		statement_distribution: StatementDistributionSubsystem::new(
-			Metrics::register(registry)?,
-		),
-	};
-
 	Overseer::new(
 		leaves,
-		all_subsystems,
+		AllSubsystems::<()>::dummy(),
 		registry,
 		spawner,
 	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))

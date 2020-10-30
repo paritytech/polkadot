@@ -823,7 +823,6 @@ where
 		let future = self
 			.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
-			.map(|_| ())
 			.boxed();
 
 		SpawnedSubsystem {

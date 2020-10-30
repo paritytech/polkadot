@@ -20,7 +20,7 @@
 #![deny(missing_docs, unused_crate_dependencies)]
 
 use std::time::Duration;
-use futures::{channel::oneshot, FutureExt};
+use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use log::trace;
 use thiserror::Error;
 
@@ -122,9 +122,14 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage> + Sync + Send,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = self
+			.run(ctx)
+			.map_err(|e| SubsystemError::with_origin("collator-protocol", e))
+			.boxed();
+
 		SpawnedSubsystem {
 			name: "collator-protocol-subsystem",
-			future: self.run(ctx).map(|_| ()).boxed(),
+			future,
 		}
 	}
 }

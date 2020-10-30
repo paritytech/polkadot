@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use codec::{Encode, Decode};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
+use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt, TryFutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -969,9 +969,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
-			.map(|r| if let Err(e) = r {
-				log::error!(target: "availabilitystore", "Subsystem exited with an error {:?}", e);
-			})
+			.map_err(|e| SubsystemError::with_origin("availability-store", e))
 			.boxed();
 
 		SpawnedSubsystem {
