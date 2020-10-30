@@ -1,5 +1,7 @@
 # Approval Voting
 
+Reading the [section on the approval protocol](../../protocol-approval.md) will likely be necessary to understand the aims of this subsystem.
+
 ## Protocol
 
 Input:
