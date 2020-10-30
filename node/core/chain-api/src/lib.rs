@@ -27,9 +27,12 @@
 //! * Last finalized block number
 //! * Ancestors
 
+#![deny(unused_crate_dependencies, unused_results)]
+#![warn(missing_docs)]
+
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal,
-	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemContext,
+	SpawnedSubsystem, Subsystem, SubsystemResult, SubsystemError, SubsystemContext,
 	messages::ChainApiMessage,
 };
 use polkadot_node_subsystem_util::{
@@ -37,18 +40,19 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{Block, BlockId};
 use sp_blockchain::HeaderBackend;
+use std::sync::Arc;
 
 use futures::prelude::*;
 
 /// The Chain API Subsystem implementation.
 pub struct ChainApiSubsystem<Client> {
-	client: Client,
+	client: Arc<Client>,
 	metrics: Metrics,
 }
 
 impl<Client> ChainApiSubsystem<Client> {
 	/// Create a new Chain API subsystem with the given client.
-	pub fn new(client: Client, metrics: Metrics) -> Self {
+	pub fn new(client: Arc<Client>, metrics: Metrics) -> Self {
 		ChainApiSubsystem {
 			client,
 			metrics,
@@ -61,8 +65,11 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	Context: SubsystemContext<Message = ChainApiMessage>
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = run(ctx, self)
+			.map_err(|e| SubsystemError::with_origin("chain-api", e))
+			.boxed();
 		SpawnedSubsystem {
-			future: run(ctx, self).map(|_| ()).boxed(),
+			future,
 			name: "chain-api-subsystem",
 		}
 	}
@@ -112,12 +119,20 @@ where
 						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
-							Err(e) => Some(Err(e.to_string().into())),
+							Err(e) => {
+								let e = e.to_string().into();
+								Some(Err(e))
+							},
 							// fewer than `k` ancestors are available
 							Ok(None) => None,
 							Ok(Some(header)) => {
-								hash = header.parent_hash;
-								Some(Ok(hash))
+								// stop at the genesis header.
+								if header.number == 1 {
+									None
+								} else {
+									hash = header.parent_hash;
+									Some(Ok(hash))
+								}
 							}
 						}
 					});
@@ -161,7 +176,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_chain_api_requests_total",
 						"Number of Chain API requests served.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -290,11 +305,11 @@ mod tests {
 	}
 
 	fn test_harness(
-		test: impl FnOnce(TestClient, TestSubsystemContextHandle<ChainApiMessage>)
+		test: impl FnOnce(Arc<TestClient>, TestSubsystemContextHandle<ChainApiMessage>)
 			-> BoxFuture<'static, ()>,
 	) {
 		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
-		let client = TestClient::default();
+		let client = Arc::new(TestClient::default());
 
 		let subsystem = ChainApiSubsystem::new(client.clone(), Metrics(None));
 		let chain_api_task = run(ctx, subsystem).map(|x| x.unwrap());

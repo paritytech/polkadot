@@ -165,7 +165,10 @@ where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(self.run(ctx));
+		let future = Box::pin(async move {
+			self.run(ctx).await;
+			Ok(())
+		});
 
 		SpawnedSubsystem {
 			name: "collation-generation-subsystem",
@@ -272,11 +275,11 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				};
 
 				let commitments = CandidateCommitments {
-					fees: collation.fees,
 					upward_messages: collation.upward_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
 					erasure_root,
+					processed_downward_messages: collation.processed_downward_messages,
 				};
 
 				let ccr = CandidateReceipt {
@@ -380,13 +383,13 @@ mod tests {
 
 		fn test_collation() -> Collation {
 			Collation {
-				fees: Default::default(),
 				upward_messages: Default::default(),
 				new_validation_code: Default::default(),
 				head_data: Default::default(),
 				proof_of_validity: PoV {
 					block_data: BlockData(Vec::new()),
 				},
+				processed_downward_messages: Default::default(),
 			}
 		}
 

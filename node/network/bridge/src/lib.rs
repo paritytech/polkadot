@@ -16,6 +16,10 @@
 
 //! The Network Bridge Subsystem - protocol multiplexer for Polkadot.
 
+#![deny(unused_crate_dependencies)]
+#![warn(missing_docs)]
+
+
 use parity_scale_codec::{Encode, Decode};
 use futures::prelude::*;
 use futures::future::BoxFuture;
@@ -219,13 +223,18 @@ impl<Net, AD, Context> Subsystem<Context> for NetworkBridge<Net, AD>
 		// Swallow error because failure is fatal to the node and we log with more precision
 		// within `run_network`.
 		let Self { network_service, authority_discovery_service } = self;
-		SpawnedSubsystem {
-			name: "network-bridge-subsystem",
-			future: run_network(
+		let future = run_network(
 				network_service,
 				authority_discovery_service,
 				ctx,
-			).map(|_| ()).boxed(),
+			)
+			.map_err(|e| {
+				SubsystemError::with_origin("network-bridge", e)
+			})
+			.boxed();
+		SpawnedSubsystem {
+			name: "network-bridge-subsystem",
+			future,
 		}
 	}
 }
@@ -654,7 +663,7 @@ where
 				match peer_map.entry(peer.clone()) {
 					hash_map::Entry::Occupied(_) => continue,
 					hash_map::Entry::Vacant(vacant) => {
-						vacant.insert(PeerData {
+						let _ = vacant.insert(PeerData {
 							view: View(Vec::new()),
 						});
 
@@ -694,7 +703,7 @@ where
 					PeerSet::Collation => &mut collation_peers,
 				};
 
-				validator_discovery.on_peer_disconnected(&peer, &mut authority_discovery_service).await;
+				validator_discovery.on_peer_disconnected(&peer);
 
 				if peer_map.remove(&peer).is_some() {
 					let res = match peer_set {
@@ -937,7 +946,7 @@ mod tests {
 		futures::pin_mut!(test_fut);
 		futures::pin_mut!(network_bridge);
 
-		executor::block_on(future::select(test_fut, network_bridge));
+		let _ = executor::block_on(future::select(test_fut, network_bridge));
 	}
 
 	async fn assert_sends_validation_event_to_all(

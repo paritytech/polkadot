@@ -36,7 +36,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, scheduler::CoreAssignment};
+use crate::{configuration, paras, router, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + router::Trait + configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -153,6 +153,8 @@ decl_error! {
 		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
+		/// The downward message queue is not processed correctly.
+		IncorrectDownwardMessageHandling,
 	}
 }
 
@@ -409,6 +411,7 @@ impl<T: Trait> Module<T> {
 					para_id,
 					&candidate.candidate.commitments.head_data,
 					&candidate.candidate.commitments.new_validation_code,
+					candidate.candidate.commitments.processed_downward_messages,
 				)?;
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
@@ -540,6 +543,7 @@ impl<T: Trait> Module<T> {
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
+			validation_outputs.processed_downward_messages,
 		)
 	}
 
@@ -560,6 +564,12 @@ impl<T: Trait> Module<T> {
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
+
+		// enact the messaging facet of the candidate.
+		weight += <router::Module<T>>::prune_dmq(
+			receipt.descriptor.para_id,
+			commitments.processed_downward_messages,
+		);
 
 		Self::deposit_event(
 			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
@@ -682,6 +692,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 		para_id: ParaId,
 		head_data: &HeadData,
 		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		processed_downward_messages: u32,
 	) -> Result<(), DispatchError> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
@@ -703,7 +714,14 @@ impl<T: Trait> CandidateCheckContext<T> {
 			);
 		}
 
-		// TODO: messaging acceptance criteria rules will go here.
+		// check if the candidate passes the messaging acceptance criteria
+		ensure!(
+			<router::Module<T>>::check_processed_downward_messages(
+				para_id,
+				processed_downward_messages,
+			),
+			Error::<T>::IncorrectDownwardMessageHandling,
+		);
 
 		Ok(())
 	}

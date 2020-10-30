@@ -20,12 +20,14 @@
 //! not shared between the node and the runtime. This crate builds on top of the primitives defined
 //! there.
 
+#![deny(missing_docs)]
+
 use futures::Future;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
+	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
 	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
 };
 use polkadot_statement_table::{
@@ -251,8 +253,6 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 pub struct Collation {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// New validation code.
@@ -261,6 +261,8 @@ pub struct Collation {
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
 	pub proof_of_validity: PoV,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
 }
 
 /// Configuration for the collation generator

@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use codec::{Encode, Decode};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
+use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt, TryFutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -44,6 +44,7 @@ use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::messages::{
 	AllMessages, AvailabilityStoreMessage, ChainApiMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
+use thiserror::Error;
 
 const LOG_TARGET: &str = "availability";
 
@@ -53,22 +54,22 @@ mod columns {
 	pub const NUM_COLUMNS: u32 = 2;
 }
 
-#[derive(Debug, derive_more::From)]
+#[derive(Debug, Error)]
 enum Error {
-	#[from]
-	Chain(ChainApiError),
-	#[from]
-	Erasure(erasure::Error),
-	#[from]
-	Io(io::Error),
-	#[from]
-	Oneshot(oneshot::Canceled),
-	#[from]
-	Runtime(RuntimeApiError),
-	#[from]
-	Subsystem(SubsystemError),
-	#[from]
-	Time(SystemTimeError),
+	#[error(transparent)]
+	RuntimeAPI(#[from] RuntimeApiError),
+	#[error(transparent)]
+	ChainAPI(#[from] ChainApiError),
+	#[error(transparent)]
+	Erasure(#[from] erasure::Error),
+	#[error(transparent)]
+	Io(#[from] io::Error),
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+	#[error(transparent)]
+	Subsystem(#[from] SubsystemError),
+	#[error(transparent)]
+	Time(#[from] SystemTimeError),
 }
 
 /// A wrapper type for delays.
@@ -173,7 +174,7 @@ struct NextPoVPruning(Duration);
 impl NextPoVPruning {
 	// After which duration from `now` this should fire.
 	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
+		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
 	}
 }
 
@@ -191,7 +192,7 @@ struct NextChunkPruning(Duration);
 impl NextChunkPruning {
 	// After which amount of seconds into the future from `now` this should fire.
 	fn should_fire_in(&self) -> Result<Duration, Error> {
-		Ok(self.0 - SystemTime::now().duration_since(UNIX_EPOCH)?)
+		Ok(self.0.checked_sub(SystemTime::now().duration_since(UNIX_EPOCH)?).unwrap_or_default())
 	}
 }
 
@@ -396,6 +397,23 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
+impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
+	type Error = &'static str;
+
+	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
+		let path = config.path().ok_or("custom databases are not supported")?;
+
+		Ok(Self {
+			// substrate cache size is improper here; just use the default
+			cache_size: None,
+			// DB path is a sub-directory of substrate db path to give two properties:
+			// 1: column numbers don't conflict with substrate
+			// 2: commands like purge-chain work without further changes
+			path: path.join("parachains").join("av-store"),
+		})
+	}
+}
+
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
@@ -448,7 +466,6 @@ async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Contex
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let ctx = &mut ctx;
 	loop {
 		// Every time the following two methods are called a read from DB is performed.
 		// But given that these are very small values which are essentially a newtype
@@ -469,16 +486,19 @@ where
 						ActiveLeavesUpdate { activated, .. })
 					)) => {
 						for activated in activated.into_iter() {
-							process_block_activated(ctx, &subsystem.inner, activated).await?;
+							process_block_activated(&mut ctx, &subsystem.inner, activated).await?;
 						}
 					}
 					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-						process_block_finalized(&subsystem, ctx, &subsystem.inner, hash).await?;
+						process_block_finalized(&subsystem, &mut ctx, &subsystem.inner, hash).await?;
 					}
 					Ok(FromOverseer::Communication { msg }) => {
-						process_message(&mut subsystem, ctx, msg).await?;
+						process_message(&mut subsystem, &mut ctx, msg).await?;
 					}
-					Err(_) => break,
+					Err(e) => {
+						log::error!("AvailabilityStoreSubsystem err: {:#?}", e);
+						break
+					},
 				}
 			}
 			pov_pruning_time = pov_pruning_time => {
@@ -944,15 +964,13 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			if let Err(e) = run(self, ctx).await {
-				log::error!(target: LOG_TARGET, "Subsystem exited with an error {:?}", e);
-			}
-		});
+		let future = run(self, ctx)
+			.map_err(|e| SubsystemError::with_origin("availability-store", e))
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",

@@ -76,6 +76,7 @@ impl<C> Subsystem<C> for Subsystem1
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {
@@ -121,6 +122,7 @@ impl<C> Subsystem<C> for Subsystem2
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			Self::run(ctx).await;
+			Ok(())
 		});
 
 		SpawnedSubsystem {

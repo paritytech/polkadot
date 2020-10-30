@@ -52,6 +52,9 @@ pub enum Subcommand {
 		about = "Benchmark runtime pallets."
 	)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
+
+	/// Key management cli utilities
+	Key(sc_cli::KeySubcommand),
 }
 
 #[allow(missing_docs)]
@@ -79,23 +82,6 @@ pub struct RunCmd {
 	/// Force using Rococo native runtime.
 	#[structopt(long = "force-rococo")]
 	pub force_rococo: bool,
-
-	/// Disable the authority discovery module on validator or sentry nodes.
-	///
-	/// Enabled by default on validator and sentry nodes. Always disabled on non
-	/// validator or sentry nodes.
-	///
-	/// When enabled:
-	///
-	/// (1) As a validator node: Make oneself discoverable by publishing either
-	///     ones own network addresses, or the ones of ones sentry nodes
-	///     (configured via the `sentry-nodes` flag).
-	///
-	/// (2) As a validator or sentry node: Discover addresses of validators or
-	///     addresses of their sentry nodes and maintain a permanent connection
-	///     to a subset.
-	#[structopt(long = "disable-authority-discovery")]
-	pub authority_discovery_disabled: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
 	///
