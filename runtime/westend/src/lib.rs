@@ -601,6 +601,7 @@ impl InstanceFilter<Call> for ProxyType {
 			),
 			ProxyType::Staking => matches!(c,
 				Call::Staking(..) |
+				Call::Session(..) |
 				Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
