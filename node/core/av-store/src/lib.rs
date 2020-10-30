@@ -63,7 +63,7 @@ enum Error {
 	#[error(transparent)]
 	Io(#[from] io::Error),
 	#[error(transparent)]
-	ChainAPIChannelIsClosed(#[from] oneshot::Canceled),
+	ChainApiChannelIsClosed(#[from] oneshot::Canceled),
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 	#[error(transparent)]
@@ -71,6 +71,7 @@ enum Error {
 }
 
 /// Class of errors which we should handle more gracefully.
+/// An occurrence of this error should not bring down the subsystem.
 #[derive(Debug, Error)]
 enum NonFatalError {
 	/// A Runtime API error occurred.
@@ -709,11 +710,11 @@ where
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
 			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
 				Err(e) => {
-					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData"));
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData"));
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Ok)"));
 				}
 			}
 		}
