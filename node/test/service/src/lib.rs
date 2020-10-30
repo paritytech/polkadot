@@ -49,7 +49,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -76,6 +76,11 @@ pub fn polkadot_test_new_full(
 		config,
 		IsCollator::No,
 		None,
+		Some(sc_authority_discovery::WorkerConfig {
+			query_interval: Duration::from_secs(1),
+			query_start_delay: Duration::from_secs(0),
+			..Default::default()
+		}),
 	).map_err(Into::into)
 }
 

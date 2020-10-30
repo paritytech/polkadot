@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;

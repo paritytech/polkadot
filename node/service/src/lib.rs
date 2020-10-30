@@ -33,7 +33,7 @@ use {
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
-	authority_discovery::Service as AuthorityDiscoveryService,
+	sc_authority_discovery::{Service as AuthorityDiscoveryService, WorkerConfig as AuthorityWorkerConfig},
 	sp_blockchain::HeaderBackend,
 	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
@@ -475,6 +475,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -570,19 +571,20 @@ pub fn new_full<RuntimeApi, Executor>(
 		use futures::StreamExt;
 
 		let authority_discovery_role = if role.is_authority() {
-			authority_discovery::Role::PublishAndDiscover(
+			sc_authority_discovery::Role::PublishAndDiscover(
 				keystore_container.keystore(),
 			)
 		} else {
 			// don't publish our addresses when we're only a collator
-			authority_discovery::Role::Discover
+			sc_authority_discovery::Role::Discover
 		};
 		let dht_event_stream = network.event_stream("authority-discovery")
 			.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = authority_discovery::new_worker_and_service(
+		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
+			authority_discovery_config.unwrap_or_default(),
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
@@ -900,30 +902,35 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }
