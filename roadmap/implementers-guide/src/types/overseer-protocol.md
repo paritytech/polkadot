@@ -409,7 +409,9 @@ enum RuntimeApiRequest {
 	SessionIndex(ResponseChannel<SessionIndex>),
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Get the persisted validation data at the state of a given block for a specific para,
+	/// Fetch the historical validation code used by a para for candidates executed in 
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// with the given occupied core assumption.
 	PersistedValidationData(
 		ParaId,
