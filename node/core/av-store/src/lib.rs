@@ -699,11 +699,11 @@ where
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
 			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
-					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk"));
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk"));
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk (Ok)"));
 				}
 			}
 		}
