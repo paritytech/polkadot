@@ -37,17 +37,15 @@ Storage Layout:
 ```rust
 /// The earliest session for which previous session info is stored.
 EarliestStoredSession: SessionIndex,
-/// Previous session information. Should have an entry from `EarliestStoredSession..CurrentSessionIndex`
-PrevSessions: map SessionIndex => Option<SessionInfo>,
-/// Current session info.
-CurrentSessionInfo: SessionInfo,
+/// Session information. Should have an entry from `EarliestStoredSession..=CurrentSessionIndex`
+Sessions: map SessionIndex => Option<SessionInfo>,
 ```
 
 ## Session Change
 
 1. Update the `CurrentSessionIndex`.
-1. Update `EarliestStoredSession` based on `config.dispute_period` and remove all entries from `PrevSessions` from the previous value up to the new value.
-1. Create a new entry in `PrevSessions` using the old value of `CurrentSessionInfo`, which should be replaced by updated information about the current session.
+1. Update `EarliestStoredSession` based on `config.dispute_period` and remove all entries from `Sessions` from the previous value up to the new value.
+1. Create a new entry in `Sessions` with information about the current session.
 
 ## Routines
 
