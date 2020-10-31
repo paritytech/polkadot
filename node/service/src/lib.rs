@@ -503,6 +503,7 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let (shared_voter_state, finality_proof_provider) = rpc_setup;
 
+	#[cfg(feature = "real-overseer")]
 	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
