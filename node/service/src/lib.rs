@@ -23,7 +23,7 @@ mod grandpa_support;
 mod client;
 
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
-#[cfg(all(feature = "full-node"))]
+#[cfg(feature = "full-node")]
 use {
 	std::convert::TryInto,
 	std::time::Duration,
