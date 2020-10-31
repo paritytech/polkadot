@@ -503,6 +503,8 @@ pub fn new_full<RuntimeApi, Executor>(
 
 	let (shared_voter_state, finality_proof_provider) = rpc_setup;
 
+	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
+
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,

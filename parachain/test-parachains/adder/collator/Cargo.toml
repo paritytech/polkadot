@@ -1,0 +1,29 @@
+[package]
+name = "test-parachain-adder-collator"
+version = "0.7.26"
+authors = ["Parity Technologies <admin@parity.io>"]
+description = "Collator for the adder test parachain"
+edition = "2018"
+
+[[bin]]
+name = "adder-collator"
+path = "src/main.rs"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
+futures = "0.3.4"
+log = "0.4.8"
+structopt = "0.3.8"
+
+test-parachain-adder = { path = ".." }
+polkadot-primitives = { path = "../../../../primitives" }
+polkadot-cli = { path = "../../../../cli" }
+polkadot-service = { path = "../../../../node/service" }
+polkadot-node-primitives = { path = "../../../../node/primitives" }
+polkadot-node-subsystem = { path = "../../../../node/subsystem" }
+
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+[dev-dependencies]
+polkadot-parachain = { path = "../../.." }

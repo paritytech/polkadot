@@ -86,6 +86,29 @@ use constants::{time::*, currency::*, fee::*};
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
+/// Runtime version (Rococo).
+pub const VERSION: RuntimeVersion = RuntimeVersion {
+	spec_name: create_runtime_str!("rococo"),
+	impl_name: create_runtime_str!("parity-rococo-v1"),
+	authoring_version: 0,
+	spec_version: 10,
+	impl_version: 0,
+	#[cfg(not(feature = "disable-runtime-api"))]
+	apis: RUNTIME_API_VERSIONS,
+	#[cfg(feature = "disable-runtime-api")]
+	apis: sp_version::create_apis_vec![[]],
+	transaction_version: 0,
+};
+
+/// Native version.
+#[cfg(any(feature = "std", test))]
+pub fn native_version() -> NativeVersion {
+	NativeVersion {
+		runtime_version: VERSION,
+		can_author_with: Default::default(),
+	}
+}
+
 /// The address format for describing accounts.
 pub type Address = AccountId;
 /// Block header type as expected by this runtime.
@@ -107,242 +130,6 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
-#[cfg(not(feature = "disable-runtime-api"))]
-sp_api::impl_runtime_apis! {
-	impl sp_api::Core<Block> for Runtime {
-		fn version() -> RuntimeVersion {
-			VERSION
-		}
-
-		fn execute_block(block: Block) {
-			Executive::execute_block(block)
-		}
-
-		fn initialize_block(header: &<Block as BlockT>::Header) {
-			Executive::initialize_block(header)
-		}
-	}
-
-	impl sp_api::Metadata<Block> for Runtime {
-		fn metadata() -> OpaqueMetadata {
-			Runtime::metadata().into()
-		}
-	}
-
-	impl block_builder_api::BlockBuilder<Block> for Runtime {
-		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
-			Executive::apply_extrinsic(extrinsic)
-		}
-
-		fn finalize_block() -> <Block as BlockT>::Header {
-			Executive::finalize_block()
-		}
-
-		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
-			data.create_extrinsics()
-		}
-
-		fn check_inherents(
-			block: Block,
-			data: inherents::InherentData,
-		) -> inherents::CheckInherentsResult {
-			data.check_extrinsics(&block)
-		}
-
-		fn random_seed() -> <Block as BlockT>::Hash {
-			Babe::randomness().into()
-		}
-	}
-
-	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
-		fn validate_transaction(
-			source: TransactionSource,
-			tx: <Block as BlockT>::Extrinsic,
-		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
-		}
-	}
-
-	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
-		fn offchain_worker(header: &<Block as BlockT>::Header) {
-			Executive::offchain_worker(header)
-		}
-	}
-
-	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
-		fn validators() -> Vec<ValidatorId> {
-			runtime_api_impl::validators::<Runtime>()
-		}
-
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
-			runtime_api_impl::validator_groups::<Runtime>()
-		}
-
-		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
-			runtime_api_impl::availability_cores::<Runtime>()
-		}
-
-		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationData<BlockNumber>> {
-			runtime_api_impl::full_validation_data::<Runtime>(para_id, assumption)
-		}
-
-		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<PersistedValidationData<BlockNumber>> {
-			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
-		}
-
-		fn check_validation_outputs(
-			para_id: Id,
-			outputs: primitives::v1::ValidationOutputs,
-		) -> bool {
-			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
-		}
-
-		fn session_index_for_child() -> SessionIndex {
-			runtime_api_impl::session_index_for_child::<Runtime>()
-		}
-
-		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
-			-> Option<ValidationCode> {
-			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
-		}
-
-		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
-			runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
-		}
-
-		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
-			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
-				match ev {
-					Event::parachains_inclusion(ev) => {
-						Some(ev)
-					}
-					_ => None,
-				}
-			})
-		}
-		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
-			runtime_api_impl::validator_discovery::<Runtime>(validators)
-		}
-
-		fn dmq_contents(
-			recipient: Id,
-		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
-			runtime_api_impl::dmq_contents::<Runtime>(recipient)
-		}
-	}
-
-	impl fg_primitives::GrandpaApi<Block> for Runtime {
-		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
-			Grandpa::grandpa_authorities()
-		}
-
-		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: fg_primitives::EquivocationProof<
-				<Block as BlockT>::Hash,
-				sp_runtime::traits::NumberFor<Block>,
-			>,
-			key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
-		) -> Option<()> {
-			let key_owner_proof = key_owner_proof.decode()?;
-
-			Grandpa::submit_unsigned_equivocation_report(
-				equivocation_proof,
-				key_owner_proof,
-			)
-		}
-
-		fn generate_key_ownership_proof(
-			_set_id: fg_primitives::SetId,
-			authority_id: fg_primitives::AuthorityId,
-		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
-
-			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
-				.map(|p| p.encode())
-				.map(fg_primitives::OpaqueKeyOwnershipProof::new)
-		}
-	}
-
-	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
-			// The choice of `c` parameter (where `1 - c` represents the
-			// probability of a slot being empty), is done in accordance to the
-			// slot duration and expected target block time, for safely
-			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeGenesisConfiguration {
-				slot_duration: Babe::slot_duration(),
-				epoch_length: EpochDuration::get(),
-				c: PRIMARY_PROBABILITY,
-				genesis_authorities: Babe::authorities(),
-				randomness: Babe::randomness(),
-				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
-			}
-		}
-
-		fn current_epoch_start() -> babe_primitives::SlotNumber {
-			Babe::current_epoch_start()
-		}
-
-		fn generate_key_ownership_proof(
-			_slot_number: babe_primitives::SlotNumber,
-			authority_id: babe_primitives::AuthorityId,
-		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
-			use codec::Encode;
-
-			Historical::prove((babe_primitives::KEY_TYPE, authority_id))
-				.map(|p| p.encode())
-				.map(babe_primitives::OpaqueKeyOwnershipProof::new)
-		}
-
-		fn submit_report_equivocation_unsigned_extrinsic(
-			equivocation_proof: babe_primitives::EquivocationProof<<Block as BlockT>::Header>,
-			key_owner_proof: babe_primitives::OpaqueKeyOwnershipProof,
-		) -> Option<()> {
-			let key_owner_proof = key_owner_proof.decode()?;
-
-			Babe::submit_unsigned_equivocation_report(
-				equivocation_proof,
-				key_owner_proof,
-			)
-		}
-	}
-
-	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
-		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			AuthorityDiscovery::authorities()
-		}
-	}
-
-	impl sp_session::SessionKeys<Block> for Runtime {
-		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			SessionKeys::generate(seed)
-		}
-
-		fn decode_session_keys(
-			encoded: Vec<u8>,
-		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
-			SessionKeys::decode_into_raw_public_keys(&encoded)
-		}
-	}
-
-	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
-		fn account_nonce(account: AccountId) -> Nonce {
-			System::account_nonce(account)
-		}
-	}
-
-	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
-		Block,
-		Balance,
-	> for Runtime {
-		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
-			TransactionPayment::query_info(uxt, len)
-		}
-	}
-}
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
 /// Extrinsic type that has already been checked.
@@ -400,6 +187,9 @@ construct_runtime! {
 
 		Registrar: paras_registrar::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
+
+		// Sudo
+		Sudo: pallet_sudo::{Module, Call, Storage, Event<T>, Config<T>},
 	}
 }
 
@@ -409,30 +199,6 @@ impl Filter<Call> for BaseFilter {
 		true
 	}
 }
-
-/// Runtime version (Rococo).
-pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("rococo-v1"),
-	impl_name: create_runtime_str!("parity-rococo-v1"),
-	authoring_version: 0,
-	spec_version: 1,
-	impl_version: 0,
-	#[cfg(not(feature = "disable-runtime-api"))]
-	apis: RUNTIME_API_VERSIONS,
-	#[cfg(feature = "disable-runtime-api")]
-	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 2,
-};
-
-/// Native version.
-#[cfg(any(feature = "std", test))]
-pub fn native_version() -> NativeVersion {
-	NativeVersion {
-		runtime_version: VERSION,
-		can_author_with: Default::default(),
-	}
-}
-
 
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
@@ -781,4 +547,244 @@ impl paras_registrar::Trait for Runtime {
 	type Currency = Balances;
 	type ParathreadDeposit = ParathreadDeposit;
 	type Origin = Origin;
+}
+
+impl pallet_sudo::Trait for Runtime {
+	type Event = Event;
+	type Call = Call;
+}
+
+#[cfg(not(feature = "disable-runtime-api"))]
+sp_api::impl_runtime_apis! {
+	impl sp_api::Core<Block> for Runtime {
+		fn version() -> RuntimeVersion {
+			VERSION
+		}
+
+		fn execute_block(block: Block) {
+			Executive::execute_block(block)
+		}
+
+		fn initialize_block(header: &<Block as BlockT>::Header) {
+			Executive::initialize_block(header)
+		}
+	}
+
+	impl sp_api::Metadata<Block> for Runtime {
+		fn metadata() -> OpaqueMetadata {
+			Runtime::metadata().into()
+		}
+	}
+
+	impl block_builder_api::BlockBuilder<Block> for Runtime {
+		fn apply_extrinsic(extrinsic: <Block as BlockT>::Extrinsic) -> ApplyExtrinsicResult {
+			Executive::apply_extrinsic(extrinsic)
+		}
+
+		fn finalize_block() -> <Block as BlockT>::Header {
+			Executive::finalize_block()
+		}
+
+		fn inherent_extrinsics(data: inherents::InherentData) -> Vec<<Block as BlockT>::Extrinsic> {
+			data.create_extrinsics()
+		}
+
+		fn check_inherents(
+			block: Block,
+			data: inherents::InherentData,
+		) -> inherents::CheckInherentsResult {
+			data.check_extrinsics(&block)
+		}
+
+		fn random_seed() -> <Block as BlockT>::Hash {
+			Babe::randomness().into()
+		}
+	}
+
+	impl tx_pool_api::runtime_api::TaggedTransactionQueue<Block> for Runtime {
+		fn validate_transaction(
+			source: TransactionSource,
+			tx: <Block as BlockT>::Extrinsic,
+		) -> TransactionValidity {
+			Executive::validate_transaction(source, tx)
+		}
+	}
+
+	impl offchain_primitives::OffchainWorkerApi<Block> for Runtime {
+		fn offchain_worker(header: &<Block as BlockT>::Header) {
+			Executive::offchain_worker(header)
+		}
+	}
+
+	impl primitives::v1::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+		fn validators() -> Vec<ValidatorId> {
+			runtime_api_impl::validators::<Runtime>()
+		}
+
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<BlockNumber>) {
+			runtime_api_impl::validator_groups::<Runtime>()
+		}
+
+		fn availability_cores() -> Vec<CoreState<BlockNumber>> {
+			runtime_api_impl::availability_cores::<Runtime>()
+		}
+
+		fn full_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationData<BlockNumber>> {
+			runtime_api_impl::full_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<PersistedValidationData<BlockNumber>> {
+			runtime_api_impl::persisted_validation_data::<Runtime>(para_id, assumption)
+		}
+
+		fn check_validation_outputs(
+			para_id: Id,
+			outputs: primitives::v1::ValidationOutputs,
+		) -> bool {
+			runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
+		}
+
+		fn session_index_for_child() -> SessionIndex {
+			runtime_api_impl::session_index_for_child::<Runtime>()
+		}
+
+		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode> {
+			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
+			runtime_api_impl::candidate_pending_availability::<Runtime>(para_id)
+		}
+
+		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
+			runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
+				match ev {
+					Event::parachains_inclusion(ev) => {
+						Some(ev)
+					}
+					_ => None,
+				}
+			})
+		}
+		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			runtime_api_impl::validator_discovery::<Runtime>(validators)
+		}
+
+		fn dmq_contents(recipient: Id) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+			runtime_api_impl::dmq_contents::<Runtime>(recipient)
+		}
+	}
+
+	impl fg_primitives::GrandpaApi<Block> for Runtime {
+		fn grandpa_authorities() -> Vec<(GrandpaId, u64)> {
+			Grandpa::grandpa_authorities()
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: fg_primitives::EquivocationProof<
+				<Block as BlockT>::Hash,
+				sp_runtime::traits::NumberFor<Block>,
+			>,
+			key_owner_proof: fg_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			Grandpa::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: fg_primitives::SetId,
+			authority_id: fg_primitives::AuthorityId,
+		) -> Option<fg_primitives::OpaqueKeyOwnershipProof> {
+			use codec::Encode;
+
+			Historical::prove((fg_primitives::KEY_TYPE, authority_id))
+				.map(|p| p.encode())
+				.map(fg_primitives::OpaqueKeyOwnershipProof::new)
+		}
+	}
+
+	impl babe_primitives::BabeApi<Block> for Runtime {
+		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
+			// The choice of `c` parameter (where `1 - c` represents the
+			// probability of a slot being empty), is done in accordance to the
+			// slot duration and expected target block time, for safely
+			// resisting network delays of maximum two seconds.
+			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
+			babe_primitives::BabeGenesisConfiguration {
+				slot_duration: Babe::slot_duration(),
+				epoch_length: EpochDuration::get(),
+				c: PRIMARY_PROBABILITY,
+				genesis_authorities: Babe::authorities(),
+				randomness: Babe::randomness(),
+				allowed_slots: babe_primitives::AllowedSlots::PrimaryAndSecondaryPlainSlots,
+			}
+		}
+
+		fn current_epoch_start() -> babe_primitives::SlotNumber {
+			Babe::current_epoch_start()
+		}
+
+		fn generate_key_ownership_proof(
+			_slot_number: babe_primitives::SlotNumber,
+			authority_id: babe_primitives::AuthorityId,
+		) -> Option<babe_primitives::OpaqueKeyOwnershipProof> {
+			use codec::Encode;
+
+			Historical::prove((babe_primitives::KEY_TYPE, authority_id))
+				.map(|p| p.encode())
+				.map(babe_primitives::OpaqueKeyOwnershipProof::new)
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: babe_primitives::EquivocationProof<<Block as BlockT>::Header>,
+			key_owner_proof: babe_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			Babe::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
+	}
+
+	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
+		fn authorities() -> Vec<AuthorityDiscoveryId> {
+			AuthorityDiscovery::authorities()
+		}
+	}
+
+	impl sp_session::SessionKeys<Block> for Runtime {
+		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
+			SessionKeys::generate(seed)
+		}
+
+		fn decode_session_keys(
+			encoded: Vec<u8>,
+		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
+			SessionKeys::decode_into_raw_public_keys(&encoded)
+		}
+	}
+
+	impl frame_system_rpc_runtime_api::AccountNonceApi<Block, AccountId, Nonce> for Runtime {
+		fn account_nonce(account: AccountId) -> Nonce {
+			System::account_nonce(account)
+		}
+	}
+
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
+		Block,
+		Balance,
+	> for Runtime {
+		fn query_info(uxt: <Block as BlockT>::Extrinsic, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_info(uxt, len)
+		}
+	}
 }

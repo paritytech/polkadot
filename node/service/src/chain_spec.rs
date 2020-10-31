@@ -768,6 +768,9 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			keys: vec![],
 		}),
 		pallet_staking: Some(Default::default()),
+		pallet_sudo: Some(rococo_runtime::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		}),
 	}
 }
 
@@ -1176,7 +1179,7 @@ pub fn westend_testnet_genesis(
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
-	_root_key: AccountId,
+	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> rococo_runtime::GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
@@ -1208,6 +1211,7 @@ pub fn rococo_testnet_genesis(
 			keys: vec![],
 		}),
 		pallet_staking: Some(Default::default()),
+		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
 	}
 }
 
