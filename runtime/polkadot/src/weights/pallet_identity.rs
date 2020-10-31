@@ -21,16 +21,11 @@
 // Executed Command:
 // ./target/release/polkadot
 // benchmark
-// --chain
-// polkadot-dev
-// --steps
-// 50
-// --repeat
-// 20
-// --pallet
-// pallet_identity
-// --extrinsic
-// *
+// --chain=polkadot-dev
+// --steps=50
+// --repeat=20
+// --pallet=pallet_identity
+// --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
 // --heap-pages=4096
