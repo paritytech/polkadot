@@ -482,7 +482,7 @@ impl Metrics {
 	fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {
-				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeded"]).inc(),
+				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeeded"]).inc(),
 				Err(()) => metrics.inherent_data_requests.with_label_values(&["failed"]).inc(),
 			}
 		}
@@ -498,7 +498,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_inherent_data_requests_total",
 						"Number of InherentData requests served by provisioner.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,

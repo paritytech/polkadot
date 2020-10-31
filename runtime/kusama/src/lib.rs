@@ -18,10 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
-use sp_core::u32_trait::{_1, _2, _3, _4, _5};
+use sp_core::u32_trait::{_1, _2, _3, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
@@ -30,8 +31,8 @@ use primitives::v1::{
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
-	impls::ToAuthor,
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::DealWithFees,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
@@ -55,7 +56,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter, InstanceFilter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter, InstanceFilter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -88,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2027,
+	spec_version: 2026,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -214,14 +215,6 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   // 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   // 1 part (20%) goes to the block author.
->;
-
 impl pallet_balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -237,8 +230,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -1133,6 +1125,12 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			Vec::new()
+		}
+
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
 		}
 	}

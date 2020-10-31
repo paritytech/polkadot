@@ -23,10 +23,11 @@ use primitives::v1::{
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
+	InboundDownwardMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
-use crate::{initializer, inclusion, scheduler, configuration, paras};
+use crate::{initializer, inclusion, scheduler, configuration, paras, router};
 
 /// Implementation for the `validators` function of the runtime API.
 pub fn validators<T: initializer::Trait>() -> Vec<ValidatorId> {
@@ -298,4 +299,11 @@ where
 		let validator_index = current_validators.iter().position(|v| v == id);
 		validator_index.and_then(|i| authorities.get(i).cloned())
 	}).collect()
+}
+
+/// Implementation for the `dmq_contents` function of the runtime API.
+pub fn dmq_contents<T: router::Trait>(
+	recipient: ParaId,
+) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	<router::Module<T>>::dmq_contents(recipient)
 }

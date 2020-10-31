@@ -134,13 +134,14 @@ fn westend_session_keys(
 
 fn rococo_session_keys(
 	babe: BabeId,
-	_grandpa: GrandpaId,
+	grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId,
 	authority_discovery: AuthorityDiscoveryId
 ) -> rococo_runtime::SessionKeys {
 	rococo_runtime::SessionKeys {
 		babe,
+		grandpa,
 		im_online,
 		parachain_validator,
 		authority_discovery,

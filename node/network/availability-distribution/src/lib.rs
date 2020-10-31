@@ -796,7 +796,7 @@ impl AvailabilityDistributionSubsystem {
 					{
 						warn!(
 							target: TARGET,
-							"Failed to handle incomming network messages: {:?}", e
+							"Failed to handle incoming network messages: {:?}", e
 						);
 					}
 				}
@@ -823,7 +823,6 @@ where
 		let future = self
 			.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("availability-distribution", e))
-			.map(|_| ())
 			.boxed();
 
 		SpawnedSubsystem {
@@ -1023,7 +1022,7 @@ where
             }
         )).await
         .map_err(|e| Error::StoreChunkSendQuery(e))?;
-    
+
     rx.await.map_err(|e| Error::StoreChunkResponseChannel(e))
 }
 

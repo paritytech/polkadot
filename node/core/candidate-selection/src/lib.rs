@@ -420,10 +420,10 @@ impl metrics::Metrics for Metrics {
 			seconds: prometheus::register(
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
-						"candidate_selection_invalid_selections_total",
-						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
+						"candidate_selection_seconds_total",
+						"Number of Candidate Selection subsystem seconding events.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -433,7 +433,7 @@ impl metrics::Metrics for Metrics {
 						"candidate_selection_invalid_selections_total",
 						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,
@@ -492,13 +492,14 @@ mod tests {
 			ValidationOutputs {
 				head_data: HeadData(head_data),
 				upward_messages: Vec::new(),
-				fees: 0,
 				new_validation_code: None,
+				processed_downward_messages: 0,
 			},
 			PersistedValidationData {
 				parent_head: HeadData(parent_head_data),
 				block_number: 123,
 				hrmp_mqc_heads: Vec::new(),
+				dmq_mqc_head: Default::default(),
 			},
 		)
 	}

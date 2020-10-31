@@ -132,6 +132,10 @@ pub enum SubsystemError {
 	#[error(transparent)]
 	Infallible(#[from] std::convert::Infallible),
 
+	/// Prometheus had a problem
+	#[error(transparent)]
+	Prometheus(#[from] substrate_prometheus_endpoint::PrometheusError),
+
 	/// An other error lacking particular type information.
 	#[error("Failed to {0}")]
 	Context(String),
@@ -160,7 +164,7 @@ pub struct SpawnedSubsystem {
 	/// Name of the subsystem being spawned.
 	pub name: &'static str,
 	/// The task of the subsystem being spawned.
-	pub future: BoxFuture<'static, ()>,
+	pub future: BoxFuture<'static, SubsystemResult<()>>,
 }
 
 /// A `Result` type that wraps [`SubsystemError`].
@@ -229,8 +233,8 @@ impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-					Err(_) => return,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Err(_) => return Ok(()),
 					_ => continue,
 				}
 			}

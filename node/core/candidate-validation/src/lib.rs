@@ -82,7 +82,7 @@ impl Metrics {
 					metrics.validation_requests.with_label_values(&["invalid"]).inc();
 				},
 				Err(_) => {
-					metrics.validation_requests.with_label_values(&["failed"]).inc();
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
 				},
 			}
 		}
@@ -98,7 +98,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_validation_requests_total",
 						"Number of validation requests served.",
 					),
-					&["valid", "invalid", "failed"],
+					&["validity"],
 				)?,
 				registry,
 			)?,
@@ -121,7 +121,6 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	fn start(self, ctx: C) -> SpawnedSubsystem {
 		let future = run(ctx, self.spawn, self.metrics)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "candidate-validation-subsystem",
@@ -286,9 +285,9 @@ async fn find_assumed_validation_data(
 	const ASSUMPTIONS: &[OccupiedCoreAssumption] = &[
 		OccupiedCoreAssumption::Included,
 		OccupiedCoreAssumption::TimedOut,
-		// TODO: Why don't we check `Free`? The guide assumes there are only two possible assumptions.
-		//
-		// Source that info and leave a comment here.
+		// `TimedOut` and `Free` both don't perform any speculation and therefore should be the same
+		// for our purposes here. In other words, if `TimedOut` matched then the `Free` must be
+		// matched as well.
 	];
 
 	// Consider running these checks in parallel to reduce validation latency.
@@ -468,6 +467,7 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 		parent_head: persisted_validation_data.parent_head.clone(),
 		block_data: pov.block_data.clone(),
 		relay_chain_height: persisted_validation_data.block_number,
+		dmq_mqc_head: persisted_validation_data.dmq_mqc_head,
 		hrmp_mqc_heads: persisted_validation_data.hrmp_mqc_heads.clone(),
 	};
 
@@ -489,8 +489,8 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			let outputs = ValidationOutputs {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
-				fees: 0,
 				new_validation_code: res.new_validation_code,
+				processed_downward_messages: res.processed_downward_messages,
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
@@ -848,7 +848,6 @@ mod tests {
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
 			assert_eq!(outputs.upward_messages, Vec::new());
-			assert_eq!(outputs.fees, 0);
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
 			assert_eq!(used_validation_data, validation_data);
 		});
