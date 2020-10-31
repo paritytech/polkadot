@@ -99,14 +99,16 @@ env_logger = "0.8.1"
 [features]
 default = ["db", "full-node"]
 db = ["service/db"]
-runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
 full-node = [
+	"polkadot-node-core-av-store",
+]
+runtime-benchmarks = ["polkadot-runtime/runtime-benchmarks", "kusama-runtime/runtime-benchmarks", "westend-runtime/runtime-benchmarks"]
+real-overseer = [
 	"polkadot-availability-bitfield-distribution",
 	"polkadot-availability-distribution",
 	"polkadot-collator-protocol",
 	"polkadot-network-bridge",
 	"polkadot-node-collation-generation",
-	"polkadot-node-core-av-store",
 	"polkadot-node-core-backing",
 	"polkadot-node-core-bitfield-signing",
 	"polkadot-node-core-candidate-selection",
