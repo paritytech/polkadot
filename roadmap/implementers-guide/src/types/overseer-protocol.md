@@ -10,6 +10,8 @@ Signals from the overseer to a subsystem to request change in execution that has
 enum OverseerSignal {
   /// Signal about a change in active leaves.
   ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Signal about a new best finalized block.
+  BlockFinalized(Hash),
   /// Conclude all operation.
   Conclude,
 }
@@ -33,6 +35,63 @@ struct ActiveLeavesUpdate {
 }
 ```
 
+## Approval Voting
+
+Messages received by the approval voting subsystem.
+
+```rust
+enum VoteCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+	// We do not have enough information to evaluate the vote. Ignore but don't report.
+	// This should occur primarily on startup.
+	Ignore,
+}
+
+enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		Hash, 
+		AssignmentCert, 
+		ValidatorIndex,
+		ResponseChannel<VoteCheckResult>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		ResponseChannel<VoteCheckResult>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for. 
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	/// 
+	/// It can also return the same block hash, if that is acceptable to vote upon. 
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+}
+```
+
+## Approval Networking
+
+Messages received by the approval networking subsystem.
+
+```rust
+enum ApprovalNetworkingMessage {
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid for the given relay-parent and validator index.
+	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
+	/// Distribute an approval vote for the local validator.
+	DistributeApproval(IndirectApprovalVote),
+}
+```
+
 ## All Messages
 
 > TODO (now)
@@ -52,6 +111,21 @@ enum AvailabilityDistributionMessage {
 	/// Event from the network.
 	/// An update on network state from the network bridge.
 	NetworkBridgeUpdateV1(NetworkBridgeEvent<AvailabilityDistributionV1Message>),
+}
+```
+
+## Availability Recovery Message
+
+Messages received by the availability recovery subsystem.
+
+```rust
+enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateDescriptor, 
+		SessionIndex, 
+		ResponseChannel<Option<AvailableData>>,
+	),
 }
 ```
 

@@ -56,7 +56,6 @@ All failed checks should lead to an unrecoverable error making the block invalid
   1. apply each bit of bitfield to the corresponding pending candidate. looking up parathread cores using the `core_lookup`. Disregard bitfields that have a `1` bit for any free cores.
   1. For each applied bit of each availability-bitfield, set the bit for the validator in the `CandidatePendingAvailability`'s `availability_votes` bitfield. Track all candidates that now have >2/3 of bits set in their `availability_votes`. These candidates are now available and can be enacted.
   1. For all now-available candidates, invoke the `enact_candidate` routine with the candidate and relay-parent number.
-  1. > TODO: pass it onwards to `Validity` module.
   1. Return a list of freed cores consisting of the cores where candidates have become available.
 * `process_candidates(BackedCandidates, scheduled: Vec<CoreAssignment>, group_validators: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>)`:
   1. check that each candidate corresponds to a scheduled core and that they are ordered in the same order the cores appear in assignments in `scheduled`.
