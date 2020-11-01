@@ -58,7 +58,7 @@ impl HeadData {
 }
 
 /// Block data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
+#[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct BlockData {
 	/// State to begin from.
 	pub state: u64,
