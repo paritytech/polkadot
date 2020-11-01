@@ -500,7 +500,7 @@ async fn send_message<M, I>(
 					.clone()
 			};
 
-			Ok(NetworkAction::WriteNotification(peer, dbg!(peer_set), message))
+			Ok(NetworkAction::WriteNotification(peer, peer_set, message))
 		})
 	});
 
@@ -615,9 +615,9 @@ where
 
 			Action::SendCollationMessage(peers, msg) => send_message(
 					&mut network_service,
-					dbg!(peers),
+					peers,
 					PeerSet::Collation,
-					dbg!(WireMessage::ProtocolMessage(msg)),
+					WireMessage::ProtocolMessage(msg),
 			).await?,
 
 			Action::ConnectToValidators {
