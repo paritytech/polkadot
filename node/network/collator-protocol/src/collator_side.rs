@@ -597,7 +597,6 @@ where
 			// it should be handled here.
 		}
 		PeerViewChange(peer_id, view) => {
-			println!("PEERVIEWCHANGE: {:?} {:?}", peer_id, view);
 			handle_peer_view_change(ctx, state, peer_id, view).await?;
 		}
 		PeerDisconnected(peer_id) => {
