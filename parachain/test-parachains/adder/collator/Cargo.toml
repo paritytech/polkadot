@@ -28,3 +28,6 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
+
+[features]
+real-overseer = [ "polkadot-service/real-overseer" ]
