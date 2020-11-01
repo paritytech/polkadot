@@ -337,13 +337,19 @@ impl CandidateBackingJob {
 		let issued_statement = statement.is_some();
 
 		if let Some(statement) = statement {
-			if let Some(signed_statement) = self.sign_statement(statement).await {
-				self.import_statement(&signed_statement).await?;
-				self.distribute_signed_statement(signed_statement).await?;
-			}
+			self.sign_import_and_distribute_statement(statement).await?
 		}
 
 		Ok(issued_statement)
+	}
+
+	async fn sign_import_and_distribute_statement(&mut self, statement: Statement) -> Result<(), Error> {
+		if let Some(signed_statement) = self.sign_statement(statement).await {
+			self.import_statement(&signed_statement).await?;
+			self.distribute_signed_statement(signed_statement).await?;
+		}
+
+		Ok(())
 	}
 
 	fn get_backed(&self) -> Vec<NewBackedCandidate> {
@@ -354,9 +360,9 @@ impl CandidateBackingJob {
 			let TableAttestedCandidate { candidate, validity_votes, .. } = p;
 
 			let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
-						.into_iter()
-						.map(|(id, vote)| (id, vote.into()))
-						.unzip();
+				.into_iter()
+				.map(|(id, vote)| (id, vote.into()))
+				.unzip();
 
 			let group = match self.table_context.groups.get(&self.assignment) {
 				Some(group) => group,
@@ -428,9 +434,13 @@ impl CandidateBackingJob {
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
 
+		if let Some(summary) = summary.is_includeable {
+			self.send_to_provisioner(ProvisionableData::BackedCandidate())
+		}
+
 		self.issue_new_misbehaviors().await?;
 
-		return Ok(summary);
+		Ok(summary)
 	}
 
 	async fn process_msg(&mut self, msg: CandidateBackingMessage) -> Result<(), Error> {
@@ -444,23 +454,19 @@ impl CandidateBackingJob {
 				// If the message is a `CandidateBackingMessage::Second`, sign and dispatch a
 				// Seconded statement only if we have not seconded any other candidate and
 				// have not signed a Valid statement for the requested candidate.
-				match self.seconded {
+				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
-					None => {
-						let candidate_hash = candidate.hash();
+					let candidate_hash = candidate.hash();
 
-						if !self.issued_statements.contains(&candidate_hash) {
-							if let Ok(true) = self.validate_and_second(
-								&candidate,
-								pov,
-							).await {
-								self.metrics.on_candidate_seconded();
-								self.seconded = Some(candidate_hash);
-							}
+					if !self.issued_statements.contains(&candidate_hash) {
+						if let Ok(true) = self.validate_and_second(
+							&candidate,
+							pov,
+						).await {
+							self.metrics.on_candidate_seconded();
+							self.seconded = Some(candidate_hash);
 						}
 					}
-					// This job has already seconded a candidate.
-					Some(_) => {}
 				}
 			}
 			CandidateBackingMessage::Statement(_, statement) => {
@@ -541,11 +547,7 @@ impl CandidateBackingJob {
 
 		self.issued_statements.insert(candidate_hash);
 
-		if let Some(signed_statement) = self.sign_statement(statement).await {
-			self.distribute_signed_statement(signed_statement).await?;
-		}
-
-		Ok(())
+		self.sign_import_and_distribute_statement(statement).await
 	}
 
 	/// Import the statement and kick off validation work if it is a part of our assignment.
@@ -1225,12 +1227,20 @@ mod tests {
 			let candidate_a_hash = candidate_a.hash();
 			let public0 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
-				ValidatorId::ID, Some(&test_state.validators[0].to_seed())
+				ValidatorId::ID,
+				Some(&test_state.validators[0].to_seed()),
+			).await.expect("Insert key into keystore");
+			let public1 = CryptoStore::sr25519_generate_new(
+				&*test_state.keystore,
+				ValidatorId::ID,
+				Some(&test_state.validators[1].to_seed()),
 			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
-				ValidatorId::ID, Some(&test_state.validators[2].to_seed())
+				ValidatorId::ID,
+				Some(&test_state.validators[2].to_seed()),
 			).await.expect("Insert key into keystore");
+
 			let signed_a = SignedFullStatement::sign(
 				&test_state.keystore,
 				Statement::Seconded(candidate_a.clone()),
@@ -1243,8 +1253,8 @@ mod tests {
 				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
-				0,
-				&public0.into(),
+				1,
+				&public1.into(),
 			).await.expect("should be signed");
 
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_a.clone());
@@ -1301,28 +1311,37 @@ mod tests {
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
-			let (tx, rx) = oneshot::channel();
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::StatementDistribution(
+					StatementDistributionMessage::Share(hash, stmt)
+				) => {
+					assert_eq!(test_state.relay_parent, hash);
+					stmt.check_signature(&test_state.signing_context, &public0.into()).expect("Is signed correctly");
+				}
+			);
 
-			// The backed candidats set should be not empty at this point.
-			virtual_overseer.send(FromOverseer::Communication{
-				msg: CandidateBackingMessage::GetBackedCandidates(
-					test_state.relay_parent,
-					tx,
-				)
-			}).await;
-
-			let backed = rx.await.unwrap();
-
-			// `validity_votes` may be in any order so we can't do this in a single assert.
-			assert_eq!(backed[0].0.candidate, candidate_a);
-			assert_eq!(backed[0].0.validity_votes.len(), 2);
-			assert!(backed[0].0.validity_votes.contains(
-				&ValidityAttestation::Explicit(signed_b.signature().clone())
-			));
-			assert!(backed[0].0.validity_votes.contains(
-				&ValidityAttestation::Implicit(signed_a.signature().clone())
-			));
-			assert_eq!(backed[0].0.validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0]);
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						ProvisionableData::BackedCandidate(BackedCandidate {
+							candidate,
+							validity_votes,
+							validator_indices,
+						})
+					)
+				) if candidate == candidate_a => {
+					assert_eq!(validity_votes.len(), 2);
+					assert!(validity_votes.contains(
+						&ValidityAttestation::Explicit(signed_b.signature().clone())
+					));
+					assert!(validity_votes.contains(
+						&ValidityAttestation::Implicit(signed_a.signature().clone())
+					));
+					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0]);
+				}
+			);
 
 			virtual_overseer.send(FromOverseer::Signal(
 				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(test_state.relay_parent)))

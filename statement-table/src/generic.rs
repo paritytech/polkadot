@@ -169,6 +169,9 @@ pub struct Summary<D, G> {
 	pub validity_votes: usize,
 	/// Whether this has been signalled bad by at least one participant.
 	pub signalled_bad: bool,
+	/// Whether this is includable.
+	pub is_includable: bool,
+
 }
 
 /// A validity attestation.
@@ -260,12 +263,13 @@ impl<C: Context> CandidateData<C> {
 			&& self.validity_votes.len() >= validity_threshold
 	}
 
-	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
+	fn summary(&self, digest: C::Digest, is_includable: bool) -> Summary<C::Digest, C::GroupId> {
 		Summary {
 			candidate: digest,
 			group_id: self.group_id.clone(),
 			validity_votes: self.validity_votes.len() - self.indicated_bad_by.len(),
 			signalled_bad: self.indicated_bad(),
+			is_includable,
 		}
 	}
 }
@@ -352,6 +356,17 @@ impl<C: Context> Table<C> {
 						therefore an attestation can be constructed; qed")
 			)
 			.collect::<Vec<_>>()
+	}
+
+	/// Get the attested candidate for `digest`.
+	///
+	/// Returns `Some(_)` if the candidate exists and is includable.
+	pub fn attested_candidate(
+		&self,
+		context: &C,
+		digest: &C::Digest,
+	) -> Option<AttestedCandidate<C::GroupId, C::Candidate, C::AuthorityId, C::Signature>> {
+		self.candidate_votes.get(digest).and_then(|v| v.attested(context.requisite_votes(&v.group_id)))
 	}
 
 	/// Whether a candidate can be included.
@@ -489,7 +504,7 @@ impl<C: Context> Table<C> {
 		if new_proposal {
 			self.candidate_votes.entry(digest.clone()).or_insert_with(move || CandidateData {
 				group_id: group,
-				candidate: candidate,
+				candidate,
 				validity_votes: HashMap::new(),
 				indicated_bad_by: Vec::new(),
 			});
@@ -591,11 +606,16 @@ impl<C: Context> Table<C> {
 		let is_includable = votes.can_be_included(v_threshold);
 		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
 
-		Ok(Some(votes.summary(digest)))
+		Ok(Some(votes.summary(digest, is_includable)))
 	}
 }
 
-fn update_includable_count<G: Hash + Eq + Clone>(map: &mut HashMap<G, usize>, group_id: &G, was_includable: bool, is_includable: bool) {
+fn update_includable_count<G: Hash + Eq + Clone>(
+	map: &mut HashMap<G, usize>,
+	group_id: &G,
+	was_includable: bool,
+	is_includable: bool,
+) {
 	if was_includable && !is_includable {
 		if let Entry::Occupied(mut entry) = map.entry(group_id.clone()) {
 			*entry.get_mut() -= 1;
