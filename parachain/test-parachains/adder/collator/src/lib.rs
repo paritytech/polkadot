@@ -107,9 +107,9 @@ impl Collator {
 			let (block_data, head_data) = state.lock().unwrap().advance(parent);
 
 			log::info!(
-				"created a new collation on relay-parent {} ({})",
-				validation_data.persisted.block_number,
+				"created a new collation on relay-parent({}): {:?}",
 				relay_parent,
+				block_data,
 			);
 
 			let collation = Collation {
