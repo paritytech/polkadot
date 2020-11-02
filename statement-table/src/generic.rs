@@ -169,9 +169,6 @@ pub struct Summary<D, G> {
 	pub validity_votes: usize,
 	/// Whether this has been signalled bad by at least one participant.
 	pub signalled_bad: bool,
-	/// Whether this is includable.
-	pub is_includable: bool,
-
 }
 
 /// A validity attestation.
@@ -263,13 +260,12 @@ impl<C: Context> CandidateData<C> {
 			&& self.validity_votes.len() >= validity_threshold
 	}
 
-	fn summary(&self, digest: C::Digest, is_includable: bool) -> Summary<C::Digest, C::GroupId> {
+	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
 		Summary {
 			candidate: digest,
 			group_id: self.group_id.clone(),
 			validity_votes: self.validity_votes.len() - self.indicated_bad_by.len(),
 			signalled_bad: self.indicated_bad(),
-			is_includable,
 		}
 	}
 }
@@ -358,17 +354,6 @@ impl<C: Context> Table<C> {
 			.collect::<Vec<_>>()
 	}
 
-	/// Get the attested candidate for `digest`.
-	///
-	/// Returns `Some(_)` if the candidate exists and is includable.
-	pub fn attested_candidate(
-		&self,
-		context: &C,
-		digest: &C::Digest,
-	) -> Option<AttestedCandidate<C::GroupId, C::Candidate, C::AuthorityId, C::Signature>> {
-		self.candidate_votes.get(digest).and_then(|v| v.attested(context.requisite_votes(&v.group_id)))
-	}
-
 	/// Whether a candidate can be included.
 	pub fn candidate_includable(&self, digest: &C::Digest, context: &C) -> bool {
 		self.candidate_votes.get(digest).map_or(false, |data| {
@@ -377,7 +362,9 @@ impl<C: Context> Table<C> {
 		})
 	}
 
-	/// Get an `Attested` version of the candidate, if it's includable.
+	/// Get the attested candidate for `digest`.
+	///
+	/// Returns `Some(_)` if the candidate exists and is includable.
 	pub fn attested_candidate(&self, digest: &C::Digest, context: &C)
 		-> Option<AttestedCandidate<
 			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
@@ -608,7 +595,7 @@ impl<C: Context> Table<C> {
 			}
 			Entry::Vacant(vacant) => {
 				if let ValidityVote::Invalid(_) = vote {
-					votes.indicated_bad_by.push(from);
+					votes.indicated_bad_by.push(from.clone());
 				}
 
 				vacant.insert(vote);
@@ -618,7 +605,7 @@ impl<C: Context> Table<C> {
 		let is_includable = votes.can_be_included(v_threshold);
 		update_includable_count(&mut self.includable_count, &votes.group_id, was_includable, is_includable);
 
-		Ok(Some(votes.summary(digest, is_includable)))
+		Ok(Some(votes.summary(digest)))
 	}
 }
 

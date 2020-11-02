@@ -963,6 +963,7 @@ mod tests {
 				Sr25519Keyring::Charlie,
 				Sr25519Keyring::Dave,
 				Sr25519Keyring::Ferdie,
+				Sr25519Keyring::One,
 			];
 
 			let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
@@ -972,7 +973,7 @@ mod tests {
 
 			let validator_public = validator_pubkeys(&validators);
 
-			let validator_groups = vec![vec![2, 0, 3], vec![1], vec![4]];
+			let validator_groups = vec![vec![2, 0, 3, 5], vec![1], vec![4]];
 			let group_rotation_info = GroupRotationInfo {
 				session_start_block: 0,
 				group_rotation_frequency: 100,
@@ -1264,7 +1265,7 @@ mod tests {
 			let public1 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
 				ValidatorId::ID,
-				Some(&test_state.validators[1].to_seed()),
+				Some(&test_state.validators[5].to_seed()),
 			).await.expect("Insert key into keystore");
 			let public2 = CryptoStore::sr25519_generate_new(
 				&*test_state.keystore,
@@ -1284,7 +1285,7 @@ mod tests {
 				&test_state.keystore,
 				Statement::Valid(candidate_a_hash),
 				&test_state.signing_context,
-				1,
+				5,
 				&public1.into(),
 			).await.expect("should be signed");
 
@@ -1363,14 +1364,15 @@ mod tests {
 						})
 					)
 				) if candidate == candidate_a => {
-					assert_eq!(validity_votes.len(), 2);
+					assert_eq!(validity_votes.len(), 3);
+
 					assert!(validity_votes.contains(
 						&ValidityAttestation::Explicit(signed_b.signature().clone())
 					));
 					assert!(validity_votes.contains(
 						&ValidityAttestation::Implicit(signed_a.signature().clone())
 					));
-					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0]);
+					assert_eq!(validator_indices, bitvec::bitvec![Lsb0, u8; 1, 1, 0, 1]);
 				}
 			);
 
@@ -1426,10 +1428,10 @@ mod tests {
 
 			let signed_b = SignedFullStatement::sign(
 				&test_state.keystore,
-				Statement::Valid(candidate_a_hash),
+				Statement::Invalid(candidate_a_hash),
 				&test_state.signing_context,
-				0,
-				&public0.into(),
+				2,
+				&public2.into(),
 			).await.expect("should be signed");
 
 			let signed_c = SignedFullStatement::sign(
@@ -1499,10 +1501,36 @@ mod tests {
 				}
 			);
 
+			// This `Invalid` statement contradicts the `Candidate` statement
+			// sent at first.
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_b.clone());
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
 
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::Provisioner(
+					ProvisionerMessage::ProvisionableData(
+						ProvisionableData::MisbehaviorReport(
+							relay_parent,
+							MisbehaviorReport::SelfContradiction(_, s1, s2),
+						)
+					)
+				) if relay_parent == test_state.relay_parent => {
+					s1.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[s1.validator_index() as usize],
+					).unwrap();
+
+					s2.check_signature(
+						&test_state.signing_context,
+						&test_state.validator_public[s2.validator_index() as usize],
+					).unwrap();
+				}
+			);
+
+			// This `Invalid` statement contradicts the `Valid` statement the subsystem
+			// should have issued behind the scenes.
 			let statement = CandidateBackingMessage::Statement(test_state.relay_parent, signed_c.clone());
 
 			virtual_overseer.send(FromOverseer::Communication{ msg: statement }).await;
