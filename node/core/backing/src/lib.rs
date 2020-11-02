@@ -455,6 +455,8 @@ impl CandidateBackingJob {
 				&summary.candidate,
 				&self.table_context,
 			) {
+				// `HashSet::insert` returns true if the thing wasn't in there already.
+				// one of the few places the Rust-std folks did a bad job with API
 				if self.backed.insert(summary.candidate) {
 					if let Some(backed) =
 						table_attested_to_backed(attested, &self.table_context)
