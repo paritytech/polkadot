@@ -104,6 +104,9 @@ struct CandidateBackingJob {
 	issued_statements: HashSet<Hash>,
 	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
 	seconded: Option<Hash>,
+	/// The candidates that are includable, by hash. Each entry here indicates
+	/// that we've sent the provisioner the backed candidate.
+	backed: HashSet<Hash>,
 	/// We have already reported misbehaviors for these validators.
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	keystore: SyncCryptoStorePtr,
@@ -242,6 +245,44 @@ fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement
 	}
 }
 
+fn table_attested_to_backed(
+	attested: TableAttestedCandidate<
+		ParaId,
+		CommittedCandidateReceipt,
+		ValidatorIndex,
+		ValidatorSignature,
+	>,
+	table_context: &TableContext,
+) -> Option<BackedCandidate> {
+	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
+
+	let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
+				.into_iter()
+				.map(|(id, vote)| (id, vote.into()))
+				.unzip();
+
+	let group = match table_context.groups.get(&para_id) {
+		Some(group) => group,
+		None => return None,
+	};
+
+	let mut validator_indices = BitVec::with_capacity(group.len());
+
+	validator_indices.resize(group.len(), false);
+
+	for id in ids.iter() {
+		if let Some(position) = group.iter().position(|x| x == id) {
+			validator_indices.set(position, true);
+		}
+	}
+
+	Some(BackedCandidate {
+		candidate,
+		validity_votes,
+		validator_indices,
+	})
+}
+
 impl CandidateBackingJob {
 	/// Run asynchronously.
 	async fn run_loop(mut self) -> Result<(), Error> {
@@ -357,35 +398,10 @@ impl CandidateBackingJob {
 		let mut res = Vec::with_capacity(proposed.len());
 
 		for p in proposed.into_iter() {
-			let TableAttestedCandidate { candidate, validity_votes, .. } = p;
-
-			let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
-				.into_iter()
-				.map(|(id, vote)| (id, vote.into()))
-				.unzip();
-
-			let group = match self.table_context.groups.get(&self.assignment) {
-				Some(group) => group,
+			match table_attested_to_backed(p, &self.table_context) {
 				None => continue,
-			};
-
-			let mut validator_indices = BitVec::with_capacity(group.len());
-
-			validator_indices.resize(group.len(), false);
-
-			for id in ids.iter() {
-				if let Some(position) = group.iter().position(|x| x == id) {
-					validator_indices.set(position, true);
-				}
+				Some(backed) => res.push(NewBackedCandidate(backed)),
 			}
-
-			let backed = BackedCandidate {
-				candidate,
-				validity_votes,
-				validator_indices,
-			};
-
-			res.push(NewBackedCandidate(backed.clone()));
 		}
 
 		res
@@ -434,8 +450,22 @@ impl CandidateBackingJob {
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
 
-		if let Some(summary) = summary.is_includeable {
-			self.send_to_provisioner(ProvisionableData::BackedCandidate())
+		if let Some(ref summary) = summary {
+			if let Some(attested) = self.table.attested_candidate(
+				&summary.candidate,
+				&self.table_context,
+			) {
+				if self.backed.insert(summary.candidate) {
+					if let Some(backed) =
+						table_attested_to_backed(attested, &self.table_context)
+					{
+						let message = ProvisionerMessage::ProvisionableData(
+							ProvisionableData::BackedCandidate(backed),
+						);
+						self.send_to_provisioner(message).await?;
+					}
+				}
+			}
 		}
 
 		self.issue_new_misbehaviors().await?;
@@ -820,6 +850,7 @@ impl util::JobTrait for CandidateBackingJob {
 				required_collator,
 				issued_statements: HashSet::new(),
 				seconded: None,
+				backed: HashSet::new(),
 				reported_misbehavior_for: HashSet::new(),
 				keystore,
 				table: Table::default(),

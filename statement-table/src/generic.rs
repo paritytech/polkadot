@@ -377,6 +377,18 @@ impl<C: Context> Table<C> {
 		})
 	}
 
+	/// Get an `Attested` version of the candidate, if it's includable.
+	pub fn attested_candidate(&self, digest: &C::Digest, context: &C)
+		-> Option<AttestedCandidate<
+			C::GroupId, C::Candidate, C::AuthorityId, C::Signature,
+		>>
+	{
+		self.candidate_votes.get(digest).and_then(|data| {
+			let v_threshold = context.requisite_votes(&data.group_id);
+			data.attested(v_threshold)
+		})
+	}
+
 	/// Import a signed statement. Signatures should be checked for validity, and the
 	/// sender should be checked to actually be an authority.
 	///
