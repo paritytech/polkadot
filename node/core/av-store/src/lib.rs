@@ -57,19 +57,34 @@ mod columns {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	RuntimeAPI(#[from] RuntimeApiError),
-	#[error(transparent)]
 	ChainAPI(#[from] ChainApiError),
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
 	#[error(transparent)]
 	Io(#[from] io::Error),
 	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
+	ChainApiChannelIsClosed(#[from] oneshot::Canceled),
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+}
+
+/// Class of errors which we should handle more gracefully.
+/// An occurrence of this error should not bring down the subsystem.
+#[derive(Debug, Error)]
+enum NonFatalError {
+	/// A Runtime API error occurred.
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	/// The receiver's end of the channel is closed.
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+
+	/// Overseer channel's buffer is full.
+	#[error(transparent)]
+	OverseerOutOfCapacity(#[from] SubsystemError),
 }
 
 /// A wrapper type for delays.
@@ -582,7 +597,13 @@ async fn process_block_activated<Context>(
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
-	let events = request_candidate_events(ctx, hash).await?;
+	let events = match request_candidate_events(ctx, hash).await {
+		Ok(events) => events,
+		Err(err) => {
+			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			return Ok(());
+		}
+	};
 
 	log::trace!(target: LOG_TARGET, "block activated {}", hash);
 	let mut included = HashSet::new();
@@ -626,7 +647,7 @@ where
 async fn request_candidate_events<Context>(
 	ctx: &mut Context,
 	hash: Hash,
-) -> Result<Vec<CandidateEvent>, Error>
+) -> Result<Vec<CandidateEvent>, NonFatalError>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
@@ -651,44 +672,49 @@ where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
 	use AvailabilityStoreMessage::*;
+
+	fn log_send_error(request: &'static str) {
+		log::debug!(target: LOG_TARGET, "error sending a response to {}", request);
+	}
+
 	match msg {
 		QueryAvailableData(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryAvailableData"));
 		}
 		QueryDataAvailability(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryDataAvailability"));
 		}
 		QueryChunk(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?)
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunk"));
 		}
 		QueryChunkAvailability(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunkAvailability"));
 		}
 		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
 			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk (Ok)"));
 				}
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
 			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Ok)"));
 				}
 			}
 		}

@@ -187,8 +187,7 @@ impl CandidateSelectionJob {
 					para_id,
 					collator_id,
 				)) => {
-					self.handle_collation(relay_parent, para_id, collator_id)
-						.await;
+					self.handle_collation(relay_parent, para_id, collator_id).await;
 				}
 				ToJob::CandidateSelection(CandidateSelectionMessage::Invalid(
 					_,

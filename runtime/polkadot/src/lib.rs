@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
 	impls::DealWithFees,
@@ -242,8 +243,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees<Runtime>;
+	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
