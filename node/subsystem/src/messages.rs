@@ -37,7 +37,7 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, ValidationData,
-	ValidatorIndex, ValidatorSignature,
+	ValidatorIndex, ValidatorSignature, InboundDownwardMessage,
 };
 use std::sync::Arc;
 
@@ -419,7 +419,11 @@ pub enum RuntimeApiRequest {
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
+	ValidationCode(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
@@ -429,7 +433,15 @@ pub enum RuntimeApiRequest {
 	/// Currently this request is limited to validators in the current session.
 	///
 	/// Returns `None` for validators not found in the current session.
-	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>),
+	ValidatorDiscovery(
+		Vec<ValidatorId>,
+		RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>,
+	),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(
+		ParaId,
+		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.

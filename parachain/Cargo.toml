@@ -15,9 +15,10 @@ sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
+derive_more = { version = "0.99.11" }
 
 # all optional crates.
-derive_more = { version = "0.99.11", optional = true }
+thiserror = { version = "1.0.21", optional = true }
 serde = { version = "1.0.102", default-features = false, features = [ "derive" ], optional = true }
 sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -34,7 +35,7 @@ default = ["std"]
 wasm-api = []
 std = [
 	"codec/std",
-	"derive_more",
+	"thiserror",
 	"serde/std",
 	"sp-std/std",
 	"sp-runtime/std",

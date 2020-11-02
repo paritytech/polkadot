@@ -52,7 +52,7 @@ const COST_REPORT_BAD: Rep = Rep::new(-50, "A collator was reported by another s
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by another subsystem");
 
 #[derive(Clone, Default)]
-pub(super) struct Metrics(Option<MetricsInner>);
+pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
@@ -81,7 +81,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_collation_requests_total",
 						"Number of collations requested from Collators.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?

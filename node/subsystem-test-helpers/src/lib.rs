@@ -303,11 +303,11 @@ impl<C: SubsystemContext<Message = Msg>, Msg: Send + 'static> Subsystem<C> for F
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Ok(FromOverseer::Communication { msg }) => {
 						let _ = self.0.send(msg).await;
 					},
-					Err(_) => return,
+					Err(_) => return Ok(()),
 					_ => (),
 				}
 			}

@@ -1,5 +1,5 @@
 [package]
-name = "rococo-v1-runtime"
+name = "rococo-runtime"
 version = "0.8.26"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
@@ -29,6 +29,7 @@ offchain-primitives = { package = "sp-offchain", git = "https://github.com/parit
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -68,6 +69,7 @@ std = [
 	"codec/std",
 	"frame-executive/std",
 	"pallet-grandpa/std",
+	"pallet-sudo/std",
 	"pallet-indices/std",
 	"pallet-im-online/std",
 	"inherents/std",

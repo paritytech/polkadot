@@ -18,8 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use codec::{Encode, Decode};
 use primitives::v1::{
@@ -85,7 +86,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 47,
+	spec_version: 46,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -220,8 +221,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = ToAuthor<Runtime>;
+	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -846,6 +846,12 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
+			Vec::new()
+		}
+
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
 		}
 	}

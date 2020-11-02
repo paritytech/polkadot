@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use codec::{Encode, Decode};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
+use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt, TryFutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -57,19 +57,34 @@ mod columns {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	RuntimeAPI(#[from] RuntimeApiError),
-	#[error(transparent)]
 	ChainAPI(#[from] ChainApiError),
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
 	#[error(transparent)]
 	Io(#[from] io::Error),
 	#[error(transparent)]
-	Oneshot(#[from] oneshot::Canceled),
+	ChainApiChannelIsClosed(#[from] oneshot::Canceled),
 	#[error(transparent)]
 	Subsystem(#[from] SubsystemError),
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+}
+
+/// Class of errors which we should handle more gracefully.
+/// An occurrence of this error should not bring down the subsystem.
+#[derive(Debug, Error)]
+enum NonFatalError {
+	/// A Runtime API error occurred.
+	#[error(transparent)]
+	RuntimeApi(#[from] RuntimeApiError),
+
+	/// The receiver's end of the channel is closed.
+	#[error(transparent)]
+	Oneshot(#[from] oneshot::Canceled),
+
+	/// Overseer channel's buffer is full.
+	#[error(transparent)]
+	OverseerOutOfCapacity(#[from] SubsystemError),
 }
 
 /// A wrapper type for delays.
@@ -397,6 +412,23 @@ pub struct Config {
 	pub path: PathBuf,
 }
 
+impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
+	type Error = &'static str;
+
+	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
+		let path = config.path().ok_or("custom databases are not supported")?;
+
+		Ok(Self {
+			// substrate cache size is improper here; just use the default
+			cache_size: None,
+			// DB path is a sub-directory of substrate db path to give two properties:
+			// 1: column numbers don't conflict with substrate
+			// 2: commands like purge-chain work without further changes
+			path: path.join("parachains").join("av-store"),
+		})
+	}
+}
+
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
 	pub fn new_on_disk(config: Config, metrics: Metrics) -> io::Result<Self> {
@@ -449,7 +481,6 @@ async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Contex
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let ctx = &mut ctx;
 	loop {
 		// Every time the following two methods are called a read from DB is performed.
 		// But given that these are very small values which are essentially a newtype
@@ -470,16 +501,19 @@ where
 						ActiveLeavesUpdate { activated, .. })
 					)) => {
 						for activated in activated.into_iter() {
-							process_block_activated(ctx, &subsystem.inner, activated).await?;
+							process_block_activated(&mut ctx, &subsystem.inner, activated).await?;
 						}
 					}
 					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-						process_block_finalized(&subsystem, ctx, &subsystem.inner, hash).await?;
+						process_block_finalized(&subsystem, &mut ctx, &subsystem.inner, hash).await?;
 					}
 					Ok(FromOverseer::Communication { msg }) => {
-						process_message(&mut subsystem, ctx, msg).await?;
+						process_message(&mut subsystem, &mut ctx, msg).await?;
 					}
-					Err(_) => break,
+					Err(e) => {
+						log::error!("AvailabilityStoreSubsystem err: {:#?}", e);
+						break
+					},
 				}
 			}
 			pov_pruning_time = pov_pruning_time => {
@@ -563,7 +597,13 @@ async fn process_block_activated<Context>(
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
-	let events = request_candidate_events(ctx, hash).await?;
+	let events = match request_candidate_events(ctx, hash).await {
+		Ok(events) => events,
+		Err(err) => {
+			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			return Ok(());
+		}
+	};
 
 	log::trace!(target: LOG_TARGET, "block activated {}", hash);
 	let mut included = HashSet::new();
@@ -607,7 +647,7 @@ where
 async fn request_candidate_events<Context>(
 	ctx: &mut Context,
 	hash: Hash,
-) -> Result<Vec<CandidateEvent>, Error>
+) -> Result<Vec<CandidateEvent>, NonFatalError>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
@@ -632,44 +672,49 @@ where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
 	use AvailabilityStoreMessage::*;
+
+	fn log_send_error(request: &'static str) {
+		log::debug!(target: LOG_TARGET, "error sending a response to {}", request);
+	}
+
 	match msg {
 		QueryAvailableData(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryAvailableData"));
 		}
 		QueryDataAvailability(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryDataAvailability"));
 		}
 		QueryChunk(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?)
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunk"));
 		}
 		QueryChunkAvailability(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunkAvailability"));
 		}
 		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
 			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk (Ok)"));
 				}
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
 			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Ok)"));
 				}
 			}
 		}
@@ -945,15 +990,13 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			if let Err(e) = run(self, ctx).await {
-				log::error!(target: LOG_TARGET, "Subsystem exited with an error {:?}", e);
-			}
-		});
+		let future = run(self, ctx)
+			.map_err(|e| SubsystemError::with_origin("availability-store", e))
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",
