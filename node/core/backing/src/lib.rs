@@ -257,9 +257,9 @@ fn table_attested_to_backed(
 	let TableAttestedCandidate { candidate, validity_votes, group_id: para_id } = attested;
 
 	let (ids, validity_votes): (Vec<_>, Vec<_>) = validity_votes
-				.into_iter()
-				.map(|(id, vote)| (id, vote.into()))
-				.unzip();
+		.into_iter()
+		.map(|(id, vote)| (id, vote.into()))
+		.unzip();
 
 	let group = match table_context.groups.get(&para_id) {
 		Some(group) => group,
