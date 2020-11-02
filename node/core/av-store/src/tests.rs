@@ -168,6 +168,60 @@ async fn overseer_signal(
 }
 
 #[test]
+fn runtime_api_error_does_not_stop_the_subsystem() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+
+	test_harness(PruningConfig::default(), store, |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+		let relay_parent = Hash::repeat_byte(32);
+		let candidate_hash = Hash::repeat_byte(33);
+		let validator_index = 5;
+
+		let chunk = ErasureChunk {
+			chunk: vec![1, 2, 3],
+			index: validator_index,
+			proof: vec![vec![3, 4, 5]],
+		};
+
+		let (tx, rx) = oneshot::channel();
+
+		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
+			candidate_hash,
+			relay_parent,
+			validator_index,
+			chunk: chunk.clone(),
+			tx,
+		};
+
+		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
+				hash,
+				tx,
+			)) => {
+				assert_eq!(hash, relay_parent);
+				tx.send(Ok(Some(4))).unwrap();
+			}
+		);
+
+		assert_eq!(rx.await.unwrap(), Ok(()));
+
+		let (tx, rx) = oneshot::channel();
+		let query_chunk = AvailabilityStoreMessage::QueryChunk(
+			candidate_hash,
+			validator_index,
+			tx,
+		);
+
+		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), chunk);
+	});
+}
+
+#[test]
 fn store_chunk_works() {
 	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
 	test_harness(PruningConfig::default(), store.clone(), |test_harness| async move {

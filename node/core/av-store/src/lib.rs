@@ -683,48 +683,44 @@ where
 {
 	use AvailabilityStoreMessage::*;
 
-	fn log_send_error(request: &'static str) {
-		log::debug!(target: LOG_TARGET, "error sending a response to {}", request);
-	}
-
 	match msg {
 		QueryAvailableData(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
-				.unwrap_or_else(|_| log_send_error("QueryAvailableData"));
+				.map_err(|_| oneshot::Canceled)?;
 		}
 		QueryDataAvailability(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).is_some())
-				.unwrap_or_else(|_| log_send_error("QueryDataAvailability"));
+				.map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunk(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?)
-				.unwrap_or_else(|_| log_send_error("QueryChunk"));
+				.map_err(|_| oneshot::Canceled)?;
 		}
 		QueryChunkAvailability(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
-				.unwrap_or_else(|_| log_send_error("QueryChunkAvailability"));
+				.map_err(|_| oneshot::Canceled)?;
 		}
 		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
 			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
-					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk (Err)"));
+					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk (Ok)"));
+					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
 				}
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
 			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
 				Err(e) => {
-					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Err)"));
+					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Ok)"));
+					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
 				}
 			}
 		}
