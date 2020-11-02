@@ -262,7 +262,6 @@ fn table_attested_to_backed(
 		.unzip();
 
 	let group = table_context.groups.get(&para_id)?;
-		Some(group) => group,
 		None => return None,
 	};
 
