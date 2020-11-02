@@ -368,8 +368,7 @@ async fn select_candidates(
 		let (scheduled_core, assumption) = match core {
 			CoreState::Scheduled(scheduled_core) => (scheduled_core, OccupiedCoreAssumption::Free),
 			CoreState::Occupied(occupied_core) => {
-				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability)
-				{
+				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability) {
 					if let Some(ref scheduled_core) = occupied_core.next_up_on_available {
 						(scheduled_core, OccupiedCoreAssumption::Included)
 					} else {
