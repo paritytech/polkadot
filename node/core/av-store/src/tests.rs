@@ -30,7 +30,9 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, PoV, Id as ParaId,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_subsystem::ActiveLeavesUpdate;
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, errors::RuntimeApiError,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
 struct TestHarness {
@@ -173,42 +175,32 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 
 	test_harness(PruningConfig::default(), store, |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let relay_parent = Hash::repeat_byte(32);
-		let candidate_hash = Hash::repeat_byte(33);
-		let validator_index = 5;
+		let new_leaf = Hash::repeat_byte(0x01);
 
-		let chunk = ErasureChunk {
-			chunk: vec![1, 2, 3],
-			index: validator_index,
-			proof: vec![vec![3, 4, 5]],
-		};
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![new_leaf.clone()],
+				deactivated: smallvec![],
+			}),
+		).await;
 
-		let (tx, rx) = oneshot::channel();
-
-		let chunk_msg = AvailabilityStoreMessage::StoreChunk {
-			candidate_hash,
-			relay_parent,
-			validator_index,
-			chunk: chunk.clone(),
-			tx,
-		};
-
-		overseer_send(&mut virtual_overseer, chunk_msg.into()).await;
-
+		// runtime api call fails
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
-			AllMessages::ChainApi(ChainApiMessage::BlockNumber(
-				hash,
-				tx,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::CandidateEvents(tx),
 			)) => {
-				assert_eq!(hash, relay_parent);
-				tx.send(Ok(Some(4))).unwrap();
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Err(RuntimeApiError::from("oh no".to_string()))).unwrap();
 			}
 		);
 
-		assert_eq!(rx.await.unwrap(), Ok(()));
-
+		// but that's fine, we're still alive
 		let (tx, rx) = oneshot::channel();
+		let candidate_hash = Hash::repeat_byte(33);
+		let validator_index = 5;
 		let query_chunk = AvailabilityStoreMessage::QueryChunk(
 			candidate_hash,
 			validator_index,
@@ -217,7 +209,8 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 
 		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
 
-		assert_eq!(rx.await.unwrap().unwrap(), chunk);
+		assert!(rx.await.unwrap().is_none());
+
 	});
 }
 
