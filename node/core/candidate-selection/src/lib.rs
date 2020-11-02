@@ -323,10 +323,7 @@ async fn candidate_is_valid(
 	pov: Arc<PoV>,
 	sender: mpsc::Sender<FromJob>,
 ) -> bool {
-	std::matches!(
-		candidate_is_valid_inner(candidate_descriptor, pov, sender).await,
-		Ok(true)
-	)
+	candidate_is_valid_inner(candidate_descriptor, pov, sender).await.unwrap_or(false)
 }
 
 // find out whether a candidate is valid or not, with a worse interface
@@ -342,7 +339,7 @@ async fn candidate_is_valid_inner(
 			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
 		))
 		.await?;
-	Ok(std::matches!(
+	Ok(matches!(
 		rx.await,
 		Ok(Ok(ValidationResult::Valid(_, _)))
 	))

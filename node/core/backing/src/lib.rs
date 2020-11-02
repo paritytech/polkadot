@@ -288,7 +288,7 @@ impl CandidateBackingJob {
 				ToJob::CandidateBacking(msg) => {
 					self.process_msg(msg).await?;
 				}
-				_ => break,
+				ToJob::Stop => break,
 			}
 		}
 
@@ -838,7 +838,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 			let (assignment, required_collator) = match assignment {
 				None => return Ok(()), // no need to work.
-				Some((a, r)) => (a, r),
+				Some(r) => r,
 			};
 
 			let job = CandidateBackingJob {

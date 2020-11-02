@@ -29,8 +29,8 @@ use codec::{Encode, Decode};
 use frame_system::ensure_root;
 
 /// All configuration of the runtime with respect to parachains and parathreads.
-#[derive(Clone, Encode, Decode, PartialEq, Default)]
-#[cfg_attr(test, derive(Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, Default, sp_core::RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct HostConfiguration<BlockNumber> {
 	/// The minimum frequency at which parachains can update their validation code.
 	pub validation_upgrade_frequency: BlockNumber,
