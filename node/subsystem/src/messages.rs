@@ -428,7 +428,7 @@ pub enum RuntimeApiRequest {
 	/// context of a given block height in the current chain.
 	///
 	/// `context_height` may be no greater than the height of the block in whose
-	/// state the runtime API is executed.
+	/// state the runtime API is executed. Otherwise `None` is returned.
 	HistoricalValidationCode(
 		ParaId,
 		BlockNumber,
