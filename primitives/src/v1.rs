@@ -657,7 +657,7 @@ pub enum CandidateEvent<H = Hash> {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
+	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -699,6 +699,14 @@ sp_api::decl_runtime_apis! {
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>;
+
+		/// Fetch the historical validation code used by a para for candidates executed in the
+		/// context of a given block height in the current chain.
+		///
+		/// `context_height` may be no greater than the height of the block in whose
+		/// state the runtime API is executed.
+		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras

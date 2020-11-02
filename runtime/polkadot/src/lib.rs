@@ -1109,6 +1109,10 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
+		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
+			None
+		}
+
 		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
 			None
 		}

@@ -250,6 +250,14 @@ pub fn validation_code<T: initializer::Trait>(
 	)
 }
 
+/// Implementation for the `historical_validation_code` function of the runtime API.
+pub fn historical_validation_code<T: initializer::Trait>(
+	para_id: ParaId,
+	context_height: T::BlockNumber,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
+}
+
 /// Implementation for the `candidate_pending_availability` function of the runtime API.
 pub fn candidate_pending_availability<T: initializer::Trait>(para_id: ParaId)
 	-> Option<CommittedCandidateReceipt<T::Hash>>

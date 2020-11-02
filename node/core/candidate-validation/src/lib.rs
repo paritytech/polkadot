@@ -258,7 +258,7 @@ async fn check_assumption_validation_data(
 			descriptor.relay_parent,
 			RuntimeApiRequest::ValidationCode(
 				descriptor.para_id,
-				OccupiedCoreAssumption::Included,
+				assumption,
 				code_tx,
 			),
 			code_rx,
@@ -648,7 +648,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);
@@ -756,7 +756,7 @@ mod tests {
 				ctx_handle.recv().await,
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					rp,
-					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::Included, tx)
+					RuntimeApiRequest::ValidationCode(p, OccupiedCoreAssumption::TimedOut, tx)
 				)) => {
 					assert_eq!(rp, relay_parent);
 					assert_eq!(p, para_id);

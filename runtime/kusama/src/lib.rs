@@ -89,7 +89,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 2026,
+	spec_version: 2027,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1112,6 +1112,10 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn validation_code(_: Id, _: OccupiedCoreAssumption) -> Option<ValidationCode> {
+			None
+		}
+
+		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
 			None
 		}
 
