@@ -256,15 +256,14 @@ impl<C: Context> CandidateData<C> {
 	// if it has enough validity votes
 	// and no authorities have called it bad.
 	fn can_be_included(&self, validity_threshold: usize) -> bool {
-		self.indicated_bad_by.is_empty()
-			&& self.validity_votes.len() >= validity_threshold
+		self.validity_votes.len() >= validity_threshold
 	}
 
 	fn summary(&self, digest: C::Digest) -> Summary<C::Digest, C::GroupId> {
 		Summary {
 			candidate: digest,
 			group_id: self.group_id.clone(),
-			validity_votes: self.validity_votes.len() - self.indicated_bad_by.len(),
+			validity_votes: self.validity_votes.len(),
 			signalled_bad: self.indicated_bad(),
 		}
 	}
@@ -1008,7 +1007,7 @@ mod tests {
 
 		candidate.indicated_bad_by.push(AuthorityId(1024));
 
-		assert!(!candidate.can_be_included(validity_threshold));
+		assert!(candidate.can_be_included(validity_threshold));
 	}
 
 	#[test]
@@ -1058,8 +1057,8 @@ mod tests {
 
 		table.import_statement(&context, vote);
 		assert!(!table.detected_misbehavior.contains_key(&AuthorityId(3)));
-		assert!(!table.candidate_includable(&candidate_digest, &context));
-		assert!(table.includable_count.is_empty());
+		assert!(table.candidate_includable(&candidate_digest, &context));
+		assert!(table.includable_count.get(&GroupId(2)).is_some());
 	}
 
 	#[test]
