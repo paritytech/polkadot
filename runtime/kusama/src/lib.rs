@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_core::u32_trait::{_1, _2, _3, _5};
 use codec::{Encode, Decode};
@@ -229,8 +230,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees<Self>;
+	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Self>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;

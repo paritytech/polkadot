@@ -33,7 +33,7 @@ use {
 	polkadot_node_core_proposer::ProposerFactory,
 	polkadot_overseer::{AllSubsystems, BlockInfo, Overseer, OverseerHandler},
 	polkadot_primitives::v1::ParachainHost,
-	authority_discovery::Service as AuthorityDiscoveryService,
+	sc_authority_discovery::{Service as AuthorityDiscoveryService, WorkerConfig as AuthorityWorkerConfig},
 	sp_blockchain::HeaderBackend,
 	sp_core::traits::SpawnNamed,
 	sp_keystore::SyncCryptoStorePtr,
@@ -285,7 +285,7 @@ fn new_partial<RuntimeApi, Executor>(config: &mut Configuration) -> Result<
 	})
 }
 
-#[cfg(feature="full-node")]
+#[cfg(all(feature="full-node", not(feature = "real-overseer")))]
 fn real_overseer<Spawner, RuntimeClient>(
 	leaves: impl IntoIterator<Item = BlockInfo>,
 	_: SyncCryptoStorePtr,
@@ -305,6 +305,117 @@ where
 	Overseer::new(
 		leaves,
 		AllSubsystems::<()>::dummy(),
+		registry,
+		spawner,
+	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
+}
+
+#[cfg(all(feature = "full-node", feature = "real-overseer"))]
+fn real_overseer<Spawner, RuntimeClient>(
+	leaves: impl IntoIterator<Item = BlockInfo>,
+	keystore: SyncCryptoStorePtr,
+	runtime_client: Arc<RuntimeClient>,
+	availability_config: AvailabilityConfig,
+	network_service: Arc<sc_network::NetworkService<Block, Hash>>,
+	authority_discovery: AuthorityDiscoveryService,
+	registry: Option<&Registry>,
+	spawner: Spawner,
+	is_collator: IsCollator,
+) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
+where
+	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+	RuntimeClient::Api: ParachainHost<Block>,
+	Spawner: 'static + SpawnNamed + Clone + Unpin,
+{
+	use polkadot_node_subsystem_util::metrics::Metrics;
+
+	use polkadot_availability_distribution::AvailabilityDistributionSubsystem;
+	use polkadot_node_core_av_store::AvailabilityStoreSubsystem;
+	use polkadot_availability_bitfield_distribution::BitfieldDistribution as BitfieldDistributionSubsystem;
+	use polkadot_node_core_bitfield_signing::BitfieldSigningSubsystem;
+	use polkadot_node_core_backing::CandidateBackingSubsystem;
+	use polkadot_node_core_candidate_selection::CandidateSelectionSubsystem;
+	use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
+	use polkadot_node_core_chain_api::ChainApiSubsystem;
+	use polkadot_node_collation_generation::CollationGenerationSubsystem;
+	use polkadot_collator_protocol::{CollatorProtocolSubsystem, ProtocolSide};
+	use polkadot_network_bridge::NetworkBridge as NetworkBridgeSubsystem;
+	use polkadot_pov_distribution::PoVDistribution as PoVDistributionSubsystem;
+	use polkadot_node_core_provisioner::ProvisioningSubsystem as ProvisionerSubsystem;
+	use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
+	use polkadot_statement_distribution::StatementDistribution as StatementDistributionSubsystem;
+
+	let all_subsystems = AllSubsystems {
+		availability_distribution: AvailabilityDistributionSubsystem::new(
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		availability_store: AvailabilityStoreSubsystem::new_on_disk(
+			availability_config,
+			Metrics::register(registry)?,
+		)?,
+		bitfield_distribution: BitfieldDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		bitfield_signing: BitfieldSigningSubsystem::new(
+			spawner.clone(),
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		candidate_backing: CandidateBackingSubsystem::new(
+			spawner.clone(),
+			keystore.clone(),
+			Metrics::register(registry)?,
+		),
+		candidate_selection: CandidateSelectionSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::register(registry)?,
+		),
+		candidate_validation: CandidateValidationSubsystem::new(
+			spawner.clone(),
+			Metrics::register(registry)?,
+		),
+		chain_api: ChainApiSubsystem::new(
+			runtime_client.clone(),
+			Metrics::register(registry)?,
+		),
+		collation_generation: CollationGenerationSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		collator_protocol: {
+			let side = match is_collator {
+				IsCollator::Yes(id) => ProtocolSide::Collator(id, Metrics::register(registry)?),
+				IsCollator::No => ProtocolSide::Validator(Metrics::register(registry)?),
+			};
+			CollatorProtocolSubsystem::new(
+				side,
+			)
+		},
+		network_bridge: NetworkBridgeSubsystem::new(
+			network_service,
+			authority_discovery,
+		),
+		pov_distribution: PoVDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+		provisioner: ProvisionerSubsystem::new(
+			spawner.clone(),
+			(),
+			Metrics::register(registry)?,
+		),
+		runtime_api: RuntimeApiSubsystem::new(
+			runtime_client,
+			Metrics::register(registry)?,
+		),
+		statement_distribution: StatementDistributionSubsystem::new(
+			Metrics::register(registry)?,
+		),
+	};
+
+	Overseer::new(
+		leaves,
+		all_subsystems,
 		registry,
 		spawner,
 	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
@@ -364,6 +475,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	mut config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -391,6 +503,9 @@ pub fn new_full<RuntimeApi, Executor>(
 	let prometheus_registry = config.prometheus_registry().cloned();
 
 	let (shared_voter_state, finality_proof_provider) = rpc_setup;
+
+	#[cfg(feature = "real-overseer")]
+	config.network.notifications_protocols.extend(polkadot_network_bridge::notifications_protocol_info());
 
 	let (network, network_status_sinks, system_rpc_tx, network_starter) =
 		service::build_network(service::BuildNetworkParams {
@@ -456,19 +571,20 @@ pub fn new_full<RuntimeApi, Executor>(
 		use futures::StreamExt;
 
 		let authority_discovery_role = if role.is_authority() {
-			authority_discovery::Role::PublishAndDiscover(
+			sc_authority_discovery::Role::PublishAndDiscover(
 				keystore_container.keystore(),
 			)
 		} else {
 			// don't publish our addresses when we're only a collator
-			authority_discovery::Role::Discover
+			sc_authority_discovery::Role::Discover
 		};
 		let dht_event_stream = network.event_stream("authority-discovery")
 			.filter_map(|e| async move { match e {
 				Event::Dht(e) => Some(e),
 				_ => None,
 			}});
-		let (worker, service) = authority_discovery::new_worker_and_service(
+		let (worker, service) = sc_authority_discovery::new_worker_and_service_with_config(
+			authority_discovery_config.unwrap_or_default(),
 			client.clone(),
 			network.clone(),
 			Box::pin(dht_event_stream),
@@ -786,30 +902,35 @@ pub fn build_full(
 	config: Configuration,
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
+	authority_discovery_config: Option<AuthorityWorkerConfig>,
 ) -> Result<NewFull<Client>, Error> {
 	if config.chain_spec.is_rococo() {
 		new_full::<rococo_runtime::RuntimeApi, RococoExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Rococo))
 	} else if config.chain_spec.is_kusama() {
 		new_full::<kusama_runtime::RuntimeApi, KusamaExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Kusama))
 	} else if config.chain_spec.is_westend() {
 		new_full::<westend_runtime::RuntimeApi, WestendExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Westend))
 	} else {
 		new_full::<polkadot_runtime::RuntimeApi, PolkadotExecutor>(
 			config,
 			is_collator,
 			grandpa_pause,
+			authority_discovery_config,
 		).map(|full| full.with_client(Client::Polkadot))
 	}
 }

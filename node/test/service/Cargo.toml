@@ -22,7 +22,7 @@ polkadot-test-runtime = { path = "../../../runtime/test-runtime" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }

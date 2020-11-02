@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, SystemTimeError, UNIX_EPOCH};
 
 use codec::{Encode, Decode};
-use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt, TryFutureExt};
+use futures::{select, channel::oneshot, future::{self, Either}, Future, FutureExt};
 use futures_timer::Delay;
 use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
@@ -474,7 +474,6 @@ fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPrun
 }
 
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-	-> Result<(), Error>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
@@ -491,8 +490,6 @@ where
 			Ok(false) => continue,
 		}
 	}
-
-	Ok(())
 }
 
 async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
@@ -610,7 +607,13 @@ async fn process_block_activated<Context>(
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
-	let events = request_candidate_events(ctx, hash).await?;
+	let events = match request_candidate_events(ctx, hash).await {
+		Ok(events) => events,
+		Err(err) => {
+			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			return Ok(());
+		}
+	};
 
 	log::trace!(target: LOG_TARGET, "block activated {}", hash);
 	let mut included = HashSet::new();
@@ -679,44 +682,49 @@ where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
 	use AvailabilityStoreMessage::*;
+
+	fn log_send_error(request: &'static str) {
+		log::debug!(target: LOG_TARGET, "error sending a response to {}", request);
+	}
+
 	match msg {
 		QueryAvailableData(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryAvailableData"));
 		}
 		QueryDataAvailability(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryDataAvailability"));
 		}
 		QueryChunk(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?)
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunk"));
 		}
 		QueryChunkAvailability(hash, id, tx) => {
 			tx.send(get_chunk(subsystem, &hash, id)?.is_some())
-				.map_err(|_| oneshot::Canceled)?;
+				.unwrap_or_else(|_| log_send_error("QueryChunkAvailability"));
 		}
 		StoreChunk { candidate_hash, relay_parent, validator_index, chunk, tx } => {
 			// Current block number is relay_parent block number + 1.
 			let block_number = get_block_number(ctx, relay_parent).await? + 1;
 			match store_chunk(subsystem, &candidate_hash, validator_index, chunk, block_number) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreChunk (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreChunk (Ok)"));
 				}
 			}
 		}
 		StoreAvailableData(hash, id, n_validators, av_data, tx) => {
 			match store_available_data(subsystem, &hash, id, n_validators, av_data) {
 				Err(e) => {
-					tx.send(Err(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Err(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Err)"));
 					return Err(e);
 				}
 				Ok(()) => {
-					tx.send(Ok(())).map_err(|_| oneshot::Canceled)?;
+					tx.send(Ok(())).unwrap_or_else(|_| log_send_error("StoreAvailableData (Ok)"));
 				}
 			}
 		}
@@ -997,7 +1005,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(self, ctx)
-			.map_err(|e| SubsystemError::with_origin("availability-store", e))
+			.map(|_| Ok(()))
 			.boxed();
 
 		SpawnedSubsystem {

@@ -28,34 +28,7 @@ use parachain::{
 	wasm_executor::{ValidationPool, ExecutionMode}
 };
 use codec::{Decode, Encode};
-
-/// Head data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
-struct HeadData {
-	/// Block number
-	number: u64,
-	/// parent block keccak256
-	parent_hash: [u8; 32],
-	/// hash of post-execution state.
-	post_state: [u8; 32],
-}
-
-/// Block data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
-struct BlockData {
-	/// State to begin from.
-	state: u64,
-	/// Amount to add (overflowing)
-	add: u64,
-}
-
-fn hash_state(state: u64) -> [u8; 32] {
-	tiny_keccak::keccak256(state.encode().as_slice())
-}
-
-fn hash_head(head: &HeadData) -> [u8; 32] {
-	tiny_keccak::keccak256(head.encode().as_slice())
-}
+use adder::{HeadData, BlockData, hash_state};
 
 fn execution_mode() -> ExecutionMode {
 	ExecutionMode::ExternalProcessCustomHost {
@@ -89,7 +62,6 @@ fn execute_good_on_parent(execution_mode: ExecutionMode) {
 		add: 512,
 	};
 
-
 	let ret = parachain::wasm_executor::validate_candidate(
 		adder::wasm_binary_unwrap(),
 		ValidationParams {
@@ -106,7 +78,7 @@ fn execute_good_on_parent(execution_mode: ExecutionMode) {
 	let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 	assert_eq!(new_head.number, 1);
-	assert_eq!(new_head.parent_hash, hash_head(&parent_head));
+	assert_eq!(new_head.parent_hash, parent_head.hash());
 	assert_eq!(new_head.post_state, hash_state(512));
 }
 
@@ -145,11 +117,11 @@ fn execute_good_chain_on_parent() {
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
 
 		assert_eq!(new_head.number, number + 1);
-		assert_eq!(new_head.parent_hash, hash_head(&parent_head));
+		assert_eq!(new_head.parent_hash, parent_head.hash());
 		assert_eq!(new_head.post_state, hash_state(last_state + add));
 
 		number += 1;
-		parent_hash = hash_head(&new_head);
+		parent_hash = new_head.hash();
 		last_state += add;
 	}
 }
