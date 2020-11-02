@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 # Substrate Client
-authority-discovery = { package = "sc-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -21,7 +21,7 @@ service = { package = "sc-service", git = "https://github.com/paritytech/substra
 telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Substrate Primitives
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }

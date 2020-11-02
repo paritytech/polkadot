@@ -16,12 +16,12 @@
 
 //! Collator for the adder test parachain.
 
-use std::{pin::Pin, sync::{Arc, Mutex}};
+use std::{pin::Pin, sync::{Arc, Mutex}, collections::HashMap};
 use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
 use futures::{Future, FutureExt};
 use polkadot_primitives::v1::{ValidationData, PoV, Hash};
 use polkadot_node_primitives::Collation;
-use codec::Encode;
+use codec::{Encode, Decode};
 
 /// The amount we add when producing a new block.
 ///
@@ -30,41 +30,40 @@ const ADD: u64 = 2;
 
 /// The state of the adder parachain.
 struct State {
-	genesis_state: HeadData,
-	last_head: HeadData,
-	state: u64,
+	head_to_state: HashMap<Arc<HeadData>, u64>,
+	number_to_head: HashMap<u64, Arc<HeadData>>,
 }
 
 impl State {
 	/// Init the genesis state.
 	fn genesis() -> Self {
-		let genesis_state = HeadData {
+		let genesis_state = Arc::new(HeadData {
 			number: 0,
 			parent_hash: Default::default(),
 			post_state: hash_state(0),
-		};
-		let last_head = genesis_state.clone();
+		});
 
 		Self {
-			genesis_state,
-			last_head,
-			state: 0,
+			head_to_state: vec![(genesis_state.clone(), 0)].into_iter().collect(),
+			number_to_head: vec![(0, genesis_state)].into_iter().collect(),
 		}
 	}
 
-	/// Advance the state and produce a new block.
+	/// Advance the state and produce a new block based on the given `parent_head`.
 	///
 	/// Returns the new [`BlockData`] and the new [`HeadData`].
-	fn advance(&mut self) -> (BlockData, HeadData) {
+	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
 		let block = BlockData {
-			state: self.state,
+			state: *self.head_to_state.get(&parent_head).expect("Getting state using parent head"),
 			add: ADD,
 		};
-		let new_head = execute(self.last_head.hash(), self.last_head.clone(), &block)
+
+		let new_head = execute(parent_head.hash(), parent_head, &block)
 			.expect("Produces valid block");
 
-		self.last_head = new_head.clone();
-		self.state = self.state.wrapping_add(ADD);
+		let new_head_arc = Arc::new(new_head.clone());
+		self.head_to_state.insert(new_head_arc.clone(), block.state.wrapping_add(ADD));
+		self.number_to_head.insert(new_head.number, new_head_arc);
 
 		(block, new_head)
 	}
@@ -85,7 +84,7 @@ impl Collator {
 
 	/// Get the SCALE encoded genesis head of the adder parachain.
 	pub fn genesis_head(&self) -> Vec<u8> {
-		self.state.lock().unwrap().genesis_state.encode()
+		self.state.lock().unwrap().number_to_head.get(&0).expect("Genesis header exists").encode()
 	}
 
 	/// Get the validation code of the adder parachain.
@@ -101,8 +100,11 @@ impl Collator {
 	) -> Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync> {
 		let state = self.state.clone();
 
-		Box::new(move |_, _| {
-			let (block_data, head_data) = state.lock().unwrap().advance();
+		Box::new(move |_, validation_data| {
+			let parent = HeadData::decode(&mut &validation_data.persisted.parent_head.0[..])
+				.expect("Decodes parent head");
+
+			let (block_data, head_data) = state.lock().unwrap().advance(parent);
 
 			let collation = Collation {
 				upward_messages: Vec::new(),
@@ -123,6 +125,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::ExecutionMode};
+	use polkadot_primitives::v1::PersistedValidationData;
 	use codec::Decode;
 
 	#[test]
@@ -130,10 +133,19 @@ mod tests {
 		let collator = Collator::new();
 		let collation_function = collator.create_collation_function();
 
-		for _ in 0..5 {
-			let parent_head = collator.state.lock().unwrap().last_head.clone();
-			let collation = block_on(collation_function(Default::default(), &Default::default())).unwrap();
-			validate_collation(&collator, parent_head, collation);
+		for i in 0..5 {
+			let parent_head = collator.state.lock().unwrap().number_to_head.get(&i).unwrap().clone();
+
+			let validation_data = ValidationData {
+				persisted: PersistedValidationData {
+					parent_head: parent_head.encode().into(),
+					..Default::default()
+				},
+				..Default::default()
+			};
+
+			let collation = block_on(collation_function(Default::default(), &validation_data)).unwrap();
+			validate_collation(&collator, (*parent_head).clone(), collation);
 		}
 	}
 
@@ -152,6 +164,6 @@ mod tests {
 		).unwrap();
 
 		let new_head = HeadData::decode(&mut &ret.head_data.0[..]).unwrap();
-		assert_eq!(collator.state.lock().unwrap().last_head, new_head);
+		assert_eq!(**collator.state.lock().unwrap().number_to_head.get(&(parent_head.number + 1)).unwrap(), new_head);
 	}
 }
