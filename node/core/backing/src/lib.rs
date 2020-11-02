@@ -261,7 +261,7 @@ fn table_attested_to_backed(
 		.map(|(id, vote)| (id, vote.into()))
 		.unzip();
 
-	let group = match table_context.groups.get(&para_id) {
+	let group = table_context.groups.get(&para_id)?;
 		Some(group) => group,
 		None => return None,
 	};
