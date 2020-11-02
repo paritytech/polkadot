@@ -262,7 +262,6 @@ fn table_attested_to_backed(
 		.unzip();
 
 	let group = table_context.groups.get(&para_id)?;
-		None => return None,
 
 	let mut validator_indices = BitVec::with_capacity(group.len());
 
