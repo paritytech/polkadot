@@ -10,7 +10,14 @@ The architecture of the node-side behavior aims to embody the Rust principles of
 
 Many operations that need to be carried out involve the network, which is asynchronous. This asynchrony affects all core subsystems that rely on the network as well. The approach of hierarchical state machines is well-suited to this kind of environment.
 
-We introduce a hierarchy of state machines consisting of an overseer supervising subsystems, where Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
+We introduce 
+
+## Components
+
+The node architecture consists of the following components:
+  * The Overseer (and subsystems): A hierarchy of state machines where an overseer supervises subsystems. Subsystems can contain their own internal hierarchy of jobs. This is elaborated on in the next section on Subsystems.
+  * A block proposer: Logic triggered by the consensus algorithm of the chain when the node should author a block.
+  * A GRANDPA voting rule: A strategy for selecting chains to vote on in the GRANDPA algorithm to ensure that only valid parachain candidates appear in finalized relay-chain blocks.
 
 ## Assumptions
 
