@@ -531,7 +531,9 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime {}
+impl parachains_router::Trait for Runtime {
+	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+}
 
 impl parachains_inclusion_inherent::Trait for Runtime {}
 
