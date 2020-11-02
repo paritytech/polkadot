@@ -100,11 +100,17 @@ impl Collator {
 	) -> Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync> {
 		let state = self.state.clone();
 
-		Box::new(move |_, validation_data| {
+		Box::new(move |relay_parent, validation_data| {
 			let parent = HeadData::decode(&mut &validation_data.persisted.parent_head.0[..])
 				.expect("Decodes parent head");
 
 			let (block_data, head_data) = state.lock().unwrap().advance(parent);
+
+			log::info!(
+				"created a new collation on relay-parent({}): {:?}",
+				relay_parent,
+				block_data,
+			);
 
 			let collation = Collation {
 				upward_messages: Vec::new(),
