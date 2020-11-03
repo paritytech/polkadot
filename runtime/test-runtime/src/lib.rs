@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use codec::Encode;
 use polkadot_runtime_parachains::{
@@ -211,8 +212,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = ();
+	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -452,7 +452,9 @@ impl paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl router::Trait for Runtime {}
+impl router::Trait for Runtime {
+	type UmpSink = ();
+}
 
 impl scheduler::Trait for Runtime {}
 
@@ -643,6 +645,13 @@ sp_api::impl_runtime_apis! {
 		{
 			runtime_impl::validation_code::<Runtime>(para_id, assumption)
 		}
+
+		fn historical_validation_code(para_id: ParaId, context_height: BlockNumber)
+			-> Option<ValidationCode>
+		{
+			runtime_impl::historical_validation_code::<Runtime>(para_id, context_height)
+		}
+
 
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_impl::candidate_pending_availability::<Runtime>(para_id)

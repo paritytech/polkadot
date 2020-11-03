@@ -20,6 +20,7 @@ use std::task::Poll;
 
 use futures::{
 	StreamExt,
+	FutureExt,
 	channel::oneshot,
 	future::BoxFuture,
 	stream::FuturesUnordered,
@@ -121,7 +122,6 @@ impl CollationRequest {
 			timeout,
 			request_id,
 		} = self;
-
 
 		match received.timeout(timeout).await {
 			None => Timeout(request_id),
@@ -417,9 +417,7 @@ where
 
 	state.requests_info.insert(request_id, per_request);
 
-	state.requests_in_progress.push(Box::pin(async move {
-		request.wait().await
-	}));
+	state.requests_in_progress.push(request.wait().boxed());
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,

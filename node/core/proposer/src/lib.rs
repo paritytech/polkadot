@@ -136,38 +136,26 @@ where
 	/// Get provisioner inherent data
 	///
 	/// This function has a constant timeout: `PROPOSE_TIMEOUT`.
-	fn get_provisioner_data(&self) -> impl Future<Output = Result<ProvisionerInherentData, Error>> {
+	async fn get_provisioner_data(&self) -> Result<ProvisionerInherentData, Error> {
 		// clone this (lightweight) data because we're going to move it into the future
 		let mut overseer = self.overseer.clone();
 		let parent_header_hash = self.parent_header_hash.clone();
 
-		let mut provisioner_inherent_data = async move {
-			let (sender, receiver) = futures::channel::oneshot::channel();
+		let (sender, receiver) = futures::channel::oneshot::channel();
 
-			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
+		overseer.wait_for_activation(parent_header_hash, sender).await?;
+		receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
-			let (sender, receiver) = futures::channel::oneshot::channel();
-			// strictly speaking, we don't _have_ to .await this send_msg before opening the
-			// receiver; it's possible that the response there would be ready slightly before
-			// this call completes. IMO it's not worth the hassle or overhead of spawning a
-			// distinct task for that kind of miniscule efficiency improvement.
-			overseer.send_msg(AllMessages::Provisioner(
-				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-			)).await?;
+		let (sender, receiver) = futures::channel::oneshot::channel();
+		overseer.send_msg(AllMessages::Provisioner(
+			ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+		)).await?;
 
-			receiver.await.map_err(|_| Error::ClosedChannelAwaitingInherentData)
-		}
-		.boxed()
-		.fuse();
+		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 
-		let mut timeout = wasm_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
-
-		async move {
-			select! {
-				pid = provisioner_inherent_data => pid,
-				_ = timeout => Err(Error::Timeout),
-			}
+		select! {
+			pid = receiver.fuse() => pid.map_err(|_| Error::ClosedChannelAwaitingInherentData),
+			_ = timeout => Err(Error::Timeout),
 		}
 	}
 }
@@ -201,10 +189,8 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		let provisioner_data = self.get_provisioner_data();
-
 		async move {
-			let provisioner_data = match provisioner_data.await {
+			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
 					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);

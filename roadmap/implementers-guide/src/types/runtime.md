@@ -12,9 +12,6 @@ struct HostConfiguration {
 	pub validation_upgrade_frequency: BlockNumber,
 	/// The delay, in blocks, before a validation upgrade is applied.
 	pub validation_upgrade_delay: BlockNumber,
-	/// The acceptance period, in blocks. This is the amount of blocks after availability that validators
-	/// and fishermen have to perform secondary approval checks or issue reports.
-	pub acceptance_period: BlockNumber,
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
@@ -34,6 +31,19 @@ struct HostConfiguration {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parathreads.
 	pub scheduling_lookahead: u32,
+	/// The amount of sessions to keep for disputes.
+	pub dispute_period: SessionIndex,
+	/// The amount of consensus slots that must pass between submitting an assignment and
+	/// submitting an approval vote before a validator is considered a no-show.
+	/// Must be at least 1.
+	pub no_show_slots: u32,
+	/// The width of the zeroth delay tranche for approval assignments. This many delay tranches
+	/// beyond 0 are all consolidated to form a wide 0 tranche.
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of validators needed to approve a block.
+	pub needed_approvals: u32,
+	/// The number of samples to do of the RelayVRFModulo approval assignment criterion.
+	pub relay_vrf_modulo_samples: u32,
 	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
 	pub max_upward_queue_count: u32,
 	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
@@ -44,16 +54,14 @@ struct HostConfiguration {
 	/// stage.
 	///
 	/// NOTE that this is a soft limit and could be exceeded.
-	pub preferred_dispatchable_upward_messages_step_weight: u32,
-	/// Any dispatchable upward message that requests more than the critical amount is rejected.
+	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum size of an upward message that can be sent by a candidate.
 	///
-	/// The parameter value is picked up so that no dispatchable can make the block weight exceed
-	/// the total budget. I.e. that the sum of `preferred_dispatchable_upward_messages_step_weight`
-	/// and `dispatchable_upward_message_critical_weight` doesn't exceed the amount of weight left
-	/// under a typical worst case (e.g. no upgrades, etc) weight consumed by the required phases of
-	/// block execution (i.e. initialization, finalization and inherents).
-	pub dispatchable_upward_message_critical_weight: u32,
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub max_upward_message_size: u32,
 	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub max_upward_message_num_per_candidate: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///

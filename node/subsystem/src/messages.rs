@@ -424,6 +424,16 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
+	/// Fetch the historical validation code used by a para for candidates executed in the
+	/// context of a given block height in the current chain.
+	///
+	/// `context_height` may be no greater than the height of the block in whose
+	/// state the runtime API is executed. Otherwise `None` is returned.
+	HistoricalValidationCode(
+		ParaId,
+		BlockNumber,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
@@ -517,7 +527,7 @@ pub enum ProvisionerMessage {
 	/// where it can be assembled into the InclusionInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
-	ProvisionableData(ProvisionableData),
+	ProvisionableData(Hash, ProvisionableData),
 }
 
 impl ProvisionerMessage {
@@ -526,7 +536,7 @@ impl ProvisionerMessage {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
 			Self::RequestInherentData(hash, _) => Some(*hash),
-			Self::ProvisionableData(_) => None,
+			Self::ProvisionableData(hash, _) => Some(*hash),
 		}
 	}
 }

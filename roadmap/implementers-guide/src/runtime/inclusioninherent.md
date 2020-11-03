@@ -22,5 +22,5 @@ Included: Option<()>,
     1. Invoke `Scheduler::schedule(freed)`
 	1. Invoke the `Inclusion::process_candidates` routine with the parameters `(backed_candidates, Scheduler::scheduled(), Scheduler::group_validators)`.
     1. Call `Scheduler::occupied` using the return value of the `Inclusion::process_candidates` call above, first sorting the list of assigned core indices.
-    1. Call the `Router::process_pending_upward_dispatchables` routine to execute all messages in upward dispatch queues.
+    1. Call the `Router::process_pending_upward_messages` routine to execute all messages in upward dispatch queues.
     1. If all of the above succeeds, set `Included` to `Some(())`.
