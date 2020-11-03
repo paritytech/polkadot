@@ -293,10 +293,20 @@ enum ProvisionableData {
   Dispute(Hash, Signature),
 }
 
+/// A block that is beind desputed, referenced by $X
+struct DisputedBlock {
+	/// The disputed block hash.
+	disputed: Hash,
+	/// A ancestor of the disputed block that should be reverted to.
+	/// This is only relevant for forks containing the disputed hash.
+	revert_to: Hash,
+}
+
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
 /// There, it is used to construct the InclusionInherent.
-type ProvisionerInherentData = (SignedAvailabilityBitfields, Vec<BackedCandidate>);
+type ProvisionerInherentData =
+(SignedAvailabilityBitfields, Vec<BackedCandidate>, Vec<DisputedBlock>);
 
 /// Message to the Provisioner.
 ///
