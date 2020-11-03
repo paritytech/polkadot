@@ -1608,6 +1608,8 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
 			log::error!("Subsystem {} exited with error {:?}", name, e);
+		} else {
+			log::debug!("Subsystem {} exited without an error", name);
 		}
 		let _ = tx.send(());
 	});

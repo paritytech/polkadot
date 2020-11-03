@@ -18,9 +18,7 @@ use std::collections::HashMap;
 
 use super::{TARGET,  Result};
 
-use futures::channel::oneshot;
-use futures::stream::StreamExt as _;
-use futures::task::Poll;
+use futures::{StreamExt, channel::oneshot, task::Poll};
 use log::warn;
 
 use polkadot_primitives::v1::{

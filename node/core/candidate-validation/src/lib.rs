@@ -294,11 +294,11 @@ async fn find_assumed_validation_data(
 	for assumption in ASSUMPTIONS {
 		let outcome = check_assumption_validation_data(ctx, descriptor, *assumption).await?;
 
-		let () = match outcome {
+		match outcome {
 			AssumptionCheckOutcome::Matches(_, _) => return Ok(outcome),
 			AssumptionCheckOutcome::BadRequest => return Ok(outcome),
 			AssumptionCheckOutcome::DoesNotMatch => continue,
-		};
+		}
 	}
 
 	Ok(AssumptionCheckOutcome::DoesNotMatch)

@@ -177,7 +177,7 @@ construct_runtime! {
 
 		// Parachains modules.
 		ParachainOrigin: parachains_origin::{Module, Origin},
-		Config: parachains_configuration::{Module, Call, Storage},
+		ParachainConfig: parachains_configuration::{Module, Call, Storage, Config<T>},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},

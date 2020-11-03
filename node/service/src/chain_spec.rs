@@ -771,6 +771,17 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
+		parachains_configuration: Some(rococo_runtime::ParachainConfigConfig {
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				validation_upgrade_frequency: 600u32,
+				validation_upgrade_delay: 300,
+				acceptance_period: 1200,
+				max_code_size: 5 * 1024 * 1024,
+				max_head_data_size: 32 * 1024,
+				group_rotation_frequency: 10,
+				..Default::default()
+			},
+		}),
 	}
 }
 
@@ -1212,6 +1223,17 @@ pub fn rococo_testnet_genesis(
 		}),
 		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
+		parachains_configuration: Some(rococo_runtime::ParachainConfigConfig {
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				validation_upgrade_frequency: 600u32,
+				validation_upgrade_delay: 300,
+				acceptance_period: 1200,
+				max_code_size: 5 * 1024 * 1024,
+				max_head_data_size: 32 * 1024,
+				group_rotation_frequency: 10,
+				..Default::default()
+			},
+		}),
 	}
 }
 
