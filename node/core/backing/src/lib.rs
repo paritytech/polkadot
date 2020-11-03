@@ -423,6 +423,7 @@ impl CandidateBackingJob {
 
 				if let Ok(report) = MisbehaviorReport::try_from(f) {
 					let message = ProvisionerMessage::ProvisionableData(
+						self.parent,
 						ProvisionableData::MisbehaviorReport(self.parent, report),
 					);
 
@@ -459,6 +460,7 @@ impl CandidateBackingJob {
 						table_attested_to_backed(attested, &self.table_context)
 					{
 						let message = ProvisionerMessage::ProvisionableData(
+							self.parent,
 							ProvisionableData::BackedCandidate(backed),
 						);
 						self.send_to_provisioner(message).await?;
@@ -1356,6 +1358,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::BackedCandidate(BackedCandidate {
 							candidate,
 							validity_votes,
@@ -1510,6 +1513,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),
@@ -1538,6 +1542,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),

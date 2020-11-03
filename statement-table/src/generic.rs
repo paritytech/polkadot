@@ -159,7 +159,7 @@ enum ValidityVote<S: Eq + Clone> {
 }
 
 /// A summary of import of a statement.
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Summary<D, G> {
 	/// The digest of the candidate referenced.
 	pub candidate: D,
