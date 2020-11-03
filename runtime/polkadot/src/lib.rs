@@ -1097,11 +1097,8 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
-		fn check_validation_outputs(
-			_: Id,
-			_: primitives::v1::ValidationOutputs,
-		) -> Result<(), primitives::v1::CheckValidationOutputsError> {
-			Err(primitives::v1::CheckValidationOutputsError::HeadDataTooLarge)
+		fn check_validation_outputs(_: Id, _: primitives::v1::ValidationOutputs) -> bool {
+			false
 		}
 
 		fn session_index_for_child() -> SessionIndex {

@@ -655,22 +655,6 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
-/// Errors that can happen when checking the validation outputs of a parachain candidate.
-#[derive(Clone, Encode, Decode, Copy)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug, displaydoc::Display))]
-pub enum CheckValidationOutputsError {
-	/// The head data is too large.
-	HeadDataTooLarge,
-	/// The parachain tried to upgrade its code to early.
-	PrematureCodeUpgrade,
-	/// The new parachain code is too large.
-	NewCodeTooLarge,
-	/// The parachain didn't handled the downward messages correctly.
-	IncorrectDownwardMessageHandling,
-	/// The parachain returned invalid upward messages.
-	InvalidUpwardMessages,
-}
-
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
@@ -703,7 +687,7 @@ sp_api::decl_runtime_apis! {
 			-> Option<PersistedValidationData<N>>;
 
 		/// Checks if the given validation outputs pass the acceptance criteria.
-		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> Result<(), CheckValidationOutputsError>;
+		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
 
 		/// Returns the session index expected at a child of the block.
 		///

@@ -25,7 +25,7 @@ use primitives::v1::{
 	ValidatorId, CandidateCommitments, CandidateDescriptor, ValidatorIndex, Id as ParaId,
 	AvailabilityBitfield as AvailabilityBitfield, SignedAvailabilityBitfields, SigningContext,
 	BackedCandidate, CoreIndex, GroupIndex, CommittedCandidateReceipt,
-	CandidateReceipt, HeadData, CheckValidationOutputsError,
+	CandidateReceipt, HeadData,
 };
 use frame_support::{
 	decl_storage, decl_module, decl_error, decl_event, ensure, debug,
@@ -157,18 +157,6 @@ decl_error! {
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
 		InvalidUpwardMessages,
-	}
-}
-
-impl<T: Trait> From<CheckValidationOutputsError> for Error<T> {
-	fn from(err: CheckValidationOutputsError) -> Self {
-		match err {
-			CheckValidationOutputsError::HeadDataTooLarge => Self::HeadDataTooLarge,
-			CheckValidationOutputsError::PrematureCodeUpgrade => Self::PrematureCodeUpgrade,
-			CheckValidationOutputsError::NewCodeTooLarge => Self::NewCodeTooLarge,
-			CheckValidationOutputsError::IncorrectDownwardMessageHandling => Self::IncorrectDownwardMessageHandling,
-			CheckValidationOutputsError::InvalidUpwardMessages => Self::InvalidUpwardMessages,
-		}
 	}
 }
 
@@ -427,7 +415,7 @@ impl<T: Trait> Module<T> {
 					&candidate.candidate.commitments.new_validation_code,
 					candidate.candidate.commitments.processed_downward_messages,
 					&candidate.candidate.commitments.upward_messages,
-				).map_err(|e| Error::<T>::from(e))?;
+				)?;
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
@@ -553,7 +541,7 @@ impl<T: Trait> Module<T> {
 	pub(crate) fn check_validation_outputs(
 		para_id: ParaId,
 		validation_outputs: primitives::v1::ValidationOutputs,
-	) -> Result<(), CheckValidationOutputsError> {
+	) -> Result<(), DispatchError> {
 		CandidateCheckContext::<T>::new().check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
@@ -714,10 +702,10 @@ impl<T: Trait> CandidateCheckContext<T> {
 		new_validation_code: &Option<primitives::v1::ValidationCode>,
 		processed_downward_messages: u32,
 		upward_messages: &[primitives::v1::UpwardMessage],
-	) -> Result<(), CheckValidationOutputsError> {
+	) -> Result<(), DispatchError> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
-			CheckValidationOutputsError::HeadDataTooLarge,
+			Error::<T>::HeadDataTooLarge
 		);
 
 		// if any, the code upgrade attempt is allowed.
@@ -728,10 +716,10 @@ impl<T: Trait> CandidateCheckContext<T> {
 						&& self.relay_parent_number.saturating_sub(last)
 							>= self.config.validation_upgrade_frequency
 				});
-			ensure!(valid_upgrade_attempt, CheckValidationOutputsError::PrematureCodeUpgrade);
+			ensure!(valid_upgrade_attempt, Error::<T>::PrematureCodeUpgrade);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
-				CheckValidationOutputsError::NewCodeTooLarge,
+				Error::<T>::NewCodeTooLarge
 			);
 		}
 
@@ -741,7 +729,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 				para_id,
 				processed_downward_messages,
 			),
-			CheckValidationOutputsError::IncorrectDownwardMessageHandling,
+			Error::<T>::IncorrectDownwardMessageHandling,
 		);
 		ensure!(
 			<router::Module<T>>::check_upward_messages(
@@ -749,7 +737,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 				para_id,
 				upward_messages,
 			),
-			CheckValidationOutputsError::InvalidUpwardMessages,
+			Error::<T>::InvalidUpwardMessages,
 		);
 
 		Ok(())

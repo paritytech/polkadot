@@ -412,7 +412,7 @@ pub enum RuntimeApiRequest {
 	CheckValidationOutputs(
 		ParaId,
 		polkadot_primitives::v1::ValidationOutputs,
-		RuntimeApiSender<Result<(), polkadot_primitives::v1::CheckValidationOutputsError>>,
+		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
 	SessionIndexForChild(RuntimeApiSender<SessionIndex>),

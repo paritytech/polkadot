@@ -1119,17 +1119,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "displaydoc"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "adc2ab4d5a16117f9029e9a6b5e4e79f4c67f6519bc134210d4d4a04ba31f41b"
-dependencies = [
- "proc-macro2 1.0.18",
- "quote 1.0.7",
- "syn 1.0.33",
-]
-
-[[package]]
 name = "dlmalloc"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5230,7 +5219,6 @@ name = "polkadot-primitives"
 version = "0.8.26"
 dependencies = [
  "bitvec",
- "displaydoc",
  "frame-system",
  "parity-scale-codec",
  "polkadot-core-primitives",
