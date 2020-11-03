@@ -33,7 +33,7 @@ use polkadot_node_primitives::{
 use polkadot_primitives::v1::{
 	AuthorityDiscoveryId, AvailableData, BackedCandidate, BlockNumber,
 	Header as BlockHeader, CandidateDescriptor, CandidateEvent, CandidateReceipt,
-	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
+	CollatorId, CommittedCandidateReceipt, CoreState, DisputedBlock, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	TransientValidationData, ValidationCode, ValidatorId, ValidationData,
@@ -470,7 +470,7 @@ pub enum ProvisionableData {
 /// This data needs to make its way from the provisioner into the InherentData.
 ///
 /// There, it is used to construct the InclusionInherent.
-pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>);
+pub type ProvisionerInherentData = (Vec<SignedAvailabilityBitfield>, Vec<BackedCandidate>, Vec<DisputedBlock>);
 
 /// Message to the Provisioner.
 ///

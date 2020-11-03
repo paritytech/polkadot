@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
+	BackedCandidate, BlockNumber, CoreState, DisputedBlock, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield,
 };
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
@@ -50,6 +50,7 @@ struct ProvisioningJob {
 	provisionable_data_channels: Vec<mpsc::Sender<ProvisionableData>>,
 	backed_candidates: Vec<BackedCandidate>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
+	disputed_blocks: Vec<DisputedBlock>,
 	metrics: Metrics,
 }
 
@@ -174,6 +175,7 @@ impl ProvisioningJob {
 			provisionable_data_channels: Vec::new(),
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
+			disputed_blocks: Vec::new(),
 			metrics,
 		}
 	}
@@ -190,6 +192,7 @@ impl ProvisioningJob {
 						self.relay_parent,
 						&self.signed_bitfields,
 						&self.backed_candidates,
+						&self.disputed_blocks,
 						return_sender,
 						self.sender.clone(),
 					)
@@ -252,6 +255,12 @@ impl ProvisioningJob {
 			ProvisionableData::BackedCandidate(backed_candidate) => {
 				self.backed_candidates.push(backed_candidate)
 			}
+			ProvisionableData::Dispute(disputed_block, signature) => {
+				self.disputed_blocks.push(DisputedBlock { hash: disputed_block, validator: signature })
+			}
+			MisbehaviorReport(hash, report) => {
+				// TODO 
+			}
 			_ => {}
 		}
 	}
@@ -280,6 +289,7 @@ async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[BackedCandidate],
+	disputed_blocks: &[DisputedBlock],
 	return_sender: oneshot::Sender<ProvisionerInherentData>,
 	mut from_job: mpsc::Sender<FromJob>,
 ) -> Result<(), Error> {
@@ -296,9 +306,10 @@ async fn send_inherent_data(
 		&mut from_job,
 	)
 	.await?;
+	let disputed_blocks = select_disputed_blocks(&availability_cores, &disputed_blocks, relay_parent)?;
 
 	return_sender
-		.send((bitfields, candidates))
+		.send((bitfields, candidates, disputed_blocks))
 		.map_err(|_| Error::OneshotSend)?;
 	Ok(())
 }
@@ -342,9 +353,16 @@ fn select_availability_bitfields(
 	out
 }
 
-// determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-//
-// follow the candidate selection algorithm from the guide
+/// Determine disputes which are relevent.
+#[inline(always)]
+fn select_disputed_blocks(_availability_corse: &[CoreState], disputed_blocks: &[DisputedBlock], _relay_parent: Hash) -> Result<Vec<DisputedBlock>, Error> {
+	// TODO are we sure we should always record all of them?
+	Ok(disputed_blocks.to_vec())
+}
+
+/// determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+///
+/// follow the candidate selection algorithm from the guide
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],

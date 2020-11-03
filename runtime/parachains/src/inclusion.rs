@@ -649,9 +649,7 @@ impl<T: Trait> Module<T> {
 }
 
 const fn availability_threshold(n_validators: usize) -> usize {
-	let mut threshold = (n_validators * 2) / 3;
-	threshold += (n_validators * 2) % 3;
-	threshold
+	n_validators - (n_validators * 1) / 3
 }
 
 #[cfg(test)]

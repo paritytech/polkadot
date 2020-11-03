@@ -23,7 +23,7 @@
 
 use sp_std::prelude::*;
 use primitives::v1::{
-	BackedCandidate, SignedAvailabilityBitfields, INCLUSION_INHERENT_IDENTIFIER,
+	BackedCandidate, SignedAvailabilityBitfields, DisputedBlock, INCLUSION_INHERENT_IDENTIFIER,
 };
 use frame_support::{
 	decl_error, decl_module, decl_storage, ensure,
@@ -80,6 +80,7 @@ decl_module! {
 			origin,
 			signed_bitfields: SignedAvailabilityBitfields,
 			backed_candidates: Vec<BackedCandidate<T::Hash>>,
+			disputed_blocks: Vec<DisputedBlock>,
 		) -> DispatchResult {
 			ensure_none(origin)?;
 			ensure!(!<Included>::exists(), Error::<T>::TooManyInclusionInherents);
@@ -131,13 +132,13 @@ impl<T: Trait> ProvideInherent for Module<T> {
 	fn create_inherent(data: &InherentData) -> Option<Self::Call> {
 		data.get_data(&Self::INHERENT_IDENTIFIER)
 			.expect("inclusion inherent data failed to decode")
-			.map(|(signed_bitfields, backed_candidates): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>)| {
+			.map(|(signed_bitfields, backed_candidates, disputed_blocks): (SignedAvailabilityBitfields, Vec<BackedCandidate<T::Hash>>, Vec<DisputedBlock>)| {
 				// Sanity check: session changes can invalidate an inherent, and we _really_ don't want that to happen.
 				// See github.com/paritytech/polkadot/issues/1327
-				if Self::inclusion(frame_system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone()).is_ok() {
-					Call::inclusion(signed_bitfields, backed_candidates)
+				if Self::inclusion(frame_system::RawOrigin::None.into(), signed_bitfields.clone(), backed_candidates.clone(), disputed_blocks.clone(), disputed_blocks.clone()).is_ok() {
+					Call::inclusion(signed_bitfields, backed_candidates, disputed_blocks)
 				} else {
-					Call::inclusion(Vec::new().into(), Vec::new())
+					Call::inclusion(Vec::new().into(), Vec::new(), Vec::new())
 				}
 			})
 	}
