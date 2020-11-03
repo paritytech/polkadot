@@ -425,7 +425,9 @@ mod tests {
 		type WeightInfo = ();
 	}
 
-	impl router::Trait for Test { }
+	impl router::Trait for Test {
+		type UmpSink = ();
+	}
 
 	impl pallet_session::historical::Trait for Test {
 		type FullIdentification = pallet_staking::Exposure<u64, Balance>;

@@ -30,7 +30,9 @@ use polkadot_primitives::v1::{
 	PersistedValidationData, PoV, Id as ParaId,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_subsystem::ActiveLeavesUpdate;
+use polkadot_subsystem::{
+	ActiveLeavesUpdate, errors::RuntimeApiError,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
 struct TestHarness {
@@ -165,6 +167,51 @@ async fn overseer_signal(
 		.timeout(TIMEOUT)
 		.await
 		.expect(&format!("{:?} is more than enough for sending signals.", TIMEOUT));
+}
+
+#[test]
+fn runtime_api_error_does_not_stop_the_subsystem() {
+	let store = Arc::new(kvdb_memorydb::create(columns::NUM_COLUMNS));
+
+	test_harness(PruningConfig::default(), store, |test_harness| async move {
+		let TestHarness { mut virtual_overseer } = test_harness;
+		let new_leaf = Hash::repeat_byte(0x01);
+
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: smallvec![new_leaf.clone()],
+				deactivated: smallvec![],
+			}),
+		).await;
+
+		// runtime api call fails
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::CandidateEvents(tx),
+			)) => {
+				assert_eq!(relay_parent, new_leaf);
+				tx.send(Err(RuntimeApiError::from("oh no".to_string()))).unwrap();
+			}
+		);
+
+		// but that's fine, we're still alive
+		let (tx, rx) = oneshot::channel();
+		let candidate_hash = Hash::repeat_byte(33);
+		let validator_index = 5;
+		let query_chunk = AvailabilityStoreMessage::QueryChunk(
+			candidate_hash,
+			validator_index,
+			tx,
+		);
+
+		overseer_send(&mut virtual_overseer, query_chunk.into()).await;
+
+		assert!(rx.await.unwrap().is_none());
+
+	});
 }
 
 #[test]

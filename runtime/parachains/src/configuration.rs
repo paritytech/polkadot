@@ -58,6 +58,12 @@ pub struct HostConfiguration<BlockNumber> {
 	pub thread_availability_period: BlockNumber,
 	/// The amount of blocks ahead to schedule parachains and parathreads.
 	pub scheduling_lookahead: u32,
+	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
+	pub max_upward_queue_count: u32,
+	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
+	/// no further messages may be added to it. If it exceeds this then the queue may contain only
+	/// a single message.
+	pub max_upward_queue_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///
 	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
@@ -65,6 +71,19 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
+	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
+	/// stage.
+	///
+	/// NOTE that this is a soft limit and could be exceeded.
+	pub preferred_dispatchable_upward_messages_step_weight: Weight,
+	/// The maximum size of an upward message that can be sent by a candidate.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_size: u32,
+	/// The maximum number of messages that a candidate can contain.
+	///
+	/// This parameter affects the size upper bound of the `CandidateCommitments`.
+	pub max_upward_message_num_per_candidate: u32,
 }
 
 pub trait Trait: frame_system::Trait { }
@@ -198,12 +217,62 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum items that can present in a upward dispatch queue at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_queue_count(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_queue_count, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_queue_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_queue_size, new) != new
+			});
+			Ok(())
+		}
+
 		/// Set the critical downward message size.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_max_downward_message_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_config_member(|config| {
 				sp_std::mem::replace(&mut config.max_downward_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_preferred_dispatchable_upward_messages_step_weight(origin, new: Weight) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.preferred_dispatchable_upward_messages_step_weight, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum size of an upward message that can be sent by a candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of messages that a candidate can contain.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_max_upward_message_num_per_candidate(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.max_upward_message_num_per_candidate, new) != new
 			});
 			Ok(())
 		}
@@ -285,7 +354,12 @@ mod tests {
 				chain_availability_period: 10,
 				thread_availability_period: 8,
 				scheduling_lookahead: 3,
+				max_upward_queue_count: 1337,
+				max_upward_queue_size: 228,
 				max_downward_message_size: 2048,
+				preferred_dispatchable_upward_messages_step_weight: 20000,
+				max_upward_message_size: 448,
+				max_upward_message_num_per_candidate: 5,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
@@ -323,8 +397,23 @@ mod tests {
 			Configuration::set_scheduling_lookahead(
 				Origin::root(), new_config.scheduling_lookahead,
 			).unwrap();
+			Configuration::set_max_upward_queue_count(
+				Origin::root(), new_config.max_upward_queue_count,
+			).unwrap();
+			Configuration::set_max_upward_queue_size(
+				Origin::root(), new_config.max_upward_queue_size,
+			).unwrap();
 			Configuration::set_max_downward_message_size(
 				Origin::root(), new_config.max_downward_message_size,
+			).unwrap();
+			Configuration::set_preferred_dispatchable_upward_messages_step_weight(
+				Origin::root(), new_config.preferred_dispatchable_upward_messages_step_weight,
+			).unwrap();
+			Configuration::set_max_upward_message_size(
+				Origin::root(), new_config.max_upward_message_size,
+			).unwrap();
+			Configuration::set_max_upward_message_num_per_candidate(
+				Origin::root(), new_config.max_upward_message_num_per_candidate,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));

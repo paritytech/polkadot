@@ -8861,6 +8861,7 @@ dependencies = [
  "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-service",
+ "sc-authority-discovery",
  "sc-cli",
  "sp-core",
  "structopt",

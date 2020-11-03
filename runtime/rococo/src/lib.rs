@@ -532,7 +532,9 @@ impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl parachains_router::Trait for Runtime {}
+impl parachains_router::Trait for Runtime {
+	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
+}
 
 impl parachains_inclusion_inherent::Trait for Runtime {}
 
@@ -654,6 +656,12 @@ sp_api::impl_runtime_apis! {
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<ValidationCode> {
 			runtime_api_impl::validation_code::<Runtime>(para_id, assumption)
+		}
+
+		fn historical_validation_code(para_id: Id, context_height: BlockNumber)
+			-> Option<ValidationCode>
+		{
+			runtime_api_impl::historical_validation_code::<Runtime>(para_id, context_height)
 		}
 
 		fn candidate_pending_availability(para_id: Id) -> Option<CommittedCandidateReceipt<Hash>> {
