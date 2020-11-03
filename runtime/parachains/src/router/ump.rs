@@ -114,14 +114,14 @@ impl<T: Trait> Module<T> {
 		if para_queue_count > config.max_upward_queue_count {
 			log::warn!(
 				target: LOG_TARGET,
-				"the ump queue has more items than permitted by config ({} > {})",
+				"the ump queue would have more items than permitted by config ({} > {})",
 				para_queue_count, config.max_upward_queue_count,
 			);
 		}
 		if para_queue_size > config.max_upward_queue_size {
 			log::warn!(
 				target: LOG_TARGET,
-				"the ump queue has grown past the max size permitted by config ({} > {})",
+				"the ump queue would have grown past the max size permitted by config ({} > {})",
 				para_queue_size, config.max_upward_queue_size,
 			);
 		}
