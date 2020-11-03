@@ -20,7 +20,9 @@ use crate::{
 	paras,
 };
 use codec::{Decode, Encode};
-use frame_support::{traits::Get, weights::Weight, StorageMap, StorageValue, ensure};
+use frame_support::{
+	traits::Get, weights::Weight, StorageMap, StorageValue, ensure, debug::native as log,
+};
 use primitives::v1::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
@@ -76,6 +78,8 @@ pub struct HrmpChannel {
 	/// that no messages were previously added.
 	pub mqc_head: Option<Hash>,
 }
+
+const LOG_TARGET: &str = "runtime-parachains::hrmp";
 
 /// Routines and getters related to HRMP.
 impl<T: Trait> Module<T> {
@@ -249,10 +253,22 @@ impl<T: Trait> Module<T> {
 		//     not be greater than the relay-chain context block which the parablock refers to.
 		if let Some(last_watermark) = <Self as Store>::HrmpWatermarks::get(&recipient) {
 			if new_hrmp_watermark <= last_watermark {
+				log::warn!(
+					target: LOG_TARGET,
+					"the HRMP watermark is not advanced relative to the last watermark  ({} > {})",
+					new_hrmp_watermark,
+					last_watermark,
+				);
 				return false;
 			}
 		}
 		if new_hrmp_watermark > relay_chain_parent_number {
+			log::warn!(
+				target: LOG_TARGET,
+				"the HRMP watermark is ahead the relay-parent ({} > {})",
+				new_hrmp_watermark,
+				relay_chain_parent_number,
+			);
 			return false;
 		}
 
@@ -264,9 +280,17 @@ impl<T: Trait> Module<T> {
 			true
 		} else {
 			let digest = <Self as Store>::HrmpChannelDigests::get(&recipient);
-			digest
+			if !digest
 				.binary_search_by_key(&new_hrmp_watermark, |(block_no, _)| *block_no)
 				.is_ok()
+			{
+				log::warn!(
+					target: LOG_TARGET,
+					"the HRMP watermark ({}) doesn't land on a block with messages received",
+					new_hrmp_watermark,
+				);
+			}
+			true
 		}
 	}
 
@@ -276,17 +300,28 @@ impl<T: Trait> Module<T> {
 		out_hrmp_msgs: &[OutboundHrmpMessage<ParaId>],
 	) -> bool {
 		if out_hrmp_msgs.len() as u32 > config.hrmp_max_message_num_per_candidate {
+			log::warn!(
+				target: LOG_TARGET,
+				"more HRMP messages than permitted by config ({} > {})",
+				out_hrmp_msgs.len(),
+				config.hrmp_max_message_num_per_candidate,
+			);
 			return false;
 		}
 
 		let mut last_recipient = None::<ParaId>;
 
-		for out_msg in out_hrmp_msgs {
+		for (idx, out_msg) in out_hrmp_msgs.iter().enumerate() {
 			match last_recipient {
 				// the messages must be sorted in ascending order and there must be no two messages sent
 				// to the same recipient. Thus we can check that every recipient is strictly greater than
 				// the previous one.
 				Some(last_recipient) if out_msg.recipient <= last_recipient => {
+					log::warn!(
+						target: LOG_TARGET,
+						"the HRMP messages are not sorted (at index {})",
+						idx,
+					);
 					return false;
 				}
 				_ => last_recipient = Some(out_msg.recipient),
@@ -299,18 +334,50 @@ impl<T: Trait> Module<T> {
 
 			let channel = match <Self as Store>::HrmpChannels::get(&channel_id) {
 				Some(channel) => channel,
-				None => return false,
+				None => {
+					log::warn!(
+						target: LOG_TARGET,
+						"the HRMP message at index {} is sent to a non existent channel {}->{}",
+						idx,
+						channel_id.sender,
+						channel_id.recipient,
+					);
+					return false;
+				}
 			};
 
 			if out_msg.data.len() as u32 > channel.max_message_size {
+				log::warn!(
+					target: LOG_TARGET,
+					"the HRMP message at index {} exceeds the negotiated channel maximum message size ({} > {})",
+					idx,
+					out_msg.data.len(),
+					channel.max_message_size,
+				);
 				return false;
 			}
 
-			if channel.total_size + out_msg.data.len() as u32 > channel.max_total_size {
+			let new_total_size = channel.total_size + out_msg.data.len() as u32;
+			if new_total_size > channel.max_total_size {
+				log::warn!(
+					target: LOG_TARGET,
+					"sending the HRMP message at index {} would exceed the neogitiated channel total size  ({} > {})",
+					idx,
+					new_total_size,
+					channel.max_total_size,
+				);
 				return false;
 			}
 
-			if channel.msg_count + 1 > channel.max_capacity {
+			let new_msg_count = channel.msg_count + 1;
+			if new_msg_count > channel.max_capacity {
+				log::warn!(
+					target: LOG_TARGET,
+					"sending the HRMP message at index {} would exceed the neogitiated channel capacity  ({} > {})",
+					idx,
+					new_msg_count,
+					channel.max_capacity,
+				);
 				return false;
 			}
 		}
@@ -993,22 +1060,14 @@ mod tests {
 				data: b"this is an emergency".to_vec(),
 			}];
 			let config = Configuration::config();
-			assert!(Router::check_outbound_hrmp(
-				&config,
-				para_a,
-				&msgs,
-			));
+			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs,));
 			let _ = Router::queue_outbound_hrmp(para_a, msgs);
 			assert_storage_consistency_exhaustive();
 
 			// On Block 7:
 			// B receives the message sent by A. B sets the watermark to 6.
 			run_to_block(7, None);
-			assert!(Router::check_hrmp_watermark(
-				para_b,
-				7,
-				6,
-			));
+			assert!(Router::check_hrmp_watermark(para_b, 7, 6,));
 			let _ = Router::prune_hrmp(para_b, 6);
 			assert_storage_consistency_exhaustive();
 		});
