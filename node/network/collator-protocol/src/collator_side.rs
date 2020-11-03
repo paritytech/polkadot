@@ -18,7 +18,7 @@ use std::collections::HashMap;
 
 use super::{TARGET,  Result};
 
-use futures::{StreamExt, channel::oneshot, task::Poll};
+use futures::{StreamExt, task::Poll};
 use log::warn;
 
 use polkadot_primitives::v1::{
@@ -39,6 +39,7 @@ use polkadot_node_subsystem_util::{
 	validator_discovery,
 	request_validators_ctx,
 	request_validator_groups_ctx,
+	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
 
@@ -224,16 +225,7 @@ async fn determine_core<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	let (tx, rx) = oneshot::channel();
-
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::AvailabilityCores(tx),
-		)
-	)).await?;
-
-	let cores = rx.await??;
+	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await??;
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
