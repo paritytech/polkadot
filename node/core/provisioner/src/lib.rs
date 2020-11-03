@@ -44,6 +44,8 @@ use polkadot_primitives::v1::{
 use std::{collections::HashMap, convert::TryFrom, pin::Pin};
 use thiserror::Error;
 
+const LOG_TARGET: &str = "provisioner";
+
 struct ProvisioningJob {
 	relay_parent: Hash,
 	sender: mpsc::Sender<FromJob>,
@@ -202,7 +204,7 @@ impl ProvisioningJob {
 					)
 					.await
 					{
-						log::warn!(target: "provisioner", "failed to assemble or send inherent data: {:?}", err);
+						log::warn!(target: LOG_TARGET, "failed to assemble or send inherent data: {:?}", err);
 						self.metrics.on_inherent_data_request(Err(()));
 					} else {
 						self.metrics.on_inherent_data_request(Ok(()));
@@ -459,7 +461,7 @@ fn bitfields_indicate_availability(
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
-				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, availability_len);
+				log::warn!(target: LOG_TARGET, "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, availability_len);
 				return false;
 			}
 			Some(mut bit_mut) => *bit_mut |= bitfield.payload().0[core_idx],
