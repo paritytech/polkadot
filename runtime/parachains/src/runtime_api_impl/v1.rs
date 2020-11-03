@@ -229,7 +229,7 @@ pub fn check_validation_outputs<T: initializer::Trait>(
 			let err: &'static str = e.into();
 			log::debug!(
 				target: "candidate_validation",
-				"Validation output checking for parachain `{}` failed: {}",
+				"Validation outputs checking for parachain `{}` failed: {}",
 				u32::from(para_id),
 				err,
 			);
