@@ -18,7 +18,7 @@ use super::{Trait, Module, Store};
 use crate::configuration::{self, HostConfiguration};
 use sp_std::prelude::*;
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
-use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get};
+use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get, debug::native as log};
 use primitives::v1::{Id as ParaId, UpwardMessage};
 
 /// All upward messages coming from parachains will be funneled into an implementation of this trait.
@@ -50,6 +50,8 @@ impl UmpSink for () {
 	}
 }
 
+const LOG_TARGET: &str = "runtime-parachains::upward-messages";
+
 /// Routines related to the upward message passing.
 impl<T: Trait> Module<T> {
 	pub(super) fn clean_ump_after_outgoing(outgoing_para: ParaId) {
@@ -79,15 +81,28 @@ impl<T: Trait> Module<T> {
 		upward_messages: &[UpwardMessage],
 	) -> bool {
 		if upward_messages.len() as u32 > config.max_upward_message_num_per_candidate {
+			log::warn!(
+				target: LOG_TARGET,
+				"more upward messages than permitted by config ({} > {})",
+				upward_messages.len(),
+				config.max_upward_message_num_per_candidate,
+			);
 			return false;
 		}
 
 		let (mut para_queue_count, mut para_queue_size) =
 			<Self as Store>::RelayDispatchQueueSize::get(&para);
 
-		for msg in upward_messages {
+		for (idx, msg) in upward_messages.into_iter().enumerate() {
 			let msg_size = msg.len() as u32;
 			if msg_size > config.max_upward_message_size {
+				log::warn!(
+					target: LOG_TARGET,
+					"upward message idx {} larger than permitted by config ({} > {})",
+					idx,
+					msg_size,
+					config.max_upward_message_size,
+				);
 				return false;
 			}
 			para_queue_count += 1;
@@ -96,6 +111,20 @@ impl<T: Trait> Module<T> {
 
 		// make sure that the queue is not overfilled.
 		// we do it here only once since returning false invalidates the whole relay-chain block.
+		if para_queue_count > config.max_upward_queue_count {
+			log::warn!(
+				target: LOG_TARGET,
+				"the ump queue would have more items than permitted by config ({} > {})",
+				para_queue_count, config.max_upward_queue_count,
+			);
+		}
+		if para_queue_size > config.max_upward_queue_size {
+			log::warn!(
+				target: LOG_TARGET,
+				"the ump queue would have grown past the max size permitted by config ({} > {})",
+				para_queue_size, config.max_upward_queue_size,
+			);
+		}
 		para_queue_count <= config.max_upward_queue_count
 			&& para_queue_size <= config.max_upward_queue_size
 	}
