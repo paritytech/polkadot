@@ -624,7 +624,7 @@ impl<N> CoreState<N> {
 		}
 	}
 
-	/// Does this core state is `Self::Occupied`?
+	/// Is this core state `Self::Occupied`?
 	pub fn is_occupied(&self) -> bool {
 		matches!(self, Self::Occupied(_))
 	}
