@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.4"
+futures-timer = "3.0.2"
 log = "0.4.8"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
@@ -21,4 +22,3 @@ sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "mast
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
-wasm-timer = "0.2.4"

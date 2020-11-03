@@ -423,6 +423,7 @@ impl CandidateBackingJob {
 
 				if let Ok(report) = MisbehaviorReport::try_from(f) {
 					let message = ProvisionerMessage::ProvisionableData(
+						self.parent,
 						ProvisionableData::MisbehaviorReport(self.parent, report),
 					);
 
@@ -459,6 +460,7 @@ impl CandidateBackingJob {
 						table_attested_to_backed(attested, &self.table_context)
 					{
 						let message = ProvisionerMessage::ProvisionableData(
+							self.parent,
 							ProvisionableData::BackedCandidate(backed),
 						);
 						self.send_to_provisioner(message).await?;

@@ -5062,6 +5062,7 @@ name = "polkadot-node-core-proposer"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
+ "futures-timer 3.0.2",
  "log 0.4.11",
  "polkadot-node-subsystem",
  "polkadot-overseer",
@@ -5077,7 +5078,6 @@ dependencies = [
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
- "wasm-timer",
 ]
 
 [[package]]
@@ -5091,10 +5091,8 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
- "sc-keystore",
  "sp-application-crypto",
  "sp-keystore",
- "tempfile",
  "thiserror",
 ]
 

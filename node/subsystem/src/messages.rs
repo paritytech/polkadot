@@ -527,7 +527,7 @@ pub enum ProvisionerMessage {
 	/// where it can be assembled into the InclusionInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
-	ProvisionableData(ProvisionableData),
+	ProvisionableData(Hash, ProvisionableData),
 }
 
 impl ProvisionerMessage {
@@ -536,7 +536,7 @@ impl ProvisionerMessage {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
 			Self::RequestInherentData(hash, _) => Some(*hash),
-			Self::ProvisionableData(_) => None,
+			Self::ProvisionableData(hash, _) => Some(*hash),
 		}
 	}
 }
