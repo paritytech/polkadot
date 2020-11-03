@@ -26,7 +26,7 @@ use primitives::v1::{
 	SessionIndex,
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
-use sp_std::collections::btree_set::BTreeSet;
+use sp_std::collections::{btree_set::BTreeSet, btree_map::BTreeMap};
 use sp_std::mem;
 use sp_std::prelude::*;
 
@@ -62,10 +62,10 @@ pub struct HrmpChannel {
 	/// The maximum message size that could be put into the channel.
 	pub max_message_size: u32,
 	/// The current number of messages pending in the channel.
-    /// Invariant: should be less or equal to `max_capacity`.s`.
+	/// Invariant: should be less or equal to `max_capacity`.s`.
 	pub msg_count: u32,
 	/// The total size in bytes of all message payloads in the channel.
-    /// Invariant: should be less or equal to `max_total_size`.
+	/// Invariant: should be less or equal to `max_total_size`.
 	pub total_size: u32,
 	/// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
 	/// `(prev_head, B, H(M))`, where
@@ -659,6 +659,23 @@ impl<T: Trait> Module<T> {
 		}
 
 		mqc_heads
+	}
+
+	/// Returns contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	pub(crate) fn inbound_hrmp_channels_contents(
+		recipient: ParaId,
+	) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+		let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
+
+		let mut inbound_hrmp_channels_contents = BTreeMap::new();
+		for sender in sender_set {
+			let channel_contents =
+				<Self as Store>::HrmpChannelContents::get(&HrmpChannelId { sender, recipient });
+			inbound_hrmp_channels_contents.insert(sender, channel_contents);
+		}
+
+		inbound_hrmp_channels_contents
 	}
 }
 

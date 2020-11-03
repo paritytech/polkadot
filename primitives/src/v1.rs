@@ -17,6 +17,7 @@
 //! V1 Primitives.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
@@ -743,6 +744,10 @@ sp_api::decl_runtime_apis! {
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
+
+		/// Get the contents of all channels addressed to the given recipient. Channels that have no
+		/// messages in them are also included.
+		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
 

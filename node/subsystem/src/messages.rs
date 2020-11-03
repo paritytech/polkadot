@@ -37,9 +37,10 @@ use polkadot_primitives::v1::{
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
 	ValidationCode, ValidatorId, ValidationData, CandidateHash,
-	ValidatorIndex, ValidatorSignature, InboundDownwardMessage,
+	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::sync::Arc;
+use std::collections::btree_map::BTreeMap;
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -451,6 +452,12 @@ pub enum RuntimeApiRequest {
 	DmqContents(
 		ParaId,
 		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(
+		ParaId,
+		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
 	),
 }
 
