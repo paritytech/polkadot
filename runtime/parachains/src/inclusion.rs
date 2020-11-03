@@ -155,6 +155,8 @@ decl_error! {
 		InternalError,
 		/// The downward message queue is not processed correctly.
 		IncorrectDownwardMessageHandling,
+		/// At least one upward message sent does not pass the acceptance criteria.
+		InvalidUpwardMessages,
 	}
 }
 
@@ -412,6 +414,7 @@ impl<T: Trait> Module<T> {
 					&candidate.candidate.commitments.head_data,
 					&candidate.candidate.commitments.new_validation_code,
 					candidate.candidate.commitments.processed_downward_messages,
+					&candidate.candidate.commitments.upward_messages,
 				)?;
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
@@ -544,6 +547,7 @@ impl<T: Trait> Module<T> {
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
 			validation_outputs.processed_downward_messages,
+			&validation_outputs.upward_messages,
 		)
 	}
 
@@ -569,6 +573,10 @@ impl<T: Trait> Module<T> {
 		weight += <router::Module<T>>::prune_dmq(
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
+		);
+		weight += <router::Module<T>>::enact_upward_messages(
+			receipt.descriptor.para_id,
+			commitments.upward_messages,
 		);
 
 		Self::deposit_event(
@@ -693,6 +701,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 		head_data: &HeadData,
 		new_validation_code: &Option<primitives::v1::ValidationCode>,
 		processed_downward_messages: u32,
+		upward_messages: &[primitives::v1::UpwardMessage],
 	) -> Result<(), DispatchError> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
@@ -721,6 +730,14 @@ impl<T: Trait> CandidateCheckContext<T> {
 				processed_downward_messages,
 			),
 			Error::<T>::IncorrectDownwardMessageHandling,
+		);
+		ensure!(
+			<router::Module<T>>::check_upward_messages(
+				&self.config,
+				para_id,
+				upward_messages,
+			),
+			Error::<T>::InvalidUpwardMessages,
 		);
 
 		Ok(())

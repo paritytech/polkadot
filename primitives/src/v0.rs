@@ -41,7 +41,7 @@ pub use polkadot_core_primitives::*;
 pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
 	ValidationCode,
 };
 

@@ -222,8 +222,21 @@ pub fn check_validation_outputs<T: initializer::Trait>(
 	para_id: ParaId,
 	outputs: primitives::v1::ValidationOutputs,
 ) -> bool {
-	// we strip detailed information from error here for the sake of simplicity of runtime API.
-	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs).is_ok()
+	match <inclusion::Module<T>>::check_validation_outputs(para_id, outputs) {
+		Ok(()) => true,
+		Err(e) => {
+			frame_support::debug::RuntimeLogger::init();
+			let err: &'static str = e.into();
+			log::debug!(
+				target: "candidate_validation",
+				"Validation outputs checking for parachain `{}` failed: {}",
+				u32::from(para_id),
+				err,
+			);
+
+			false
+		}
+	}
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.
@@ -248,6 +261,14 @@ pub fn validation_code<T: initializer::Trait>(
 		assumption,
 		|| <paras::Module<T>>::current_code(&para_id),
 	)
+}
+
+/// Implementation for the `historical_validation_code` function of the runtime API.
+pub fn historical_validation_code<T: initializer::Trait>(
+	para_id: ParaId,
+	context_height: T::BlockNumber,
+) -> Option<ValidationCode> {
+	<paras::Module<T>>::validation_code_at(para_id, context_height, None)
 }
 
 /// Implementation for the `candidate_pending_availability` function of the runtime API.

@@ -424,6 +424,16 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCode>>,
 	),
+	/// Fetch the historical validation code used by a para for candidates executed in the
+	/// context of a given block height in the current chain.
+	///
+	/// `context_height` may be no greater than the height of the block in whose
+	/// state the runtime API is executed. Otherwise `None` is returned.
+	HistoricalValidationCode(
+		ParaId,
+		BlockNumber,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of

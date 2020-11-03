@@ -34,31 +34,19 @@ use polkadot_core_primitives::Hash;
 pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 
 /// Parachain head data included in the chain.
-#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug)]
+#[derive(PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Default, Hash))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
-impl From<Vec<u8>> for HeadData {
-	fn from(head: Vec<u8>) -> Self {
-		HeadData(head)
-	}
-}
-
 /// Parachain validation code.
-#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+#[derive(Default, PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
-
-impl From<Vec<u8>> for ValidationCode {
-	fn from(code: Vec<u8>) -> Self {
-		ValidationCode(code)
-	}
-}
 
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode)]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with="bytes"))] pub Vec<u8>);
 
@@ -198,44 +186,8 @@ impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
 	}
 }
 
-/// Which origin a parachain's message to the relay chain should be dispatched from.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-#[repr(u8)]
-pub enum ParachainDispatchOrigin {
-	/// As a simple `Origin::Signed`, using `ParaId::account_id` as its value. This is good when
-	/// interacting with standard modules such as `balances`.
-	Signed,
-	/// As the special `Origin::Parachain(ParaId)`. This is good when interacting with parachain-
-	/// aware modules which need to succinctly verify that the origin is a parachain.
-	Parachain,
-	/// As the simple, superuser `Origin::Root`. This can only be done on specially permissioned
-	/// parachains.
-	Root,
-}
-
-impl sp_std::convert::TryFrom<u8> for ParachainDispatchOrigin {
-	type Error = ();
-	fn try_from(x: u8) -> core::result::Result<ParachainDispatchOrigin, ()> {
-		const SIGNED: u8 = ParachainDispatchOrigin::Signed as u8;
-		const PARACHAIN: u8 = ParachainDispatchOrigin::Parachain as u8;
-		Ok(match x {
-			SIGNED => ParachainDispatchOrigin::Signed,
-			PARACHAIN => ParachainDispatchOrigin::Parachain,
-			_ => return Err(()),
-		})
-	}
-}
-
 /// A message from a parachain to its Relay Chain.
-#[derive(Clone, PartialEq, Eq, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(Debug, Hash))]
-pub struct UpwardMessage {
-	/// The origin for the message to be sent from.
-	pub origin: ParachainDispatchOrigin,
-	/// The message data.
-	pub data: Vec<u8>,
-}
+pub type UpwardMessage = Vec<u8>;
 
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)

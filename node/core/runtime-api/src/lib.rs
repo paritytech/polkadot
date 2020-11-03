@@ -123,6 +123,8 @@ fn make_runtime_api_request<Client>(
 		Request::SessionIndexForChild(sender) => query!(session_index_for_child(), sender),
 		Request::ValidationCode(para, assumption, sender) =>
 			query!(validation_code(para, assumption), sender),
+		Request::HistoricalValidationCode(para, at, sender) =>
+			query!(historical_validation_code(para, at), sender),
 		Request::CandidatePendingAvailability(para, sender) =>
 			query!(candidate_pending_availability(para), sender),
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
@@ -178,6 +180,7 @@ mod tests {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
+		BlockNumber,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -193,6 +196,7 @@ mod tests {
 		validation_data: HashMap<ParaId, ValidationData>,
 		session_index_for_child: SessionIndex,
 		validation_code: HashMap<ParaId, ValidationCode>,
+		historical_validation_code: HashMap<ParaId, Vec<(BlockNumber, ValidationCode)>>,
 		validation_outputs_results: HashMap<ParaId, bool>,
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
@@ -269,6 +273,19 @@ mod tests {
 				_assumption: OccupiedCoreAssumption,
 			) -> Option<ValidationCode> {
 				self.validation_code.get(&para).map(|c| c.clone())
+			}
+
+			fn historical_validation_code(
+				&self,
+				para: ParaId,
+				at: BlockNumber,
+			) -> Option<ValidationCode> {
+				self.historical_validation_code.get(&para).and_then(|h_code| {
+					h_code.iter()
+						.take_while(|(changed_at, _)| changed_at <= &at)
+						.last()
+						.map(|(_, code)| code.clone())
+				})
 			}
 
 			fn candidate_pending_availability(
@@ -684,4 +701,72 @@ mod tests {
 		futures::executor::block_on(future::join(subsystem_task, test_task));
 	}
 
+	#[test]
+	fn requests_historical_code() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+
+		let para_a = 5.into();
+		let para_b = 6.into();
+
+		let runtime_api = Arc::new({
+			let mut runtime_api = MockRuntimeApi::default();
+
+			runtime_api.historical_validation_code.insert(
+				para_a,
+				vec![(1, vec![1, 2, 3].into()), (10, vec![4, 5, 6].into())],
+			);
+
+			runtime_api.historical_validation_code.insert(
+				para_b,
+				vec![(5, vec![7, 8, 9].into())],
+			);
+
+			runtime_api
+		});
+		let relay_parent = [1; 32].into();
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api, Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			{
+				let (tx, rx) = oneshot::channel();
+				ctx_handle.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::HistoricalValidationCode(para_a, 5, tx),
+					)
+				}).await;
+
+				assert_eq!(rx.await.unwrap().unwrap(), Some(ValidationCode::from(vec![1, 2, 3])));
+			}
+
+			{
+				let (tx, rx) = oneshot::channel();
+				ctx_handle.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::HistoricalValidationCode(para_a, 10, tx),
+					)
+				}).await;
+
+				assert_eq!(rx.await.unwrap().unwrap(), Some(ValidationCode::from(vec![4, 5, 6])));
+			}
+
+			{
+				let (tx, rx) = oneshot::channel();
+				ctx_handle.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::HistoricalValidationCode(para_b, 1, tx),
+					)
+				}).await;
+
+				assert!(rx.await.unwrap().unwrap().is_none());
+			}
+
+			ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		};
+
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
 }
