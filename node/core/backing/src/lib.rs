@@ -1358,6 +1358,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::BackedCandidate(BackedCandidate {
 							candidate,
 							validity_votes,
@@ -1512,6 +1513,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),
@@ -1540,6 +1542,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),

@@ -958,7 +958,7 @@ mod test {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
-					hash,
+					_,
 					ProvisionableData::Bitfield(hash, signed)
 				)) => {
 					assert_eq!(hash, hash_a);
@@ -1087,6 +1087,7 @@ mod test {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					_,
 					ProvisionableData::Bitfield(hash, signed)
 				)) => {
 					assert_eq!(hash, hash_a);
