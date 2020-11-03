@@ -25,7 +25,7 @@ use futures::{
 };
 use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
+	errors::ChainApiError,
 	messages::{
 		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
 		CandidateValidationMessage, CollatorProtocolMessage,
@@ -127,8 +127,6 @@ enum Error {
 	OneshotRecv(#[from] oneshot::Canceled),
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
-	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
