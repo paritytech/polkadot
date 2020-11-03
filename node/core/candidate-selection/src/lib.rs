@@ -23,22 +23,16 @@ use futures::{
 	channel::{mpsc, oneshot},
 	prelude::*,
 };
-use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	errors::{ChainApiError, RuntimeApiError},
-	messages::{
-		AllMessages, CandidateBackingMessage, CandidateSelectionMessage,
-		CandidateValidationMessage, CollatorProtocolMessage,
-	},
+	messages::{AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage},
 };
 use polkadot_node_subsystem_util::{
 	self as util, delegated_subsystem, JobTrait, ToJobTrait,
 	metrics::{self, prometheus},
 };
-use polkadot_primitives::v1::{
-	CandidateDescriptor, CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV,
-};
-use std::{convert::TryFrom, pin::Pin, sync::Arc};
+use polkadot_primitives::v1::{CandidateReceipt, CollatorId, Hash, Id as ParaId, PoV};
+use std::{convert::TryFrom, pin::Pin};
 use thiserror::Error;
 
 const TARGET: &'static str = "candidate_selection";
@@ -89,7 +83,6 @@ impl From<CandidateSelectionMessage> for ToJob {
 
 #[derive(Debug)]
 enum FromJob {
-	Validation(CandidateValidationMessage),
 	Backing(CandidateBackingMessage),
 	Collator(CollatorProtocolMessage),
 }
@@ -97,7 +90,6 @@ enum FromJob {
 impl From<FromJob> for AllMessages {
 	fn from(from_job: FromJob) -> AllMessages {
 		match from_job {
-			FromJob::Validation(msg) => AllMessages::CandidateValidation(msg),
 			FromJob::Backing(msg) => AllMessages::CandidateBacking(msg),
 			FromJob::Collator(msg) => AllMessages::CollatorProtocol(msg),
 		}
@@ -109,7 +101,6 @@ impl TryFrom<AllMessages> for FromJob {
 
 	fn try_from(msg: AllMessages) -> Result<Self, Self::Error> {
 		match msg {
-			AllMessages::CandidateValidation(msg) => Ok(FromJob::Validation(msg)),
 			AllMessages::CandidateBacking(msg) => Ok(FromJob::Backing(msg)),
 			AllMessages::CollatorProtocol(msg) => Ok(FromJob::Collator(msg)),
 			_ => Err(()),
@@ -230,25 +221,6 @@ impl CandidateSelectionJob {
 					}
 				};
 
-			let pov = Arc::new(pov);
-
-			if !candidate_is_valid(
-				candidate_receipt.descriptor.clone(),
-				pov.clone(),
-				self.sender.clone(),
-			)
-			.await
-			{
-				return;
-			}
-
-			let pov = if let Ok(pov) = Arc::try_unwrap(pov) {
-				pov
-			} else {
-				log::warn!(target: TARGET, "Arc unwrapping is expected to succeed, the other fns should have already run to completion by now.");
-				return;
-			};
-
 			match second_candidate(
 				relay_parent,
 				candidate_receipt,
@@ -315,34 +287,6 @@ async fn get_collation(
 		)))
 		.await?;
 	rx.await.map_err(Into::into)
-}
-
-// find out whether a candidate is valid or not
-async fn candidate_is_valid(
-	candidate_descriptor: CandidateDescriptor,
-	pov: Arc<PoV>,
-	sender: mpsc::Sender<FromJob>,
-) -> bool {
-	candidate_is_valid_inner(candidate_descriptor, pov, sender).await.unwrap_or(false)
-}
-
-// find out whether a candidate is valid or not, with a worse interface
-// the external interface is worse, but the internal implementation is easier
-async fn candidate_is_valid_inner(
-	candidate_descriptor: CandidateDescriptor,
-	pov: Arc<PoV>,
-	mut sender: mpsc::Sender<FromJob>,
-) -> Result<bool, Error> {
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send(FromJob::Validation(
-			CandidateValidationMessage::ValidateFromChainState(candidate_descriptor, pov, tx),
-		))
-		.await?;
-	Ok(matches!(
-		rx.await,
-		Ok(Ok(ValidationResult::Valid(_, _)))
-	))
 }
 
 async fn second_candidate(
@@ -444,8 +388,9 @@ delegated_subsystem!(CandidateSelectionJob((), Metrics) <- ToJob as CandidateSel
 mod tests {
 	use super::*;
 	use futures::lock::Mutex;
-	use polkadot_primitives::v1::{BlockData, HeadData, PersistedValidationData, ValidationOutputs};
+	use polkadot_primitives::v1::BlockData;
 	use sp_core::crypto::Public;
+	use std::sync::Arc;
 
 	fn test_harness<Preconditions, TestBuilder, Test, Postconditions>(
 		preconditions: Preconditions,
@@ -474,30 +419,6 @@ mod tests {
 		));
 
 		postconditions(job, job_result);
-	}
-
-	fn default_validation_outputs_and_data() -> (ValidationOutputs, polkadot_primitives::v1::PersistedValidationData) {
-		let head_data: Vec<u8> = (0..32).rev().cycle().take(256).collect();
-		let parent_head_data = head_data
-			.iter()
-			.copied()
-			.map(|x| x.saturating_sub(1))
-			.collect();
-
-		(
-			ValidationOutputs {
-				head_data: HeadData(head_data),
-				upward_messages: Vec::new(),
-				new_validation_code: None,
-				processed_downward_messages: 0,
-			},
-			PersistedValidationData {
-				parent_head: HeadData(parent_head_data),
-				block_number: 123,
-				hrmp_mqc_heads: Vec::new(),
-				dmq_mqc_head: Default::default(),
-			},
-		)
 	}
 
 	/// when nothing is seconded so far, the collation is fetched and seconded
@@ -545,21 +466,6 @@ mod tests {
 
 							return_sender
 								.send((candidate_receipt.clone(), pov.clone()))
-								.unwrap();
-						}
-						FromJob::Validation(
-							CandidateValidationMessage::ValidateFromChainState(
-								got_candidate_descriptor,
-								got_pov,
-								return_sender,
-							),
-						) => {
-							assert_eq!(got_candidate_descriptor, candidate_receipt.descriptor);
-							assert_eq!(got_pov.as_ref(), &pov);
-
-							let (outputs, data) = default_validation_outputs_and_data();
-							return_sender
-								.send(Ok(ValidationResult::Valid(outputs, data)))
 								.unwrap();
 						}
 						FromJob::Backing(CandidateBackingMessage::Second(
