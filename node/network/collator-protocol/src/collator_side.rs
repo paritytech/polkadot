@@ -25,6 +25,7 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
 	PoV, ValidatorId,
 };
+#[allow(unused_imports)]
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
