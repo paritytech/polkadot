@@ -180,7 +180,7 @@ mod tests {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber,
+		BlockNumber, CheckValidationOutputsError,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
@@ -197,7 +197,7 @@ mod tests {
 		session_index_for_child: SessionIndex,
 		validation_code: HashMap<ParaId, ValidationCode>,
 		historical_validation_code: HashMap<ParaId, Vec<(BlockNumber, ValidationCode)>>,
-		validation_outputs_results: HashMap<ParaId, bool>,
+		validation_outputs_results: HashMap<ParaId, Result<(), CheckValidationOutputsError>>,
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
 		dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
@@ -254,7 +254,7 @@ mod tests {
 				&self,
 				para_id: ParaId,
 				_commitments: polkadot_primitives::v1::ValidationOutputs,
-			) -> bool {
+			) -> Result<(), CheckValidationOutputsError> {
 				self.validation_outputs_results
 					.get(&para_id)
 					.cloned()
@@ -470,8 +470,8 @@ mod tests {
 		let para_b = 6.into();
 		let commitments = polkadot_primitives::v1::ValidationOutputs::default();
 
-		runtime_api.validation_outputs_results.insert(para_a, false);
-		runtime_api.validation_outputs_results.insert(para_b, true);
+		runtime_api.validation_outputs_results.insert(para_a, Err(CheckValidationOutputsError::HeadDataTooLarge));
+		runtime_api.validation_outputs_results.insert(para_b, Ok(()));
 
 		let runtime_api = Arc::new(runtime_api);
 
