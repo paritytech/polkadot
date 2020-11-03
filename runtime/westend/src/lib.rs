@@ -600,7 +600,9 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(..)
+				Call::Staking(..) |
+				Call::Session(..) |
+				Call::Utility(..)
 			),
 			ProxyType::SudoBalances => match c {
 				Call::Sudo(pallet_sudo::Call::sudo(ref x)) => matches!(x.as_ref(), &Call::Balances(..)),
@@ -608,8 +610,8 @@ impl InstanceFilter<Call> for ProxyType {
 				_ => false,
 			},
 			ProxyType::IdentityJudgement => matches!(c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..))
-				| Call::Utility(pallet_utility::Call::batch(..))
+				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
+				Call::Utility(..)
 			)
 		}
 	}
