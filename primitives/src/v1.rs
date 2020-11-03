@@ -665,7 +665,7 @@ pub enum CheckValidationOutputsError {
 	PrematureCodeUpgrade,
 	/// The new parachain code is too large.
 	NewCodeTooLarge,
-	/// The parachain didn't handled the downward messages correctly.
+	/// The parachain didn't handle the downward messages correctly.
 	IncorrectDownwardMessageHandling,
 	/// The parachain returned invalid upward messages.
 	InvalidUpwardMessages,
