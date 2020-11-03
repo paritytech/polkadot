@@ -16,7 +16,7 @@
 
 use std::collections::HashMap;
 
-use super::{TARGET,  Result};
+use super::{LOG_TARGET,  Result};
 
 use futures::{StreamExt, task::Poll};
 use log::warn;
@@ -153,7 +153,7 @@ where
 	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
 		warn!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Distribute collation message parent {:?} is outside of our view",
 			relay_parent,
 		);
@@ -172,7 +172,7 @@ where
 		Some(core) => core,
 		None => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
 			);
 			return Ok(());
@@ -184,7 +184,7 @@ where
 		Some(validators) => validators,
 		None => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"There are no validators assigned to {:?} core", our_core,
 			);
 
@@ -378,7 +378,7 @@ where
 					// If the ParaId of a collation requested to be distributed does not match
 					// the one we expect, we ignore the message.
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"DistributeCollation message for para {:?} while collating on {:?}",
 						receipt.descriptor.para_id,
 						id,
@@ -389,7 +389,7 @@ where
 				}
 				None => {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"DistributeCollation message for para {:?} while not collating on any",
 						receipt.descriptor.para_id,
 					);
@@ -398,19 +398,19 @@ where
 		}
 		FetchCollation(_, _, _, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"FetchCollation message is not expected on the collator side of the protocol",
 			);
 		}
 		ReportCollator(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		}
 		NoteGoodCollation(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -421,7 +421,7 @@ where
 				event,
 			).await {
 				warn!(
-					target: TARGET,
+					target: LOG_TARGET,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}
@@ -476,13 +476,13 @@ where
 	match msg {
 		Declare(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 		AdvertiseCollation(_, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -495,7 +495,7 @@ where
 						}
 					} else {
 						warn!(
-							target: TARGET,
+							target: LOG_TARGET,
 							"Received a RequestCollation for {:?} while collating on {:?}",
 							para_id, our_para_id,
 						);
@@ -503,7 +503,7 @@ where
 				}
 				None => {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Received a RequestCollation for {:?} while not collating on any para",
 						para_id,
 					);
@@ -512,7 +512,7 @@ where
 		}
 		Collation(_, _, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Collation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -647,7 +647,7 @@ where
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Failed to declare our collator id: {:?}",
 						err,
 					);
@@ -659,7 +659,11 @@ where
 
 		while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			match msg? {
-				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
+				Communication { msg } => {
+					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
+						warn!(target: LOG_TARGET, "Failed to process message: {}", e);
+					}
+				},
 				Signal(ActiveLeaves(_update)) => {}
 				Signal(BlockFinalized(_)) => {}
 				Signal(Conclude) => return Ok(()),
@@ -810,7 +814,7 @@ mod tests {
 				log::LevelFilter::Trace,
 			)
 			.filter(
-				Some(TARGET),
+				Some(LOG_TARGET),
 				log::LevelFilter::Trace,
 			)
 			.try_init();
