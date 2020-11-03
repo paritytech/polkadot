@@ -23,6 +23,7 @@ polkadot-core-primitives = { path = "../core-primitives", default-features = fal
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+displaydoc = { version = "0.1.7", optional = true }
 
 [dev-dependencies]
 sp-serializer = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -49,4 +50,5 @@ std = [
 	"polkadot-core-primitives/std",
 	"bitvec/std",
 	"frame-system/std",
+	"displaydoc",
 ]

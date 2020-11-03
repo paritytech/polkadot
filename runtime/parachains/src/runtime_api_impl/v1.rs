@@ -221,22 +221,8 @@ pub fn persisted_validation_data<T: initializer::Trait>(
 pub fn check_validation_outputs<T: initializer::Trait>(
 	para_id: ParaId,
 	outputs: primitives::v1::ValidationOutputs,
-) -> bool {
-	match <inclusion::Module<T>>::check_validation_outputs(para_id, outputs) {
-		Ok(()) => true,
-		Err(e) => {
-			frame_support::debug::RuntimeLogger::init();
-			let err: &'static str = e.into();
-			log::debug!(
-				target: "candidate_validation",
-				"Validation output checking for parachain `{}` failed: {}",
-				u32::from(para_id),
-				err,
-			);
-
-			false
-		}
-	}
+) -> Result<(), primitives::v1::CheckValidationOutputsError> {
+	<inclusion::Module<T>>::check_validation_outputs(para_id, outputs)
 }
 
 /// Implementation for the `session_index_for_child` function of the runtime API.

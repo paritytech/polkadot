@@ -348,8 +348,16 @@ async fn spawn_validate_from_chain_state(
 		)
 		.await?
 		{
-			Ok(true) => {}
-			Ok(false) => {
+			Ok(Ok(())) => {}
+			Ok(Err(e)) => {
+				log::debug!(
+					target: LOG_TARGET,
+					"Parachain ({}) PoV ({}) validation outputs checking failed: {}",
+					descriptor.para_id,
+					descriptor.pov_hash,
+					e,
+				);
+
 				return Ok(Ok(ValidationResult::Invalid(
 					InvalidCandidate::InvalidOutputs,
 				)));
