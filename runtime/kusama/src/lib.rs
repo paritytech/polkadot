@@ -843,15 +843,21 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Governance => matches!(c,
-				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
-					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+				Call::Democracy(..) |
+				Call::Council(..) |
+				Call::TechnicalCommittee(..) |
+				Call::ElectionsPhragmen(..) |
+				Call::Treasury(..) |
+				Call::Utility(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(..)
+				Call::Staking(..) |
+				Call::Session(..) |
+				Call::Utility(..)
 			),
 			ProxyType::IdentityJudgement => matches!(c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..))
-				| Call::Utility(pallet_utility::Call::batch(..))
+				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
+				Call::Utility(..)
 			)
 		}
 	}
