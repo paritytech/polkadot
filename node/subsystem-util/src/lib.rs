@@ -507,20 +507,6 @@ pub trait JobTrait: Unpin {
 		receiver: mpsc::Receiver<Self::ToJob>,
 		sender: mpsc::Sender<Self::FromJob>,
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>>;
-
-	/// Handle a message which has no relay parent, and therefore can't be dispatched to a particular job
-	///
-	/// By default, this is implemented with a NOP function. However, if
-	/// ToJob occasionally has messages which do not correspond to a particular
-	/// parent relay hash, then this function will be spawned as a one-off
-	/// task to handle those messages.
-	// TODO: the API here is likely not precisely what we want; figure it out more
-	// once we're implementing a subsystem which actually needs this feature.
-	// In particular, we're quite likely to want this to return a future instead of
-	// interrupting the active thread for the duration of the handler.
-	fn handle_unanchored_msg(_msg: Self::ToJob) -> Result<(), Self::Error> {
-		Ok(())
-	}
 }
 
 /// Error which can be returned by the jobs manager
@@ -845,13 +831,10 @@ where
 				if let Ok(to_job) = <Job::ToJob>::try_from(msg) {
 					match to_job.relay_parent() {
 						Some(hash) => jobs.send_msg(hash, to_job).await,
-						None => {
-							if let Err(err) = Job::handle_unanchored_msg(to_job) {
-								log::error!("Failed to handle unhashed message for job({}): {:?}", Job::NAME, err);
-								Self::fwd_err(None, JobsError::Job(err), err_tx).await;
-								return true;
-							}
-						}
+						None => log::debug!(
+							"Trying to send a message to a job({}) without specifying a relay parent.",
+							Job::NAME,
+						),
 					}
 				}
 			}
