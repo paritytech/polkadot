@@ -140,11 +140,10 @@ impl CollationGenerationSubsystem {
 			}) => {
 				if self.config.is_some() {
 					log::warn!(target: LOG_TARGET, "double initialization");
-					true
 				} else {
 					self.config = Some(Arc::new(config));
-					false
 				}
+				false
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
