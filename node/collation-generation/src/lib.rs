@@ -129,8 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: LOG_TARGET, "failed to handle new activations: {:?}", err);
-						return true;
+						log::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
 					};
 				}
 				false
