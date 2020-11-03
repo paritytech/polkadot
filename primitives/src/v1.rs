@@ -661,7 +661,7 @@ pub enum CandidateEvent<H = Hash> {
 pub enum CheckValidationOutputsError {
 	/// The head data is too large.
 	HeadDataTooLarge,
-	/// The parachain tried to upgrade its code too early.
+	/// The parachain tried to upgrade its code to early.
 	PrematureCodeUpgrade,
 	/// The new parachain code is too large.
 	NewCodeTooLarge,
