@@ -25,11 +25,10 @@ use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
 	PoV, ValidatorId,
 };
-#[allow(unused_imports)]
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
-		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
+		AllMessages, CollatorProtocolMessage,
 		NetworkBridgeMessage,
 	},
 };
@@ -693,7 +692,7 @@ mod tests {
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 	};
-	use polkadot_subsystem::ActiveLeavesUpdate;
+	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
 	use polkadot_node_network_protocol::ObservedRole;
