@@ -52,6 +52,8 @@ pub type Hash = sp_core::H256;
 
 /// Unit type wrapper around [`Hash`] that represents a candidate hash.
 ///
+/// This type is produced by [`CandidateReceipt::hash`].
+///
 /// This type makes it easy to enforce that a hash is a candidate hash on the type level.
 #[derive(Clone, Copy, codec::Encode, codec::Decode, Hash, Eq, PartialEq, Debug, Default)]
 pub struct CandidateHash(pub Hash);
