@@ -22,9 +22,9 @@ polkadot-service = { path = "../../../../node/service" }
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }

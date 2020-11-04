@@ -18,10 +18,10 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-primitives = { path = "../../primitives" }
 polkadot-statement-table = { path = "../../statement-table" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
 smallvec = "1.4.1"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
+substrate-prometheus-endpoint = { git = "https://github.com/paritytech/substrate", branch = "andre/grandpa-cache-round-id" }
 thiserror = "1.0.21"
 
 [dev-dependencies]
