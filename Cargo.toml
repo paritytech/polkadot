@@ -37,6 +37,7 @@ members = [
 	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
+	"runtime-upgrade",
 	"statement-table",
 	"validation",
 	"xcm",
