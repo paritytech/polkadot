@@ -39,9 +39,10 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
-	SignedAvailabilityBitfield,
+	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{collections::HashSet, convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin};
+use std::collections::BTreeMap;
 use thiserror::Error;
 
 struct ProvisioningJob {
@@ -313,7 +314,7 @@ async fn send_inherent_data(
 /// In general, we want to pick all the bitfields. However, we have the following constraints:
 ///
 /// - not more than one per validator
-/// - each must correspond to an occupied core
+/// - each 1 bit must correspond to an occupied core
 ///
 /// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
 /// we pick the one with the greatest number of 1 bits.
@@ -324,32 +325,30 @@ fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
 ) -> Vec<SignedAvailabilityBitfield> {
-	let mut bitfield_per_core: Vec<Option<SignedAvailabilityBitfield>> = vec![None; cores.len()];
-	let mut seen_validators = HashSet::new();
+	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
 
-	for mut bitfield in bitfields.iter().cloned() {
-		// If we have seen the validator already, ignore it.
-		if !seen_validators.insert(bitfield.validator_index()) {
-			continue;
+	'a:
+	for bitfield in bitfields.iter().cloned() {
+		if bitfield.payload().0.len() != cores.len() {
+			continue
 		}
 
-		for (idx, _) in cores.iter().enumerate().filter(|v| v.1.is_occupied()) {
+		let is_better = selected.get(&bitfield.validator_index())
+			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
+
+		if !is_better { continue }
+
+		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
+			// Bit is set for an unoccupied core - invalid
 			if *bitfield.payload().0.get(idx).unwrap_or(&false) {
-				if let Some(ref mut occupied) = bitfield_per_core[idx] {
-					if occupied.payload().0.count_ones() < bitfield.payload().0.count_ones() {
-						// We found a better bitfield, lets swap them and search a new spot for the old
-						// best one
-						std::mem::swap(occupied, &mut bitfield);
-					}
-				} else {
-					bitfield_per_core[idx] = Some(bitfield);
-					break;
-				}
+				continue 'a
 			}
 		}
+
+		let _ = selected.insert(bitfield.validator_index(), bitfield);
 	}
 
-	bitfield_per_core.into_iter().filter_map(|v| v).collect()
+	selected.into_iter().map(|(_, b)| b).collect()
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
