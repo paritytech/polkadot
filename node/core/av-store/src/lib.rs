@@ -729,7 +729,10 @@ where
 	Ok(())
 }
 
-fn available_data(db: &Arc<dyn KeyValueDB>, candidate_hash: &CandidateHash) -> Option<StoredAvailableData> {
+fn available_data(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: &CandidateHash,
+) -> Option<StoredAvailableData> {
 	query_inner(db, columns::DATA, &available_data_key(candidate_hash))
 }
 
@@ -981,7 +984,11 @@ fn get_chunk(
 	Ok(None)
 }
 
-fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> Option<D> {
+fn query_inner<D: Decode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+) -> Option<D> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
 			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
