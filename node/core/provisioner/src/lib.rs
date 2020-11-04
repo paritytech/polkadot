@@ -462,7 +462,8 @@ fn bitfields_indicate_availability(
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
 				log::warn!(
-					target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}",
+					target: LOG_TARGET,
+					"attempted to set a transverse bit at idx {} which is greater than bitfield size {}",
 					validator_idx,
 					availability_len,
 				);
