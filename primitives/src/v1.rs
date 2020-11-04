@@ -623,6 +623,11 @@ impl<N> CoreState<N> {
 			Self::Free => None,
 		}
 	}
+
+	/// Is this core state `Self::Occupied`?
+	pub fn is_occupied(&self) -> bool {
+		matches!(self, Self::Occupied(_))
+	}
 }
 
 /// An assumption being made about the state of an occupied core.

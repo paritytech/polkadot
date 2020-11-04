@@ -30,9 +30,7 @@ use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_primitives::v1::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use polkadot_node_network_protocol::{v1 as protocol_v1, PeerId, NetworkBridgeEvent, View, ReputationChange};
 use std::collections::{HashMap, HashSet};
@@ -312,10 +310,13 @@ where
 {
 	// notify the overseer about a new and valid signed bitfield
 	ctx.send_message(AllMessages::Provisioner(
-		ProvisionerMessage::ProvisionableData(ProvisionableData::Bitfield(
-			message.relay_parent.clone(),
-			message.signed_availability.clone(),
-		)),
+		ProvisionerMessage::ProvisionableData(
+			message.relay_parent,
+			ProvisionableData::Bitfield(
+				message.relay_parent,
+				message.signed_availability.clone(),
+			),
+		),
 	))
 	.await?;
 
@@ -971,6 +972,7 @@ mod test {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					_,
 					ProvisionableData::Bitfield(hash, signed)
 				)) => {
 					assert_eq!(hash, hash_a);
@@ -1099,6 +1101,7 @@ mod test {
 			assert_matches!(
 				handle.recv().await,
 				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(
+					_,
 					ProvisionableData::Bitfield(hash, signed)
 				)) => {
 					assert_eq!(hash, hash_a);

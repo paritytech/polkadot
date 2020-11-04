@@ -46,8 +46,7 @@ mod select_availability_bitfields {
 	use std::sync::Arc;
 	use polkadot_primitives::v1::{SigningContext, ValidatorIndex, ValidatorId};
 	use sp_application_crypto::AppKey;
-	use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
-	use sc_keystore::LocalKeystore;
+	use sp_keystore::{CryptoStore, SyncCryptoStorePtr, testing::KeyStore};
 
 	async fn signed_bitfield(
 		keystore: &SyncCryptoStorePtr,
@@ -68,12 +67,10 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn not_more_than_one_per_validator() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
-		let bitvec = default_bitvec();
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec = default_bitvec();
+		bitvec.set(0, true);
+		bitvec.set(1, true);
 
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
@@ -96,11 +93,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn each_corresponds_to_an_occupied_core() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
 		let bitvec = default_bitvec();
 
 		let cores = vec![CoreState::Free, CoreState::Scheduled(Default::default())];
@@ -120,23 +113,18 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn more_set_bits_win_conflicts() {
-		// Configure filesystem-based keystore as generating keys without seed
-		// would trigger the key to be generated on the filesystem.
-		let keystore_path = tempfile::tempdir().expect("Creates keystore path");
-		let keystore : SyncCryptoStorePtr = Arc::new(LocalKeystore::open(keystore_path.path(), None)
-			.expect("Creates keystore"));
-		let bitvec_zero = default_bitvec();
-		let bitvec_one = {
-			let mut bitvec = bitvec_zero.clone();
-			bitvec.set(0, true);
-			bitvec
-		};
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec = default_bitvec();
+		bitvec.set(0, true);
+
+		let mut bitvec1 = bitvec.clone();
+		bitvec1.set(1, true);
 
 		let cores = vec![occupied_core(0)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec_zero, 0)),
-			block_on(signed_bitfield(&keystore, bitvec_one.clone(), 0)),
+			block_on(signed_bitfield(&keystore, bitvec, 0)),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
 		];
 
 		// this test is probablistic: chances are excellent that it does what it claims to.
@@ -145,8 +133,63 @@ mod select_availability_bitfields {
 		for _ in 0..64 {
 			let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
 			assert_eq!(selected_bitfields.len(), 1);
-			assert_eq!(selected_bitfields[0].payload().0, bitvec_one);
+			assert_eq!(selected_bitfields[0].payload().0, bitvec1.clone());
 		}
+	}
+
+	#[test]
+	fn more_validators_than_parachains() {
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec = default_bitvec();
+		bitvec.set(0, true);
+
+		let cores = vec![occupied_core(0)];
+
+		let bitfields = vec![
+			block_on(signed_bitfield(&keystore, bitvec.clone(), 0)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec.clone(), 3)),
+		];
+
+		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		assert_eq!(selected_bitfields.len(), 1);
+		assert_eq!(selected_bitfields[0].payload().0, bitvec);
+	}
+
+	#[test]
+	fn more_complex_bitfields() {
+		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let mut bitvec0 = default_bitvec();
+		bitvec0.set(0, true);
+		bitvec0.set(2, true);
+
+		let mut bitvec1 = default_bitvec();
+		bitvec1.set(1, true);
+
+		let mut bitvec2 = default_bitvec();
+		bitvec2.set(2, true);
+
+		let mut bitvec3 = default_bitvec();
+		bitvec3.set(0, true);
+		bitvec3.set(1, true);
+		bitvec3.set(2, true);
+		bitvec3.set(3, true);
+
+		let cores = vec![occupied_core(0), occupied_core(1), occupied_core(2), occupied_core(3)];
+
+		let bitfields = vec![
+			block_on(signed_bitfield(&keystore, bitvec0.clone(), 0)),
+			block_on(signed_bitfield(&keystore, bitvec1.clone(), 1)),
+			block_on(signed_bitfield(&keystore, bitvec2.clone(), 2)),
+			block_on(signed_bitfield(&keystore, bitvec3.clone(), 3)),
+		];
+
+		let selected_bitfields = select_availability_bitfields(&cores, &bitfields);
+		assert_eq!(selected_bitfields.len(), 3);
+		assert_eq!(selected_bitfields[0].payload().0, bitvec3);
+		assert_eq!(selected_bitfields[1].payload().0, bitvec1);
+		assert_eq!(selected_bitfields[2].payload().0, bitvec0);
 	}
 }
 
