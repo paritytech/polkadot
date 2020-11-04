@@ -664,4 +664,336 @@ impl<T: Trait> Module<T> {
 
 #[cfg(test)]
 mod tests {
+	use super::*;
+	use crate::router::tests::default_genesis_config;
+	use crate::mock::{Configuration, System, Paras, Router, new_test_ext};
+	use primitives::v1::BlockNumber;
+	use std::collections::HashSet;
+
+	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
+		use frame_support::traits::{OnFinalize as _, OnInitialize as _};
+
+		while System::block_number() < to {
+			let b = System::block_number();
+
+			// NOTE: this is in reverse initialization order.
+			Router::initializer_finalize();
+			Paras::initializer_finalize();
+
+			System::on_finalize(b);
+
+			System::on_initialize(b + 1);
+			System::set_block_number(b + 1);
+
+			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
+				Router::initializer_on_new_session(&Default::default());
+				Paras::initializer_on_new_session(&Default::default());
+			}
+
+			// NOTE: this is in initialization order.
+			Paras::initializer_initialize(b + 1);
+			Router::initializer_initialize(b + 1);
+		}
+	}
+
+	struct GenesisConfigBuilder {
+		hrmp_channel_max_capacity: u32,
+		hrmp_channel_max_message_size: u32,
+		hrmp_max_parathread_outbound_channels: u32,
+		hrmp_max_parachain_outbound_channels: u32,
+		hrmp_max_parathread_inbound_channels: u32,
+		hrmp_max_parachain_inbound_channels: u32,
+		hrmp_max_message_num_per_candidate: u32,
+		hrmp_channel_max_total_size: u32,
+	}
+
+	impl Default for GenesisConfigBuilder {
+		fn default() -> Self {
+			Self {
+				hrmp_channel_max_capacity: 2,
+				hrmp_channel_max_message_size: 8,
+				hrmp_max_parathread_outbound_channels: 1,
+				hrmp_max_parachain_outbound_channels: 2,
+				hrmp_max_parathread_inbound_channels: 1,
+				hrmp_max_parachain_inbound_channels: 2,
+				hrmp_max_message_num_per_candidate: 2,
+				hrmp_channel_max_total_size: 16,
+			}
+		}
+	}
+
+	impl GenesisConfigBuilder {
+		fn build(self) -> crate::mock::GenesisConfig {
+			let mut genesis = default_genesis_config();
+			let config = &mut genesis.configuration.config;
+			config.hrmp_channel_max_capacity = self.hrmp_channel_max_capacity;
+			config.hrmp_channel_max_message_size = self.hrmp_channel_max_message_size;
+			config.hrmp_max_parathread_outbound_channels =
+				self.hrmp_max_parathread_outbound_channels;
+			config.hrmp_max_parachain_outbound_channels = self.hrmp_max_parachain_outbound_channels;
+			config.hrmp_max_parathread_inbound_channels = self.hrmp_max_parathread_inbound_channels;
+			config.hrmp_max_parachain_inbound_channels = self.hrmp_max_parachain_inbound_channels;
+			config.hrmp_max_message_num_per_candidate = self.hrmp_max_message_num_per_candidate;
+			config.hrmp_channel_max_total_size = self.hrmp_channel_max_total_size;
+			genesis
+		}
+	}
+
+	fn register_parachain(id: ParaId) {
+		Paras::schedule_para_initialize(
+			id,
+			crate::paras::ParaGenesisArgs {
+				parachain: true,
+				genesis_head: vec![1].into(),
+				validation_code: vec![1].into(),
+			},
+		);
+	}
+
+	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
+		<Router as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+	}
+
+	fn assert_storage_consistency_exhaustive() {
+		use frame_support::IterableStorageMap;
+
+		assert_eq!(
+			<Router as Store>::HrmpOpenChannelRequests::iter()
+				.map(|(k, _)| k)
+				.collect::<HashSet<_>>(),
+			<Router as Store>::HrmpOpenChannelRequestsList::get()
+				.into_iter()
+				.collect::<HashSet<_>>(),
+		);
+
+		// verify that the set of keys in `HrmpOpenChannelRequestCount` corresponds to the set
+		// of _senders_ in `HrmpOpenChannelRequests`.
+		//
+		// having ensured that, we can go ahead and go over all counts and verify that they match.
+		assert_eq!(
+			<Router as Store>::HrmpOpenChannelRequestCount::iter()
+				.map(|(k, _)| k)
+				.collect::<HashSet<_>>(),
+			<Router as Store>::HrmpOpenChannelRequests::iter()
+				.map(|(k, _)| k.sender)
+				.collect::<HashSet<_>>(),
+		);
+		for (open_channel_initiator, expected_num) in
+			<Router as Store>::HrmpOpenChannelRequestCount::iter()
+		{
+			let actual_num = <Router as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(ch, _)| ch.sender == open_channel_initiator)
+				.count() as u32;
+			assert_eq!(expected_num, actual_num);
+		}
+
+		// The same as above, but for accepted channel request count. Note that we are interested
+		// only in confirmed open requests.
+		assert_eq!(
+			<Router as Store>::HrmpAcceptedChannelRequestCount::iter()
+				.map(|(k, _)| k)
+				.collect::<HashSet<_>>(),
+			<Router as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(_, v)| v.confirmed)
+				.map(|(k, _)| k.recipient)
+				.collect::<HashSet<_>>(),
+		);
+		for (channel_recipient, expected_num) in
+			<Router as Store>::HrmpAcceptedChannelRequestCount::iter()
+		{
+			let actual_num = <Router as Store>::HrmpOpenChannelRequests::iter()
+				.filter(|(ch, v)| ch.recipient == channel_recipient && v.confirmed)
+				.count() as u32;
+			assert_eq!(expected_num, actual_num);
+		}
+
+		assert_eq!(
+			<Router as Store>::HrmpCloseChannelRequests::iter()
+				.map(|(k, _)| k)
+				.collect::<HashSet<_>>(),
+			<Router as Store>::HrmpCloseChannelRequestsList::get()
+				.into_iter()
+				.collect::<HashSet<_>>(),
+		);
+
+		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain
+		// cannot have an HRMP watermark: it should've been cleanup.
+		assert_contains_only_onboarded(<Router as Store>::HrmpWatermarks::iter().map(|(k, _)| k));
+
+		// An entry in `HrmpChannels` indicates that the channel is open. Only open channels can
+		// have contents.
+		for (non_empty_channel, contents) in <Router as Store>::HrmpChannelContents::iter() {
+			assert!(<Router as Store>::HrmpChannels::contains_key(
+				&non_empty_channel
+			));
+
+			// pedantic check: there should be no empty vectors in storage, those should be modeled
+			// by a removed kv pair.
+			assert!(!contents.is_empty());
+		}
+
+		// Senders and recipients must be onboarded. Otherwise, all channels associated with them
+		// are removed.
+		assert_contains_only_onboarded(
+			<Router as Store>::HrmpChannels::iter().flat_map(|(k, _)| vec![k.sender, k.recipient]),
+		);
+
+		// Check the docs for `HrmpIngressChannelsIndex` and `HrmpEgressChannelsIndex` in decl
+		// storage to get an index what are the channel mappings indexes.
+		//
+		// Here, from indexes.
+		//
+		// ingress         egress
+		//
+		// a -> [x, y]     x -> [a, b]
+		// b -> [x, z]     y -> [a]
+		//                 z -> [b]
+		//
+		// we derive a list of channels they represent.
+		//
+		//   (a, x)         (a, x)
+		//   (a, y)         (a, y)
+		//   (b, x)         (b, x)
+		//   (b, y)         (b, y)
+		//
+		// and then that we compare that to the channel list in the `HrmpChannels`.
+		let channel_set_derived_from_ingress = <Router as Store>::HrmpIngressChannelsIndex::iter()
+			.flat_map(|(p, v)| v.into_iter().map(|i| (i, p)).collect::<Vec<_>>())
+			.collect::<HashSet<_>>();
+		let channel_set_derived_from_egress = <Router as Store>::HrmpEgressChannelsIndex::iter()
+			.flat_map(|(p, v)| v.into_iter().map(|e| (p, e)).collect::<Vec<_>>())
+			.collect::<HashSet<_>>();
+		let channel_set_ground_truth = <Router as Store>::HrmpChannels::iter()
+			.map(|(k, _)| (k.sender, k.recipient))
+			.collect::<HashSet<_>>();
+		assert_eq!(
+			channel_set_derived_from_ingress,
+			channel_set_derived_from_egress
+		);
+		assert_eq!(channel_set_derived_from_egress, channel_set_ground_truth);
+
+		fn assert_contains_only_onboarded(iter: impl Iterator<Item = ParaId>) {
+			for para in iter {
+				assert!(Paras::is_valid_para(para))
+			}
+		}
+	}
+
+	#[test]
+	fn empty_state_consistent_state() {
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			assert_storage_consistency_exhaustive();
+		});
+	}
+
+	#[test]
+	fn open_channel_works() {
+		let para_a = 1.into();
+		let para_b = 3.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			// We need both A & B to be registered and alive parachains.
+			register_parachain(para_a);
+			register_parachain(para_b);
+
+			run_to_block(5, Some(vec![5]));
+			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			assert_storage_consistency_exhaustive();
+
+			Router::accept_open_channel(para_b, para_a).unwrap();
+			assert_storage_consistency_exhaustive();
+
+			// Advance to a block 6, but without session change. That means that the channel has
+			// not been created yet.
+			run_to_block(6, None);
+			assert!(!channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+
+			// Now let the session change happen and thus open the channel.
+			run_to_block(8, Some(vec![8]));
+			assert!(channel_exists(para_a, para_b));
+		});
+	}
+
+	#[test]
+	fn close_channel_works() {
+		let para_a = 5.into();
+		let para_b = 2.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain(para_b);
+
+			run_to_block(5, Some(vec![5]));
+			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Router::accept_open_channel(para_b, para_a).unwrap();
+
+			run_to_block(6, Some(vec![6]));
+			assert!(channel_exists(para_a, para_b));
+
+			// Close the channel. The effect is not immediate, but rather deferred to the next
+			// session change.
+			Router::close_channel(
+				para_b,
+				HrmpChannelId {
+					sender: para_a,
+					recipient: para_b,
+				},
+			)
+			.unwrap();
+			assert!(channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+
+			// After the session change the channel should be closed.
+			run_to_block(8, Some(vec![8]));
+			assert!(!channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+		});
+	}
+
+	#[test]
+	fn send_recv_messages() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		let mut genesis = GenesisConfigBuilder::default();
+		genesis.hrmp_channel_max_message_size = 20;
+		genesis.hrmp_channel_max_total_size = 20;
+		new_test_ext(genesis.build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain(para_b);
+
+			run_to_block(5, Some(vec![5]));
+			Router::init_open_channel(para_a, para_b, 2, 20).unwrap();
+			Router::accept_open_channel(para_b, para_a).unwrap();
+
+			// On Block 6:
+			// A sends a message to B
+			run_to_block(6, Some(vec![6]));
+			assert!(channel_exists(para_a, para_b));
+			let msgs = vec![OutboundHrmpMessage {
+				recipient: para_b,
+				data: b"this is an emergency".to_vec(),
+			}];
+			let config = Configuration::config();
+			assert!(Router::check_outbound_hrmp(
+				&config,
+				para_a,
+				&msgs,
+			));
+			let _ = Router::queue_outbound_hrmp(para_a, msgs);
+			assert_storage_consistency_exhaustive();
+
+			// On Block 7:
+			// B receives the message sent by A. B sets the watermark to 6.
+			run_to_block(7, None);
+			assert!(Router::check_hrmp_watermark(
+				para_b,
+				7,
+				6,
+			));
+			let _ = Router::prune_hrmp(para_b, 6);
+			assert_storage_consistency_exhaustive();
+		});
+	}
 }
