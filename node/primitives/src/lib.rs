@@ -28,7 +28,7 @@ use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
 	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
+	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs, CandidateHash,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -54,10 +54,10 @@ pub enum Statement {
 	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
 	#[codec(index = "2")]
-	Valid(Hash),
+	Valid(CandidateHash),
 	/// A statement that a validator has deemed a candidate invalid.
 	#[codec(index = "3")]
-	Invalid(Hash),
+	Invalid(CandidateHash),
 }
 
 impl Statement {

@@ -27,7 +27,7 @@ use smallvec::smallvec;
 
 use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateDescriptor, CandidateReceipt, HeadData,
-	PersistedValidationData, PoV, Id as ParaId,
+	PersistedValidationData, PoV, Id as ParaId, CandidateHash,
 };
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_subsystem::{
@@ -199,7 +199,7 @@ fn runtime_api_error_does_not_stop_the_subsystem() {
 
 		// but that's fine, we're still alive
 		let (tx, rx) = oneshot::channel();
-		let candidate_hash = Hash::repeat_byte(33);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = 5;
 		let query_chunk = AvailabilityStoreMessage::QueryChunk(
 			candidate_hash,
@@ -220,7 +220,7 @@ fn store_chunk_works() {
 	test_harness(PruningConfig::default(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
 		let relay_parent = Hash::repeat_byte(32);
-		let candidate_hash = Hash::repeat_byte(33);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(33));
 		let validator_index = 5;
 
 		let chunk = ErasureChunk {
@@ -273,7 +273,7 @@ fn store_block_works() {
 	let test_state = TestState::default();
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = Hash::from([1; 32]);
+		let candidate_hash = CandidateHash(Hash::from([1; 32]));
 		let validator_index = 5;
 		let n_validators = 10;
 
@@ -327,7 +327,7 @@ fn store_pov_and_query_chunk_works() {
 
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = Hash::from([1; 32]);
+		let candidate_hash = CandidateHash(Hash::from([1; 32]));
 		let n_validators = 10;
 
 		let pov = PoV {
@@ -370,7 +370,7 @@ fn stored_but_not_included_chunk_is_pruned() {
 
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = Hash::repeat_byte(1);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let relay_parent = Hash::repeat_byte(2);
 		let validator_index = 5;
 
@@ -425,7 +425,7 @@ fn stored_but_not_included_data_is_pruned() {
 
 	test_harness(test_state.pruning_config.clone(), store.clone(), |test_harness| async move {
 		let TestHarness { mut virtual_overseer } = test_harness;
-		let candidate_hash = Hash::repeat_byte(1);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(1));
 		let n_validators = 10;
 
 		let pov = PoV {
@@ -852,7 +852,7 @@ fn forkfullness_works() {
 
 async fn query_available_data(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 ) -> Option<AvailableData> {
 	let (tx, rx) = oneshot::channel();
 
@@ -864,7 +864,7 @@ async fn query_available_data(
 
 async fn query_chunk(
 	virtual_overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	index: u32,
 ) -> Option<ErasureChunk> {
 	let (tx, rx) = oneshot::channel();

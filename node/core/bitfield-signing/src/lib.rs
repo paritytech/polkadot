@@ -182,7 +182,7 @@ async fn get_core_availability(
 		let (tx, rx) = oneshot::channel();
 		sender
 			.send(AvailabilityStore(QueryChunkAvailability(
-				committed_candidate_receipt.descriptor.pov_hash,
+				committed_candidate_receipt.hash(),
 				validator_idx,
 				tx,
 			)))
