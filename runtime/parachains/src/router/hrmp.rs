@@ -752,7 +752,7 @@ mod tests {
 	use crate::router::tests::default_genesis_config;
 	use crate::mock::{Configuration, System, Paras, Router, new_test_ext};
 	use primitives::v1::BlockNumber;
-	use std::collections::HashSet;
+	use std::collections::{BTreeMap, HashSet};
 
 	pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 		use frame_support::traits::{OnFinalize as _, OnInitialize as _};
@@ -770,8 +770,9 @@ mod tests {
 			System::set_block_number(b + 1);
 
 			if new_session.as_ref().map_or(false, |v| v.contains(&(b + 1))) {
-				Router::initializer_on_new_session(&Default::default());
+				// NOTE: this is in initialization order.
 				Paras::initializer_on_new_session(&Default::default());
+				Router::initializer_on_new_session(&Default::default());
 			}
 
 			// NOTE: this is in initialization order.
@@ -823,6 +824,9 @@ mod tests {
 		}
 	}
 
+	// TODO:
+	// - rename: schedule_initialize
+	// - impl Iterator
 	fn register_parachain(id: ParaId) {
 		Paras::schedule_para_initialize(
 			id,
@@ -832,6 +836,10 @@ mod tests {
 				validation_code: vec![1].into(),
 			},
 		);
+	}
+
+	fn deregister_parachain(id: ParaId) {
+		Paras::schedule_para_cleanup(id);
 	}
 
 	fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
@@ -902,7 +910,10 @@ mod tests {
 
 		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain
 		// cannot have an HRMP watermark: it should've been cleanup.
-		assert_contains_only_onboarded(<Router as Store>::HrmpWatermarks::iter().map(|(k, _)| k));
+		assert_contains_only_onboarded(
+			<Router as Store>::HrmpWatermarks::iter().map(|(k, _)| k),
+			"HRMP watermarks should contain only onboarded paras",
+		);
 
 		// An entry in `HrmpChannels` indicates that the channel is open. Only open channels can
 		// have contents.
@@ -920,6 +931,7 @@ mod tests {
 		// are removed.
 		assert_contains_only_onboarded(
 			<Router as Store>::HrmpChannels::iter().flat_map(|(k, _)| vec![k.sender, k.recipient]),
+			"senders and recipients in all channels should be onboarded",
 		);
 
 		// Check the docs for `HrmpIngressChannelsIndex` and `HrmpEgressChannelsIndex` in decl
@@ -956,11 +968,31 @@ mod tests {
 		);
 		assert_eq!(channel_set_derived_from_egress, channel_set_ground_truth);
 
-		fn assert_contains_only_onboarded(iter: impl Iterator<Item = ParaId>) {
+		<Router as Store>::HrmpIngressChannelsIndex::iter()
+			.map(|(_, v)| v)
+			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
+		<Router as Store>::HrmpEgressChannelsIndex::iter()
+			.map(|(_, v)| v)
+			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
+
+		fn assert_contains_only_onboarded(iter: impl Iterator<Item = ParaId>, cause: &str) {
 			for para in iter {
-				assert!(Paras::is_valid_para(para))
+				assert!(
+					Paras::is_valid_para(para),
+					"{}: {} para is offboarded",
+					cause,
+					para
+				);
 			}
 		}
+	}
+
+	fn assert_is_sorted<T: Ord>(slice: &[T], id: &str) {
+		assert!(
+			slice.windows(2).all(|xs| xs[0] <= xs[1]),
+			"{} supposed to be sorted",
+			id
+		);
 	}
 
 	#[test]
@@ -1060,7 +1092,7 @@ mod tests {
 				data: b"this is an emergency".to_vec(),
 			}];
 			let config = Configuration::config();
-			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs,));
+			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs));
 			let _ = Router::queue_outbound_hrmp(para_a, msgs);
 			assert_storage_consistency_exhaustive();
 
@@ -1069,6 +1101,96 @@ mod tests {
 			run_to_block(7, None);
 			assert!(Router::check_hrmp_watermark(para_b, 7, 6,));
 			let _ = Router::prune_hrmp(para_b, 6);
+			assert_storage_consistency_exhaustive();
+		});
+	}
+
+	#[test]
+	fn accept_incoming_request_and_offboard() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain(para_b);
+
+			run_to_block(5, Some(vec![5]));
+			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Router::accept_open_channel(para_b, para_a).unwrap();
+			deregister_parachain(para_a);
+
+			// On Block 6: session change. The channel should not be created.
+			run_to_block(6, Some(vec![6]));
+			assert!(!Paras::is_valid_para(para_a));
+			assert!(!channel_exists(para_a, para_b));
+			assert_storage_consistency_exhaustive();
+		});
+	}
+
+	#[test]
+	fn check_sent_messages() {
+		let para_a = 32.into();
+		let para_b = 64.into();
+		let para_c = 97.into();
+
+		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+			register_parachain(para_a);
+			register_parachain(para_b);
+			register_parachain(para_c);
+
+			run_to_block(5, Some(vec![5]));
+
+			// Open two channels to the same receiver, b:
+			// a -> b, c -> b
+			Router::init_open_channel(para_a, para_b, 2, 8).unwrap();
+			Router::accept_open_channel(para_b, para_a).unwrap();
+			Router::init_open_channel(para_c, para_b, 2, 8).unwrap();
+			Router::accept_open_channel(para_b, para_c).unwrap();
+
+			// On Block 6: session change.
+			run_to_block(6, Some(vec![6]));
+			assert!(Paras::is_valid_para(para_a));
+
+			let msgs = vec![OutboundHrmpMessage {
+				recipient: para_b,
+				data: b"knock".to_vec(),
+			}];
+			let config = Configuration::config();
+			assert!(Router::check_outbound_hrmp(&config, para_a, &msgs));
+			let _ = Router::queue_outbound_hrmp(para_a, msgs.clone());
+
+			// Verify that the sent messages are there and that also the empty channels are present.
+			let mqc_heads = Router::hrmp_mqc_heads(para_b);
+			let contents = Router::inbound_hrmp_channels_contents(para_b);
+			assert_eq!(
+				contents,
+				vec![
+					(
+						para_a,
+						vec![InboundHrmpMessage {
+							sent_at: 6,
+							data: b"knock".to_vec(),
+						}]
+					),
+					(para_c, vec![])
+				]
+				.into_iter()
+				.collect::<BTreeMap::<_, _>>(),
+			);
+			assert_eq!(
+				mqc_heads,
+				vec![
+					(
+						para_a,
+						hex_literal::hex!(
+							"3bba6404e59c91f51deb2ae78f1273ebe75896850713e13f8c0eba4b0996c483"
+						)
+						.into()
+					),
+					(para_c, Default::default())
+				],
+			);
+
 			assert_storage_consistency_exhaustive();
 		});
 	}
