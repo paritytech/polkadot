@@ -9,7 +9,6 @@ futures = "0.3.5"
 log = "0.4.11"
 thiserror = "1.0.21"
 polkadot-primitives = { path = "../../../primitives" }
-polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
