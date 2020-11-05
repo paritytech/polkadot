@@ -30,18 +30,17 @@ use polkadot_subsystem::{
 		PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
-use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_network_protocol::{v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::sync::Arc;
+
+#[cfg(test)]
+mod tests;
 
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
@@ -616,6 +615,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;

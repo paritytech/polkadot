@@ -318,7 +318,7 @@ fn erasure_root(
 ) -> crate::error::Result<Hash> {
 	let available_data = AvailableData {
 		validation_data: persisted_validation,
-		pov,
+		pov: Arc::new(pov),
 	};
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;

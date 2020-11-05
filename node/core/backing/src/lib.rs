@@ -24,10 +24,7 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use futures::{
-	channel::{mpsc, oneshot},
-	Future, FutureExt, SinkExt, StreamExt,
-};
+use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
@@ -314,7 +311,7 @@ impl CandidateBackingJob {
 	async fn validate_and_second(
 		&mut self,
 		candidate: &CandidateReceipt,
-		pov: PoV,
+		pov: Arc<PoV>,
 	) -> Result<bool, Error> {
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
@@ -326,7 +323,7 @@ impl CandidateBackingJob {
 
 		let valid = self.request_candidate_validation(
 			candidate.descriptor().clone(),
-			Arc::new(pov.clone()),
+			pov.clone(),
 		).await?;
 
 		let candidate_hash = candidate.hash();
@@ -491,14 +488,16 @@ impl CandidateBackingJob {
 				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
 					let candidate_hash = candidate.hash();
+					let pov = Arc::new(pov);
 
 					if !self.issued_statements.contains(&candidate_hash) {
 						if let Ok(true) = self.validate_and_second(
 							&candidate,
-							pov,
+							pov.clone(),
 						).await {
 							self.metrics.on_candidate_seconded();
 							self.seconded = Some(candidate_hash);
+							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
 				}
@@ -559,7 +558,7 @@ impl CandidateBackingJob {
 			ValidationResult::Valid(outputs, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
 				let commitments_check = self.make_pov_available(
-					(&*pov).clone(),
+					pov,
 					candidate_hash,
 					validation_data,
 					outputs,
@@ -633,6 +632,16 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	async fn distribute_pov(
+		&mut self,
+		descriptor: CandidateDescriptor,
+		pov: Arc<PoV>,
+	) -> Result<(), Error> {
+		self.tx_from.send(FromJob::PoVDistribution(
+			PoVDistributionMessage::DistributePoV(self.parent, descriptor, pov),
+		)).await.map_err(Into::into)
+	}
+
 	async fn request_pov_from_distribution(
 		&mut self,
 		descriptor: CandidateDescriptor,
@@ -696,7 +705,7 @@ impl CandidateBackingJob {
 	// early without making the PoV available.
 	async fn make_pov_available<T, E>(
 		&mut self,
-		pov: PoV,
+		pov: Arc<PoV>,
 		candidate_hash: CandidateHash,
 		validation_data: polkadot_primitives::v1::PersistedValidationData,
 		outputs: ValidationOutputs,
@@ -1068,7 +1077,7 @@ mod tests {
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
 			validation_data: test.validation_data.persisted.clone(),
-			pov,
+			pov: Arc::new(pov),
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(test.validators.len(), &available_data).unwrap();
@@ -1229,6 +1238,15 @@ mod tests {
 						&test_state.signing_context,
 						&test_state.validator_public[0],
 					).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::PoVDistribution(PoVDistributionMessage::DistributePoV(hash, descriptor, pov_received)) => {
+					assert_eq!(test_state.relay_parent, hash);
+					assert_eq!(candidate.descriptor, descriptor);
+					assert_eq!(pov, *pov_received);
 				}
 			);
 
