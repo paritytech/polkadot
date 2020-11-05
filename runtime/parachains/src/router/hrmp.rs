@@ -494,6 +494,31 @@ impl<T: Trait> Module<T> {
 			<Self as Store>::HrmpChannels::insert(&channel_id, channel);
 			<Self as Store>::HrmpChannelContents::append(&channel_id, inbound);
 
+			// The digests are sorted in ascending by block number order. Assuming absence of
+			// contextual execution, there are only two possible scenarios here:
+			//
+			// (a) It's the first time anybody sends a message to this recipient within this block.
+			//     In this case, the digest vector would be empty or the block number of the latest
+			//     entry  is smaller than the current.
+			//
+			// (b) Somebody has already sent a message within the current block. That means that
+			//     the block number of the latest entry is equal to the current.
+			//
+			// Note that having the latest entry greater than the current block number is a logical
+			// error.
+			let mut recipient_digest =
+				<Self as Store>::HrmpChannelDigests::get(&channel_id.recipient);
+			if let Some(cur_block_digest) = recipient_digest
+				.last_mut()
+				.filter(|(block_no, _)| *block_no == now)
+				.map(|(_, ref mut d)| d)
+			{
+				cur_block_digest.push(sender);
+			} else {
+				recipient_digest.push((now, vec![sender]));
+			}
+			<Self as Store>::HrmpChannelDigests::insert(&channel_id.recipient, recipient_digest);
+
 			weight += T::DbWeight::get().reads_writes(2, 2);
 		}
 
