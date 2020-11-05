@@ -210,6 +210,10 @@ async fn construct_availability_bitfield(
 	let availability_cores = get_availability_cores(relay_parent, sender).await?;
 
 	// Wrap the sender in a Mutex to share it between the futures.
+	//
+	// We use a `Mutex` here to not `clone` the sender inside the future, because
+	// cloning the sender will always increase the capacity of the channel by one.
+	// (for the lifetime of the sender)
 	let sender = Mutex::new(sender);
 
 	// Handle all cores concurrently
