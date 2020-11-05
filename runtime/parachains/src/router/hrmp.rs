@@ -998,6 +998,30 @@ mod tests {
 			.map(|(_, v)| v)
 			.for_each(|v| assert_is_sorted(&v, "HrmpIngressChannelsIndex"));
 
+		assert_contains_only_onboarded(
+			<Router as Store>::HrmpChannelDigests::iter().map(|(k, _)| k),
+			"HRMP channel digests should contain only onboarded paras",
+		);
+		for (_digest_for_para, digest) in <Router as Store>::HrmpChannelDigests::iter() {
+			// Assert that items are in **strictly** ascending order. The strictness also implies
+			// there are no duplicates.
+			assert!(digest.windows(2).all(|xs| xs[0].0 < xs[1].0));
+
+			for (_, mut senders) in digest {
+				assert!(!senders.is_empty());
+
+				// check for duplicates. For that we sort the vector, then perform deduplication.
+				// if the vector stayed the same, there are no duplicates.
+				senders.sort();
+				let orig_senders = senders.clone();
+				senders.dedup();
+				assert_eq!(
+					orig_senders, senders,
+					"duplicates removed implies existence of duplicates"
+				);
+			}
+		}
+
 		fn assert_contains_only_onboarded(iter: impl Iterator<Item = ParaId>, cause: &str) {
 			for para in iter {
 				assert!(

@@ -172,7 +172,10 @@ HrmpEgressChannelsIndex: map ParaId => Vec<ParaId>;
 HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
-/// Invariant: The para ids vector is never empty.
+/// Invariants:
+/// - The para ids vector is never empty.
+/// - The para ids vector doesn't contain duplicates.
+/// - The outer vector is sorted ascending by block number and there are no duplicates.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
 ```
 
