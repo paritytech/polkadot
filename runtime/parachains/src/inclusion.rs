@@ -312,7 +312,7 @@ impl<T: Trait> Module<T> {
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
-				let commitments = match <PendingAvailabilityCommitments>::take(&para_id) {
+				let commitments = match PendingAvailabilityCommitments::take(&para_id) {
 					Some(commitments) => commitments,
 					None => {
 						debug::warn!(r#"

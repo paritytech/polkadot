@@ -367,7 +367,7 @@ impl<T: Trait> Module<T> {
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
-	pub(crate) fn schedule(just_freed_cores: Vec<(CoreIndex, FreedReason)>) {
+	pub(crate) fn schedule(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
 		let mut cores = AvailabilityCores::get();
 		let config = <configuration::Module<T>>::config();
 
@@ -495,6 +495,7 @@ impl<T: Trait> Module<T> {
 
 		Scheduled::set(scheduled);
 		ParathreadQueue::set(parathread_queue);
+		AvailabilityCores::set(cores);
 	}
 
 	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
@@ -1324,6 +1325,100 @@ mod tests {
 					},
 					core_offset: 2, // reassigned to next core. thread_e claim was on offset 1.
 				});
+			}
+		});
+	}
+
+	#[test]
+	fn schedule_clears_availability_cores() {
+		let genesis_config = MockGenesisConfig {
+			configuration: crate::configuration::GenesisConfig {
+				config: default_config(),
+				..Default::default()
+			},
+			..Default::default()
+		};
+
+		let chain_a = ParaId::from(1);
+		let chain_b = ParaId::from(2);
+		let chain_c = ParaId::from(3);
+
+		let schedule_blank_para = |id, is_chain| Paras::schedule_para_initialize(id, ParaGenesisArgs {
+			genesis_head: Vec::new().into(),
+			validation_code: Vec::new().into(),
+			parachain: is_chain,
+		});
+
+		new_test_ext(genesis_config).execute_with(|| {
+			assert_eq!(default_config().parathread_cores, 3);
+
+			// register 3 parachains
+			schedule_blank_para(chain_a, true);
+			schedule_blank_para(chain_b, true);
+			schedule_blank_para(chain_c, true);
+
+			// start a new session to activate, 5 validators for 5 cores.
+			run_to_block(1, |number| match number {
+				1 => Some(SessionChangeNotification {
+					new_config: default_config(),
+					validators: vec![
+						ValidatorId::from(Sr25519Keyring::Alice.public()),
+						ValidatorId::from(Sr25519Keyring::Bob.public()),
+						ValidatorId::from(Sr25519Keyring::Charlie.public()),
+						ValidatorId::from(Sr25519Keyring::Dave.public()),
+						ValidatorId::from(Sr25519Keyring::Eve.public()),
+					],
+					..Default::default()
+				}),
+				_ => None,
+			});
+
+			run_to_block(2, |_| None);
+
+			assert_eq!(Scheduler::scheduled().len(), 3);
+
+			// cores 0, 1, and 2 should be occupied. mark them as such.
+			Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2)]);
+
+			{
+				let cores = AvailabilityCores::get();
+
+				assert!(cores[0].is_some());
+				assert!(cores[1].is_some());
+				assert!(cores[2].is_some());
+
+				assert!(Scheduler::scheduled().is_empty());
+			}
+
+			run_to_block(3, |_| None);
+
+			// now note that cores 0 and 2 were freed.
+			Scheduler::schedule(vec![
+				(CoreIndex(0), FreedReason::Concluded),
+				(CoreIndex(2), FreedReason::Concluded),
+			]);
+
+			{
+				let scheduled = Scheduler::scheduled();
+
+				assert_eq!(scheduled.len(), 2);
+				assert_eq!(scheduled[0], CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				});
+				assert_eq!(scheduled[1], CoreAssignment {
+					core: CoreIndex(2),
+					para_id: chain_c,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(2),
+				});
+
+				// The freed cores should be `None` in `AvailabilityCores`.
+				let cores = AvailabilityCores::get();
+				assert!(cores[0].is_none());
+				assert!(cores[2].is_none());
 			}
 		});
 	}
