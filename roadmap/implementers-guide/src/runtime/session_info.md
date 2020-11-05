@@ -30,11 +30,11 @@ struct SessionInfo {
     // no-show.
     no_show_slots: u32,
     /// The number of validators needed to approve a block.
-	needed_approvals: u32,
+    needed_approvals: u32,
 }
 ```
 
-Storage Layout: 
+Storage Layout:
 
 ```rust
 /// The earliest session for which previous session info is stored.
