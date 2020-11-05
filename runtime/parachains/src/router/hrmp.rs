@@ -824,9 +824,6 @@ mod tests {
 		}
 	}
 
-	// TODO:
-	// - rename: schedule_initialize
-	// - impl Iterator
 	fn register_parachain(id: ParaId) {
 		Paras::schedule_para_initialize(
 			id,
