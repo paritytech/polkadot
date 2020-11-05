@@ -393,15 +393,15 @@ impl<T: Trait> Module<T> {
 		// message to this parachain between the old and new watermarks.
 		let senders = <Self as Store>::HrmpChannelDigests::mutate(&recipient, |digest| {
 			let mut senders = BTreeSet::new();
-			let mut residue = Vec::with_capacity(digest.len());
+			let mut leftover = Vec::with_capacity(digest.len());
 			for (block_no, paras_sent_msg) in mem::replace(digest, Vec::new()) {
 				if block_no <= new_hrmp_watermark {
 					senders.extend(paras_sent_msg);
 				} else {
-					residue.push((block_no, paras_sent_msg));
+					leftover.push((block_no, paras_sent_msg));
 				}
 			}
-			*digest = residue;
+			*digest = leftover;
 			senders
 		});
 		weight += T::DbWeight::get().reads_writes(1, 1);
@@ -413,29 +413,29 @@ impl<T: Trait> Module<T> {
 		for channel_id in channels_to_prune {
 			// prune each channel up to the new watermark keeping track how many messages we removed
 			// and what is the total byte size of them.
-			let (cnt, size) =
-				<Self as Store>::HrmpChannelContents::mutate(&channel_id, |outbound_messages| {
-					let (mut cnt, mut size) = (0, 0);
+			let (mut pruned_cnt, mut pruned_size) = (0, 0);
 
-					let mut residue = Vec::with_capacity(outbound_messages.len());
-					for msg in mem::replace(outbound_messages, Vec::new()).into_iter() {
-						if msg.sent_at <= new_hrmp_watermark {
-							cnt += 1;
-							size += msg.data.len();
-						} else {
-							residue.push(msg);
-						}
-					}
-					*outbound_messages = residue;
-
-					(cnt, size)
-				});
+			let contents = <Self as Store>::HrmpChannelContents::get(&channel_id);
+			let mut leftover = Vec::with_capacity(contents.len());
+			for msg in contents {
+				if msg.sent_at <= new_hrmp_watermark {
+					pruned_cnt += 1;
+					pruned_size += msg.data.len();
+				} else {
+					leftover.push(msg);
+				}
+			}
+			if !leftover.is_empty() {
+				<Self as Store>::HrmpChannelContents::insert(&channel_id, leftover);
+			} else {
+				<Self as Store>::HrmpChannelContents::remove(&channel_id);
+			}
 
 			// update the channel metadata.
 			<Self as Store>::HrmpChannels::mutate(&channel_id, |channel| {
 				if let Some(ref mut channel) = channel {
-					channel.msg_count -= cnt as u32;
-					channel.total_size -= size as u32;
+					channel.msg_count -= pruned_cnt as u32;
+					channel.total_size -= pruned_size as u32;
 				}
 			});
 
