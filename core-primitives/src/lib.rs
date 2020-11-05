@@ -113,6 +113,7 @@ pub struct InboundHrmpMessage<BlockNumber = crate::BlockNumber> {
 	pub data: sp_std::vec::Vec<u8>,
 }
 
+/// An HRMP message seen from the perspective of a sender.
 #[derive(codec::Encode, codec::Decode, Clone, sp_runtime::RuntimeDebug, PartialEq, Eq, Hash)]
 pub struct OutboundHrmpMessage<Id> {
 	/// The para that will get this message in its downward message queue.
