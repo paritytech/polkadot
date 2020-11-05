@@ -23,7 +23,7 @@ enum ObservedRole {
 ```rust
 enum AvailabilityDistributionV1Message {
 	/// An erasure chunk for a given candidate hash.
-	Chunk(Hash, ErasureChunk),
+	Chunk(CandidateHash, ErasureChunk),
 }
 ```
 

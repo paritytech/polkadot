@@ -31,7 +31,7 @@ pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 pub use polkadot_core_primitives::v1::{
 	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex,
 	ChainId, Hash, Nonce, Balance, Header, Block, BlockId, UncheckedExtrinsic,
-	Remark, DownwardMessage, InboundDownwardMessage,
+	Remark, DownwardMessage, InboundDownwardMessage, CandidateHash,
 };
 
 // Export some polkadot-parachain primitives
@@ -148,8 +148,8 @@ impl<H> CandidateReceipt<H> {
 	}
 
 	/// Computes the blake2-256 hash of the receipt.
-	pub fn hash(&self) -> Hash where H: Encode {
-		BlakeTwo256::hash_of(self)
+	pub fn hash(&self) -> CandidateHash where H: Encode {
+		CandidateHash(BlakeTwo256::hash_of(self))
 	}
 }
 
@@ -196,7 +196,7 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	///
 	/// This computes the canonical hash, not the hash of the directly encoded data.
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
-	pub fn hash(&self) -> Hash where H: Encode {
+	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
 	}
 }
@@ -421,7 +421,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	}
 
 	// this is known, even in runtime, to be blake2-256.
-	let hash: Hash = backed.candidate.hash();
+	let hash = backed.candidate.hash();
 
 	let mut signed = 0;
 	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()

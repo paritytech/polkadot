@@ -33,7 +33,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex,
+	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -242,7 +242,7 @@ enum CandidateState {
 
 #[derive(Debug, Decode, Encode, Eq)]
 struct PoVPruningRecord {
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
 	prune_at: PruningDelay,
@@ -272,7 +272,7 @@ impl PartialOrd for PoVPruningRecord {
 
 #[derive(Debug, Decode, Encode, Eq)]
 struct ChunkPruningRecord {
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
 	chunk_index: u32,
@@ -387,11 +387,11 @@ impl AvailabilityStoreSubsystem {
 	}
 }
 
-fn available_data_key(candidate_hash: &Hash) -> Vec<u8> {
+fn available_data_key(candidate_hash: &CandidateHash) -> Vec<u8> {
 	(candidate_hash, 0i8).encode()
 }
 
-fn erasure_chunk_key(candidate_hash: &Hash, index: u32) -> Vec<u8> {
+fn erasure_chunk_key(candidate_hash: &CandidateHash, index: u32) -> Vec<u8> {
 	(candidate_hash, index, 0i8).encode()
 }
 
@@ -564,7 +564,7 @@ where
 				log::trace!(
 					target: LOG_TARGET,
 					"Updating pruning record for finalized block {}",
-					record.candidate_hash,
+					record.block_number,
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -583,7 +583,7 @@ where
 				log::trace!(
 					target: LOG_TARGET,
 					"Updating chunk pruning record for finalized block {}",
-					record.candidate_hash,
+					record.block_number,
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -620,7 +620,7 @@ where
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			log::trace!(target: LOG_TARGET, "Candidate {} was included", receipt.hash());
+			log::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
 			included.insert(receipt.hash());
 		}
 	}
@@ -729,7 +729,10 @@ where
 	Ok(())
 }
 
-fn available_data(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash) -> Option<StoredAvailableData> {
+fn available_data(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: &CandidateHash,
+) -> Option<StoredAvailableData> {
 	query_inner(db, columns::DATA, &available_data_key(candidate_hash))
 }
 
@@ -835,7 +838,7 @@ where
 
 fn store_available_data(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	available_data: AvailableData,
@@ -872,7 +875,7 @@ fn store_available_data(
 	}
 
 	let pruning_record = PoVPruningRecord {
-		candidate_hash: candidate_hash.clone(),
+		candidate_hash: *candidate_hash,
 		block_number,
 		candidate_state: CandidateState::Stored,
 		prune_at,
@@ -901,7 +904,7 @@ fn store_available_data(
 
 fn store_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	_n_validators: u32,
 	chunk: ErasureChunk,
 	block_number: BlockNumber,
@@ -952,7 +955,7 @@ fn store_chunk(
 
 fn get_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	index: u32,
 ) -> Result<Option<ErasureChunk>, Error> {
 	if let Some(chunk) = query_inner(
@@ -981,7 +984,11 @@ fn get_chunk(
 	Ok(None)
 }
 
-fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> Option<D> {
+fn query_inner<D: Decode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+) -> Option<D> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
 			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");

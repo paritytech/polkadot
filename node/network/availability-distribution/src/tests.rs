@@ -254,7 +254,7 @@ fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 
 fn make_valid_availability_gossip(
 	test: &TestState,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	erasure_chunk_index: u32,
 	pov: PoV,
 ) -> AvailabilityGossipMessage {
@@ -320,7 +320,7 @@ fn helper_integrity() {
 	.build();
 
 	let message =
-		make_valid_availability_gossip(&test_state, dbg!(candidate.hash()), 2, pov_block.clone());
+		make_valid_availability_gossip(&test_state, candidate.hash(), 2, pov_block.clone());
 
 	let root = dbg!(&candidate.commitments.erasure_root);
 

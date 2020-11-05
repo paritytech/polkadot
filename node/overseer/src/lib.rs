@@ -1635,7 +1635,7 @@ mod tests {
 	use std::collections::HashMap;
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
-	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV};
+	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::messages::RuntimeApiRequest;
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
@@ -2273,7 +2273,7 @@ mod tests {
 
 	fn test_availability_store_msg() -> AvailabilityStoreMessage {
 		let (sender, _) = oneshot::channel();
-		AvailabilityStoreMessage::QueryAvailableData(Default::default(), sender)
+		AvailabilityStoreMessage::QueryAvailableData(CandidateHash(Default::default()), sender)
 	}
 
 	fn test_network_bridge_msg() -> NetworkBridgeMessage {
