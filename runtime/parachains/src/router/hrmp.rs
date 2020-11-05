@@ -289,6 +289,7 @@ impl<T: Trait> Module<T> {
 					"the HRMP watermark ({}) doesn't land on a block with messages received",
 					new_hrmp_watermark,
 				);
+				return false;
 			}
 			true
 		}
