@@ -52,6 +52,8 @@ const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited Po
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
 
+const LOG_TARGET: &str = "pov_distribution";
+
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution {
 	// Prometheus metrics
@@ -133,7 +135,8 @@ async fn handle_signal(
 				let n_validators = match vals_rx.await? {
 					Ok(v) => v.len(),
 					Err(e) => {
-						log::warn!(target: "pov_distribution",
+						log::warn!(
+							target: LOG_TARGET,
 							"Error fetching validators from runtime API for active leaf: {:?}",
 							e
 						);

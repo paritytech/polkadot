@@ -588,7 +588,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 				if let Some(mut err_tx) = err_tx {
 					// if we can't send the notification of error on the error channel, then
 					// there's no point trying to propagate this error onto the channel too
-					// all we can do is warn that error propagatio has failed
+					// all we can do is warn that error propagation has failed
 					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
 						log::warn!("failed to forward error: {:?}", e);
 					}

@@ -68,6 +68,8 @@ use statement_table::{
 };
 use thiserror::Error;
 
+const LOG_TARGET: &str = "candidate_backing";
+
 #[derive(Debug, Error)]
 enum Error {
 	#[error("Candidate is not found")]
@@ -763,7 +765,7 @@ impl util::JobTrait for CandidateBackingJob {
 						Ok(x) => x,
 						Err(e) => {
 							log::warn!(
-								target: "candidate_backing",
+								target: LOG_TARGET,
 								"Failed to fetch runtime API data for job: {:?}",
 								e,
 							);
@@ -803,7 +805,7 @@ impl util::JobTrait for CandidateBackingJob {
 				Err(util::Error::NotAValidator) => { return Ok(()) },
 				Err(e) => {
 					log::warn!(
-						target: "candidate_backing",
+						target: LOG_TARGET,
 						"Cannot participate in candidate backing: {:?}",
 						e
 					);

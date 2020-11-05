@@ -40,6 +40,7 @@ use thiserror::Error;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
 const JOB_DELAY: Duration = Duration::from_millis(1500);
+const LOG_TARGET: &str = "bitfield_signing";
 
 /// Each `BitfieldSigningJob` prepares a signed bitfield for a single relay parent.
 pub struct BitfieldSigningJob;
@@ -163,7 +164,7 @@ async fn get_core_availability(
 			Ok(None) => return Ok(false),
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
-				log::warn!(target: "bitfield_signing", "Encountered a runtime API error: {:?}", e);
+				log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", e);
 				return Ok(false);
 			}
 		};
@@ -288,7 +289,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					log::warn!(target: "bitfield_signing", "Encountered a runtime API error: {:?}", runtime_err);
+					log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", runtime_err);
 					return Ok(());
 				}
 				Err(err) => return Err(err),

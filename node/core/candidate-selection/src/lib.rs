@@ -24,8 +24,10 @@ use futures::{
 	prelude::*,
 };
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
-	messages::{AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage},
+	errors::ChainApiError,
+	messages::{
+		AllMessages, CandidateBackingMessage, CandidateSelectionMessage, CollatorProtocolMessage,
+	},
 };
 use polkadot_node_subsystem_util::{
 	self as util, delegated_subsystem, JobTrait, ToJobTrait,
@@ -118,8 +120,6 @@ enum Error {
 	OneshotRecv(#[from] oneshot::Canceled),
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
-	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
 }
 
 impl JobTrait for CandidateSelectionJob {
