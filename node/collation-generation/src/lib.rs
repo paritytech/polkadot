@@ -129,8 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: LOG_TARGET, "failed to handle new activations: {:?}", err);
-						return true;
+						log::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
 					};
 				}
 				false
@@ -140,12 +139,11 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::warn!(target: LOG_TARGET, "double initialization");
-					true
+					log::error!(target: LOG_TARGET, "double initialization");
 				} else {
 					self.config = Some(Arc::new(config));
-					false
 				}
+				false
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
