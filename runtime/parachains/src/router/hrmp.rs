@@ -1097,7 +1097,7 @@ mod tests {
 			// On Block 7:
 			// B receives the message sent by A. B sets the watermark to 6.
 			run_to_block(7, None);
-			assert!(Router::check_hrmp_watermark(para_b, 7, 6,));
+			assert!(Router::check_hrmp_watermark(para_b, 7, 6));
 			let _ = Router::prune_hrmp(para_b, 6);
 			assert_storage_consistency_exhaustive();
 		});
