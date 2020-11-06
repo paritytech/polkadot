@@ -114,10 +114,12 @@ impl Collator {
 
 			let collation = Collation {
 				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: PoV { block_data: block_data.encode().into() },
 				processed_downward_messages: 0,
+				hrmp_watermark: validation_data.persisted.block_number,
 			};
 
 			async move { Some(collation) }.boxed()

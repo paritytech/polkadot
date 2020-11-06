@@ -22,11 +22,13 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate, CurrencyToVote,
@@ -856,8 +858,14 @@ sp_api::impl_runtime_apis! {
 
 		fn dmq_contents(
 			_recipient: Id,
-		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
+		}
+
+		fn inbound_hrmp_channels_contents(
+			_recipient: Id
+		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			BTreeMap::new()
 		}
 	}
 

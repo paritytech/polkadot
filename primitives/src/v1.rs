@@ -17,6 +17,7 @@
 //! V1 Primitives.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
@@ -29,14 +30,14 @@ pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
-	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex,
-	ChainId, Hash, Nonce, Balance, Header, Block, BlockId, UncheckedExtrinsic,
-	Remark, DownwardMessage, InboundDownwardMessage, CandidateHash,
+	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex, ChainId, Hash, Nonce,
+	Balance, Header, Block, BlockId, UncheckedExtrinsic, Remark, DownwardMessage,
+	InboundDownwardMessage, CandidateHash, InboundHrmpMessage, OutboundHrmpMessage,
 };
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData, ValidationCode,
+	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, BlockData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
@@ -317,18 +318,24 @@ pub struct ValidationOutputs {
 	pub head_data: HeadData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// The horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// The new validation code submitted by the execution, if any.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: BlockNumber,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
-pub struct CandidateCommitments {
+pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// Horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.
@@ -337,6 +344,8 @@ pub struct CandidateCommitments {
 	pub head_data: HeadData,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: N,
 }
 
 impl CandidateCommitments {
@@ -735,6 +744,10 @@ sp_api::decl_runtime_apis! {
 		fn dmq_contents(
 			recipient: Id,
 		) -> Vec<InboundDownwardMessage<N>>;
+
+		/// Get the contents of all channels addressed to the given recipient. Channels that have no
+		/// messages in them are also included.
+		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
 

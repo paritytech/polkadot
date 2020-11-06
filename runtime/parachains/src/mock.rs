@@ -109,6 +109,7 @@ impl crate::paras::Trait for Test {
 }
 
 impl crate::router::Trait for Test {
+	type Origin = Origin;
 	type UmpSink = crate::router::MockUmpSink;
 }
 

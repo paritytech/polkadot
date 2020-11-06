@@ -33,6 +33,7 @@ pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 
+xcm = { package = "xcm", path = "../../xcm", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false, optional = true }
 
@@ -81,6 +82,7 @@ std = [
 	"frame-system/std",
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
+	"xcm/std",
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
