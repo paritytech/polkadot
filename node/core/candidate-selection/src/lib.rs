@@ -202,6 +202,8 @@ impl CandidateSelectionJob {
 		para_id: ParaId,
 		collator_id: CollatorId,
 	) {
+		let _timer = self.metrics.time_handle_collation();
+
 		if self.seconded_candidate.is_none() {
 			let (candidate_receipt, pov) =
 				match get_collation(
@@ -237,6 +239,8 @@ impl CandidateSelectionJob {
 	}
 
 	async fn handle_invalid(&mut self, candidate_receipt: CandidateReceipt) {
+		let _timer = self.metrics.time_handle_invalid();
+
 		let received_from = match &self.seconded_candidate {
 			Some(peer) => peer,
 			None => {
@@ -332,6 +336,8 @@ async fn forward_invalidity_note(
 struct MetricsInner {
 	seconds: prometheus::CounterVec<prometheus::U64>,
 	invalid_selections: prometheus::CounterVec<prometheus::U64>,
+	handle_collation: prometheus::Histogram,
+	handle_invalid: prometheus::Histogram,
 }
 
 /// Candidate selection metrics.
@@ -351,6 +357,16 @@ impl Metrics {
 			let label = if result.is_ok() { "succeeded" } else { "failed" };
 			metrics.invalid_selections.with_label_values(&[label]).inc();
 		}
+	}
+
+	/// Provide a timer for `handle_collation` which observes on drop.
+	fn time_handle_collation(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_collation.start_timer())
+	}
+
+	/// Provide a timer for `handle_invalid` which observes on drop.
+	fn time_handle_invalid(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.handle_invalid.start_timer())
 	}
 }
 
@@ -374,6 +390,24 @@ impl metrics::Metrics for Metrics {
 						"Number of Candidate Selection subsystem seconding selections which proved to be invalid.",
 					),
 					&["success"],
+				)?,
+				registry,
+			)?,
+			handle_collation: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_selection_handle_collation",
+						"Time spent within `candidate_selection::handle_collation`",
+					)
+				)?,
+				registry,
+			)?,
+			handle_invalid: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_selection:handle_invalid",
+						"Time spent within `candidate_selection::handle_invalid`",
+					)
 				)?,
 				registry,
 			)?,
