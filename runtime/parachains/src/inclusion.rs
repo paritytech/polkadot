@@ -419,7 +419,7 @@ impl<T: Trait> Module<T> {
 					&candidate.candidate.commitments.new_validation_code,
 					candidate.candidate.commitments.processed_downward_messages,
 					&candidate.candidate.commitments.upward_messages,
-					candidate.candidate.commitments.hrmp_watermark,
+					T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
 					&candidate.candidate.commitments.horizontal_messages,
 				)?;
 
@@ -554,7 +554,7 @@ impl<T: Trait> Module<T> {
 			&validation_outputs.new_validation_code,
 			validation_outputs.processed_downward_messages,
 			&validation_outputs.upward_messages,
-			validation_outputs.hrmp_watermark,
+			T::BlockNumber::from(validation_outputs.hrmp_watermark),
 			&validation_outputs.horizontal_messages,
 		)
 	}
@@ -718,7 +718,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 		new_validation_code: &Option<primitives::v1::ValidationCode>,
 		processed_downward_messages: u32,
 		upward_messages: &[primitives::v1::UpwardMessage],
-		hrmp_watermark: primitives::v1::BlockNumber,
+		hrmp_watermark: T::BlockNumber,
 		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), DispatchError> {
 		ensure!(
@@ -761,8 +761,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 			<router::Module<T>>::check_hrmp_watermark(
 				para_id,
 				self.relay_parent_number,
-				// TODO: Hmm, we should settle on a single represenation of T::BlockNumber
-				T::BlockNumber::from(hrmp_watermark),
+				hrmp_watermark,
 			),
 			Error::<T>::HrmpWatermarkMishandling,
 		);
