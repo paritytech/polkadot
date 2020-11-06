@@ -146,9 +146,12 @@ HrmpCloseChannelRequests: map HrmpChannelId => Option<()>;
 HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
 
 /// The HRMP watermark associated with each para.
-/// Invariant: every para should be onboarded.
+/// Invariant:
+/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
 HrmpWatermarks: map ParaId => Option<BlockNumber>;
 /// HRMP channel data associated with each para.
+/// Invariant:
+/// - each participant in the channel should satisfy `Paras::is_valid_para(P)` within a session.
 HrmpChannels: map HrmpChannelId => Option<HrmpChannel>;
 /// Ingress/egress indexes allow to find all the senders and receivers given the opposite
 /// side. I.e.
