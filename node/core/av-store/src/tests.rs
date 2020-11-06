@@ -282,7 +282,7 @@ fn store_block_works() {
 		};
 
 		let available_data = AvailableData {
-			pov,
+			pov: Arc::new(pov),
 			validation_data: test_state.persisted_validation_data,
 		};
 
@@ -335,7 +335,7 @@ fn store_pov_and_query_chunk_works() {
 		};
 
 		let available_data = AvailableData {
-			pov,
+			pov: Arc::new(pov),
 			validation_data: test_state.persisted_validation_data,
 		};
 
@@ -433,7 +433,7 @@ fn stored_but_not_included_data_is_pruned() {
 		};
 
 		let available_data = AvailableData {
-			pov,
+			pov: Arc::new(pov),
 			validation_data: test_state.persisted_validation_data,
 		};
 
@@ -487,7 +487,7 @@ fn stored_data_kept_until_finalized() {
 		let candidate_hash = candidate.hash();
 
 		let available_data = AvailableData {
-			pov,
+			pov: Arc::new(pov),
 			validation_data: test_state.persisted_validation_data,
 		};
 
@@ -726,12 +726,12 @@ fn forkfullness_works() {
 		let candidate_2_hash = candidate_2.hash();
 
 		let available_data_1 = AvailableData {
-			pov: pov_1,
+			pov: Arc::new(pov_1),
 			validation_data: test_state.persisted_validation_data.clone(),
 		};
 
 		let available_data_2 = AvailableData {
-			pov: pov_2,
+			pov: Arc::new(pov_2),
 			validation_data: test_state.persisted_validation_data,
 		};
 
