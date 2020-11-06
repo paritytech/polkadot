@@ -669,6 +669,46 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
+pub type ValidatorGroup = Vec<ValidatorId>;
+
+/// Information about validator sets of a session.
+#[derive(Clone, Encode, Decode, RuntimeDebug)]
+pub struct SessionInfo<AssignmentId, ApprovalId> {
+	/// Validators in canonical ordering.
+	#[codec(index = "0")]
+	pub validators: Vec<ValidatorId>,
+	/// Validators' authority discovery keys for the session in canonical ordering.
+	#[codec(index = "1")]
+	pub discovery_keys: Vec<AuthorityDiscoveryId>,
+	/// The assignment and approval keys for validators.
+	#[codec(index = "2")]
+	pub approval_keys: Vec<(AssignmentId, ApprovalId)>,
+	/// Validators in shuffled ordering - these are the validator groups as produced
+	/// by the `Scheduler` module for the session and are typically referred to by
+	/// `GroupIndex`.
+	#[codec(index = "3")]
+	pub validator_groups: Vec<ValidatorGroup>,
+	/// The number of availability cores used by the protocol during this session.
+	#[codec(index = "4")]
+	pub n_cores: u32,
+	/// The zeroth delay tranche width.
+	#[codec(index = "5")]
+	pub zeroth_delay_tranche_width: u32,
+	/// The number of samples we do of relay_vrf_modulo.
+	#[codec(index = "6")]
+	pub relay_vrf_modulo_samples: u32,
+	/// The number of delay tranches in total.
+	#[codec(index = "7")]
+	pub n_delay_tranches: u32,
+	/// How many slots (BABE / SASSAFRAS) must pass before an assignment is considered a
+	/// no-show.
+	#[codec(index = "8")]
+	pub no_show_slots: u32,
+	/// The number of validators needed to approve a block.
+	#[codec(index = "9")]
+	pub needed_approvals: u32,
+}
+
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
 	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
@@ -678,7 +718,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the validator groups and rotation info localized based on the block whose state
 		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 		/// the number of the block.
-		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
+		fn validator_groups() -> (Vec<ValidatorGroup>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
@@ -707,6 +747,9 @@ sp_api::decl_runtime_apis! {
 		///
 		/// This can be used to instantiate a `SigningContext`.
 		fn session_index_for_child() -> SessionIndex;
+
+		/// Yields the session info for the given session, if stored.
+		// fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
