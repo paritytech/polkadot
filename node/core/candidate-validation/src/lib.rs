@@ -65,6 +65,9 @@ pub struct CandidateValidationSubsystem<S> {
 #[derive(Clone)]
 struct MetricsInner {
 	validation_requests: prometheus::CounterVec<prometheus::U64>,
+	validate_from_chain_state: prometheus::Histogram,
+	validate_from_exhaustive: prometheus::Histogram,
+	validate_candidate_exhaustive: prometheus::Histogram,
 }
 
 /// Candidate validation metrics.
@@ -87,6 +90,21 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `validate_from_chain_state` which observes on drop.
+	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
+	}
+
+	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
+	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
+	}
+
+	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
+	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -99,6 +117,33 @@ impl metrics::Metrics for Metrics {
 						"Number of validation requests served.",
 					),
 					&["validity"],
+				)?,
+				registry,
+			)?,
+			validate_from_chain_state: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_chain_state",
+						"Time spent within `candidate_validation::validate_from_chain_state`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_from_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_exhaustive",
+						"Time spent within `candidate_validation::validate_from_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_candidate_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_candidate_exhaustive",
+						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
+					)
 				)?,
 				registry,
 			)?,
@@ -149,12 +194,15 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_chain_state();
+
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
 						execution_mode.clone(),
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
@@ -172,6 +220,8 @@ async fn run(
 					pov,
 					response_sender,
 				) => {
+					let _timer = metrics.time_validate_from_exhaustive();
+
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
 						execution_mode.clone(),
@@ -180,6 +230,7 @@ async fn run(
 						descriptor,
 						pov,
 						spawn.clone(),
+						&metrics,
 					).await;
 
 					match res {
@@ -310,6 +361,7 @@ async fn spawn_validate_from_chain_state(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (validation_data, validation_code) =
 		match find_assumed_validation_data(ctx, &descriptor).await? {
@@ -335,6 +387,7 @@ async fn spawn_validate_from_chain_state(
 		descriptor.clone(),
 		pov,
 		spawn,
+		metrics,
 	)
 	.await;
 
@@ -371,8 +424,10 @@ async fn spawn_validate_exhaustive(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
+	metrics: &Metrics,
 ) -> SubsystemResult<Result<ValidationResult, ValidationFailed>> {
 	let (tx, rx) = oneshot::channel();
+	let metrics = metrics.clone();
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
 			execution_mode,
@@ -381,6 +436,7 @@ async fn spawn_validate_exhaustive(
 			descriptor,
 			pov,
 			spawn,
+			&metrics,
 		);
 
 		let _ = tx.send(res);
@@ -458,7 +514,10 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: S,
+	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
+	let _timer = metrics.time_validate_candidate_exhaustive();
+
 	if let Err(e) = perform_basic_checks(&descriptor, None, &*pov) {
 		return Ok(ValidationResult::Invalid(e))
 	}
