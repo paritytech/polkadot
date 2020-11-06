@@ -303,6 +303,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the number of sessions after which an HRMP open channel request expires.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_open_request_ttl(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -312,6 +313,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_sender_deposit(origin, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
@@ -321,6 +323,8 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
+		/// channel.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_recipient_deposit(origin, new: Balance) -> DispatchResult {
 			ensure_root(origin)?;
@@ -330,6 +334,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of messages allowed in an HRMP channel at once.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_channel_max_capacity(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -339,6 +344,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_channel_max_total_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -348,6 +354,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_max_parachain_inbound_channels(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -357,6 +364,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_max_parathread_inbound_channels(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -366,6 +374,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_channel_max_message_size(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -375,6 +384,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_max_parachain_outbound_channels(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -384,6 +394,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_max_parathread_outbound_channels(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -393,6 +404,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
 		#[weight = (1_000, DispatchClass::Operational)]
 		pub fn set_hrmp_max_message_num_per_candidate(origin, new: u32) -> DispatchResult {
 			ensure_root(origin)?;
