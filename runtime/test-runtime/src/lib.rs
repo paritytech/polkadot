@@ -24,8 +24,9 @@ use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use codec::Encode;
 use polkadot_runtime_parachains::{
-	configuration,
+	configuration as parachains_configuration,
 	inclusion,
+	inclusion_inherent,
 	initializer,
 	paras,
 	router,
@@ -40,7 +41,7 @@ use primitives::v1::{
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -76,6 +77,7 @@ pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
+pub use pallet_sudo::Call as SudoCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -250,7 +252,8 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub parachain_validator: Initializer,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -438,11 +441,13 @@ impl pallet_sudo::Trait for Runtime {
 	type Call = Call;
 }
 
-impl configuration::Trait for Runtime {}
+impl parachains_configuration::Trait for Runtime {}
 
 impl inclusion::Trait for Runtime {
 	type Event = Event;
 }
+
+impl inclusion_inherent::Trait for Runtime {}
 
 impl initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
@@ -494,8 +499,9 @@ construct_runtime! {
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Parachains runtime modules
-		Configuration: configuration::{Module, Call, Storage},
+		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
 		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
+		InclusionInherent: inclusion_inherent::{Module, Call, Storage, Inherent},
 		Initializer: initializer::{Module, Call, Storage},
 		Paras: paras::{Module, Call, Storage, Origin},
 		Scheduler: scheduler::{Module, Call, Storage},
@@ -600,7 +606,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			Vec::new()
+			AuthorityDiscovery::authorities()
 		}
 	}
 

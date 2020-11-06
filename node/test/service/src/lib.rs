@@ -23,17 +23,22 @@ pub mod chain_spec;
 pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
-use polkadot_primitives::v1::{Id as ParaId, HeadData, ValidationCode, Balance};
+use polkadot_primitives::v1::{
+	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId, ValidationData, Hash,
+};
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
-	new_full, NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
+	NewFull, FullClient, ClientHandle, ExecuteWithClient, IsCollator,
 };
-use polkadot_test_runtime::{Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, UncheckedExtrinsic};
+use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
+use polkadot_test_runtime::{
+	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
+};
+use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
 use sc_executor::native_executor_instance;
-use sc_informant::OutputFormat;
 use sc_network::{
 	config::{NetworkConfiguration, TransportConfig},
 	multiaddr,
@@ -49,7 +54,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration, pin::Pin};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -64,23 +69,25 @@ pub type Client = FullClient<polkadot_test_runtime::RuntimeApi, PolkadotTestExec
 
 pub use polkadot_service::FullBackend;
 
-/// Create a new Polkadot test service for a full node.
+/// Create a new full node.
 #[sc_cli::prefix_logs_with(config.network.node_name.as_str())]
-pub fn polkadot_test_new_full(
+pub fn new_full(
 	config: Configuration,
+	is_collator: IsCollator,
 ) -> Result<
 	NewFull<Arc<Client>>,
 	ServiceError,
 > {
-	new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
+	polkadot_service::new_full::<polkadot_test_runtime::RuntimeApi, PolkadotTestExecutor>(
 		config,
-		IsCollator::No,
+		is_collator,
 		None,
 		Some(sc_authority_discovery::WorkerConfig {
 			query_interval: Duration::from_secs(1),
 			query_start_delay: Duration::from_secs(0),
 			..Default::default()
 		}),
+		polkadot_parachain::wasm_executor::ExecutionMode::InProcess,
 	).map_err(Into::into)
 }
 
@@ -105,11 +112,14 @@ pub fn node_config(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	boot_nodes: Vec<MultiaddrWithPeerId>,
+	is_validator: bool,
 ) -> Configuration {
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
 	let root = base_path.path();
-	let role = Role::Authority {
-		sentry_nodes: Vec::new(),
+	let role = if is_validator {
+		Role::Authority { sentry_nodes: Vec::new() }
+	} else {
+		Role::Full
 	};
 	let key_seed = key.to_seed();
 	let mut spec = polkadot_local_testnet_config();
@@ -127,17 +137,19 @@ pub fn node_config(
 		Default::default(),
 		None,
 	);
-	let informant_output_format = OutputFormat {
-		enable_color: false,
-	};
 
 	network_config.boot_nodes = boot_nodes;
 
 	network_config.allow_non_globals_in_dht = true;
 
+	let addr: multiaddr::Multiaddr = multiaddr::Protocol::Memory(rand::random()).into();
 	network_config
 		.listen_addresses
-		.push(multiaddr::Protocol::Memory(rand::random()).into());
+		.push(addr.clone());
+
+	network_config
+		.public_addresses
+		.push(addr);
 
 	network_config.transport = TransportConfig::MemoryOnly;
 
@@ -148,10 +160,7 @@ pub fn node_config(
 		task_executor,
 		transaction_pool: Default::default(),
 		network: network_config,
-		keystore: KeystoreConfig::Path {
-			path: root.join("key"),
-			password: None,
-		},
+		keystore: KeystoreConfig::InMemory,
 		database: DatabaseConfig::RocksDb {
 			path: root.join("db"),
 			cache_size: 128,
@@ -189,28 +198,64 @@ pub fn node_config(
 		max_runtime_instances: 8,
 		announce_block: true,
 		base_path: Some(base_path),
-		informant_output_format,
+		informant_output_format: Default::default(),
 	}
 }
 
-/// Run a Polkadot test node using the Polkadot test runtime.
+/// Run a test validator node that uses the test runtime.
 ///
 /// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
 /// want it to be connected to other nodes.
 ///
 /// The `storage_update_func` function will be executed in an externalities provided environment
 /// and can be used to make adjustements to the runtime genesis storage.
-pub fn run_test_node(
+pub fn run_validator_node(
 	task_executor: TaskExecutor,
 	key: Sr25519Keyring,
 	storage_update_func: impl Fn(),
 	boot_nodes: Vec<MultiaddrWithPeerId>,
 ) -> PolkadotTestNode {
-	let config = node_config(storage_update_func, task_executor, key, boot_nodes);
+	let config = node_config(storage_update_func, task_executor, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
-	let NewFull {task_manager, client, network, rpc_handlers, overseer_handler, ..} =
-		polkadot_test_new_full(config)
-			.expect("could not create Polkadot test service");
+	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
+		new_full(config, IsCollator::No).expect("could not create Polkadot test service");
+
+	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
+	let peer_id = network.local_peer_id().clone();
+	let addr = MultiaddrWithPeerId { multiaddr, peer_id };
+
+	PolkadotTestNode {
+		task_manager,
+		client,
+		overseer_handler,
+		addr,
+		rpc_handlers,
+	}
+}
+
+/// Run a test collator node that uses the test runtime.
+///
+/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
+/// want it to be connected to other nodes.
+///
+/// The `storage_update_func` function will be executed in an externalities provided environment
+/// and can be used to make adjustements to the runtime genesis storage.
+///
+/// # Note
+///
+/// The collator functionionality still needs to be registered at the node! This can be done using
+/// [`PolkadotTestNode::register_collator`].
+pub fn run_collator_node(
+	task_executor: TaskExecutor,
+	key: Sr25519Keyring,
+	storage_update_func: impl Fn(),
+	boot_nodes: Vec<MultiaddrWithPeerId>,
+	collator_id: CollatorId,
+) -> PolkadotTestNode {
+	let config = node_config(storage_update_func, task_executor, key, boot_nodes, false);
+	let multiaddr = config.network.listen_addresses[0].clone();
+	let NewFull { task_manager, client, network, rpc_handlers, overseer_handler, .. } =
+		new_full(config, IsCollator::Yes(collator_id)).expect("could not create Polkadot test service");
 
 	let overseer_handler = overseer_handler.expect("test node must have an overseer handler");
 	let peer_id = network.local_peer_id().clone();
@@ -255,25 +300,48 @@ impl PolkadotTestNode {
 	pub async fn register_parachain(
 		&self,
 		id: ParaId,
-		validation_code: ValidationCode,
-		genesis_head: HeadData,
+		validation_code: impl Into<ValidationCode>,
+		genesis_head: impl Into<HeadData>,
 	) -> Result<(), RpcTransactionError> {
 		let call = ParasSudoWrapperCall::sudo_schedule_para_initialize(
 			id,
 			ParaGenesisArgs {
-				genesis_head,
-				validation_code,
+				genesis_head: genesis_head.into(),
+				validation_code: validation_code.into(),
 				parachain: true,
 			},
 		);
 
-		self.send_extrinsic(call, Sr25519Keyring::Alice).await.map(drop)
+		self.send_extrinsic(SudoCall::sudo(Box::new(call.into())), Sr25519Keyring::Alice).await.map(drop)
 	}
 
 	/// Wait for `count` blocks to be imported in the node and then exit. This function will not return if no blocks
 	/// are ever created, thus you should restrict the maximum amount of time of the test execution.
 	pub fn wait_for_blocks(&self, count: usize) -> impl Future<Output = ()> {
 		self.client.wait_for_blocks(count)
+	}
+
+	/// Register the collator functionality in the overseer of this node.
+	pub async fn register_collator(
+		&mut self,
+		collator_key: CollatorPair,
+		para_id: ParaId,
+		collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+	) {
+		let config = CollationGenerationConfig {
+			key: collator_key,
+			collator,
+			para_id
+		};
+
+		self.overseer_handler.send_msg(
+			CollationGenerationMessage::Initialize(config),
+		).await.expect("Registers the collator");
+
+		self.overseer_handler
+			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
+			.await
+			.expect("Sends CollateOn");
 	}
 }
 
