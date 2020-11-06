@@ -14,5 +14,5 @@ polkadot-node-network-protocol = { path = "../../network/protocol" }
 
 [dev-dependencies]
 assert_matches = "1.3.0"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "f7a8b10" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
