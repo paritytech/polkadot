@@ -43,7 +43,7 @@ use polkadot_node_subsystem_util::{
 mod collator_side;
 mod validator_side;
 
-const TARGET: &'static str = "colp";
+const LOG_TARGET: &'static str = "collator_protocol";
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Debug, Error)]
@@ -140,7 +140,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
 	trace!(
-		target: TARGET,
+		target: LOG_TARGET,
 		"Reputation change of {:?} for peer {:?}", rep, peer,
 	);
 
