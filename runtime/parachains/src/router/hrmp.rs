@@ -973,7 +973,7 @@ mod tests {
 		//   (a, x)         (a, x)
 		//   (a, y)         (a, y)
 		//   (b, x)         (b, x)
-		//   (b, y)         (b, y)
+		//   (b, z)         (b, z)
 		//
 		// and then that we compare that to the channel list in the `HrmpChannels`.
 		let channel_set_derived_from_ingress = <Router as Store>::HrmpIngressChannelsIndex::iter()

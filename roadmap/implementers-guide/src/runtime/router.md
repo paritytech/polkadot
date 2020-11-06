@@ -92,8 +92,6 @@ struct HrmpChannel {
     sender_deposit: Balance,
     /// The amount that the recipient supplied as a deposit when accepting opening this channel.
     recipient_deposit: Balance,
-    /// The maximum message size that could be put into the channel.
-    limit_message_size: u32,
     /// The maximum number of messages that can be pending in the channel at once.
     max_capacity: u32,
     /// The maximum total size of the messages that can be pending in the channel at once.
@@ -173,7 +171,7 @@ HrmpChannelContents: map HrmpChannelId => Vec<InboundHrmpMessage>;
 /// Maintains a mapping that can be used to answer the question:
 /// What paras sent a message at the given block number for a given reciever.
 /// Invariants:
-/// - The para ids vector is never empty.
+/// - The inner `Vec<ParaId>` is never empty.
 /// - The para ids vector doesn't contain duplicates.
 /// - The outer vector is sorted ascending by block number and there are no duplicates.
 HrmpChannelDigests: map ParaId => Vec<(BlockNumber, Vec<ParaId>)>;
