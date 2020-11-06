@@ -169,9 +169,10 @@ decl_storage! {
 		/// Maintains a mapping that can be used to answer the question:
 		/// What paras sent a message at the given block number for a given reciever.
 		/// Invariants:
-		/// - The para ids vector is never empty.
-		/// - The para ids vector doesn't contain duplicates.
-		/// - The outer vector is sorted ascending by block number and there are no duplicates.
+		/// - The inner `Vec<ParaId>` is never empty.
+		/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
+		/// - The outer vector is sorted ascending by block number and cannot store two items with the same
+		///   block number.
 		HrmpChannelDigests: map hasher(twox_64_concat) ParaId => Vec<(T::BlockNumber, Vec<ParaId>)>;
 	}
 }
