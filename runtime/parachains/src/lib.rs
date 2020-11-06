@@ -27,7 +27,6 @@ pub mod inclusion;
 pub mod inclusion_inherent;
 pub mod initializer;
 pub mod paras;
-pub mod router;
 pub mod scheduler;
 pub mod validity;
 pub mod origin;
