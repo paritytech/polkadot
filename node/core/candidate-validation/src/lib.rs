@@ -902,6 +902,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
@@ -935,6 +936,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		).unwrap();
 
 		assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::BadReturn));
@@ -963,6 +965,7 @@ mod tests {
 			descriptor,
 			Arc::new(pov),
 			TaskExecutor::new(),
+			&Default::default(),
 		);
 
 		assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
