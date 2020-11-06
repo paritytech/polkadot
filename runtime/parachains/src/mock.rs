@@ -115,6 +115,10 @@ impl crate::router::Trait for Test {
 
 impl crate::dmp::Trait for Test { }
 
+impl crate::ump::Trait for Test {
+	type UmpSink = crate::ump::mock_sink::MockUmpSink;
+}
+
 impl crate::scheduler::Trait for Test { }
 
 impl crate::inclusion::Trait for Test {
@@ -137,6 +141,9 @@ pub type Router = crate::router::Module<Test>;
 
 /// Mocked DMP
 pub type Dmp = crate::dmp::Module<Test>;
+
+/// Mocked UMP
+pub type Ump = crate::ump::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;
