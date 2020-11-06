@@ -119,6 +119,10 @@ impl crate::ump::Trait for Test {
 	type UmpSink = crate::ump::mock_sink::MockUmpSink;
 }
 
+impl crate::hrmp::Trait for Test {
+	type Origin = Origin;
+}
+
 impl crate::scheduler::Trait for Test { }
 
 impl crate::inclusion::Trait for Test {
@@ -144,6 +148,9 @@ pub type Dmp = crate::dmp::Module<Test>;
 
 /// Mocked UMP
 pub type Ump = crate::ump::Module<Test>;
+
+/// Mocked HRMP
+pub type Hrmp = crate::hrmp::Module<Test>;
 
 /// Mocked scheduler.
 pub type Scheduler = crate::scheduler::Module<Test>;

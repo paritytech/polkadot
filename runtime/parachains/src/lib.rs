@@ -33,6 +33,7 @@ pub mod validity;
 pub mod origin;
 pub mod dmp;
 pub mod ump;
+pub mod hrmp;
 
 pub mod runtime_api_impl;
 
