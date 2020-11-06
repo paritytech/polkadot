@@ -31,6 +31,7 @@ pub mod router;
 pub mod scheduler;
 pub mod validity;
 pub mod origin;
+pub mod dmp;
 
 pub mod runtime_api_impl;
 
