@@ -196,6 +196,8 @@ impl ProvisioningJob {
 
 			match msg {
 				ToJob::Provisioner(RequestInherentData(_, return_sender)) => {
+					let _timer = self.metrics.time_request_inherent_data();
+
 					if let Err(err) = send_inherent_data(
 						self.relay_parent,
 						&self.signed_bitfields,
@@ -215,6 +217,8 @@ impl ProvisioningJob {
 					self.provisionable_data_channels.push(sender)
 				}
 				ToJob::Provisioner(ProvisionableData(_, data)) => {
+					let _timer = self.metrics.time_provisionable_data();
+
 					let mut bad_indices = Vec::new();
 					for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
 						match channel.send(data.clone()).await {
@@ -479,6 +483,8 @@ fn bitfields_indicate_availability(
 #[derive(Clone)]
 struct MetricsInner {
 	inherent_data_requests: prometheus::CounterVec<prometheus::U64>,
+	request_inherent_data: prometheus::Histogram,
+	provisionable_data: prometheus::Histogram,
 }
 
 /// Provisioner metrics.
@@ -494,6 +500,16 @@ impl Metrics {
 			}
 		}
 	}
+
+	/// Provide a timer for `request_inherent_data` which observes on drop.
+	fn time_request_inherent_data(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.request_inherent_data.start_timer())
+	}
+
+	/// Provide a timer for `provisionable_data` which observes on drop.
+	fn time_provisionable_data(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -506,6 +522,24 @@ impl metrics::Metrics for Metrics {
 						"Number of InherentData requests served by provisioner.",
 					),
 					&["success"],
+				)?,
+				registry,
+			)?,
+			request_inherent_data: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_provisioner_request_inherent_data",
+						"Time spent within `provisioner::request_inherent_data`",
+					)
+				)?,
+				registry,
+			)?,
+			provisionable_data: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_provisioner_provisionable_data",
+						"Time spent within `provisioner::provisionable_data`",
+					)
 				)?,
 				registry,
 			)?,
