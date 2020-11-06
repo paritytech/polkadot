@@ -10,15 +10,15 @@ log = "0.4.8"
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-api = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-core = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", rev = "f7a8b100" }
 wasm-timer = "0.2.4"
