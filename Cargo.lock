@@ -2648,7 +2648,7 @@ dependencies = [
 
 [[package]]
 name = "kusama-runtime"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -4800,7 +4800,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 
 [[package]]
 name = "polkadot"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "assert_cmd",
  "color-eyre",
@@ -4862,7 +4862,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-cli"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "frame-benchmarking-cli",
  "log 0.4.11",
@@ -4911,7 +4911,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-erasure-coding"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5238,7 +5238,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-parachain"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -5274,7 +5274,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-primitives"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -5300,7 +5300,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-rpc"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -5329,7 +5329,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -5402,7 +5402,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-runtime-common"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
@@ -5597,7 +5597,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-statement-table"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5606,7 +5606,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-client"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
@@ -5629,7 +5629,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-runtime"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -5688,7 +5688,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-test-service"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "frame-benchmarking",
  "frame-system",
@@ -5738,7 +5738,7 @@ dependencies = [
 
 [[package]]
 name = "polkadot-validation"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "futures 0.3.5",
  "log 0.4.11",
@@ -6422,7 +6422,7 @@ dependencies = [
 
 [[package]]
 name = "rococo-v1-runtime"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "frame-executive",
  "frame-support",
@@ -8893,7 +8893,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-adder"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
@@ -8906,7 +8906,7 @@ dependencies = [
 
 [[package]]
 name = "test-parachain-halt"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "substrate-wasm-builder-runner",
 ]
@@ -10029,7 +10029,7 @@ dependencies = [
 
 [[package]]
 name = "westend-runtime"
-version = "0.8.26"
+version = "0.8.26-1"
 dependencies = [
  "bitvec",
  "frame-benchmarking",
