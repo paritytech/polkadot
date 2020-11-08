@@ -207,16 +207,16 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### `tranches_to_approve(approval_entry) -> tranches`
   * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
-    * First, take tranches until we have at least `session_info.needed_approvals`. Call the number of tranches taken `k`
-    * Then, count no-shows in tranches `0..k`. For each no-show, we require another checker. Take new tranches until each no-show is covered, so now we've taken `l` tranches. e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each.
-    * Count no-shows in tranches `k..l` and for each of those, take tranches until all no-shows are covered. Repeat so on until either
-      * We run out of tranches to take, having not received any assignments past a certain point. In this case we set `n_tranches` to a special value `ALL` which indicates that new assignments are needed.
-      * All no-shows are covered. Set `n_tranches` to the number of tranches taken
-    * return `n_tranches`
+    1. First, set `t := session_info.needed_approvals`.  Set the base tranche `l=0`.
+    2. Take assignments from tranches `l..` until we have at least `t` assignments.  Let `k` denote the highest tranche taken.  Count the number `assigned` of assignments taken in tranches `0..k`.  If `assigned < t` then return a special value `ALL` which indicates we wait for more assignments. 
+    3. If `assigned > 128` then return the candidate as unfinalizable and advise block production to build another fork from the inclusion relay parent.  This condition can be reverted if some no-shows turnning up eventually.
+    4. Count the number `noshows` of no-shows in tranches `l..k`.  If `noshows` is zero then return success with `n_tranches := k`.  Of course this happens early and does not indicate final termination, as we may later return `ALL` after more no-shows, but if all these assigned checkers vote valid then we are done.
+    5. For each no-show in `noshows`, we require both another checker and another tranche, which ever means more tranches.  Take assignments from at least `no_shows` subsequent tranches and then if we have not yet covered all noshows then continue taking tranches until we do cover all no-shows.  e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each. 
+    6. At this point, set `l := k` and set `k` to be the number of tranches taken so far.  Also set `t := assigned - noshows` so that all uncovered assignments must eventually be covered.  Repeat from step 2.  
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
   * If `n_tranches` is ALL, return false
-  * Otherwise, if all validators in `n_tranches` have approved, return `true`. If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
+  * Otherwise, if all validators in `n_tranches` have either approved or been replaced as a no-show, then return `true`.  If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
