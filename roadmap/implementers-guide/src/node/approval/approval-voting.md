@@ -194,7 +194,7 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
 
 #### `import_checked_assignment`
   * Load the candidate in question and access the `approval_entry` for the block hash the cert references.
-  * Ensure the validator index is not part of the backing group for the candidate.
+  * Ensure the validator index is not part of the backing group for the candidate.  We count late backing votes via the backing system.
   * Ensure the validator index is not present in the approval entry already.
   * Create a tranche entry for the delay tranche in the approval entry and note the assignment within it.
   * Note the candidate index within the approval entry.
