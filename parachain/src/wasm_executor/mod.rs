@@ -48,6 +48,7 @@ pub enum ExecutionMode {
 	ExternalProcessSelfHost(ValidationPool),
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessCustomHost {
 		/// Validation pool.
 		pool: ValidationPool,
@@ -151,13 +152,6 @@ pub fn validate_candidate(
 			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::ExternalProcessSelfHost(_) | ExecutionMode::ExternalProcessCustomHost { .. } =>
-			Err(ValidationError::Internal(InternalError::System(
-				Box::<dyn std::error::Error + Send + Sync>::from(
-					"Remote validator not available".to_string()
-				) as Box<_>
-			))),
 	}
 }
 
