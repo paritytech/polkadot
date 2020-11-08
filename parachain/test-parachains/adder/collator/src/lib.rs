@@ -143,7 +143,7 @@ impl Collator {
 		})
 	}
 
-	/// Wait that `blocks` are being build and enacted.
+	/// Wait until `blocks` are built and enacted.
 	pub async fn wait_for_blocks(&self, blocks: u64) {
 		let start_block = self.state.lock().unwrap().best_block;
 		loop {
