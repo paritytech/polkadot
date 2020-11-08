@@ -180,6 +180,8 @@ On receiving a `CheckAndImportApproval(indirect_approval_vote, response_channel)
 
 #### `ApprovalVotingMessage::ApprovedAncestor`
 
+We record final approvals on-chain both so that we can pay the approval voters, and to map GRANDPA votes to actual finalized blocks.
+
 On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
   * Iterate over the ancestry of the hash all the way back to block number given, starting from the provided block hash.
   * Keep track of an `all_approved_max: Option<Hash>`.
