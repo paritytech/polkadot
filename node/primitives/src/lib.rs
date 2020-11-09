@@ -284,7 +284,7 @@ pub type CollatorFn = Box<
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
-	/// Collation function. See [CollatorFn] for more details.
+	/// Collation function. See [`CollatorFn`] for more details.
 	pub collator: CollatorFn,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
