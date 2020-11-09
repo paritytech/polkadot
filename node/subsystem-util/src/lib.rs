@@ -292,6 +292,7 @@ pub async fn signing_key(validators: &[ValidatorId], keystore: SyncCryptoStorePt
 ///
 /// It can be created if the local node is a validator in the context of a particular
 /// relay chain block.
+#[derive(Debug)]
 pub struct Validator {
 	signing_context: SigningContext,
 	key: ValidatorId,

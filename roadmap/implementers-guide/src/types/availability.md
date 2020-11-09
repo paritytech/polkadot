@@ -40,7 +40,7 @@ This is the data we want to keep available for each [candidate](candidate.md) in
 ```rust
 struct AvailableData {
     /// The Proof-of-Validation of the candidate.
-    pov: PoV,
+    pov: Arc<PoV>,
     /// The persisted validation data used to check the candidate.
     validation_data: PersistedValidationData,
 }

@@ -104,7 +104,7 @@ decl_module! {
 			let freed = freed_concluded.into_iter().map(|c| (c, FreedReason::Concluded))
 				.chain(freed_timeout.into_iter().map(|c| (c, FreedReason::TimedOut)));
 
-			<scheduler::Module<T>>::schedule(freed.collect());
+			<scheduler::Module<T>>::schedule(freed);
 
 			// Process backed candidates according to scheduled cores.
 			let occupied = <inclusion::Module<T>>::process_candidates(

@@ -31,19 +31,14 @@ use polkadot_subsystem::{
 		ValidationFailed, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, ValidationOutputs,
 };
-use polkadot_parachain::wasm_executor::{
-	self, ValidationPool, ExecutionMode, ValidationError,
-	InvalidCandidate as WasmInvalidCandidate,
-};
+use polkadot_parachain::wasm_executor::{self, ExecutionMode, ValidationError, InvalidCandidate as WasmInvalidCandidate};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
@@ -60,102 +55,13 @@ const LOG_TARGET: &'static str = "candidate_validation";
 pub struct CandidateValidationSubsystem<S> {
 	spawn: S,
 	metrics: Metrics,
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
-	validate_from_chain_state: prometheus::Histogram,
-	validate_from_exhaustive: prometheus::Histogram,
-	validate_candidate_exhaustive: prometheus::Histogram,
-}
-
-/// Candidate validation metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
-		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				},
-			}
-		}
-	}
-
-	/// Provide a timer for `validate_from_chain_state` which observes on drop.
-	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
-	}
-
-	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
-	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
-	}
-
-	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
-	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"parachain_validation_requests_total",
-						"Number of validation requests served.",
-					),
-					&["validity"],
-				)?,
-				registry,
-			)?,
-			validate_from_chain_state: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_from_chain_state",
-						"Time spent within `candidate_validation::validate_from_chain_state`",
-					)
-				)?,
-				registry,
-			)?,
-			validate_from_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_from_exhaustive",
-						"Time spent within `candidate_validation::validate_from_exhaustive`",
-					)
-				)?,
-				registry,
-			)?,
-			validate_candidate_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(
-					prometheus::HistogramOpts::new(
-						"parachain_candidate_validation_validate_candidate_exhaustive",
-						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
-					)
-				)?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
+	execution_mode: ExecutionMode,
 }
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { spawn, metrics }
+	pub fn new(spawn: S, metrics: Metrics, execution_mode: ExecutionMode) -> Self {
+		CandidateValidationSubsystem { spawn, metrics, execution_mode }
 	}
 }
 
@@ -164,7 +70,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.spawn, self.metrics)
+		let future = run(ctx, self.spawn, self.metrics, self.execution_mode)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
 			.boxed();
 		SpawnedSubsystem {
@@ -178,11 +84,8 @@ async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
 	metrics: Metrics,
-)
-	-> SubsystemResult<()>
-{
-	let execution_mode = ExecutionMode::ExternalProcessSelfHost(ValidationPool::new());
-
+	execution_mode: ExecutionMode,
+) -> SubsystemResult<()> {
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
@@ -548,11 +451,103 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			let outputs = ValidationOutputs {
 				head_data: res.head_data,
 				upward_messages: res.upward_messages,
+				horizontal_messages: res.horizontal_messages,
 				new_validation_code: res.new_validation_code,
 				processed_downward_messages: res.processed_downward_messages,
+				hrmp_watermark: res.hrmp_watermark,
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+	validate_from_chain_state: prometheus::Histogram,
+	validate_from_exhaustive: prometheus::Histogram,
+	validate_candidate_exhaustive: prometheus::Histogram,
+}
+
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_, _)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
+				},
+			}
+		}
+	}
+
+	/// Provide a timer for `validate_from_chain_state` which observes on drop.
+	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
+	}
+
+	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
+	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
+	}
+
+	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
+	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_validation_requests_total",
+						"Number of validation requests served.",
+					),
+					&["validity"],
+				)?,
+				registry,
+			)?,
+			validate_from_chain_state: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_chain_state",
+						"Time spent within `candidate_validation::validate_from_chain_state`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_from_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_from_exhaustive",
+						"Time spent within `candidate_validation::validate_from_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+			validate_candidate_exhaustive: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_candidate_validation_validate_candidate_exhaustive",
+						"Time spent within `candidate_validation::validate_candidate_exhaustive`",
+					)
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
 
@@ -892,7 +887,9 @@ mod tests {
 			head_data: HeadData(vec![1, 1, 1]),
 			new_validation_code: Some(vec![2, 2, 2].into()),
 			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
 			processed_downward_messages: 0,
+			hrmp_watermark: 0,
 		};
 
 		let v = validate_candidate_exhaustive::<MockValidationBackend, _>(
@@ -908,7 +905,9 @@ mod tests {
 		assert_matches!(v, ValidationResult::Valid(outputs, used_validation_data) => {
 			assert_eq!(outputs.head_data, HeadData(vec![1, 1, 1]));
 			assert_eq!(outputs.upward_messages, Vec::<UpwardMessage>::new());
+			assert_eq!(outputs.horizontal_messages, Vec::new());
 			assert_eq!(outputs.new_validation_code, Some(vec![2, 2, 2].into()));
+			assert_eq!(outputs.hrmp_watermark, 0);
 			assert_eq!(used_validation_data, validation_data);
 		});
 	}

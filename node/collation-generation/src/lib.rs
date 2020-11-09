@@ -280,10 +280,12 @@ async fn handle_new_activations<Context: SubsystemContext>(
 
 				let commitments = CandidateCommitments {
 					upward_messages: collation.upward_messages,
+					horizontal_messages: collation.horizontal_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
 					erasure_root,
 					processed_downward_messages: collation.processed_downward_messages,
+					hrmp_watermark: collation.hrmp_watermark,
 				};
 
 				let ccr = CandidateReceipt {
@@ -324,7 +326,7 @@ fn erasure_root(
 ) -> crate::error::Result<Hash> {
 	let available_data = AvailableData {
 		validation_data: persisted_validation,
-		pov,
+		pov: Arc::new(pov),
 	};
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
@@ -433,12 +435,14 @@ mod tests {
 		fn test_collation() -> Collation {
 			Collation {
 				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: Default::default(),
 				head_data: Default::default(),
 				proof_of_validity: PoV {
 					block_data: BlockData(Vec::new()),
 				},
 				processed_downward_messages: Default::default(),
+				hrmp_watermark: Default::default(),
 			}
 		}
 
