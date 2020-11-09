@@ -5486,6 +5486,7 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "xcm",
+ "xcm-executor",
 ]
 
 [[package]]
@@ -6466,6 +6467,9 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder-runner",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
 ]
 
 [[package]]

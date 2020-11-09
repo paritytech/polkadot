@@ -34,7 +34,7 @@ mod ump;
 
 use hrmp::{HrmpOpenChannelRequest, HrmpChannel};
 pub use dmp::QueueDownwardMessageError;
-pub use ump::UmpSink;
+pub use ump::{UmpSink, XcmSink};
 
 #[cfg(test)]
 pub use ump::mock_sink::MockUmpSink;

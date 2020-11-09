@@ -16,7 +16,7 @@
 
 use super::{Trait, Module, Store};
 use crate::configuration::{self, HostConfiguration};
-use sp_std::prelude::*;
+use sp_std::{prelude::*, marker::PhantomData};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
 use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get, debug::native as log};
 use primitives::v1::{Id as ParaId, UpwardMessage};
@@ -47,6 +47,33 @@ pub trait UmpSink {
 impl UmpSink for () {
 	fn process_upward_message(_: ParaId, _: Vec<u8>) -> Weight {
 		0
+	}
+}
+
+
+// A specific implementation of a UmpSink where messages are in the XCM format
+// and will be forwarded to the XCM Executor.
+pub struct XcmSink<Config>(PhantomData<Config>);
+impl<Config: xcm_executor::Config> UmpSink for XcmSink<Config> {
+	fn process_upward_message(origin: ParaId, msg: Vec<u8>) -> Weight {
+		use codec::Decode;
+		use xcm::v0::{Xcm, Junction, MultiLocation, ExecuteXcm};
+		use xcm_executor::XcmExecutor;
+
+		let mut weight: Weight = 0;
+
+		// TODO: Use versioned XCM Format?
+		if let Some(xcm_message) = Xcm::decode(&mut &msg[..]).ok() {
+			let xcm_junction: Junction = Junction::Parachain { id: origin.into() };
+			let xcm_location: MultiLocation = xcm_junction.into();
+
+			// TODO: Do something with result.
+			let _result = XcmExecutor::<Config>::execute_xcm(xcm_location, xcm_message);
+
+			weight = weight.saturating_add(0)
+		}
+
+		weight
 	}
 }
 
