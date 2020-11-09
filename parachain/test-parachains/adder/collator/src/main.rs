@@ -20,9 +20,9 @@ use sc_cli::{Result, Role, SubstrateCli};
 use polkadot_cli::Cli;
 use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenerationMessage};
 use polkadot_node_primitives::CollationGenerationConfig;
-use polkadot_primitives::v1::{CollatorPair, Id as ParaId};
+use polkadot_primitives::v1::Id as ParaId;
 use test_parachain_adder_collator::Collator;
-use sp_core::{Pair, hexdisplay::HexDisplay};
+use sp_core::hexdisplay::HexDisplay;
 use std::time::Duration;
 
 const PARA_ID: ParaId = ParaId::new(100);
@@ -42,11 +42,11 @@ fn main() -> Result<()> {
 		match role {
 			Role::Light => Err("Light client not supported".into()),
 			_ => {
-				let collator_key = CollatorPair::generate().0;
+				let collator = Collator::new();
 
 				let full_node = polkadot_service::build_full(
 					config,
-					polkadot_service::IsCollator::Yes(collator_key.public()),
+					polkadot_service::IsCollator::Yes(collator.collator_id()),
 					None,
 					Some(sc_authority_discovery::WorkerConfig {
 						query_interval: Duration::from_secs(1),
@@ -57,7 +57,6 @@ fn main() -> Result<()> {
 				let mut overseer_handler = full_node.overseer_handler
 					.expect("Overseer handler should be initialized for collators");
 
-				let collator = Collator::new();
 				let genesis_head_hex = format!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 				let validation_code_hex = format!("0x{:?}", HexDisplay::from(&collator.validation_code()));
 
@@ -66,7 +65,7 @@ fn main() -> Result<()> {
 				log::info!("Validation code: {}", validation_code_hex);
 
 				let config = CollationGenerationConfig {
-					key: collator_key,
+					key: collator.collator_key(),
 					collator: collator.create_collation_function(),
 					para_id: PARA_ID,
 				};

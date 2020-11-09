@@ -177,8 +177,8 @@ construct_runtime! {
 		AuthorityDiscovery: pallet_authority_discovery::{Module, Call, Config},
 
 		// Parachains modules.
-		ParachainOrigin: parachains_origin::{Module, Origin},
-		ParachainConfig: parachains_configuration::{Module, Call, Storage, Config<T>},
+		ParachainsOrigin: parachains_origin::{Module, Origin},
+		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},

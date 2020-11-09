@@ -771,7 +771,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		pallet_sudo: Some(rococo_runtime::SudoConfig {
 			key: endowed_accounts[0].clone(),
 		}),
-		parachains_configuration: Some(rococo_runtime::ParachainConfigConfig {
+		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,
@@ -1223,7 +1223,7 @@ pub fn rococo_testnet_genesis(
 		}),
 		pallet_staking: Some(Default::default()),
 		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
-		parachains_configuration: Some(rococo_runtime::ParachainConfigConfig {
+		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
 			config: polkadot_runtime_parachains::configuration::HostConfiguration {
 				validation_upgrade_frequency: 600u32,
 				validation_upgrade_delay: 300,

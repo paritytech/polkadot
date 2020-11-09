@@ -31,19 +31,14 @@ use polkadot_subsystem::{
 		ValidationFailed, RuntimeApiRequest,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_subsystem::errors::RuntimeApiError;
 use polkadot_node_primitives::{ValidationResult, InvalidCandidate};
 use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, ValidationOutputs,
 };
-use polkadot_parachain::wasm_executor::{
-	self, ValidationPool, ExecutionMode, ValidationError,
-	InvalidCandidate as WasmInvalidCandidate,
-};
+use polkadot_parachain::wasm_executor::{self, ExecutionMode, ValidationError, InvalidCandidate as WasmInvalidCandidate};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
@@ -60,57 +55,13 @@ const LOG_TARGET: &'static str = "candidate_validation";
 pub struct CandidateValidationSubsystem<S> {
 	spawn: S,
 	metrics: Metrics,
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
-}
-
-/// Candidate validation metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
-		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				},
-			}
-		}
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"parachain_validation_requests_total",
-						"Number of validation requests served.",
-					),
-					&["validity"],
-				)?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
+	execution_mode: ExecutionMode,
 }
 
 impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S, metrics: Metrics) -> Self {
-		CandidateValidationSubsystem { spawn, metrics }
+	pub fn new(spawn: S, metrics: Metrics, execution_mode: ExecutionMode) -> Self {
+		CandidateValidationSubsystem { spawn, metrics, execution_mode }
 	}
 }
 
@@ -119,7 +70,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.spawn, self.metrics)
+		let future = run(ctx, self.spawn, self.metrics, self.execution_mode)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
 			.boxed();
 		SpawnedSubsystem {
@@ -133,11 +84,8 @@ async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
 	metrics: Metrics,
-)
-	-> SubsystemResult<()>
-{
-	let execution_mode = ExecutionMode::ExternalProcessSelfHost(ValidationPool::new());
-
+	execution_mode: ExecutionMode,
+) -> SubsystemResult<()> {
 	loop {
 		match ctx.recv().await? {
 			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {}
@@ -496,6 +444,51 @@ fn validate_candidate_exhaustive<B: ValidationBackend, S: SpawnNamed + 'static>(
 			};
 			Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 		}
+	}
+}
+
+#[derive(Clone)]
+struct MetricsInner {
+	validation_requests: prometheus::CounterVec<prometheus::U64>,
+}
+
+/// Candidate validation metrics.
+#[derive(Default, Clone)]
+pub struct Metrics(Option<MetricsInner>);
+
+impl Metrics {
+	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
+		if let Some(metrics) = &self.0 {
+			match event {
+				Ok(ValidationResult::Valid(_, _)) => {
+					metrics.validation_requests.with_label_values(&["valid"]).inc();
+				},
+				Ok(ValidationResult::Invalid(_)) => {
+					metrics.validation_requests.with_label_values(&["invalid"]).inc();
+				},
+				Err(_) => {
+					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
+				},
+			}
+		}
+	}
+}
+
+impl metrics::Metrics for Metrics {
+	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
+		let metrics = MetricsInner {
+			validation_requests: prometheus::register(
+				prometheus::CounterVec::new(
+					prometheus::Opts::new(
+						"parachain_validation_requests_total",
+						"Number of validation requests served.",
+					),
+					&["validity"],
+				)?,
+				registry,
+			)?,
+		};
+		Ok(Metrics(Some(metrics)))
 	}
 }
 

@@ -37,38 +37,18 @@ const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
-/// A stub validation-pool defined when compiling for Android or WASM.
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-#[derive(Clone)]
-pub struct ValidationPool {
-	_inner: (), // private field means not publicly-instantiable
-}
-
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-impl ValidationPool {
-	/// Create a new `ValidationPool`.
-	pub fn new() -> Self {
-		ValidationPool { _inner: () }
-	}
-}
-
-/// A stub function defined when compiling for Android or WASM.
-#[cfg(any(target_os = "android", target_os = "unknown"))]
-pub fn run_worker(_: &str) -> Result<(), String> {
-	Err("Cannot run validation worker on this platform".to_string())
-}
-
 /// The execution mode for the `ValidationPool`.
-#[derive(Clone)]
-#[cfg_attr(not(any(target_os = "android", target_os = "unknown")), derive(Debug))]
+#[derive(Clone, Debug)]
 pub enum ExecutionMode {
 	/// The validation worker is ran in a thread inside the same process.
 	InProcess,
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
 	/// following by the address of the shared memory.
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessSelfHost(ValidationPool),
 	/// The validation worker is ran using the command provided and the argument provided. The address of the shared
 	/// memory is added at the end of the arguments.
+	#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 	ExternalProcessCustomHost {
 		/// Validation pool.
 		pool: ValidationPool,
@@ -80,6 +60,19 @@ pub enum ExecutionMode {
 	},
 }
 
+impl Default for ExecutionMode {
+	fn default() -> Self {
+		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
+		{
+			Self::ExternalProcessSelfHost(ValidationPool::new())
+		}
+
+		#[cfg(any(target_os = "android", target_os = "unknown"))]
+		{
+			Self::InProcess
+		}
+	}
+}
 
 #[derive(Debug, thiserror::Error)]
 /// Candidate validation error.
@@ -159,13 +152,6 @@ pub fn validate_candidate(
 			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
-		#[cfg(any(target_os = "android", target_os = "unknown"))]
-		ExecutionMode::ExternalProcessSelfHost(_) | ExecutionMode::ExternalProcessCustomHost { .. } =>
-			Err(ValidationError::Internal(InternalError::System(
-				Box::<dyn std::error::Error + Send + Sync>::from(
-					"Remote validator not available".to_string()
-				) as Box<_>
-			))),
 	}
 }
 

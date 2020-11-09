@@ -16,12 +16,14 @@
 
 //! Collator for the adder test parachain.
 
-use std::{pin::Pin, sync::{Arc, Mutex}, collections::HashMap};
+use std::{pin::Pin, sync::{Arc, Mutex}, collections::HashMap, time::Duration};
 use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
 use futures::{Future, FutureExt};
-use polkadot_primitives::v1::{ValidationData, PoV, Hash};
+use futures_timer::Delay;
+use polkadot_primitives::v1::{ValidationData, PoV, Hash, CollatorId, CollatorPair};
 use polkadot_node_primitives::Collation;
 use codec::{Encode, Decode};
+use sp_core::Pair;
 
 /// The amount we add when producing a new block.
 ///
@@ -32,6 +34,8 @@ const ADD: u64 = 2;
 struct State {
 	head_to_state: HashMap<Arc<HeadData>, u64>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
+	/// Block number of the best block.
+	best_block: u64,
 }
 
 impl State {
@@ -46,6 +50,7 @@ impl State {
 		Self {
 			head_to_state: vec![(genesis_state.clone(), 0)].into_iter().collect(),
 			number_to_head: vec![(0, genesis_state)].into_iter().collect(),
+			best_block: 0,
 		}
 	}
 
@@ -53,6 +58,8 @@ impl State {
 	///
 	/// Returns the new [`BlockData`] and the new [`HeadData`].
 	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
+		self.best_block = parent_head.number;
+
 		let block = BlockData {
 			state: *self.head_to_state.get(&parent_head).expect("Getting state using parent head"),
 			add: ADD,
@@ -72,6 +79,7 @@ impl State {
 /// The collator of the adder parachain.
 pub struct Collator {
 	state: Arc<Mutex<State>>,
+	key: CollatorPair,
 }
 
 impl Collator {
@@ -79,6 +87,7 @@ impl Collator {
 	pub fn new() -> Self {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
+			key: CollatorPair::generate().0,
 		}
 	}
 
@@ -90,6 +99,16 @@ impl Collator {
 	/// Get the validation code of the adder parachain.
 	pub fn validation_code(&self) -> &[u8] {
 		test_parachain_adder::wasm_binary_unwrap()
+	}
+
+	/// Get the collator key.
+	pub fn collator_key(&self) -> CollatorPair {
+		self.key.clone()
+	}
+
+	/// Get the collator id.
+	pub fn collator_id(&self) -> CollatorId {
+		self.key.public()
 	}
 
 	/// Create the collation function.
@@ -124,6 +143,20 @@ impl Collator {
 
 			async move { Some(collation) }.boxed()
 		})
+	}
+
+	/// Wait until `blocks` are built and enacted.
+	pub async fn wait_for_blocks(&self, blocks: u64) {
+		let start_block = self.state.lock().unwrap().best_block;
+		loop {
+			Delay::new(Duration::from_secs(1)).await;
+
+			let current_block = self.state.lock().unwrap().best_block;
+
+			if start_block + blocks <= current_block {
+				return
+			}
+		}
 	}
 }
 
