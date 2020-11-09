@@ -672,8 +672,8 @@ pub enum CandidateEvent<H = Hash> {
 pub type ValidatorGroup = Vec<ValidatorId>;
 
 /// Information about validator sets of a session.
-#[derive(Clone, Encode, Decode, RuntimeDebug)]
-pub struct SessionInfo<AssignmentId, ApprovalId> {
+#[derive(Clone, Encode, Decode)]
+pub struct SessionInfo {
 	/// Validators in canonical ordering.
 	#[codec(index = "0")]
 	pub validators: Vec<ValidatorId>,
@@ -681,8 +681,9 @@ pub struct SessionInfo<AssignmentId, ApprovalId> {
 	#[codec(index = "1")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment and approval keys for validators.
-	#[codec(index = "2")]
-	pub approval_keys: Vec<(AssignmentId, ApprovalId)>,
+	// FIXME: implement this
+	#[codec(skip)]
+	pub approval_keys: Vec<()>,
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
