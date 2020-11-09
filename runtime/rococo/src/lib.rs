@@ -22,12 +22,13 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use codec::Encode;
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, Hash, Nonce, Signature, Moment,
 	GroupRotationInfo, CoreState, Id, ValidationData, ValidationCode, CandidateEvent,
 	ValidatorId, ValidatorIndex, CommittedCandidateReceipt, OccupiedCoreAssumption,
-	PersistedValidationData,
+	PersistedValidationData, InboundDownwardMessage, InboundHrmpMessage,
 };
 use runtime_common::{
 	SlowAdjustingFeeUpdate,
@@ -177,7 +178,7 @@ construct_runtime! {
 
 		// Parachains modules.
 		ParachainOrigin: parachains_origin::{Module, Origin},
-		Config: parachains_configuration::{Module, Call, Storage},
+		ParachainConfig: parachains_configuration::{Module, Call, Storage, Config<T>},
 		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
 		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
 		Scheduler: parachains_scheduler::{Module, Call, Storage},
@@ -533,6 +534,7 @@ impl parachains_paras::Trait for Runtime {
 }
 
 impl parachains_router::Trait for Runtime {
+	type Origin = Origin;
 	type UmpSink = (); // TODO: #1873 To be handled by the XCM receiver.
 }
 
@@ -682,8 +684,14 @@ sp_api::impl_runtime_apis! {
 			runtime_api_impl::validator_discovery::<Runtime>(validators)
 		}
 
-		fn dmq_contents(recipient: Id) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+		fn dmq_contents(recipient: Id) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			runtime_api_impl::dmq_contents::<Runtime>(recipient)
+		}
+
+		fn inbound_hrmp_channels_contents(
+			recipient: Id
+		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			runtime_api_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 	}
 

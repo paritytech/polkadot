@@ -427,6 +427,7 @@ mod tests {
 
 	impl router::Trait for Test {
 		type UmpSink = ();
+		type Origin = Origin;
 	}
 
 	impl pallet_session::historical::Trait for Test {

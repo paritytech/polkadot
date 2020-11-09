@@ -35,7 +35,7 @@ use polkadot_node_subsystem_util::{
 };
 use node_primitives::SignedFullStatement;
 use polkadot_primitives::v1::{
-	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature,
+	Hash, CompactStatement, ValidatorIndex, ValidatorId, SigningContext, ValidatorSignature, CandidateHash,
 };
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, View, PeerId, ReputationChange as Rep, NetworkBridgeEvent,
@@ -102,32 +102,32 @@ impl StatementDistribution {
 /// via other means.
 #[derive(Default)]
 struct VcPerPeerTracker {
-	local_observed: arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
-	remote_observed: arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
+	local_observed: arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
+	remote_observed: arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
 }
 
 impl VcPerPeerTracker {
-	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
-	// based on a message that we have sent it from our local pool.
-	fn note_local(&mut self, h: Hash) {
+	/// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
+	/// based on a message that we have sent it from our local pool.
+	fn note_local(&mut self, h: CandidateHash) {
 		if !note_hash(&mut self.local_observed, h) {
 			log::warn!("Statement distribution is erroneously attempting to distribute more \
 				than {} candidate(s) per validator index. Ignoring", VC_THRESHOLD);
 		}
 	}
 
-	// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
-	// based on a message that it has sent us.
-	//
-	// Returns `true` if the peer was allowed to send us such a message, `false` otherwise.
-	fn note_remote(&mut self, h: Hash) -> bool {
+	/// Note that the remote should now be aware that a validator has seconded a given candidate (by hash)
+	/// based on a message that it has sent us.
+	///
+	/// Returns `true` if the peer was allowed to send us such a message, `false` otherwise.
+	fn note_remote(&mut self, h: CandidateHash) -> bool {
 		note_hash(&mut self.remote_observed, h)
 	}
 }
 
 fn note_hash(
-	observed: &mut arrayvec::ArrayVec<[Hash; VC_THRESHOLD]>,
-	h: Hash,
+	observed: &mut arrayvec::ArrayVec<[CandidateHash; VC_THRESHOLD]>,
+	h: CandidateHash,
 ) -> bool {
 	if observed.contains(&h) { return true; }
 
@@ -139,7 +139,7 @@ fn note_hash(
 struct PeerRelayParentKnowledge {
 	/// candidates that the peer is aware of. This indicates that we can
 	/// send other statements pertaining to that candidate.
-	known_candidates: HashSet<Hash>,
+	known_candidates: HashSet<CandidateHash>,
 	/// fingerprints of all statements a peer should be aware of: those that
 	/// were sent to the peer by us.
 	sent_statements: HashSet<(CompactStatement, ValidatorIndex)>,
@@ -149,7 +149,7 @@ struct PeerRelayParentKnowledge {
 	/// How many candidates this peer is aware of for each given validator index.
 	seconded_counts: HashMap<ValidatorIndex, VcPerPeerTracker>,
 	/// How many statements we've received for each candidate that we're aware of.
-	received_message_count: HashMap<Hash, usize>,
+	received_message_count: HashMap<CandidateHash, usize>,
 }
 
 impl PeerRelayParentKnowledge {
@@ -246,7 +246,7 @@ impl PeerRelayParentKnowledge {
 
 		{
 			let received_per_candidate = self.received_message_count
-				.entry(candidate_hash.clone())
+				.entry(*candidate_hash)
 				.or_insert(0);
 
 			if *received_per_candidate >= max_message_count {
@@ -372,7 +372,7 @@ enum NotedStatement<'a> {
 
 struct ActiveHeadData {
 	/// All candidates we are aware of for this head, keyed by hash.
-	candidates: HashSet<Hash>,
+	candidates: HashSet<CandidateHash>,
 	/// Stored statements for circulation to peers.
 	///
 	/// These are iterable in insertion order, and `Seconded` statements are always
@@ -464,7 +464,7 @@ impl ActiveHeadData {
 	}
 
 	/// Get an iterator over all statements for the active head that are for a particular candidate.
-	fn statements_about(&self, candidate_hash: Hash)
+	fn statements_about(&self, candidate_hash: CandidateHash)
 		-> impl Iterator<Item = &'_ StoredStatement> + '_
 	{
 		self.statements().filter(move |s| s.compact().candidate_hash() == &candidate_hash)
@@ -521,10 +521,10 @@ async fn circulate_statement_and_dependents(
 
 		// First circulate the statement directly to all peers needing it.
 		// The borrow of `active_head` needs to encompass only this (Rust) statement.
-		let outputs: Option<(Hash, Vec<PeerId>)> = {
+		let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
 			match active_head.note_statement(statement) {
 				NotedStatement::Fresh(stored) => Some((
-					stored.compact().candidate_hash().clone(),
+					*stored.compact().candidate_hash(),
 					circulate_statement(peers, ctx, relay_parent, stored).await?,
 				)),
 				_ => None,
@@ -602,7 +602,7 @@ async fn send_statements_about(
 	peer_data: &mut PeerData,
 	ctx: &mut impl SubsystemContext<Message = StatementDistributionMessage>,
 	relay_parent: Hash,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	active_head: &ActiveHeadData,
 	metrics: &Metrics,
 ) -> SubsystemResult<()> {
@@ -1110,8 +1110,8 @@ mod tests {
 
 	#[test]
 	fn note_local_works() {
-		let hash_a: Hash = [1; 32].into();
-		let hash_b: Hash = [2; 32].into();
+		let hash_a = CandidateHash([1; 32].into());
+		let hash_b = CandidateHash([2; 32].into());
 
 		let mut per_peer_tracker = VcPerPeerTracker::default();
 		per_peer_tracker.note_local(hash_a.clone());
@@ -1126,9 +1126,9 @@ mod tests {
 
 	#[test]
 	fn note_remote_works() {
-		let hash_a: Hash = [1; 32].into();
-		let hash_b: Hash = [2; 32].into();
-		let hash_c: Hash = [3; 32].into();
+		let hash_a = CandidateHash([1; 32].into());
+		let hash_b = CandidateHash([2; 32].into());
+		let hash_c = CandidateHash([3; 32].into());
 
 		let mut per_peer_tracker = VcPerPeerTracker::default();
 		assert!(per_peer_tracker.note_remote(hash_a.clone()));
@@ -1148,7 +1148,7 @@ mod tests {
 	fn per_peer_relay_parent_knowledge_send() {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
-		let hash_a: Hash = [1; 32].into();
+		let hash_a = CandidateHash([1; 32].into());
 
 		// Sending an un-pinned statement should not work and should have no effect.
 		assert!(knowledge.send(&(CompactStatement::Valid(hash_a), 0)).is_none());
@@ -1180,7 +1180,7 @@ mod tests {
 	fn cant_send_after_receiving() {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
-		let hash_a: Hash = [1; 32].into();
+		let hash_a = CandidateHash([1; 32].into());
 		assert!(knowledge.receive(&(CompactStatement::Candidate(hash_a), 0), 3).unwrap());
 		assert!(knowledge.send(&(CompactStatement::Candidate(hash_a), 0)).is_none());
 	}
@@ -1189,7 +1189,7 @@ mod tests {
 	fn per_peer_relay_parent_knowledge_receive() {
 		let mut knowledge = PeerRelayParentKnowledge::default();
 
-		let hash_a: Hash = [1; 32].into();
+		let hash_a = CandidateHash([1; 32].into());
 
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Valid(hash_a), 0), 3),
@@ -1226,8 +1226,8 @@ mod tests {
 		assert_eq!(knowledge.received_statements.len(), 3); // number of prior `Ok`s.
 
 		// Now make sure that the seconding limit is respected.
-		let hash_b: Hash = [2; 32].into();
-		let hash_c: Hash = [3; 32].into();
+		let hash_b = CandidateHash([2; 32].into());
+		let hash_c = CandidateHash([3; 32].into());
 
 		assert_eq!(
 			knowledge.receive(&(CompactStatement::Candidate(hash_b), 0), 3),

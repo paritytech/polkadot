@@ -77,18 +77,24 @@ struct HostConfiguration {
 	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
 	pub hrmp_recipient_deposit: u32,
 	/// The maximum number of messages allowed in an HRMP channel at once.
-	pub hrmp_channel_max_places: u32,
+	pub hrmp_channel_max_capacity: u32,
 	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
-	pub hrmp_channel_max_size: u32,
+	pub hrmp_channel_max_total_size: u32,
 	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
 	pub hrmp_max_parachain_inbound_channels: u32,
 	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
 	pub hrmp_max_parathread_inbound_channels: u32,
 	/// The maximum size of a message that could ever be put into an HRMP channel.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
 	pub hrmp_max_parathread_outbound_channels: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
 }
 ```

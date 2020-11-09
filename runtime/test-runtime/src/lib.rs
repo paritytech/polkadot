@@ -22,6 +22,7 @@
 
 use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use codec::Encode;
 use polkadot_runtime_parachains::{
 	configuration,
@@ -36,6 +37,7 @@ use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
@@ -453,6 +455,7 @@ impl paras::Trait for Runtime {
 }
 
 impl router::Trait for Runtime {
+	type Origin = Origin;
 	type UmpSink = ();
 }
 
@@ -668,8 +671,14 @@ sp_api::impl_runtime_apis! {
 
 		fn dmq_contents(
 			recipient: ParaId,
-		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			runtime_impl::dmq_contents::<Runtime>(recipient)
+		}
+
+		fn inbound_hrmp_channels_contents(
+			recipient: ParaId,
+		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
+			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 	}
 

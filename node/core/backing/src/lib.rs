@@ -24,15 +24,12 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 use bitvec::vec::BitVec;
-use futures::{
-	channel::{mpsc, oneshot},
-	Future, FutureExt, SinkExt, StreamExt,
-};
+use futures::{channel::{mpsc, oneshot}, Future, FutureExt, SinkExt, StreamExt};
 
 use sp_keystore::SyncCryptoStorePtr;
 use polkadot_primitives::v1::{
 	CommittedCandidateReceipt, BackedCandidate, Id as ParaId, ValidatorId,
-	ValidatorIndex, SigningContext, PoV,
+	ValidatorIndex, SigningContext, PoV, CandidateHash,
 	CandidateDescriptor, AvailableData, ValidatorSignature, Hash, CandidateReceipt,
 	CandidateCommitments, CoreState, CoreIndex, CollatorId, ValidationOutputs,
 };
@@ -68,6 +65,8 @@ use statement_table::{
 };
 use thiserror::Error;
 
+const LOG_TARGET: &str = "candidate_backing";
+
 #[derive(Debug, Error)]
 enum Error {
 	#[error("Candidate is not found")]
@@ -101,12 +100,12 @@ struct CandidateBackingJob {
 	/// The collator required to author the candidate, if any.
 	required_collator: Option<CollatorId>,
 	/// We issued `Valid` or `Invalid` statements on about these candidates.
-	issued_statements: HashSet<Hash>,
+	issued_statements: HashSet<CandidateHash>,
 	/// `Some(h)` if this job has already issues `Seconded` statemt for some candidate with `h` hash.
-	seconded: Option<Hash>,
+	seconded: Option<CandidateHash>,
 	/// The candidates that are includable, by hash. Each entry here indicates
 	/// that we've sent the provisioner the backed candidate.
-	backed: HashSet<Hash>,
+	backed: HashSet<CandidateHash>,
 	/// We have already reported misbehaviors for these validators.
 	reported_misbehavior_for: HashSet<ValidatorIndex>,
 	keystore: SyncCryptoStorePtr,
@@ -129,12 +128,12 @@ struct TableContext {
 
 impl TableContextTrait for TableContext {
 	type AuthorityId = ValidatorIndex;
-	type Digest = Hash;
+	type Digest = CandidateHash;
 	type GroupId = ParaId;
 	type Signature = ValidatorSignature;
 	type Candidate = CommittedCandidateReceipt;
 
-	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> Hash {
+	fn candidate_digest(candidate: &CommittedCandidateReceipt) -> CandidateHash {
 		candidate.hash()
 	}
 
@@ -288,7 +287,7 @@ impl CandidateBackingJob {
 				ToJob::CandidateBacking(msg) => {
 					self.process_msg(msg).await?;
 				}
-				_ => break,
+				ToJob::Stop => break,
 			}
 		}
 
@@ -312,7 +311,7 @@ impl CandidateBackingJob {
 	async fn validate_and_second(
 		&mut self,
 		candidate: &CandidateReceipt,
-		pov: PoV,
+		pov: Arc<PoV>,
 	) -> Result<bool, Error> {
 		// Check that candidate is collated by the right collator.
 		if self.required_collator.as_ref()
@@ -324,7 +323,7 @@ impl CandidateBackingJob {
 
 		let valid = self.request_candidate_validation(
 			candidate.descriptor().clone(),
-			Arc::new(pov.clone()),
+			pov.clone(),
 		).await?;
 
 		let candidate_hash = candidate.hash();
@@ -339,6 +338,7 @@ impl CandidateBackingJob {
 				// the collator, do not make available and report the collator.
 				let commitments_check = self.make_pov_available(
 					pov,
+					candidate_hash,
 					validation_data,
 					outputs,
 					|commitments| if commitments.hash() == candidate.commitments_hash {
@@ -423,6 +423,7 @@ impl CandidateBackingJob {
 
 				if let Ok(report) = MisbehaviorReport::try_from(f) {
 					let message = ProvisionerMessage::ProvisionableData(
+						self.parent,
 						ProvisionableData::MisbehaviorReport(self.parent, report),
 					);
 
@@ -459,6 +460,7 @@ impl CandidateBackingJob {
 						table_attested_to_backed(attested, &self.table_context)
 					{
 						let message = ProvisionerMessage::ProvisionableData(
+							self.parent,
 							ProvisionableData::BackedCandidate(backed),
 						);
 						self.send_to_provisioner(message).await?;
@@ -486,14 +488,16 @@ impl CandidateBackingJob {
 				if self.seconded.is_none() {
 					// This job has not seconded a candidate yet.
 					let candidate_hash = candidate.hash();
+					let pov = Arc::new(pov);
 
 					if !self.issued_statements.contains(&candidate_hash) {
 						if let Ok(true) = self.validate_and_second(
 							&candidate,
-							pov,
+							pov.clone(),
 						).await {
 							self.metrics.on_candidate_seconded();
 							self.seconded = Some(candidate_hash);
+							self.distribute_pov(candidate.descriptor, pov).await?;
 						}
 					}
 				}
@@ -521,7 +525,7 @@ impl CandidateBackingJob {
 		&mut self,
 		summary: TableSummary,
 	) -> Result<(), Error> {
-		let candidate_hash = summary.candidate.clone();
+		let candidate_hash = summary.candidate;
 
 		if self.issued_statements.contains(&candidate_hash) {
 			return Ok(())
@@ -554,7 +558,8 @@ impl CandidateBackingJob {
 			ValidationResult::Valid(outputs, validation_data) => {
 				// If validation produces a new set of commitments, we vote the candidate as invalid.
 				let commitments_check = self.make_pov_available(
-					(&*pov).clone(),
+					pov,
+					candidate_hash,
 					validation_data,
 					outputs,
 					|commitments| if commitments == expected_commitments {
@@ -627,6 +632,16 @@ impl CandidateBackingJob {
 		Ok(())
 	}
 
+	async fn distribute_pov(
+		&mut self,
+		descriptor: CandidateDescriptor,
+		pov: Arc<PoV>,
+	) -> Result<(), Error> {
+		self.tx_from.send(FromJob::PoVDistribution(
+			PoVDistributionMessage::DistributePoV(self.parent, descriptor, pov),
+		)).await.map_err(Into::into)
+	}
+
 	async fn request_pov_from_distribution(
 		&mut self,
 		descriptor: CandidateDescriptor,
@@ -663,12 +678,13 @@ impl CandidateBackingJob {
 		&mut self,
 		id: Option<ValidatorIndex>,
 		n_validators: u32,
+		candidate_hash: CandidateHash,
 		available_data: AvailableData,
 	) -> Result<(), Error> {
 		let (tx, rx) = oneshot::channel();
 		self.tx_from.send(FromJob::AvailabilityStore(
 				AvailabilityStoreMessage::StoreAvailableData(
-					self.parent,
+					candidate_hash,
 					id,
 					n_validators,
 					available_data,
@@ -689,7 +705,8 @@ impl CandidateBackingJob {
 	// early without making the PoV available.
 	async fn make_pov_available<T, E>(
 		&mut self,
-		pov: PoV,
+		pov: Arc<PoV>,
+		candidate_hash: CandidateHash,
 		validation_data: polkadot_primitives::v1::PersistedValidationData,
 		outputs: ValidationOutputs,
 		with_commitments: impl FnOnce(CandidateCommitments) -> Result<T, E>,
@@ -709,10 +726,12 @@ impl CandidateBackingJob {
 
 		let commitments = CandidateCommitments {
 			upward_messages: outputs.upward_messages,
+			horizontal_messages: outputs.horizontal_messages,
 			erasure_root,
 			new_validation_code: outputs.new_validation_code,
 			head_data: outputs.head_data,
 			processed_downward_messages: outputs.processed_downward_messages,
+			hrmp_watermark: outputs.hrmp_watermark,
 		};
 
 		let res = match with_commitments(commitments) {
@@ -723,6 +742,7 @@ impl CandidateBackingJob {
 		self.store_available_data(
 			self.table_context.validator.as_ref().map(|v| v.index()),
 			self.table_context.validators.len() as u32,
+			candidate_hash,
 			available_data,
 		).await?;
 
@@ -761,7 +781,7 @@ impl util::JobTrait for CandidateBackingJob {
 						Ok(x) => x,
 						Err(e) => {
 							log::warn!(
-								target: "candidate_backing",
+								target: LOG_TARGET,
 								"Failed to fetch runtime API data for job: {:?}",
 								e,
 							);
@@ -801,7 +821,7 @@ impl util::JobTrait for CandidateBackingJob {
 				Err(util::Error::NotAValidator) => { return Ok(()) },
 				Err(e) => {
 					log::warn!(
-						target: "candidate_backing",
+						target: LOG_TARGET,
 						"Cannot participate in candidate backing: {:?}",
 						e
 					);
@@ -838,7 +858,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 			let (assignment, required_collator) = match assignment {
 				None => return Ok(()), // no need to work.
-				Some((a, r)) => (a, r),
+				Some(r) => r,
 			};
 
 			let job = CandidateBackingJob {
@@ -1059,7 +1079,7 @@ mod tests {
 	fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 		let available_data = AvailableData {
 			validation_data: test.validation_data.persisted.clone(),
-			pov,
+			pov: Arc::new(pov),
 		};
 
 		let chunks = erasure_coding::obtain_chunks_v1(test.validators.len(), &available_data).unwrap();
@@ -1191,9 +1211,11 @@ mod tests {
 					tx.send(Ok(
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
+							horizontal_messages: Vec::new(),
 							upward_messages: Vec::new(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
+							hrmp_watermark: 0,
 						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
@@ -1202,8 +1224,8 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
-				) if parent_hash == test_state.relay_parent => {
+					AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				) if candidate_hash == candidate.hash() => {
 					tx.send(Ok(())).unwrap();
 				}
 			);
@@ -1220,6 +1242,15 @@ mod tests {
 						&test_state.signing_context,
 						&test_state.validator_public[0],
 					).unwrap();
+				}
+			);
+
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::PoVDistribution(PoVDistributionMessage::DistributePoV(hash, descriptor, pov_received)) => {
+					assert_eq!(test_state.relay_parent, hash);
+					assert_eq!(candidate.descriptor, descriptor);
+					assert_eq!(pov, *pov_received);
 				}
 			);
 
@@ -1319,8 +1350,10 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
+							horizontal_messages: Vec::new(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
+							hrmp_watermark: 0,
 						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
@@ -1329,8 +1362,8 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
-				) if parent_hash == test_state.relay_parent => {
+					AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				) if candidate_hash == candidate_a.hash() => {
 					tx.send(Ok(())).unwrap();
 				}
 			);
@@ -1356,6 +1389,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::BackedCandidate(BackedCandidate {
 							candidate,
 							validity_votes,
@@ -1467,8 +1501,10 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
+							horizontal_messages: Vec::new(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
+							hrmp_watermark: 0,
 						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
@@ -1477,8 +1513,8 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
-					) if parent_hash == test_state.relay_parent => {
+					AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				) if candidate_hash == candidate_a.hash() => {
 						tx.send(Ok(())).unwrap();
 					}
 			);
@@ -1510,6 +1546,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),
@@ -1538,6 +1575,7 @@ mod tests {
 				virtual_overseer.recv().await,
 				AllMessages::Provisioner(
 					ProvisionerMessage::ProvisionableData(
+						_,
 						ProvisionableData::MisbehaviorReport(
 							relay_parent,
 							MisbehaviorReport::SelfContradiction(_, s1, s2),
@@ -1648,8 +1686,10 @@ mod tests {
 						ValidationResult::Valid(ValidationOutputs {
 							head_data: expected_head_data.clone(),
 							upward_messages: Vec::new(),
+							horizontal_messages: Vec::new(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
+							hrmp_watermark: 0,
 						}, test_state.validation_data.persisted),
 					)).unwrap();
 				}
@@ -1658,8 +1698,8 @@ mod tests {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::AvailabilityStore(
-					AvailabilityStoreMessage::StoreAvailableData(parent_hash, _, _, _, tx)
-				) if parent_hash == test_state.relay_parent => {
+					AvailabilityStoreMessage::StoreAvailableData(candidate_hash, _, _, _, tx)
+				) if candidate_hash == candidate_b.hash() => {
 					tx.send(Ok(())).unwrap();
 				}
 			);

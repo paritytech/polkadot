@@ -23,7 +23,7 @@ use polkadot_primitives::v1::{
 	AvailableData, BlockData, CandidateCommitments, CandidateDescriptor, GroupIndex,
 	GroupRotationInfo, HeadData, OccupiedCore, PersistedValidationData, PoV, ScheduledCore,
 };
-use polkadot_subsystem_testhelpers::{self as test_helpers};
+use polkadot_subsystem_testhelpers as test_helpers;
 
 use futures::{executor, future, Future};
 use futures_timer::Delay;
@@ -241,7 +241,7 @@ impl Default for TestState {
 fn make_available_data(test: &TestState, pov: PoV) -> AvailableData {
 	AvailableData {
 		validation_data: test.persisted_validation_data.clone(),
-		pov,
+		pov: Arc::new(pov),
 	}
 }
 
@@ -254,7 +254,7 @@ fn make_erasure_root(test: &TestState, pov: PoV) -> Hash {
 
 fn make_valid_availability_gossip(
 	test: &TestState,
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	erasure_chunk_index: u32,
 	pov: PoV,
 ) -> AvailabilityGossipMessage {
@@ -320,7 +320,7 @@ fn helper_integrity() {
 	.build();
 
 	let message =
-		make_valid_availability_gossip(&test_state, dbg!(candidate.hash()), 2, pov_block.clone());
+		make_valid_availability_gossip(&test_state, candidate.hash(), 2, pov_block.clone());
 
 	let root = dbg!(&candidate.commitments.erasure_root);
 

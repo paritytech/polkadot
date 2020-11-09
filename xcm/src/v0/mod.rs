@@ -158,6 +158,51 @@ pub enum Xcm {
 	///
 	/// Errors:
 	RelayedFrom { superorigin: MultiLocation, inner: Box<VersionedXcm> },
+
+	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
+	/// relay-chain to a para.
+	///
+	/// - `sender`: The sender in the to-be opened channel. Also, the initiator of the channel opening.
+	/// - `max_message_size`: The maximum size of a message proposed by the sender.
+	/// - `max_capacity`: The maximum number of messages that can be queued in the channel.
+	///
+	/// Safety: The message should originate directly from the relay-chain.
+	///
+	/// Kind: *System Notification*
+	HrmpNewChannelOpenRequest {
+		#[codec(compact)] sender: u32,
+		#[codec(compact)] max_message_size: u32,
+		#[codec(compact)] max_capacity: u32,
+	},
+
+	/// A message to notify about that a previously sent open channel request has been accepted by
+	/// the recipient. That means that the channel will be opened during the next relay-chain session
+	/// change. This message is meant to be sent by the relay-chain to a para.
+	///
+	/// Safety: The message should originate directly from the relay-chain.
+	///
+	/// Kind: *System Notification*
+	///
+	/// Errors:
+	HrmpChannelAccepted {
+		#[codec(compact)] recipient: u32,
+	},
+
+	/// A message to notify that the other party in an open channel decided to close it. In particular,
+	/// `inititator` is going to close the channel opened from `sender` to the `recipient`. The close
+	/// will be enacted at the next relay-chain session change. This message is meant to be sent by
+	/// the relay-chain to a para.
+	///
+	/// Safety: The message should originate directly from the relay-chain.
+	///
+	/// Kind: *System Notification*
+	///
+	/// Errors:
+	HrmpChannelClosing {
+		#[codec(compact)] initiator: u32,
+		#[codec(compact)] sender: u32,
+		#[codec(compact)] recipient: u32,
+	},
 }
 
 impl From<Xcm> for VersionedXcm {

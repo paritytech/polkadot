@@ -20,25 +20,30 @@
 //! routing the messages at their destinations and informing the parachains about the incoming
 //! messages.
 
-use crate::{
-	configuration,
-	initializer,
-};
+use crate::{configuration, paras, initializer, ensure_parachain};
 use sp_std::prelude::*;
-use frame_support::{decl_error, decl_module, decl_storage, weights::Weight};
+use frame_support::{decl_error, decl_module, decl_storage, dispatch::DispatchResult, weights::Weight};
 use sp_std::collections::vec_deque::VecDeque;
-use primitives::v1::{Id as ParaId, InboundDownwardMessage, Hash, UpwardMessage};
+use primitives::v1::{
+	Id as ParaId, InboundDownwardMessage, Hash, UpwardMessage, HrmpChannelId, InboundHrmpMessage,
+};
 
 mod dmp;
+mod hrmp;
 mod ump;
 
+use hrmp::{HrmpOpenChannelRequest, HrmpChannel};
 pub use dmp::QueueDownwardMessageError;
 pub use ump::UmpSink;
 
 #[cfg(test)]
 pub use ump::mock_sink::MockUmpSink;
 
-pub trait Trait: frame_system::Trait + configuration::Trait {
+pub trait Trait: frame_system::Trait + configuration::Trait + paras::Trait {
+	type Origin: From<crate::Origin>
+		+ From<<Self as frame_system::Trait>::Origin>
+		+ Into<Result<crate::Origin, <Self as Trait>::Origin>>;
+
 	/// A place where all received upward messages are funneled.
 	type UmpSink: UmpSink;
 }
@@ -103,17 +108,148 @@ decl_storage! {
 		/// Invariant:
 		/// - If `Some(para)`, then `para` must be present in `NeedsDispatch`.
 		NextDispatchRoundStartWith: Option<ParaId>;
+
+		/*
+		 * Horizontally Relay-routed Message Passing (HRMP)
+		 *
+		 * HRMP related storage layout
+		 */
+
+		/// The set of pending HRMP open channel requests.
+		///
+		/// The set is accompanied by a list for iteration.
+		///
+		/// Invariant:
+		/// - There are no channels that exists in list but not in the set and vice versa.
+		HrmpOpenChannelRequests: map hasher(twox_64_concat) HrmpChannelId => Option<HrmpOpenChannelRequest>;
+		HrmpOpenChannelRequestsList: Vec<HrmpChannelId>;
+
+		/// This mapping tracks how many open channel requests are inititated by a given sender para.
+		/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items that has `(X, _)`
+		/// as the number of `HrmpOpenChannelRequestCount` for `X`.
+		HrmpOpenChannelRequestCount: map hasher(twox_64_concat) ParaId => u32;
+		/// This mapping tracks how many open channel requests were accepted by a given recipient para.
+		/// Invariant: `HrmpOpenChannelRequests` should contain the same number of items `(_, X)` with
+		/// `confirmed` set to true, as the number of `HrmpAcceptedChannelRequestCount` for `X`.
+		HrmpAcceptedChannelRequestCount: map hasher(twox_64_concat) ParaId => u32;
+
+		/// A set of pending HRMP close channel requests that are going to be closed during the session change.
+		/// Used for checking if a given channel is registered for closure.
+		///
+		/// The set is accompanied by a list for iteration.
+		///
+		/// Invariant:
+		/// - There are no channels that exists in list but not in the set and vice versa.
+		HrmpCloseChannelRequests: map hasher(twox_64_concat) HrmpChannelId => Option<()>;
+		HrmpCloseChannelRequestsList: Vec<HrmpChannelId>;
+
+		/// The HRMP watermark associated with each para.
+		/// Invariant:
+		/// - each para `P` used here as a key should satisfy `Paras::is_valid_para(P)` within a session.
+		HrmpWatermarks: map hasher(twox_64_concat) ParaId => Option<T::BlockNumber>;
+		/// HRMP channel data associated with each para.
+		/// Invariant:
+		/// - each participant in the channel should satisfy `Paras::is_valid_para(P)` within a session.
+		HrmpChannels: map hasher(twox_64_concat) HrmpChannelId => Option<HrmpChannel>;
+		/// Ingress/egress indexes allow to find all the senders and receivers given the opposite
+		/// side. I.e.
+		///
+		/// (a) ingress index allows to find all the senders for a given recipient.
+		/// (b) egress index allows to find all the recipients for a given sender.
+		///
+		/// Invariants:
+		/// - for each ingress index entry for `P` each item `I` in the index should present in `HrmpChannels`
+		///   as `(I, P)`.
+		/// - for each egress index entry for `P` each item `E` in the index should present in `HrmpChannels`
+		///   as `(P, E)`.
+		/// - there should be no other dangling channels in `HrmpChannels`.
+		/// - the vectors are sorted.
+		HrmpIngressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		HrmpEgressChannelsIndex: map hasher(twox_64_concat) ParaId => Vec<ParaId>;
+		/// Storage for the messages for each channel.
+		/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
+		HrmpChannelContents: map hasher(twox_64_concat) HrmpChannelId => Vec<InboundHrmpMessage<T::BlockNumber>>;
+		/// Maintains a mapping that can be used to answer the question:
+		/// What paras sent a message at the given block number for a given reciever.
+		/// Invariants:
+		/// - The inner `Vec<ParaId>` is never empty.
+		/// - The inner `Vec<ParaId>` cannot store two same `ParaId`.
+		/// - The outer vector is sorted ascending by block number and cannot store two items with the same
+		///   block number.
+		HrmpChannelDigests: map hasher(twox_64_concat) ParaId => Vec<(T::BlockNumber, Vec<ParaId>)>;
 	}
 }
 
 decl_error! {
-	pub enum Error for Module<T: Trait> { }
+	pub enum Error for Module<T: Trait> {
+		/// The sender tried to open a channel to themselves.
+		OpenHrmpChannelToSelf,
+		/// The recipient is not a valid para.
+		OpenHrmpChannelInvalidRecipient,
+		/// The requested capacity is zero.
+		OpenHrmpChannelZeroCapacity,
+		/// The requested capacity exceeds the global limit.
+		OpenHrmpChannelCapacityExceedsLimit,
+		/// The requested maximum message size is 0.
+		OpenHrmpChannelZeroMessageSize,
+		/// The open request requested the message size that exceeds the global limit.
+		OpenHrmpChannelMessageSizeExceedsLimit,
+		/// The channel already exists
+		OpenHrmpChannelAlreadyExists,
+		/// There is already a request to open the same channel.
+		OpenHrmpChannelAlreadyRequested,
+		/// The sender already has the maximum number of allowed outbound channels.
+		OpenHrmpChannelLimitExceeded,
+		/// The channel from the sender to the origin doesn't exist.
+		AcceptHrmpChannelDoesntExist,
+		/// The channel is already confirmed.
+		AcceptHrmpChannelAlreadyConfirmed,
+		/// The recipient already has the maximum number of allowed inbound channels.
+		AcceptHrmpChannelLimitExceeded,
+		/// The origin tries to close a channel where it is neither the sender nor the recipient.
+		CloseHrmpChannelUnauthorized,
+		/// The channel to be closed doesn't exist.
+		CloseHrmpChannelDoesntExist,
+		/// The channel close request is already requested.
+		CloseHrmpChannelAlreadyUnderway,
+	 }
 }
 
 decl_module! {
 	/// The router module.
 	pub struct Module<T: Trait> for enum Call where origin: <T as frame_system::Trait>::Origin {
 		type Error = Error<T>;
+
+		#[weight = 0]
+		fn hrmp_init_open_channel(
+			origin,
+			recipient: ParaId,
+			proposed_max_capacity: u32,
+			proposed_max_message_size: u32,
+		) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::init_open_channel(
+				origin,
+				recipient,
+				proposed_max_capacity,
+				proposed_max_message_size
+			)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_accept_open_channel(origin, sender: ParaId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::accept_open_channel(origin, sender)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn hrmp_close_channel(origin, channel_id: HrmpChannelId) -> DispatchResult {
+			let origin = ensure_parachain(<T as Trait>::Origin::from(origin))?;
+			Self::close_channel(origin, channel_id)?;
+			Ok(())
+		}
 	}
 }
 
@@ -128,12 +264,21 @@ impl<T: Trait> Module<T> {
 
 	/// Called by the initializer to note that a new session has started.
 	pub(crate) fn initializer_on_new_session(
-		_notification: &initializer::SessionChangeNotification<T::BlockNumber>,
+		notification: &initializer::SessionChangeNotification<T::BlockNumber>,
 	) {
+		Self::perform_outgoing_para_cleanup();
+		Self::process_hrmp_open_channel_requests(&notification.prev_config);
+		Self::process_hrmp_close_channel_requests();
+	}
+
+	/// Iterate over all paras that were registered for offboarding and remove all the data
+	/// associated with them.
+	fn perform_outgoing_para_cleanup() {
 		let outgoing = OutgoingParas::take();
 		for outgoing_para in outgoing {
 			Self::clean_dmp_after_outgoing(outgoing_para);
 			Self::clean_ump_after_outgoing(outgoing_para);
+			Self::clean_hrmp_after_outgoing(outgoing_para);
 		}
 	}
 

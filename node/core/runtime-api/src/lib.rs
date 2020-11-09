@@ -130,6 +130,7 @@ fn make_runtime_api_request<Client>(
 		Request::CandidateEvents(sender) => query!(candidate_events(), sender),
 		Request::ValidatorDiscovery(ids, sender) => query!(validator_discovery(ids), sender),
 		Request::DmqContents(id, sender) => query!(dmq_contents(id), sender),
+		Request::InboundHrmpChannelsContents(id, sender) => query!(inbound_hrmp_channels_contents(id), sender),
 	}
 }
 
@@ -180,12 +181,11 @@ mod tests {
 		ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, PersistedValidationData,
 		Id as ParaId, OccupiedCoreAssumption, ValidationData, SessionIndex, ValidationCode,
 		CommittedCandidateReceipt, CandidateEvent, AuthorityDiscoveryId, InboundDownwardMessage,
-		BlockNumber,
+		BlockNumber, InboundHrmpMessage,
 	};
 	use polkadot_node_subsystem_test_helpers as test_helpers;
 	use sp_core::testing::TaskExecutor;
-
-	use std::collections::HashMap;
+	use std::collections::{HashMap, BTreeMap};
 	use futures::channel::oneshot;
 
 	#[derive(Default, Clone)]
@@ -201,6 +201,7 @@ mod tests {
 		candidate_pending_availability: HashMap<ParaId, CommittedCandidateReceipt>,
 		candidate_events: Vec<CandidateEvent>,
 		dmq_contents: HashMap<ParaId, Vec<InboundDownwardMessage>>,
+		hrmp_channels: HashMap<ParaId, BTreeMap<ParaId, Vec<InboundHrmpMessage>>>,
 	}
 
 	impl ProvideRuntimeApi<Block> for MockRuntimeApi {
@@ -306,8 +307,15 @@ mod tests {
 			fn dmq_contents(
 				&self,
 				recipient: ParaId,
-			) -> Vec<polkadot_primitives::v1::InboundDownwardMessage> {
+			) -> Vec<InboundDownwardMessage> {
 				self.dmq_contents.get(&recipient).map(|q| q.clone()).unwrap_or_default()
+			}
+
+			fn inbound_hrmp_channels_contents(
+				&self,
+				recipient: ParaId
+			) -> BTreeMap<ParaId, Vec<InboundHrmpMessage>> {
+				self.hrmp_channels.get(&recipient).map(|q| q.clone()).unwrap_or_default()
 			}
 		}
 	}
@@ -693,6 +701,72 @@ mod tests {
 					msg: b"Novus Ordo Seclorum".to_vec(),
 				}]
 			);
+
+			ctx_handle
+				.send(FromOverseer::Signal(OverseerSignal::Conclude))
+				.await;
+		};
+		futures::executor::block_on(future::join(subsystem_task, test_task));
+	}
+
+	#[test]
+	fn requests_inbound_hrmp_channels_contents() {
+		let (ctx, mut ctx_handle) = test_helpers::make_subsystem_context(TaskExecutor::new());
+
+		let relay_parent = [1; 32].into();
+		let para_a = 99.into();
+		let para_b = 66.into();
+		let para_c = 33.into();
+
+		let para_b_inbound_channels = [
+			(para_a, vec![]),
+			(
+				para_c,
+				vec![InboundHrmpMessage {
+					sent_at: 1,
+					data: "𝙀=𝙈𝘾²".as_bytes().to_owned(),
+				}],
+			),
+		]
+		.iter()
+		.cloned()
+		.collect::<BTreeMap<_, _>>();
+
+		let runtime_api = Arc::new({
+			let mut runtime_api = MockRuntimeApi::default();
+
+			runtime_api.hrmp_channels.insert(para_a, BTreeMap::new());
+			runtime_api
+				.hrmp_channels
+				.insert(para_b, para_b_inbound_channels.clone());
+
+			runtime_api
+		});
+
+		let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None));
+		let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
+		let test_task = async move {
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::InboundHrmpChannelsContents(para_a, tx),
+					),
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), BTreeMap::new());
+
+			let (tx, rx) = oneshot::channel();
+			ctx_handle
+				.send(FromOverseer::Communication {
+					msg: RuntimeApiMessage::Request(
+						relay_parent,
+						Request::InboundHrmpChannelsContents(para_b, tx),
+					),
+				})
+				.await;
+			assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels,);
 
 			ctx_handle
 				.send(FromOverseer::Signal(OverseerSignal::Conclude))

@@ -15,7 +15,25 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! Weights for pallet_utility
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0
-//! DATE: 2020-09-28, STEPS: [50], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! DATE: 2020-10-30, STEPS: [50, ], REPEAT: 20, LOW RANGE: [], HIGH RANGE: []
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 128
+
+// Executed Command:
+// ./target/release/polkadot
+// benchmark
+// --chain
+// kusama-dev
+// --steps=50
+// --repeat=20
+// --pallet=pallet_utility
+// --extrinsic=*
+// --execution=wasm
+// --wasm-execution=compiled
+// --heap-pages=4096
+// --header
+// ./file_header.txt
+// --output=./runtime/kusama/src/weights/
+
 
 #![allow(unused_parens)]
 #![allow(unused_imports)]
@@ -23,17 +41,18 @@
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
+/// Weight functions for pallet_utility.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Trait> pallet_utility::WeightInfo for WeightInfo<T> {
 	fn batch(c: u32, ) -> Weight {
-		(18_450_000 as Weight)
-			.saturating_add((1_730_000 as Weight).saturating_mul(c as Weight))
+		(18_717_000 as Weight)
+			.saturating_add((1_995_000 as Weight).saturating_mul(c as Weight))
 	}
 	fn as_derivative() -> Weight {
-		(5_360_000 as Weight)
+		(5_548_000 as Weight)
 	}
 	fn batch_all(c: u32, ) -> Weight {
-		(21_104_000 as Weight)
-			.saturating_add((1_509_000 as Weight).saturating_mul(c as Weight))
+		(19_735_000 as Weight)
+			.saturating_add((1_990_000 as Weight).saturating_mul(c as Weight))
 	}
 }
