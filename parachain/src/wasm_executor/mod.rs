@@ -39,7 +39,7 @@ const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 M
 
 /// The execution mode for the `ValidationPool`.
 #[derive(Clone, Debug)]
-pub enum ExecutionMode {
+pub enum IsolationStrategy {
 	/// The validation worker is ran in a thread inside the same process.
 	InProcess,
 	/// The validation worker is ran using the process' executable and the subcommand `validation-worker` is passed
@@ -60,7 +60,7 @@ pub enum ExecutionMode {
 	},
 }
 
-impl Default for ExecutionMode {
+impl Default for IsolationStrategy {
 	fn default() -> Self {
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
 		{
@@ -136,19 +136,19 @@ pub enum InternalError {
 pub fn validate_candidate(
 	validation_code: &[u8],
 	params: ValidationParams,
-	execution_mode: &ExecutionMode,
+	isolation_strategy: &IsolationStrategy,
 	spawner: impl SpawnNamed + 'static,
 ) -> Result<ValidationResult, ValidationError> {
-	match execution_mode {
-		ExecutionMode::InProcess => {
+	match isolation_strategy {
+		IsolationStrategy::InProcess => {
 			validate_candidate_internal(validation_code, &params.encode(), spawner)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessSelfHost(pool) => {
+		IsolationStrategy::ExternalProcessSelfHost(pool) => {
 			pool.validate_candidate(validation_code, params)
 		},
 		#[cfg(not(any(target_os = "android", target_os = "unknown")))]
-		ExecutionMode::ExternalProcessCustomHost { pool, binary, args } => {
+		IsolationStrategy::ExternalProcessCustomHost { pool, binary, args } => {
 			let args: Vec<&str> = args.iter().map(|x| x.as_str()).collect();
 			pool.validate_candidate_custom(validation_code, params, binary, &args)
 		},
