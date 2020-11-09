@@ -291,8 +291,6 @@ impl JobTrait for BitfieldSigningJob {
 	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
 		let metrics = metrics.clone();
 		async move {
-			let _timer = metrics.time_run();
-
 			let wait_until = Instant::now() + JOB_DELAY;
 
 			// now do all the work we can before we need to wait for the availability store
@@ -305,6 +303,10 @@ impl JobTrait for BitfieldSigningJob {
 
 			// wait a bit before doing anything else
 			Delay::new_at(wait_until).await?;
+
+			// this timer does not appear at the head of the function because we don't want to include
+			// JOB_DELAY each time.
+			let _timer = metrics.time_run();
 
 			let bitfield =
 				match construct_availability_bitfield(relay_parent, validator.index(), &mut sender).await
