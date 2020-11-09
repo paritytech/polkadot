@@ -37,7 +37,23 @@ const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
-/// The strategy we employ for isolating execution of wasm parachain validation function.
+/// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
+///
+/// For a typical validator an external process is the default and recommended way to run PVF. The
+/// rationale is based on two observations:
+///
+/// (a) PVF is completely under control of parachain developers who may or may not be malicious.
+/// (a) PVF is executed by a wasm engine based on optimizing compiler which is a very complex piece
+///     of machinery.
+///
+/// Execution in a separate process helps to minimize impact of a potential exploit. At the same
+/// time, since PVF validates self-contained candidates, validation workers don't require extensive
+/// communication with polkadot host, therefore there should be no observable performance penalty
+/// coming from inter process communication.
+///
+/// However, in some cases, e.g. when running PVF validation on android (for whatever reason), we
+/// cannot afford luxury of process isolation and thus there is an option to run validation in
+/// process. This is also useful for tests.
 #[derive(Clone, Debug)]
 pub enum IsolationStrategy {
 	/// The validation worker is ran in a thread inside the same process.
