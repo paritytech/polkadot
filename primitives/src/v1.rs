@@ -669,8 +669,6 @@ pub enum CandidateEvent<H = Hash> {
 	CandidateTimedOut(CandidateReceipt<H>, HeadData),
 }
 
-pub type ValidatorGroup = Vec<ValidatorId>;
-
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode)]
 pub struct SessionInfo {
@@ -688,7 +686,7 @@ pub struct SessionInfo {
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
 	#[codec(index = "3")]
-	pub validator_groups: Vec<ValidatorGroup>,
+	pub validator_groups: Vec<Vec<ValidatorId>>,
 	/// The number of availability cores used by the protocol during this session.
 	#[codec(index = "4")]
 	pub n_cores: u32,
@@ -719,7 +717,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the validator groups and rotation info localized based on the block whose state
 		/// this is invoked on. Note that `now` in the `GroupRotationInfo` should be the successor of
 		/// the number of the block.
-		fn validator_groups() -> (Vec<ValidatorGroup>, GroupRotationInfo<N>);
+		fn validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo<N>);
 
 		/// Yields information on all availability cores. Cores are either free or occupied. Free
 		/// cores can have paras assigned to them.
