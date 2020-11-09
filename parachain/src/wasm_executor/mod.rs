@@ -67,7 +67,7 @@ const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 M
 /// All of the above should give a sense why isolation is crucial for a typical use-case.
 ///
 /// However, in some cases, e.g. when running PVF validation on android (for whatever reason), we
-/// cannot afford luxury of process isolation and thus there is an option to run validation in
+/// cannot afford the luxury of process isolation and thus there is an option to run validation in
 /// process. Also, running in process is convenient for testing.
 #[derive(Clone, Debug)]
 pub enum IsolationStrategy {
