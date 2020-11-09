@@ -222,7 +222,7 @@ pub fn run() -> Result<()> {
 			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(not(all(target_os = "android", feature = "browser")))]
+				#[cfg(not(any(target_os = "android", feature = "browser")))]
 				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
