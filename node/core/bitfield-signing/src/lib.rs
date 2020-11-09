@@ -243,7 +243,7 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `prune_povs` which observes on drop.
-	fn time_run(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_run(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.run.start_timer())
 	}
 }

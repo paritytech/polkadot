@@ -491,17 +491,17 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `validate_from_chain_state` which observes on drop.
-	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_validate_from_chain_state(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
 	}
 
 	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
-	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_validate_from_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
 	}
 
 	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
-	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_validate_candidate_exhaustive(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
 	}
 }

@@ -178,27 +178,27 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `block_number` which observes on drop.
-	fn time_block_number(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_block_number(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.block_number.start_timer())
 	}
 
 	/// Provide a timer for `block_header` which observes on drop.
-	fn time_block_header(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_block_header(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.block_header.start_timer())
 	}
 
 	/// Provide a timer for `finalized_block_hash` which observes on drop.
-	fn time_finalized_block_hash(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_finalized_block_hash(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.finalized_block_hash.start_timer())
 	}
 
 	/// Provide a timer for `finalized_block_number` which observes on drop.
-	fn time_finalized_block_number(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_finalized_block_number(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.finalized_block_number.start_timer())
 	}
 
 	/// Provide a timer for `ancestors` which observes on drop.
-	fn time_ancestors(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_ancestors(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.ancestors.start_timer())
 	}
 }

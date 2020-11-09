@@ -353,17 +353,17 @@ impl Metrics {
 	}
 
 	/// Provide a timer for new activations which updates on drop.
-	fn time_new_activations(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_new_activations(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.new_activations_overall.start_timer())
 	}
 
 	/// Provide a timer per relay parents which updates on drop.
-	fn time_new_activations_relay_parent(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_new_activations_relay_parent(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.new_activations_per_relay_parent.start_timer())
 	}
 
 	/// Provide a timer per availability core which updates on drop.
-	fn time_new_activations_availability_core(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_new_activations_availability_core(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.new_activations_per_availability_core.start_timer())
 	}
 }

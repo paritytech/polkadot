@@ -613,22 +613,22 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `handle_signal` which observes on drop.
-	fn time_handle_signal(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_signal(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_signal.start_timer())
 	}
 
 	/// Provide a timer for `handle_fetch` which observes on drop.
-	fn time_handle_fetch(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_fetch(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_fetch.start_timer())
 	}
 
 	/// Provide a timer for `handle_distribute` which observes on drop.
-	fn time_handle_distribute(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_distribute(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_distribute.start_timer())
 	}
 
 	/// Provide a timer for `handle_network_update` which observes on drop.
-	fn time_handle_network_update(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_network_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_network_update.start_timer())
 	}
 }

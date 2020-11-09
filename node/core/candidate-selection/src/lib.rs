@@ -360,12 +360,12 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `handle_collation` which observes on drop.
-	fn time_handle_collation(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_collation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_collation.start_timer())
 	}
 
 	/// Provide a timer for `handle_invalid` which observes on drop.
-	fn time_handle_invalid(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_invalid(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_invalid.start_timer())
 	}
 }

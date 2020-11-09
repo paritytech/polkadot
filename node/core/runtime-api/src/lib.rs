@@ -158,7 +158,7 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `make_runtime_api_request` which observes on drop.
-	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_make_runtime_api_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.make_runtime_api_request.start_timer())
 	}
 }

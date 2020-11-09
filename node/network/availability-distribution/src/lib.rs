@@ -1178,12 +1178,12 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `handle_our_view_change` which observes on drop.
-	fn time_handle_our_view_change(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_our_view_change(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_our_view_change.start_timer())
 	}
 
 	/// Provide a timer for `process_incoming_peer_message` which observes on drop.
-	fn time_process_incoming_peer_message(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_process_incoming_peer_message(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_incoming_peer_message.start_timer())
 	}
 }

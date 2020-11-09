@@ -982,17 +982,17 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `active_leaves_update` which observes on drop.
-	fn time_active_leaves_update(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_active_leaves_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
 	}
 
 	/// Provide a timer for `share` which observes on drop.
-	fn time_share(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_share(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.share.start_timer())
 	}
 
 	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
-	fn time_network_bridge_update_v1(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_network_bridge_update_v1(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
 	}
 }

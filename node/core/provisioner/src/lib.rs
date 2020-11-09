@@ -502,12 +502,12 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `request_inherent_data` which observes on drop.
-	fn time_request_inherent_data(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_request_inherent_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.request_inherent_data.start_timer())
 	}
 
 	/// Provide a timer for `provisionable_data` which observes on drop.
-	fn time_provisionable_data(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_provisionable_data(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.provisionable_data.start_timer())
 	}
 }

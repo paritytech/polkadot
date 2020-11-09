@@ -5201,7 +5201,6 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-primitives",
- "prometheus",
  "sc-network",
  "sp-application-crypto",
  "sp-core",

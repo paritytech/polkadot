@@ -442,8 +442,6 @@ impl<ToJob: ToJobTrait> JobHandle<ToJob> {
 
 /// This module reexports Prometheus types and defines the [`Metrics`] trait.
 pub mod metrics {
-	/// Reexport prometheus crate
-	pub use ::prometheus as prometheus_super;
 	/// Reexport Substrate Prometheus types.
 	pub use substrate_prometheus_endpoint as prometheus;
 

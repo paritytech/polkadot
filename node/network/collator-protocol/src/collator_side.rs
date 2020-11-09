@@ -60,12 +60,12 @@ impl Metrics {
 	}
 
 	/// Provide a timer for handling `ConnectionRequest` which observes on drop.
-	fn time_handle_connection_request(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_connection_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_connection_request.start_timer())
 	}
 
 	/// Provide a timer for `process_msg` which observes on drop.
-	fn time_process_msg(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_process_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_msg.start_timer())
 	}
 }

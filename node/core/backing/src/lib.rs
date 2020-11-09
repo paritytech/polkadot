@@ -917,17 +917,17 @@ impl Metrics {
 	}
 
 	/// Provide a timer for handling `CandidateBackingMessage:Second` which observes on drop.
-	fn time_process_second(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_process_second(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_second.start_timer())
 	}
 
 	/// Provide a timer for handling `CandidateBackingMessage::Statement` which observes on drop.
-	fn time_process_statement(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_process_statement(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.process_statement.start_timer())
 	}
 
 	/// Provide a timer for handling `CandidateBackingMessage::GetBackedCandidates` which observes on drop.
-	fn time_get_backed_candidates(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_get_backed_candidates(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.get_backed_candidates.start_timer())
 	}
 }

@@ -678,17 +678,17 @@ impl Metrics {
 	}
 
 	/// Provide a timer for `active_leaves_update` which observes on drop.
-	fn time_active_leaves_update(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_active_leaves_update(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
 	}
 
 	/// Provide a timer for `handle_bitfield_distribution` which observes on drop.
-	fn time_handle_bitfield_distribution(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_bitfield_distribution(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_bitfield_distribution.start_timer())
 	}
 
 	/// Provide a timer for `handle_network_msg` which observes on drop.
-	fn time_handle_network_msg(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+	fn time_handle_network_msg(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.handle_network_msg.start_timer())
 	}
 }
