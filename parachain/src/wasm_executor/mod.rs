@@ -37,7 +37,7 @@ const MAX_RUNTIME_MEM: usize = 1024 * 1024 * 1024; // 1 GiB
 const MAX_CODE_MEM: usize = 16 * 1024 * 1024; // 16 MiB
 const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 MiB
 
-/// The execution mode for the `ValidationPool`.
+/// The strategy we employ for isolating execution of wasm parachain validation function.
 #[derive(Clone, Debug)]
 pub enum IsolationStrategy {
 	/// The validation worker is ran in a thread inside the same process.
