@@ -874,6 +874,8 @@ impl StatementDistribution {
 			let message = ctx.recv().await?;
 			match message {
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. })) => {
+					let _timer = metrics.time_active_leaves_update();
+
 					for relay_parent in activated {
 						let (validators, session_index) = {
 							let (val_tx, val_rx) = oneshot::channel();
@@ -923,6 +925,8 @@ impl StatementDistribution {
 				FromOverseer::Signal(OverseerSignal::Conclude) => break,
 				FromOverseer::Communication { msg } => match msg {
 					StatementDistributionMessage::Share(relay_parent, statement) => {
+						let _timer = metrics.time_share();
+
 						inform_statement_listeners(
 							&statement,
 							&mut statement_listeners,
@@ -936,7 +940,9 @@ impl StatementDistribution {
 							&metrics,
 						).await?;
 					}
-					StatementDistributionMessage::NetworkBridgeUpdateV1(event) =>
+					StatementDistributionMessage::NetworkBridgeUpdateV1(event) => {
+						let _timer = metrics.time_network_bridge_update_v1();
+
 						handle_network_update(
 							&mut peers,
 							&mut active_heads,
@@ -944,7 +950,8 @@ impl StatementDistribution {
 							&mut our_view,
 							event,
 							&metrics,
-						).await?,
+						).await?
+					}
 					StatementDistributionMessage::RegisterStatementListener(tx) => {
 						statement_listeners.push(tx);
 					}
@@ -958,6 +965,9 @@ impl StatementDistribution {
 #[derive(Clone)]
 struct MetricsInner {
 	statements_distributed: prometheus::Counter<prometheus::U64>,
+	active_leaves_update: prometheus::Histogram,
+	share: prometheus::Histogram,
+	network_bridge_update_v1: prometheus::Histogram,
 }
 
 /// Statement Distribution metrics.
@@ -970,6 +980,21 @@ impl Metrics {
 			metrics.statements_distributed.inc();
 		}
 	}
+
+	/// Provide a timer for `active_leaves_update` which observes on drop.
+	fn time_active_leaves_update(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.active_leaves_update.start_timer())
+	}
+
+	/// Provide a timer for `share` which observes on drop.
+	fn time_share(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.share.start_timer())
+	}
+
+	/// Provide a timer for `network_bridge_update_v1` which observes on drop.
+	fn time_network_bridge_update_v1(&self) -> Option<metrics::prometheus_super::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.network_bridge_update_v1.start_timer())
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -979,6 +1004,33 @@ impl metrics::Metrics for Metrics {
 				prometheus::Counter::new(
 					"parachain_statements_distributed_total",
 					"Number of candidate validity statements distributed to other peers."
+				)?,
+				registry,
+			)?,
+			active_leaves_update: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_statement_distribution_active_leaves_update",
+						"Time spent within `statement_distribution::active_leaves_update`",
+					)
+				)?,
+				registry,
+			)?,
+			share: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_statement_distribution_share",
+						"Time spent within `statement_distribution::share`",
+					)
+				)?,
+				registry,
+			)?,
+			network_bridge_update_v1: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"parachain_statement_distribution_network_bridge_update_v1",
+						"Time spent within `statement_distribution::network_bridge_update_v1`",
+					)
 				)?,
 				registry,
 			)?,
