@@ -425,6 +425,7 @@ impl<T: Trait> Module<T> {
 						&candidate.candidate.commitments.horizontal_messages,
 					)
 				{
+					frame_support::debug::RuntimeLogger::init();
 					log::debug!(
 						target: LOG_TARGET,
 						"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
