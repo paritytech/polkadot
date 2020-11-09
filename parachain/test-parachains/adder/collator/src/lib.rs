@@ -16,11 +16,10 @@
 
 //! Collator for the adder test parachain.
 
-use std::{pin::Pin, sync::{Arc, Mutex}, collections::HashMap, time::Duration};
+use std::{sync::{Arc, Mutex}, collections::HashMap, time::Duration};
 use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
-use futures::{Future, FutureExt};
 use futures_timer::Delay;
-use polkadot_primitives::v1::{ValidationData, PoV, Hash, CollatorId, CollatorPair};
+use polkadot_primitives::v1::{PoV, CollatorId, CollatorPair};
 use polkadot_node_primitives::{Collation, CollatorFn};
 use codec::{Encode, Decode};
 use sp_core::Pair;
@@ -117,6 +116,8 @@ impl Collator {
 	pub fn create_collation_function(
 		&self,
 	) -> CollatorFn {
+		use futures::FutureExt as _;
+
 		let state = self.state.clone();
 
 		Box::new(move |relay_parent, validation_data| {
@@ -166,7 +167,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::ExecutionMode};
-	use polkadot_primitives::v1::PersistedValidationData;
+	use polkadot_primitives::v1::{ValidationData, PersistedValidationData};
 	use codec::Decode;
 
 	#[test]
