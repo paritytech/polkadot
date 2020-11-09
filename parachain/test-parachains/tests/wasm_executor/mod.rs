@@ -59,7 +59,9 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
-	let isolation_strategy = isolation_strategy();
+	let isolation_strategy_1 = isolation_strategy();
+	let isolation_strategy_2 = isolation_strategy();
+
 	let start = std::time::Instant::now();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
@@ -71,7 +73,7 @@ fn parallel_execution() {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
-		&isolation_strategy,
+		&isolation_strategy_1,
 		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -83,7 +85,7 @@ fn parallel_execution() {
 			hrmp_mqc_heads: Vec::new(),
 			dmq_mqc_head: Default::default(),
 		},
-		&isolation_strategy,
+		&isolation_strategy_2,
 		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();
