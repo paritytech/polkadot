@@ -269,16 +269,23 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	pub hrmp_watermark: BlockNumber,
 }
 
+/// Collation function.
+///
+/// Will be called with the hash of the relay chain block the parachain
+/// block should be build on and the [`ValidationData`] that provides
+/// information about the state of the parachain on the relay chain.
+pub type CollatorFn = Box<
+	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+		+ Send
+		+ Sync,
+>;
+
 /// Configuration for the collation generator
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
-	/// Collation function.
-	///
-	/// Will be called with the hash of the relay chain block the parachain
-	/// block should be build on and the [`ValidationData`] that provides
-	/// information about the state of the parachain on the relay chain.
-	pub collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+	/// Collation function. See [`CollatorFn`] for more details.
+	pub collator: CollatorFn,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }
