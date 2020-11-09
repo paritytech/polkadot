@@ -23,17 +23,17 @@ polkadot-service = { path = "../../../../node/service" }
 polkadot-node-primitives = { path = "../../../../node/primitives" }
 polkadot-node-subsystem = { path = "../../../../node/subsystem" }
 
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-cli = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
+sp-core = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
+sc-authority-discovery = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
 
 [dev-dependencies]
 polkadot-parachain = { path = "../../.." }
 polkadot-test-service = { path = "../../../../node/test/service" }
 
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
+sc-service = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
+sp-keyring = { git = "https://github.com/mxinden/substrate", branch = "libp2p-v0.30.0" }
 
 tokio = { version = "0.2", features = ["macros"] }
 
