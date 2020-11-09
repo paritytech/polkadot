@@ -34,7 +34,7 @@ use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenera
 use polkadot_test_runtime::{
 	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
 };
-use polkadot_node_primitives::{Collation, CollationGenerationConfig};
+use polkadot_node_primitives::{Collation, CollatorFn, CollationGenerationConfig};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
@@ -326,17 +326,18 @@ impl PolkadotTestNode {
 		&mut self,
 		collator_key: CollatorPair,
 		para_id: ParaId,
-		collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+		collator: CollatorFn,
 	) {
 		let config = CollationGenerationConfig {
 			key: collator_key,
 			collator,
-			para_id
+			para_id,
 		};
 
-		self.overseer_handler.send_msg(
-			CollationGenerationMessage::Initialize(config),
-		).await.expect("Registers the collator");
+		self.overseer_handler
+			.send_msg(CollationGenerationMessage::Initialize(config))
+			.await
+			.expect("Registers the collator");
 
 		self.overseer_handler
 			.send_msg(CollatorProtocolMessage::CollateOn(para_id))

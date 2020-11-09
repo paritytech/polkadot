@@ -21,7 +21,7 @@ use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
 use futures::{Future, FutureExt};
 use futures_timer::Delay;
 use polkadot_primitives::v1::{ValidationData, PoV, Hash, CollatorId, CollatorPair};
-use polkadot_node_primitives::Collation;
+use polkadot_node_primitives::{Collation, CollatorFn};
 use codec::{Encode, Decode};
 use sp_core::Pair;
 
@@ -116,7 +116,7 @@ impl Collator {
 	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
 	pub fn create_collation_function(
 		&self,
-	) -> Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync> {
+	) -> CollatorFn {
 		let state = self.state.clone();
 
 		Box::new(move |relay_parent, validation_data| {
