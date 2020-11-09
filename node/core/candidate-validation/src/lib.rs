@@ -64,7 +64,7 @@ impl<S> CandidateValidationSubsystem<S> {
 	/// Create a new `CandidateValidationSubsystem` with the given task spawner and isolation
 	/// strategy.
 	///
-	/// Check out `IsolationStrategy` to get more details.
+	/// Check out [`IsolationStrategy`] to get more details.
 	pub fn new(spawn: S, metrics: Metrics, isolation_strategy: IsolationStrategy) -> Self {
 		CandidateValidationSubsystem { spawn, metrics, isolation_strategy }
 	}
