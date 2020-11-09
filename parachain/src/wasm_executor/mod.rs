@@ -39,21 +39,36 @@ const MAX_VALIDATION_RESULT_HEADER_MEM: usize = MAX_CODE_MEM + 1024; // 16.001 M
 
 /// The strategy we employ for isolating execution of wasm parachain validation function (PVF).
 ///
-/// For a typical validator an external process is the default and recommended way to run PVF. The
-/// rationale is based on two observations:
+/// For a typical validator an external process is the default way to run PVF. The rationale is based
+/// on the following observations:
 ///
 /// (a) PVF is completely under control of parachain developers who may or may not be malicious.
-/// (a) PVF is executed by a wasm engine based on optimizing compiler which is a very complex piece
+/// (b) Collators are in charge of providing PoV who also may or may not be malicious.
+/// (c) PVF is executed by a wasm engine based on optimizing compiler which is a very complex piece
 ///     of machinery.
 ///
-/// Execution in a separate process helps to minimize impact of a potential exploit. At the same
-/// time, since PVF validates self-contained candidates, validation workers don't require extensive
-/// communication with polkadot host, therefore there should be no observable performance penalty
+/// (a) and (b) may lead to a situation where due to a combination of PVF and PoV the validation work
+/// can stuck in an infinite loop, which can open up resource exhaustion or DoS attack vectors.
+///
+/// While some execution engines provide functionality to interrupt execution of wasm module from
+/// another thread, there are also some caveats to that: there is no clean way to interrupt execution
+/// if the control flow is in the host side and at the moment we haven't rigoriously vetted that all
+/// host functions terminate or, at least, return in a short amount of time. Additionally, we want
+/// some freedom on choosing wasm execution environment.
+///
+/// On top of that, execution in a separate process helps to minimize impact of (c) if exploited.
+/// It's not only the risk of miscompilation, but it also includes risk of JIT-bombs, i.e. cases
+/// of specially crafted code that take enourmous amounts of time and memory to compile.
+///
+/// At the same time, since PVF validates self-contained candidates, validation workers don't require
+/// extensive communication with polkadot host, therefore there should be no observable performance penalty
 /// coming from inter process communication.
+///
+/// All of the above should give a sense why isolation is crucial for a typical use-case.
 ///
 /// However, in some cases, e.g. when running PVF validation on android (for whatever reason), we
 /// cannot afford luxury of process isolation and thus there is an option to run validation in
-/// process. This is also useful for tests.
+/// process. Also, running in process is convenient for testing.
 #[derive(Clone, Debug)]
 pub enum IsolationStrategy {
 	/// The validation worker is ran in a thread inside the same process.
