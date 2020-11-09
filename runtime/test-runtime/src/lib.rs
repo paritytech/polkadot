@@ -24,16 +24,16 @@ use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
 use sp_std::collections::btree_map::BTreeMap;
 use codec::Encode;
-use polkadot_runtime_parachains::{
-	configuration as parachains_configuration,
-	inclusion,
-	inclusion_inherent,
-	initializer,
-	paras,
-	router,
-	runtime_api_impl::v1 as runtime_impl,
-	scheduler,
-};
+
+use polkadot_runtime_parachains::configuration as parachains_configuration;
+use polkadot_runtime_parachains::inclusion as parachains_inclusion;
+use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use polkadot_runtime_parachains::initializer as parachains_initializer;
+use polkadot_runtime_parachains::paras as parachains_paras;
+use polkadot_runtime_parachains::router as parachains_router;
+use polkadot_runtime_parachains::scheduler as parachains_scheduler;
+use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
+
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
@@ -445,26 +445,26 @@ impl pallet_sudo::Trait for Runtime {
 
 impl parachains_configuration::Trait for Runtime {}
 
-impl inclusion::Trait for Runtime {
+impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
 }
 
-impl inclusion_inherent::Trait for Runtime {}
+impl parachains_inclusion_inherent::Trait for Runtime {}
 
-impl initializer::Trait for Runtime {
+impl parachains_initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-impl paras::Trait for Runtime {
+impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl router::Trait for Runtime {
+impl parachains_router::Trait for Runtime {
 	type Origin = Origin;
 	type UmpSink = ();
 }
 
-impl scheduler::Trait for Runtime {}
+impl parachains_scheduler::Trait for Runtime {}
 
 impl paras_sudo_wrapper::Trait for Runtime {}
 
@@ -503,11 +503,11 @@ construct_runtime! {
 
 		// Parachains runtime modules
 		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
-		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
-		InclusionInherent: inclusion_inherent::{Module, Call, Storage, Inherent},
-		Initializer: initializer::{Module, Call, Storage},
-		Paras: paras::{Module, Call, Storage, Origin},
-		Scheduler: scheduler::{Module, Call, Storage},
+		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
+		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
+		Initializer: parachains_initializer::{Module, Call, Storage},
+		Paras: parachains_paras::{Module, Call, Storage, Origin},
+		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},

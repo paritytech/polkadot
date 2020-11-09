@@ -24,7 +24,7 @@ pub use chain_spec::*;
 use futures::future::Future;
 use polkadot_overseer::OverseerHandler;
 use polkadot_primitives::v1::{
-	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId, ValidationData, Hash,
+	Id as ParaId, HeadData, ValidationCode, Balance, CollatorPair, CollatorId,
 };
 use polkadot_runtime_common::BlockHashCount;
 use polkadot_service::{
@@ -34,7 +34,7 @@ use polkadot_node_subsystem::messages::{CollatorProtocolMessage, CollationGenera
 use polkadot_test_runtime::{
 	Runtime, SignedExtra, SignedPayload, VERSION, ParasSudoWrapperCall, SudoCall, UncheckedExtrinsic,
 };
-use polkadot_node_primitives::{Collation, CollationGenerationConfig};
+use polkadot_node_primitives::{CollatorFn, CollationGenerationConfig};
 use polkadot_runtime_parachains::paras::ParaGenesisArgs;
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
@@ -54,7 +54,7 @@ use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{sync::Arc, time::Duration, pin::Pin};
+use std::{sync::Arc, time::Duration};
 use substrate_test_client::{BlockchainEventsExt, RpcHandlersExt, RpcTransactionOutput, RpcTransactionError};
 
 native_executor_instance!(
@@ -326,17 +326,18 @@ impl PolkadotTestNode {
 		&mut self,
 		collator_key: CollatorPair,
 		para_id: ParaId,
-		collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+		collator: CollatorFn,
 	) {
 		let config = CollationGenerationConfig {
 			key: collator_key,
 			collator,
-			para_id
+			para_id,
 		};
 
-		self.overseer_handler.send_msg(
-			CollationGenerationMessage::Initialize(config),
-		).await.expect("Registers the collator");
+		self.overseer_handler
+			.send_msg(CollationGenerationMessage::Initialize(config))
+			.await
+			.expect("Registers the collator");
 
 		self.overseer_handler
 			.send_msg(CollatorProtocolMessage::CollateOn(para_id))
