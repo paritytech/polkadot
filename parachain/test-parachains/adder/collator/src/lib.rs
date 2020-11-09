@@ -166,7 +166,7 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::ExecutionMode};
+	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
 	use polkadot_primitives::v1::{ValidationData, PersistedValidationData};
 	use codec::Decode;
 
@@ -201,7 +201,7 @@ mod tests {
 				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
 			},
-			&ExecutionMode::InProcess,
+			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 

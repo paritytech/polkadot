@@ -50,7 +50,7 @@ use service::RpcHandlers;
 pub use self::client::{AbstractClient, Client, ClientHandle, ExecuteWithClient, RuntimeApiCollection};
 pub use chain_spec::{PolkadotChainSpec, KusamaChainSpec, WestendChainSpec, RococoChainSpec};
 pub use consensus_common::{Proposal, SelectChain, BlockImport, RecordProof, block_validation::Chain};
-pub use polkadot_parachain::wasm_executor::ExecutionMode;
+pub use polkadot_parachain::wasm_executor::IsolationStrategy;
 pub use polkadot_primitives::v1::{Block, BlockId, CollatorId, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, ExecutionStrategy, CallExecutor};
 pub use sc_consensus::LongestChain;
@@ -296,7 +296,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	_: IsCollator,
-	_: ExecutionMode,
+	_: IsolationStrategy,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -322,7 +322,7 @@ fn real_overseer<Spawner, RuntimeClient>(
 	registry: Option<&Registry>,
 	spawner: Spawner,
 	is_collator: IsCollator,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 ) -> Result<(Overseer<Spawner>, OverseerHandler), Error>
 where
 	RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
@@ -377,7 +377,7 @@ where
 		candidate_validation: CandidateValidationSubsystem::new(
 			spawner.clone(),
 			Metrics::register(registry)?,
-			execution_mode,
+			isolation_strategy,
 		),
 		chain_api: ChainApiSubsystem::new(
 			runtime_client.clone(),
@@ -479,7 +479,7 @@ pub fn new_full<RuntimeApi, Executor>(
 	is_collator: IsCollator,
 	grandpa_pause: Option<(u32, u32)>,
 	authority_discovery_config: Option<AuthorityWorkerConfig>,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 ) -> Result<NewFull<Arc<FullClient<RuntimeApi, Executor>>>, Error>
 	where
 		RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, Executor>> + Send + Sync + 'static,
@@ -615,7 +615,7 @@ pub fn new_full<RuntimeApi, Executor>(
 			prometheus_registry.as_ref(),
 			spawner,
 			is_collator,
-			execution_mode,
+			isolation_strategy,
 		)?;
 		let overseer_handler_clone = overseer_handler.clone();
 

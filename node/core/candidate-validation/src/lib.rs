@@ -38,7 +38,9 @@ use polkadot_primitives::v1::{
 	ValidationCode, PoV, CandidateDescriptor, PersistedValidationData,
 	OccupiedCoreAssumption, Hash, ValidationOutputs,
 };
-use polkadot_parachain::wasm_executor::{self, ExecutionMode, ValidationError, InvalidCandidate as WasmInvalidCandidate};
+use polkadot_parachain::wasm_executor::{
+	self, IsolationStrategy, ValidationError, InvalidCandidate as WasmInvalidCandidate
+};
 use polkadot_parachain::primitives::{ValidationResult as WasmValidationResult, ValidationParams};
 
 use parity_scale_codec::Encode;
@@ -55,13 +57,16 @@ const LOG_TARGET: &'static str = "candidate_validation";
 pub struct CandidateValidationSubsystem<S> {
 	spawn: S,
 	metrics: Metrics,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 }
 
 impl<S> CandidateValidationSubsystem<S> {
-	/// Create a new `CandidateValidationSubsystem` with the given task spawner.
-	pub fn new(spawn: S, metrics: Metrics, execution_mode: ExecutionMode) -> Self {
-		CandidateValidationSubsystem { spawn, metrics, execution_mode }
+	/// Create a new `CandidateValidationSubsystem` with the given task spawner and isolation
+	/// strategy.
+	///
+	/// Check out [`IsolationStrategy`] to get more details.
+	pub fn new(spawn: S, metrics: Metrics, isolation_strategy: IsolationStrategy) -> Self {
+		CandidateValidationSubsystem { spawn, metrics, isolation_strategy }
 	}
 }
 
@@ -70,7 +75,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	S: SpawnNamed + Clone + 'static,
 {
 	fn start(self, ctx: C) -> SpawnedSubsystem {
-		let future = run(ctx, self.spawn, self.metrics, self.execution_mode)
+		let future = run(ctx, self.spawn, self.metrics, self.isolation_strategy)
 			.map_err(|e| SubsystemError::with_origin("candidate-validation", e))
 			.boxed();
 		SpawnedSubsystem {
@@ -84,7 +89,7 @@ async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,
 	metrics: Metrics,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 ) -> SubsystemResult<()> {
 	loop {
 		match ctx.recv().await? {
@@ -99,7 +104,7 @@ async fn run(
 				) => {
 					let res = spawn_validate_from_chain_state(
 						&mut ctx,
-						execution_mode.clone(),
+						isolation_strategy.clone(),
 						descriptor,
 						pov,
 						spawn.clone(),
@@ -122,7 +127,7 @@ async fn run(
 				) => {
 					let res = spawn_validate_exhaustive(
 						&mut ctx,
-						execution_mode.clone(),
+						isolation_strategy.clone(),
 						persisted_validation_data,
 						validation_code,
 						descriptor,
@@ -254,7 +259,7 @@ async fn find_assumed_validation_data(
 
 async fn spawn_validate_from_chain_state(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 	descriptor: CandidateDescriptor,
 	pov: Arc<PoV>,
 	spawn: impl SpawnNamed + 'static,
@@ -277,7 +282,7 @@ async fn spawn_validate_from_chain_state(
 
 	let validation_result = spawn_validate_exhaustive(
 		ctx,
-		execution_mode,
+		isolation_strategy,
 		validation_data,
 		validation_code,
 		descriptor.clone(),
@@ -313,7 +318,7 @@ async fn spawn_validate_from_chain_state(
 
 async fn spawn_validate_exhaustive(
 	ctx: &mut impl SubsystemContext<Message = CandidateValidationMessage>,
-	execution_mode: ExecutionMode,
+	isolation_strategy: IsolationStrategy,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	descriptor: CandidateDescriptor,
@@ -323,7 +328,7 @@ async fn spawn_validate_exhaustive(
 	let (tx, rx) = oneshot::channel();
 	let fut = async move {
 		let res = validate_candidate_exhaustive::<RealValidationBackend, _>(
-			execution_mode,
+			isolation_strategy,
 			persisted_validation_data,
 			validation_code,
 			descriptor,
@@ -379,10 +384,10 @@ trait ValidationBackend {
 struct RealValidationBackend;
 
 impl ValidationBackend for RealValidationBackend {
-	type Arg = ExecutionMode;
+	type Arg = IsolationStrategy;
 
 	fn validate<S: SpawnNamed + 'static>(
-		execution_mode: ExecutionMode,
+		isolation_strategy: IsolationStrategy,
 		validation_code: &ValidationCode,
 		params: ValidationParams,
 		spawn: S,
@@ -390,7 +395,7 @@ impl ValidationBackend for RealValidationBackend {
 		wasm_executor::validate_candidate(
 			&validation_code.0,
 			params,
-			&execution_mode,
+			&isolation_strategy,
 			spawn,
 		)
 	}
