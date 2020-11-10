@@ -10,6 +10,8 @@ Signals from the overseer to a subsystem to request change in execution that has
 enum OverseerSignal {
   /// Signal about a change in active leaves.
   ActiveLeavesUpdate(ActiveLeavesUpdate),
+  /// Signal about a new best finalized block.
+  BlockFinalized(Hash),
   /// Conclude all operation.
   Conclude,
 }
@@ -30,6 +32,63 @@ Indicates a change in active leaves. Activated leaves should have jobs, whereas 
 struct ActiveLeavesUpdate {
 	activated: [Hash], // in practice, these should probably be a SmallVec
 	deactivated: [Hash],
+}
+```
+
+## Approval Voting
+
+Messages received by the approval voting subsystem.
+
+```rust
+enum VoteCheckResult {
+	// The vote was accepted and should be propagated onwards.
+	Accepted,
+	// The vote was bad and should be ignored, reporting the peer who propagated it.
+	Bad,
+	// We do not have enough information to evaluate the vote. Ignore but don't report.
+	// This should occur primarily on startup.
+	Ignore,
+}
+
+enum ApprovalVotingMessage {
+	/// Check if the assignment is valid and can be accepted by our view of the protocol.
+	/// Should not be sent unless the block hash is known.
+	CheckAndImportAssignment(
+		Hash, 
+		AssignmentCert, 
+		ValidatorIndex,
+		ResponseChannel<VoteCheckResult>,
+	),
+	/// Check if the approval vote is valid and can be accepted by our view of the
+	/// protocol.
+	///
+	/// Should not be sent unless the block hash within the indirect vote is known.
+	CheckAndImportApproval(
+		IndirectSignedApprovalVote,
+		ResponseChannel<VoteCheckResult>,
+	),
+	/// Returns the highest possible ancestor hash of the provided block hash which is
+	/// acceptable to vote on finality for. 
+	/// The `BlockNumber` provided is the number of the block's ancestor which is the
+	/// earliest possible vote.
+	/// 
+	/// It can also return the same block hash, if that is acceptable to vote upon. 
+	/// Return `None` if the input hash is unrecognized.
+	ApprovedAncestor(Hash, BlockNumber, ResponseChannel<Option<Hash>>),
+}
+```
+
+## Approval Networking
+
+Messages received by the approval networking subsystem.
+
+```rust
+enum ApprovalNetworkingMessage {
+	/// Distribute an assignment cert from the local validator. The cert is assumed
+	/// to be valid for the given relay-parent and validator index.
+	DistributeAssignment(Hash, AssignmentCert, ValidatorIndex),
+	/// Distribute an approval vote for the local validator.
+	DistributeApproval(IndirectApprovalVote),
 }
 ```
 
@@ -55,6 +114,21 @@ enum AvailabilityDistributionMessage {
 }
 ```
 
+## Availability Recovery Message
+
+Messages received by the availability recovery subsystem.
+
+```rust
+enum AvailabilityRecoveryMessage {
+	/// Recover available data from validators on the network.
+	RecoverAvailableData(
+		CandidateDescriptor, 
+		SessionIndex, 
+		ResponseChannel<Option<AvailableData>>,
+	),
+}
+```
+
 ## Availability Store Message
 
 Messages to and from the availability store.
@@ -62,18 +136,18 @@ Messages to and from the availability store.
 ```rust
 enum AvailabilityStoreMessage {
 	/// Query the `AvailableData` of a candidate by hash.
-	QueryAvailableData(Hash, ResponseChannel<Option<AvailableData>>),
+	QueryAvailableData(CandidateHash, ResponseChannel<Option<AvailableData>>),
 	/// Query whether an `AvailableData` exists within the AV Store.
-	QueryDataAvailability(Hash, ResponseChannel<bool>),
+	QueryDataAvailability(CandidateHash, ResponseChannel<bool>),
 	/// Query a specific availability chunk of the candidate's erasure-coding by validator index.
 	/// Returns the chunk and its inclusion proof against the candidate's erasure-root.
-	QueryChunk(Hash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
+	QueryChunk(CandidateHash, ValidatorIndex, ResponseChannel<Option<AvailabilityChunkAndProof>>),
 	/// Store a specific chunk of the candidate's erasure-coding by validator index, with an
 	/// accompanying proof.
-	StoreChunk(Hash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
+	StoreChunk(CandidateHash, ValidatorIndex, AvailabilityChunkAndProof, ResponseChannel<Result<()>>),
 	/// Store `AvailableData`. If `ValidatorIndex` is provided, also store this validator's
 	/// `AvailabilityChunkAndProof`.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, ResponseChannel<Result<()>>),
 }
 ```
 
@@ -335,7 +409,9 @@ enum RuntimeApiRequest {
 	SessionIndex(ResponseChannel<SessionIndex>),
 	/// Get the validation code for a specific para, using the given occupied core assumption.
 	ValidationCode(ParaId, OccupiedCoreAssumption, ResponseChannel<Option<ValidationCode>>),
-	/// Get the persisted validation data at the state of a given block for a specific para,
+	/// Fetch the historical validation code used by a para for candidates executed in 
+	/// the context of a given block height in the current chain.
+	HistoricalValidationCode(ParaId, BlockNumber, ResponseChannel<Option<ValidationCode>>),
 	/// with the given occupied core assumption.
 	PersistedValidationData(
 		ParaId,

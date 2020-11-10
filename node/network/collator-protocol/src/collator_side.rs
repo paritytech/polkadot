@@ -16,11 +16,9 @@
 
 use std::collections::HashMap;
 
-use super::{TARGET,  Result};
+use super::{LOG_TARGET,  Result};
 
-use futures::channel::oneshot;
-use futures::stream::StreamExt as _;
-use futures::task::Poll;
+use futures::{StreamExt, task::Poll};
 use log::warn;
 
 use polkadot_primitives::v1::{
@@ -30,7 +28,7 @@ use polkadot_primitives::v1::{
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemContext,
 	messages::{
-		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
+		AllMessages, CollatorProtocolMessage,
 		NetworkBridgeMessage,
 	},
 };
@@ -41,11 +39,12 @@ use polkadot_node_subsystem_util::{
 	validator_discovery,
 	request_validators_ctx,
 	request_validator_groups_ctx,
+	request_availability_cores_ctx,
 	metrics::{self, prometheus},
 };
 
 #[derive(Clone, Default)]
-pub(super) struct Metrics(Option<MetricsInner>);
+pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	fn on_advertisment_made(&self) {
@@ -154,7 +153,7 @@ where
 	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
 		warn!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Distribute collation message parent {:?} is outside of our view",
 			relay_parent,
 		);
@@ -173,7 +172,7 @@ where
 		Some(core) => core,
 		None => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
 			);
 			return Ok(());
@@ -185,7 +184,7 @@ where
 		Some(validators) => validators,
 		None => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"There are no validators assigned to {:?} core", our_core,
 			);
 
@@ -226,16 +225,7 @@ async fn determine_core<Context>(
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	let (tx, rx) = oneshot::channel();
-
-	ctx.send_message(AllMessages::RuntimeApi(
-		RuntimeApiMessage::Request(
-			relay_parent,
-			RuntimeApiRequest::AvailabilityCores(tx),
-		)
-	)).await?;
-
-	let cores = rx.await??;
+	let cores = request_availability_cores_ctx(relay_parent, ctx).await?.await??;
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
@@ -388,7 +378,7 @@ where
 					// If the ParaId of a collation requested to be distributed does not match
 					// the one we expect, we ignore the message.
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"DistributeCollation message for para {:?} while collating on {:?}",
 						receipt.descriptor.para_id,
 						id,
@@ -399,7 +389,7 @@ where
 				}
 				None => {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"DistributeCollation message for para {:?} while not collating on any",
 						receipt.descriptor.para_id,
 					);
@@ -408,19 +398,19 @@ where
 		}
 		FetchCollation(_, _, _, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"FetchCollation message is not expected on the collator side of the protocol",
 			);
 		}
 		ReportCollator(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		}
 		NoteGoodCollation(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -431,7 +421,7 @@ where
 				event,
 			).await {
 				warn!(
-					target: TARGET,
+					target: LOG_TARGET,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}
@@ -486,13 +476,13 @@ where
 	match msg {
 		Declare(_) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 		AdvertiseCollation(_, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -505,7 +495,7 @@ where
 						}
 					} else {
 						warn!(
-							target: TARGET,
+							target: LOG_TARGET,
 							"Received a RequestCollation for {:?} while collating on {:?}",
 							para_id, our_para_id,
 						);
@@ -513,7 +503,7 @@ where
 				}
 				None => {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Received a RequestCollation for {:?} while not collating on any para",
 						para_id,
 					);
@@ -522,7 +512,7 @@ where
 		}
 		Collation(_, _, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"Collation message is not expected on the collator side of the protocol",
 			);
 		}
@@ -563,11 +553,15 @@ async fn handle_validator_connected<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	peer_id: PeerId,
+	validator_id: ValidatorId,
 ) -> Result<()>
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
-	if !state.peer_views.contains_key(&peer_id) {
+	// Check if the validator is already known or if maybe its peer id chaned(should not happen)
+	let unknown = state.known_validators.insert(validator_id, peer_id.clone()).map(|o| o != peer_id).unwrap_or(true);
+
+	if unknown {
 		// Only declare the new peers.
 		declare(ctx, state, vec![peer_id.clone()]).await?;
 		state.peer_views.insert(peer_id, Default::default());
@@ -651,10 +645,9 @@ where
 	loop {
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
-				state.known_validators.insert(validator_id, peer_id.clone());
-				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id).await {
+				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
 					warn!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Failed to declare our collator id: {:?}",
 						err,
 					);
@@ -666,7 +659,11 @@ where
 
 		while let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			match msg? {
-				Communication { msg } => process_msg(&mut ctx, &mut state, msg).await?,
+				Communication { msg } => {
+					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
+						warn!(target: LOG_TARGET, "Failed to process message: {}", e);
+					}
+				},
 				Signal(ActiveLeaves(_update)) => {}
 				Signal(BlockFinalized(_)) => {}
 				Signal(Conclude) => return Ok(()),
@@ -695,9 +692,10 @@ mod tests {
 		BlockData, CandidateDescriptor, CollatorPair, ScheduledCore,
 		ValidatorIndex, GroupRotationInfo, AuthorityDiscoveryId,
 	};
-	use polkadot_subsystem::ActiveLeavesUpdate;
+	use polkadot_subsystem::{ActiveLeavesUpdate, messages::{RuntimeApiMessage, RuntimeApiRequest}};
 	use polkadot_node_subsystem_util::TimeoutExt;
 	use polkadot_subsystem_testhelpers as test_helpers;
+	use polkadot_node_network_protocol::ObservedRole;
 
 	#[derive(Default)]
 	struct TestCandidateBuilder {
@@ -816,7 +814,7 @@ mod tests {
 				log::LevelFilter::Trace,
 			)
 			.filter(
-				Some(TARGET),
+				Some(LOG_TARGET),
 				log::LevelFilter::Trace,
 			)
 			.try_init();
@@ -889,9 +887,7 @@ mod tests {
 
 		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
 			let current = test_state.relay_parent;
-			let TestHarness {
-				mut virtual_overseer,
-			} = test_harness;
+			let mut virtual_overseer = test_harness.virtual_overseer;
 
 			let pov_block = PoV {
 				block_data: BlockData(vec![42, 43, 44]),
@@ -976,10 +972,7 @@ mod tests {
 				)) => {
 					assert_eq!(relay_parent, current);
 					assert_eq!(validators.len(), 4);
-					assert!(validators.contains(&test_state.validator_public[2]));
-					assert!(validators.contains(&test_state.validator_public[0]));
-					assert!(validators.contains(&test_state.validator_public[4]));
-					assert!(validators.contains(&test_state.validator_public[1]));
+					assert!(validators.iter().all(|v| test_state.validator_public.contains(&v)));
 
 					let result = vec![
 						Some(test_state.validator_authority_id[2].clone()),
@@ -1002,10 +995,7 @@ mod tests {
 					}
 				) => {
 					assert_eq!(validator_ids.len(), 4);
-					assert!(validator_ids.contains(&test_state.validator_authority_id[2]));
-					assert!(validator_ids.contains(&test_state.validator_authority_id[0]));
-					assert!(validator_ids.contains(&test_state.validator_authority_id[4]));
-					assert!(validator_ids.contains(&test_state.validator_authority_id[1]));
+					assert!(validator_ids.iter().all(|id| test_state.validator_authority_id.contains(id)));
 
 					let result = vec![
 						(test_state.validator_authority_id[2].clone(), test_state.validator_peer_id[2].clone()),
@@ -1014,9 +1004,7 @@ mod tests {
 						(test_state.validator_authority_id[1].clone(), test_state.validator_peer_id[1].clone()),
 					];
 
-					for (id, peer_id) in result.into_iter() {
-						connected.try_send((id, peer_id)).unwrap();
-					}
+					result.into_iter().for_each(|r| connected.try_send(r).unwrap());
 				}
 			);
 
@@ -1251,10 +1239,7 @@ mod tests {
 				)) => {
 					assert_eq!(relay_parent, current);
 					assert_eq!(validators.len(), 4);
-					assert!(validators.contains(&test_state.validator_public[2]));
-					assert!(validators.contains(&test_state.validator_public[0]));
-					assert!(validators.contains(&test_state.validator_public[4]));
-					assert!(validators.contains(&test_state.validator_public[1]));
+					assert!(validators.iter().all(|p| test_state.validator_public.contains(p)));
 
 					let result = vec![
 						Some(test_state.validator_authority_id[2].clone()),
@@ -1266,5 +1251,162 @@ mod tests {
 				}
 			);
 		});
+	}
+
+	/// This test ensures that we declare a collator at a validator by sending the `Declare` message as soon as the
+	/// collator is aware of the validator being connected.
+	#[test]
+	fn collators_are_registered_correctly_at_validators() {
+		let test_state = TestState::default();
+
+		test_harness(test_state.our_collator_pair.public(), |test_harness| async move {
+			let mut virtual_overseer = test_harness.virtual_overseer;
+
+			let peer = test_state.validator_peer_id[0].clone();
+			let validator_id = test_state.validator_authority_id[0].clone();
+
+			// Setup the system correctly
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::CollateOn(test_state.chain_ids[0]),
+			).await;
+
+			overseer_signal(
+				&mut virtual_overseer,
+				OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+					activated: smallvec![test_state.relay_parent],
+					deactivated: smallvec![],
+				}),
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::OurViewChange(View(vec![test_state.relay_parent])),
+				),
+			).await;
+
+			// A validator connected to us
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerConnected(peer.clone(), ObservedRole::Authority),
+				),
+			).await;
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::NetworkBridgeUpdateV1(
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), View(Default::default())),
+				),
+			).await;
+
+			// Now we want to distribute a PoVBlock
+			let pov_block = PoV {
+				block_data: BlockData(vec![42, 43, 44]),
+			};
+
+			let pov_hash = pov_block.hash();
+
+			let candidate = TestCandidateBuilder {
+				para_id: test_state.chain_ids[0],
+				relay_parent: test_state.relay_parent,
+				pov_hash,
+				..Default::default()
+			}.build();
+
+			overseer_send(
+				&mut virtual_overseer,
+				CollatorProtocolMessage::DistributeCollation(candidate.clone(), pov_block.clone()),
+			).await;
+
+			// obtain the availability cores.
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::AvailabilityCores(tx)
+				)) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+				}
+			);
+
+			// Obtain the validator groups
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::ValidatorGroups(tx)
+				)) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(Ok(test_state.validator_groups.clone())).unwrap();
+				}
+			);
+
+			// obtain the validators per relay parent
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::Validators(tx),
+				)) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					tx.send(Ok(test_state.validator_public.clone())).unwrap();
+				}
+			);
+
+			// obtain the validator_id to authority_id mapping
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					relay_parent,
+					RuntimeApiRequest::ValidatorDiscovery(validators, tx),
+				)) => {
+					assert_eq!(relay_parent, test_state.relay_parent);
+					assert_eq!(validators.len(), 4);
+					assert!(validators.iter().all(|v| test_state.validator_public.contains(&v)));
+
+					let result = vec![
+						Some(test_state.validator_authority_id[2].clone()),
+						Some(test_state.validator_authority_id[0].clone()),
+						Some(test_state.validator_authority_id[4].clone()),
+						Some(test_state.validator_authority_id[1].clone()),
+					];
+					tx.send(Ok(result)).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::ConnectToValidators {
+						mut connected,
+						..
+					}
+				) => {
+					connected.try_send((validator_id, peer.clone())).unwrap();
+				}
+			);
+
+			assert_matches!(
+				overseer_recv(&mut virtual_overseer).await,
+				AllMessages::NetworkBridge(
+					NetworkBridgeMessage::SendCollationMessage(
+						peer_id,
+						msg,
+					)
+				) => {
+					assert_matches!(
+						msg,
+						protocol_v1::CollationProtocol::CollatorProtocol(
+							protocol_v1::CollatorProtocolMessage::Declare(collator_id),
+						) if collator_id == test_state.our_collator_pair.public()
+					);
+
+					assert_eq!(peer, peer_id[0]);
+				}
+			);
+		})
 	}
 }

@@ -19,6 +19,8 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+
 [dev-dependencies]
 env_logger = "0.7.1"
 assert_matches = "1.3.0"

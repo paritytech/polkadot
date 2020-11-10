@@ -1177,7 +1177,7 @@ where
 
 		let active_leaves = HashMap::new();
 
-		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry);
+		let metrics = <Metrics as metrics::Metrics>::register(prometheus_registry)?;
 		let activation_external_listeners = HashMap::new();
 
 		let this = Self {
@@ -1606,7 +1606,11 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	let (tx, rx) = oneshot::channel();
 
 	let fut = Box::pin(async move {
-		future.await;
+		if let Err(e) = future.await {
+			log::error!("Subsystem {} exited with error {:?}", name, e);
+		} else {
+			log::debug!("Subsystem {} exited without an error", name);
+		}
 		let _ = tx.send(());
 	});
 
@@ -1631,7 +1635,7 @@ mod tests {
 	use std::collections::HashMap;
 	use futures::{executor, pin_mut, select, channel::mpsc, FutureExt};
 
-	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV};
+	use polkadot_primitives::v1::{BlockData, CollatorPair, PoV, CandidateHash};
 	use polkadot_subsystem::messages::RuntimeApiRequest;
 	use polkadot_node_primitives::{Collation, CollationGenerationConfig};
 	use polkadot_node_network_protocol::{PeerId, ReputationChange, NetworkBridgeEvent};
@@ -1658,8 +1662,8 @@ mod tests {
 								i += 1;
 								continue;
 							}
-							Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return,
-							Err(_) => return,
+							Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+							Err(_) => return Ok(()),
 							_ => (),
 						}
 					}
@@ -1704,11 +1708,13 @@ mod tests {
 							Ok(Some(_)) => {
 								continue;
 							}
-							Err(_) => return,
+							Err(_) => return Ok(()),
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -1724,6 +1730,7 @@ mod tests {
 				name: "test-subsystem-4",
 				future: Box::pin(async move {
 					// Do nothing and exit.
+					Ok(())
 				}),
 			}
 		}
@@ -1902,11 +1909,13 @@ mod tests {
 								continue;
 							},
 							Ok(Some(_)) => continue,
-							Err(_) => return,
+							Err(_) => break,
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -1931,11 +1940,13 @@ mod tests {
 								continue;
 							},
 							Ok(Some(_)) => continue,
-							Err(_) => return,
+							Err(_) => break,
 							_ => (),
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -2180,6 +2191,8 @@ mod tests {
 						}
 						pending!();
 					}
+
+					Ok(())
 				}),
 			}
 		}
@@ -2260,7 +2273,7 @@ mod tests {
 
 	fn test_availability_store_msg() -> AvailabilityStoreMessage {
 		let (sender, _) = oneshot::channel();
-		AvailabilityStoreMessage::QueryAvailableData(Default::default(), sender)
+		AvailabilityStoreMessage::QueryAvailableData(CandidateHash(Default::default()), sender)
 	}
 
 	fn test_network_bridge_msg() -> NetworkBridgeMessage {

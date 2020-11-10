@@ -41,7 +41,7 @@ pub use polkadot_core_primitives::*;
 pub use parity_scale_codec::Compact;
 
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
+	Id, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
 	ValidationCode,
 };
 
@@ -633,18 +633,18 @@ pub struct ErasureChunk {
 pub enum CompactStatement {
 	/// Proposal of a parachain candidate.
 	#[codec(index = "1")]
-	Candidate(Hash),
+	Candidate(CandidateHash),
 	/// State that a parachain candidate is valid.
 	#[codec(index = "2")]
-	Valid(Hash),
+	Valid(CandidateHash),
 	/// State that a parachain candidate is invalid.
 	#[codec(index = "3")]
-	Invalid(Hash),
+	Invalid(CandidateHash),
 }
 
 impl CompactStatement {
 	/// Get the underlying candidate hash this references.
-	pub fn candidate_hash(&self) -> &Hash {
+	pub fn candidate_hash(&self) -> &CandidateHash {
 		match *self {
 			CompactStatement::Candidate(ref h)
 				| CompactStatement::Valid(ref h)
@@ -684,7 +684,7 @@ impl ValidityAttestation {
 	/// which should be known in context.
 	pub fn signed_payload<H: Encode>(
 		&self,
-		candidate_hash: Hash,
+		candidate_hash: CandidateHash,
 		signing_context: &SigningContext<H>,
 	) -> Vec<u8> {
 		match *self {

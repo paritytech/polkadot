@@ -33,7 +33,7 @@ use kvdb_rocksdb::{Database, DatabaseConfig};
 use kvdb::{KeyValueDB, DBTransaction};
 
 use polkadot_primitives::v1::{
-	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex,
+	Hash, AvailableData, BlockNumber, CandidateEvent, ErasureChunk, ValidatorIndex, CandidateHash,
 };
 use polkadot_subsystem::{
 	FromOverseer, OverseerSignal, SubsystemError, Subsystem, SubsystemContext, SpawnedSubsystem,
@@ -57,9 +57,9 @@ mod columns {
 #[derive(Debug, Error)]
 enum Error {
 	#[error(transparent)]
-	RuntimeAPI(#[from] RuntimeApiError),
+	RuntimeApi(#[from] RuntimeApiError),
 	#[error(transparent)]
-	ChainAPI(#[from] ChainApiError),
+	ChainApi(#[from] ChainApiError),
 	#[error(transparent)]
 	Erasure(#[from] erasure::Error),
 	#[error(transparent)]
@@ -70,6 +70,18 @@ enum Error {
 	Subsystem(#[from] SubsystemError),
 	#[error(transparent)]
 	Time(#[from] SystemTimeError),
+}
+
+impl Error {
+	fn severity(&self) -> log::Level {
+		match self {
+			// don't spam the log with spurious errors
+			Self::RuntimeApi(_) |
+			Self::Oneshot(_) => log::Level::Debug,
+			// it's worth reporting otherwise
+			_ => log::Level::Warn,
+		}
+	}
 }
 
 /// A wrapper type for delays.
@@ -93,48 +105,48 @@ impl PruningDelay {
 
 	fn as_duration(&self) -> Option<Duration> {
 		match self {
-		    PruningDelay::In(d) => Some(*d),
-		    PruningDelay::Indefinite => None,
+			PruningDelay::In(d) => Some(*d),
+			PruningDelay::Indefinite => None,
 		}
 	}
 }
 
 impl From<Duration> for PruningDelay {
-    fn from(d: Duration) -> Self {
+	fn from(d: Duration) -> Self {
 		Self::In(d)
-    }
+	}
 }
 
 impl PartialEq for PruningDelay {
-    fn eq(&self, other: &Self) -> bool {
+	fn eq(&self, other: &Self) -> bool {
 		match (self, other) {
-		    (PruningDelay::In(this), PruningDelay::In(that)) => {this == that},
-		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => true,
+			(PruningDelay::In(this), PruningDelay::In(that)) => {this == that},
+			(PruningDelay::Indefinite, PruningDelay::Indefinite) => true,
 			_ => false,
 		}
-    }
+	}
 }
 
 impl PartialOrd for PruningDelay {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		match (self, other) {
-		    (PruningDelay::In(this), PruningDelay::In(that)) => this.partial_cmp(that),
-		    (PruningDelay::In(_), PruningDelay::Indefinite) => Some(Ordering::Less),
-		    (PruningDelay::Indefinite, PruningDelay::In(_)) => Some(Ordering::Greater),
-		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => Some(Ordering::Equal),
+			(PruningDelay::In(this), PruningDelay::In(that)) => this.partial_cmp(that),
+			(PruningDelay::In(_), PruningDelay::Indefinite) => Some(Ordering::Less),
+			(PruningDelay::Indefinite, PruningDelay::In(_)) => Some(Ordering::Greater),
+			(PruningDelay::Indefinite, PruningDelay::Indefinite) => Some(Ordering::Equal),
 		}
-    }
+	}
 }
 
 impl Ord for PruningDelay {
-    fn cmp(&self, other: &Self) -> Ordering {
+	fn cmp(&self, other: &Self) -> Ordering {
 		match (self, other) {
-		    (PruningDelay::In(this), PruningDelay::In(that)) => this.cmp(that),
-		    (PruningDelay::In(_), PruningDelay::Indefinite) => Ordering::Less,
-		    (PruningDelay::Indefinite, PruningDelay::In(_)) => Ordering::Greater,
-		    (PruningDelay::Indefinite, PruningDelay::Indefinite) => Ordering::Equal,
+			(PruningDelay::In(this), PruningDelay::In(that)) => this.cmp(that),
+			(PruningDelay::In(_), PruningDelay::Indefinite) => Ordering::Less,
+			(PruningDelay::Indefinite, PruningDelay::In(_)) => Ordering::Greater,
+			(PruningDelay::Indefinite, PruningDelay::Indefinite) => Ordering::Equal,
 		}
-    }
+	}
 }
 
 /// A key for chunk pruning records.
@@ -212,13 +224,13 @@ struct PruningConfig {
 }
 
 impl Default for PruningConfig {
-    fn default() -> Self {
+	fn default() -> Self {
 		Self {
 			keep_stored_block_for: KEEP_STORED_BLOCK_FOR,
 			keep_finalized_block_for: KEEP_FINALIZED_BLOCK_FOR,
 			keep_finalized_chunk_for: KEEP_FINALIZED_CHUNK_FOR,
 		}
-    }
+	}
 }
 
 #[derive(Debug, Decode, Encode, Eq, PartialEq)]
@@ -230,7 +242,7 @@ enum CandidateState {
 
 #[derive(Debug, Decode, Encode, Eq)]
 struct PoVPruningRecord {
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
 	prune_at: PruningDelay,
@@ -253,14 +265,14 @@ impl Ord for PoVPruningRecord {
 }
 
 impl PartialOrd for PoVPruningRecord {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+	fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
 		Some(self.cmp(other))
-    }
+	}
 }
 
 #[derive(Debug, Decode, Encode, Eq)]
 struct ChunkPruningRecord {
-	candidate_hash: Hash,
+	candidate_hash: CandidateHash,
 	block_number: BlockNumber,
 	candidate_state: CandidateState,
 	chunk_index: u32,
@@ -375,11 +387,11 @@ impl AvailabilityStoreSubsystem {
 	}
 }
 
-fn available_data_key(candidate_hash: &Hash) -> Vec<u8> {
+fn available_data_key(candidate_hash: &CandidateHash) -> Vec<u8> {
 	(candidate_hash, 0i8).encode()
 }
 
-fn erasure_chunk_key(candidate_hash: &Hash, index: u32) -> Vec<u8> {
+fn erasure_chunk_key(candidate_hash: &CandidateHash, index: u32) -> Vec<u8> {
 	(candidate_hash, index, 0i8).encode()
 }
 
@@ -395,6 +407,23 @@ pub struct Config {
 	pub cache_size: Option<usize>,
 	/// Path to the database.
 	pub path: PathBuf,
+}
+
+impl std::convert::TryFrom<sc_service::config::DatabaseConfig> for Config {
+	type Error = &'static str;
+
+	fn try_from(config: sc_service::config::DatabaseConfig) -> Result<Self, Self::Error> {
+		let path = config.path().ok_or("custom databases are not supported")?;
+
+		Ok(Self {
+			// substrate cache size is improper here; just use the default
+			cache_size: None,
+			// DB path is a sub-directory of substrate db path to give two properties:
+			// 1: column numbers don't conflict with substrate
+			// 2: commands like purge-chain work without further changes
+			path: path.join("parachains").join("av-store"),
+		})
+	}
 }
 
 impl AvailabilityStoreSubsystem {
@@ -445,54 +474,69 @@ fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPrun
 }
 
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
-	-> Result<(), Error>
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
 {
-	let ctx = &mut ctx;
 	loop {
-		// Every time the following two methods are called a read from DB is performed.
-		// But given that these are very small values which are essentially a newtype
-		// wrappers around `Duration` (`NextChunkPruning` and `NextPoVPruning`) and also the
-		// fact of the frequent reads itself we assume these to end up cached in the memory
-		// anyway and thus these db reads to be reasonably fast.
-	 	let pov_pruning_time = subsystem.maybe_prune_povs()?;
-		let chunk_pruning_time = subsystem.maybe_prune_chunks()?;
-
-		let mut pov_pruning_time = pov_pruning_time.fuse();
-		let mut chunk_pruning_time = chunk_pruning_time.fuse();
-
-		select! {
-			incoming = ctx.recv().fuse() => {
-				match incoming {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => break,
-					Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(
-						ActiveLeavesUpdate { activated, .. })
-					)) => {
-						for activated in activated.into_iter() {
-							process_block_activated(ctx, &subsystem.inner, activated).await?;
-						}
-					}
-					Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(hash))) => {
-						process_block_finalized(&subsystem, ctx, &subsystem.inner, hash).await?;
-					}
-					Ok(FromOverseer::Communication { msg }) => {
-						process_message(&mut subsystem, ctx, msg).await?;
-					}
-					Err(_) => break,
-				}
+		let res = run_iteration(&mut subsystem, &mut ctx).await;
+		match res {
+			Err(e) => {
+				log::log!(target: LOG_TARGET, e.severity(), "{}", e);
 			}
-			pov_pruning_time = pov_pruning_time => {
-				subsystem.prune_povs()?;
-			}
-			chunk_pruning_time = chunk_pruning_time => {
-				subsystem.prune_chunks()?;
-			}
-			complete => break,
+			Ok(true) => {
+				log::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				break;
+			},
+			Ok(false) => continue,
 		}
 	}
+}
 
-	Ok(())
+async fn run_iteration<Context>(subsystem: &mut AvailabilityStoreSubsystem, ctx: &mut Context)
+	-> Result<bool, Error>
+where
+	Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+{
+	// Every time the following two methods are called a read from DB is performed.
+	// But given that these are very small values which are essentially a newtype
+	// wrappers around `Duration` (`NextChunkPruning` and `NextPoVPruning`) and also the
+	// fact of the frequent reads itself we assume these to end up cached in the memory
+	// anyway and thus these db reads to be reasonably fast.
+	let pov_pruning_time = subsystem.maybe_prune_povs()?;
+	let chunk_pruning_time = subsystem.maybe_prune_chunks()?;
+
+	let mut pov_pruning_time = pov_pruning_time.fuse();
+	let mut chunk_pruning_time = chunk_pruning_time.fuse();
+
+	select! {
+		incoming = ctx.recv().fuse() => {
+			match incoming? {
+				FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(true),
+				FromOverseer::Signal(OverseerSignal::ActiveLeaves(
+					ActiveLeavesUpdate { activated, .. })
+				) => {
+					for activated in activated.into_iter() {
+						process_block_activated(ctx, &subsystem.inner, activated).await?;
+					}
+				}
+				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
+					process_block_finalized(subsystem, ctx, &subsystem.inner, hash).await?;
+				}
+				FromOverseer::Communication { msg } => {
+					process_message(subsystem, ctx, msg).await?;
+				}
+			}
+		}
+		pov_pruning_time = pov_pruning_time => {
+			subsystem.prune_povs()?;
+		}
+		chunk_pruning_time = chunk_pruning_time => {
+			subsystem.prune_chunks()?;
+		}
+		complete => return Ok(true),
+	}
+
+	Ok(false)
 }
 
 /// As soon as certain block is finalized its pruning records and records of all
@@ -520,7 +564,7 @@ where
 				log::trace!(
 					target: LOG_TARGET,
 					"Updating pruning record for finalized block {}",
-					record.candidate_hash,
+					record.block_number,
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -539,7 +583,7 @@ where
 				log::trace!(
 					target: LOG_TARGET,
 					"Updating chunk pruning record for finalized block {}",
-					record.candidate_hash,
+					record.block_number,
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -563,14 +607,20 @@ async fn process_block_activated<Context>(
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
-	let events = request_candidate_events(ctx, hash).await?;
+	let events = match request_candidate_events(ctx, hash).await {
+		Ok(events) => events,
+		Err(err) => {
+			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			return Ok(());
+		}
+	};
 
 	log::trace!(target: LOG_TARGET, "block activated {}", hash);
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			log::trace!(target: LOG_TARGET, "Candidate {} was included", receipt.hash());
+			log::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
 			included.insert(receipt.hash());
 		}
 	}
@@ -632,6 +682,7 @@ where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>
 {
 	use AvailabilityStoreMessage::*;
+
 	match msg {
 		QueryAvailableData(hash, tx) => {
 			tx.send(available_data(&subsystem.inner, &hash).map(|d| d.data))
@@ -678,7 +729,10 @@ where
 	Ok(())
 }
 
-fn available_data(db: &Arc<dyn KeyValueDB>, candidate_hash: &Hash) -> Option<StoredAvailableData> {
+fn available_data(
+	db: &Arc<dyn KeyValueDB>,
+	candidate_hash: &CandidateHash,
+) -> Option<StoredAvailableData> {
 	query_inner(db, columns::DATA, &available_data_key(candidate_hash))
 }
 
@@ -784,7 +838,7 @@ where
 
 fn store_available_data(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	id: Option<ValidatorIndex>,
 	n_validators: u32,
 	available_data: AvailableData,
@@ -821,7 +875,7 @@ fn store_available_data(
 	}
 
 	let pruning_record = PoVPruningRecord {
-		candidate_hash: candidate_hash.clone(),
+		candidate_hash: *candidate_hash,
 		block_number,
 		candidate_state: CandidateState::Stored,
 		prune_at,
@@ -850,7 +904,7 @@ fn store_available_data(
 
 fn store_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	_n_validators: u32,
 	chunk: ErasureChunk,
 	block_number: BlockNumber,
@@ -901,7 +955,7 @@ fn store_chunk(
 
 fn get_chunk(
 	subsystem: &mut AvailabilityStoreSubsystem,
-	candidate_hash: &Hash,
+	candidate_hash: &CandidateHash,
 	index: u32,
 ) -> Result<Option<ErasureChunk>, Error> {
 	if let Some(chunk) = query_inner(
@@ -930,7 +984,11 @@ fn get_chunk(
 	Ok(None)
 }
 
-fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> Option<D> {
+fn query_inner<D: Decode>(
+	db: &Arc<dyn KeyValueDB>,
+	column: u32,
+	key: &[u8],
+) -> Option<D> {
 	match db.get(column, key) {
 		Ok(Some(raw)) => {
 			let res = D::decode(&mut &raw[..]).expect("all stored data serialized correctly; qed");
@@ -945,15 +1003,13 @@ fn query_inner<D: Decode>(db: &Arc<dyn KeyValueDB>, column: u32, key: &[u8]) -> 
 }
 
 impl<Context> Subsystem<Context> for AvailabilityStoreSubsystem
-	where
-		Context: SubsystemContext<Message=AvailabilityStoreMessage>,
+where
+	Context: SubsystemContext<Message = AvailabilityStoreMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(async move {
-			if let Err(e) = run(self, ctx).await {
-				log::error!(target: LOG_TARGET, "Subsystem exited with an error {:?}", e);
-			}
-		});
+		let future = run(self, ctx)
+			.map(|_| Ok(()))
+			.boxed();
 
 		SpawnedSubsystem {
 			name: "availability-store-subsystem",

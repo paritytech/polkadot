@@ -16,7 +16,7 @@
 
 //! Polkadot chain configurations.
 
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use babe_primitives::AuthorityId as BabeId;
 use grandpa::AuthorityId as GrandpaId;
 use hex_literal::hex;
@@ -134,13 +134,14 @@ fn westend_session_keys(
 
 fn rococo_session_keys(
 	babe: BabeId,
-	_grandpa: GrandpaId,
+	grandpa: GrandpaId,
 	im_online: ImOnlineId,
 	parachain_validator: ValidatorId,
 	authority_discovery: AuthorityDiscoveryId
 ) -> rococo_runtime::SessionKeys {
 	rococo_runtime::SessionKeys {
 		babe,
+		grandpa,
 		im_online,
 		parachain_validator,
 		authority_discovery,
@@ -767,6 +768,20 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			keys: vec![],
 		}),
 		pallet_staking: Some(Default::default()),
+		pallet_sudo: Some(rococo_runtime::SudoConfig {
+			key: endowed_accounts[0].clone(),
+		}),
+		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				validation_upgrade_frequency: 600u32,
+				validation_upgrade_delay: 300,
+				acceptance_period: 1200,
+				max_code_size: 5 * 1024 * 1024,
+				max_head_data_size: 32 * 1024,
+				group_rotation_frequency: 10,
+				..Default::default()
+			},
+		}),
 	}
 }
 
@@ -1175,7 +1190,7 @@ pub fn westend_testnet_genesis(
 pub fn rococo_testnet_genesis(
 	wasm_binary: &[u8],
 	initial_authorities: Vec<(AccountId, AccountId, BabeId, GrandpaId, ImOnlineId, ValidatorId, AuthorityDiscoveryId)>,
-	_root_key: AccountId,
+	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
 ) -> rococo_runtime::GenesisConfig {
 	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(testnet_accounts);
@@ -1207,6 +1222,18 @@ pub fn rococo_testnet_genesis(
 			keys: vec![],
 		}),
 		pallet_staking: Some(Default::default()),
+		pallet_sudo: Some(rococo_runtime::SudoConfig { key: root_key }),
+		parachains_configuration: Some(rococo_runtime::ParachainsConfigurationConfig {
+			config: polkadot_runtime_parachains::configuration::HostConfiguration {
+				validation_upgrade_frequency: 600u32,
+				validation_upgrade_delay: 300,
+				acceptance_period: 1200,
+				max_code_size: 5 * 1024 * 1024,
+				max_head_data_size: 32 * 1024,
+				group_rotation_frequency: 10,
+				..Default::default()
+			},
+		}),
 	}
 }
 

@@ -30,18 +30,17 @@ use polkadot_subsystem::{
 		PoVDistributionMessage, RuntimeApiMessage, RuntimeApiRequest, AllMessages, NetworkBridgeMessage,
 	},
 };
-use polkadot_node_subsystem_util::{
-	metrics::{self, prometheus},
-};
-use polkadot_node_network_protocol::{
-	v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View,
-};
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_network_protocol::{v1 as protocol_v1, ReputationChange as Rep, NetworkBridgeEvent, PeerId, View};
 
 use futures::prelude::*;
 use futures::channel::oneshot;
 
 use std::collections::{hash_map::{Entry, HashMap}, HashSet};
 use std::sync::Arc;
+
+#[cfg(test)]
+mod tests;
 
 const COST_APPARENT_FLOOD: Rep = Rep::new(-500, "Peer appears to be flooding us with PoV requests");
 const COST_UNEXPECTED_POV: Rep = Rep::new(-500, "Peer sent us an unexpected PoV");
@@ -51,6 +50,8 @@ const COST_AWAITED_NOT_IN_VIEW: Rep
 const BENEFIT_FRESH_POV: Rep = Rep::new(25, "Peer supplied us with an awaited PoV");
 const BENEFIT_LATE_POV: Rep = Rep::new(10, "Peer supplied us with an awaited PoV, \
 	but was not the first to do so");
+
+const LOG_TARGET: &str = "pov_distribution";
 
 /// The PoV Distribution Subsystem.
 pub struct PoVDistribution {
@@ -66,7 +67,6 @@ impl<C> Subsystem<C> for PoVDistribution
 		// within `run`.
 		let future = self.run(ctx)
 			.map_err(|e| SubsystemError::with_origin("pov-distribution", e))
-			.map(|_| ())
 			.boxed();
 		SpawnedSubsystem {
 			name: "pov-distribution-subsystem",
@@ -134,7 +134,8 @@ async fn handle_signal(
 				let n_validators = match vals_rx.await? {
 					Ok(v) => v.len(),
 					Err(e) => {
-						log::warn!(target: "pov_distribution",
+						log::warn!(
+							target: LOG_TARGET,
 							"Error fetching validators from runtime API for active leaf: {:?}",
 							e
 						);
@@ -614,6 +615,3 @@ impl metrics::Metrics for Metrics {
 		Ok(Metrics(Some(metrics)))
 	}
 }
-
-#[cfg(test)]
-mod tests;

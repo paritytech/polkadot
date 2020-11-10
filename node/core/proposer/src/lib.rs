@@ -33,6 +33,7 @@ use sp_consensus::{Proposal, RecordProof};
 use sp_inherents::InherentData;
 use sp_runtime::traits::{DigestFor, HashFor};
 use sp_transaction_pool::TransactionPool;
+use prometheus_endpoint::Registry as PrometheusRegistry;
 use std::{fmt, pin::Pin, sync::Arc, time};
 
 /// How long proposal can take before we give up and err out
@@ -50,13 +51,14 @@ impl<TxPool, Backend, Client> ProposerFactory<TxPool, Backend, Client> {
 		client: Arc<Client>,
 		transaction_pool: Arc<TxPool>,
 		overseer: OverseerHandler,
+		prometheus: Option<&PrometheusRegistry>,
 	) -> Self {
 		ProposerFactory {
 			inner: sc_basic_authorship::ProposerFactory::new(
 				spawn_handle,
 				client,
 				transaction_pool,
-				None,
+				prometheus,
 			),
 			overseer,
 		}
@@ -134,38 +136,26 @@ where
 	/// Get provisioner inherent data
 	///
 	/// This function has a constant timeout: `PROPOSE_TIMEOUT`.
-	fn get_provisioner_data(&self) -> impl Future<Output = Result<ProvisionerInherentData, Error>> {
+	async fn get_provisioner_data(&self) -> Result<ProvisionerInherentData, Error> {
 		// clone this (lightweight) data because we're going to move it into the future
 		let mut overseer = self.overseer.clone();
 		let parent_header_hash = self.parent_header_hash.clone();
 
-		let mut provisioner_inherent_data = async move {
-			let (sender, receiver) = futures::channel::oneshot::channel();
+		let (sender, receiver) = futures::channel::oneshot::channel();
 
-			overseer.wait_for_activation(parent_header_hash, sender).await?;
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)??;
+		overseer.wait_for_activation(parent_header_hash, sender).await?;
+		receiver.await.map_err(|_| Error::ClosedChannelAwaitingActivation)??;
 
-			let (sender, receiver) = futures::channel::oneshot::channel();
-			// strictly speaking, we don't _have_ to .await this send_msg before opening the
-			// receiver; it's possible that the response there would be ready slightly before
-			// this call completes. IMO it's not worth the hassle or overhead of spawning a
-			// distinct task for that kind of miniscule efficiency improvement.
-			overseer.send_msg(AllMessages::Provisioner(
-				ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
-			)).await?;
+		let (sender, receiver) = futures::channel::oneshot::channel();
+		overseer.send_msg(AllMessages::Provisioner(
+			ProvisionerMessage::RequestInherentData(parent_header_hash, sender),
+		)).await?;
 
-			receiver.await.map_err(Error::ClosedChannelFromProvisioner)
-		}
-		.boxed()
-		.fuse();
+		let mut timeout = futures_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
 
-		let mut timeout = wasm_timer::Delay::new(PROPOSE_TIMEOUT).fuse();
-
-		async move {
-			select! {
-				pid = provisioner_inherent_data => pid,
-				_ = timeout => Err(Error::Timeout),
-			}
+		select! {
+			pid = receiver.fuse() => pid.map_err(|_| Error::ClosedChannelAwaitingInherentData),
+			_ = timeout => Err(Error::Timeout),
 		}
 	}
 }
@@ -199,10 +189,8 @@ where
 		max_duration: time::Duration,
 		record_proof: RecordProof,
 	) -> Self::Proposal {
-		let provisioner_data = self.get_provisioner_data();
-
 		async move {
-			let provisioner_data = match provisioner_data.await {
+			let provisioner_data = match self.get_provisioner_data().await {
 				Ok(pd) => pd,
 				Err(err) => {
 					log::warn!("could not get provisioner inherent data; injecting default data: {}", err);
@@ -234,7 +222,8 @@ pub enum Error {
 	Blockchain(sp_blockchain::Error),
 	Inherent(sp_inherents::Error),
 	Timeout,
-	ClosedChannelFromProvisioner(futures::channel::oneshot::Canceled),
+	ClosedChannelAwaitingActivation,
+	ClosedChannelAwaitingInherentData,
 	Subsystem(SubsystemError)
 }
 
@@ -269,7 +258,8 @@ impl fmt::Display for Error {
 			Self::Blockchain(err) => write!(f, "blockchain error: {}", err),
 			Self::Inherent(err) => write!(f, "inherent error: {:?}", err),
 			Self::Timeout => write!(f, "timeout: provisioner did not return inherent data after {:?}", PROPOSE_TIMEOUT),
-			Self::ClosedChannelFromProvisioner(err) => write!(f, "provisioner closed inherent data channel before sending: {}", err),
+			Self::ClosedChannelAwaitingActivation => write!(f, "closed channel from overseer when awaiting activation"),
+			Self::ClosedChannelAwaitingInherentData => write!(f, "closed channel from provisioner when awaiting inherent data"),
 			Self::Subsystem(err) => write!(f, "subsystem error: {:?}", err),
 		}
 	}
@@ -280,7 +270,6 @@ impl std::error::Error for Error {
 		match self {
 			Self::Consensus(err) => Some(err),
 			Self::Blockchain(err) => Some(err),
-			Self::ClosedChannelFromProvisioner(err) => Some(err),
 			Self::Subsystem(err) => Some(err),
 			_ => None
 		}

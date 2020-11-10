@@ -18,28 +18,32 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use codec::Encode;
-use polkadot_runtime_parachains::{
-	configuration,
-	inclusion,
-	initializer,
-	paras,
-	router,
-	runtime_api_impl::v1 as runtime_impl,
-	scheduler,
-};
+
+use polkadot_runtime_parachains::configuration as parachains_configuration;
+use polkadot_runtime_parachains::inclusion as parachains_inclusion;
+use polkadot_runtime_parachains::inclusion_inherent as parachains_inclusion_inherent;
+use polkadot_runtime_parachains::initializer as parachains_initializer;
+use polkadot_runtime_parachains::paras as parachains_paras;
+use polkadot_runtime_parachains::router as parachains_router;
+use polkadot_runtime_parachains::scheduler as parachains_scheduler;
+use polkadot_runtime_parachains::runtime_api_impl::v1 as runtime_impl;
+
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, paras_sudo_wrapper,
 	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
-	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, ParachainSessionKeyPlaceholder,
+	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -75,6 +79,7 @@ pub use sp_runtime::BuildStorage;
 pub use pallet_timestamp::Call as TimestampCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use paras_sudo_wrapper::Call as ParasSudoWrapperCall;
+pub use pallet_sudo::Call as SudoCall;
 
 /// Constant values used within the runtime.
 pub mod constants;
@@ -211,8 +216,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = ();
+	type OnChargeTransaction = CurrencyAdapter<Balances, ()>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -250,7 +254,8 @@ impl_opaque_keys! {
 	pub struct SessionKeys {
 		pub grandpa: Grandpa,
 		pub babe: Babe,
-		pub parachain_validator: ParachainSessionKeyPlaceholder<Runtime>,
+		pub parachain_validator: Initializer,
+		pub authority_discovery: AuthorityDiscovery,
 	}
 }
 
@@ -438,23 +443,28 @@ impl pallet_sudo::Trait for Runtime {
 	type Call = Call;
 }
 
-impl configuration::Trait for Runtime {}
+impl parachains_configuration::Trait for Runtime {}
 
-impl inclusion::Trait for Runtime {
+impl parachains_inclusion::Trait for Runtime {
 	type Event = Event;
 }
 
-impl initializer::Trait for Runtime {
+impl parachains_inclusion_inherent::Trait for Runtime {}
+
+impl parachains_initializer::Trait for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 }
 
-impl paras::Trait for Runtime {
+impl parachains_paras::Trait for Runtime {
 	type Origin = Origin;
 }
 
-impl router::Trait for Runtime {}
+impl parachains_router::Trait for Runtime {
+	type Origin = Origin;
+	type UmpSink = ();
+}
 
-impl scheduler::Trait for Runtime {}
+impl parachains_scheduler::Trait for Runtime {}
 
 impl paras_sudo_wrapper::Trait for Runtime {}
 
@@ -492,11 +502,12 @@ construct_runtime! {
 		Vesting: pallet_vesting::{Module, Call, Storage, Event<T>, Config<T>},
 
 		// Parachains runtime modules
-		Configuration: configuration::{Module, Call, Storage},
-		Inclusion: inclusion::{Module, Call, Storage, Event<T>},
-		Initializer: initializer::{Module, Call, Storage},
-		Paras: paras::{Module, Call, Storage, Origin},
-		Scheduler: scheduler::{Module, Call, Storage},
+		ParachainsConfiguration: parachains_configuration::{Module, Call, Storage, Config<T>},
+		Inclusion: parachains_inclusion::{Module, Call, Storage, Event<T>},
+		InclusionInherent: parachains_inclusion_inherent::{Module, Call, Storage, Inherent},
+		Initializer: parachains_initializer::{Module, Call, Storage},
+		Paras: parachains_paras::{Module, Call, Storage, Origin},
+		Scheduler: parachains_scheduler::{Module, Call, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Module, Call},
 
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
@@ -598,7 +609,7 @@ sp_api::impl_runtime_apis! {
 
 	impl authority_discovery_primitives::AuthorityDiscoveryApi<Block> for Runtime {
 		fn authorities() -> Vec<AuthorityDiscoveryId> {
-			Vec::new()
+			AuthorityDiscovery::authorities()
 		}
 	}
 
@@ -644,6 +655,13 @@ sp_api::impl_runtime_apis! {
 			runtime_impl::validation_code::<Runtime>(para_id, assumption)
 		}
 
+		fn historical_validation_code(para_id: ParaId, context_height: BlockNumber)
+			-> Option<ValidationCode>
+		{
+			runtime_impl::historical_validation_code::<Runtime>(para_id, context_height)
+		}
+
+
 		fn candidate_pending_availability(para_id: ParaId) -> Option<CommittedCandidateReceipt<Hash>> {
 			runtime_impl::candidate_pending_availability::<Runtime>(para_id)
 		}
@@ -655,6 +673,18 @@ sp_api::impl_runtime_apis! {
 
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			runtime_impl::validator_discovery::<Runtime>(validators)
+		}
+
+		fn dmq_contents(
+			recipient: ParaId,
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			runtime_impl::dmq_contents::<Runtime>(recipient)
+		}
+
+		fn inbound_hrmp_channels_contents(
+			recipient: ParaId,
+		) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>> {
+			runtime_impl::inbound_hrmp_channels_contents::<Runtime>(recipient)
 		}
 	}
 

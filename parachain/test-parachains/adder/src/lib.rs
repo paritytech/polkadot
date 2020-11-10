@@ -33,15 +33,15 @@ static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
-#[cfg(feature = "std")]
 /// Wasm binary unwrapped. If built with `BUILD_DUMMY_WASM_BINARY`, the function panics.
+#[cfg(feature = "std")]
 pub fn wasm_binary_unwrap() -> &'static [u8] {
 	WASM_BINARY.expect("Development wasm binary is not available. Testing is only \
 						supported with the flag disabled.")
 }
 
 /// Head data for this parachain.
-#[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Decode)]
+#[derive(Default, Clone, Hash, Eq, PartialEq, Encode, Decode, Debug)]
 pub struct HeadData {
 	/// Block number
 	pub number: u64,
@@ -58,11 +58,11 @@ impl HeadData {
 }
 
 /// Block data for this parachain.
-#[derive(Default, Clone, Encode, Decode)]
+#[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct BlockData {
 	/// State to begin from.
 	pub state: u64,
-	/// Amount to add (overflowing)
+	/// Amount to add (wrapping)
 	pub add: u64,
 }
 
@@ -81,13 +81,13 @@ pub fn execute(
 	parent_head: HeadData,
 	block_data: &BlockData,
 ) -> Result<HeadData, StateMismatch> {
-	debug_assert_eq!(parent_hash, parent_head.hash());
+	assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(block_data.state) != parent_head.post_state {
 		return Err(StateMismatch);
 	}
 
-	let new_state = block_data.state.overflowing_add(block_data.add).0;
+	let new_state = block_data.state.wrapping_add(block_data.add);
 
 	Ok(HeadData {
 		number: parent_head.number + 1,

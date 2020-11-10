@@ -21,11 +21,11 @@ const WORKER_ARGS_TEST: &[&'static str] = &["--nocapture", "validation_worker"];
 use crate::adder;
 use parachain::{
 	primitives::{BlockData, ValidationParams},
-	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC, ExecutionMode, ValidationPool},
+	wasm_executor::{ValidationError, InvalidCandidate, EXECUTION_TIMEOUT_SEC, IsolationStrategy, ValidationPool},
 };
 
-fn execution_mode() -> ExecutionMode {
-	ExecutionMode::ExternalProcessCustomHost {
+fn isolation_strategy() -> IsolationStrategy {
+	IsolationStrategy::ExternalProcessCustomHost {
 		pool: ValidationPool::new(),
 		binary: std::env::current_exe().unwrap(),
 		args: WORKER_ARGS_TEST.iter().map(|x| x.to_string()).collect(),
@@ -34,7 +34,7 @@ fn execution_mode() -> ExecutionMode {
 
 #[test]
 fn terminates_on_timeout() {
-	let execution_mode = execution_mode();
+	let isolation_strategy = isolation_strategy();
 
 	let result = parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -43,8 +43,9 @@ fn terminates_on_timeout() {
 			parent_head: Default::default(),
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
+			dmq_mqc_head: Default::default(),
 		},
-		&execution_mode,
+		&isolation_strategy,
 		sp_core::testing::TaskExecutor::new(),
 	);
 	match result {
@@ -58,11 +59,10 @@ fn terminates_on_timeout() {
 
 #[test]
 fn parallel_execution() {
-	let execution_mode = execution_mode();
+	let isolation_strategy = isolation_strategy();
+	let isolation_strategy_clone = isolation_strategy.clone();
 
 	let start = std::time::Instant::now();
-
-	let execution_mode2 = execution_mode.clone();
 	let thread = std::thread::spawn(move ||
 		parachain::wasm_executor::validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -71,8 +71,9 @@ fn parallel_execution() {
 			parent_head: Default::default(),
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
+			dmq_mqc_head: Default::default(),
 		},
-		&execution_mode,
+		&isolation_strategy,
 		sp_core::testing::TaskExecutor::new(),
 	).ok());
 	let _ = parachain::wasm_executor::validate_candidate(
@@ -82,8 +83,9 @@ fn parallel_execution() {
 			parent_head: Default::default(),
 			relay_chain_height: 1,
 			hrmp_mqc_heads: Vec::new(),
+			dmq_mqc_head: Default::default(),
 		},
-		&execution_mode2,
+		&isolation_strategy_clone,
 		sp_core::testing::TaskExecutor::new(),
 	);
 	thread.join().unwrap();

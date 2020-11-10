@@ -18,23 +18,26 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
-#![recursion_limit="256"]
+#![recursion_limit = "256"]
 
+use pallet_transaction_payment::CurrencyAdapter;
 use runtime_common::{
 	claims, SlowAdjustingFeeUpdate, CurrencyToVote,
-	impls::ToAuthor,
-	NegativeImbalance, BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
+	impls::DealWithFees,
+	BlockHashCount, MaximumBlockWeight, AvailableBlockRatio,
 	MaximumBlockLength, BlockExecutionWeight, ExtrinsicBaseWeight, RocksDbWeight,
 	MaximumExtrinsicWeight, ParachainSessionKeyPlaceholder,
 };
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult,
@@ -55,7 +58,7 @@ use sp_core::OpaqueMetadata;
 use sp_staking::SessionIndex;
 use frame_support::{
 	parameter_types, construct_runtime, debug, RuntimeDebug,
-	traits::{KeyOwnerProofSystem, SplitTwoWays, Randomness, LockIdentifier, Filter},
+	traits::{KeyOwnerProofSystem, Randomness, LockIdentifier, Filter},
 	weights::Weight,
 };
 use frame_system::{EnsureRoot, EnsureOneOf};
@@ -227,14 +230,6 @@ parameter_types! {
 	pub const MaxLocks: u32 = 50;
 }
 
-/// Splits fees 80/20 between treasury and block author.
-pub type DealWithFees = SplitTwoWays<
-	Balance,
-	NegativeImbalance<Runtime>,
-	_4, Treasury,   		// 4 parts (80%) goes to the treasury.
-	_1, ToAuthor<Runtime>,   	// 1 part (20%) goes to the block author.
->;
-
 impl pallet_balances::Trait for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -250,8 +245,7 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Trait for Runtime {
-	type Currency = Balances;
-	type OnTransactionPayment = DealWithFees;
+	type OnChargeTransaction = CurrencyAdapter<Balances, DealWithFees<Runtime>>;
 	type TransactionByteFee = TransactionByteFee;
 	type WeightToFee = WeightToFee;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
@@ -856,15 +850,21 @@ impl InstanceFilter<Call> for ProxyType {
 				Call::Multisig(..)
 			),
 			ProxyType::Governance => matches!(c,
-				Call::Democracy(..) | Call::Council(..) | Call::TechnicalCommittee(..)
-					| Call::ElectionsPhragmen(..) | Call::Treasury(..) | Call::Utility(..)
+				Call::Democracy(..) |
+				Call::Council(..) |
+				Call::TechnicalCommittee(..) |
+				Call::ElectionsPhragmen(..) |
+				Call::Treasury(..) |
+				Call::Utility(..)
 			),
 			ProxyType::Staking => matches!(c,
-				Call::Staking(..) | Call::Utility(pallet_utility::Call::batch(..)) | Call::Utility(..)
+				Call::Staking(..) |
+				Call::Session(..) |
+				Call::Utility(..)
 			),
 			ProxyType::IdentityJudgement => matches!(c,
-				Call::Identity(pallet_identity::Call::provide_judgement(..))
-				| Call::Utility(pallet_utility::Call::batch(..))
+				Call::Identity(pallet_identity::Call::provide_judgement(..)) |
+				Call::Utility(..)
 			)
 		}
 	}
@@ -897,34 +897,7 @@ impl pallet_proxy::Trait for Runtime {
 pub struct CustomOnRuntimeUpgrade;
 impl frame_support::traits::OnRuntimeUpgrade for CustomOnRuntimeUpgrade {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		// Update scheduler origin usage
-		#[derive(Encode, Decode)]
-		#[allow(non_camel_case_types)]
-		pub enum OldOriginCaller {
-			system(frame_system::Origin<Runtime>),
-			pallet_collective_Instance1(
-				pallet_collective::Origin<Runtime, pallet_collective::Instance1>
-			),
-			pallet_collective_Instance2(
-				pallet_collective::Origin<Runtime, pallet_collective::Instance2>
-			),
-		}
-
-		impl Into<OriginCaller> for OldOriginCaller {
-			fn into(self) -> OriginCaller {
-				match self {
-					OldOriginCaller::system(o) => OriginCaller::system(o),
-					OldOriginCaller::pallet_collective_Instance1(o) =>
-						OriginCaller::pallet_collective_Instance1(o),
-					OldOriginCaller::pallet_collective_Instance2(o) =>
-						OriginCaller::pallet_collective_Instance2(o),
-				}
-			}
-		}
-
-		pallet_scheduler::Module::<Runtime>::migrate_origin::<OldOriginCaller>();
-
-		<Runtime as frame_system::Trait>::MaximumBlockWeight::get()
+		0
 	}
 }
 
@@ -1117,6 +1090,10 @@ sp_api::impl_runtime_apis! {
 			None
 		}
 
+		fn historical_validation_code(_: Id, _: BlockNumber) -> Option<ValidationCode> {
+			None
+		}
+
 		fn candidate_pending_availability(_: Id) -> Option<CommittedCandidateReceipt<Hash>> {
 			None
 		}
@@ -1128,6 +1105,19 @@ sp_api::impl_runtime_apis! {
 		fn validator_discovery(_: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>> {
 			Vec::new()
 		}
+
+		fn dmq_contents(
+			_recipient: Id,
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
+			Vec::new()
+		}
+
+		fn inbound_hrmp_channels_contents(
+			_recipient: Id
+		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			BTreeMap::new()
+		}
+
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

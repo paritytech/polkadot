@@ -186,7 +186,7 @@ impl View {
 pub mod v1 {
 	use polkadot_primitives::v1::{
 		Hash, CollatorId, Id as ParaId, ErasureChunk, CandidateReceipt,
-		SignedAvailabilityBitfield, PoV,
+		SignedAvailabilityBitfield, PoV, CandidateHash,
 	};
 	use polkadot_node_primitives::SignedFullStatement;
 	use parity_scale_codec::{Encode, Decode};
@@ -198,7 +198,7 @@ pub mod v1 {
 	pub enum AvailabilityDistributionMessage {
 		/// An erasure chunk for a given candidate hash.
 		#[codec(index = "0")]
-		Chunk(Hash, ErasureChunk),
+		Chunk(CandidateHash, ErasureChunk),
 	}
 
 	/// Network messages used by the bitfield distribution subsystem.

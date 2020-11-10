@@ -13,12 +13,12 @@ jobs:
       matrix:
         runtime: ['polkadot', 'kusama']
     container:
-      image: chevdor/srtool:nightly-2020-07-20
+      image: paritytech/srtool:nightly-2020-10-27
       volumes:
         - ${{ github.workspace }}:/build
       env:
         PACKAGE: ${{ matrix.runtime }}-runtime
-        RUSTC_VERSION: nightly-2020-07-20
+        RUSTC_VERSION: nightly-2020-10-27
     steps:
       - uses: actions/checkout@v2
       - name: Cache target dir

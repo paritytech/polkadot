@@ -108,7 +108,10 @@ impl crate::paras::Trait for Test {
 	type Origin = Origin;
 }
 
-impl crate::router::Trait for Test { }
+impl crate::router::Trait for Test {
+	type Origin = Origin;
+	type UmpSink = crate::router::MockUmpSink;
+}
 
 impl crate::scheduler::Trait for Test { }
 
@@ -128,8 +131,6 @@ pub type Configuration = crate::configuration::Module<Test>;
 pub type Paras = crate::paras::Module<Test>;
 
 /// Mocked router.
-// TODO: Will be used in the follow ups.
-#[allow(dead_code)]
 pub type Router = crate::router::Module<Test>;
 
 /// Mocked scheduler.

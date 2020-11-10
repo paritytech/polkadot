@@ -17,6 +17,7 @@
 //! V1 Primitives.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use parity_scale_codec::{Encode, Decode};
 use bitvec::vec::BitVec;
 
@@ -29,15 +30,14 @@ pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
 
 // Export some core primitives.
 pub use polkadot_core_primitives::v1::{
-	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex,
-	ChainId, Hash, Nonce, Balance, Header, Block, BlockId, UncheckedExtrinsic,
-	Remark, DownwardMessage,
+	BlockNumber, Moment, Signature, AccountPublic, AccountId, AccountIndex, ChainId, Hash, Nonce,
+	Balance, Header, Block, BlockId, UncheckedExtrinsic, Remark, DownwardMessage,
+	InboundDownwardMessage, CandidateHash, InboundHrmpMessage, OutboundHrmpMessage,
 };
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	Id, ParachainDispatchOrigin, LOWEST_USER_ID, UpwardMessage, HeadData, BlockData,
-	ValidationCode,
+	Id, LOWEST_USER_ID, HrmpChannelId, UpwardMessage, HeadData, BlockData, ValidationCode,
 };
 
 // Export some basic parachain primitives from v0.
@@ -149,8 +149,8 @@ impl<H> CandidateReceipt<H> {
 	}
 
 	/// Computes the blake2-256 hash of the receipt.
-	pub fn hash(&self) -> Hash where H: Encode {
-		BlakeTwo256::hash_of(self)
+	pub fn hash(&self) -> CandidateHash where H: Encode {
+		CandidateHash(BlakeTwo256::hash_of(self))
 	}
 }
 
@@ -197,7 +197,7 @@ impl<H: Clone> CommittedCandidateReceipt<H> {
 	///
 	/// This computes the canonical hash, not the hash of the directly encoded data.
 	/// Thus this is a shortcut for `candidate.to_plain().hash()`.
-	pub fn hash(&self) -> Hash where H: Encode {
+	pub fn hash(&self) -> CandidateHash where H: Encode {
 		self.to_plain().hash()
 	}
 }
@@ -266,6 +266,11 @@ pub struct PersistedValidationData<N = BlockNumber> {
 	/// vector is sorted ascending by the para id and doesn't contain multiple entries with the same
 	/// sender.
 	pub hrmp_mqc_heads: Vec<(Id, Hash)>,
+	/// The MQC head for the DMQ.
+	///
+	/// The DMQ MQC head will be used by the validation function to authorize the downward messages
+	/// passed by the collator.
+	pub dmq_mqc_head: Hash,
 }
 
 impl<N: Encode> PersistedValidationData<N> {
@@ -301,6 +306,8 @@ pub struct TransientValidationData<N = BlockNumber> {
 	/// which case the code upgrade should be applied at the end of the signaling
 	/// block.
 	pub code_upgrade_allowed: Option<N>,
+	/// The number of messages pending of the downward message queue.
+	pub dmq_length: u32,
 }
 
 /// Outputs of validating a candidate.
@@ -311,26 +318,34 @@ pub struct ValidationOutputs {
 	pub head_data: HeadData,
 	/// Upward messages to the relay chain.
 	pub upward_messages: Vec<UpwardMessage>,
-	/// Fees paid to the validators of the relay-chain.
-	pub fees: Balance,
+	/// The horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// The new validation code submitted by the execution, if any.
 	pub new_validation_code: Option<ValidationCode>,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: BlockNumber,
 }
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode)]
 #[cfg_attr(feature = "std", derive(Debug, Default, Hash))]
-pub struct CandidateCommitments {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
+pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// Horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
 	/// The root of a block's erasure encoding Merkle tree.
 	pub erasure_root: Hash,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: N,
 }
 
 impl CandidateCommitments {
@@ -415,7 +430,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 	}
 
 	// this is known, even in runtime, to be blake2-256.
-	let hash: Hash = backed.candidate.hash();
+	let hash = backed.candidate.hash();
 
 	let mut signed = 0;
 	for ((val_in_group_idx, _), attestation) in backed.validator_indices.iter().enumerate()
@@ -488,11 +503,11 @@ pub enum CoreOccupied {
 }
 
 /// This is the data we keep available for each candidate included in the relay chain.
-#[derive(Clone, Encode, Decode)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[cfg(feature = "std")]
+#[derive(Clone, Encode, Decode, PartialEq, Debug)]
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
-	pub pov: PoV,
+	pub pov: std::sync::Arc<PoV>,
 	/// The persisted validation data needed for secondary checks.
 	pub validation_data: PersistedValidationData,
 }
@@ -617,6 +632,11 @@ impl<N> CoreState<N> {
 			Self::Free => None,
 		}
 	}
+
+	/// Is this core state `Self::Occupied`?
+	pub fn is_occupied(&self) -> bool {
+		matches!(self, Self::Occupied(_))
+	}
 }
 
 /// An assumption being made about the state of an occupied core.
@@ -651,7 +671,7 @@ pub enum CandidateEvent<H = Hash> {
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	pub trait ParachainHost<H: Decode = Hash, N: Decode = BlockNumber> {
+	pub trait ParachainHost<H: Decode = Hash, N: Encode + Decode = BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
 
@@ -680,7 +700,6 @@ sp_api::decl_runtime_apis! {
 		fn persisted_validation_data(para_id: Id, assumption: OccupiedCoreAssumption)
 			-> Option<PersistedValidationData<N>>;
 
-		// TODO: Adding a Runtime API should be backwards compatible... right?
 		/// Checks if the given validation outputs pass the acceptance criteria.
 		fn check_validation_outputs(para_id: Id, outputs: ValidationOutputs) -> bool;
 
@@ -694,6 +713,14 @@ sp_api::decl_runtime_apis! {
 		/// Returns `None` if either the para is not registered or the assumption is `Freed`
 		/// and the para already occupies a core.
 		fn validation_code(para_id: Id, assumption: OccupiedCoreAssumption)
+			-> Option<ValidationCode>;
+
+		/// Fetch the historical validation code used by a para for candidates executed in the
+		/// context of a given block height in the current chain.
+		///
+		/// `context_height` may be no greater than the height of the block in whose
+		/// state the runtime API is executed.
+		fn historical_validation_code(para_id: Id, context_height: N)
 			-> Option<ValidationCode>;
 
 		/// Get the receipt of a candidate pending availability. This returns `Some` for any paras
@@ -712,6 +739,15 @@ sp_api::decl_runtime_apis! {
 		/// We assume that every validator runs authority discovery,
 		/// which would allow us to establish point-to-point connection to given validators.
 		fn validator_discovery(validators: Vec<ValidatorId>) -> Vec<Option<AuthorityDiscoveryId>>;
+
+		/// Get all the pending inbound messages in the downward message queue for a para.
+		fn dmq_contents(
+			recipient: Id,
+		) -> Vec<InboundDownwardMessage<N>>;
+
+		/// Get the contents of all channels addressed to the given recipient. Channels that have no
+		/// messages in them are also included.
+		fn inbound_hrmp_channels_contents(recipient: Id) -> BTreeMap<Id, Vec<InboundHrmpMessage<N>>>;
 	}
 }
 

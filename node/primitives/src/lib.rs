@@ -27,8 +27,8 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::v1::{
 	Hash, CommittedCandidateReceipt, CandidateReceipt, CompactStatement,
 	EncodeAs, Signed, SigningContext, ValidatorIndex, ValidatorId,
-	UpwardMessage, Balance, ValidationCode, PersistedValidationData, ValidationData,
-	HeadData, PoV, CollatorPair, Id as ParaId, ValidationOutputs,
+	UpwardMessage, ValidationCode, PersistedValidationData, ValidationData,
+	HeadData, PoV, CollatorPair, Id as ParaId, OutboundHrmpMessage, ValidationOutputs, CandidateHash,
 };
 use polkadot_statement_table::{
 	generic::{
@@ -54,10 +54,10 @@ pub enum Statement {
 	Seconded(CommittedCandidateReceipt),
 	/// A statement that a validator has deemed a candidate valid.
 	#[codec(index = "2")]
-	Valid(Hash),
+	Valid(CandidateHash),
 	/// A statement that a validator has deemed a candidate invalid.
 	#[codec(index = "3")]
-	Invalid(Hash),
+	Invalid(CandidateHash),
 }
 
 impl Statement {
@@ -252,29 +252,40 @@ impl std::convert::TryFrom<FromTableMisbehavior> for MisbehaviorReport {
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
-pub struct Collation {
-	/// Fees paid from the chain to the relay chain validators.
-	pub fees: Balance,
+pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
+	/// The horizontal messages sent by the parachain.
+	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
 	pub proof_of_validity: PoV,
+	/// The number of messages processed from the DMQ.
+	pub processed_downward_messages: u32,
+	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
+	pub hrmp_watermark: BlockNumber,
 }
+
+/// Collation function.
+///
+/// Will be called with the hash of the relay chain block the parachain
+/// block should be build on and the [`ValidationData`] that provides
+/// information about the state of the parachain on the relay chain.
+pub type CollatorFn = Box<
+	dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>>
+		+ Send
+		+ Sync,
+>;
 
 /// Configuration for the collation generator
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
-	/// Collation function.
-	///
-	/// Will be called with the hash of the relay chain block the parachain
-	/// block should be build on and the [`ValidationData`] that provides
-	/// information about the state of the parachain on the relay chain.
-	pub collator: Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync>,
+	/// Collation function. See [`CollatorFn`] for more details.
+	pub collator: CollatorFn,
 	/// The parachain that this collator collates for
 	pub para_id: ParaId,
 }

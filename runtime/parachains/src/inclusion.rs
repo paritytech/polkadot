@@ -36,7 +36,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use sp_staking::SessionIndex;
 use sp_runtime::{DispatchError, traits::{One, Saturating}};
 
-use crate::{configuration, paras, scheduler::CoreAssignment};
+use crate::{configuration, paras, router, scheduler::CoreAssignment};
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -86,7 +86,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 }
 
 pub trait Trait:
-	frame_system::Trait + paras::Trait + configuration::Trait
+	frame_system::Trait + paras::Trait + router::Trait + configuration::Trait
 {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
@@ -153,6 +153,14 @@ decl_error! {
 		ValidationDataHashMismatch,
 		/// Internal error only returned when compiled with debug assertions.
 		InternalError,
+		/// The downward message queue is not processed correctly.
+		IncorrectDownwardMessageHandling,
+		/// At least one upward message sent does not pass the acceptance criteria.
+		InvalidUpwardMessages,
+		/// The candidate didn't follow the rules of HRMP watermark advancement.
+		HrmpWatermarkMishandling,
+		/// The HRMP messages sent by the candidate is not valid.
+		InvalidOutboundHrmp,
 	}
 }
 
@@ -308,7 +316,7 @@ impl<T: Trait> Module<T> {
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
 				<PendingAvailability<T>>::remove(&para_id);
-				let commitments = match <PendingAvailabilityCommitments>::take(&para_id) {
+				let commitments = match PendingAvailabilityCommitments::take(&para_id) {
 					Some(commitments) => commitments,
 					None => {
 						debug::warn!(r#"
@@ -409,6 +417,10 @@ impl<T: Trait> Module<T> {
 					para_id,
 					&candidate.candidate.commitments.head_data,
 					&candidate.candidate.commitments.new_validation_code,
+					candidate.candidate.commitments.processed_downward_messages,
+					&candidate.candidate.commitments.upward_messages,
+					T::BlockNumber::from(candidate.candidate.commitments.hrmp_watermark),
+					&candidate.candidate.commitments.horizontal_messages,
 				)?;
 
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
@@ -540,6 +552,10 @@ impl<T: Trait> Module<T> {
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
+			validation_outputs.processed_downward_messages,
+			&validation_outputs.upward_messages,
+			T::BlockNumber::from(validation_outputs.hrmp_watermark),
+			&validation_outputs.horizontal_messages,
 		)
 	}
 
@@ -560,6 +576,24 @@ impl<T: Trait> Module<T> {
 				relay_parent_number + config.validation_upgrade_delay,
 			);
 		}
+
+		// enact the messaging facet of the candidate.
+		weight += <router::Module<T>>::prune_dmq(
+			receipt.descriptor.para_id,
+			commitments.processed_downward_messages,
+		);
+		weight += <router::Module<T>>::enact_upward_messages(
+			receipt.descriptor.para_id,
+			commitments.upward_messages,
+		);
+		weight += <router::Module<T>>::prune_hrmp(
+			receipt.descriptor.para_id,
+			T::BlockNumber::from(commitments.hrmp_watermark),
+		);
+		weight += <router::Module<T>>::queue_outbound_hrmp(
+			receipt.descriptor.para_id,
+			commitments.horizontal_messages,
+		);
 
 		Self::deposit_event(
 			Event::<T>::CandidateIncluded(plain, commitments.head_data.clone())
@@ -682,6 +716,10 @@ impl<T: Trait> CandidateCheckContext<T> {
 		para_id: ParaId,
 		head_data: &HeadData,
 		new_validation_code: &Option<primitives::v1::ValidationCode>,
+		processed_downward_messages: u32,
+		upward_messages: &[primitives::v1::UpwardMessage],
+		hrmp_watermark: T::BlockNumber,
+		horizontal_messages: &[primitives::v1::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), DispatchError> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
@@ -703,7 +741,38 @@ impl<T: Trait> CandidateCheckContext<T> {
 			);
 		}
 
-		// TODO: messaging acceptance criteria rules will go here.
+		// check if the candidate passes the messaging acceptance criteria
+		ensure!(
+			<router::Module<T>>::check_processed_downward_messages(
+				para_id,
+				processed_downward_messages,
+			),
+			Error::<T>::IncorrectDownwardMessageHandling,
+		);
+		ensure!(
+			<router::Module<T>>::check_upward_messages(
+				&self.config,
+				para_id,
+				upward_messages,
+			),
+			Error::<T>::InvalidUpwardMessages,
+		);
+		ensure!(
+			<router::Module<T>>::check_hrmp_watermark(
+				para_id,
+				self.relay_parent_number,
+				hrmp_watermark,
+			),
+			Error::<T>::HrmpWatermarkMishandling,
+		);
+		ensure!(
+			<router::Module<T>>::check_outbound_hrmp(
+				&self.config,
+				para_id,
+				horizontal_messages,
+			),
+			Error::<T>::InvalidOutboundHrmp,
+		);
 
 		Ok(())
 	}
@@ -911,6 +980,7 @@ mod tests {
 		relay_parent: Hash,
 		persisted_validation_data_hash: Hash,
 		new_validation_code: Option<ValidationCode>,
+		hrmp_watermark: BlockNumber,
 	}
 
 	impl TestCandidateBuilder {
@@ -926,6 +996,7 @@ mod tests {
 				commitments: CandidateCommitments {
 					head_data: self.head_data,
 					new_validation_code: self.new_validation_code,
+					hrmp_watermark: self.hrmp_watermark,
 					..Default::default()
 				},
 			}
@@ -1324,6 +1395,9 @@ mod tests {
 		let chain_b = ParaId::from(2);
 		let thread_a = ParaId::from(3);
 
+		// The block number of the relay-parent for testing.
+		const RELAY_PARENT_NUM: BlockNumber = 4;
+
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -1386,6 +1460,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1419,6 +1494,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				let mut candidate_b = TestCandidateBuilder {
@@ -1426,6 +1502,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([2; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1475,6 +1552,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 				collator_sign_candidate(
@@ -1544,6 +1622,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1583,6 +1662,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1621,6 +1701,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1668,6 +1749,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1708,6 +1790,7 @@ mod tests {
 					pov_hash: Hash::from([1; 32]),
 					new_validation_code: Some(vec![5, 6, 7, 8].into()),
 					persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1750,6 +1833,7 @@ mod tests {
 					relay_parent: System::parent_hash(),
 					pov_hash: Hash::from([1; 32]),
 					persisted_validation_data_hash: [42u8; 32].into(),
+					hrmp_watermark: RELAY_PARENT_NUM,
 					..Default::default()
 				}.build();
 
@@ -1784,6 +1868,9 @@ mod tests {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
 		let thread_a = ParaId::from(3);
+
+		// The block number of the relay-parent for testing.
+        const RELAY_PARENT_NUM: BlockNumber = 4;
 
 		let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
 		let validators = vec![
@@ -1845,6 +1932,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([1; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1857,6 +1945,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([2; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_b).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1869,6 +1958,7 @@ mod tests {
 				relay_parent: System::parent_hash(),
 				pov_hash: Hash::from([3; 32]),
 				persisted_validation_data_hash: make_vdata_hash(thread_a).unwrap(),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(
@@ -1966,6 +2056,9 @@ mod tests {
 	fn can_include_candidate_with_ok_code_upgrade() {
 		let chain_a = ParaId::from(1);
 
+		// The block number of the relay-parent for testing.
+		const RELAY_PARENT_NUM: BlockNumber = 4;
+
 		let paras = vec![(chain_a, true)];
 		let validators = vec![
 			Sr25519Keyring::Alice,
@@ -2009,6 +2102,7 @@ mod tests {
 				pov_hash: Hash::from([1; 32]),
 				persisted_validation_data_hash: make_vdata_hash(chain_a).unwrap(),
 				new_validation_code: Some(vec![1, 2, 3].into()),
+				hrmp_watermark: RELAY_PARENT_NUM,
 				..Default::default()
 			}.build();
 			collator_sign_candidate(

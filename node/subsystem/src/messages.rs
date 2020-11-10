@@ -36,10 +36,11 @@ use polkadot_primitives::v1::{
 	CollatorId, CommittedCandidateReceipt, CoreState, ErasureChunk,
 	GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, PoV, SessionIndex, SignedAvailabilityBitfield,
-	ValidationCode, ValidatorId, ValidationData,
-	ValidatorIndex, ValidatorSignature,
+	ValidationCode, ValidatorId, ValidationData, CandidateHash,
+	ValidatorIndex, ValidatorSignature, InboundDownwardMessage, InboundHrmpMessage,
 };
 use std::sync::Arc;
+use std::collections::btree_map::BTreeMap;
 
 /// A notification of a new backed candidate.
 #[derive(Debug)]
@@ -289,31 +290,31 @@ impl BitfieldSigningMessage {
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
 	/// Query a `AvailableData` from the AV store.
-	QueryAvailableData(Hash, oneshot::Sender<Option<AvailableData>>),
+	QueryAvailableData(CandidateHash, oneshot::Sender<Option<AvailableData>>),
 
 	/// Query whether a `AvailableData` exists within the AV Store.
 	///
 	/// This is useful in cases when existence
 	/// matters, but we don't want to necessarily pass around multiple
 	/// megabytes of data to get a single bit of information.
-	QueryDataAvailability(Hash, oneshot::Sender<bool>),
+	QueryDataAvailability(CandidateHash, oneshot::Sender<bool>),
 
 	/// Query an `ErasureChunk` from the AV store by the candidate hash and validator index.
-	QueryChunk(Hash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
+	QueryChunk(CandidateHash, ValidatorIndex, oneshot::Sender<Option<ErasureChunk>>),
 
 	/// Query whether an `ErasureChunk` exists within the AV Store.
 	///
 	/// This is useful in cases like bitfield signing, when existence
 	/// matters, but we don't want to necessarily pass around large
 	/// quantities of data to get a single bit of information.
-	QueryChunkAvailability(Hash, ValidatorIndex, oneshot::Sender<bool>),
+	QueryChunkAvailability(CandidateHash, ValidatorIndex, oneshot::Sender<bool>),
 
 	/// Store an `ErasureChunk` in the AV store.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
 	StoreChunk {
 		/// A hash of the candidate this chunk belongs to.
-		candidate_hash: Hash,
+		candidate_hash: CandidateHash,
 		/// A relevant relay parent.
 		relay_parent: Hash,
 		/// The index of the validator this chunk belongs to.
@@ -328,7 +329,7 @@ pub enum AvailabilityStoreMessage {
 	/// If `ValidatorIndex` is present store corresponding chunk also.
 	///
 	/// Return `Ok(())` if the store operation succeeded, `Err(())` if it failed.
-	StoreAvailableData(Hash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
+	StoreAvailableData(CandidateHash, Option<ValidatorIndex>, u32, AvailableData, oneshot::Sender<Result<(), ()>>),
 }
 
 impl AvailabilityStoreMessage {
@@ -419,7 +420,21 @@ pub enum RuntimeApiRequest {
 	/// Get the validation code for a para, taking the given `OccupiedCoreAssumption`, which
 	/// will inform on how the validation data should be computed if the para currently
 	/// occupies a core.
-	ValidationCode(ParaId, OccupiedCoreAssumption, RuntimeApiSender<Option<ValidationCode>>),
+	ValidationCode(
+		ParaId,
+		OccupiedCoreAssumption,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
+	/// Fetch the historical validation code used by a para for candidates executed in the
+	/// context of a given block height in the current chain.
+	///
+	/// `context_height` may be no greater than the height of the block in whose
+	/// state the runtime API is executed. Otherwise `None` is returned.
+	HistoricalValidationCode(
+		ParaId,
+		BlockNumber,
+		RuntimeApiSender<Option<ValidationCode>>,
+	),
 	/// Get a the candidate pending availability for a particular parachain by parachain / core index
 	CandidatePendingAvailability(ParaId, RuntimeApiSender<Option<CommittedCandidateReceipt>>),
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
@@ -429,7 +444,21 @@ pub enum RuntimeApiRequest {
 	/// Currently this request is limited to validators in the current session.
 	///
 	/// Returns `None` for validators not found in the current session.
-	ValidatorDiscovery(Vec<ValidatorId>, RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>),
+	ValidatorDiscovery(
+		Vec<ValidatorId>,
+		RuntimeApiSender<Vec<Option<AuthorityDiscoveryId>>>,
+	),
+	/// Get all the pending inbound messages in the downward message queue for a para.
+	DmqContents(
+		ParaId,
+		RuntimeApiSender<Vec<InboundDownwardMessage<BlockNumber>>>,
+	),
+	/// Get the contents of all channels addressed to the given recipient. Channels that have no
+	/// messages in them are also included.
+	InboundHrmpChannelsContents(
+		ParaId,
+		RuntimeApiSender<BTreeMap<ParaId, Vec<InboundHrmpMessage<BlockNumber>>>>,
+	),
 }
 
 /// A message to the Runtime API subsystem.
@@ -505,7 +534,7 @@ pub enum ProvisionerMessage {
 	/// where it can be assembled into the InclusionInherent.
 	RequestInherentData(Hash, oneshot::Sender<ProvisionerInherentData>),
 	/// This data should become part of a relay chain block
-	ProvisionableData(ProvisionableData),
+	ProvisionableData(Hash, ProvisionableData),
 }
 
 impl ProvisionerMessage {
@@ -514,7 +543,7 @@ impl ProvisionerMessage {
 		match self {
 			Self::RequestBlockAuthorshipData(hash, _) => Some(*hash),
 			Self::RequestInherentData(hash, _) => Some(*hash),
-			Self::ProvisionableData(_) => None,
+			Self::ProvisionableData(hash, _) => Some(*hash),
 		}
 	}
 }

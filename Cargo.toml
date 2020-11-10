@@ -13,6 +13,8 @@ readme = "README.md"
 
 [dependencies]
 cli = { package = "polkadot-cli", path = "cli" }
+color-eyre = "0.5.6"
+thiserror = "1"
 futures = "0.3.4"
 service = { package = "polkadot-service", path = "node/service" }
 parity-util-mem = { version = "*", default-features = false, features = ["jemalloc-global"] }
@@ -32,7 +34,7 @@ members = [
 	"runtime/parachains",
 	"runtime/polkadot",
 	"runtime/kusama",
-	"runtime/rococo-v1",
+	"runtime/rococo",
 	"runtime/westend",
 	"runtime/test-runtime",
 	"statement-table",
@@ -67,10 +69,16 @@ members = [
 	"node/test/service",
 	"parachain/test-parachains",
 	"parachain/test-parachains/adder",
+	"parachain/test-parachains/adder/collator",
 ]
 
 [badges]
 maintenance = { status = "actively-developed" }
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+opt-level = 3
 
 [profile.release]
 # Polkadot runtime requires unwinding.
@@ -78,6 +86,7 @@ panic = "unwind"
 
 [features]
 runtime-benchmarks=["cli/runtime-benchmarks"]
+real-overseer=["cli/real-overseer"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

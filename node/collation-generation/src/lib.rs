@@ -129,8 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: LOG_TARGET, "failed to handle new activations: {:?}", err);
-						return true;
+						log::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
 					};
 				}
 				false
@@ -140,12 +139,11 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::warn!(target: LOG_TARGET, "double initialization");
-					true
+					log::error!(target: LOG_TARGET, "double initialization");
 				} else {
 					self.config = Some(Arc::new(config));
-					false
 				}
+				false
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
@@ -165,7 +163,10 @@ where
 	Context: SubsystemContext<Message = CollationGenerationMessage>,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
-		let future = Box::pin(self.run(ctx));
+		let future = Box::pin(async move {
+			self.run(ctx).await;
+			Ok(())
+		});
 
 		SpawnedSubsystem {
 			name: "collation-generation-subsystem",
@@ -272,11 +273,13 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				};
 
 				let commitments = CandidateCommitments {
-					fees: collation.fees,
 					upward_messages: collation.upward_messages,
+					horizontal_messages: collation.horizontal_messages,
 					new_validation_code: collation.new_validation_code,
 					head_data: collation.head_data,
 					erasure_root,
+					processed_downward_messages: collation.processed_downward_messages,
+					hrmp_watermark: collation.hrmp_watermark,
 				};
 
 				let ccr = CandidateReceipt {
@@ -317,7 +320,7 @@ fn erasure_root(
 ) -> crate::error::Result<Hash> {
 	let available_data = AvailableData {
 		validation_data: persisted_validation,
-		pov,
+		pov: Arc::new(pov),
 	};
 
 	let chunks = polkadot_erasure_coding::obtain_chunks_v1(n_validators, &available_data)?;
@@ -380,13 +383,15 @@ mod tests {
 
 		fn test_collation() -> Collation {
 			Collation {
-				fees: Default::default(),
 				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: Default::default(),
 				head_data: Default::default(),
 				proof_of_validity: PoV {
 					block_data: BlockData(Vec::new()),
 				},
+				processed_downward_messages: Default::default(),
+				hrmp_watermark: Default::default(),
 			}
 		}
 

@@ -39,10 +39,13 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v1::{
 	BackedCandidate, BlockNumber, CoreState, Hash, OccupiedCoreAssumption,
-	SignedAvailabilityBitfield,
+	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{collections::HashMap, convert::TryFrom, pin::Pin};
+use std::{convert::TryFrom, pin::Pin};
+use std::collections::BTreeMap;
 use thiserror::Error;
+
+const LOG_TARGET: &str = "provisioner";
 
 struct ProvisioningJob {
 	relay_parent: Hash,
@@ -202,7 +205,7 @@ impl ProvisioningJob {
 					)
 					.await
 					{
-						log::warn!(target: "provisioner", "failed to assemble or send inherent data: {:?}", err);
+						log::warn!(target: LOG_TARGET, "failed to assemble or send inherent data: {:?}", err);
 						self.metrics.on_inherent_data_request(Err(()));
 					} else {
 						self.metrics.on_inherent_data_request(Ok(()));
@@ -211,7 +214,7 @@ impl ProvisioningJob {
 				ToJob::Provisioner(RequestBlockAuthorshipData(_, sender)) => {
 					self.provisionable_data_channels.push(sender)
 				}
-				ToJob::Provisioner(ProvisionableData(data)) => {
+				ToJob::Provisioner(ProvisionableData(_, data)) => {
 					let mut bad_indices = Vec::new();
 					for (idx, channel) in self.provisionable_data_channels.iter_mut().enumerate() {
 						match channel.send(data.clone()).await {
@@ -266,23 +269,23 @@ impl ProvisioningJob {
 
 type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
 
-// The provisioner is the subsystem best suited to choosing which specific
-// backed candidates and availability bitfields should be assembled into the
-// block. To engage this functionality, a
-// `ProvisionerMessage::RequestInherentData` is sent; the response is a set of
-// non-conflicting candidates and the appropriate bitfields. Non-conflicting
-// means that there are never two distinct parachain candidates included for
-// the same parachain and that new parachain candidates cannot be included
-// until the previous one either gets declared available or expired.
-//
-// The main complication here is going to be around handling
-// occupied-core-assumptions. We might have candidates that are only
-// includable when some bitfields are included. And we might have candidates
-// that are not includable when certain bitfields are included.
-//
-// When we're choosing bitfields to include, the rule should be simple:
-// maximize availability. So basically, include all bitfields. And then
-// choose a coherent set of candidates along with that.
+/// The provisioner is the subsystem best suited to choosing which specific
+/// backed candidates and availability bitfields should be assembled into the
+/// block. To engage this functionality, a
+/// `ProvisionerMessage::RequestInherentData` is sent; the response is a set of
+/// non-conflicting candidates and the appropriate bitfields. Non-conflicting
+/// means that there are never two distinct parachain candidates included for
+/// the same parachain and that new parachain candidates cannot be included
+/// until the previous one either gets declared available or expired.
+///
+/// The main complication here is going to be around handling
+/// occupied-core-assumptions. We might have candidates that are only
+/// includable when some bitfields are included. And we might have candidates
+/// that are not includable when certain bitfields are included.
+///
+/// When we're choosing bitfields to include, the rule should be simple:
+/// maximize availability. So basically, include all bitfields. And then
+/// choose a coherent set of candidates along with that.
 async fn send_inherent_data(
 	relay_parent: Hash,
 	bitfields: &[SignedAvailabilityBitfield],
@@ -310,48 +313,47 @@ async fn send_inherent_data(
 	Ok(())
 }
 
-// in general, we want to pick all the bitfields. However, we have the following constraints:
-//
-// - not more than one per validator
-// - each must correspond to an occupied core
-//
-// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
-// we pick the one with the greatest number of 1 bits.
-//
-// note: this does not enforce any sorting precondition on the output; the ordering there will be unrelated
-// to the sorting of the input.
+/// In general, we want to pick all the bitfields. However, we have the following constraints:
+///
+/// - not more than one per validator
+/// - each 1 bit must correspond to an occupied core
+///
+/// If we have too many, an arbitrary selection policy is fine. For purposes of maximizing availability,
+/// we pick the one with the greatest number of 1 bits.
+///
+/// Note: This does not enforce any sorting precondition on the output; the ordering there will be unrelated
+/// to the sorting of the input.
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
 ) -> Vec<SignedAvailabilityBitfield> {
-	let mut fields_by_core: HashMap<_, Vec<_>> = HashMap::new();
-	for bitfield in bitfields.iter() {
-		let core_idx = bitfield.validator_index() as usize;
-		if let CoreState::Occupied(_) = cores[core_idx] {
-			fields_by_core
-				.entry(core_idx)
-				// there cannot be a value list in field_by_core with len < 1
-				.or_default()
-				.push(bitfield.clone());
+	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
+
+	'a:
+	for bitfield in bitfields.iter().cloned() {
+		if bitfield.payload().0.len() != cores.len() {
+			continue
 		}
+
+		let is_better = selected.get(&bitfield.validator_index())
+			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
+
+		if !is_better { continue }
+
+		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
+			// Bit is set for an unoccupied core - invalid
+			if *bitfield.payload().0.get(idx).unwrap_or(&false) {
+				continue 'a
+			}
+		}
+
+		let _ = selected.insert(bitfield.validator_index(), bitfield);
 	}
 
-	let mut out = Vec::with_capacity(fields_by_core.len());
-	for (_, core_bitfields) in fields_by_core.iter_mut() {
-		core_bitfields.sort_by_key(|bitfield| bitfield.payload().0.count_ones());
-		out.push(
-			core_bitfields
-				.pop()
-				.expect("every core bitfield has at least 1 member; qed"),
-		);
-	}
-
-	out
+	selected.into_iter().map(|(_, b)| b).collect()
 }
 
-// determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-//
-// follow the candidate selection algorithm from the guide
+/// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
@@ -368,8 +370,7 @@ async fn select_candidates(
 		let (scheduled_core, assumption) = match core {
 			CoreState::Scheduled(scheduled_core) => (scheduled_core, OccupiedCoreAssumption::Free),
 			CoreState::Occupied(occupied_core) => {
-				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability)
-				{
+				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability) {
 					if let Some(ref scheduled_core) = occupied_core.next_up_on_available {
 						(scheduled_core, OccupiedCoreAssumption::Included)
 					} else {
@@ -417,8 +418,8 @@ async fn select_candidates(
 	Ok(selected_candidates)
 }
 
-// produces a block number 1 higher than that of the relay parent
-// in the event of an invalid `relay_parent`, returns `Ok(0)`
+/// Produces a block number 1 higher than that of the relay parent
+/// in the event of an invalid `relay_parent`, returns `Ok(0)`
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
 	sender: &mut mpsc::Sender<FromJob>,
@@ -438,19 +439,18 @@ async fn get_block_number_under_construction(
 	}
 }
 
-// the availability bitfield for a given core is the transpose
-// of a set of signed availability bitfields. It goes like this:
-//
-//   - construct a transverse slice along `core_idx`
-//   - bitwise-or it with the availability slice
-//   - count the 1 bits, compare to the total length; true on 2/3+
+/// The availability bitfield for a given core is the transpose
+/// of a set of signed availability bitfields. It goes like this:
+///
+/// - construct a transverse slice along `core_idx`
+/// - bitwise-or it with the availability slice
+/// - count the 1 bits, compare to the total length; true on 2/3+
 fn bitfields_indicate_availability(
 	core_idx: usize,
 	bitfields: &[SignedAvailabilityBitfield],
 	availability: &CoreAvailability,
 ) -> bool {
 	let mut availability = availability.clone();
-	// we need to pre-compute this to avoid a borrow-immutable-while-borrowing-mutable error in the error message
 	let availability_len = availability.len();
 
 	for bitfield in bitfields {
@@ -460,12 +460,19 @@ fn bitfields_indicate_availability(
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
-				log::warn!(target: "provisioner", "attempted to set a transverse bit at idx {} which is greater than bitfield size {}", validator_idx, availability_len);
+				log::warn!(
+					target: LOG_TARGET,
+					"attempted to set a transverse bit at idx {} which is greater than bitfield size {}",
+					validator_idx,
+					availability_len,
+				);
+
 				return false;
 			}
 			Some(mut bit_mut) => *bit_mut |= bitfield.payload().0[core_idx],
 		}
 	}
+
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
@@ -482,7 +489,7 @@ impl Metrics {
 	fn on_inherent_data_request(&self, response: Result<(), ()>) {
 		if let Some(metrics) = &self.0 {
 			match response {
-				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeded"]).inc(),
+				Ok(()) => metrics.inherent_data_requests.with_label_values(&["succeeded"]).inc(),
 				Err(()) => metrics.inherent_data_requests.with_label_values(&["failed"]).inc(),
 			}
 		}
@@ -498,7 +505,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_inherent_data_requests_total",
 						"Number of InherentData requests served by provisioner.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?,

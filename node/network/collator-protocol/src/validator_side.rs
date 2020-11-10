@@ -20,6 +20,7 @@ use std::task::Poll;
 
 use futures::{
 	StreamExt,
+	FutureExt,
 	channel::oneshot,
 	future::BoxFuture,
 	stream::FuturesUnordered,
@@ -44,7 +45,7 @@ use polkadot_node_subsystem_util::{
 	metrics::{self, prometheus},
 };
 
-use super::{modify_reputation, TARGET, Result};
+use super::{modify_reputation, LOG_TARGET, Result};
 
 const COST_UNEXPECTED_MESSAGE: Rep = Rep::new(-10, "An unexpected message");
 const COST_REQUEST_TIMED_OUT: Rep = Rep::new(-20, "A collation request has timed out");
@@ -52,7 +53,7 @@ const COST_REPORT_BAD: Rep = Rep::new(-50, "A collator was reported by another s
 const BENEFIT_NOTIFY_GOOD: Rep = Rep::new(50, "A collator was noted good by another subsystem");
 
 #[derive(Clone, Default)]
-pub(super) struct Metrics(Option<MetricsInner>);
+pub struct Metrics(Option<MetricsInner>);
 
 impl Metrics {
 	fn on_request(&self, succeeded: std::result::Result<(), ()>) {
@@ -81,7 +82,7 @@ impl metrics::Metrics for Metrics {
 						"parachain_collation_requests_total",
 						"Number of collations requested from Collators.",
 					),
-					&["succeeded", "failed"],
+					&["success"],
 				)?,
 				registry,
 			)?
@@ -121,7 +122,6 @@ impl CollationRequest {
 			timeout,
 			request_id,
 		} = self;
-
 
 		match received.timeout(timeout).await {
 			None => Timeout(request_id),
@@ -207,7 +207,7 @@ where
 					// We do not want this to be fatal because the receving subsystem
 					// may have closed the results channel for some reason.
 					trace!(
-						target: TARGET,
+						target: LOG_TARGET,
 						"Failed to send collation: {:?}", e,
 					);
 				}
@@ -381,7 +381,7 @@ where
 {
 	if !state.view.contains(&relay_parent) {
 		trace!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Collation by {} on {} on relay parent {} is no longer in view",
 			peer_id, para_id, relay_parent,
 		);
@@ -390,7 +390,7 @@ where
 
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
 		trace!(
-			target: TARGET,
+			target: LOG_TARGET,
 			"Collation by {} on {} on relay parent {} has already been requested",
 			peer_id, para_id, relay_parent,
 		);
@@ -417,9 +417,7 @@ where
 
 	state.requests_info.insert(request_id, per_request);
 
-	state.requests_in_progress.push(Box::pin(async move {
-		request.wait().await
-	}));
+	state.requests_in_progress.push(request.wait().boxed());
 
 	let wire_message = protocol_v1::CollatorProtocolMessage::RequestCollation(
 		request_id,
@@ -616,13 +614,13 @@ where
 	match msg {
 		CollateOn(id) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"CollateOn({}) message is not expected on the validator side of the protocol", id,
 			);
 		}
 		DistributeCollation(_, _) => {
 			warn!(
-				target: TARGET,
+				target: LOG_TARGET,
 				"DistributeCollation message is not expected on the validator side of the protocol",
 			);
 		}
@@ -642,7 +640,7 @@ where
 				event,
 			).await {
 				warn!(
-					target: TARGET,
+					target: LOG_TARGET,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}
@@ -673,7 +671,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(target: TARGET, "Received a message {:?}", msg);
+			trace!(target: LOG_TARGET, "Received a message {:?}", msg);
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -689,7 +687,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					trace!(target: TARGET, "Request timed out {}", id);
+					trace!(target: LOG_TARGET, "Request timed out {}", id);
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {
@@ -761,7 +759,7 @@ mod tests {
 				log::LevelFilter::Trace,
 			)
 			.filter(
-				Some(TARGET),
+				Some(LOG_TARGET),
 				log::LevelFilter::Trace,
 			)
 			.try_init();
