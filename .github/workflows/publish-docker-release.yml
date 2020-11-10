@@ -31,8 +31,10 @@ jobs:
           push: true
           file: scripts/docker/release.Dockerfile
           tags: |
-            parity/polkadot:latest
-            parity/polkadot:${{ github.event.release.tag_name }}
+            martinparity/polkadot:latest
+            martinparity/polkadot:${{ github.event.release.tag_name }}
+          build-args: |
+            POLKADOT_VERSION=${{ github.event.release.tag_name }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest
