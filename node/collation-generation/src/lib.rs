@@ -95,7 +95,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							tracing::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
+							tracing::warn!(target: LOG_TARGET, err=?err, "failed to forward message to overseer: {:?}", err);
 							break;
 						}
 					}
@@ -129,7 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						tracing::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
+						tracing::warn!(target: LOG_TARGET, err=?err, "failed to handle new activations: {}", err);
 					};
 				}
 				false
@@ -302,6 +302,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,
+						para_id= %scheduled_core.para_id,
+						err=?err,
 						"failed to send collation result for para_id {}: {:?}",
 						scheduled_core.para_id,
 						err

@@ -170,7 +170,7 @@ impl BitfieldDistribution {
 						hash,
 						signed_availability,
 					).await {
-						warn!(target: LOG_TARGET, "Failed to reply to `DistributeBitfield` message: {}", err);
+						warn!(target: LOG_TARGET, err=?err, "Failed to reply to `DistributeBitfield` message: {}", err);
 					}
 				}
 				FromOverseer::Communication {
@@ -179,7 +179,7 @@ impl BitfieldDistribution {
 					trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					if let Err(e) = handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await {
-						warn!(target: LOG_TARGET, "Failed to handle incoming network messages: {:?}", e);
+						warn!(target: LOG_TARGET, err=?e, "Failed to handle incoming network messages: {:?}", e);
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
@@ -203,7 +203,7 @@ impl BitfieldDistribution {
 								);
 							}
 							Err(e) => {
-								warn!(target: LOG_TARGET, "query_basics has failed: {}", e);
+								warn!(target: LOG_TARGET, err=?e, "query_basics has failed: {}", e);
 							}
 							_ => {},
 						}
@@ -498,6 +498,7 @@ fn handle_our_view_change(state: &mut ProtocolState, view: View) -> SubsystemRes
 		if !state.per_relay_parent.contains_key(&added) {
 			warn!(
 				target: LOG_TARGET,
+				added=%added,
 				"Our view contains {} but the overseer never told use we should work on this",
 				&added
 			);
@@ -642,7 +643,7 @@ where
 			SigningContext { parent_hash: relay_parent, session_index: s },
 		))),
 		(Err(e), _) | (_, Err(e)) => {
-			warn!(target: LOG_TARGET, "Failed to fetch basics from runtime API: {:?}", e);
+			warn!(target: LOG_TARGET, err=?e, "Failed to fetch basics from runtime API: {:?}", e);
 			Ok(None)
 		}
 	}

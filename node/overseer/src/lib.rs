@@ -1617,7 +1617,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner.spawn(name, fut);
 
 	let _ = streams.push(from_rx);
-	futures.push(Box::pin(rx.map(|e| { tracing::warn!("Dropping error {:?}", e); Ok(()) })));
+	futures.push(Box::pin(rx.map(|e| { tracing::warn!(err=?e, "Dropping error {:?}", e); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,

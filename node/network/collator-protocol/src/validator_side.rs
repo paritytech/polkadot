@@ -622,6 +622,7 @@ where
 		CollateOn(id) => {
 			warn!(
 				target: LOG_TARGET,
+				id=%id,
 				"CollateOn({}) message is not expected on the validator side of the protocol", id,
 			);
 		}
@@ -648,6 +649,7 @@ where
 			).await {
 				warn!(
 					target: LOG_TARGET,
+					err=?e,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}

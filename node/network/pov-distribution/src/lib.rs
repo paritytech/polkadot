@@ -136,6 +136,7 @@ async fn handle_signal(
 					Err(e) => {
 						tracing::warn!(
 							target: LOG_TARGET,
+							err=?e,
 							"Error fetching validators from runtime API for active leaf: {:?}",
 							e
 						);
@@ -286,8 +287,11 @@ async fn handle_fetch(
 	}
 
 	if relay_parent_state.fetching.len() > 2 * relay_parent_state.n_validators {
-		tracing::warn!("Other subsystems have requested PoV distribution to \
-			fetch more PoVs than reasonably expected: {}", relay_parent_state.fetching.len());
+		tracing::warn!(
+			fetching_len=relay_parent_state.fetching.len(),
+			"Other subsystems have requested PoV distribution to \
+			fetch more PoVs than reasonably expected: {}",
+			relay_parent_state.fetching.len());
 		return Ok(());
 	}
 

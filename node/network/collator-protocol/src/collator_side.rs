@@ -154,6 +154,7 @@ where
 	if !state.view.contains(&relay_parent) {
 		warn!(
 			target: LOG_TARGET,
+			relay_parent=?relay_parent,
 			"Distribute collation message parent {:?} is outside of our view",
 			relay_parent,
 		);
@@ -173,6 +174,8 @@ where
 		None => {
 			warn!(
 				target: LOG_TARGET,
+				id=?id,
+				relay_parent=?relay_parent,
 				"Looks like no core is assigned to {:?} at {:?}", id, relay_parent,
 			);
 			return Ok(());
@@ -185,6 +188,7 @@ where
 		None => {
 			warn!(
 				target: LOG_TARGET,
+				core=?our_core,
 				"There are no validators assigned to {:?} core", our_core,
 			);
 
@@ -379,6 +383,8 @@ where
 					// the one we expect, we ignore the message.
 					warn!(
 						target: LOG_TARGET,
+						para=?receipt.descriptor.para_id,
+						collating_on=?id,
 						"DistributeCollation message for para {:?} while collating on {:?}",
 						receipt.descriptor.para_id,
 						id,
@@ -390,6 +396,7 @@ where
 				None => {
 					warn!(
 						target: LOG_TARGET,
+						para=?receipt.descriptor.para_id,
 						"DistributeCollation message for para {:?} while not collating on any",
 						receipt.descriptor.para_id,
 					);
@@ -422,6 +429,7 @@ where
 			).await {
 				warn!(
 					target: LOG_TARGET,
+					err=?e,
 					"Failed to handle incoming network message: {:?}", e,
 				);
 			}
@@ -496,6 +504,8 @@ where
 					} else {
 						warn!(
 							target: LOG_TARGET,
+							for_para_id=?para_id,
+							our_para_id=?our_para_id,
 							"Received a RequestCollation for {:?} while collating on {:?}",
 							para_id, our_para_id,
 						);
@@ -504,6 +514,7 @@ where
 				None => {
 					warn!(
 						target: LOG_TARGET,
+						for_para_id=?para_id,
 						"Received a RequestCollation for {:?} while not collating on any para",
 						para_id,
 					);
@@ -648,6 +659,7 @@ where
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
 					warn!(
 						target: LOG_TARGET,
+						err=?err,
 						"Failed to declare our collator id: {:?}",
 						err,
 					);
@@ -661,7 +673,7 @@ where
 			match msg? {
 				Communication { msg } => {
 					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
-						warn!(target: LOG_TARGET, "Failed to process message: {}", e);
+						warn!(target: LOG_TARGET, err=?e, "Failed to process message: {}", e);
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}
