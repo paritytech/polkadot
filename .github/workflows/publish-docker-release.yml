@@ -35,6 +35,8 @@ jobs:
             martinparity/polkadot:${{ github.event.release.tag_name }}
           build-args: |
             POLKADOT_VERSION=${{ github.event.release.tag_name }}
+            VCS_REF=${{ github.ref }}
+            BUILD_DATE=${{ github.event.release.published_at }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
       - name: Image digest
