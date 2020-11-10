@@ -1337,7 +1337,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				log::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
+				tracing::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
 				self.stop().await;
 				return finished;
 			}
@@ -1607,9 +1607,9 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 
 	let fut = Box::pin(async move {
 		if let Err(e) = future.await {
-			log::error!("Subsystem {} exited with error {:?}", name, e);
+			tracing::error!("Subsystem {} exited with error {:?}", name, e);
 		} else {
-			log::debug!("Subsystem {} exited without an error", name);
+			tracing::debug!("Subsystem {} exited without an error", name);
 		}
 		let _ = tx.send(());
 	});
@@ -1617,7 +1617,7 @@ fn spawn<S: SpawnNamed, M: Send + 'static>(
 	spawner.spawn(name, fut);
 
 	let _ = streams.push(from_rx);
-	futures.push(Box::pin(rx.map(|e| { log::warn!("Dropping error {:?}", e); Ok(()) })));
+	futures.push(Box::pin(rx.map(|e| { tracing::warn!("Dropping error {:?}", e); Ok(()) })));
 
 	let instance = Some(SubsystemInstance {
 		tx: to_tx,

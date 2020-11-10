@@ -19,7 +19,7 @@ use std::collections::HashMap;
 use super::{LOG_TARGET,  Result};
 
 use futures::{StreamExt, task::Poll};
-use log::warn;
+use tracing::warn;
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
@@ -682,7 +682,7 @@ mod tests {
 
 	use assert_matches::assert_matches;
 	use futures::{executor, future, Future};
-	use log::trace;
+	use tracing::trace;
 	use smallvec::smallvec;
 
 	use sp_core::crypto::Pair;

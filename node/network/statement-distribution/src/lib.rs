@@ -111,7 +111,7 @@ impl VcPerPeerTracker {
 	/// based on a message that we have sent it from our local pool.
 	fn note_local(&mut self, h: CandidateHash) {
 		if !note_hash(&mut self.local_observed, h) {
-			log::warn!("Statement distribution is erroneously attempting to distribute more \
+			tracing::warn!("Statement distribution is erroneously attempting to distribute more \
 				than {} candidate(s) per validator index. Ignoring", VC_THRESHOLD);
 		}
 	}
@@ -688,7 +688,7 @@ async fn handle_incoming_message<'a>(
 		None => {
 			// This should never be out-of-sync with our view if the view updates
 			// correspond to actual `StartWork` messages. So we just log and ignore.
-			log::warn!("Our view out-of-sync with active heads. Head {} not found", relay_parent);
+			tracing::warn!("Our view out-of-sync with active heads. Head {} not found", relay_parent);
 			return Ok(None);
 		}
 	};
@@ -847,7 +847,7 @@ async fn handle_network_update(
 
 			for new in our_view.difference(&old_view) {
 				if !active_heads.contains_key(&new) {
-					log::warn!(target: LOG_TARGET, "Our network bridge view update \
+					tracing::warn!(target: LOG_TARGET, "Our network bridge view update \
 						inconsistent with `StartWork` messages we have received from overseer. \
 						Contains unknown hash {}", new);
 				}
@@ -899,7 +899,7 @@ impl StatementDistribution {
 							match (val_rx.await?, session_rx.await?) {
 								(Ok(v), Ok(s)) => (v, s),
 								(Err(e), _) | (_, Err(e)) => {
-									log::warn!(
+									tracing::warn!(
 										target: LOG_TARGET,
 										"Failed to fetch runtime API data for active leaf: {:?}",
 										e,

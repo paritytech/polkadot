@@ -780,7 +780,7 @@ impl util::JobTrait for CandidateBackingJob {
 					match $x {
 						Ok(x) => x,
 						Err(e) => {
-							log::warn!(
+							tracing::warn!(
 								target: LOG_TARGET,
 								"Failed to fetch runtime API data for job: {:?}",
 								e,
@@ -820,7 +820,7 @@ impl util::JobTrait for CandidateBackingJob {
 				Ok(v) => v,
 				Err(util::Error::NotAValidator) => { return Ok(()) },
 				Err(e) => {
-					log::warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						"Cannot participate in candidate backing: {:?}",
 						e

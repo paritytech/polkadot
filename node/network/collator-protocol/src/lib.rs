@@ -21,7 +21,7 @@
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use log::trace;
+use tracing::trace;
 use thiserror::Error;
 
 use polkadot_subsystem::{

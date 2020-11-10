@@ -95,7 +95,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							log::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
+							tracing::warn!(target: LOG_TARGET, "failed to forward message to overseer: {:?}", err);
 							break;
 						}
 					}
@@ -129,7 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						log::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
+						tracing::warn!(target: LOG_TARGET, "failed to handle new activations: {}", err);
 					};
 				}
 				false
@@ -139,7 +139,7 @@ impl CollationGenerationSubsystem {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
-					log::error!(target: LOG_TARGET, "double initialization");
+					tracing::error!(target: LOG_TARGET, "double initialization");
 				} else {
 					self.config = Some(Arc::new(config));
 				}
@@ -147,7 +147,7 @@ impl CollationGenerationSubsystem {
 			}
 			Ok(Signal(BlockFinalized(_))) => false,
 			Err(err) => {
-				log::error!(
+				tracing::error!(
 					target: LOG_TARGET,
 					"error receiving message from subsystem context: {:?}",
 					err
@@ -237,7 +237,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				let collation = match (task_config.collator)(relay_parent, &validation_data).await {
 					Some(collation) => collation,
 					None => {
-						log::debug!(
+						tracing::debug!(
 							target: LOG_TARGET,
 							"collator returned no collation on collate for para_id {}.",
 							scheduled_core.para_id,
@@ -262,7 +262,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				) {
 					Ok(erasure_root) => erasure_root,
 					Err(err) => {
-						log::error!(
+						tracing::error!(
 							target: LOG_TARGET,
 							"failed to calculate erasure root for para_id {}: {:?}",
 							scheduled_core.para_id,
@@ -299,7 +299,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				if let Err(err) = task_sender.send(AllMessages::CollatorProtocol(
 					CollatorProtocolMessage::DistributeCollation(ccr, collation.proof_of_validity)
 				)).await {
-					log::warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						"failed to send collation result for para_id {}: {:?}",
 						scheduled_core.para_id,

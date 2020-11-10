@@ -134,7 +134,7 @@ async fn handle_signal(
 				let n_validators = match vals_rx.await? {
 					Ok(v) => v.len(),
 					Err(e) => {
-						log::warn!(
+						tracing::warn!(
 							target: LOG_TARGET,
 							"Error fetching validators from runtime API for active leaf: {:?}",
 							e
@@ -286,7 +286,7 @@ async fn handle_fetch(
 	}
 
 	if relay_parent_state.fetching.len() > 2 * relay_parent_state.n_validators {
-		log::warn!("Other subsystems have requested PoV distribution to \
+		tracing::warn!("Other subsystems have requested PoV distribution to \
 			fetch more PoVs than reasonably expected: {}", relay_parent_state.fetching.len());
 		return Ok(());
 	}
@@ -359,7 +359,7 @@ async fn handle_awaiting(
 
 	let relay_parent_state = match state.relay_parent_state.get_mut(&relay_parent) {
 		None => {
-			log::warn!("PoV Distribution relay parent state out-of-sync with our view");
+			tracing::warn!("PoV Distribution relay parent state out-of-sync with our view");
 			return Ok(());
 		}
 		Some(s) => s,

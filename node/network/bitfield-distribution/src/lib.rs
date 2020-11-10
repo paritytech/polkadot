@@ -25,7 +25,7 @@
 use codec::{Decode, Encode};
 use futures::{channel::oneshot, FutureExt};
 
-use log::{debug, trace, warn};
+use tracing::{debug, trace, warn};
 use polkadot_subsystem::messages::*;
 use polkadot_subsystem::{
 	ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, Subsystem, SubsystemContext, SubsystemResult,

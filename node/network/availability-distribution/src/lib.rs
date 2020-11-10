@@ -30,7 +30,7 @@ use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use log::{trace, warn};
+use tracing::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,

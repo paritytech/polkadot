@@ -25,7 +25,7 @@ use futures::{
 	future::BoxFuture,
 	stream::FuturesUnordered,
 };
-use log::{trace, warn};
+use tracing::{trace, warn};
 
 use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
@@ -784,7 +784,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		log::trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!("Sending message:\n{:?}", &msg);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -799,7 +799,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-		log::trace!("Received message:\n{:?}", &msg);
+		tracing::trace!("Received message:\n{:?}", &msg);
 
 		msg
 	}
@@ -808,7 +808,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		log::trace!("Waiting for message...");
+		tracing::trace!("Waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)
@@ -826,7 +826,7 @@ mod tests {
 			} = test_harness;
 
 			let pair = CollatorPair::generate().0;
-			log::trace!("activating");
+			tracing::trace!("activating");
 
 			overseer_send(
 				&mut virtual_overseer,

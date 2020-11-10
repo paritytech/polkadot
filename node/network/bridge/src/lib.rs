@@ -291,7 +291,7 @@ fn action_from_overseer_message(
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
 		Err(e) => {
-			log::warn!(target: TARGET, "Shutting down Network Bridge due to error {:?}", e);
+			tracing::warn!(target: TARGET, "Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
 		}
 	}
@@ -300,7 +300,7 @@ fn action_from_overseer_message(
 fn action_from_network_message(event: Option<NetworkEvent>) -> Action {
 	match event {
 		None => {
-			log::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
+			tracing::info!(target: TARGET, "Shutting down Network Bridge: underlying event stream concluded");
 			Action::Abort
 		}
 		Some(NetworkEvent::Dht(_)) => Action::Nop,
@@ -384,7 +384,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -392,7 +392,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		log::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: TARGET, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -691,7 +691,7 @@ where
 						};
 
 						if let Err(e) = res {
-							log::warn!("Aborting - Failure to dispatch messages to overseer");
+							tracing::warn!("Aborting - Failure to dispatch messages to overseer");
 							return Err(e);
 						}
 					}
@@ -718,7 +718,7 @@ where
 					};
 
 					if let Err(e) = res {
-						log::warn!(
+						tracing::warn!(
 							target: TARGET,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
@@ -739,7 +739,7 @@ where
 						events,
 						&mut ctx,
 					).await {
-						log::warn!(
+						tracing::warn!(
 							target: TARGET,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
@@ -759,7 +759,7 @@ where
 						events,
 						&mut ctx,
 					).await {
-						log::warn!(
+						tracing::warn!(
 							target: TARGET,
 							"Aborting - Failure to dispatch messages to overseer",
 						);

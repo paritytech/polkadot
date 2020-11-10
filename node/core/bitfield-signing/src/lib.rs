@@ -164,7 +164,7 @@ async fn get_core_availability(
 			Ok(None) => return Ok(false),
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
-				log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", e);
+				tracing::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", e);
 				return Ok(false);
 			}
 		};
@@ -293,7 +293,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					log::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", runtime_err);
+					tracing::warn!(target: LOG_TARGET, "Encountered a runtime API error: {:?}", runtime_err);
 					return Ok(());
 				}
 				Err(err) => return Err(err),

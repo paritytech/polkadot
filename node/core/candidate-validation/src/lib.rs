@@ -139,7 +139,7 @@ async fn run(
 						Ok(x) => {
 							metrics.on_validation_event(&x);
 							if let Err(_e) = response_sender.send(x) {
-								log::warn!(
+								tracing::warn!(
 									target: LOG_TARGET,
 									"Requester of candidate validation dropped",
 								)

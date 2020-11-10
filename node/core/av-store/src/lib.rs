@@ -73,13 +73,13 @@ enum Error {
 }
 
 impl Error {
-	fn severity(&self) -> log::Level {
+	fn trace(&self) {
 		match self {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) |
-			Self::Oneshot(_) => log::Level::Debug,
+			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, "{:?}", self),
 			// it's worth reporting otherwise
-			_ => log::Level::Warn,
+			_ => tracing::warn!(target: LOG_TARGET, "{:?}", self),
 		}
 	}
 }
@@ -316,13 +316,13 @@ impl AvailabilityStoreSubsystem {
 		let mut pov_pruning = pov_pruning(&self.inner).unwrap_or_default();
 		let now = PruningDelay::now()?;
 
-		log::trace!(target: LOG_TARGET, "Pruning PoVs");
+		tracing::trace!(target: LOG_TARGET, "Pruning PoVs");
 		let outdated_records_count = pov_pruning.iter()
 			.take_while(|r| r.prune_at <= now)
 			.count();
 
 		for record in pov_pruning.drain(..outdated_records_count) {
-			log::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, "Removing record {:?}", record);
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -340,13 +340,13 @@ impl AvailabilityStoreSubsystem {
 		let mut chunk_pruning = chunk_pruning(&self.inner).unwrap_or_default();
 		let now = PruningDelay::now()?;
 
-		log::trace!(target: LOG_TARGET, "Pruning Chunks");
+		tracing::trace!(target: LOG_TARGET, "Pruning Chunks");
 		let outdated_records_count = chunk_pruning.iter()
 			.take_while(|r| r.prune_at <= now)
 			.count();
 
 		for record in chunk_pruning.drain(..outdated_records_count) {
-			log::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, "Removing record {:?}", record);
 			tx.delete(
 				columns::DATA,
 				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
@@ -481,10 +481,10 @@ where
 		let res = run_iteration(&mut subsystem, &mut ctx).await;
 		match res {
 			Err(e) => {
-				log::log!(target: LOG_TARGET, e.severity(), "{}", e);
+				e.trace();
 			}
 			Ok(true) => {
-				log::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+				tracing::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				break;
 			},
 			Ok(false) => continue,
@@ -561,7 +561,7 @@ where
 		// numbers we have to iterate through the whole collection here.
 		for record in pov_pruning.iter_mut() {
 			if record.block_number <= block_number {
-				log::trace!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					"Updating pruning record for finalized block {}",
 					record.block_number,
@@ -580,7 +580,7 @@ where
 	if let Some(mut chunk_pruning) = chunk_pruning(db) {
 		for record in chunk_pruning.iter_mut() {
 			if record.block_number <= block_number {
-				log::trace!(
+				tracing::trace!(
 					target: LOG_TARGET,
 					"Updating chunk pruning record for finalized block {}",
 					record.block_number,
@@ -610,17 +610,17 @@ where
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
 		Err(err) => {
-			log::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			tracing::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
 			return Ok(());
 		}
 	};
 
-	log::trace!(target: LOG_TARGET, "block activated {}", hash);
+	tracing::trace!(target: LOG_TARGET, "block activated {}", hash);
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			log::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
+			tracing::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
 			included.insert(receipt.hash());
 		}
 	}
@@ -996,7 +996,7 @@ fn query_inner<D: Decode>(
 		}
 		Ok(None) => None,
 		Err(e) => {
-			log::warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, "Error reading from the availability store: {:?}", e);
 			None
 		}
 	}

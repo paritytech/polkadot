@@ -103,7 +103,7 @@ async fn overseer_send(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	msg: AvailabilityDistributionMessage,
 ) {
-	log::trace!("Sending message:\n{:?}", &msg);
+	tracing::trace!("Sending message:\n{:?}", &msg);
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -114,13 +114,13 @@ async fn overseer_send(
 async fn overseer_recv(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 ) -> AllMessages {
-	log::trace!("Waiting for message ...");
+	tracing::trace!("Waiting for message ...");
 	let msg = overseer
 		.recv()
 		.timeout(TIMEOUT)
 		.await
 		.expect("TIMEOUT is enough to recv.");
-	log::trace!("Received message:\n{:?}", &msg);
+	tracing::trace!("Received message:\n{:?}", &msg);
 	msg
 }
 
@@ -438,11 +438,11 @@ fn reputation_verification() {
 		let peer_b = PeerId::random();
 		assert_ne!(&peer_a, &peer_b);
 
-		log::trace!("peer A: {:?}", peer_a);
-		log::trace!("peer B: {:?}", peer_b);
+		tracing::trace!("peer A: {:?}", peer_a);
+		tracing::trace!("peer B: {:?}", peer_b);
 
-		log::trace!("candidate A: {:?}", candidates[0].hash());
-		log::trace!("candidate B: {:?}", candidates[1].hash());
+		tracing::trace!("candidate A: {:?}", candidates[0].hash());
+		tracing::trace!("candidate B: {:?}", candidates[1].hash());
 
 		overseer_signal(
 			&mut virtual_overseer,
@@ -626,7 +626,7 @@ fn reputation_verification() {
 		let mut candidates2 = candidates.clone();
 		// check if the availability store can provide the desired erasure chunks
 		for i in 0usize..2 {
-			log::trace!("0000");
+			tracing::trace!("0000");
 			let avail_data = make_available_data(&test_state, pov_block_a.clone());
 			let chunks =
 				derive_erasure_chunks_with_proofs(test_state.validators.len(), &avail_data);
@@ -651,10 +651,10 @@ fn reputation_verification() {
 
 			assert_eq!(chunks.len(), test_state.validators.len());
 
-			log::trace!("xxxx");
+			tracing::trace!("xxxx");
 			// retrieve a stored chunk
 			for (j, chunk) in chunks.into_iter().enumerate() {
-				log::trace!("yyyy i={}, j={}", i, j);
+				tracing::trace!("yyyy i={}, j={}", i, j);
 				if i != 0 {
 					// not a validator, so this never happens
 					break;

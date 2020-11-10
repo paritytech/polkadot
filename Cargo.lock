@@ -4815,7 +4815,6 @@ dependencies = [
  "bitvec",
  "env_logger 0.7.1",
  "futures 0.3.5",
- "log 0.4.11",
  "maplit",
  "parity-scale-codec",
  "polkadot-node-network-protocol",
@@ -4828,6 +4827,7 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -4838,7 +4838,6 @@ dependencies = [
  "env_logger 0.7.1",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-network-protocol",
@@ -4853,6 +4852,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -4884,7 +4884,6 @@ dependencies = [
  "env_logger 0.7.1",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -4894,6 +4893,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -4925,7 +4925,6 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "futures 0.3.5",
- "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "polkadot-node-network-protocol",
@@ -4937,6 +4936,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-runtime",
+ "tracing",
 ]
 
 [[package]]
@@ -4944,7 +4944,6 @@ name = "polkadot-node-collation-generation"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
- "log 0.4.11",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -4953,6 +4952,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -4966,7 +4966,6 @@ dependencies = [
  "kvdb",
  "kvdb-memorydb",
  "kvdb-rocksdb",
- "log 0.4.11",
  "parity-scale-codec",
  "polkadot-erasure-coding",
  "polkadot-node-subsystem",
@@ -4978,6 +4977,7 @@ dependencies = [
  "smallvec 1.4.2",
  "sp-core",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -4987,7 +4987,6 @@ dependencies = [
  "assert_matches",
  "bitvec",
  "futures 0.3.5",
- "log 0.4.11",
  "polkadot-erasure-coding",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5001,6 +5000,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5009,12 +5009,12 @@ version = "0.1.0"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
- "log 0.4.11",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-keystore",
  "thiserror",
+ "tracing",
  "wasm-timer",
 ]
 
@@ -5023,12 +5023,12 @@ name = "polkadot-node-core-candidate-selection"
 version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
- "log 0.4.11",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5037,7 +5037,6 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "futures 0.3.5",
- "log 0.4.11",
  "parity-scale-codec",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5047,6 +5046,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "sp-keyring",
+ "tracing",
 ]
 
 [[package]]
@@ -5069,7 +5069,6 @@ version = "0.1.0"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "polkadot-node-subsystem",
  "polkadot-overseer",
  "polkadot-primitives",
@@ -5084,6 +5083,7 @@ dependencies = [
  "sp-runtime",
  "sp-transaction-pool",
  "substrate-prometheus-endpoint",
+ "tracing",
 ]
 
 [[package]]
@@ -5093,13 +5093,13 @@ dependencies = [
  "bitvec",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-application-crypto",
  "sp-keystore",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5146,7 +5146,6 @@ dependencies = [
  "derive_more",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "pin-project 0.4.23",
@@ -5160,6 +5159,7 @@ dependencies = [
  "sp-core",
  "substrate-prometheus-endpoint",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5169,7 +5169,6 @@ dependencies = [
  "async-trait",
  "futures 0.3.5",
  "futures-timer 3.0.2",
- "log 0.4.11",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "pin-project 0.4.23",
@@ -5182,6 +5181,7 @@ dependencies = [
  "sc-network",
  "smallvec 1.4.2",
  "sp-core",
+ "tracing",
 ]
 
 [[package]]
@@ -5208,6 +5208,7 @@ dependencies = [
  "streamunordered",
  "substrate-prometheus-endpoint",
  "thiserror",
+ "tracing",
 ]
 
 [[package]]
@@ -5219,7 +5220,6 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "kv-log-macro",
- "log 0.4.11",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5228,6 +5228,7 @@ dependencies = [
  "sc-client-api",
  "sp-core",
  "streamunordered",
+ "tracing",
 ]
 
 [[package]]
@@ -5258,13 +5259,13 @@ version = "0.1.0"
 dependencies = [
  "assert_matches",
  "futures 0.3.5",
- "log 0.4.11",
  "polkadot-node-network-protocol",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "sp-core",
+ "tracing",
 ]
 
 [[package]]
@@ -5499,7 +5500,6 @@ dependencies = [
  "hex-literal 0.2.1",
  "kusama-runtime",
  "lazy_static",
- "log 0.4.11",
  "pallet-babe",
  "pallet-im-online",
  "pallet-staking",
@@ -5565,6 +5565,7 @@ dependencies = [
  "sp-transaction-pool",
  "sp-trie",
  "substrate-prometheus-endpoint",
+ "tracing",
  "westend-runtime",
 ]
 
@@ -5576,7 +5577,6 @@ dependencies = [
  "assert_matches",
  "futures 0.3.5",
  "indexmap",
- "log 0.4.11",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
@@ -5589,6 +5589,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-staking",
+ "tracing",
 ]
 
 [[package]]
@@ -5692,7 +5693,6 @@ dependencies = [
  "futures 0.1.29",
  "futures 0.3.5",
  "hex",
- "log 0.4.11",
  "pallet-balances",
  "pallet-staking",
  "pallet-transaction-payment",
@@ -5734,6 +5734,7 @@ dependencies = [
  "substrate-test-utils",
  "tempfile",
  "tokio 0.2.21",
+ "tracing",
 ]
 
 [[package]]

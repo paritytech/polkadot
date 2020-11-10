@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 futures = "0.3.5"
-log = "0.4.11"
+tracing = "0.1.21"
 futures-timer = "3.0.2"
 streamunordered = "0.5.1"
 polkadot-primitives = { path = "../../primitives" }
@@ -22,5 +22,4 @@ polkadot-node-network-protocol = { path = "../network/protocol" }
 futures = { version = "0.3.5", features = ["thread-pool"] }
 futures-timer = "3.0.2"
 femme = "2.1.1"
-log = "0.4.11"
 kv-log-macro = "1.0.7"
