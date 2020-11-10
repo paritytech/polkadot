@@ -136,7 +136,7 @@ async fn handle_signal(
 					Err(e) => {
 						tracing::warn!(
 							target: LOG_TARGET,
-							err=?e,
+							err = ?e,
 							"Error fetching validators from runtime API for active leaf: {:?}",
 							e
 						);

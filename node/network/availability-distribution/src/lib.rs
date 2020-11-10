@@ -797,7 +797,7 @@ impl AvailabilityDistributionSubsystem {
 					{
 						warn!(
 							target: TARGET,
-							err=?e,
+							err = ?e,
 							"Failed to handle incoming network messages: {:?}", e
 						);
 					}

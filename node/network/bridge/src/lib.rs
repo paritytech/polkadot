@@ -291,7 +291,7 @@ fn action_from_overseer_message(
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
 		Err(e) => {
-			tracing::warn!(target: TARGET, err=?e, "Shutting down Network Bridge due to error {:?}", e);
+			tracing::warn!(target: TARGET, err = ?e, "Shutting down Network Bridge due to error {:?}", e);
 			Action::Abort
 		}
 	}
@@ -384,7 +384,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		tracing::warn!(target: TARGET, err=?e, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -392,7 +392,7 @@ async fn update_view(
 		NetworkBridgeEvent::OurViewChange(new_view.clone()),
 		ctx,
 	).await {
-		tracing::warn!(target: TARGET, err=?e, "Aborting - Failure to dispatch messages to overseer");
+		tracing::warn!(target: TARGET, err = ?e, "Aborting - Failure to dispatch messages to overseer");
 		return Err(e)
 	}
 
@@ -691,7 +691,7 @@ where
 						};
 
 						if let Err(e) = res {
-							tracing::warn!(err=?e, "Aborting - Failure to dispatch messages to overseer");
+							tracing::warn!(err = ?e, "Aborting - Failure to dispatch messages to overseer");
 							return Err(e);
 						}
 					}
@@ -720,7 +720,7 @@ where
 					if let Err(e) = res {
 						tracing::warn!(
 							target: TARGET,
-							err=?e,
+							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
 						return Err(e)
@@ -742,7 +742,7 @@ where
 					).await {
 						tracing::warn!(
 							target: TARGET,
-							err=?e,
+							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
 						return Err(e)
@@ -763,7 +763,7 @@ where
 					).await {
 						tracing::warn!(
 							target: TARGET,
-							err=?e,
+							err = ?e,
 							"Aborting - Failure to dispatch messages to overseer",
 						);
 						return Err(e)

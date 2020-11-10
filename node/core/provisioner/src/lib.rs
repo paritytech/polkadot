@@ -205,7 +205,7 @@ impl ProvisioningJob {
 					)
 					.await
 					{
-						tracing::warn!(target: LOG_TARGET, err=?err, "failed to assemble or send inherent data: {:?}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data: {:?}", err);
 						self.metrics.on_inherent_data_request(Err(()));
 					} else {
 						self.metrics.on_inherent_data_request(Ok(()));
@@ -462,8 +462,8 @@ fn bitfields_indicate_availability(
 				// simpler to just handle the error internally here.
 				tracing::warn!(
 					target: LOG_TARGET,
-					validator_idx=%validator_idx,
-					availability_len=%availability_len,
+					validator_idx = %validator_idx,
+					availability_len = %availability_len,
 					"attempted to set a transverse bit at idx {} which is greater than bitfield size {}",
 					validator_idx,
 					availability_len,

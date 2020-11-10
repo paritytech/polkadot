@@ -141,8 +141,8 @@ where
 {
 	trace!(
 		target: LOG_TARGET,
-		rep=?rep,
-		peer=?peer,
+		rep = ?rep,
+		peer_id = %peer,
 		"Reputation change of {:?} for peer {:?}", rep, peer,
 	);
 

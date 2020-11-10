@@ -214,7 +214,7 @@ impl CandidateSelectionJob {
 					Err(err) => {
 						tracing::warn!(
 							target: TARGET,
-							err=?err,
+							err = ?err,
 							"failed to get collation from collator protocol subsystem: {:?}",
 							err
 						);
@@ -231,7 +231,7 @@ impl CandidateSelectionJob {
 			)
 			.await
 			{
-				Err(err) => tracing::warn!(target: TARGET, err=?err, "failed to second a candidate: {:?}", err),
+				Err(err) => tracing::warn!(target: TARGET, err = ?err, "failed to second a candidate: {:?}", err),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
 		}
@@ -250,7 +250,7 @@ impl CandidateSelectionJob {
 		};
 		tracing::info!(
 			target: TARGET,
-			candidate_receipt=?candidate_receipt,
+			candidate_receipt = ?candidate_receipt,
 			"received invalidity note for candidate {:?}",
 			candidate_receipt
 		);
@@ -259,7 +259,7 @@ impl CandidateSelectionJob {
 			if let Err(err) = forward_invalidity_note(received_from, &mut self.sender).await {
 				tracing::warn!(
 					target: TARGET,
-					err=?err,
+					err = ?err,
 					"failed to forward invalidity note: {:?}",
 					err
 				);
@@ -308,7 +308,7 @@ async fn second_candidate(
 		.await
 	{
 		Err(err) => {
-			tracing::warn!(target: TARGET, err=?err, "failed to send a seconding message");
+			tracing::warn!(target: TARGET, err = ?err, "failed to send a seconding message");
 			metrics.on_second(Err(()));
 			Err(err.into())
 		}

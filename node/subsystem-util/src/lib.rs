@@ -581,8 +581,8 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
 				tracing::error!(
 					job=Job::NAME,
-					parent_hash=%parent_hash,
-					err=?e,
+					parent_hash = %parent_hash,
+					err = ?e,
 					"{}({}) finished with an error {:?}",
 					Job::NAME,
 					parent_hash,
@@ -594,7 +594,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 					// there's no point trying to propagate this error onto the channel too
 					// all we can do is warn that error propagation has failed
 					if let Err(e) = err_tx.send((Some(parent_hash), JobsError::Job(e))).await {
-						tracing::warn!(err=?e, "failed to forward error: {:?}", e);
+						tracing::warn!(err = ?e, "failed to forward error: {:?}", e);
 					}
 				}
 			}
@@ -770,7 +770,7 @@ where
 			// if we can't send on the error transmission channel, we can't do anything useful about it
 			// still, we can at least log the failure
 			if let Err(e) = err_tx.send((hash, err)).await {
-				tracing::warn!(err=?e, "failed to forward error: {:?}", e);
+				tracing::warn!(err = ?e, "failed to forward error: {:?}", e);
 			}
 		}
 	}
@@ -797,7 +797,7 @@ where
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						tracing::error!(
 							job=Job::NAME,
-							err=?e,
+							err = ?e,
 							"Failed to spawn a job({}): {:?}",
 							Job::NAME,
 							e,
@@ -832,7 +832,7 @@ where
 				{
 					tracing::error!(
 						job=Job::NAME,
-						err=?e,
+						err = ?e,
 						"failed to stop all jobs ({}) on conclude signal: {:?}",
 						Job::NAME,
 						e,
@@ -859,7 +859,7 @@ where
 			Err(err) => {
 				tracing::error!(
 					job=Job::NAME,
-					err=?err,
+					err = ?err,
 					"error receiving message from subsystem context for job ({}): {:?}",
 					Job::NAME,
 					err,

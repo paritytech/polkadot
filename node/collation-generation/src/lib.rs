@@ -95,7 +95,7 @@ impl CollationGenerationSubsystem {
 				msg = receiver.next().fuse() => {
 					if let Some(msg) = msg {
 						if let Err(err) = ctx.send_message(msg).await {
-							tracing::warn!(target: LOG_TARGET, err=?err, "failed to forward message to overseer: {:?}", err);
+							tracing::warn!(target: LOG_TARGET, err = ?err, "failed to forward message to overseer: {:?}", err);
 							break;
 						}
 					}
@@ -129,7 +129,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						tracing::warn!(target: LOG_TARGET, err=?err, "failed to handle new activations: {}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations: {}", err);
 					};
 				}
 				false
@@ -149,7 +149,7 @@ impl CollationGenerationSubsystem {
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,
-					err=?err,
+					err = ?err,
 					"error receiving message from subsystem context: {:?}",
 					err
 				);
@@ -266,8 +266,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					Err(err) => {
 						tracing::error!(
 							target: LOG_TARGET,
-							para_id=%scheduled_core.para_id,
-							err=?err,
+							para_id = %scheduled_core.para_id,
+							err = ?err,
 							"failed to calculate erasure root for para_id {}: {:?}",
 							scheduled_core.para_id,
 							err
@@ -305,8 +305,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 				)).await {
 					tracing::warn!(
 						target: LOG_TARGET,
-						para_id= %scheduled_core.para_id,
-						err=?err,
+						para_id = %scheduled_core.para_id,
+						err = ?err,
 						"failed to send collation result for para_id {}: {:?}",
 						scheduled_core.para_id,
 						err

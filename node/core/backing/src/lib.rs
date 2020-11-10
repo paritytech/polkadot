@@ -782,7 +782,7 @@ impl util::JobTrait for CandidateBackingJob {
 						Err(e) => {
 							tracing::warn!(
 								target: LOG_TARGET,
-								err=?e,
+								err = ?e,
 								"Failed to fetch runtime API data for job: {:?}",
 								e,
 							);
@@ -823,7 +823,7 @@ impl util::JobTrait for CandidateBackingJob {
 				Err(e) => {
 					tracing::warn!(
 						target: LOG_TARGET,
-						err=?e,
+						err = ?e,
 						"Cannot participate in candidate backing: {:?}",
 						e
 					);

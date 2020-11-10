@@ -612,19 +612,19 @@ where
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
 		Err(err) => {
-			tracing::debug!(target: LOG_TARGET, err=?err, "requesting candidate events failed due to {}", err);
+			tracing::debug!(target: LOG_TARGET, err = ?err, "requesting candidate events failed due to {}", err);
 			return Ok(());
 		}
 	};
 
-	tracing::trace!(target: LOG_TARGET, hash = ?hash, "block activated: {:?}", hash);
+	tracing::trace!(target: LOG_TARGET, hash = %hash, "block activated: {:?}", hash);
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
 			tracing::trace!(
 				target: LOG_TARGET,
-				hash = ?receipt.hash(),
+				hash = %receipt.hash(),
 				"Candidate {:?} was included", receipt.hash(),
 			);
 			included.insert(receipt.hash());
@@ -1002,7 +1002,7 @@ fn query_inner<D: Decode>(
 		}
 		Ok(None) => None,
 		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, err=?e, "Error reading from the availability store: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store: {:?}", e);
 			None
 		}
 	}
