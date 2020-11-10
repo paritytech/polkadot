@@ -1,5 +1,7 @@
 # UMP Module
 
+A module responsible for UMP. See [Messaging Overview](../messaging.md) for more details.
+
 ## Storage
 
 General storage entries

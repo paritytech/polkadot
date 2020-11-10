@@ -1,5 +1,7 @@
 # DMP Module
 
+A module responsible for DMP. See [Messaging Overview](../messaging.md) for more details.
+
 ## Storage
 
 General storage entries
