@@ -21,7 +21,6 @@
 
 use std::time::Duration;
 use futures::{channel::oneshot, FutureExt, TryFutureExt};
-use tracing::trace;
 use thiserror::Error;
 
 use polkadot_subsystem::{
@@ -140,7 +139,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -
 where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>,
 {
-	trace!(
+	tracing::trace!(
 		target: LOG_TARGET,
 		rep = ?rep,
 		peer_id = %peer,

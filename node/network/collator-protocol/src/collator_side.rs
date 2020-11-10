@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use super::{LOG_TARGET,  Result};
 
 use futures::{StreamExt, task::Poll};
-use tracing::warn;
 
 use polkadot_primitives::v1::{
 	CollatorId, CoreIndex, CoreState, Hash, Id as ParaId, CandidateReceipt,
@@ -152,7 +151,7 @@ where
 
 	// This collation is not in the active-leaves set.
 	if !state.view.contains(&relay_parent) {
-		warn!(
+		tracing::warn!(
 			target: LOG_TARGET,
 			relay_parent = %relay_parent,
 			"Distribute collation message parent {:?} is outside of our view",
@@ -172,7 +171,7 @@ where
 	let (our_core, num_cores) = match determine_core(ctx, id, relay_parent).await? {
 		Some(core) => core,
 		None => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				para_id = %id,
 				relay_parent = %relay_parent,
@@ -186,7 +185,7 @@ where
 	let our_validators = match determine_our_validators(ctx, our_core, num_cores, relay_parent).await? {
 		Some(validators) => validators,
 		None => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				core = ?our_core,
 				"There are no validators assigned to {:?} core", our_core,
@@ -381,7 +380,7 @@ where
 				Some(id) if receipt.descriptor.para_id != id => {
 					// If the ParaId of a collation requested to be distributed does not match
 					// the one we expect, we ignore the message.
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						para_id = %receipt.descriptor.para_id,
 						collating_on = %id,
@@ -394,7 +393,7 @@ where
 					distribute_collation(ctx, state, id, receipt, pov).await?;
 				}
 				None => {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						para_id = %receipt.descriptor.para_id,
 						"DistributeCollation message for para {:?} while not collating on any",
@@ -404,19 +403,19 @@ where
 			}
 		}
 		FetchCollation(_, _, _, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"FetchCollation message is not expected on the collator side of the protocol",
 			);
 		}
 		ReportCollator(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"ReportCollator message is not expected on the collator side of the protocol",
 			);
 		}
 		NoteGoodCollation(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"NoteGoodCollation message is not expected on the collator side of the protocol",
 			);
@@ -427,7 +426,7 @@ where
 				state,
 				event,
 			).await {
-				warn!(
+				tracing::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Failed to handle incoming network message: {:?}", e,
@@ -483,13 +482,13 @@ where
 
 	match msg {
 		Declare(_) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"Declare message is not expected on the collator side of the protocol",
 			);
 		}
 		AdvertiseCollation(_, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
@@ -502,7 +501,7 @@ where
 							send_collation(ctx, state, request_id, origin, collation.0, collation.1).await?;
 						}
 					} else {
-						warn!(
+						tracing::warn!(
 							target: LOG_TARGET,
 							for_para_id = %para_id,
 							our_para_id = %our_para_id,
@@ -512,7 +511,7 @@ where
 					}
 				}
 				None => {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						for_para_id = %para_id,
 						"Received a RequestCollation for {:?} while not collating on any para",
@@ -522,7 +521,7 @@ where
 			}
 		}
 		Collation(_, _, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"Collation message is not expected on the collator side of the protocol",
 			);
@@ -658,7 +657,7 @@ where
 		if let Some(mut request) = state.last_connection_request.take() {
 			while let Poll::Ready(Some((validator_id, peer_id))) = futures::poll!(request.next()) {
 				if let Err(err) = handle_validator_connected(&mut ctx, &mut state, peer_id, validator_id).await {
-					warn!(
+					tracing::warn!(
 						target: LOG_TARGET,
 						err = ?err,
 						"Failed to declare our collator id: {:?}",
@@ -674,7 +673,7 @@ where
 			match msg? {
 				Communication { msg } => {
 					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
-						warn!(target: LOG_TARGET, err = ?e, "Failed to process message: {}", e);
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message: {}", e);
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}
@@ -695,7 +694,6 @@ mod tests {
 
 	use assert_matches::assert_matches;
 	use futures::{executor, future, Future};
-	use tracing::trace;
 	use smallvec::smallvec;
 
 	use sp_core::crypto::Pair;
@@ -852,7 +850,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!("Sending message:\n{:?}", &msg);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -867,7 +865,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-		trace!("Received message:\n{:?}", &msg);
+		tracing::trace!("Received message:\n{:?}", &msg);
 
 		msg
 	}
@@ -876,7 +874,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		trace!("Waiting for message...");
+		tracing::trace!("Waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)

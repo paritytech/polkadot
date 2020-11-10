@@ -25,7 +25,6 @@ use futures::{
 	future::BoxFuture,
 	stream::FuturesUnordered,
 };
-use tracing::{trace, warn};
 
 use polkadot_primitives::v1::{
 	Id as ParaId, CandidateReceipt, CollatorId, Hash, PoV,
@@ -206,7 +205,7 @@ where
 				if let Err(e) = tx.send((collation.1.clone(), collation.2.clone())) {
 					// We do not want this to be fatal because the receving subsystem
 					// may have closed the results channel for some reason.
-					trace!(
+					tracing::trace!(
 						target: LOG_TARGET,
 						err = ?e,
 						"Failed to send collation: {:?}", e,
@@ -381,7 +380,7 @@ where
 	Context: SubsystemContext<Message = CollatorProtocolMessage>
 {
 	if !state.view.contains(&relay_parent) {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
 			para_id = %para_id,
@@ -393,7 +392,7 @@ where
 	}
 
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
-		trace!(
+		tracing::trace!(
 			target: LOG_TARGET,
 			peer_id = %peer_id,
 			para_id = %para_id,
@@ -620,14 +619,14 @@ where
 
 	match msg {
 		CollateOn(id) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				para_id = %id,
 				"CollateOn({}) message is not expected on the validator side of the protocol", id,
 			);
 		}
 		DistributeCollation(_, _) => {
-			warn!(
+			tracing::warn!(
 				target: LOG_TARGET,
 				"DistributeCollation message is not expected on the validator side of the protocol",
 			);
@@ -647,7 +646,7 @@ where
 				state,
 				event,
 			).await {
-				warn!(
+				tracing::warn!(
 					target: LOG_TARGET,
 					err = ?e,
 					"Failed to handle incoming network message: {:?}", e,
@@ -681,7 +680,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(target: LOG_TARGET, msg = ?msg, "Received a message {:?}", msg);
+			tracing::trace!(target: LOG_TARGET, msg = ?msg, "Received a message {:?}", msg);
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -697,7 +696,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					trace!(target: LOG_TARGET, id, "Request timed out {}", id);
+					tracing::trace!(target: LOG_TARGET, id, "Request timed out {}", id);
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {
@@ -794,7 +793,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		tracing::trace!("Sending message:\n{:?}", &msg);
+		tracing::tracing::trace!("Sending message:\n{:?}", &msg);
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -809,7 +808,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is enough to receive messages.", TIMEOUT));
 
-		tracing::trace!("Received message:\n{:?}", &msg);
+		tracing::tracing::trace!("Received message:\n{:?}", &msg);
 
 		msg
 	}
@@ -818,7 +817,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		tracing::trace!("Waiting for message...");
+		tracing::tracing::trace!("Waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)
@@ -836,7 +835,7 @@ mod tests {
 			} = test_harness;
 
 			let pair = CollatorPair::generate().0;
-			tracing::trace!("activating");
+			tracing::tracing::trace!("activating");
 
 			overseer_send(
 				&mut virtual_overseer,

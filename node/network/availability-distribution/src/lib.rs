@@ -30,7 +30,6 @@ use futures::{channel::oneshot, FutureExt, TryFutureExt};
 use sp_core::crypto::Public;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
-use tracing::{trace, warn};
 use polkadot_erasure_coding::branch_hash;
 use polkadot_node_network_protocol::{
 	v1 as protocol_v1, NetworkBridgeEvent, PeerId, ReputationChange as Rep, View,
@@ -711,7 +710,7 @@ where
 					)
 					.await?
 					{
-						warn!(
+						tracing::warn!(
 							target: TARGET,
 							"Failed to store erasure chunk to availability store"
 						);
@@ -796,7 +795,7 @@ impl AvailabilityDistributionSubsystem {
 					)
 					.await
 					{
-						warn!(
+						tracing::warn!(
 							target: TARGET,
 							err = ?e,
 							"Failed to handle incoming network messages: {:?}", e
@@ -958,7 +957,7 @@ async fn modify_reputation<Context>(ctx: &mut Context, peer: PeerId, rep: Rep) -
 where
 	Context: SubsystemContext<Message = AvailabilityDistributionMessage>,
 {
-	trace!(
+	tracing::trace!(
 		target: TARGET,
 		"Reputation change of {:?} for peer {:?}",
 		rep,
