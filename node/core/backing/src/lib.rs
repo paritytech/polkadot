@@ -784,8 +784,7 @@ impl util::JobTrait for CandidateBackingJob {
 							tracing::warn!(
 								target: LOG_TARGET,
 								err = ?e,
-								"Failed to fetch runtime API data for job: {:?}",
-								e,
+								"Failed to fetch runtime API data for job",
 							);
 
 							// We can't do candidate validation work if we don't have the
@@ -825,8 +824,7 @@ impl util::JobTrait for CandidateBackingJob {
 					tracing::warn!(
 						target: LOG_TARGET,
 						err = ?e,
-						"Cannot participate in candidate backing: {:?}",
-						e
+						"Cannot participate in candidate backing",
 					);
 
 					return Ok(())

@@ -291,7 +291,7 @@ fn action_from_overseer_message(
 		Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(_)))
 			=> Action::Nop,
 		Err(e) => {
-			tracing::warn!(target: TARGET, err = ?e, "Shutting down Network Bridge due to error {:?}", e);
+			tracing::warn!(target: TARGET, err = ?e, "Shutting down Network Bridge due to error");
 			Action::Abort
 		}
 	}

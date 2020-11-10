@@ -232,7 +232,7 @@ impl CandidateSelectionJob {
 			)
 			.await
 			{
-				Err(err) => tracing::warn!(target: TARGET, err = ?err, "failed to second a candidate: {:?}", err),
+				Err(err) => tracing::warn!(target: TARGET, err = ?err, "failed to second a candidate"),
 				Ok(()) => self.seconded_candidate = Some(collator_id),
 			}
 		}

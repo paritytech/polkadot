@@ -206,7 +206,7 @@ impl ProvisioningJob {
 					)
 					.await
 					{
-						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data: {:?}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
 						self.metrics.on_inherent_data_request(Err(()));
 					} else {
 						self.metrics.on_inherent_data_request(Ok(()));

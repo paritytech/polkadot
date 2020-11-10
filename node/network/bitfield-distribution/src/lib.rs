@@ -154,7 +154,7 @@ impl BitfieldDistribution {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
-					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer: {}, exiting", e);
+					tracing::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
 					return;
 				},
 			};
@@ -179,7 +179,7 @@ impl BitfieldDistribution {
 					tracing::trace!(target: LOG_TARGET, "Processing NetworkMessage");
 					// a network message was received
 					if let Err(e) = handle_network_msg(&mut ctx, &mut state, &self.metrics, event).await {
-						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to handle incoming network messages: {:?}", e);
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to handle incoming network messages");
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
@@ -203,7 +203,7 @@ impl BitfieldDistribution {
 								);
 							}
 							Err(e) => {
-								tracing::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed: {}", e);
+								tracing::warn!(target: LOG_TARGET, err = ?e, "query_basics has failed");
 							}
 							_ => {},
 						}
@@ -643,7 +643,7 @@ where
 			SigningContext { parent_hash: relay_parent, session_index: s },
 		))),
 		(Err(e), _) | (_, Err(e)) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to fetch basics from runtime API");
 			Ok(None)
 		}
 	}

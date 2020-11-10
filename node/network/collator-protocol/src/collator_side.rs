@@ -429,7 +429,7 @@ where
 				tracing::warn!(
 					target: LOG_TARGET,
 					err = ?e,
-					"Failed to handle incoming network message: {:?}", e,
+					"Failed to handle incoming network message",
 				);
 			}
 		},
@@ -673,7 +673,7 @@ where
 			match msg? {
 				Communication { msg } => {
 					if let Err(e) = process_msg(&mut ctx, &mut state, msg).await {
-						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message: {}", e);
+						tracing::warn!(target: LOG_TARGET, err = ?e, "Failed to process message");
 					}
 				},
 				Signal(ActiveLeaves(_update)) => {}

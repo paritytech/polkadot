@@ -1003,7 +1003,7 @@ fn query_inner<D: Decode>(
 		}
 		Ok(None) => None,
 		Err(e) => {
-			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store: {:?}", e);
+			tracing::warn!(target: LOG_TARGET, err = ?e, "Error reading from the availability store");
 			None
 		}
 	}

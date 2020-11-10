@@ -164,7 +164,7 @@ async fn get_core_availability(
 			Ok(None) => return Ok(false),
 			Err(e) => {
 				// Don't take down the node on runtime API errors.
-				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error: {:?}", e);
+				tracing::warn!(target: LOG_TARGET, err = ?e, "Encountered a runtime API error");
 				return Ok(false);
 			}
 		};
@@ -380,7 +380,7 @@ mod tests {
 							assert!(!r.0.get(2).unwrap());
 							break
 						},
-						Err(e) => panic!("Failed: {:?}", e),
+						Err(e) => panic!("Failed"),
 					},
 				}
 			}

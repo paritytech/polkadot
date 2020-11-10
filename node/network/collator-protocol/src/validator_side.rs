@@ -208,7 +208,7 @@ where
 					tracing::trace!(
 						target: LOG_TARGET,
 						err = ?e,
-						"Failed to send collation: {:?}", e,
+						"Failed to send collation",
 					);
 				}
 				return Ok(());
@@ -649,7 +649,7 @@ where
 				tracing::warn!(
 					target: LOG_TARGET,
 					err = ?e,
-					"Failed to handle incoming network message: {:?}", e,
+					"Failed to handle incoming network message",
 				);
 			}
 		}

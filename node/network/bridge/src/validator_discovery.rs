@@ -283,7 +283,7 @@ impl<N: Network, AD: AuthorityDiscovery> Service<N, AD> {
 			PRIORITY_GROUP.to_owned(),
 			multiaddr_to_add,
 		).await {
-			tracing::warn!(target: super::TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress: {}", e);
+			tracing::warn!(target: super::TARGET, err = ?e, "AuthorityDiscoveryService returned an invalid multiaddress");
 		}
 		// the addresses are known to be valid
 		let _ = network_service.remove_from_priority_group(PRIORITY_GROUP.to_owned(), multiaddr_to_remove).await;
