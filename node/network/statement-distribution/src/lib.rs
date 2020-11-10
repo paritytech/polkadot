@@ -689,9 +689,8 @@ async fn handle_incoming_message<'a>(
 			// This should never be out-of-sync with our view if the view updates
 			// correspond to actual `StartWork` messages. So we just log and ignore.
 			tracing::warn!(
-				relay_parent = %relay_parent,
-				"Our view out-of-sync with active heads. Head {} not found",
-				relay_parent,
+				requested_relay_parent = %relay_parent,
+				"our view out-of-sync with active heads; head not found",
 			);
 			return Ok(None);
 		}
@@ -856,8 +855,7 @@ async fn handle_network_update(
 						unknown_hash = %new,
 						"Our network bridge view update \
 						inconsistent with `StartWork` messages we have received from overseer. \
-						Contains unknown hash {}",
-						new,
+						Contains unknown hash.",
 					);
 				}
 			}
@@ -912,8 +910,7 @@ impl StatementDistribution {
 									tracing::warn!(
 										target: LOG_TARGET,
 										err = ?e,
-										"Failed to fetch runtime API data for active leaf: {:?}",
-										e,
+										"Failed to fetch runtime API data for active leaf",
 									);
 
 									// Lacking this bookkeeping might make us behave funny, although

@@ -127,7 +127,7 @@ async fn overseer_send(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 	msg: AvailabilityStoreMessage,
 ) {
-	tracing::trace!("Sending message:\n{:?}", &msg);
+	tracing::trace!(meg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -142,7 +142,7 @@ async fn overseer_recv(
 		.await
 		.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-	tracing::trace!("Received message:\n{:?}", &msg);
+	tracing::trace!(msg = ?msg, "received message");
 
 	msg
 }
@@ -151,7 +151,7 @@ async fn overseer_recv_with_timeout(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityStoreMessage>,
 	timeout: Duration,
 ) -> Option<AllMessages> {
-	tracing::trace!("Waiting for message...");
+	tracing::trace!("waiting for message...");
 	overseer
 		.recv()
 		.timeout(timeout)

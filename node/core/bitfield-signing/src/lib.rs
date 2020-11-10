@@ -294,7 +294,7 @@ impl JobTrait for BitfieldSigningJob {
 			{
 				Err(Error::Runtime(runtime_err)) => {
 					// Don't take down the node on runtime API errors.
-					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error: {:?}", runtime_err);
+					tracing::warn!(target: LOG_TARGET, err = ?runtime_err, "Encountered a runtime API error");
 					return Ok(());
 				}
 				Err(err) => return Err(err),
@@ -380,7 +380,7 @@ mod tests {
 							assert!(!r.0.get(2).unwrap());
 							break
 						},
-						Err(e) => panic!("Failed"),
+						Err(e) => panic!("Failed: {:?}", e),
 					},
 				}
 			}

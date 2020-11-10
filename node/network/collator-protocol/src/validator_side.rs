@@ -385,8 +385,7 @@ where
 			peer_id = %peer_id,
 			para_id = %para_id,
 			relay_parent = %relay_parent,
-			"Collation by {} on {} on relay parent {:?} is no longer in view",
-			peer_id, para_id, relay_parent,
+			"collation is no longer in view",
 		);
 		return Ok(());
 	}
@@ -397,8 +396,7 @@ where
 			peer_id = %peer_id,
 			para_id = %para_id,
 			relay_parent = %relay_parent,
-			"Collation by {} on {} on relay parent {:?} has already been requested",
-			peer_id, para_id, relay_parent,
+			"collation has already been requested",
 		);
 		return Ok(());
 	}
@@ -622,7 +620,7 @@ where
 			tracing::warn!(
 				target: LOG_TARGET,
 				para_id = %id,
-				"CollateOn({}) message is not expected on the validator side of the protocol", id,
+				"CollateOn message is not expected on the validator side of the protocol",
 			);
 		}
 		DistributeCollation(_, _) => {
@@ -680,7 +678,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			tracing::trace!(target: LOG_TARGET, msg = ?msg, "Received a message {:?}", msg);
+			tracing::trace!(target: LOG_TARGET, msg = ?msg, "received a message");
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -696,7 +694,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					tracing::trace!(target: LOG_TARGET, id, "Request timed out {}", id);
+					tracing::trace!(target: LOG_TARGET, id, "request timed out");
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {

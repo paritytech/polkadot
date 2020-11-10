@@ -103,7 +103,7 @@ async fn overseer_send(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 	msg: AvailabilityDistributionMessage,
 ) {
-	tracing::trace!("Sending message:\n{:?}", &msg);
+	tracing::trace!(msg = ?msg, "sending message");
 	overseer
 		.send(FromOverseer::Communication { msg })
 		.timeout(TIMEOUT)
@@ -114,13 +114,13 @@ async fn overseer_send(
 async fn overseer_recv(
 	overseer: &mut test_helpers::TestSubsystemContextHandle<AvailabilityDistributionMessage>,
 ) -> AllMessages {
-	tracing::trace!("Waiting for message ...");
+	tracing::trace!("waiting for message ...");
 	let msg = overseer
 		.recv()
 		.timeout(TIMEOUT)
 		.await
 		.expect("TIMEOUT is enough to recv.");
-	tracing::trace!("Received message:\n{:?}", &msg);
+	tracing::trace!(msg = ?msg, "received message");
 	msg
 }
 

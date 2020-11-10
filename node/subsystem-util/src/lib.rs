@@ -580,13 +580,10 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
 				tracing::error!(
-					job=Job::NAME,
+					job = Job::NAME,
 					parent_hash = %parent_hash,
 					err = ?e,
-					"{}({}) finished with an error {:?}",
-					Job::NAME,
-					parent_hash,
-					e,
+					"job finished with an error",
 				);
 
 				if let Some(mut err_tx) = err_tx {
@@ -635,7 +632,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
-				tracing::debug!(job=Job::NAME, "failed to send message to job ({}), will remove it", Job::NAME);
+				tracing::debug!(job = Job::NAME, "failed to send message to job, will remove it");
 				job.remove();
 			}
 		}
@@ -796,11 +793,9 @@ where
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
 						tracing::error!(
-							job=Job::NAME,
+							job = Job::NAME,
 							err = ?e,
-							"Failed to spawn a job({}): {:?}",
-							Job::NAME,
-							e,
+							"failed to spawn a job",
 						);
 						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
 						return true;
@@ -831,11 +826,9 @@ where
 					.await
 				{
 					tracing::error!(
-						job=Job::NAME,
+						job = Job::NAME,
 						err = ?e,
-						"failed to stop all jobs ({}) on conclude signal: {:?}",
-						Job::NAME,
-						e,
+						"failed to stop a job on conclude signal",
 					);
 					let e = Error::from(e);
 					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
@@ -848,9 +841,8 @@ where
 					match to_job.relay_parent() {
 						Some(hash) => jobs.send_msg(hash, to_job).await,
 						None => tracing::debug!(
-							job=Job::NAME,
-							"Trying to send a message to a job ({}) without specifying a relay parent.",
-							Job::NAME,
+							job = Job::NAME,
+							"trying to send a message to a job without specifying a relay parent",
 						),
 					}
 				}
@@ -858,11 +850,9 @@ where
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
 				tracing::error!(
-					job=Job::NAME,
+					job = Job::NAME,
 					err = ?err,
-					"error receiving message from subsystem context for job ({}): {:?}",
-					Job::NAME,
-					err,
+					"error receiving message from subsystem context for job",
 				);
 				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
 				return true;

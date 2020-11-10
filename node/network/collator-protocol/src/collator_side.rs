@@ -154,8 +154,7 @@ where
 		tracing::warn!(
 			target: LOG_TARGET,
 			relay_parent = %relay_parent,
-			"Distribute collation message parent {:?} is outside of our view",
-			relay_parent,
+			"distribute collation message parent is outside of our view",
 		);
 
 		return Ok(());
@@ -175,7 +174,7 @@ where
 				target: LOG_TARGET,
 				para_id = %id,
 				relay_parent = %relay_parent,
-				"Looks like no core is assigned to {} at {}", id, relay_parent,
+				"looks like no core is assigned to {} at {}", id, relay_parent,
 			);
 			return Ok(());
 		}
@@ -188,7 +187,7 @@ where
 			tracing::warn!(
 				target: LOG_TARGET,
 				core = ?our_core,
-				"There are no validators assigned to {:?} core", our_core,
+				"there are no validators assigned to core",
 			);
 
 			return Ok(());
@@ -384,9 +383,7 @@ where
 						target: LOG_TARGET,
 						para_id = %receipt.descriptor.para_id,
 						collating_on = %id,
-						"DistributeCollation message for para {:?} while collating on {:?}",
-						receipt.descriptor.para_id,
-						id,
+						"DistributeCollation for unexpected para_id",
 					);
 				}
 				Some(id) => {
@@ -396,8 +393,7 @@ where
 					tracing::warn!(
 						target: LOG_TARGET,
 						para_id = %receipt.descriptor.para_id,
-						"DistributeCollation message for para {:?} while not collating on any",
-						receipt.descriptor.para_id,
+						"DistributeCollation message while not collating on any",
 					);
 				}
 			}
@@ -505,8 +501,7 @@ where
 							target: LOG_TARGET,
 							for_para_id = %para_id,
 							our_para_id = %our_para_id,
-							"Received a RequestCollation for {:?} while collating on {:?}",
-							para_id, our_para_id,
+							"received a RequestCollation for unexpected para_id",
 						);
 					}
 				}
@@ -514,8 +509,7 @@ where
 					tracing::warn!(
 						target: LOG_TARGET,
 						for_para_id = %para_id,
-						"Received a RequestCollation for {:?} while not collating on any para",
-						para_id,
+						"received a RequestCollation while not collating on any para",
 					);
 				}
 			}
@@ -660,8 +654,7 @@ where
 					tracing::warn!(
 						target: LOG_TARGET,
 						err = ?err,
-						"Failed to declare our collator id: {:?}",
-						err,
+						"Failed to declare our collator id",
 					);
 				}
 			}
@@ -850,7 +843,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		msg: CollatorProtocolMessage,
 	) {
-		tracing::trace!("Sending message:\n{:?}", &msg);
+		tracing::trace!(msg = ?msg, "sending message");
 		overseer
 			.send(FromOverseer::Communication { msg })
 			.timeout(TIMEOUT)
@@ -865,7 +858,7 @@ mod tests {
 			.await
 			.expect(&format!("{:?} is more than enough to receive messages", TIMEOUT));
 
-		tracing::trace!("Received message:\n{:?}", &msg);
+		tracing::trace!(msg = ?msg, "received message");
 
 		msg
 	}
@@ -874,7 +867,7 @@ mod tests {
 		overseer: &mut test_helpers::TestSubsystemContextHandle<CollatorProtocolMessage>,
 		timeout: Duration,
 	) -> Option<AllMessages> {
-		tracing::trace!("Waiting for message...");
+		tracing::trace!("waiting for message...");
 		overseer
 			.recv()
 			.timeout(timeout)

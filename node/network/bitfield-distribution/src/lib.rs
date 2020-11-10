@@ -170,7 +170,7 @@ impl BitfieldDistribution {
 						hash,
 						signed_availability,
 					).await {
-						tracing::warn!(target: LOG_TARGET, err = ?err, "Failed to reply to `DistributeBitfield` message: {}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "Failed to reply to `DistributeBitfield` message");
 					}
 				}
 				FromOverseer::Communication {
@@ -184,7 +184,7 @@ impl BitfieldDistribution {
 				}
 				FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, deactivated })) => {
 					for relay_parent in activated {
-						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "Start {:?}", relay_parent);
+						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "activated");
 						// query basic system parameters once
 						match query_basics(&mut ctx, relay_parent).await {
 							Ok(Some((validator_set, signing_context))) => {
@@ -210,12 +210,12 @@ impl BitfieldDistribution {
 					}
 
 					for relay_parent in deactivated {
-						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "Stop {:?}", relay_parent);
+						tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "deactivated");
 						// defer the cleanup to the view change
 					}
 				}
 				FromOverseer::Signal(OverseerSignal::BlockFinalized(hash)) => {
-					tracing::trace!(target: LOG_TARGET, hash = %hash, "Block finalized {:?}", hash);
+					tracing::trace!(target: LOG_TARGET, hash = %hash, "block finalized");
 				}
 				FromOverseer::Signal(OverseerSignal::Conclude) => {
 					tracing::trace!(target: LOG_TARGET, "Conclude");
@@ -235,7 +235,7 @@ async fn modify_reputation<Context>(
 where
 	Context: SubsystemContext<Message = BitfieldDistributionMessage>,
 {
-	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "Reputation change of {:?} for peer {:?}", rep, peer);
+	tracing::trace!(target: LOG_TARGET, rep = ?rep, peer_id = %peer, "reputation change");
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
 	))
@@ -270,7 +270,7 @@ where
 	};
 	let validator_set = &job_data.validator_set;
 	if validator_set.is_empty() {
-		tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "Validator set for {:?} is empty", relay_parent);
+		tracing::trace!(target: LOG_TARGET, relay_parent = %relay_parent, "validator set is empty");
 		return Ok(());
 	}
 
@@ -345,8 +345,7 @@ where
 		tracing::trace!(
 			target: LOG_TARGET,
 			relay_parent = %message.relay_parent,
-			"No peers are interested in gossip for relay parent {:?}",
-			message.relay_parent
+			"no peers are interested in gossip for relay parent",
 		);
 	} else {
 		ctx.send_message(AllMessages::NetworkBridge(
@@ -389,8 +388,7 @@ where
 		tracing::trace!(
 			target: LOG_TARGET,
 			relay_parent = %message.relay_parent,
-			"Validator set for relay parent {:?} is empty",
-			&message.relay_parent
+			"Validator set is empty",
 		);
 		return modify_reputation(ctx, origin, COST_MISSING_PEER_SESSION_KEY).await;
 	}
@@ -432,8 +430,7 @@ where
 			tracing::trace!(
 				target: LOG_TARGET,
 				validator_index,
-				"Already received a message for validator at index {}",
-				validator_index
+				"already received a message for validator",
 			);
 			modify_reputation(ctx, origin, BENEFIT_VALID_MESSAGE).await?;
 			return Ok(());
@@ -477,7 +474,7 @@ where
 		NetworkBridgeEvent::PeerMessage(remote, message) => {
 			match message {
 				protocol_v1::BitfieldDistributionMessage::Bitfield(relay_parent, bitfield) => {
-					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "Received bitfield gossip from peer {:?}", &remote);
+					tracing::trace!(target: LOG_TARGET, peer_id = %remote, "received bitfield gossip from peer");
 					let gossiped_bitfield = BitfieldGossipMessage {
 						relay_parent,
 						signed_availability: bitfield,

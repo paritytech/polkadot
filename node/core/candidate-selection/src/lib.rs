@@ -216,8 +216,7 @@ impl CandidateSelectionJob {
 						tracing::warn!(
 							target: TARGET,
 							err = ?err,
-							"failed to get collation from collator protocol subsystem: {:?}",
-							err
+							"failed to get collation from collator protocol subsystem",
 						);
 						return;
 					}
@@ -252,8 +251,7 @@ impl CandidateSelectionJob {
 		tracing::info!(
 			target: TARGET,
 			candidate_receipt = ?candidate_receipt,
-			"received invalidity note for candidate {:?}",
-			candidate_receipt
+			"received invalidity note for candidate",
 		);
 
 		let result =
@@ -261,8 +259,7 @@ impl CandidateSelectionJob {
 				tracing::warn!(
 					target: TARGET,
 					err = ?err,
-					"failed to forward invalidity note: {:?}",
-					err
+					"failed to forward invalidity note",
 				);
 				Err(())
 			} else {

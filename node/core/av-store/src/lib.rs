@@ -77,9 +77,9 @@ impl Error {
 		match self {
 			// don't spam the log with spurious errors
 			Self::RuntimeApi(_) |
-			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, "{:?}", self),
+			Self::Oneshot(_) => tracing::debug!(target: LOG_TARGET, err = ?self),
 			// it's worth reporting otherwise
-			_ => tracing::warn!(target: LOG_TARGET, "{:?}", self),
+			_ => tracing::warn!(target: LOG_TARGET, err = ?self),
 		}
 	}
 }
@@ -322,7 +322,7 @@ impl AvailabilityStoreSubsystem {
 			.count();
 
 		for record in pov_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -346,7 +346,7 @@ impl AvailabilityStoreSubsystem {
 			.count();
 
 		for record in chunk_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record");
 			tx.delete(
 				columns::DATA,
 				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
@@ -565,8 +565,7 @@ where
 				tracing::trace!(
 					target: LOG_TARGET,
 					block_number = %record.block_number,
-					"Updating pruning record for finalized block {}",
-					record.block_number,
+					"Updating pruning record for finalized block",
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -585,8 +584,7 @@ where
 				tracing::trace!(
 					target: LOG_TARGET,
 					block_number = %record.block_number,
-					"Updating chunk pruning record for finalized block {}",
-					record.block_number,
+					"Updating chunk pruning record for finalized block",
 				);
 
 				record.prune_at = PruningDelay::into_the_future(
@@ -613,12 +611,12 @@ where
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
 		Err(err) => {
-			tracing::debug!(target: LOG_TARGET, err = ?err, "requesting candidate events failed due to {}", err);
+			tracing::debug!(target: LOG_TARGET, err = ?err, "requesting candidate events failed");
 			return Ok(());
 		}
 	};
 
-	tracing::trace!(target: LOG_TARGET, hash = %hash, "block activated: {:?}", hash);
+	tracing::trace!(target: LOG_TARGET, hash = %hash, "block activated");
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {

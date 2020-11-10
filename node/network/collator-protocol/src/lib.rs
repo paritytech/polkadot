@@ -143,7 +143,7 @@ where
 		target: LOG_TARGET,
 		rep = ?rep,
 		peer_id = %peer,
-		"Reputation change of {:?} for peer {:?}", rep, peer,
+		"reputation change for peer",
 	);
 
 	ctx.send_message(AllMessages::NetworkBridge(

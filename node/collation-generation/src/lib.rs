@@ -130,7 +130,7 @@ impl CollationGenerationSubsystem {
 					if let Err(err) =
 						handle_new_activations(config.clone(), &activated, ctx, metrics, sender).await
 					{
-						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations: {}", err);
+						tracing::warn!(target: LOG_TARGET, err = ?err, "failed to handle new activations");
 					};
 				}
 				false
@@ -242,8 +242,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						tracing::debug!(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
-							"collator returned no collation on collate for para_id {}.",
-							scheduled_core.para_id,
+							"collator returned no collation on collate",
 						);
 						return
 					}
@@ -269,9 +268,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 							target: LOG_TARGET,
 							para_id = %scheduled_core.para_id,
 							err = ?err,
-							"failed to calculate erasure root for para_id {}: {:?}",
-							scheduled_core.para_id,
-							err
+							"failed to calculate erasure root",
 						);
 						return
 					}
@@ -308,9 +305,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 						target: LOG_TARGET,
 						para_id = %scheduled_core.para_id,
 						err = ?err,
-						"failed to send collation result for para_id {}: {:?}",
-						scheduled_core.para_id,
-						err
+						"failed to send collation result",
 					);
 				}
 			})).await?;

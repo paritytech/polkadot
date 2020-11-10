@@ -959,9 +959,9 @@ where
 {
 	tracing::trace!(
 		target: TARGET,
-		"Reputation change of {:?} for peer {:?}",
-		rep,
-		peer
+		rep = ?rep,
+		peer_id = ?peer,
+		"Reputation change for peer",
 	);
 	ctx.send_message(AllMessages::NetworkBridge(
 		NetworkBridgeMessage::ReportPeer(peer, rep),
