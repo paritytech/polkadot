@@ -542,7 +542,7 @@ impl<T: Trait> Module<T> {
 	}
 
 	/// Returns whether the given ID refers to a valid para.
-	pub(crate) fn is_valid_para(id: ParaId) -> bool {
+	pub fn is_valid_para(id: ParaId) -> bool {
 		Self::parachains().binary_search(&id).is_ok()
 			|| Self::is_parathread(id)
 	}
