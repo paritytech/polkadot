@@ -18,12 +18,13 @@
 //! functions.
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use primitives::v1::{
 	ValidatorId, ValidatorIndex, GroupRotationInfo, CoreState, ValidationData,
 	Id as ParaId, OccupiedCoreAssumption, SessionIndex, ValidationCode,
 	CommittedCandidateReceipt, ScheduledCore, OccupiedCore, CoreOccupied, CoreIndex,
 	GroupIndex, CandidateEvent, PersistedValidationData, AuthorityDiscoveryId,
-	InboundDownwardMessage,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::traits::Zero;
 use frame_support::debug;
@@ -327,4 +328,11 @@ pub fn dmq_contents<T: router::Trait>(
 	recipient: ParaId,
 ) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
 	<router::Module<T>>::dmq_contents(recipient)
+}
+
+/// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
+pub fn inbound_hrmp_channels_contents<T: router::Trait>(
+	recipient: ParaId,
+) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
+	<router::Module<T>>::inbound_hrmp_channels_contents(recipient)
 }

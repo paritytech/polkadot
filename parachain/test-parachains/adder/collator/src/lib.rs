@@ -16,12 +16,13 @@
 
 //! Collator for the adder test parachain.
 
-use std::{pin::Pin, sync::{Arc, Mutex}, collections::HashMap};
+use std::{sync::{Arc, Mutex}, collections::HashMap, time::Duration};
 use test_parachain_adder::{hash_state, BlockData, HeadData, execute};
-use futures::{Future, FutureExt};
-use polkadot_primitives::v1::{ValidationData, PoV, Hash};
-use polkadot_node_primitives::Collation;
+use futures_timer::Delay;
+use polkadot_primitives::v1::{PoV, CollatorId, CollatorPair};
+use polkadot_node_primitives::{Collation, CollatorFn};
 use codec::{Encode, Decode};
+use sp_core::Pair;
 
 /// The amount we add when producing a new block.
 ///
@@ -32,6 +33,8 @@ const ADD: u64 = 2;
 struct State {
 	head_to_state: HashMap<Arc<HeadData>, u64>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
+	/// Block number of the best block.
+	best_block: u64,
 }
 
 impl State {
@@ -46,6 +49,7 @@ impl State {
 		Self {
 			head_to_state: vec![(genesis_state.clone(), 0)].into_iter().collect(),
 			number_to_head: vec![(0, genesis_state)].into_iter().collect(),
+			best_block: 0,
 		}
 	}
 
@@ -53,6 +57,8 @@ impl State {
 	///
 	/// Returns the new [`BlockData`] and the new [`HeadData`].
 	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
+		self.best_block = parent_head.number;
+
 		let block = BlockData {
 			state: *self.head_to_state.get(&parent_head).expect("Getting state using parent head"),
 			add: ADD,
@@ -72,6 +78,7 @@ impl State {
 /// The collator of the adder parachain.
 pub struct Collator {
 	state: Arc<Mutex<State>>,
+	key: CollatorPair,
 }
 
 impl Collator {
@@ -79,6 +86,7 @@ impl Collator {
 	pub fn new() -> Self {
 		Self {
 			state: Arc::new(Mutex::new(State::genesis())),
+			key: CollatorPair::generate().0,
 		}
 	}
 
@@ -92,12 +100,24 @@ impl Collator {
 		test_parachain_adder::wasm_binary_unwrap()
 	}
 
+	/// Get the collator key.
+	pub fn collator_key(&self) -> CollatorPair {
+		self.key.clone()
+	}
+
+	/// Get the collator id.
+	pub fn collator_id(&self) -> CollatorId {
+		self.key.public()
+	}
+
 	/// Create the collation function.
 	///
 	/// This collation function can be plugged into the overseer to generate collations for the adder parachain.
 	pub fn create_collation_function(
 		&self,
-	) -> Box<dyn Fn(Hash, &ValidationData) -> Pin<Box<dyn Future<Output = Option<Collation>> + Send>> + Send + Sync> {
+	) -> CollatorFn {
+		use futures::FutureExt as _;
+
 		let state = self.state.clone();
 
 		Box::new(move |relay_parent, validation_data| {
@@ -114,14 +134,30 @@ impl Collator {
 
 			let collation = Collation {
 				upward_messages: Vec::new(),
+				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: PoV { block_data: block_data.encode().into() },
 				processed_downward_messages: 0,
+				hrmp_watermark: validation_data.persisted.block_number,
 			};
 
 			async move { Some(collation) }.boxed()
 		})
+	}
+
+	/// Wait until `blocks` are built and enacted.
+	pub async fn wait_for_blocks(&self, blocks: u64) {
+		let start_block = self.state.lock().unwrap().best_block;
+		loop {
+			Delay::new(Duration::from_secs(1)).await;
+
+			let current_block = self.state.lock().unwrap().best_block;
+
+			if start_block + blocks <= current_block {
+				return
+			}
+		}
 	}
 }
 
@@ -130,8 +166,8 @@ mod tests {
 	use super::*;
 
 	use futures::executor::block_on;
-	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::ExecutionMode};
-	use polkadot_primitives::v1::PersistedValidationData;
+	use polkadot_parachain::{primitives::ValidationParams, wasm_executor::IsolationStrategy};
+	use polkadot_primitives::v1::{ValidationData, PersistedValidationData};
 	use codec::Decode;
 
 	#[test]
@@ -165,7 +201,7 @@ mod tests {
 				hrmp_mqc_heads: Vec::new(),
 				dmq_mqc_head: Default::default(),
 			},
-			&ExecutionMode::InProcess,
+			&IsolationStrategy::InProcess,
 			sp_core::testing::TaskExecutor::new(),
 		).unwrap();
 

@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use sp_std::prelude::*;
-use primitives::v1::ValidatorId;
+use primitives::v1::{Balance, ValidatorId};
 use frame_support::{
 	decl_storage, decl_module, decl_error,
 	dispatch::DispatchResult,
@@ -84,6 +84,32 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the size upper bound of the `CandidateCommitments`.
 	pub max_upward_message_num_per_candidate: u32,
+	/// Number of sessions after which an HRMP open channel request expires.
+	pub hrmp_open_request_ttl: u32,
+	/// The deposit that the sender should provide for opening an HRMP channel.
+	pub hrmp_sender_deposit: Balance,
+	/// The deposit that the recipient should provide for accepting opening an HRMP channel.
+	pub hrmp_recipient_deposit: Balance,
+	/// The maximum number of messages allowed in an HRMP channel at once.
+	pub hrmp_channel_max_capacity: u32,
+	/// The maximum total size of messages in bytes allowed in an HRMP channel at once.
+	pub hrmp_channel_max_total_size: u32,
+	/// The maximum number of inbound HRMP channels a parachain is allowed to accept.
+	pub hrmp_max_parachain_inbound_channels: u32,
+	/// The maximum number of inbound HRMP channels a parathread is allowed to accept.
+	pub hrmp_max_parathread_inbound_channels: u32,
+	/// The maximum size of a message that could ever be put into an HRMP channel.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_channel_max_message_size: u32,
+	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
+	pub hrmp_max_parachain_outbound_channels: u32,
+	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
+	pub hrmp_max_parathread_outbound_channels: u32,
+	/// The maximum number of outbound HRMP messages can be sent by a candidate.
+	///
+	/// This parameter affects the upper bound of size of `CandidateCommitments`.
+	pub hrmp_max_message_num_per_candidate: u32,
 }
 
 pub trait Trait: frame_system::Trait { }
@@ -276,6 +302,117 @@ decl_module! {
 			});
 			Ok(())
 		}
+
+		/// Sets the number of sessions after which an HRMP open channel request expires.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_open_request_ttl(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_open_request_ttl, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_sender_deposit(origin, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_sender_deposit, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
+		/// channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_recipient_deposit(origin, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_recipient_deposit, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of messages allowed in an HRMP channel at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_capacity(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_capacity, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_total_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_total_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parachain_inbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parachain_inbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parathread_inbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parathread_inbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_channel_max_message_size(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_channel_max_message_size, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parachain_outbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parachain_outbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_parathread_outbound_channels(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_parathread_outbound_channels, new) != new
+			});
+			Ok(())
+		}
+
+		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
+		#[weight = (1_000, DispatchClass::Operational)]
+		pub fn set_hrmp_max_message_num_per_candidate(origin, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_config_member(|config| {
+				sp_std::mem::replace(&mut config.hrmp_max_message_num_per_candidate, new) != new
+			});
+			Ok(())
+		}
 	}
 }
 
@@ -360,6 +497,17 @@ mod tests {
 				preferred_dispatchable_upward_messages_step_weight: 20000,
 				max_upward_message_size: 448,
 				max_upward_message_num_per_candidate: 5,
+				hrmp_open_request_ttl: 1312,
+				hrmp_sender_deposit: 22,
+				hrmp_recipient_deposit: 4905,
+				hrmp_channel_max_capacity: 3921,
+				hrmp_channel_max_total_size: 7687,
+				hrmp_max_parachain_inbound_channels: 3722,
+				hrmp_max_parathread_inbound_channels: 1967,
+				hrmp_channel_max_message_size: 8192,
+				hrmp_max_parachain_outbound_channels: 100,
+				hrmp_max_parathread_outbound_channels: 200,
+				hrmp_max_message_num_per_candidate: 20,
 			};
 
 			assert!(<Configuration as Store>::PendingConfig::get().is_none());
@@ -414,6 +562,50 @@ mod tests {
 			).unwrap();
 			Configuration::set_max_upward_message_num_per_candidate(
 				Origin::root(), new_config.max_upward_message_num_per_candidate,
+			).unwrap();
+			Configuration::set_hrmp_open_request_ttl(
+				Origin::root(),
+				new_config.hrmp_open_request_ttl,
+			).unwrap();
+			Configuration::set_hrmp_sender_deposit(
+				Origin::root(),
+				new_config.hrmp_sender_deposit,
+			).unwrap();
+			Configuration::set_hrmp_recipient_deposit(
+				Origin::root(),
+				new_config.hrmp_recipient_deposit,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_capacity(
+				Origin::root(),
+				new_config.hrmp_channel_max_capacity,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_total_size(
+				Origin::root(),
+				new_config.hrmp_channel_max_total_size,
+			).unwrap();
+			Configuration::set_hrmp_max_parachain_inbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parachain_inbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_parathread_inbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parathread_inbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_channel_max_message_size(
+				Origin::root(),
+				new_config.hrmp_channel_max_message_size,
+			).unwrap();
+			Configuration::set_hrmp_max_parachain_outbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parachain_outbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_parathread_outbound_channels(
+				Origin::root(),
+				new_config.hrmp_max_parathread_outbound_channels,
+			).unwrap();
+			Configuration::set_hrmp_max_message_num_per_candidate(
+				Origin::root(),
+				new_config.hrmp_max_message_num_per_candidate,
 			).unwrap();
 
 			assert_eq!(<Configuration as Store>::PendingConfig::get(), Some(new_config));

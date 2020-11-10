@@ -19,7 +19,6 @@
 
 use sp_runtime::traits::{One, Saturating};
 use primitives::v1::{Id as ParaId, PersistedValidationData, TransientValidationData};
-use sp_std::prelude::*;
 
 use crate::{configuration, paras, router};
 
@@ -34,7 +33,7 @@ pub fn make_persisted_validation_data<T: paras::Trait + router::Trait>(
 	Some(PersistedValidationData {
 		parent_head: <paras::Module<T>>::para_head(&para_id)?,
 		block_number: relay_parent_number,
-		hrmp_mqc_heads: Vec::new(),
+		hrmp_mqc_heads: <router::Module<T>>::hrmp_mqc_heads(para_id),
 		dmq_mqc_head: <router::Module<T>>::dmq_mqc_head(para_id),
 	})
 }

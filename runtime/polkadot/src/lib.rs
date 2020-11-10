@@ -30,12 +30,14 @@ use runtime_common::{
 };
 
 use sp_std::prelude::*;
+use sp_std::collections::btree_map::BTreeMap;
 use sp_core::u32_trait::{_1, _2, _3, _4, _5};
 use codec::{Encode, Decode};
 use primitives::v1::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash, Id, Moment, Nonce, OccupiedCoreAssumption,
 	PersistedValidationData, Signature, ValidationCode, ValidationData, ValidatorId, ValidatorIndex,
+	InboundDownwardMessage, InboundHrmpMessage,
 };
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys, ModuleId, ApplyExtrinsicResult,
@@ -1106,9 +1108,16 @@ sp_api::impl_runtime_apis! {
 
 		fn dmq_contents(
 			_recipient: Id,
-		) -> Vec<primitives::v1::InboundDownwardMessage<BlockNumber>> {
+		) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			Vec::new()
 		}
+
+		fn inbound_hrmp_channels_contents(
+			_recipient: Id
+		) -> BTreeMap<Id, Vec<InboundHrmpMessage<BlockNumber>>> {
+			BTreeMap::new()
+		}
+
 	}
 
 	impl fg_primitives::GrandpaApi<Block> for Runtime {

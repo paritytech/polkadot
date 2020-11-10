@@ -219,11 +219,11 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::ValidationWorker(cmd)) => {
 			let _ = sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None);
 
-			if cfg!(feature = "browser") {
+			if cfg!(feature = "browser") || cfg!(target_os = "android") {
 				Err(sc_cli::Error::Input("Cannot run validation worker in browser".into()))
 			} else {
-				#[cfg(all(not(feature = "browser"), not(feature = "service-rewr")))]
-				service::run_validation_worker(&cmd.mem_id)?;
+				#[cfg(not(any(target_os = "android", feature = "browser")))]
+				polkadot_parachain::wasm_executor::run_worker(&cmd.mem_id)?;
 				Ok(())
 			}
 		},

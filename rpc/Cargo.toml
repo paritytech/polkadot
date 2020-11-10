@@ -5,7 +5,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 [dependencies]
-jsonrpc-core = "15.0.0"
+jsonrpc-core = "15.1.0"
 polkadot-primitives = { path = "../primitives" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master"  }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master"  }

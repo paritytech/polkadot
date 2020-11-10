@@ -228,14 +228,24 @@ pub trait Subsystem<C: SubsystemContext> {
 /// types of messages. Used for tests or as a placeholder.
 pub struct DummySubsystem;
 
-impl<C: SubsystemContext> Subsystem<C> for DummySubsystem {
+impl<C: SubsystemContext> Subsystem<C> for DummySubsystem
+where
+	C::Message: std::fmt::Debug
+{
 	fn start(self, mut ctx: C) -> SpawnedSubsystem {
 		let future = Box::pin(async move {
 			loop {
 				match ctx.recv().await {
-					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
 					Err(_) => return Ok(()),
-					_ => continue,
+					Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => return Ok(()),
+					Ok(overseer_msg) => {
+						log::debug!(
+							target: "dummy-subsystem",
+							"Discarding a message sent from overseer {:?}",
+							overseer_msg
+						);
+						continue;
+					}
 				}
 			}
 		});
