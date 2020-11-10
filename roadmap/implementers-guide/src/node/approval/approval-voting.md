@@ -203,22 +203,22 @@ On receiving an `ApprovedAncestor(Hash, BlockNumber, response_channel)`:
     * If so, set `n_tranches = tranches_to_approve(approval_entry)`.
     * If `check_approval(block_entry, approval_entry, n_tranches)` is true, set the corresponding bit in the `block_entry.approved_bitfield`.
 
-#### `tranches_to_approve(approval_entry) -> tranches`
-  * Determine the amount of tranches `n_tranches` our view of the protocol requires of this approval entry
-    1. First, set `t := session_info.needed_approvals`.  Set the base tranche `l=0`.
-    2. Take assignments from tranches `l..` until we have at least `t` assignments.  Let `k` denote the highest tranche taken.  If we run out of tranches to take then we have de facto escalated to every validator checking the block, so return this fact.
-    3. Count the number `assigned` of assignments taken in tranches `0..k`.  If `assigned < t` then return a special value `ALL` which indicates we wait for more assignments. 
-    4. Count the number `noshows` of no-shows in tranches `l..k`.  If `noshows` is zero then return success with `n_tranches := k`.  Of course this happens early and does not indicate final termination, as we may later return `ALL` after more no-shows, but if all these assigned checkers vote valid then we are done.
+#### ` assignees_status(approval_entry) -> AssigneeStatus`
+  * Summarise our view of this approval entry's run by iterating over assignment and approval vote records 
+    1. First, set `needed := session_info.needed_approvals`.  Set the base tranche `l=0`.
+    2. Take assignments from tranches `l..` until we have at least `needed` assignments or hit our timeouts.  Let `tranches` denote the highest tranche taken (plus one).  
+    3. Count the number `assigned` of assignments taken in tranches `0..tranches`.  If `assigned < needed` then return a special value `PENDING` which indicates we wait for more assignments. 
+    4. Count the number `approvals` in tranches `0..tranches`.  Also, count the number of `noshows` of no-shows in tranches `l..tranches`.  If `noshows` is zero then return `DONE(approvals,assigned,needed,tranches)`.  Of course, this indicates potential approval only if `approvals == assigned` and we hide the assignment timeout for `tranches`.  In fact, this is an over simplification since we care about arrival times, so counting tranches does not suffice here.  If `approvals < assigned` then more no-shows could occur on future invokations, returning us to `PEMNDING`.
     5. For each no-show in `noshows`, we require both another checker and another tranche, which ever means more tranches.  Take assignments from at least `no_shows` subsequent tranches and then if we have not yet covered all noshows then continue taking tranches until we do cover all no-shows.  e.g. if there are 2 no-shows, we might only need to take 1 additional tranche with >= 2 assignments. Or we might need to take 3 tranches, where one is empty and the other two have 1 assignment each. 
-    6. At this point, set `l := k` and set `k` to be the number of tranches taken so far.  Also set `t := assigned - noshows` so that all uncovered assignments must eventually be covered.  Repeat from step 2.  
+    6. At this point, set `l := tranches` and again set `tranches` to be the number of tranches taken so far.  Also set `needed := assigned - noshows` so that all uncovered assignments must eventually be covered.  Repeat from step 2.  
+    7. We return `DONE(..)` if we run out of tranches.    
 
 #### `check_approval(block_entry, approval_entry, n_tranches) -> bool`
-  * If `n_tranches` is ALL, return false
-  * Otherwise, if all validators in `n_tranches` have either approved or been replaced as a no-show, then return `true`.  If any validator in these tranches has not yet approved but is not yet considered a no-show, return `false`.
+  * Invoke `assignees_status` and then check if `approvals == assigned == needed` or if `needed >= num_validators` then we ask that `3 approvals > 2 num_validators`.  
 
 #### `process_wakeup(relay_block, candidate_hash)`
   * Load the `BlockEntry` and `CandidateEntry` from disk. If either is not present, this may have lost a race with finality and can be ignored. Also load the `ApprovalEntry` for the block and candidate.
-  * Set `n_tranches = tranches_to_approve(approval_entry)`
+  * Extract `n_tranches` from `assignees_status(approval_entry)`
   * If `OurAssignment` has tranche `<= n_tranches`, the tranche is live according to our local clock (based against block slot), and we have not triggered the assignment already
     * Import to `ApprovalEntry`
     * Broadcast on network with an `ApprovalNetworkingMessage::DistributeAssignment`.
