@@ -701,7 +701,10 @@ pub fn new_full<RuntimeApi, Executor>(
 		// given delay.
 		let voting_rule = match grandpa_pause {
 			Some((block, delay)) => {
-				info!("GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
+				info!(
+					block=%block,
+					delay=%delay,
+					"GRANDPA scheduled voting pause set for block #{} with a duration of {} blocks.",
 					block,
 					delay,
 				);

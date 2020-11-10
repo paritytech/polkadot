@@ -249,6 +249,7 @@ impl CandidateSelectionJob {
 		};
 		tracing::info!(
 			target: TARGET,
+			candidate_receipt=?candidate_receipt,
 			"received invalidity note for candidate {:?}",
 			candidate_receipt
 		);
