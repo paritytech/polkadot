@@ -37,7 +37,7 @@ due to claims of some parachain being invalid.
 
 > TODO: accept reports based on VRF
 
-> TODO: candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity
+> TODO: candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity.
 
 The local disputes are necessary in order to create the first escalation that leads to block producers abandoning the chain and making remote disputes possible.
 
@@ -344,3 +344,25 @@ When a supermajority is achieved for the dispute in either the valid or invalid 
 
 * Transplanting slashing transactions must happen off-chain, since there is no guarantee that the fork will receive any more blocks.
 * Supermajority is given when `x >= ($votes - $votes/3)` which guarantees the correct rounding behaviour also denoted as `>2/3` (`2f + 1`)
+
+
+## Partition On-Chain vs Off-Chain
+
+```mermaid
+sequenceDiagram
+    participant on as On-Chain
+    participant off as Off-Chain
+    on ->> off: offchain_index::set(b"k", b"v")
+
+    activate off
+    off ->> on: trait OffchainSubmitTransaction::submit_at(..)
+    Note over on,off: with args:<br> `at: Block` current<br>`source: TransactionSource::Local`<br>`xts: <_>::Extrinsic::IncludeData(<encoded data for On-Chain>)`
+    deactivate off
+```
+
+Transitioning the gap from on-chain to off-chain is done by two means.
+The offchain indexing API to move data from On-Chain to deferred Off-Chain
+consumption.
+This has to be done for the validator sets, plus the data of interest (TODO what's that exactly?) that is going to be part of the block and record the meshbehaviour of the minority of the quorums as defined earlier.
+
+In the reverse, from off-chain to on-chain, crafting a direct transaction achieves the information crossing by passing a scale encoded structure containing sufficient data to identify the offenders.
