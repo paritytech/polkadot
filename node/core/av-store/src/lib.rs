@@ -322,7 +322,7 @@ impl AvailabilityStoreSubsystem {
 			.count();
 
 		for record in pov_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record {:?}", record);
 			tx.delete(
 				columns::DATA,
 				available_data_key(&record.candidate_hash).as_slice(),
@@ -346,7 +346,7 @@ impl AvailabilityStoreSubsystem {
 			.count();
 
 		for record in chunk_pruning.drain(..outdated_records_count) {
-			tracing::trace!(target: LOG_TARGET, "Removing record {:?}", record);
+			tracing::trace!(target: LOG_TARGET, record = ?record, "Removing record {:?}", record);
 			tx.delete(
 				columns::DATA,
 				erasure_chunk_key(&record.candidate_hash, record.chunk_index).as_slice(),
@@ -563,6 +563,7 @@ where
 			if record.block_number <= block_number {
 				tracing::trace!(
 					target: LOG_TARGET,
+					block_number = %record.block_number,
 					"Updating pruning record for finalized block {}",
 					record.block_number,
 				);
@@ -582,6 +583,7 @@ where
 			if record.block_number <= block_number {
 				tracing::trace!(
 					target: LOG_TARGET,
+					block_number = %record.block_number,
 					"Updating chunk pruning record for finalized block {}",
 					record.block_number,
 				);
@@ -615,12 +617,16 @@ where
 		}
 	};
 
-	tracing::trace!(target: LOG_TARGET, "block activated {}", hash);
+	tracing::trace!(target: LOG_TARGET, hash = ?hash, "block activated: {:?}", hash);
 	let mut included = HashSet::new();
 
 	for event in events.into_iter() {
 		if let CandidateEvent::CandidateIncluded(receipt, _) = event {
-			tracing::trace!(target: LOG_TARGET, "Candidate {:?} was included", receipt.hash());
+			tracing::trace!(
+				target: LOG_TARGET,
+				hash = ?receipt.hash(),
+				"Candidate {:?} was included", receipt.hash(),
+			);
 			included.insert(receipt.hash());
 		}
 	}

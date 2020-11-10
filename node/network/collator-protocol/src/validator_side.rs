@@ -208,6 +208,7 @@ where
 					// may have closed the results channel for some reason.
 					trace!(
 						target: LOG_TARGET,
+						err=?e,
 						"Failed to send collation: {:?}", e,
 					);
 				}
@@ -382,7 +383,10 @@ where
 	if !state.view.contains(&relay_parent) {
 		trace!(
 			target: LOG_TARGET,
-			"Collation by {} on {} on relay parent {} is no longer in view",
+			peer_id=%peer_id,
+			para_id=%para_id,
+			relay_parent=?relay_parent,
+			"Collation by {} on {} on relay parent {:?} is no longer in view",
 			peer_id, para_id, relay_parent,
 		);
 		return Ok(());
@@ -391,7 +395,10 @@ where
 	if state.requested_collations.contains_key(&(relay_parent, para_id.clone(), peer_id.clone())) {
 		trace!(
 			target: LOG_TARGET,
-			"Collation by {} on {} on relay parent {} has already been requested",
+			peer_id=%peer_id,
+			para_id=%para_id,
+			relay_parent=?relay_parent,
+			"Collation by {} on {} on relay parent {:?} has already been requested",
 			peer_id, para_id, relay_parent,
 		);
 		return Ok(());
@@ -671,7 +678,7 @@ where
 	loop {
 		if let Poll::Ready(msg) = futures::poll!(ctx.recv()) {
 			let msg = msg?;
-			trace!(target: LOG_TARGET, "Received a message {:?}", msg);
+			trace!(target: LOG_TARGET, msg=?msg, "Received a message {:?}", msg);
 
 			match msg {
 				Communication { msg } => process_msg(&mut ctx, msg, &mut state).await?,
@@ -687,7 +694,7 @@ where
 			// if the chain has not moved on yet.
 			match request {
 				CollationRequestResult::Timeout(id) => {
-					trace!(target: LOG_TARGET, "Request timed out {}", id);
+					trace!(target: LOG_TARGET, id, "Request timed out {}", id);
 					request_timed_out(&mut ctx, &mut state, id).await?;
 				}
 				CollationRequestResult::Received(id) => {
