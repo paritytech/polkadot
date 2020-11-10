@@ -580,6 +580,9 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 		let (future, abort_handle) = future::abortable(async move {
 			if let Err(e) = Job::run(parent_hash, run_args, metrics, to_job_rx, from_job_tx).await {
 				tracing::error!(
+					job=Job::NAME,
+					parent_hash=%parent_hash,
+					err=?e,
 					"{}({}) finished with an error {:?}",
 					Job::NAME,
 					parent_hash,
@@ -792,7 +795,13 @@ where
 				for hash in activated {
 					let metrics = metrics.clone();
 					if let Err(e) = jobs.spawn_job(hash, run_args.clone(), metrics) {
-						tracing::error!("Failed to spawn a job({}): {:?}", Job::NAME, e);
+						tracing::error!(
+							job=Job::NAME,
+							err=?e,
+							"Failed to spawn a job({}): {:?}",
+							Job::NAME,
+							e,
+						);
 						Self::fwd_err(Some(hash), JobsError::Utility(e), err_tx).await;
 						return true;
 					}
@@ -821,7 +830,13 @@ where
 					.forward(drain())
 					.await
 				{
-					tracing::error!("failed to stop all jobs ({}) on conclude signal: {:?}", Job::NAME, e);
+					tracing::error!(
+						job=Job::NAME,
+						err=?e,
+						"failed to stop all jobs ({}) on conclude signal: {:?}",
+						Job::NAME,
+						e,
+					);
 					let e = Error::from(e);
 					Self::fwd_err(None, JobsError::Utility(e), err_tx).await;
 				}
@@ -842,7 +857,13 @@ where
 			}
 			Ok(Signal(BlockFinalized(_))) => {}
 			Err(err) => {
-				tracing::error!("error receiving message from subsystem context for job ({}): {:?}", Job::NAME, err);
+				tracing::error!(
+					job=Job::NAME,
+					err=?err,
+					"error receiving message from subsystem context for job ({}): {:?}",
+					Job::NAME,
+					err,
+				);
 				Self::fwd_err(None, JobsError::Utility(Error::from(err)), err_tx).await;
 				return true;
 			}

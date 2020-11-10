@@ -1337,7 +1337,7 @@ where
 
 			// Some subsystem exited? It's time to panic.
 			if let Poll::Ready(Some(finished)) = poll!(self.running_subsystems.next()) {
-				tracing::error!(target: LOG_TARGET, "Subsystem finished unexpectedly {:?}", finished);
+				tracing::error!(target: LOG_TARGET, subsystem=?finished, "Subsystem finished unexpectedly {:?}", finished);
 				self.stop().await;
 				return finished;
 			}

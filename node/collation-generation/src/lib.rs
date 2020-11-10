@@ -149,6 +149,7 @@ impl CollationGenerationSubsystem {
 			Err(err) => {
 				tracing::error!(
 					target: LOG_TARGET,
+					err=?err,
 					"error receiving message from subsystem context: {:?}",
 					err
 				);
@@ -265,6 +266,8 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					Err(err) => {
 						tracing::error!(
 							target: LOG_TARGET,
+							para_id=%scheduled_core.para_id,
+							err=?err,
 							"failed to calculate erasure root for para_id {}: {:?}",
 							scheduled_core.para_id,
 							err
