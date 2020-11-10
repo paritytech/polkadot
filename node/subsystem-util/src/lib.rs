@@ -632,7 +632,7 @@ impl<Spawner: SpawnNamed, Job: 'static + JobTrait> Jobs<Spawner, Job> {
 	async fn send_msg(&mut self, parent_hash: Hash, msg: Job::ToJob) {
 		if let Entry::Occupied(mut job) = self.running.entry(parent_hash) {
 			if job.get_mut().send_msg(msg).await.is_err() {
-				tracing::debug!("failed to send message to job ({}), will remove it", Job::NAME);
+				tracing::debug!(job=Job::NAME, "failed to send message to job ({}), will remove it", Job::NAME);
 				job.remove();
 			}
 		}
@@ -833,6 +833,7 @@ where
 					match to_job.relay_parent() {
 						Some(hash) => jobs.send_msg(hash, to_job).await,
 						None => tracing::debug!(
+							job=Job::NAME,
 							"Trying to send a message to a job ({}) without specifying a relay parent.",
 							Job::NAME,
 						),

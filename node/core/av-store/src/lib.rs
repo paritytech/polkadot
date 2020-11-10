@@ -612,7 +612,7 @@ where
 	let events = match request_candidate_events(ctx, hash).await {
 		Ok(events) => events,
 		Err(err) => {
-			tracing::debug!(target: LOG_TARGET, "requesting candidate events failed due to {}", err);
+			tracing::debug!(target: LOG_TARGET, err=?err, "requesting candidate events failed due to {}", err);
 			return Ok(());
 		}
 	};

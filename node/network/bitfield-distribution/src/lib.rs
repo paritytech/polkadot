@@ -154,7 +154,7 @@ impl BitfieldDistribution {
 			let message = match ctx.recv().await {
 				Ok(message) => message,
 				Err(e) => {
-					debug!(target: LOG_TARGET, "Failed to receive a message from Overseer: {}, exiting", e);
+					debug!(target: LOG_TARGET, err=?e, "Failed to receive a message from Overseer: {}, exiting", e);
 					return;
 				},
 			};

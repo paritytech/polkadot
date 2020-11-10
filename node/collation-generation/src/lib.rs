@@ -239,6 +239,7 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					None => {
 						tracing::debug!(
 							target: LOG_TARGET,
+							para_id = %scheduled_core.para_id,
 							"collator returned no collation on collate for para_id {}.",
 							scheduled_core.para_id,
 						);
