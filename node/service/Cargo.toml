@@ -56,6 +56,7 @@ futures = "0.3.4"
 hex-literal = "0.2.1"
 lazy_static = "1.4.0"
 tracing = "0.1.21"
+tracing-futures = "0.2.4"
 parking_lot = "0.9.0"
 serde = { version = "1.0.102", features = ["derive"] }
 slog = "2.5.2"

@@ -75,6 +75,7 @@ impl<Client, Context> Subsystem<Context> for ChainApiSubsystem<Client> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, subsystem), fields(subsystem = std::any::type_name::<ChainApiSubsystem<Client>>()))]
 async fn run<Client>(
 	mut ctx: impl SubsystemContext<Message = ChainApiMessage>,
 	subsystem: ChainApiSubsystem<Client>,

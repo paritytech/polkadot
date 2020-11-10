@@ -473,6 +473,7 @@ fn get_next_chunk_pruning_time(db: &Arc<dyn KeyValueDB>) -> Option<NextChunkPrun
 	query_inner(db, columns::META, &NEXT_CHUNK_PRUNING)
 }
 
+#[tracing::instrument(skip(subsystem, ctx), fields(subsystem = std::any::type_name::<AvailabilityStoreSubsystem>()))]
 async fn run<Context>(mut subsystem: AvailabilityStoreSubsystem, mut ctx: Context)
 where
 	Context: SubsystemContext<Message=AvailabilityStoreMessage>,

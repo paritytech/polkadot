@@ -569,6 +569,7 @@ async fn dispatch_collation_events_to_all<I>(
 	ctx.send_messages(events.into_iter().flat_map(messages_for)).await
 }
 
+#[tracing::instrument(skip(network_service, authority_discovery_service, ctx), fields(subsystem = "NetworkBridge"))]
 async fn run_network<N, AD>(
 	mut network_service: N,
 	mut authority_discovery_service: AD,

@@ -541,6 +541,7 @@ impl PoVDistribution {
 		Self { metrics }
 	}
 
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
 	async fn run(
 		self,
 		mut ctx: impl SubsystemContext<Message = PoVDistributionMessage>,

@@ -152,6 +152,7 @@ impl JobTrait for ProvisioningJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
+	#[tracing::instrument(skip(_run_args, metrics, receiver, sender), fields(subsystem = std::any::type_name::<ProvisioningJob>()))]
 	fn run(
 		relay_parent: Hash,
 		_run_args: Self::RunArgs,

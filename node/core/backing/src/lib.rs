@@ -767,6 +767,7 @@ impl util::JobTrait for CandidateBackingJob {
 
 	const NAME: &'static str = "CandidateBackingJob";
 
+	#[tracing::instrument(skip(keystore, metrics, rx_to, tx_from), fields(subsystem = std::any::type_name::<CandidateBackingJob>()))]
 	fn run(
 		parent: Hash,
 		keystore: SyncCryptoStorePtr,

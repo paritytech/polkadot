@@ -85,6 +85,7 @@ impl<S, C> Subsystem<C> for CandidateValidationSubsystem<S> where
 	}
 }
 
+#[tracing::instrument(skip(ctx, spawn, metrics), fields(subsystem = "CandidateValidationSubsystem"))]
 async fn run(
 	mut ctx: impl SubsystemContext<Message = CandidateValidationMessage>,
 	spawn: impl SpawnNamed + Clone + 'static,

@@ -267,6 +267,7 @@ impl JobTrait for BitfieldSigningJob {
 	const NAME: &'static str = "BitfieldSigningJob";
 
 	/// Run a job for the parent block indicated
+	#[tracing::instrument(skip(keystore, metrics, _receiver, sender), fields(subsystem = std::any::type_name::<BitfieldSigningJob>()))]
 	fn run(
 		relay_parent: Hash,
 		keystore: Self::RunArgs,

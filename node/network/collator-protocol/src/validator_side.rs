@@ -660,6 +660,7 @@ where
 }
 
 /// The main run loop.
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = "Collator Protocol: Validator Side"))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	request_timeout: Duration,

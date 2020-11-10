@@ -96,6 +96,7 @@ impl CollatorProtocolSubsystem {
 		}
 	}
 
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
 	async fn run<Context>(self, ctx: Context) -> Result<()>
 	where
 		Context: SubsystemContext<Message = CollatorProtocolMessage>,

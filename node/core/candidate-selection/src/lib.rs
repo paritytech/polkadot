@@ -134,6 +134,7 @@ impl JobTrait for CandidateSelectionJob {
 	/// Run a job for the parent block indicated
 	//
 	// this function is in charge of creating and executing the job's main loop
+	#[tracing::instrument(skip(_relay_parent, _run_args, metrics, receiver, sender), fields(subsystem = std::any::type_name::<CandidateSelectionJob>()))]
 	fn run(
 		_relay_parent: Hash,
 		_run_args: Self::RunArgs,

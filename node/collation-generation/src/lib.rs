@@ -74,6 +74,7 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
 	async fn run<Context>(mut self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = CollationGenerationMessage>,

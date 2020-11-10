@@ -635,6 +635,7 @@ async fn handle_our_view_change(
 }
 
 /// The collator protocol collator side main loop.
+#[tracing::instrument(skip(ctx, metrics), fields(subsystem = "Collator Protocol: Collator Side"))]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
 	our_id: CollatorId,

@@ -144,6 +144,7 @@ impl BitfieldDistribution {
 	}
 
 	/// Start processing work as passed on from the Overseer.
+	#[tracing::instrument(skip(self, ctx), fields(subsystem = std::any::type_name::<Self>()))]
 	async fn run<Context>(self, mut ctx: Context)
 	where
 		Context: SubsystemContext<Message = BitfieldDistributionMessage>,

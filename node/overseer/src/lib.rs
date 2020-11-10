@@ -1287,6 +1287,7 @@ where
 	}
 
 	/// Run the `Overseer`.
+	#[tracing::instrument(skip(self), fields(subsystem = std::any::type_name::<Self>()))]
 	pub async fn run(mut self) -> SubsystemResult<()> {
 		let leaves = std::mem::take(&mut self.leaves);
 		let mut update = ActiveLeavesUpdate::default();

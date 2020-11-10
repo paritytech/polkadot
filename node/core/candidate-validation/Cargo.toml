@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 futures = "0.3.5"
 tracing = "0.1.21"
+tracing-futures = "0.2.4"
 
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master" }
 parity-scale-codec = { version = "1.3.0", default-features = false, features = ["bit-vec", "derive"] }

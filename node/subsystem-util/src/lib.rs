@@ -978,6 +978,7 @@ macro_rules! delegated_subsystem {
 			}
 
 			/// Run this subsystem
+			#[tracing::instrument(skip(ctx, run_args, metrics, spawner), fields(subsystem = $subsystem_name))]
 			pub async fn run(ctx: Context, run_args: $run_args, metrics: $metrics, spawner: Spawner) {
 				<Manager<Spawner, Context>>::run(ctx, run_args, metrics, spawner, None).await
 			}

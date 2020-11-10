@@ -4828,6 +4828,7 @@ dependencies = [
  "sp-keystore",
  "tempfile",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -4853,6 +4854,7 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -4872,6 +4874,7 @@ dependencies = [
  "substrate-browser-utils",
  "substrate-build-script-utils",
  "thiserror",
+ "tracing-futures",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -4894,6 +4897,7 @@ dependencies = [
  "sp-keyring",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -4937,6 +4941,7 @@ dependencies = [
  "sp-keyring",
  "sp-runtime",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -4953,6 +4958,7 @@ dependencies = [
  "sp-core",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -4978,6 +4984,7 @@ dependencies = [
  "sp-core",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5001,6 +5008,7 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5029,6 +5037,7 @@ dependencies = [
  "sp-core",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5047,6 +5056,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5061,6 +5071,8 @@ dependencies = [
  "polkadot-primitives",
  "sp-blockchain",
  "sp-core",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5100,6 +5112,7 @@ dependencies = [
  "sp-keystore",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5113,6 +5126,8 @@ dependencies = [
  "polkadot-primitives",
  "sp-api",
  "sp-core",
+ "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5160,6 +5175,7 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5182,6 +5198,7 @@ dependencies = [
  "smallvec 1.4.2",
  "sp-core",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5209,6 +5226,7 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "thiserror",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5229,6 +5247,7 @@ dependencies = [
  "sp-core",
  "streamunordered",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5266,6 +5285,7 @@ dependencies = [
  "polkadot-primitives",
  "sp-core",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5566,6 +5586,7 @@ dependencies = [
  "sp-trie",
  "substrate-prometheus-endpoint",
  "tracing",
+ "tracing-futures",
  "westend-runtime",
 ]
 
@@ -5590,6 +5611,7 @@ dependencies = [
  "sp-keystore",
  "sp-staking",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]
@@ -5735,6 +5757,7 @@ dependencies = [
  "tempfile",
  "tokio 0.2.21",
  "tracing",
+ "tracing-futures",
 ]
 
 [[package]]

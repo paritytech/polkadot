@@ -15,6 +15,7 @@ erasure-coding = { package = "polkadot-erasure-coding", path = "../../../erasure
 statement-table = { package = "polkadot-statement-table", path = "../../../statement-table" }
 bitvec = { version = "0.17.4", default-features = false, features = ["alloc"] }
 tracing = "0.1.21"
+tracing-futures = "0.2.4"
 thiserror = "1.0.21"
 
 [dev-dependencies]
