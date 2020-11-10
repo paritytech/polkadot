@@ -12,19 +12,27 @@ checked out with `git checkout release-{{ env.VERSION }}`
 
 ### Runtime Releases
 
+These checks should be performed on the codebase prior to forking to a release-
+candidate branch.
+
 - [ ] Verify [`spec_version`](#spec-version) has been incremented since the
     last release for any native runtimes from any existing use on public
     (non-private/test) networks.
-- [ ] Verify [new migrations](#new-migrations) complete successfully, and the
-    runtime state is correctly updated.
 - [ ] Verify previously [completed migrations](#old-migrations-removed) are
-    removed.
+    removed for any public (non-private/test) networks.
 - [ ] Verify pallet and [extrinsic ordering](#extrinsic-ordering) has stayed
     the same. Bump `transaction_version` if not.
 - [ ] Verify new extrinsics have been correctly whitelisted/blacklisted for
     [proxy filters](#proxy-filtering).
 - [ ] Verify [benchmarks](#benchmarks) have been updated for any modified
     runtime logic.
+
+The following checks can be performed after we have forked off to the release-
+candidate branch.
+
+- [ ] Verify [new migrations](#new-migrations) complete successfully, and the
+    runtime state is correctly updated for any public (non-private/test)
+    networks.
 - [ ] Verify [Polkadot JS API](#polkadot-js) are up to date with the latest
     runtime changes.
 
@@ -59,7 +67,8 @@ Add any necessary assets to the release. They should include:
 
 The release notes should list:
 
-- The priority of the release (i.e., how quickly users should upgrade)
+- The priority of the release (i.e., how quickly users should upgrade) - this is
+    based on the max priority of any *client* changes.
 - Which native runtimes and their versions are included
 - The proposal hashes of the runtimes as built with
     [srtool](https://gitlab.com/chevdor/srtool)
@@ -77,15 +86,16 @@ A runtime upgrade must bump the spec number. This may follow a pattern with the
 client release (e.g. runtime v12 corresponds to v0.8.12, even if the current
 runtime is not v11).
 
+### Old Migrations Removed
+
+Any previous `on_runtime_upgrade` functions from old upgrades must be removed
+to prevent them from executing a second time. The `on_runtime_upgrade` function
+can be found in `runtime/<runtime>/src/lib.rs`.
+
 ### New Migrations
 
 Ensure that any migrations that are required due to storage or logic changes
 are included in the `on_runtime_upgrade` function of the appropriate pallets.
-
-### Old Migrations Removed
-
-Any previous `on_runtime_upgrade` functions from old upgrades must be removed
-to prevent them from executing a second time.
 
 ### Extrinsic Ordering
 
