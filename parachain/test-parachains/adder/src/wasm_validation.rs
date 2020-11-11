@@ -23,7 +23,7 @@ use parachain::primitives::{ValidationResult, HeadData as GenericHeadData};
 use codec::{Encode, Decode};
 
 #[no_mangle]
-pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
+pub extern "C" fn validate_block(params: *const u8, len: u32) -> u64 {
 	let params = unsafe { parachain::load_params(params, len) };
 	let parent_head = HeadData::decode(&mut &params.parent_head.0[..])
 		.expect("invalid parent head format.");
