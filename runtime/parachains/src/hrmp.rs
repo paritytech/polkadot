@@ -29,9 +29,11 @@ use primitives::v1::{
 	SessionIndex,
 };
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT};
-use sp_std::collections::{btree_map::BTreeMap, btree_set::BTreeSet};
-use sp_std::{mem, fmt};
-use sp_std::prelude::*;
+use sp_std::{
+	mem, fmt,
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
+	prelude::*,
+};
 
 /// A description of a request to open an HRMP channel.
 #[derive(Encode, Decode)]
@@ -80,7 +82,7 @@ pub struct HrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
-/// An error returned by `check_hrmp_watermark` that indicates an acceptance criteria check
+/// An error returned by [`check_hrmp_watermark`] that indicates an acceptance criteria check
 /// didn't pass.
 pub enum HrmpWatermarkAcceptanceErr<BlockNumber> {
 	AdvancementRule {
@@ -96,7 +98,7 @@ pub enum HrmpWatermarkAcceptanceErr<BlockNumber> {
 	},
 }
 
-/// An error returned by `check_outbound_hrmp` that indicates an acceptance criteria check
+/// An error returned by [`check_outbound_hrmp`] that indicates an acceptance criteria check
 /// didn't pass.
 pub enum OutboundHrmpAcceptanceErr {
 	MoreMessagesThanPermitted {

@@ -14,9 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{configuration::{self, HostConfiguration}, initializer};
-use sp_std::prelude::*;
-use sp_std::fmt;
+use crate::{
+	configuration::{self, HostConfiguration},
+	initializer,
+};
+use sp_std::{fmt, prelude::*};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
 use frame_support::{decl_module, decl_storage, StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
@@ -50,7 +52,7 @@ impl UmpSink for () {
 	}
 }
 
-/// An error returned by `check_upward_messages` that indicates a violation of one of acceptance
+/// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
 	MoreMessagesThanPermitted {
@@ -272,13 +274,10 @@ impl<T: Trait> Module<T> {
 				v.extend(upward_messages.into_iter())
 			});
 
-			<Self as Store>::RelayDispatchQueueSize::mutate(
-				&para,
-				|(ref mut cnt, ref mut size)| {
-					*cnt += extra_cnt;
-					*size += extra_size;
-				},
-			);
+			<Self as Store>::RelayDispatchQueueSize::mutate(&para, |(ref mut cnt, ref mut size)| {
+				*cnt += extra_cnt;
+				*size += extra_size;
+			});
 
 			<Self as Store>::NeedsDispatch::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {
@@ -689,8 +688,7 @@ mod tests {
 
 		// actually count the counts and sizes in queues and compare them to the bookkeeped version.
 		for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
-			let (expected_count, expected_size) =
-				<Ump as Store>::RelayDispatchQueueSize::get(para);
+			let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
 			let (actual_count, actual_size) =
 				queue.into_iter().fold((0, 0), |(acc_count, acc_size), x| {
 					(acc_count + 1, acc_size + x.len() as u32)
@@ -720,9 +718,11 @@ mod tests {
 		}
 
 		// `NeedsDispatch` is always sorted.
-		assert!(<Ump as Store>::NeedsDispatch::get()
-			.windows(2)
-			.all(|xs| xs[0] <= xs[1]));
+		assert!(
+			<Ump as Store>::NeedsDispatch::get()
+				.windows(2)
+				.all(|xs| xs[0] <= xs[1])
+		);
 	}
 
 	#[test]
