@@ -25,7 +25,6 @@ use futures::{
 	FutureExt, StreamExt,
 };
 use futures_timer::Delay;
-use kv_log_macro as log;
 
 use polkadot_primitives::v1::{BlockData, PoV};
 use polkadot_overseer::{Overseer, AllSubsystems};
