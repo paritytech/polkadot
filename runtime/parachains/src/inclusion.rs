@@ -773,7 +773,7 @@ impl<T: Trait> CandidateCheckContext<T> {
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,
-			AcceptanceCheckErr::HeadDataTooLarge
+			AcceptanceCheckErr::HeadDataTooLarge,
 		);
 
 		// if any, the code upgrade attempt is allowed.
@@ -786,11 +786,11 @@ impl<T: Trait> CandidateCheckContext<T> {
 				});
 			ensure!(
 				valid_upgrade_attempt,
-				AcceptanceCheckErr::PrematureCodeUpgrade
+				AcceptanceCheckErr::PrematureCodeUpgrade,
 			);
 			ensure!(
 				new_validation_code.0.len() <= self.config.max_code_size as _,
-				AcceptanceCheckErr::NewCodeTooLarge
+				AcceptanceCheckErr::NewCodeTooLarge,
 			);
 		}
 

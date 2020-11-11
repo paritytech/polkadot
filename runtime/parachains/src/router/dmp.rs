@@ -17,8 +17,7 @@
 use super::{Trait, Module, Store};
 use crate::configuration::HostConfiguration;
 use frame_support::{StorageMap, weights::Weight, traits::Get};
-use sp_std::prelude::*;
-use sp_std::fmt;
+use sp_std::{fmt, prelude::*};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use primitives::v1::{Id as ParaId, DownwardMessage, InboundDownwardMessage, Hash};
 
@@ -29,7 +28,7 @@ pub enum QueueDownwardMessageError {
 	ExceedsMaxMessageSize,
 }
 
-/// An error returned by `check_processed_downward_messages` that indicates an acceptance check
+/// An error returned by [`check_processed_downward_messages`] that indicates an acceptance check
 /// didn't pass.
 pub enum ProcessedDownwardMessagesAcceptanceErr {
 	/// If there are pending messages then `processed_downward_messages` should be at least 1,

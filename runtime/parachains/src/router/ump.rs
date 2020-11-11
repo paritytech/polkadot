@@ -16,8 +16,7 @@
 
 use super::{Trait, Module, Store};
 use crate::configuration::{self, HostConfiguration};
-use sp_std::prelude::*;
-use sp_std::fmt;
+use sp_std::{fmt, prelude::*};
 use sp_std::collections::{btree_map::BTreeMap, vec_deque::VecDeque};
 use frame_support::{StorageMap, StorageValue, weights::Weight, traits::Get};
 use primitives::v1::{Id as ParaId, UpwardMessage};
@@ -51,7 +50,7 @@ impl UmpSink for () {
 	}
 }
 
-/// An error returned by `check_upward_messages` that indicates a violation of one of acceptance
+/// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
 pub enum AcceptanceCheckErr {
 	MoreMessagesThanPermitted {
@@ -79,7 +78,8 @@ impl fmt::Debug for AcceptanceCheckErr {
 			AcceptanceCheckErr::MoreMessagesThanPermitted { sent, permitted } => write!(
 				fmt,
 				"more upward messages than permitted by config ({} > {})",
-				sent, permitted,
+				sent,
+				permitted,
 			),
 			AcceptanceCheckErr::MessageSize {
 				idx,
@@ -88,17 +88,21 @@ impl fmt::Debug for AcceptanceCheckErr {
 			} => write!(
 				fmt,
 				"upward message idx {} larger than permitted by config ({} > {})",
-				idx, msg_size, max_size,
+				idx,
+				msg_size,
+				max_size,
 			),
 			AcceptanceCheckErr::CapacityExceeded { count, limit } => write!(
 				fmt,
 				"the ump queue would have more items than permitted by config ({} > {})",
-				count, limit,
+				count,
+				limit,
 			),
 			AcceptanceCheckErr::TotalSizeExceeded { total_size, limit } => write!(
 				fmt,
 				"the ump queue would have grown past the max size permitted by config ({} > {})",
-				total_size, limit,
+				total_size, 
+				limit,
 			),
 		}
 	}

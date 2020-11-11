@@ -77,7 +77,7 @@ pub struct HrmpChannel {
 	pub mqc_head: Option<Hash>,
 }
 
-/// An error returned by `check_hrmp_watermark` that indicates an acceptance criteria check
+/// An error returned by [`check_hrmp_watermark`] that indicates an acceptance criteria check
 /// didn't pass.
 pub enum HrmpWatermarkAcceptanceErr<BlockNumber> {
 	AdvancementRule {
@@ -93,7 +93,7 @@ pub enum HrmpWatermarkAcceptanceErr<BlockNumber> {
 	},
 }
 
-/// An error returned by `check_outbound_hrmp` that indicates an acceptance criteria check
+/// An error returned by [`check_outbound_hrmp`] that indicates an acceptance criteria check
 /// didn't pass.
 pub enum OutboundHrmpAcceptanceErr {
 	MoreMessagesThanPermitted {
@@ -137,7 +137,8 @@ where
 			} => write!(
 				fmt,
 				"the HRMP watermark is not advanced relative to the last watermark ({:?} > {:?})",
-				new_watermark, last_watermark,
+				new_watermark,
+				last_watermark,
 			),
 			AheadRelayParent {
 				new_watermark,
@@ -145,12 +146,13 @@ where
 			} => write!(
 				fmt,
 				"the HRMP watermark is ahead the relay-parent ({:?} > {:?})",
-				new_watermark, relay_chain_parent_number
+				new_watermark,
+				relay_chain_parent_number,
 			),
 			LandsOnBlockWithNoMessages { new_watermark } => write!(
 				fmt,
 				"the HRMP watermark ({:?}) doesn't land on a block with messages received",
-				new_watermark
+				new_watermark,
 			),
 		}
 	}
@@ -163,7 +165,8 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			MoreMessagesThanPermitted { sent, permitted } => write!(
 				fmt,
 				"more HRMP messages than permitted by config ({} > {})",
-				sent, permitted,
+				sent,
+				permitted,
 			),
 			NotSorted { idx } => write!(
 				fmt,
@@ -173,7 +176,9 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			NoSuchChannel { idx, channel_id } => write!(
 				fmt,
 				"the HRMP message at index {} is sent to a non existent channel {:?}->{:?}",
-				idx, channel_id.sender, channel_id.recipient,
+				idx,
+				channel_id.sender,
+				channel_id.recipient,
 			),
 			MaxMessageSizeExceeded {
 				idx,
@@ -182,7 +187,9 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			} => write!(
 				fmt,
 				"the HRMP message at index {} exceeds the negotiated channel maximum message size ({} > {})",
-				idx, msg_size, max_size,
+				idx,
+				msg_size,
+				max_size,
 			),
 			TotalSizeExceeded {
 				idx,
@@ -191,12 +198,16 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			} => write!(
 				fmt,
 				"sending the HRMP message at index {} would exceed the neogitiated channel total size  ({} > {})",
-				idx, total_size, limit,
+				idx,
+				total_size,
+				limit,
 			),
 			CapacityExceeded { idx, count, limit } => write!(
 				fmt,
 				"sending the HRMP message at index {} would exceed the neogitiated channel capacity  ({} > {})",
-				idx, count, limit,
+				idx,
+				count,
+				limit,
 			),
 		}
 	}
