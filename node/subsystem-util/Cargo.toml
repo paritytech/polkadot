@@ -7,7 +7,7 @@ description = "Subsystem traits and message definitions"
 
 [dependencies]
 async-trait = "0.1.41"
-futures = { version = "0.3.8", package = "futures" }
+futures = "0.3.8"
 futures-timer = "3.0.2"
 log = "0.4.11"
 thiserror = "1.0.22"

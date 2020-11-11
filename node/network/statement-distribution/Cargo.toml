@@ -6,7 +6,7 @@ description = "Statement Distribution Subsystem"
 edition = "2018"
 
 [dependencies]
-futures = { version = "0.3.8", package = "futures" }
+futures = "0.3.8"
 log = "0.4.11"
 polkadot-primitives = { path = "../../../primitives" }
 node-primitives = { package = "polkadot-node-primitives", path = "../../primitives" }
