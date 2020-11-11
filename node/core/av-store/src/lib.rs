@@ -527,10 +527,10 @@ where
 				}
 			}
 		}
-		pov_pruning_time = pov_pruning_time => {
+		_ = pov_pruning_time => {
 			subsystem.prune_povs()?;
 		}
-		chunk_pruning_time = chunk_pruning_time => {
+		_ = chunk_pruning_time => {
 			subsystem.prune_chunks()?;
 		}
 		complete => return Ok(true),
