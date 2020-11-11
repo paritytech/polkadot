@@ -27,6 +27,8 @@ This is necessary to slash the losing party appropriately which is based on the 
 
 ## Local Disputes
 
+Who does local disputes, validators self-select based on a [VRF](##-Secondary-Approval-Checking).
+
 We could approve, and even finalize,
 a relay chain block which then later disputes
 due to claims of some parachain being invalid.
@@ -34,8 +36,6 @@ due to claims of some parachain being invalid.
 > TODO: store all included candidate and attestations on them here.
 
 > TODO: accept additional backing after the fact
-
-> TODO: accept reports based on VRF
 
 > TODO: candidate included in session S should only be reported on by validator keys from session S. trigger slashing. probably only slash for session S even if the report was submitted in session S+k because it is hard to unify identity.
 
@@ -57,14 +57,6 @@ After concluding with enough validators voting, the dispute will remain open for
 > TODO: rephrases `signal in the header-chain`
 
 ## Remote Disputes
-
-Slashing must happen off-chain, since there is no guarantee that forks of the current selected head, will receive any more
-blocks. As such that block must be scheduled in the transaction pool (?).
-
-```mermaid
-graph LR;
-    S[Slash]-->T[Transplant slash to all Active Heads]
-```
 
 On dispute detection, the full block that is disputed is gossiped to all peers.
 
@@ -140,9 +132,7 @@ If the availability process passes, the _remote_ dispute is ready to be voted fo
 
 ### Conclusion
 
-As with the local dispute, validators self-select based on a VRF (verifyable random function) todo **what?**.
-
-> TODO: elaborate on what's the point on the VRF self selection.
+As with the local dispute, validators self-select based on a [VRF](##-Secondary-Approval-Checking).
 
 After enough validator self-select, under the same escalation rules as for local disputes, the _remote_ dispute will conclude, slashing all those on the wrong side of the dispute.
 
@@ -190,7 +180,7 @@ sequenceDiagram
 # Building Blocks
 
 * session info helper module
-* historical slashing provides data about the sessions that would otherwise long be gone, off-chain
+* historical slashing provides means to store validator sets for later consumption to the off-chain storage
 
 # Messages
 
@@ -207,6 +197,9 @@ enum ValidityVote {
 ```
 
 ```rust
+/// A message of a validator gossiped that it voted a certain way.
+/// 
+// TODO add security here, how to do this?
 struct ValidityVoteMessage {
   hash: Hash, // the block hash being disputed
   session: SessionIndex,
@@ -229,8 +222,7 @@ struct UnconcludedDisputeGossipNotificationMessage {
   // TODO current is relative, and the session might change, so the option is very likely pointless, it's mostly a perf optimization for some cases TBD.
   validation_code: Option<ValidationCode>,
   /// Set of secondary checks that already completed. There is no requirement on which chain the validation has to have appeared on.
-  /// FIXME does thes need to be a map? Do we need the `AuthorityId` key? Should this better be `ValidatorIndex` (combined with `session` this becomes well defined)
-  secondary_checks: Vec<(AuthorityId, ValidityAttestation<Signature>)>
+  secondary_checks: Vec<(ValidatorIndex, ValidityAttestation<Signature>)>
 }
 ```
 
@@ -254,12 +246,13 @@ struct DisputeBitfield {
 ## Storage Layout
 
 ```rust
-DisputedBlocks: map Hash => DisputeBitfield, // tracks the data required for disputed blocks
+/// tracks the data required for disputed blocks
+DisputedBlocks: map Hash => DisputeBitfield,
 ```
 
 # Session Change
 
-Can be ignored, since all validators are bonded `N` days beyond their duty.
+Can be ignored, since all validators are bonded `z` days beyond their duty.
 
 # Routines
 
@@ -309,44 +302,17 @@ Can be ignored, since all validators are bonded `N` days beyond their duty.
   1. for each `active_head` in `active_heads`
     1. queue a transaction with the `slashing_inherent`
 
-
-# Open Questions
-
-  - what happens with open disputes on session / era change?
-  - > TODO: validator-dispute could be instead replaced by a fisherman w/ bond
-  - > TODO: Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same one. Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary approval checker.
-  - decided and describe **era** change validator set change resolution
-  - decided and describe **session** change validator set change resolution
-  - who can dispute, validators of the current session? Or also validators of the previous session?
-
-## Slashing and Incentivization
-
-The goal of the dispute is to garner a majority either in favor of or against the candidate.
-
-For remote disputes, it is possible that the parablock disputed has never actually passed any availability process on any chain. In this case, validators will not be able to obtain the PoV of the parablock and there will be relatively few votes. We want to disincentivize voters claiming validity of the block from preventing it from becoming available, so we charge them a small distraction fee for wasting the others' time if the dispute does not garner a 2/3+ supermajority on either side. This fee can take the form of a small slash or a reduction in rewards.
-
-When a supermajority is achieved for the dispute in either the valid or invalid direction, we will penalize non-voters either by issuing a small slash or reducing their rewards. We prevent censorship of the remaining validators by leaving the dispute open for some blocks after resolution in order to accept late votes.
-
-
-## Threat Model
-
-* A remote validator is taken over by a malicious party and desires to be slashed.
-* Network bipartition can lead to not reach the required quorum to conclude a dispute.
-
-## Assumptions
-
-* An adversary cannot censor validators from seeing any particular forks indefinitely.
-* Remote disputes are with respect to the same validator set as on the current fork, as BABE and GRANDPA assure that forks are never long enough to diverge in validator set.
-  > TODO: this is at least directionally correct. handling disputes on other validator sets seems useless anyway as they wouldn't be bonded.
-*
-
-## Impl. Notes / Constraints
-
-* Transplanting slashing transactions must happen off-chain, since there is no guarantee that the fork will receive any more blocks.
-* Supermajority is given when `x >= ($votes - $votes/3)` which guarantees the correct rounding behaviour also denoted as `>2/3` (`2f + 1`)
-
-
 ## Partition On-Chain vs Off-Chain
+
+Slashing must happen off-chain, since there is no guarantee that forks of the current selected head, will receive any more
+blocks. As such that block must be scheduled in the transaction pool.
+
+```mermaid
+graph LR;
+    S[Slash]-->T[Transplant slash to all Active Heads]
+```
+
+The slash here is part of a transaction.
 
 ```mermaid
 sequenceDiagram
@@ -366,3 +332,38 @@ consumption.
 This has to be done for the validator sets, plus the data of interest (TODO what's that exactly?) that is going to be part of the block and record the meshbehaviour of the minority of the quorums as defined earlier.
 
 In the reverse, from off-chain to on-chain, crafting a direct transaction achieves the information crossing by passing a scale encoded structure containing sufficient data to identify the offenders.
+
+## Secondary Approval Checking
+
+Given that a remote dispute is likely to be replayed across multiple forks, it is important to choose a VRF in a way that all forks processing the remote dispute will have the same output of the VRF process.
+Choosing the VRF is important as it should not allow an adversary to have control over who will be selected as a secondary approval checker.
+
+The VRF is defined by / part of the consensus algorithm.
+
+## Slashing and Incentivization
+
+The goal of the dispute is to garner a majority either in favor of or against the candidate.
+
+For remote disputes, it is possible that the parablock disputed has never actually passed any availability process on any chain. In this case, validators will not be able to obtain the PoV of the parablock and there will be relatively few votes. We want to disincentivize voters claiming validity of the block from preventing it from becoming available, so we charge them a small distraction fee for wasting the others' time if the dispute does not garner a 2/3+ supermajority on either side. This fee can take the form of a small slash or a reduction in rewards.
+
+When a supermajority is achieved for the dispute in either the valid or invalid direction, we will penalize non-voters either by issuing a small slash or reducing their rewards. We prevent censorship of the remaining validators by leaving the dispute open for some blocks after resolution in order to accept late votes.
+
+
+## Threat Model
+
+* A remote validator is taken over by a malicious party and desires to be slashed by disputing valid blocks.
+* A remote validator is slashing a block that was never made available in the first case to the para.
+* Forced network bipartition can lead to not reach the required quorum to conclude a dispute, which statistically implies also a bipartition of the validators.
+
+## Assumptions
+
+* An adversary cannot censor validators from seeing any particular forks indefinitely.
+* Remote disputes are with respect to the same validator set as on the current fork, as BABE and GRANDPA assure that forks are never long enough to diverge in validator set.
+  > TODO: this is at least directionally correct. handling disputes on other validator sets seems useless anyway as they wouldn't be bonded.
+* ...
+
+## Impl. Notes / Constraints
+
+* Transplanting slashing transactions must happen off-chain, since there is no guarantee that the fork will receive any more blocks.
+* Supermajority is given when `x >= ($votes - $votes/3)` which guarantees the correct rounding behaviour also denoted as `>2/3` (`2f + 1`)
+
