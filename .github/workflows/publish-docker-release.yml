@@ -31,8 +31,8 @@ jobs:
           push: true
           file: scripts/docker/release.Dockerfile
           tags: |
-            martinparity/polkadot:latest
-            martinparity/polkadot:${{ github.event.release.tag_name }}
+            parity/polkadot:latest
+            parity/polkadot:${{ github.event.release.tag_name }}
           build-args: |
             POLKADOT_VERSION=${{ github.event.release.tag_name }}
             VCS_REF=${{ github.ref }}
