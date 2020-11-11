@@ -421,7 +421,7 @@ where
 		all_subsystems,
 		registry,
 		spawner,
-	).map_err(|e| Error::Other(format!("Failed to create an Overseer")))
+	).map_err(|e| Error::Other(format!("Failed to create an Overseer: {:?}", e)))
 }
 
 #[cfg(feature = "full-node")]
